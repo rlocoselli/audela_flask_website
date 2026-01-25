@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="220" viewBox="0 0 760 220" role="img" aria-label="AUDELA logo dark">
+  <defs>
+    <linearGradient id="g2" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#0a2540"/>
+      <stop offset="1" stop-color="#1a4d8f"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(44,28)">
+    <path d="M88 164 L148 20 L208 164" fill="none" stroke="url(#g2)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M116 112 L180 112" fill="none" stroke="url(#g2)" stroke-width="18" stroke-linecap="round"/>
+    <circle cx="242" cy="56" r="9" fill="#1a4d8f"/>
+    <circle cx="262" cy="76" r="7" fill="#1a4d8f" opacity="0.9"/>
+    <circle cx="282" cy="96" r="5" fill="#1a4d8f" opacity="0.8"/>
+  </g>
+  <text x="360" y="138" font-family="Arial, Helvetica, sans-serif" font-size="78" font-weight="800"
+        fill="#0a2540" letter-spacing="2">AUDELA</text>
+  <text x="365" y="178" font-family="Arial, Helvetica, sans-serif" font-size="22"
+        fill="#3b4a5a" letter-spacing="0.5">Aller au-delà des données</text>
+</svg>

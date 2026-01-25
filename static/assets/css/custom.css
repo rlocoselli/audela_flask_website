@@ -1,0 +1,40 @@
+/* AUDELA custom tweaks */
+#logo a { display: inline-flex; align-items: center; gap: 0.6rem; }
+#logo img { height: 34px; width: auto; display: inline-block; }
+#logo .brand-text { letter-spacing: 0.06em; font-weight: 800; }
+#nav a { text-transform: none; }
+#banner .content header h2 { letter-spacing: 0.08em; }
+
+
+/* --- AUDELA Carousel --- */
+.audela-carousel { position: relative; max-width: 1100px; margin: 0 auto; }
+.audela-carousel .slides { position: relative; overflow: hidden; border-radius: 18px; }
+.audela-carousel .slide { display: none; }
+.audela-carousel .slide.active { display: block; }
+.audela-carousel img { width: 100%; height: auto; display: block; border-radius: 18px; }
+.audela-carousel .caption {
+  position: absolute; left: 24px; bottom: 24px;
+  background: rgba(10, 37, 64, 0.72); color: #fff;
+  padding: 14px 16px; border-radius: 14px; max-width: 70%;
+}
+.audela-carousel .caption h3 { margin: 0 0 6px 0; color: #fff; }
+.audela-carousel .caption p { margin: 0; opacity: 0.92; }
+.audela-carousel .controls { display: flex; justify-content: center; gap: 10px; margin-top: 14px; }
+.audela-carousel .dot {
+  width: 10px; height: 10px; border-radius: 999px;
+  background: rgba(10, 37, 64, 0.25); cursor: pointer;
+}
+.audela-carousel .dot.active { background: rgba(10, 37, 64, 0.9); }
+.audela-carousel .arrows { position: absolute; inset: 0; pointer-events: none; }
+.audela-carousel .arrow {
+  pointer-events: auto;
+  position: absolute; top: 50%; transform: translateY(-50%);
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.18);
+  width: 44px; height: 44px; border-radius: 999px;
+  display: grid; place-items: center; color: #fff;
+  cursor: pointer; user-select: none;
+}
+.audela-carousel .arrow:hover { background: rgba(255,255,255,0.18); }
+.audela-carousel .arrow.prev { left: 14px; }
+.audela-carousel .arrow.next { right: 14px; }
