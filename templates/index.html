@@ -1,245 +1,202 @@
-<!DOCTYPE HTML>
-<!--
-	Landed by HTML5 UP
-	html5up.net | @ajlkn
-	Free for personal and commercial use under the CCA 3.0 license (html5up.net/license)
--->
-<html>
-	<head>
-		<title>AUDELA – Data, BI, ERP, LegalTech & IA</title>
-		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-		<link rel="stylesheet" href="{{ url_for('static', filename='assets/css/main.css') }}" />
-			<link rel="stylesheet" href="{{ url_for('static', filename='assets/css/custom.css') }}" />
-		<noscript><link rel="stylesheet" href="{{ url_for('static', filename='assets/css/noscript.css') }}" /></noscript>
-	</head>
-	<body class="is-preload landing">
-		<div id="page-wrapper">
+{% extends "base.html" %}
 
-			<!-- Header -->
-				<header id="header">
-					<h1 id="logo"><a href="{{ url_for('index') }}"><img src="{{ url_for('static', filename='images/audela-logo.svg') }}" alt="AUDELA" /><span class="brand-text">Au de là des données</span></a></h1>
-					<nav id="nav">
-	<ul>
-		<li><a href="#banner" class="scrolly">Accueil</a></li>
-		<li><a href="#one" class="scrolly">À propos</a></li>
-		<li><a href="#two" class="scrolly">Expertise</a></li>
-		<li><a href="#three" class="scrolly">Solutions</a></li>
-		<li><a href="#four" class="scrolly">Pourquoi AUDELA</a></li>
-		<li><a href="#five" class="button primary scrolly">Contact</a></li>
-	</ul>
-</nav>
-				</header>
+{% block body_class %}is-preload landing{% endblock %}
 
-			<!-- Banner -->
-				<section id="banner">
-					<div class="content">
-						<header>
-							<h2>AUDELA</h2>
-							<p>La technologie au service de la décision.<br />
-Données, BI, ERP, LegalTech & IA — au cœur de vos opérations.</p>
-						</header>
-						<span class="image"><img src="{{ url_for('static', filename='images/audela-hero.svg') }}" alt="" /></span>
-					</div>
-					<a href="#one" class="goto-next scrolly">Next</a>
-				</section>
-
-			<!-- One -->
-				<section id="one" class="spotlight style1 bottom">
-					<span class="image fit main"><img src="{{ url_for('static', filename='images/banner.jpg') }}" alt="" /></span>
-					<div class="content">
-						<div class="container">
-							<div class="row">
-								<div class="col-4 col-12-medium">
-									<header>
-										<h2>Aller au-delà des données</h2>
-										<p>Transformer l’information en décisions, avec une ingénierie logicielle robuste et une compréhension métier réelle.</p>
-									</header>
-								</div>
-								<div class="col-4 col-12-medium">
-									<p>Nous livrons des solutions fiables et mesurables : données maîtrisées, processus automatisés, décisions accélérées. Chaque projet est conçu pour la production, la sécurité et la maintenabilité.</p>
-								</div>
-								<div class="col-4 col-12-medium">
-									<p>Nous livrons des solutions fiables et mesurables : données maîtrisées, processus automatisés, décisions accélérées. Chaque projet est conçu pour la production, la sécurité et la maintenabilité.</p>
-								</div>
-							</div>
-						</div>
-					</div>
-					<a href="#two" class="goto-next scrolly">Next</a>
-				</section>
-
-			<!-- Two -->
-				<section id="two" class="spotlight style2 right">
-					<span class="image fit main"><img src="{{ url_for('static', filename='images/pic08.jpg') }}" alt="" /></span>
-					<div class="content">
-						<header>
-							<h2>Analyse de données & Business Intelligence</h2>
-							<p>Nous construisons des plateformes d’analytics capables d’ingérer, structurer et exposer la donnée depuis vos systèmes (ERP, CRM, finance, opérations, APIs). Objectif : des indicateurs fiables, des analyses actionnables et une traçabilité complète.</p>
-						</header>
-						<p>Nous livrons des solutions fiables et mesurables : données maîtrisées, processus automatisés, décisions accélérées. Chaque projet est conçu pour la production, la sécurité et la maintenabilité.</p>
-						<ul class="actions">
-							<li><a href="#" class="button">Learn More</a></li>
-						</ul>
-					</div>
-					<a href="#three" class="goto-next scrolly">Next</a>
-				</section>
-
-			<!-- Three -->
-				<section id="three" class="spotlight style3 left">
-					<span class="image fit main bottom"><img src="{{ url_for('static', filename='images/pic06.jpg') }}" alt="" /></span>
-					<div class="content">
-						<header>
-							<h2>Interdum felis blandit praesent sed augue</h2>
-							<p>Plateformes métiers, ERP & IA appliquée</p>
-						</header>
-						<p>AUDELA développe des ERP et plateformes métiers alignés sur vos workflows réels (finance, contrôle, opérations, conformité). Nous proposons aussi des solutions LegalTech pour cabinets d’avocats : gestion des dossiers, rentabilité par affaire, automatisation documentaire et auditabilité. L’IA est intégrée de manière pragmatique (détection d’anomalies, aide à la décision, traitement de documents) avec une exigence d’explicabilité.</p>
-						<ul class="actions">
-							<li><a href="#" class="button">Learn More</a></li>
-						</ul>
-					</div>
-					<a href="#four" class="goto-next scrolly">Next</a>
-				</section>
-
-<section id="carousel" class="wrapper style1 special fade-up">
-  <div class="container">
-    <header class="major">
-      <h2>Visuels & cas d’usage : Data, IA, ERP</h2>
-      <p>Un aperçu des types de solutions que nous concevons : pilotage, automatisation et intelligence appliquée.</p>
-    </header>
-
-    <div class="audela-carousel">
-      <div class="slides">
-        <div class="slide active">
-          <img src="{{ url_for('static', filename='images/audela-carousel-01.svg') }}" alt="Data & BI – Tableaux de bord" />
-          <div class="caption">
-            <h3>Data & BI</h3>
-            <p>Tableaux de bord exécutifs, KPIs, gouvernance, qualité et traçabilité de bout en bout.</p>
-          </div>
-        </div>
-        <div class="slide">
-          <img src="{{ url_for('static', filename='images/audela-carousel-02.svg') }}" alt="IA appliquée – Détection d’anomalies" />
-          <div class="caption">
-            <h3>IA appliquée</h3>
-            <p>Détection d’anomalies, scoring de risques, assistants métiers et analyse prédictive.</p>
-          </div>
-        </div>
-        <div class="slide">
-          <img src="{{ url_for('static', filename='images/audela-carousel-03.svg') }}" alt="ERP & workflows – Automatisation" />
-          <div class="caption">
-            <h3>ERP & workflows</h3>
-            <p>Workflows métiers, intégrations SI, automatisation, contrôles et auditabilité.</p>
-          </div>
-        </div>
-        <div class="slide">
-          <img src="{{ url_for('static', filename='images/audela-carousel-04.svg') }}" alt="LegalTech – Dossiers et documents" />
-          <div class="caption">
-            <h3>LegalTech</h3>
-            <p>Gestion des dossiers, rentabilité par affaire, génération documentaire, conformité.</p>
-          </div>
-        </div>
-        <div class="arrows">
-          <div class="arrow prev" aria-label="Précédent">&#8249;</div>
-          <div class="arrow next" aria-label="Suivant">&#8250;</div>
-        </div>
-      </div>
-      <div class="controls" aria-label="Navigation du carrousel">
-        <span class="dot active"></span>
-        <span class="dot"></span>
-        <span class="dot"></span>
-        <span class="dot"></span>
-      </div>
-    </div>
-  </div>
-</section>
-
-</section>
-
-			<!-- Four -->
-				<section id="four" class="wrapper style1 special fade-up">
-					<div class="container">
-						<header class="major">
-							<h2>Pourquoi AUDELA</h2>
-							<p>Une expertise de fond, une exécution rigoureuse, et une obsession de la qualité en production.</p>
-						</header>
-						<div class="box alt">
-							<div class="row gtr-uniform">
-								<section class="col-4 col-6-medium col-12-xsmall">
-									<span class="icon solid alt major fa-chart-area"></span>
-									\1<p>Cloud-native, API-first, intégrations propres : une base solide pour durer et évoluer.</p>
-								</section>
-								<section class="col-4 col-6-medium col-12-xsmall">
-									<span class="icon solid alt major fa-comment"></span>
-									\1<p>Contrôles d’accès, traçabilité, bonnes pratiques et alignement avec vos exigences de conformité.</p>
-								</section>
-								<section class="col-4 col-6-medium col-12-xsmall">
-									<span class="icon solid alt major fa-flask"></span>
-									\1<p>Pipelines, qualité, gouvernance : de la source au tableau de bord, sans compromis.</p>
-								</section>
-								<section class="col-4 col-6-medium col-12-xsmall">
-									<span class="icon solid alt major fa-paper-plane"></span>
-									\1<p>CI/CD, monitoring, logs & alerting : stabilité, performance et mise en production rapide.</p>
-								</section>
-								<section class="col-4 col-6-medium col-12-xsmall">
-									<span class="icon solid alt major fa-file"></span>
-									\1<p>Connexion ERP/CRM/outils métiers, synchronisation de données et interopérabilité.</p>
-								</section>
-								<section class="col-4 col-6-medium col-12-xsmall">
-									<span class="icon solid alt major fa-lock"></span>
-									\1<p>Cadrage, delivery, transfert de compétences : un partenaire fiable dans la durée.</p>
-								</section>
-							</div>
-						</div>
-						<footer class="major">
-							<ul class="actions special">
-								<li><a href="#" class="button">Magna sed feugiat</a></li>
-							</ul>
-						</footer>
-					</div>
-				</section>
-
-			<!-- Five -->
-				<section id="five" class="wrapper style2 special fade">
-					<div class="container">
-						<header>
-							<h2>Parlons de votre projet</h2>
-							<p>Décrivez votre besoin (Data/BI, ERP, LegalTech, IA). Nous vous recontactons rapidement.</p>
-						</header>
-						<form method="post" action="#" class="cta">
-							<div class="row gtr-uniform gtr-50">
-								<div class="col-8 col-12-xsmall"><input type="email" name="email" id="email" placeholder="Votre adresse e-mail" /></div>
-								<div class="col-4 col-12-xsmall"><input type="submit" value="Être rappelé" class="fit primary" /></div>
-							</div>
-						</form>
-					</div>
-				</section>
-
-			<!-- Footer -->
-				<footer id="footer">
-					<ul class="icons">
-						<li><a href="#" class="icon brands alt fa-twitter"><span class="label">Twitter</span></a></li>
-						<li><a href="#" class="icon brands alt fa-facebook-f"><span class="label">Facebook</span></a></li>
-						<li><a href="#" class="icon brands alt fa-linkedin-in"><span class="label">LinkedIn</span></a></li>
-						<li><a href="#" class="icon brands alt fa-instagram"><span class="label">Instagram</span></a></li>
-						<li><a href="#" class="icon brands alt fa-github"><span class="label">GitHub</span></a></li>
-						<li><a href="#" class="icon solid alt fa-envelope"><span class="label">E-mail</span></a></li>
-					</ul>
-					<ul class="copyright">
-						<li>&copy; AUDELA. Tous droits r&eacute;serv&eacute;s.</li><li>Design: <a href="http://html5up.net">HTML5 UP</a></li>
-					</ul>
-				</footer>
-
+{% block content %}
+	<!-- Banner -->
+	<section id="banner">
+		<div class="content">
+			<header>
+				<h2>AUDELA</h2>
+				<p>
+					La technologie au service de la décision.<br />
+					Data, BI, ERP, LegalTech & IA — au cœur de vos opérations.
+				</p>
+			</header>
+			<span class="image"><img src="{{ url_for('static', filename='images/audela-hero.svg') }}" alt="Illustration AUDELA" /></span>
 		</div>
+		<a href="#one" class="goto-next scrolly">Next</a>
+	</section>
 
-		<!-- Scripts -->
-			<script src="{{ url_for('static', filename='assets/js/jquery.min.js') }}"></script>
-			<script src="{{ url_for('static', filename='assets/js/jquery.scrolly.min.js') }}"></script>
-			<script src="{{ url_for('static', filename='assets/js/jquery.dropotron.min.js') }}"></script>
-			<script src="{{ url_for('static', filename='assets/js/jquery.scrollex.min.js') }}"></script>
-			<script src="{{ url_for('static', filename='assets/js/browser.min.js') }}"></script>
-			<script src="{{ url_for('static', filename='assets/js/breakpoints.min.js') }}"></script>
-			<script src="{{ url_for('static', filename='assets/js/util.js') }}"></script>
-			<script src="{{ url_for('static', filename='assets/js/main.js') }}"></script>
-			<script src="{{ url_for('static', filename='assets/js/custom.js') }}"></script>
+	<!-- One -->
+	<section id="one" class="spotlight style1 bottom">
+		<span class="image fit main"><img src="{{ url_for('static', filename='images/banner.jpg') }}" alt="Grenoble & Alpes" /></span>
+		<div class="content">
+			<div class="container">
+				<div class="row">
+					<div class="col-4 col-12-medium">
+						<header>
+							<h2>Au-delà des données</h2>
+							<p>Transformer l’information en décisions — avec une ingénierie logicielle robuste et une compréhension métier réelle.</p>
+						</header>
+					</div>
+					<div class="col-4 col-12-medium">
+						<p>
+							Nous construisons des systèmes qui tiennent dans la durée : pipelines data industrialisés, APIs fiables, applications web et mobile,
+							et des dashboards compréhensibles par les équipes terrain comme par la direction.
+						</p>
+					</div>
+					<div class="col-4 col-12-medium">
+						<p>
+							Notre approche est pragmatique et "production-first" : sécurité, performance, observabilité, documentation, et transfert de compétences.
+							L’objectif : livrer vite, sans dette technique.
+						</p>
+					</div>
+				</div>
+			</div>
+		</div>
+		<a href="#two" class="goto-next scrolly">Next</a>
+	</section>
 
-	</body>
-</html>
+	<!-- Two -->
+	<section id="two" class="spotlight style2 right">
+		<span class="image fit main"><img src="{{ url_for('static', filename='images/pic08.jpg') }}" alt="Business Intelligence" /></span>
+		<div class="content">
+			<header>
+				<h2>Analyse de données & Business Intelligence</h2>
+				<p>Ingestion, modélisation, qualité et exposition : des indicateurs fiables, traçables et actionnables.</p>
+			</header>
+			<p>
+				Nous connectons vos systèmes (ERP, CRM, finance, opérations, APIs), structurons la donnée (DWH/ELT), et livrons des tableaux de bord
+				qui répondent à des questions concrètes : marge, performance commerciale, délais, risques, conformité.
+			</p>
+			<ul class="actions">
+				<li><a href="{{ url_for('metabase') }}" class="button">Voir les écrans Metabase</a></li>
+			</ul>
+		</div>
+		<a href="#three" class="goto-next scrolly">Next</a>
+	</section>
+
+	<!-- Three -->
+	<section id="three" class="spotlight style3 left">
+		<span class="image fit main bottom"><img src="{{ url_for('static', filename='images/pic06.jpg') }}" alt="Plateformes métiers" /></span>
+		<div class="content">
+			<header>
+				<h2>Plateformes métiers, ERP & IA appliquée</h2>
+				<p>Des outils métier qui reflètent vos workflows, avec une IA utile et explicable.</p>
+			</header>
+			<p>
+				AUDELA développe des ERP et plateformes métiers alignés sur vos processus réels (finance, contrôle, opérations, conformité).
+				Nous proposons aussi des solutions LegalTech pour cabinets d’avocats : gestion des dossiers, rentabilité par affaire, automatisation documentaire
+				et auditabilité. L’IA est intégrée de manière pragmatique (détection d’anomalies, aide à la décision, traitement de documents) avec une exigence
+				d’explicabilité.
+			</p>
+			<ul class="actions">
+				<li><a href="{{ url_for('belegal') }}" class="button">Découvrir BeLegal</a></li>
+			</ul>
+		</div>
+		<a href="#carousel" class="goto-next scrolly">Next</a>
+	</section>
+
+	<!-- Carousel -->
+	<section id="carousel" class="wrapper style1 special fade-up">
+		<div class="container">
+			<header class="major">
+				<h2>Visuels & cas d’usage : Data, IA, ERP</h2>
+				<p>Un aperçu des types de solutions que nous concevons : pilotage, automatisation et intelligence appliquée.</p>
+			</header>
+
+			<div class="audela-carousel">
+				<div class="slides">
+					<div class="slide active">
+						<img src="{{ url_for('static', filename='images/audela-carousel-01.svg') }}" alt="Data & BI – Tableaux de bord" />
+						<div class="caption">
+							<h3>Data & BI</h3>
+							<p>Tableaux de bord exécutifs, KPIs, gouvernance, qualité et traçabilité de bout en bout.</p>
+						</div>
+					</div>
+					<div class="slide">
+						<img src="{{ url_for('static', filename='images/audela-carousel-02.svg') }}" alt="IA appliquée – Détection d’anomalies" />
+						<div class="caption">
+							<h3>IA appliquée</h3>
+							<p>Détection d’anomalies, scoring de risques, assistants métiers et analyse prédictive.</p>
+						</div>
+					</div>
+					<div class="slide">
+						<img src="{{ url_for('static', filename='images/audela-carousel-03.svg') }}" alt="ERP & workflows – Automatisation" />
+						<div class="caption">
+							<h3>ERP & workflows</h3>
+							<p>Workflows métiers, intégrations SI, automatisation, contrôles et auditabilité.</p>
+						</div>
+					</div>
+					<div class="slide">
+						<img src="{{ url_for('static', filename='images/audela-carousel-04.svg') }}" alt="LegalTech – Dossiers et documents" />
+						<div class="caption">
+							<h3>LegalTech</h3>
+							<p>Gestion des dossiers, rentabilité par affaire, génération documentaire, conformité.</p>
+						</div>
+					</div>
+					<div class="arrows">
+						<div class="arrow prev" aria-label="Précédent">&#8249;</div>
+						<div class="arrow next" aria-label="Suivant">&#8250;</div>
+					</div>
+				</div>
+				<div class="controls" aria-label="Navigation du carrousel">
+					<span class="dot active"></span>
+					<span class="dot"></span>
+					<span class="dot"></span>
+					<span class="dot"></span>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<!-- Four -->
+	<section id="four" class="wrapper style1 special fade-up">
+		<div class="container">
+			<header class="major">
+				<h2>Pourquoi AUDELA</h2>
+				<p>Une expertise de fond, une exécution rigoureuse, et une obsession de la qualité en production.</p>
+			</header>
+			<div class="box alt">
+				<div class="row gtr-uniform">
+					<section class="col-4 col-6-medium col-12-xsmall">
+						<span class="icon solid alt major fa-chart-area"></span>
+						<p>Cloud-native, API-first, intégrations propres : une base solide pour durer et évoluer.</p>
+					</section>
+					<section class="col-4 col-6-medium col-12-xsmall">
+						<span class="icon solid alt major fa-comment"></span>
+						<p>Conformité et gouvernance : contrôles d’accès, traçabilité, et bonnes pratiques SI.</p>
+					</section>
+					<section class="col-4 col-6-medium col-12-xsmall">
+						<span class="icon solid alt major fa-flask"></span>
+						<p>Pipelines & qualité : de la source au tableau de bord, sans compromis sur les données.</p>
+					</section>
+					<section class="col-4 col-6-medium col-12-xsmall">
+						<span class="icon solid alt major fa-paper-plane"></span>
+						<p>CI/CD, monitoring, logs & alerting : stabilité, performance et mises en production rapides.</p>
+					</section>
+					<section class="col-4 col-6-medium col-12-xsmall">
+						<span class="icon solid alt major fa-file"></span>
+						<p>Interopérabilité : connexion ERP/CRM/outils métiers, synchronisation et automatisation.</p>
+					</section>
+					<section class="col-4 col-6-medium col-12-xsmall">
+						<span class="icon solid alt major fa-lock"></span>
+						<p>Delivery et transfert : cadrage, documentation et montée en compétence de vos équipes.</p>
+					</section>
+				</div>
+			</div>
+			<footer class="major">
+				<ul class="actions special">
+					<li><a href="{{ url_for('plans') }}" class="button">Découvrir nos plans BI</a></li>
+				</ul>
+			</footer>
+		</div>
+	</section>
+
+	<!-- Five -->
+	<section id="five" class="wrapper style2 special fade">
+		<div class="container">
+			<header>
+				<h2>Parlons de votre projet</h2>
+				<p>Décrivez votre besoin (Data/BI, ERP, LegalTech, IA, Mobile, IoT). Nous vous recontactons rapidement.</p>
+			</header>
+			<form method="post" action="#" class="cta">
+				<div class="row gtr-uniform gtr-50">
+					<div class="col-8 col-12-xsmall"><input type="email" name="email" id="email" placeholder="Votre adresse e-mail" /></div>
+					<div class="col-4 col-12-xsmall"><input type="submit" value="Être rappelé" class="fit primary" /></div>
+				</div>
+			</form>
+		</div>
+	</section>
+{% endblock %}

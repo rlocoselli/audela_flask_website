@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block title %}AUDELA – Projets mobile{% endblock %}
+
+{% block content %}
+	<section id="main" class="wrapper style1">
+		<div class="container">
+			<header class="major">
+				<h2>Projets mobile</h2>
+				<p>Des applications utiles, rapides et "production-ready" — avec une touche de sobriété à la française : clarté, structure, et sens du détail.</p>
+			</header>
+
+			<div class="row gtr-200">
+				<div class="col-6 col-12-medium">
+					<section class="box">
+						<h3>Meu Busão</h3>
+						<p>
+							Consolidation de données de lignes de bus (multi-sources), normalisation des référentiels et recherche ultra-rapide.
+							Objectif : donner une vision claire des lignes, arrêts, trajets, et horaires — même quand les sources sont hétérogènes.
+						</p>
+						<div class="audela-phone">
+							<div class="phone-top">
+								<span class="dot"></span><span class="dot"></span><span class="dot"></span>
+								<span class="right">09:41 ▴▴▴</span>
+							</div>
+							<div class="phone-body">
+								<div class="app-header">
+									<strong>Meu Busão</strong>
+									<span class="badge">Grenoble</span>
+								</div>
+								<div class="app-search">
+									<i class="icon solid fa-search"></i>
+									<input type="text" value="Chercher une ligne…" aria-label="Recherche" disabled />
+								</div>
+								<div class="app-list">
+									<div class="rowitem"><span class="chip">C1</span> Victor Hugo → Cité Internationale</div>
+									<div class="rowitem"><span class="chip">13</span> Échirolles → Gare</div>
+									<div class="rowitem"><span class="chip">A</span> Tram – Fontaine → Grand’Place</div>
+								</div>
+								<div class="app-mini">
+									<div class="kpi"><span>Qualité data</span><strong>98,2%</strong></div>
+									<div class="kpi"><span>Sources</span><strong>6</strong></div>
+								</div>
+							</div>
+							<div class="phone-bottom"></div>
+						</div>
+						<ul class="audela-tags">
+							<li>Flutter / Android</li>
+							<li>ETL & normalisation</li>
+							<li>Recherche & cache</li>
+						</ul>
+					</section>
+				</div>
+
+				<div class="col-6 col-12-medium">
+					<section class="box">
+						<h3>NutriTracker</h3>
+						<p>
+							Suivi nutritionnel simple (apports, objectifs, tendance), avec une inspiration "étiquette française" : transparence, unités claires,
+							et un design sans surcharge.
+						</p>
+						<div class="audela-phone">
+							<div class="phone-top">
+								<span class="dot"></span><span class="dot"></span><span class="dot"></span>
+								<span class="right">09:41 ▴▴▴</span>
+							</div>
+							<div class="phone-body">
+								<div class="app-header">
+									<strong>NutriTracker</strong>
+									<span class="badge">Semaine</span>
+								</div>
+								<div class="app-card">
+									<div class="title">Objectif du jour</div>
+									<div class="bars">
+										<div class="bar"><span>Protéines</span><strong>86 g</strong></div>
+										<div class="bar"><span>Glucides</span><strong>140 g</strong></div>
+										<div class="bar"><span>Lipides</span><strong>54 g</strong></div>
+									</div>
+								</div>
+								<div class="app-list">
+									<div class="rowitem"><span class="chip soft">Petit-déj</span> Yaourt + fruits</div>
+									<div class="rowitem"><span class="chip soft">Déjeuner</span> Poulet, riz, légumes</div>
+									<div class="rowitem"><span class="chip soft">Dîner</span> Soupe + fromage</div>
+								</div>
+								<div class="app-mini">
+									<div class="kpi"><span>Calories</span><strong>1 840</strong></div>
+									<div class="kpi"><span>Hydratation</span><strong>1,6 L</strong></div>
+								</div>
+							</div>
+							<div class="phone-bottom"></div>
+						</div>
+						<ul class="audela-tags">
+							<li>Mobile-first</li>
+							<li>UX sobre</li>
+							<li>Historique & tendances</li>
+						</ul>
+					</section>
+				</div>
+			</div>
+
+			<hr class="major" />
+
+			<div class="row gtr-200">
+				<div class="col-6 col-12-medium">
+					<section class="box">
+						<h3>Carteira de Vacinação</h3>
+						<p>
+							Carnet numérique : calendrier vaccinal, rappels, et partage sécurisé.
+							Pensé pour une utilisation familiale (enfants, parents), avec export PDF et historique des injections.
+						</p>
+						<div class="audela-phone">
+							<div class="phone-top">
+								<span class="dot"></span><span class="dot"></span><span class="dot"></span>
+								<span class="right">09:41 ▴▴▴</span>
+							</div>
+							<div class="phone-body">
+								<div class="app-header">
+									<strong>Vaccins</strong>
+									<span class="badge">Famille</span>
+								</div>
+								<div class="app-card">
+									<div class="title">Prochain rappel</div>
+									<div class="rowitem">
+										<strong>DTP</strong> — <span class="muted">15/03/2026</span>
+									</div>
+									<div class="rowitem">
+										<strong>Grippe</strong> — <span class="muted">Automne</span>
+									</div>
+								</div>
+								<div class="app-list">
+									<div class="rowitem"><span class="chip ok">OK</span> BCG</div>
+									<div class="rowitem"><span class="chip ok">OK</span> ROR</div>
+									<div class="rowitem"><span class="chip warn">À faire</span> HPV</div>
+								</div>
+								<div class="app-mini">
+									<div class="kpi"><span>Profils</span><strong>4</strong></div>
+									<div class="kpi"><span>Export</span><strong>PDF</strong></div>
+								</div>
+							</div>
+							<div class="phone-bottom"></div>
+						</div>
+						<ul class="audela-tags">
+							<li>Rappels & calendrier</li>
+							<li>Partage sécurisé</li>
+							<li>Export PDF</li>
+						</ul>
+					</section>
+				</div>
+
+				<div class="col-6 col-12-medium">
+					<section class="box">
+						<h3>Stack & principes</h3>
+						<p>
+							Les projets mobile AUDELA suivent une base commune : composants réutilisables, navigation claire, offline-first quand nécessaire,
+							et analytics centrés sur la qualité produit.
+						</p>
+						<ul class="alt">
+							<li><strong>Architecture</strong> : couches (UI / domaine / données), tests, CI/CD.</li>
+							<li><strong>Data</strong> : synchronisation, cache, qualité, monitoring.</li>
+							<li><strong>Design</strong> : style moderne, lisible, inspiré par la sobriété française.</li>
+							<li><strong>Sécurité</strong> : chiffrement local, RBAC, audit des accès (selon contexte).</li>
+						</ul>
+						<ul class="actions">
+							<li><a href="{{ url_for('metabase') }}" class="button">Voir aussi les écrans BI</a></li>
+						</ul>
+					</section>
+				</div>
+			</div>
+
+		</div>
+	</section>
+{% endblock %}

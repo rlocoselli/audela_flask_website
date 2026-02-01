@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}AUDELA – BI & Metabase{% endblock %}
+
+{% block content %}
+	<section id="main" class="wrapper style1">
+		<div class="container">
+			<header class="major">
+				<h2>BI & Metabase</h2>
+				<p>Des dashboards qui parlent métier : KPIs, drill-down, alertes, et traçabilité. Ici, nous montrons des maquettes (style Metabase) pour illustrer les types d’écrans que nous livrons.</p>
+			</header>
+
+			<div class="audela-split">
+				<div>
+					<section class="box">
+						<h3>Tableau de bord — Direction</h3>
+						<p class="muted">Vue synthèse : revenus, marge, cash, SLA, qualité data. En 30 secondes, on sait où regarder.</p>
+						<div class="audela-dashboard">
+							<div class="db-top">
+								<div class="title">Direction — Synthèse</div>
+								<div class="filters">
+									<span class="pill">Période : 30 jours</span>
+									<span class="pill">Pays : FR</span>
+								</div>
+							</div>
+							<div class="db-kpis">
+								<div class="k"><span>CA</span><strong>€ 412 900</strong><em>+8,1%</em></div>
+								<div class="k"><span>Marge</span><strong>32,4%</strong><em>+0,9</em></div>
+								<div class="k"><span>Cash</span><strong>€ 1,24 M</strong><em>stable</em></div>
+								<div class="k"><span>Qualité data</span><strong>98,6%</strong><em>+0,4</em></div>
+							</div>
+							<div class="db-grid">
+								<div class="chart">
+									<div class="chart-title">CA & marge (hebdo)</div>
+									<svg viewBox="0 0 420 120" class="spark" aria-label="Graphique">
+										<polyline points="0,90 40,80 80,86 120,60 160,62 200,48 240,54 280,40 320,46 360,28 420,35" fill="none" stroke="currentColor" stroke-width="3" opacity="0.7" />
+										<polyline points="0,110 40,108 80,104 120,98 160,96 200,88 240,92 280,82 320,76 360,70 420,66" fill="none" stroke="currentColor" stroke-width="2" opacity="0.35" />
+									</svg>
+								</div>
+								<div class="chart">
+									<div class="chart-title">Top 5 segments</div>
+									<div class="bars">
+										<div class="b"><span>Retail</span><i style="width:72%"></i></div>
+										<div class="b"><span>Services</span><i style="width:58%"></i></div>
+										<div class="b"><span>Industrie</span><i style="width:44%"></i></div>
+										<div class="b"><span>Public</span><i style="width:31%"></i></div>
+										<div class="b"><span>Autres</span><i style="width:18%"></i></div>
+									</div>
+								</div>
+							</div>
+							<div class="db-table">
+								<div class="trow head"><span>Indicateur</span><span>Valeur</span><span>Commentaire</span></div>
+								<div class="trow"><span>SLA (opérations)</span><span>99,3%</span><span class="muted">incident mineur résolu</span></div>
+								<div class="trow"><span>Retards livraison</span><span>2,1%</span><span class="muted">pic sur semaine 3</span></div>
+								<div class="trow"><span>Risque crédit</span><span>faible</span><span class="muted">aucune alerte</span></div>
+							</div>
+						</div>
+					</section>
+				</div>
+
+				<div>
+					<section class="box">
+						<h3>Dashboard — Transport (Meu Busão)</h3>
+						<p class="muted">Qualité des lignes, densité d’arrêts, retards, et cohérence multi-sources (utile pour la consolidation).</p>
+						<div class="audela-dashboard compact">
+							<div class="db-top">
+								<div class="title">Transport — Réseau</div>
+								<div class="filters">
+									<span class="pill">Agglo : Grenoble</span>
+									<span class="pill">Source : multi</span>
+								</div>
+							</div>
+							<div class="db-kpis">
+								<div class="k"><span>Lignes</span><strong>128</strong><em>+3</em></div>
+								<div class="k"><span>Arrêts</span><strong>2 614</strong><em>stable</em></div>
+								<div class="k"><span>Doublons</span><strong>0,8%</strong><em>-0,2</em></div>
+								<div class="k"><span>Confiance</span><strong>97,9%</strong><em>+0,5</em></div>
+							</div>
+							<div class="db-grid">
+								<div class="chart">
+									<div class="chart-title">Retards par ligne</div>
+									<div class="bars">
+										<div class="b"><span>C1</span><i style="width:26%"></i></div>
+										<div class="b"><span>13</span><i style="width:18%"></i></div>
+										<div class="b"><span>A</span><i style="width:12%"></i></div>
+										<div class="b"><span>B</span><i style="width:9%"></i></div>
+									</div>
+								</div>
+								<div class="chart">
+									<div class="chart-title">Qualité des données</div>
+									<svg viewBox="0 0 420 120" class="spark" aria-label="Graphique">
+										<polyline points="0,70 40,68 80,66 120,64 160,58 200,52 240,50 280,42 320,40 360,36 420,30" fill="none" stroke="currentColor" stroke-width="3" opacity="0.7" />
+										<polyline points="0,100 40,92 80,96 120,90 160,88 200,84 240,80 280,78 320,76 360,74 420,72" fill="none" stroke="currentColor" stroke-width="2" opacity="0.35" />
+									</svg>
+								</div>
+							</div>
+						</div>
+					</section>
+
+					<section class="box">
+						<h3>Dashboards — Santé & NutriTracker</h3>
+						<p class="muted">Mesurer des tendances sans culpabiliser : progression, habitudes, et signaux faibles.</p>
+						<div class="audela-dashboard compact">
+							<div class="db-top">
+								<div class="title">Santé — Synthèse</div>
+								<div class="filters">
+									<span class="pill">Profil : Semaine</span>
+									<span class="pill">Objectif : équilibre</span>
+								</div>
+							</div>
+							<div class="db-kpis">
+								<div class="k"><span>Calories</span><strong>1 840</strong><em>moy/j</em></div>
+								<div class="k"><span>Protéines</span><strong>86 g</strong><em>moy/j</em></div>
+								<div class="k"><span>Sommeil</span><strong>7 h 18</strong><em>moy</em></div>
+								<div class="k"><span>Hydratation</span><strong>1,6 L</strong><em>moy</em></div>
+							</div>
+							<div class="db-table">
+								<div class="trow head"><span>Jour</span><span>Score</span><span>Note</span></div>
+								<div class="trow"><span>Lun</span><span>82</span><span class="muted">bonne énergie</span></div>
+								<div class="trow"><span>Mer</span><span>74</span><span class="muted">stress modéré</span></div>
+								<div class="trow"><span>Sam</span><span>88</span><span class="muted">activité + sommeil</span></div>
+							</div>
+						</div>
+						<ul class="actions">
+							<li><a href="{{ url_for('plans') }}" class="button primary">Voir les plans BI</a></li>
+						</ul>
+					</section>
+				</div>
+			</div>
+
+			<hr class="major" />
+
+			<section class="box">
+				<h3>Ce que nous livrons autour de Metabase</h3>
+				<div class="row gtr-200">
+					<div class="col-6 col-12-medium">
+						<ul class="alt">
+							<li><strong>Modèle de données</strong> : métriques cohérentes, dictionnaire, conventions de noms.</li>
+							<li><strong>Qualité</strong> : tests de données, détection d’anomalies, traçabilité.</li>
+							<li><strong>Sécurité</strong> : RBAC, groupes, (si besoin) sécurité ligne par ligne.</li>
+							<li><strong>Performance</strong> : caches, index, vues matérialisées, refresh maîtrisé.</li>
+						</ul>
+					</div>
+					<div class="col-6 col-12-medium">
+						<ul class="alt">
+							<li><strong>Partage</strong> : embeds, exports PDF/CSV, e-mails programmés.</li>
+							<li><strong>Gouvernance</strong> : droits, environnements, documentation de bord.</li>
+							<li><strong>Évolutivité</strong> : ajout de sources, multi-projets, industrialisation.</li>
+							<li><strong>Style</strong> : design moderne, lisibilité, formats FR (€, dates).</li>
+						</ul>
+					</div>
+				</div>
+			</section>
+		</div>
+	</section>
+{% endblock %}

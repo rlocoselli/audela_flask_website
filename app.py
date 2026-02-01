@@ -8,6 +8,27 @@ def create_app():
     def index():
         return render_template("index.html")
 
+    # --- Projects / products ---
+    @app.route("/projets/mobile")
+    def projects_mobile():
+        return render_template("projects_mobile.html")
+
+    @app.route("/projets/iot")
+    def projects_iot():
+        return render_template("projects_iot.html")
+
+    @app.route("/projets/belegal")
+    def belegal():
+        return render_template("belegal.html")
+
+    @app.route("/bi/metabase")
+    def metabase():
+        return render_template("metabase.html")
+
+    @app.route("/plans")
+    def plans():
+        return render_template("plans.html")
+
     @app.route("/left-sidebar")
     def left_sidebar():
         return render_template("left-sidebar.html")

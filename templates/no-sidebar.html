@@ -1,87 +1,38 @@
-<!DOCTYPE HTML>
-<!--
-	Landed by HTML5 UP
-	html5up.net | @ajlkn
-	Free for personal and commercial use under the CCA 3.0 license (html5up.net/license)
--->
-<html>
-	<head>
-		<title>AUDELA – Mentions</title>
-		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-		<link rel="stylesheet" href="{{ url_for('static', filename='assets/css/main.css') }}" />
-			<link rel="stylesheet" href="{{ url_for('static', filename='assets/css/custom.css') }}" />
-		<noscript><link rel="stylesheet" href="{{ url_for('static', filename='assets/css/noscript.css') }}" /></noscript>
-	</head>
-	<body class="is-preload">
-		<div id="page-wrapper">
+{% extends "base.html" %}
 
-			<!-- Header -->
-				<header id="header">
-					<h1 id="logo"><a href="{{ url_for('index') }}"><img src="{{ url_for('static', filename='images/audela-logo.svg') }}" alt="AUDELA" /><span class="brand-text">AUDELA</span></a></h1>
-					<nav id="nav">
-	<ul>
-		<li><a href="#banner" class="scrolly">Accueil</a></li>
-		<li><a href="#one" class="scrolly">À propos</a></li>
-		<li><a href="#two" class="scrolly">Expertise</a></li>
-		<li><a href="#three" class="scrolly">Solutions</a></li>
-		<li><a href="#four" class="scrolly">Pourquoi AUDELA</a></li>
-		<li><a href="#five" class="button primary scrolly">Contact</a></li>
-	</ul>
-</nav>
-				</header>
+{% block title %}AUDELA – Portfolio{% endblock %}
 
-			<!-- Main -->
-				<div id="main" class="wrapper style1">
-<div class="container">
-				<header class="major">
-					<h2>Mentions légales & conformité</h2>
-					<p>Cette page est un modèle à personnaliser (raison sociale, SIRET, adresse, contact, DPO, etc.).</p>
-				</header>
+{% block content %}
+	<section id="main" class="wrapper style1">
+		<div class="container">
+			<header class="major">
+				<h2>Portfolio</h2>
+				<p>Un point d’entrée "tout-en-un" si vous souhaitez un portfolio plus simple que la page d’accueil.</p>
+			</header>
 
-				<section id="content">
-					<h3>Informations générales</h3>
-					<p>AUDELA — Entreprise de technologie. Les informations publiées sur ce site peuvent évoluer. Pour toute question, contactez-nous via le formulaire.</p>
-
-					<h3>Confidentialité & données</h3>
-					<p>Nous appliquons les bonnes pratiques de sécurité : contrôle d’accès, journalisation, minimisation des données et chiffrement selon le contexte. Pour les projets sensibles, nous définissons ensemble les exigences de conformité.</p>
-
-					<h3>Propriété intellectuelle</h3>
-					<p>Le contenu, la marque AUDELA et les éléments graphiques sont protégés. Toute reproduction nécessite une autorisation préalable.</p>
-
-					<h3>Cookies</h3>
-					<p>Selon votre configuration, ce site peut utiliser des cookies techniques nécessaires au fonctionnement. Vous pouvez adapter ce bloc à votre outil de gestion de consentement.</p>
-				</section>
+			<div class="row gtr-200">
+				<div class="col-4 col-12-medium">
+					<section class="box">
+						<h3>Mobile</h3>
+						<p class="muted">Meu Busão, NutriTracker, Carteira de Vacinação.</p>
+						<ul class="actions"><li><a href="{{ url_for('projects_mobile') }}" class="button">Ouvrir</a></li></ul>
+					</section>
+				</div>
+				<div class="col-4 col-12-medium">
+					<section class="box">
+						<h3>IoT & Neuro</h3>
+						<p class="muted">Capteurs, signaux, entropie et prévention.</p>
+						<ul class="actions"><li><a href="{{ url_for('projects_iot') }}" class="button">Ouvrir</a></li></ul>
+					</section>
+				</div>
+				<div class="col-4 col-12-medium">
+					<section class="box">
+						<h3>BI & Metabase</h3>
+						<p class="muted">Dashboards, alertes, partage, gouvernance.</p>
+						<ul class="actions"><li><a href="{{ url_for('metabase') }}" class="button primary">Ouvrir</a></li></ul>
+					</section>
+				</div>
 			</div>
-</div>
-
-			<!-- Footer -->
-				<footer id="footer">
-					<ul class="icons">
-						<li><a href="#" class="icon brands alt fa-twitter"><span class="label">Twitter</span></a></li>
-						<li><a href="#" class="icon brands alt fa-facebook-f"><span class="label">Facebook</span></a></li>
-						<li><a href="#" class="icon brands alt fa-linkedin-in"><span class="label">LinkedIn</span></a></li>
-						<li><a href="#" class="icon brands alt fa-instagram"><span class="label">Instagram</span></a></li>
-						<li><a href="#" class="icon brands alt fa-github"><span class="label">GitHub</span></a></li>
-						<li><a href="#" class="icon solid alt fa-envelope"><span class="label">E-mail</span></a></li>
-					</ul>
-					<ul class="copyright">
-						<li>&copy; AUDELA. Tous droits r&eacute;serv&eacute;s.</li><li>Design: <a href="http://html5up.net">HTML5 UP</a></li>
-					</ul>
-				</footer>
-
 		</div>
-
-		<!-- Scripts -->
-			<script src="{{ url_for('static', filename='assets/js/jquery.min.js') }}"></script>
-			<script src="{{ url_for('static', filename='assets/js/jquery.scrolly.min.js') }}"></script>
-			<script src="{{ url_for('static', filename='assets/js/jquery.dropotron.min.js') }}"></script>
-			<script src="{{ url_for('static', filename='assets/js/jquery.scrollex.min.js') }}"></script>
-			<script src="{{ url_for('static', filename='assets/js/browser.min.js') }}"></script>
-			<script src="{{ url_for('static', filename='assets/js/breakpoints.min.js') }}"></script>
-			<script src="{{ url_for('static', filename='assets/js/util.js') }}"></script>
-			<script src="{{ url_for('static', filename='assets/js/main.js') }}"></script>
-			<script src="{{ url_for('static', filename='assets/js/custom.js') }}"></script>
-
-	</body>
-</html>
+	</section>
+{% endblock %}
