@@ -1,0 +1,44 @@
+{% extends "portal/layout.html" %}
+{% set title = "Dashboard" %}
+
+{% block portal_content %}
+  <div class="box">
+    <h3>{{ dashboard.name }}</h3>
+    <p><a class="button" href="{{ url_for('portal.dashboards_list') }}">Voltar</a></p>
+  </div>
+
+  {% if not cards %}
+    <div class="box">
+      <p>Nenhum card ainda. Crie um dashboard escolhendo perguntas.</p>
+    </div>
+  {% else %}
+    {% for item in cards %}
+      <div class="box">
+        <h4>{{ item.question.name }}</h4>
+        {% if item.result.error %}
+          <pre style="white-space: pre-wrap;">{{ item.result.error }}</pre>
+        {% elif item.result.columns %}
+          <div style="overflow-x:auto;">
+            <table>
+              <thead>
+                <tr>
+                  {% for c in item.result.columns %}<th>{{ c }}</th>{% endfor %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for r in item.result.rows %}
+                  <tr>
+                    {% for v in r %}<td>{{ v }}</td>{% endfor %}
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <p style="margin-top:.6em;"><em>Linhas:</em> {{ item.result.rows|length }}</p>
+        {% else %}
+          <p>Sem linhas retornadas.</p>
+        {% endif %}
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endblock %}

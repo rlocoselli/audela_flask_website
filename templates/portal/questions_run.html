@@ -1,0 +1,44 @@
+{% extends "portal/layout.html" %}
+{% set title = "Executar pergunta" %}
+
+{% block portal_content %}
+  <div class="box">
+    <h3>{{ question.name }}</h3>
+    <p><strong>Fonte:</strong> {{ source.name }}</p>
+    <p><a class="button" href="{{ url_for('portal.questions_view', question_id=question.id) }}">Voltar</a></p>
+  </div>
+
+  {% if error %}
+    <div class="box">
+      <h3>Erro</h3>
+      <pre style="white-space: pre-wrap;">{{ error }}</pre>
+    </div>
+  {% endif %}
+
+  {% if result %}
+    <div class="box">
+      <h3>Resultado{% if elapsed_ms %} ({{ elapsed_ms }} ms){% endif %}</h3>
+      {% if result.columns %}
+        <div style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr>
+                {% for c in result.columns %}<th>{{ c }}</th>{% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in result.rows %}
+                <tr>
+                  {% for v in r %}<td>{{ v }}</td>{% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p>Sem linhas retornadas.</p>
+      {% endif %}
+      <p style="margin-top:.6em;"><em>Linhas retornadas:</em> {{ result.rows|length }}</p>
+    </div>
+  {% endif %}
+{% endblock %}

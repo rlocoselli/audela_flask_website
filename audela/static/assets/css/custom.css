@@ -1,0 +1,321 @@
+/* AUDELA custom tweaks */
+#logo a { display: inline-flex; align-items: center; gap: 0.6rem; }
+#logo img { height: 34px; width: auto; display: inline-block; }
+#logo .brand-text { letter-spacing: 0.06em; font-weight: 800; }
+#nav a { text-transform: none; }
+#banner .content header h2 { letter-spacing: 0.08em; }
+
+/* --- AUDELA French modern accents (subtle tricolore) --- */
+:root{
+  --audela-blue: #0b3d91;
+  --audela-red: #d62828;
+  --audela-ink: #0a2540;
+  --audela-muted: rgba(10, 37, 64, 0.65);
+  --audela-card: rgba(255,255,255,0.92);
+}
+
+#header{
+  backdrop-filter: blur(10px);
+}
+
+#header:after{
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  height: 3px;
+  background: linear-gradient(90deg, var(--audela-blue) 0%, #ffffff 50%, var(--audela-red) 100%);
+  opacity: 0.5;
+}
+
+.muted{ color: var(--audela-muted); }
+.badge{
+  display: inline-flex; align-items: center; gap: .35rem;
+  font-size: 0.75rem; line-height: 1;
+  padding: .35rem .6rem;
+  border-radius: 999px;
+  border: 1px solid rgba(10,37,64,0.18);
+  background: rgba(255,255,255,0.65);
+}
+
+/* --- Mobile mock screens --- */
+.audela-phone{
+  width: min(340px, 100%);
+  margin: 1rem auto 0;
+  border-radius: 28px;
+  border: 1px solid rgba(10,37,64,0.18);
+  background: rgba(255,255,255,0.6);
+  box-shadow: 0 18px 50px rgba(0,0,0,0.18);
+  overflow: hidden;
+}
+.audela-phone .phone-top{
+  display: flex; align-items: center;
+  padding: .55rem .8rem;
+  gap: .35rem;
+  background: linear-gradient(135deg, rgba(11,61,145,0.08), rgba(214,40,40,0.06));
+  border-bottom: 1px solid rgba(10,37,64,0.12);
+}
+.audela-phone .phone-top .dot{
+  width: 7px; height: 7px; border-radius: 999px;
+  background: rgba(10,37,64,0.35);
+}
+.audela-phone .phone-top .right{
+  margin-left: auto;
+  font-size: .75rem;
+  color: rgba(10,37,64,0.6);
+}
+.audela-phone .phone-body{
+  padding: .85rem;
+  background: rgba(255,255,255,0.8);
+}
+.audela-phone .phone-bottom{ height: 18px; background: rgba(10,37,64,0.04); }
+
+.app-header{ display:flex; align-items:center; justify-content: space-between; margin-bottom: .6rem; }
+.app-search{ display:flex; gap:.5rem; align-items:center; padding:.55rem .65rem; border-radius: 14px; border:1px solid rgba(10,37,64,0.14); background: rgba(255,255,255,0.9); }
+.app-search input{ width:100%; border:0; outline:0; background: transparent; color: rgba(10,37,64,0.7); }
+.app-card{ margin-top: .7rem; padding: .75rem; border-radius: 16px; border: 1px solid rgba(10,37,64,0.14); background: rgba(11,61,145,0.06); }
+.app-card .title{ font-weight: 700; margin-bottom:.4rem; }
+.app-list{ margin-top: .7rem; display: grid; gap: .45rem; }
+.rowitem{ display:flex; align-items:center; gap:.5rem; padding:.55rem .6rem; border-radius: 14px; border:1px solid rgba(10,37,64,0.12); background: rgba(255,255,255,0.92); }
+.audela-phone .rowitem strong{ font-weight: 800; }
+.app-mini{ display:flex; gap:.5rem; margin-top:.7rem; }
+.app-mini .kpi{ flex: 1; padding: .65rem; border-radius: 14px; border:1px solid rgba(10,37,64,0.12); background: rgba(255,255,255,0.92); }
+.app-mini .kpi span{ display:block; font-size: .75rem; color: rgba(10,37,64,0.6); }
+.app-mini .kpi strong{ display:block; font-size: 1.05rem; }
+
+.chip{ display:inline-flex; align-items:center; justify-content:center; min-width: 38px; padding:.15rem .5rem; border-radius:999px; font-size:.75rem; border:1px solid rgba(10,37,64,0.2); background: rgba(10,37,64,0.06); }
+.chip.soft{ background: rgba(11,61,145,0.08); }
+.chip.ok{ background: rgba(34,197,94,0.14); border-color: rgba(34,197,94,0.35); }
+.chip.warn{ background: rgba(245,158,11,0.14); border-color: rgba(245,158,11,0.35); }
+
+.audela-tags{ margin: .9rem 0 0; padding:0; list-style:none; display:flex; flex-wrap:wrap; gap:.45rem; }
+.audela-tags li{ font-size:.8rem; padding:.28rem .55rem; border-radius:999px; border:1px solid rgba(10,37,64,0.16); background: rgba(255,255,255,0.65); }
+
+/* --- IoT blocks --- */
+.audela-kv{ display:grid; grid-template-columns: repeat(3,1fr); gap:.6rem; margin-top: .9rem; }
+.audela-kv .kv-item{ padding:.75rem; border-radius: 16px; border:1px solid rgba(10,37,64,0.12); background: rgba(255,255,255,0.85); }
+.audela-kv .kv-item span{ display:block; font-size:.75rem; color: rgba(10,37,64,0.6); }
+.audela-kv .kv-item strong{ display:block; margin-top:.1rem; }
+
+.audela-steps{ margin-top: .9rem; display:grid; gap:.55rem; }
+.audela-steps .step{ display:flex; gap:.75rem; align-items:flex-start; padding:.75rem; border-radius: 16px; border:1px solid rgba(10,37,64,0.12); background: rgba(255,255,255,0.85); }
+.audela-steps .step .n{ width: 30px; height: 30px; border-radius: 999px; display:grid; place-items:center; font-weight:800; color:#fff; background: linear-gradient(135deg, var(--audela-blue), var(--audela-red)); }
+
+/* --- Mini boards & Metabase-like dashboards --- */
+.audela-board, .audela-dashboard{
+  border-radius: 18px;
+  border: 1px solid rgba(10,37,64,0.14);
+  background: rgba(255,255,255,0.92);
+  box-shadow: 0 18px 50px rgba(0,0,0,0.10);
+  overflow: hidden;
+}
+.audela-board .board-top, .audela-dashboard .db-top{
+  display:flex; align-items:center; justify-content: space-between;
+  padding: .85rem 1rem;
+  border-bottom: 1px solid rgba(10,37,64,0.12);
+  background: linear-gradient(135deg, rgba(11,61,145,0.08), rgba(214,40,40,0.06));
+}
+.audela-board .board-grid{
+  display:grid; grid-template-columns: repeat(2,1fr);
+  gap:.65rem;
+  padding: 1rem;
+}
+.audela-board .tile{
+  padding:.85rem;
+  border-radius: 16px;
+  border:1px solid rgba(10,37,64,0.12);
+  background: rgba(255,255,255,0.92);
+}
+.audela-board .tile .label{ font-size:.75rem; color: rgba(10,37,64,0.6); }
+.audela-board .tile .value{ font-size: 1.2rem; font-weight: 800; }
+.audela-board .board-table{ padding: 0 1rem 1rem; }
+
+.audela-dashboard .db-kpis{ display:grid; grid-template-columns: repeat(4, 1fr); gap:.65rem; padding: 1rem; }
+.audela-dashboard.compact .db-kpis{ grid-template-columns: repeat(4, 1fr); padding-bottom: .35rem; }
+.audela-dashboard .k{ padding:.85rem; border-radius: 16px; border:1px solid rgba(10,37,64,0.12); background: rgba(255,255,255,0.92); }
+.audela-dashboard .k span{ display:block; font-size:.75rem; color: rgba(10,37,64,0.6); }
+.audela-dashboard .k strong{ display:block; font-size: 1.15rem; }
+.audela-dashboard .k em{ display:block; font-style: normal; font-size:.75rem; color: rgba(10,37,64,0.55); }
+
+.audela-dashboard .db-grid{ display:grid; grid-template-columns: 1.2fr .8fr; gap:.65rem; padding: 0 1rem 1rem; }
+.audela-dashboard.compact .db-grid{ grid-template-columns: 1fr 1fr; }
+.audela-dashboard .chart{ padding:.85rem; border-radius: 16px; border:1px solid rgba(10,37,64,0.12); background: rgba(255,255,255,0.92); }
+.audela-dashboard .chart-title{ font-weight:700; margin-bottom: .55rem; }
+.audela-dashboard .spark{ width: 100%; height: 120px; color: var(--audela-ink); }
+.audela-dashboard .bars{ display:grid; gap:.5rem; }
+.audela-dashboard .bars .b{ display:flex; align-items:center; gap:.7rem; }
+.audela-dashboard .bars .b span{ width: 90px; font-size:.85rem; }
+.audela-dashboard .bars .b i{ display:block; height: 10px; border-radius: 999px; background: linear-gradient(90deg, var(--audela-blue), var(--audela-red)); opacity: 0.5; }
+
+.audela-dashboard .db-table, .audela-board .board-table{
+  padding: 0 1rem 1rem;
+}
+.trow{ display:grid; grid-template-columns: 1.2fr .8fr 1.2fr; gap:.8rem; padding:.55rem .65rem; border-radius: 14px; border:1px solid rgba(10,37,64,0.10); background: rgba(255,255,255,0.92); margin-top: .45rem; }
+.trow.head{ background: rgba(10,37,64,0.05); border-color: rgba(10,37,64,0.10); font-weight: 800; }
+
+.audela-split{ display:grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; }
+
+/* --- Plans --- */
+.audela-plans{ display:grid; grid-template-columns: 1fr 1fr; gap: 1.2rem; }
+.audela-plans .plan{
+  border-radius: 22px;
+  border: 1px solid rgba(10,37,64,0.14);
+  background: grey;
+  box-shadow: 0 18px 50px rgba(0,0,0,0.10);
+  overflow: hidden;
+}
+.audela-plans .plan .plan-top{ padding: 1.1rem 1.1rem .75rem; background: linear-gradient(135deg, rgba(11,61,145,0.08), rgba(214,40,40,0.06)); border-bottom: 1px solid rgba(10,37,64,0.12); }
+.audela-plans .plan.featured{ border-color: rgba(214,40,40,0.25); }
+.audela-plans .plan h3{ margin: 0 0 .35rem 0; }
+.audela-plans .price{ font-size: 1.75rem; font-weight: 900; letter-spacing: .02em; }
+.audela-plans .price span{ font-size: .9rem; font-weight: 700; opacity: .75; }
+.audela-plans .features{ list-style: none; margin: 0; padding: 1rem 1.1rem; }
+.audela-plans .features li{ padding: .55rem .65rem; border-radius: 14px; border: 1px solid rgba(10,37,64,0.10); background:black; margin-bottom: .45rem; }
+.audela-plans .plan-cta{ display:flex; gap:.7rem; padding: 0 1.1rem 1.2rem; }
+
+/* Responsive */
+@media screen and (max-width: 980px){
+  .audela-dashboard .db-kpis{ grid-template-columns: repeat(2, 1fr); }
+  .audela-dashboard .db-grid{ grid-template-columns: 1fr; }
+  .audela-kv{ grid-template-columns: 1fr; }
+}
+@media screen and (max-width: 736px){
+  .audela-split{ grid-template-columns: 1fr; }
+  .audela-plans{ grid-template-columns: 1fr; }
+}
+
+
+/* --- AUDELA Carousel --- */
+.audela-carousel { position: relative; max-width: 1100px; margin: 0 auto; }
+.audela-carousel .slides { position: relative; overflow: hidden; border-radius: 18px; }
+.audela-carousel .slide { display: none; }
+.audela-carousel .slide.active { display: block; }
+.audela-carousel img { width: 100%; height: auto; display: block; border-radius: 18px; }
+.audela-carousel .caption {
+  position: absolute; left: 24px; bottom: 24px;
+  background: rgba(10, 37, 64, 0.72); color: #fff;
+  padding: 14px 16px; border-radius: 14px; max-width: 70%;
+}
+.audela-carousel .caption h3 { margin: 0 0 6px 0; color: #fff; }
+.audela-carousel .caption p { margin: 0; opacity: 0.92; }
+.audela-carousel .controls { display: flex; justify-content: center; gap: 10px; margin-top: 14px; }
+
+/* ------------------------------------------------------------
+   Dark sections (wrapper style1): improve contrast
+   The Landed theme's .wrapper.style1 is dark; our mockups should
+   use darker translucent surfaces to avoid looking too bright.
+------------------------------------------------------------ */
+
+.wrapper.style1 .muted{ color: rgba(255,255,255,0.72); }
+
+.wrapper.style1 .badge{
+  border-color: rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.10);
+  color: rgba(255,255,255,0.88);
+}
+
+/* Mobile mock screens (dark) */
+.wrapper.style1 .audela-phone{
+  border-color: rgba(255,255,255,0.14);
+  background: rgba(12,16,22,0.75);
+  box-shadow: 0 22px 70px rgba(0,0,0,0.45);
+}
+.wrapper.style1 .audela-phone .phone-top{
+  background: linear-gradient(135deg, rgba(11,61,145,0.22), rgba(214,40,40,0.14));
+  border-bottom-color: rgba(255,255,255,0.12);
+}
+.wrapper.style1 .audela-phone .phone-top .dot{ background: rgba(255,255,255,0.26); }
+.wrapper.style1 .audela-phone .phone-top .right{ color: rgba(255,255,255,0.62); }
+.wrapper.style1 .audela-phone .phone-body{ background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.90); }
+.wrapper.style1 .audela-phone .phone-bottom{ background: rgba(255,255,255,0.06); }
+
+.wrapper.style1 .app-search{
+  border-color: rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.08);
+}
+.wrapper.style1 .app-search input{ color: rgba(255,255,255,0.82); }
+
+.wrapper.style1 .app-card{
+  border-color: rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06);
+}
+.wrapper.style1 .rowitem{
+  border-color: rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.88);
+}
+.wrapper.style1 .app-mini .kpi{
+  border-color: rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06);
+}
+.wrapper.style1 .app-mini .kpi span{ color: rgba(255,255,255,0.68); }
+
+.wrapper.style1 .chip{ border-color: rgba(255,255,255,0.18); background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.86); }
+.wrapper.style1 .chip.soft{ background: rgba(11,61,145,0.18); }
+.wrapper.style1 .chip.ok{ background: rgba(34,197,94,0.18); border-color: rgba(34,197,94,0.40); }
+.wrapper.style1 .chip.warn{ background: rgba(245,158,11,0.18); border-color: rgba(245,158,11,0.42); }
+
+.wrapper.style1 .audela-tags li{
+  border-color: rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.85);
+}
+
+/* IoT blocks (dark) */
+.wrapper.style1 .audela-kv .kv-item,
+.wrapper.style1 .audela-steps .step{
+  border-color: rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.90);
+}
+.wrapper.style1 .audela-kv .kv-item span{ color: rgba(255,255,255,0.70); }
+
+/* Metabase-like dashboards (dark) */
+.wrapper.style1 .audela-board,
+.wrapper.style1 .audela-dashboard{
+  border-color: rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06);
+  box-shadow: 0 22px 70px rgba(0,0,0,0.38);
+}
+
+.wrapper.style1 .audela-board .board-top,
+.wrapper.style1 .audela-dashboard .db-top{
+  border-bottom-color: rgba(255,255,255,0.12);
+  background: linear-gradient(135deg, rgba(11,61,145,0.22), rgba(214,40,40,0.14));
+}
+
+.wrapper.style1 .audela-board .tile,
+.wrapper.style1 .audela-dashboard .k,
+.wrapper.style1 .audela-dashboard .chart,
+.wrapper.style1 .trow{
+  border-color: rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.90);
+}
+
+.wrapper.style1 .audela-board .tile .label,
+.wrapper.style1 .audela-dashboard .k span{ color: rgba(255,255,255,0.70); }
+
+.wrapper.style1 .audela-dashboard .k em{ color: rgba(255,255,255,0.62); }
+
+.wrapper.style1 .trow.head{
+  background: rgba(255,255,255,0.10);
+  border-color: rgba(255,255,255,0.14);
+}
+.audela-carousel .dot {
+  width: 10px; height: 10px; border-radius: 999px;
+  background: rgba(10, 37, 64, 0.25); cursor: pointer;
+}
+.audela-carousel .dot.active { background: rgba(10, 37, 64, 0.9); }
+.audela-carousel .arrows { position: absolute; inset: 0; pointer-events: none; }
+.audela-carousel .arrow {
+  pointer-events: auto;
+  position: absolute; top: 50%; transform: translateY(-50%);
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.18);
+  width: 44px; height: 44px; border-radius: 999px;
+  display: grid; place-items: center; color: #fff;
+  cursor: pointer; user-select: none;
+}
+.audela-carousel .arrow:hover { background: rgba(255,255,255,0.18); }
+.audela-carousel .arrow.prev { left: 14px; }
+.audela-carousel .arrow.next { right: 14px; }

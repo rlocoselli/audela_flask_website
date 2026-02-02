@@ -1,2 +1,17 @@
 Flask==3.0.3
 gunicorn==22.0.0
+
+# Auth / forms
+Flask-Login==0.6.3
+Flask-WTF==1.2.1
+
+# DB / migrations
+Flask-SQLAlchemy==3.1.1
+Flask-Migrate==4.0.7
+
+# Secrets encryption (datasource credentials)
+cryptography==42.0.8
+
+# Optional drivers (uncomment per need)
+psycopg2-binary==2.9.9
+pyodbc

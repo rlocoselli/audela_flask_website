@@ -1,0 +1,37 @@
+{% extends "portal/layout.html" %}
+{% set title = "Perguntas" %}
+
+{% block portal_content %}
+  <div class="box">
+    <p><a class="button" href="{{ url_for('portal.questions_new') }}">Nova pergunta</a></p>
+    {% if not questions %}
+      <p>Nenhuma pergunta criada ainda.</p>
+    {% else %}
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>Atualizada</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for q in questions %}
+              <tr>
+                <td><a href="{{ url_for('portal.questions_view', question_id=q.id) }}">{{ q.name }}</a></td>
+                <td>{{ q.updated_at }}</td>
+                <td>
+                  <form method="post" action="{{ url_for('portal.questions_delete', question_id=q.id) }}" style="display:inline;" onsubmit="return confirm('Excluir pergunta?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                    <button type="submit" class="button small">Excluir</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}

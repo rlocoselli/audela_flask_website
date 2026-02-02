@@ -1,0 +1,17 @@
+{% extends "portal/layout.html" %}
+{% set title = "Pergunta" %}
+
+{% block portal_content %}
+  <div class="box">
+    <h3>{{ question.name }}</h3>
+    <p><strong>Fonte:</strong> {{ source.name }} ({{ source.type }})</p>
+    <p><strong>SQL:</strong></p>
+    <pre style="white-space: pre-wrap;">{{ question.sql_text }}</pre>
+
+    <form method="post" action="{{ url_for('portal.questions_run', question_id=question.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <button type="submit" class="button primary">Executar</button>
+      <a class="button" href="{{ url_for('portal.questions_list') }}">Voltar</a>
+    </form>
+  </div>
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard – {{ dashboard.name }}{% endblock %}
+
+{% block content %}
+<section id="main" class="wrapper style1">
+  <div class="container">
+    <header class="major">
+      <h2>{{ dashboard.name }}</h2>
+      <p>Tenant: {{ tenant.name }}</p>
+    </header>
+
+    <div class="box">
+      <p>Placeholder do dashboard. Aqui você renderiza o layout + cards (charts) com os filtros globais.</p>
+      <pre style="white-space: pre-wrap;">{{ dashboard.layout_json | tojson(indent=2) }}</pre>
+    </div>
+  </div>
+</section>
+{% endblock %}

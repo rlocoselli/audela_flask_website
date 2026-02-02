@@ -1,0 +1,63 @@
+{% extends "portal/layout.html" %}
+{% set title = "Editor SQL" %}
+
+{% block portal_content %}
+  <div class="box">
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <div class="row gtr-uniform gtr-50">
+        <div class="col-12">
+          <label>Fonte</label>
+          <select name="source_id" required>
+            <option value="">-- selecione --</option>
+            {% for s in sources %}
+              <option value="{{ s.id }}" {% if request.form.get('source_id') == s.id|string %}selected{% endif %}>{{ s.name }} ({{ s.type }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12">
+          <label>SQL (somente leitura)</label>
+          <textarea name="sql_text" rows="10" placeholder="SELECT 1" required>{{ request.form.get('sql_text','') }}</textarea>
+          <p style="margin: .4em 0 0 0; font-size: .9em;">Se a fonte tiver <code>tenant_column</code>, inclua <code>:tenant_id</code> no filtro.</p>
+        </div>
+        <div class="col-12">
+          <button class="button primary" type="submit">Executar</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  {% if error %}
+    <div class="box">
+      <h3>Erro</h3>
+      <pre style="white-space: pre-wrap;">{{ error }}</pre>
+    </div>
+  {% endif %}
+
+  {% if result %}
+    <div class="box">
+      <h3>Resultado{% if elapsed_ms %} ({{ elapsed_ms }} ms){% endif %}</h3>
+      {% if result.columns %}
+        <div style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr>
+                {% for c in result.columns %}<th>{{ c }}</th>{% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in result.rows %}
+                <tr>
+                  {% for v in r %}<td>{{ v }}</td>{% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p>Query executada (sem linhas retornadas).</p>
+      {% endif %}
+      <p style="margin-top:.6em;"><em>Linhas retornadas:</em> {{ result.rows|length }}</p>
+    </div>
+  {% endif %}
+{% endblock %}

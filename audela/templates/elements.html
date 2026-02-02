@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}AUDELA – Composants{% endblock %}
+
+{% block content %}
+	<section id="main" class="wrapper style1">
+		<div class="container">
+			<header class="major">
+				<h2>Composants UI</h2>
+				<p>Une petite page de démonstration (cartes, tags, mini-dashboards) utile pour ajuster le style.</p>
+			</header>
+
+			<div class="row gtr-200">
+				<div class="col-6 col-12-medium">
+					<section class="box">
+						<h3>Badges & tags</h3>
+						<p>
+							<span class="badge">FR</span>
+							<span class="badge">BI</span>
+							<span class="badge">Mobile</span>
+						</p>
+						<ul class="audela-tags">
+							<li>Qualité</li><li>Sécurité</li><li>Performance</li><li>Observabilité</li>
+						</ul>
+					</section>
+				</div>
+				<div class="col-6 col-12-medium">
+					<section class="box">
+						<h3>Mini-dashboard</h3>
+						<div class="audela-board">
+							<div class="board-top"><strong>Exemple</strong><span class="badge">Demo</span></div>
+							<div class="board-grid">
+								<div class="tile"><div class="label">Tickets</div><div class="value">18</div></div>
+								<div class="tile"><div class="label">SLA</div><div class="value">99,1%</div></div>
+							</div>
+						</div>
+					</section>
+				</div>
+			</div>
+		</div>
+	</section>
+{% endblock %}

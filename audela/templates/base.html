@@ -1,0 +1,86 @@
+<!DOCTYPE HTML>
+<!--
+	Landed by HTML5 UP
+	html5up.net | @ajlkn
+	Free for personal and commercial use under the CCA 3.0 license (html5up.net/license)
+-->
+<html>
+	<head>
+		<title>{% block title %}AUDELA – Data, BI, ERP, LegalTech & IA{% endblock %}</title>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+		<link rel="stylesheet" href="{{ url_for('static', filename='assets/css/main.css') }}" />
+		<link rel="stylesheet" href="{{ url_for('static', filename='assets/css/custom.css') }}" />
+		<noscript><link rel="stylesheet" href="{{ url_for('static', filename='assets/css/noscript.css') }}" /></noscript>
+		{% block head_extra %}{% endblock %}
+	</head>
+	<body class="{% block body_class %}is-preload{% endblock %}">
+		<div id="page-wrapper">
+
+			<!-- Header -->
+			<header id="header">
+				<h1 id="logo">
+					<a href="{{ url_for('index') }}">
+						<img src="{{ url_for('static', filename='images/audela-logo.svg') }}" alt="AUDELA" />
+						<span class="brand-text">Au-delà des données</span>
+					</a>
+				</h1>
+				<nav id="nav">
+					<ul>
+						<li><a href="{{ url_for('index') }}" class="scrolly">Accueil</a></li>
+						<li>
+							<a href="#">AUDELA</a>
+							<ul>
+								<li><a href="{{ url_for('index') }}#one" class="scrolly">À propos</a></li>
+								<li><a href="{{ url_for('index') }}#two" class="scrolly">Expertise</a></li>
+								<li><a href="{{ url_for('index') }}#three" class="scrolly">Solutions</a></li>
+								<li><a href="{{ url_for('index') }}#four" class="scrolly">Pourquoi AUDELA</a></li>
+							</ul>
+						</li>
+						<li>
+							<a href="#">Projets</a>
+							<ul>
+								<li><a href="{{ url_for('projects_mobile') }}">Mobile</a></li>
+								<li><a href="{{ url_for('projects_iot') }}">IoT & Neuro</a></li>
+								<li><a href="{{ url_for('belegal') }}">BeLegal (LegalTech)</a></li>
+								<li><a href="{{ url_for('metabase') }}">BI & Metabase</a></li>
+							</ul>
+						</li>
+							<li><a href="{{ url_for('plans') }}">Plans BI</a></li>
+							<li><a href="{{ url_for('auth.login') }}">Área BI</a></li>
+							<li><a href="{{ url_for('index') }}#five" class="button primary scrolly">Contact</a></li>
+					</ul>
+				</nav>
+			</header>
+
+			{% block content %}{% endblock %}
+
+			<!-- Footer -->
+			<footer id="footer">
+				<ul class="icons">
+					<li><a href="#" class="icon brands alt fa-linkedin-in"><span class="label">LinkedIn</span></a></li>
+					<li><a href="#" class="icon brands alt fa-github"><span class="label">GitHub</span></a></li>
+					<li><a href="{{ url_for('index') }}#five" class="icon solid alt fa-envelope"><span class="label">E-mail</span></a></li>
+				</ul>
+				<ul class="copyright">
+					<li>&copy; AUDELA. Tous droits r&eacute;serv&eacute;s.</li>
+					<li>Design: <a href="http://html5up.net">HTML5 UP</a></li>
+				</ul>
+			</footer>
+
+		</div>
+
+		<!-- Scripts -->
+		<script src="{{ url_for('static', filename='assets/js/jquery.min.js') }}"></script>
+		<script src="{{ url_for('static', filename='assets/js/jquery.scrolly.min.js') }}"></script>
+		<script src="{{ url_for('static', filename='assets/js/jquery.dropotron.min.js') }}"></script>
+		<script src="{{ url_for('static', filename='assets/js/jquery.scrollex.min.js') }}"></script>
+		<script src="{{ url_for('static', filename='assets/js/browser.min.js') }}"></script>
+		<script src="{{ url_for('static', filename='assets/js/breakpoints.min.js') }}"></script>
+		<script src="{{ url_for('static', filename='assets/js/util.js') }}"></script>
+		<script src="{{ url_for('static', filename='assets/js/main.js') }}"></script>
+		<script src="{{ url_for('static', filename='assets/js/custom.js') }}"></script>
+		{% block body_scripts %}{% endblock %}
+
+	</body>
+</html>

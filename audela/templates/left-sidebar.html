@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}AUDELA – Solutions{% endblock %}
+
+{% block content %}
+	<section id="main" class="wrapper style1">
+		<div class="container">
+			<header class="major">
+				<h2>Solutions</h2>
+				<p>Une page "solution" plus classique (ex-template). Vous pouvez la garder pour du contenu éditorial (pages fixes).</p>
+			</header>
+
+			<section class="box">
+				<h3>Exemples</h3>
+				<div class="row gtr-200">
+					<div class="col-6 col-12-medium">
+						<ul class="alt">
+							<li>Data Platform & DWH</li>
+							<li>Dashboards Metabase & gouvernance</li>
+							<li>ERP / workflows & intégrations</li>
+						</ul>
+					</div>
+					<div class="col-6 col-12-medium">
+						<ul class="alt">
+							<li>LegalTech (BeLegal)</li>
+							<li>Mobile (Meu Busão, NutriTracker…)</li>
+							<li>IoT & analytics (entropie cérébrale…)</li>
+						</ul>
+					</div>
+				</div>
+				<ul class="actions">
+					<li><a href="{{ url_for('metabase') }}" class="button primary">Voir la BI</a></li>
+					<li><a href="{{ url_for('projects_mobile') }}" class="button">Voir les projets mobile</a></li>
+				</ul>
+			</section>
+		</div>
+	</section>
+{% endblock %}

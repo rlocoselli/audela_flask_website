@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800" role="img" aria-label="LegalTech">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#0a2540"/>
+      <stop offset="1" stop-color="#123a66"/>
+    </linearGradient>
+    <linearGradient id="acc" x1="0" x2="1">
+      <stop offset="0" stop-color="#5cc6ff" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#8fe3ff" stop-opacity="0.85"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/><feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="1200" height="800" fill="url(#bg)"/>
+  <g opacity="0.12" stroke="#ffffff">
+    <path d="M0 80 H1200"/><path d="M0 160 H1200"/><path d="M0 240 H1200"/><path d="M0 320 H1200"/><path d="M0 400 H1200"/><path d="M0 480 H1200"/><path d="M0 560 H1200"/><path d="M0 640 H1200"/><path d="M0 720 H1200"/>
+    <path d="M80 0 V800"/><path d="M160 0 V800"/><path d="M240 0 V800"/><path d="M320 0 V800"/><path d="M400 0 V800"/><path d="M480 0 V800"/><path d="M560 0 V800"/><path d="M640 0 V800"/><path d="M720 0 V800"/><path d="M800 0 V800"/><path d="M880 0 V800"/><path d="M960 0 V800"/><path d="M1040 0 V800"/><path d="M1120 0 V800"/>
+  </g>
+  <g filter="url(#soft)">
+    <rect x="110" y="140" rx="26" ry="26" width="980" height="520" fill="#ffffff" opacity="0.06" stroke="#ffffff" stroke-opacity="0.18"/>
+    <path d="M190 560 C340 430, 480 520, 620 410 C760 300, 910 320, 1010 220" fill="none" stroke="url(#acc)" stroke-width="6" stroke-linecap="round"/>
+    <path d="M210 260 C340 320, 430 250, 560 330 C700 420, 860 380, 990 520" fill="none" stroke="url(#acc)" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
+    <g fill="#bfefff">
+      <circle cx="190" cy="560" r="10"/><circle cx="340" cy="430" r="7" opacity="0.9"/>
+      <circle cx="480" cy="520" r="7" opacity="0.85"/><circle cx="620" cy="410" r="9" opacity="0.95"/>
+      <circle cx="760" cy="300" r="7" opacity="0.9"/><circle cx="910" cy="320" r="7" opacity="0.85"/>
+      <circle cx="1010" cy="220" r="10" opacity="0.95"/>
+    </g>
+    <rect x="190" y="190" width="320" height="170" rx="18" fill="#ffffff" opacity="0.07" stroke="#ffffff" stroke-opacity="0.18"/>
+    <rect x="540" y="190" width="470" height="110" rx="18" fill="#ffffff" opacity="0.06" stroke="#ffffff" stroke-opacity="0.16"/>
+    <rect x="540" y="320" width="470" height="170" rx="18" fill="#ffffff" opacity="0.06" stroke="#ffffff" stroke-opacity="0.16"/>
+  </g>
+  <text x="130" y="92" font-family="Arial, Helvetica, sans-serif" font-size="26" fill="#ffffff" opacity="0.9">Dossiers, rentabilité, automatisation documentaire</text>
+  <text x="130" y="130" font-family="Arial, Helvetica, sans-serif" font-size="56" font-weight="800" fill="#ffffff">LegalTech</text>
+</svg>

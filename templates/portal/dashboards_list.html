@@ -1,0 +1,37 @@
+{% extends "portal/layout.html" %}
+{% set title = "Dashboards" %}
+
+{% block portal_content %}
+  <div class="box">
+    <p><a class="button" href="{{ url_for('portal.dashboards_new') }}">Novo dashboard</a></p>
+    {% if not dashboards %}
+      <p>Nenhum dashboard criado ainda.</p>
+    {% else %}
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>Atualizado</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for d in dashboards %}
+              <tr>
+                <td><a href="{{ url_for('portal.dashboard_view', dashboard_id=d.id) }}">{{ d.name }}</a></td>
+                <td>{{ d.updated_at }}</td>
+                <td>
+                  <form method="post" action="{{ url_for('portal.dashboards_delete', dashboard_id=d.id) }}" style="display:inline;" onsubmit="return confirm('Excluir dashboard?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                    <button type="submit" class="button small">Excluir</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}

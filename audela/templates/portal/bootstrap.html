@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Bootstrap – AUDELA BI{% endblock %}
+
+{% block content %}
+<section id="main" class="wrapper style1">
+  <div class="container">
+    <header class="major">
+      <h2>Bootstrap (dev)</h2>
+      <p>Cria um tenant e um usuário admin. Remova esta tela em produção.</p>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div>
+          {% for category, message in messages %}
+            <div class="box">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <div class="row gtr-uniform gtr-50">
+        <div class="col-6 col-12-medium">
+          <input type="text" name="tenant_slug" placeholder="tenant slug (ex.: acme)" required />
+        </div>
+        <div class="col-6 col-12-medium">
+          <input type="text" name="tenant_name" placeholder="nome do tenant" required />
+        </div>
+        <div class="col-6 col-12-medium">
+          <input type="email" name="email" placeholder="email do admin" required />
+        </div>
+        <div class="col-6 col-12-medium">
+          <input type="password" name="password" placeholder="senha" required />
+        </div>
+        <div class="col-12">
+          <ul class="actions">
+            <li><input type="submit" value="Criar" class="primary" /></li>
+            <li><a href="{{ url_for('auth.login') }}" class="button">Voltar</a></li>
+          </ul>
+        </div>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}

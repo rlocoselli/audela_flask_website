@@ -20,34 +20,35 @@
 			<!-- Header -->
 			<header id="header">
 				<h1 id="logo">
-					<a href="{{ url_for('index') }}">
+					<a href="{{ url_for('public.index') }}">
 						<img src="{{ url_for('static', filename='images/audela-logo.svg') }}" alt="AUDELA" />
 						<span class="brand-text">Au-delà des données</span>
 					</a>
 				</h1>
 				<nav id="nav">
 					<ul>
-						<li><a href="{{ url_for('index') }}" class="scrolly">Accueil</a></li>
+						<li><a href="{{ url_for('public.index') }}" class="scrolly">Accueil</a></li>
 						<li>
 							<a href="#">AUDELA</a>
 							<ul>
-								<li><a href="{{ url_for('index') }}#one" class="scrolly">À propos</a></li>
-								<li><a href="{{ url_for('index') }}#two" class="scrolly">Expertise</a></li>
-								<li><a href="{{ url_for('index') }}#three" class="scrolly">Solutions</a></li>
-								<li><a href="{{ url_for('index') }}#four" class="scrolly">Pourquoi AUDELA</a></li>
+								<li><a href="{{ url_for('public.index') }}#one" class="scrolly">À propos</a></li>
+								<li><a href="{{ url_for('public.index') }}#two" class="scrolly">Expertise</a></li>
+								<li><a href="{{ url_for('public.index') }}#three" class="scrolly">Solutions</a></li>
+								<li><a href="{{ url_for('public.index') }}#four" class="scrolly">Pourquoi AUDELA</a></li>
 							</ul>
 						</li>
 						<li>
 							<a href="#">Projets</a>
 							<ul>
-								<li><a href="{{ url_for('projects_mobile') }}">Mobile</a></li>
-								<li><a href="{{ url_for('projects_iot') }}">IoT & Neuro</a></li>
-								<li><a href="{{ url_for('belegal') }}">BeLegal (LegalTech)</a></li>
-								<li><a href="{{ url_for('metabase') }}">BI & Metabase</a></li>
+								<li><a href="{{ url_for('public.projects_mobile') }}">Mobile</a></li>
+								<li><a href="{{ url_for('public.projects_iot') }}">IoT & Neuro</a></li>
+								<li><a href="{{ url_for('public.belegal') }}">BeLegal (LegalTech)</a></li>
+								<li><a href="{{ url_for('public.metabase') }}">BI & Metabase</a></li>
 							</ul>
 						</li>
-						<li><a href="{{ url_for('plans') }}">Plans BI</a></li>
-						<li><a href="{{ url_for('index') }}#five" class="button primary scrolly">Contact</a></li>
+							<li><a href="{{ url_for('public.plans') }}">Plans BI</a></li>
+							<li><a href="{{ url_for('auth.login') }}">Área BI</a></li>
+							<li><a href="{{ url_for('public.index') }}#five" class="button primary scrolly">Contact</a></li>
 					</ul>
 				</nav>
 			</header>
@@ -59,7 +60,7 @@
 				<ul class="icons">
 					<li><a href="#" class="icon brands alt fa-linkedin-in"><span class="label">LinkedIn</span></a></li>
 					<li><a href="#" class="icon brands alt fa-github"><span class="label">GitHub</span></a></li>
-					<li><a href="{{ url_for('index') }}#five" class="icon solid alt fa-envelope"><span class="label">E-mail</span></a></li>
+					<li><a href="{{ url_for('public.index') }}#five" class="icon solid alt fa-envelope"><span class="label">E-mail</span></a></li>
 				</ul>
 				<ul class="copyright">
 					<li>&copy; AUDELA. Tous droits r&eacute;serv&eacute;s.</li>

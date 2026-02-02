@@ -1,0 +1,40 @@
+{% extends "portal/layout.html" %}
+{% set title = "Execuções" %}
+
+{% block portal_content %}
+  <div class="box">
+    <h3>Query Runs (últimos 200)</h3>
+    {% if not runs %}
+      <p>Sem execuções ainda.</p>
+    {% else %}
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Quando</th>
+              <th>Status</th>
+              <th>Pergunta</th>
+              <th>Usuário</th>
+              <th>Duração (ms)</th>
+              <th>Linhas</th>
+              <th>Erro</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in runs %}
+              <tr>
+                <td>{{ r.started_at }}</td>
+                <td>{{ r.status }}</td>
+                <td>{{ r.question_id }}</td>
+                <td>{{ r.user_id }}</td>
+                <td>{{ r.duration_ms }}</td>
+                <td>{{ r.rows }}</td>
+                <td>{% if r.error %}<pre style="white-space: pre-wrap; margin:0;">{{ r.error }}</pre>{% endif %}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}

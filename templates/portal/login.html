@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Login – AUDELA BI{% endblock %}
+
+{% block content %}
+<section id="main" class="wrapper style1">
+  <div class="container">
+    <header class="major">
+      <h2>Área BI – Login</h2>
+      <p>Entre com seu tenant e suas credenciais.</p>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div>
+          {% for category, message in messages %}
+            <div class="box">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <div class="row gtr-50">
+      <div class="col-6 col-12-medium">
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <div class="row gtr-uniform gtr-50">
+            <div class="col-12">
+              <input type="text" name="tenant_slug" placeholder="Tenant (ex.: acme)" required />
+            </div>
+            <div class="col-12">
+              <input type="email" name="email" placeholder="Email" required />
+            </div>
+            <div class="col-12">
+              <input type="password" name="password" placeholder="Senha" required />
+            </div>
+            <div class="col-12">
+              <ul class="actions">
+                <li><input type="submit" value="Entrar" class="primary" /></li>
+                <li><a href="{{ url_for('auth.bootstrap') }}" class="button">Bootstrap (dev)</a></li>
+              </ul>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="col-6 col-12-medium">
+        <div class="box">
+          <h3>Segurança & isolamento</h3>
+          <p>Este portal é escopado por tenant. Um usuário do Tenant A não acessa objetos do Tenant B.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+{% endblock %}

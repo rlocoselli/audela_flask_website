@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}AUDELA – À propos{% endblock %}
+
+{% block content %}
+	<section id="main" class="wrapper style1">
+		<div class="container">
+			<header class="major">
+				<h2>À propos</h2>
+				<p>AUDELA accompagne la transformation data & produit, avec une culture de l’exécution (DevOps) et du résultat métier.</p>
+			</header>
+
+			<section class="box">
+				<h3>Manière de travailler</h3>
+				<ul class="alt">
+					<li><strong>Cadrage</strong> : objectifs, indicateurs, ROI, risques, contraintes.</li>
+					<li><strong>Delivery</strong> : itérations courtes, tests, monitoring, documentation.</li>
+					<li><strong>Transfert</strong> : autonomie, runbooks, bonnes pratiques.</li>
+				</ul>
+				<ul class="actions">
+					<li><a href="{{ url_for('plans') }}" class="button primary">Voir les plans BI</a></li>
+					<li><a href="{{ url_for('index') }}#five" class="button">Contact</a></li>
+				</ul>
+			</section>
+		</div>
+	</section>
+{% endblock %}

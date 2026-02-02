@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Portal – {{ tenant.name }}{% endblock %}
+
+{% block content %}
+<section id="main" class="wrapper style1">
+  <div class="container">
+    <header class="major">
+      <h2>Portal BI – {{ tenant.name }}</h2>
+      <p>Bem-vindo, {{ current_user.email }}.</p>
+    </header>
+
+    <div class="box">
+      <h3>Próximos passos (MVP)</h3>
+      <ul>
+        <li>Cadastro de fontes de dados por tenant</li>
+        <li>Explorador de metadados + editor SQL</li>
+        <li>Perguntas (queries salvas) + dashboards</li>
+        <li>Auditoria e logs por tenant</li>
+      </ul>
+      <p><a href="{{ url_for('auth.logout') }}">Sair</a></p>
+    </div>
+  </div>
+</section>
+{% endblock %}

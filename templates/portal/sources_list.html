@@ -1,0 +1,41 @@
+{% extends "portal/layout.html" %}
+{% set title = "Fontes" %}
+
+{% block portal_content %}
+  <div class="box">
+    <p><a class="button" href="{{ url_for('portal.sources_new') }}">Nova fonte</a></p>
+    {% if not sources %}
+      <p>Nenhuma fonte cadastrada ainda.</p>
+    {% else %}
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>Tipo</th>
+              <th>Criada em</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in sources %}
+              <tr>
+                <td><a href="{{ url_for('portal.sources_view', source_id=s.id) }}">{{ s.name }}</a></td>
+                <td>{{ s.type }}</td>
+                <td>{{ s.created_at }}</td>
+                <td>
+                  <a href="{{ url_for('portal.sources_introspect', source_id=s.id) }}">Introspectar</a>
+                  &nbsp;|
+                  <form method="post" action="{{ url_for('portal.sources_delete', source_id=s.id) }}" style="display:inline;" onsubmit="return confirm('Remover fonte?');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                    <button type="submit" class="button small">Excluir</button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}

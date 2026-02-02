@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}{% if title %}{{ title }} – {% endif %}Portal BI{% endblock %}
+
+{% block content %}
+<section id="main" class="wrapper style1">
+  <div class="container">
+    <header class="major">
+      <h2>Portal BI – {{ tenant.name }}</h2>
+      <p>Usuário: {{ current_user.email }} | <a href="{{ url_for('auth.logout') }}">Sair</a></p>
+    </header>
+
+    <div class="box" style="padding: 1em;">
+      <p style="margin:0 0 .8em 0;">
+        <a href="{{ url_for('portal.home') }}">Home</a> ·
+        <a href="{{ url_for('portal.sources_list') }}">Fontes</a> ·
+        <a href="{{ url_for('portal.sources_list') }}">Metadados</a> ·
+        <a href="{{ url_for('portal.sql_editor') }}">Editor SQL</a> ·
+        <a href="{{ url_for('portal.questions_list') }}">Perguntas</a> ·
+        <a href="{{ url_for('portal.dashboards_list') }}">Dashboards</a> ·
+        <a href="{{ url_for('portal.runs_list') }}">Execuções</a> ·
+        <a href="{{ url_for('portal.audit_list') }}">Auditoria</a>
+      </p>
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <ul style="list-style: none; padding-left:0;">
+            {% for category, message in messages %}
+              <li><strong>{{ category|capitalize }}:</strong> {{ message }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+      {% endwith %}
+    </div>
+
+    {% block portal_content %}{% endblock %}
+  </div>
+</section>
+{% endblock %}
