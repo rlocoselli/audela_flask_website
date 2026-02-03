@@ -1,0 +1,31 @@
+{% extends "portal/layout.html" %}
+{% set title = "Metadados" %}
+
+{% block portal_content %}
+  <div class="box">
+    <h3>Metadados – {{ source.name }}</h3>
+    <p><a class="button" href="{{ url_for('portal.sources_view', source_id=source.id) }}">Voltar</a></p>
+
+    {% if not meta.schemas %}
+      <p>Nenhum schema/tabela encontrado.</p>
+    {% else %}
+      {% for sch in meta.schemas %}
+        <h4>Schema: {{ sch.name }}</h4>
+        {% if not sch.tables %}
+          <p><em>Sem tabelas visíveis</em></p>
+        {% else %}
+          {% for t in sch.tables %}
+            <details style="margin: .6em 0;">
+              <summary><strong>{{ t.name }}</strong> ({{ t.columns|length }} colunas)</summary>
+              <ul>
+                {% for c in t.columns %}
+                  <li><code>{{ c.name }}</code> – {{ c.type }}</li>
+                {% endfor %}
+              </ul>
+            </details>
+          {% endfor %}
+        {% endif %}
+      {% endfor %}
+    {% endif %}
+  </div>
+{% endblock %}

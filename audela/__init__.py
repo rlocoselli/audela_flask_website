@@ -3,10 +3,12 @@ from __future__ import annotations
 import os
 
 from flask import Flask
+from flask import g, request, session
 
 from .config import DevConfig, ProdConfig
 from .extensions import csrf, db, login_manager, migrate
 from .models.core import User
+from .i18n import DEFAULT_LANG, SUPPORTED_LANGS, TRANSLATIONS, best_lang_from_accept_language, normalize_lang, tr
 
 
 def create_app() -> Flask:
@@ -29,6 +31,30 @@ def create_app() -> Flask:
     csrf.init_app(app)
 
     login_manager.login_view = "auth.login"
+
+    # -----------------
+    # i18n (dictionary-based)
+    # -----------------
+    @app.before_request
+    def _set_language() -> None:  # noqa: ANN001
+        # Order: explicit session -> browser header -> default
+        sess_lang = normalize_lang(session.get("lang")) if session.get("lang") else None
+        g.lang = sess_lang or best_lang_from_accept_language(request.headers.get("Accept-Language"))
+
+    @app.context_processor
+    def _inject_i18n() -> dict:  # noqa: ANN001
+        def _(msgid: str, **kwargs):
+            return tr(msgid, getattr(g, "lang", DEFAULT_LANG), **kwargs)
+
+        return {
+            "_": _,
+            "current_lang": getattr(g, "lang", DEFAULT_LANG),
+            "supported_langs": SUPPORTED_LANGS,
+            "lang_label": lambda code: SUPPORTED_LANGS.get(code, SUPPORTED_LANGS[DEFAULT_LANG]).label,
+            "request": request,
+            "i18n_strings": TRANSLATIONS.get(getattr(g, "lang", DEFAULT_LANG), {}),
+        
+        }
 
     @login_manager.user_loader
     def load_user(user_id: str):

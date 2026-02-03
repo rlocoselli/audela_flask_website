@@ -1,44 +1,153 @@
 {% extends "portal/layout.html" %}
-{% set title = "Dashboard" %}
+{% set title = dashboard.name %}
 
 {% block portal_content %}
-  <div class="box">
-    <h3>{{ dashboard.name }}</h3>
-    <p><a class="button" href="{{ url_for('portal.dashboards_list') }}">Voltar</a></p>
+<div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="h4 mb-1">{{ dashboard.name }}</h1>
+    {% if dashboard.description %}<div class="text-secondary">{{ dashboard.description }}</div>{% endif %}
   </div>
 
-  {% if not cards %}
-    <div class="box">
-      <p>Nenhum card ainda. Crie um dashboard escolhendo perguntas.</p>
-    </div>
-  {% else %}
-    {% for item in cards %}
-      <div class="box">
-        <h4>{{ item.question.name }}</h4>
-        {% if item.result.error %}
-          <pre style="white-space: pre-wrap;">{{ item.result.error }}</pre>
-        {% elif item.result.columns %}
-          <div style="overflow-x:auto;">
-            <table>
-              <thead>
-                <tr>
-                  {% for c in item.result.columns %}<th>{{ c }}</th>{% endfor %}
-                </tr>
-              </thead>
-              <tbody>
-                {% for r in item.result.rows %}
-                  <tr>
-                    {% for v in r %}<td>{{ v }}</td>{% endfor %}
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-          <p style="margin-top:.6em;"><em>Linhas:</em> {{ item.result.rows|length }}</p>
-        {% else %}
-          <p>Sem linhas retornadas.</p>
-        {% endif %}
+  <div class="d-flex align-items-center gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.dashboards_list') }}">
+      <i class="bi bi-arrow-left"></i> {{ _('Voltar') }}
+    </a>
+
+    <button class="btn btn-outline-primary btn-sm" id="layout-edit">
+      <i class="bi bi-arrows-move"></i> {{ _('Editar layout') }}
+    </button>
+    <button class="btn btn-primary btn-sm d-none" id="layout-save">
+      <i class="bi bi-check2"></i> {{ _('Salvar layout') }}
+    </button>
+    <button class="btn btn-success btn-sm d-none" id="layout-add-card" data-bs-toggle="offcanvas" data-bs-target="#addCardCanvas">
+  <i class="bi bi-plus-lg"></i> {{ _('Adicionar card') }}
+</button>
+    <button class="btn btn-outline-secondary btn-sm d-none" id="layout-cancel">
+      <i class="bi bi-x"></i> {{ _('Cancelar edição') }}
+    </button>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-3" style="border-radius: 1rem;">
+  <div class="card-body">
+    <div class="row g-2 align-items-end">
+      <div class="col-12 col-lg-3">
+        <label class="form-label mb-1">{{ _('Filtros') }}</label>
+        <select id="bi-filter-field" class="form-select form-select-sm"></select>
       </div>
-    {% endfor %}
-  {% endif %}
+      <div class="col-6 col-lg-2">
+        <label class="form-label mb-1">&nbsp;</label>
+        <select id="bi-filter-op" class="form-select form-select-sm">
+          <option value="eq">=</option>
+          <option value="contains">contains</option>
+          <option value="gt">&gt;</option>
+          <option value="lt">&lt;</option>
+        </select>
+      </div>
+      <div class="col-6 col-lg-3">
+        <label class="form-label mb-1">&nbsp;</label>
+        <input id="bi-filter-value" class="form-control form-control-sm" type="text" placeholder="value" />
+      </div>
+      <div class="col-12 col-lg-4">
+        <label class="form-label mb-1">&nbsp;</label>
+        <div class="d-flex flex-wrap gap-2">
+          <button class="btn btn-outline-primary btn-sm" id="bi-add-filter">{{ _('Adicionar filtro') }}</button>
+          <button class="btn btn-outline-secondary btn-sm" id="bi-clear-filters">{{ _('Limpar filtros') }}</button>
+          <button class="btn btn-outline-secondary btn-sm" id="bi-export-pdf"><i class="bi bi-filetype-pdf"></i> {{ _('Exportar PDF') }}</button>
+        </div>
+      </div>
+    </div>
+    <div id="bi-filter-summary" class="mt-2"></div>
+  </div>
+</div>
+
+{% if not cards %}
+  <div class="alert alert-info">{{ _('Nenhum card ainda. Crie um dashboard escolhendo perguntas.') }}</div>
+{% endif %}
+
+<div class="grid-stack" id="dash-grid" data-dashboard-id="{{ dashboard.id }}"></div>
+<!-- Add Card (Builder) -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="addCardCanvas">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title">{{ _('Adicionar card') }}</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body">
+    <div class="mb-2">
+      <label class="form-label">{{ _('Buscar pergunta') }}</label>
+      <input class="form-control" id="addcard-search" placeholder="{{ _('Digite para filtrar...') }}" />
+    </div>
+    <div class="mb-2">
+      <label class="form-label">{{ _('Pergunta') }}</label>
+      <select class="form-select" id="addcard-question">
+        <option value="">--</option>
+        {% for q in all_questions %}
+          <option value="{{ q.id }}">{{ q.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="mb-2">
+      <label class="form-label">{{ _('Visualização') }}</label>
+      <select class="form-select" id="addcard-type">
+        <option value="table">{{ _('Tabela') }}</option>
+        <option value="bar">Bar</option>
+        <option value="line">Line</option>
+        <option value="area">Area</option>
+        <option value="pie">Pie</option>
+        <option value="scatter">Scatter</option>
+        <option value="gauge">Gauge</option>
+        <option value="pivot">Pivot</option>
+      </select>
+      <div class="form-text">{{ _('Você pode refinar depois em Configurar visualização.') }}</div>
+    </div>
+    <div class="mb-2">
+      <label class="form-label">{{ _('Parâmetros (JSON)') }}</label>
+      <textarea class="form-control" id="addcard-params" rows="4" placeholder="{\n  \"from\": \"2025-01-01\"\n}"></textarea>
+    </div>
+    <div class="d-flex gap-2 mt-3">
+      <button class="btn btn-primary" id="addcard-create"><i class="bi bi-plus-lg"></i> {{ _('Adicionar') }}</button>
+      <button class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">{{ _('Cancelar') }}</button>
+    </div>
+    <div class="small-muted mt-2" id="addcard-status"></div>
+  </div>
+</div>
+
+<!-- Initial cards as HTML templates (hydrated by JS into Gridstack) -->
+<template id="dash-cards-template">
+  {% for item in cards %}
+    {% set pos = item.card.position_json or {} %}
+    <div class="grid-stack-item" gs-x="{{ pos.get('x', 0) }}" gs-y="{{ pos.get('y', loop.index0 * 6) }}" gs-w="{{ pos.get('w', 12) }}" gs-h="{{ pos.get('h', 6) }}" data-bi-card="1" data-card-id="{{ item.card.id }}">
+      <div class="grid-stack-item-content">
+        <div class="card-head">
+          <div class="d-flex align-items-center gap-2" style="min-width: 0;">
+            <i class="bi bi-ui-checks" style="opacity:.65"></i>
+            <div class="card-title">{{ item.question.name }}</div>
+          </div>
+          <div class="d-flex gap-1">
+            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.questions_viz', question_id=item.question.id) }}" title="{{ _('Configurar visualização') }}">
+              <i class="bi bi-sliders"></i>
+            </a>
+            <button class="btn btn-outline-danger btn-sm d-none" data-card-remove="1" title="{{ _('Remover card') }}">
+              <i class="bi bi-trash"></i>
+            </button>
+          </div>
+        </div>
+        <div class="card-body-inner">
+          {% if item.result.error %}
+            <div class="alert alert-danger py-2">{{ _('Erro') }}: {{ item.result.error }}</div>
+          {% endif %}
+          <div class="bi-viz viz" id="viz-{{ item.card.id }}"></div>
+          <script type="application/json" id="data-{{ item.card.id }}">{{ item.result|tojson }}</script>
+          <script type="application/json" id="cfg-{{ item.card.id }}">{{ item.viz_config|tojson }}</script>
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+</template>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='bi/bi_viz.js') }}"></script>
+  <script src="{{ url_for('static', filename='bi/bi_dashboard.js') }}"></script>
 {% endblock %}

@@ -9,9 +9,16 @@ Flask-WTF==1.2.1
 Flask-SQLAlchemy==3.1.1
 Flask-Migrate==4.0.7
 
+# Export
+reportlab==4.2.2
+
 # Secrets encryption (datasource credentials)
 cryptography==42.0.8
 
 # Optional drivers (uncomment per need)
 psycopg2-binary==2.9.9
 pyodbc
+
+# AI (optional)
+requests==2.32.3
+

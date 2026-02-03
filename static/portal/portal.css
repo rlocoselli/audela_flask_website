@@ -1,0 +1,207 @@
+/* AUDELA BI Portal – Metabase/Superset-like skin */
+
+:root{
+  --sidebar-width: 260px;
+}
+
+html, body{ height:100%; }
+
+.portal-shell{ min-height:100vh; }
+
+.sidebar{
+  width: var(--sidebar-width);
+}
+
+.sidebar .brand{
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+
+.sidebar .nav-link{
+  border-radius: .6rem;
+  padding: .55rem .75rem;
+  color: var(--bs-body-color);
+}
+
+.sidebar .nav-link:hover{
+  background: var(--bs-tertiary-bg);
+}
+
+.sidebar .nav-link.active{
+  background: var(--bs-primary-bg-subtle);
+  color: var(--bs-primary-text-emphasis);
+}
+
+.main-area{ flex: 1 1 auto; min-width: 0; }
+
+.topbar{
+  position: sticky;
+  top: 0;
+  z-index: 1020;
+  background: var(--bs-body-bg);
+}
+
+/* Gridstack cards */
+.grid-stack{
+  background: transparent;
+}
+
+.grid-stack-item-content{
+  border: 1px solid var(--bs-border-color);
+  border-radius: 1rem;
+  overflow: hidden;
+  background: var(--bs-body-bg);
+  box-shadow: 0 .2rem .8rem rgba(0,0,0,.06);
+  display: flex;
+  flex-direction: column;
+}
+
+.card-head{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  padding: .6rem .8rem;
+  border-bottom: 1px solid var(--bs-border-color);
+  background: var(--bs-body-bg);
+}
+
+.card-title{
+  margin: 0;
+  font-size: .95rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-body-inner{
+  padding: .75rem .8rem;
+  overflow: auto;
+  flex: 1 1 auto;
+}
+
+.viz{
+  min-height: 240px;
+}
+
+/* Pivot container */
+.pivot-wrap{ min-height: 320px; }
+
+/* Small helper */
+.small-muted{ color: var(--bs-secondary-color); font-size: .85rem; }
+
+/* Modern checkbox (Bootstrap friendly) */
+:root{
+  --cb-size: 1.05rem;
+  --cb-radius: 0.35rem;
+  --cb-border: #c5cbd3;
+  --cb-bg: #fff;
+  --cb-checked: #2563eb;
+  --cb-checked-border: #2563eb;
+  --cb-focus: rgba(37, 99, 235, .35);
+  --cb-disabled: #e9edf2;
+  --cb-disabled-border: #d6dde6;
+}
+
+.form-check-input[type="checkbox"]{
+  width: var(--cb-size);
+  height: var(--cb-size);
+  border-radius: var(--cb-radius);
+  border: 2px solid var(--cb-border);
+  background: var(--cb-bg);
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease;
+  display: inline-grid;
+  place-content: center;
+}
+
+.form-check-input[type="checkbox"]:checked{
+  background: var(--cb-checked);
+  border-color: var(--cb-checked-border);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath fill='white' d='M7.6 14.6 3.7 10.7l1.4-1.4 2.5 2.5 7-7 1.4 1.4z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 80% 80%;
+}
+
+.form-check-input[type="checkbox"]:focus-visible{
+  box-shadow: 0 0 0 4px var(--cb-focus);
+}
+
+.form-check-input[type="checkbox"]:disabled{
+  cursor: not-allowed;
+  background: var(--cb-disabled);
+  border-color: var(--cb-disabled-border);
+  opacity: 1;
+}
+
+.form-check-input[type="checkbox"]:checked:disabled{
+  background-color: #93b4ff;
+  border-color: #93b4ff;
+}
+
+/* Chat */
+.chat-log{
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 1rem;
+  padding: .75rem;
+  height: 56vh;
+  overflow: auto;
+}
+
+.chat-msg{
+  padding: .55rem .7rem;
+  border-radius: 1rem;
+  margin: .35rem 0;
+  max-width: 85%;
+  white-space: pre-wrap;
+}
+
+.chat-msg.user{
+  background: var(--bs-primary-bg-subtle);
+  color: var(--bs-primary-text-emphasis);
+  margin-left: auto;
+}
+
+.chat-msg.assistant{
+  background: var(--bs-tertiary-bg);
+}
+
+
+/* Back-compat: legacy portal templates (.box / .button) */
+.box{
+  border: 1px solid var(--bs-border-color);
+  border-radius: 1rem;
+  padding: 1rem;
+  background: var(--bs-body-bg);
+  box-shadow: 0 .2rem .8rem rgba(0,0,0,.06);
+  margin-bottom: 1rem;
+}
+
+.button{
+  display: inline-block;
+  padding: .45rem .75rem;
+  border-radius: .6rem;
+  border: 1px solid var(--bs-border-color);
+  background: var(--bs-body-bg);
+  color: var(--bs-body-color);
+  text-decoration: none;
+  cursor: pointer;
+}
+.button:hover{
+  background: var(--bs-tertiary-bg);
+}
+.button.primary{
+  background: var(--bs-primary);
+  border-color: var(--bs-primary);
+  color: #fff;
+}
+.button.small{ padding: .3rem .55rem; font-size: .875rem; }
+
+ul.actions{ list-style:none; padding-left:0; margin:0; display:flex; gap:.5rem; flex-wrap:wrap; }
+ul.actions li{ margin:0; }

@@ -1,0 +1,120 @@
+{% extends "portal/layout.html" %}
+{% set title = _('Visualização') %}
+
+{% block head_extra %}
+  {{ super() }}
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pivottable/2.23.0/pivot.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.13.2/jquery-ui.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pivottable/2.23.0/pivot.min.js"></script>
+{% endblock %}
+
+{% block portal_content %}
+  <div class="box">
+    <h3>{{ question.name }} – {{ _('Configurar visualização') }}</h3>
+    <p><strong>Fonte:</strong> {{ source.name }} ({{ source.type }})</p>
+    <p style="margin-top:.4em;"><a class="button" href="{{ url_for('portal.questions_view', question_id=question.id) }}">{{ _('Voltar') }}</a></p>
+  </div>
+
+  {% if result.error %}
+    <div class="box">
+      <h3>{{ _('Erro') }}</h3>
+      <pre style="white-space: pre-wrap;">{{ result.error }}</pre>
+    </div>
+  {% endif %}
+
+  <div class="box">
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <input type="hidden" id="viz_config_json" name="viz_config_json" value="" />
+
+      <div class="row gtr-uniform gtr-50">
+        <div class="col-12">
+          <label>{{ _('Tipo') }}</label>
+          <select id="viz_type">
+            <option value="table">{{ _('Tabela') }}</option>
+            <option value="bar">Bar</option>
+            <option value="line">Line</option>
+            <option value="area">Area</option>
+            <option value="pie">Pie</option>
+            <option value="scatter">Scatter</option>
+            <option value="gauge">{{ _('Gauges') }}</option>
+            <option value="pivot">{{ _('Pivot') }}</option>
+          </select>
+        </div>
+
+        <div class="col-6 col-12-medium">
+          <label>X / Dimension</label>
+          <select id="viz_dim">
+            <option value="">--</option>
+            {% for c in result.columns %}
+              <option value="{{ c }}">{{ c }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-6 col-12-medium">
+          <label>Y / Metric</label>
+          <select id="viz_metric">
+            <option value="">--</option>
+            {% for c in result.columns %}
+              <option value="{{ c }}">{{ c }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-12">
+          <label>{{ _('Drill down') }}</label>
+          <select id="viz_drill">
+            <option value="">--</option>
+            {% for c in result.columns %}
+              <option value="{{ c }}">{{ c }}</option>
+            {% endfor %}
+          </select>
+          <p style="margin:.4em 0 0 0; font-size:.9em;">Clique em um ponto/barra para filtrar o dashboard por esse valor.</p>
+        </div>
+
+        <div class="col-12">
+          <label>Pivot (Rows / Cols / Value)</label>
+          <div class="row gtr-uniform gtr-50">
+            <div class="col-4 col-12-medium">
+              <select id="pivot_rows">
+                <option value="">Rows</option>
+                {% for c in result.columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-4 col-12-medium">
+              <select id="pivot_cols">
+                <option value="">Cols</option>
+                {% for c in result.columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-4 col-12-medium">
+              <select id="pivot_val">
+                <option value="">Value</option>
+                {% for c in result.columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+              </select>
+            </div>
+          </div>
+          <p style="margin:.4em 0 0 0; font-size:.9em;">Dica: para pivot avançado use o tipo <strong>Pivot</strong> e personalize na tela.</p>
+        </div>
+
+        <div class="col-12">
+          <button class="button primary" type="submit">{{ _('Salvar') }}</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <div class="box">
+    <h3>{{ _('Prévia') }}</h3>
+    <div id="preview" style="min-height: 420px;"></div>
+  </div>
+
+  <script type="application/json" id="preview-data">{{ result|tojson }}</script>
+  <script type="application/json" id="preview-cfg">{{ viz_config|tojson }}</script>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='bi/bi_viz.js') }}"></script>
+{% endblock %}

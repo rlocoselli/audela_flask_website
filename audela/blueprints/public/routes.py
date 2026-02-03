@@ -1,4 +1,6 @@
-from flask import render_template
+from flask import redirect, render_template, request, session, url_for
+
+from ...i18n import DEFAULT_LANG, SUPPORTED_LANGS, normalize_lang
 
 from . import bp
 
@@ -6,6 +8,18 @@ from . import bp
 @bp.route("/")
 def index():
     return render_template("index.html")
+
+
+@bp.route("/lang/<lang_code>")
+def set_language(lang_code: str):
+    """Set UI language and redirect back."""
+    lang = normalize_lang(lang_code)
+    if lang not in SUPPORTED_LANGS:
+        lang = DEFAULT_LANG
+    session["lang"] = lang
+
+    nxt = request.args.get("next") or request.referrer or url_for("public.index")
+    return redirect(nxt)
 
 
 @bp.route("/projets/mobile")

@@ -27,28 +27,38 @@
 				</h1>
 				<nav id="nav">
 					<ul>
-						<li><a href="{{ url_for('public.index') }}" class="scrolly">Accueil</a></li>
+						<li><a href="{{ url_for('public.index') }}" class="scrolly">{{ _('Accueil') }}</a></li>
 						<li>
 							<a href="#">AUDELA</a>
 							<ul>
-								<li><a href="{{ url_for('public.index') }}#one" class="scrolly">À propos</a></li>
-								<li><a href="{{ url_for('public.index') }}#two" class="scrolly">Expertise</a></li>
-								<li><a href="{{ url_for('public.index') }}#three" class="scrolly">Solutions</a></li>
-								<li><a href="{{ url_for('public.index') }}#four" class="scrolly">Pourquoi AUDELA</a></li>
+								<li><a href="{{ url_for('public.index') }}#one" class="scrolly">{{ _('À propos') }}</a></li>
+								<li><a href="{{ url_for('public.index') }}#two" class="scrolly">{{ _('Expertise') }}</a></li>
+								<li><a href="{{ url_for('public.index') }}#three" class="scrolly">{{ _('Solutions') }}</a></li>
+								<li><a href="{{ url_for('public.index') }}#four" class="scrolly">{{ _('Pourquoi AUDELA') }}</a></li>
 							</ul>
 						</li>
 						<li>
-							<a href="#">Projets</a>
+							<a href="#">{{ _('Projets') }}</a>
 							<ul>
-								<li><a href="{{ url_for('public.projects_mobile') }}">Mobile</a></li>
-								<li><a href="{{ url_for('public.projects_iot') }}">IoT & Neuro</a></li>
-								<li><a href="{{ url_for('public.belegal') }}">BeLegal (LegalTech)</a></li>
-								<li><a href="{{ url_for('public.metabase') }}">BI & Metabase</a></li>
+								<li><a href="{{ url_for('public.projects_mobile') }}">{{ _('Mobile') }}</a></li>
+								<li><a href="{{ url_for('public.projects_iot') }}">{{ _('IoT & Neuro') }}</a></li>
+							<li><a href="{{ url_for('public.belegal') }}">{{ _('BeLegal (LegalTech)') }}</a></li>
+							<li><a href="{{ url_for('public.metabase') }}">{{ _('BI & Metabase') }}</a></li>
 							</ul>
 						</li>
-							<li><a href="{{ url_for('public.plans') }}">Plans BI</a></li>
-							<li><a href="{{ url_for('auth.login') }}">Área BI</a></li>
-							<li><a href="{{ url_for('public.index') }}#five" class="button primary scrolly">Contact</a></li>
+							<li><a href="{{ url_for('public.plans') }}">{{ _('Plans BI') }}</a></li>
+							<li><a href="{{ url_for('auth.login') }}">{{ _('Área BI') }}</a></li>
+							<li><a href="{{ url_for('public.index') }}#five" class="button primary scrolly">{{ _('Contact') }}</a></li>
+							<li>
+								<a href="#">{{ lang_label(current_lang) }}</a>
+								<ul>
+									{% for code, info in supported_langs.items() %}
+										<li>
+											<a href="{{ url_for('public.set_language', lang_code=code, next=request.full_path) }}">{{ info.label }}</a>
+										</li>
+									{% endfor %}
+								</ul>
+							</li>
 					</ul>
 				</nav>
 			</header>
@@ -63,7 +73,7 @@
 					<li><a href="{{ url_for('public.index') }}#five" class="icon solid alt fa-envelope"><span class="label">E-mail</span></a></li>
 				</ul>
 				<ul class="copyright">
-					<li>&copy; AUDELA. Tous droits r&eacute;serv&eacute;s.</li>
+					<li>&copy; AUDELA. {{ _('Tous droits réservés.') }}</li>
 					<li>Design: <a href="http://html5up.net">HTML5 UP</a></li>
 				</ul>
 			</footer>
