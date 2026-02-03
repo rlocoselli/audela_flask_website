@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from flask import flash, redirect, render_template, request, url_for
+from flask import flash, redirect, render_template, request, url_for, g
 from flask_login import login_user, logout_user
 
 from ...extensions import db
 from ...models.bi import AuditEvent
 from ...models.core import Tenant, User, Role
 from ...tenancy import CurrentTenant, set_current_tenant, clear_current_tenant
+from ...i18n import tr
 from . import bp
 
 
@@ -22,12 +23,12 @@ def login():
 
         tenant = Tenant.query.filter_by(slug=tenant_slug).first()
         if not tenant:
-            flash("Tenant não encontrado.", "error")
+            flash(tr("Tenant não encontrado.", getattr(g, "lang", None)), "error")
             return render_template("portal/login.html")
 
         user = User.query.filter_by(tenant_id=tenant.id, email=email).first()
         if not user or not user.check_password(password):
-            flash("Credenciais inválidas.", "error")
+            flash(tr("Credenciais inválidas.", getattr(g, "lang", None)), "error")
             # Optional: record failed login attempt (without storing password)
             db.session.add(
                 AuditEvent(
@@ -78,11 +79,11 @@ def bootstrap():
         password = request.form.get("password", "")
 
         if not tenant_slug or not tenant_name or not email or not password:
-            flash("Preencha todos os campos.", "error")
+            flash(tr("Preencha todos os campos.", getattr(g, "lang", None)), "error")
             return render_template("portal/bootstrap.html")
 
         if Tenant.query.filter_by(slug=tenant_slug).first():
-            flash("Slug já existe.", "error")
+            flash(tr("Slug já existe.", getattr(g, "lang", None)), "error")
             return render_template("portal/bootstrap.html")
 
         tenant = Tenant(slug=tenant_slug, name=tenant_name)
@@ -116,7 +117,7 @@ def bootstrap():
         )
         db.session.commit()
 
-        flash("Tenant criado. Faça login.", "success")
+        flash(tr("Tenant criado. Faça login.", getattr(g, "lang", None)), "success")
         return redirect(url_for("auth.login"))
 
     return render_template("portal/bootstrap.html")

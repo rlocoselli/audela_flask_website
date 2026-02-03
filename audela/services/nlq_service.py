@@ -5,6 +5,7 @@ from typing import Any
 
 from ..models.bi import DataSource
 from .datasource_service import decrypt_config, introspect_source
+from ..i18n import tr
 
 
 def _tokenize(text: str) -> list[str]:
@@ -78,10 +79,10 @@ def generate_sql_from_nl(source: DataSource, text: str, lang: str | None = None)
     if not table:
         # Provide a safe scaffold.
         return (
-            "-- Não foi possível identificar uma tabela com segurança.\n"
-            "-- Selecione uma tabela no Query Builder (à direita) ou escreva o SQL manualmente.\n\n"
+            f"-- {tr('Não foi possível identificar uma tabela com segurança.', lang)}\n"
+            f"-- {tr('Selecione uma tabela no Query Builder (à direita) ou escreva o SQL manualmente.', lang)}\n\n"
             "SELECT *\nFROM <tabela>\nLIMIT 100",
-            ["Tabela não identificada"],
+            [tr("Tabela não identificada", lang)],
         )
 
     columns = _columns_for_table(meta, table)
@@ -130,7 +131,7 @@ def generate_sql_from_nl(source: DataSource, text: str, lang: str | None = None)
                 break
         if not metric_col and columns:
             metric_col = columns[-1]
-            warnings.append("Coluna métrica escolhida por fallback")
+            warnings.append(tr("Coluna métrica escolhida por fallback", lang))
 
     cfg = decrypt_config(source)
     tenant_column = cfg.get("tenant_column")
@@ -144,7 +145,7 @@ def generate_sql_from_nl(source: DataSource, text: str, lang: str | None = None)
         else:
             if not metric_col:
                 metric_col = "<coluna_metrica>"
-                warnings.append("Coluna métrica não identificada")
+                warnings.append(tr("Coluna métrica não identificada", lang))
             select_expr = f"{agg.upper()}({metric_col}) AS value"
 
         sql = (
@@ -163,7 +164,7 @@ def generate_sql_from_nl(source: DataSource, text: str, lang: str | None = None)
         else:
             if not metric_col:
                 metric_col = "<coluna_metrica>"
-                warnings.append("Coluna métrica não identificada")
+                warnings.append(tr("Coluna métrica não identificada", lang))
             select_expr = f"{agg.upper()}({metric_col}) AS value"
         sql = f"SELECT {select_expr}\nFROM {table}\n{tenant_where}".rstrip() + "\n"
         return sql, warnings
@@ -171,5 +172,5 @@ def generate_sql_from_nl(source: DataSource, text: str, lang: str | None = None)
     # Default: sample rows
     sql = f"SELECT *\nFROM {table}\n{tenant_where}LIMIT 100"
     if not text.strip():
-        warnings.append("Texto vazio")
+        warnings.append(tr("Texto vazio", lang))
     return sql, warnings

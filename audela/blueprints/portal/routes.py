@@ -18,6 +18,7 @@ from ...services.nlq_service import generate_sql_from_nl
 from ...services.pdf_export import table_to_pdf_bytes
 from ...services.ai_service import analyze_with_ai
 from ...tenancy import get_current_tenant_id
+from ...i18n import tr
 from . import bp
 
 
@@ -100,7 +101,7 @@ def sources_new():
         tenant_column = request.form.get("tenant_column", "").strip() or None
 
         if not name or not ds_type or not url:
-            flash("Preencha nome, tipo e URL de conexão.", "error")
+            flash(tr("Preencha nome, tipo e URL de conexão.", getattr(g, "lang", None)), "error")
             return render_template("portal/sources_new.html", tenant=g.tenant)
 
         from ...services.crypto import encrypt_json
@@ -125,7 +126,7 @@ def sources_new():
         _audit("bi.datasource.created", {"id": None, "name": name, "type": ds_type})
         db.session.commit()
 
-        flash("Fonte criada.", "success")
+        flash(tr("Fonte criada.", getattr(g, "lang", None)), "success")
         return redirect(url_for("portal.sources_list"))
 
     return render_template("portal/sources_new.html", tenant=g.tenant)
@@ -140,7 +141,7 @@ def sources_delete(source_id: int):
     _audit("bi.datasource.deleted", {"id": src.id, "name": src.name})
     db.session.delete(src)
     db.session.commit()
-    flash("Fonte removida.", "success")
+    flash(tr("Fonte removida.", getattr(g, "lang", None)), "success")
     return redirect(url_for("portal.sources_list"))
 
 
@@ -163,7 +164,7 @@ def sources_introspect(source_id: int):
     try:
         meta = introspect_source(src)
     except Exception as e:  # noqa: BLE001
-        flash(f"Falha ao introspectar: {e}", "error")
+        flash(tr("Falha ao introspectar: {error}", getattr(g, "lang", None), error=str(e)), "error")
         meta = {"schemas": []}
     _audit("bi.datasource.introspected", {"id": src.id})
     db.session.commit()
@@ -260,10 +261,10 @@ def api_nlq():
         source_id = 0
     text = (payload.get("text") or "").strip()
     if not source_id:
-        return jsonify({"error": "Selecione uma fonte."}), 400
+        return jsonify({"error": tr("Selecione uma fonte.", getattr(g, "lang", None))}), 400
     src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first()
     if not src:
-        return jsonify({"error": "Fonte inválida."}), 404
+        return jsonify({"error": tr("Fonte inválida.", getattr(g, "lang", None))}), 404
     sql_text, warnings = generate_sql_from_nl(src, text, lang=getattr(g, "lang", None))
     return jsonify({"sql": sql_text, "warnings": warnings})
 
@@ -396,11 +397,11 @@ def questions_new():
         source_id = int(request.form.get("source_id") or 0)
         sql_text = request.form.get("sql_text", "")
         if not name or not source_id or not sql_text.strip():
-            flash("Preencha nome, fonte e SQL.", "error")
+            flash(tr("Preencha nome, fonte e SQL.", getattr(g, "lang", None)), "error")
             return render_template("portal/questions_new.html", tenant=g.tenant, sources=sources)
         src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first()
         if not src:
-            flash("Fonte inválida.", "error")
+            flash(tr("Fonte inválida.", getattr(g, "lang", None)), "error")
             return render_template("portal/questions_new.html", tenant=g.tenant, sources=sources)
 
         q = Question(
@@ -416,7 +417,7 @@ def questions_new():
         db.session.flush()
         _audit("bi.question.created", {"id": q.id, "name": q.name, "source_id": src.id})
         db.session.commit()
-        flash("Pergunta criada.", "success")
+        flash(tr("Pergunta criada.", getattr(g, "lang", None)), "success")
         return redirect(url_for("portal.questions_view", question_id=q.id))
 
     return render_template("portal/questions_new.html", tenant=g.tenant, sources=sources)
@@ -449,7 +450,7 @@ def questions_viz(question_id: int):
             cfg = json.loads(raw) if raw else {}
         except Exception:
             cfg = {}
-            flash("Configuração inválida.", "error")
+            flash(tr("Configuração inválida.", getattr(g, "lang", None)), "error")
             return redirect(url_for("portal.questions_viz", question_id=q.id))
 
         if not isinstance(cfg, dict):
@@ -458,7 +459,7 @@ def questions_viz(question_id: int):
         q.viz_config_json = cfg
         _audit("bi.question.viz.updated", {"id": q.id})
         db.session.commit()
-        flash("Visualização salva.", "success")
+        flash(tr("Visualização salva.", getattr(g, "lang", None)), "success")
         return redirect(url_for("portal.questions_view", question_id=q.id))
 
     # GET: run once to preview
@@ -564,7 +565,7 @@ def questions_delete(question_id: int):
     _audit("bi.question.deleted", {"id": q.id, "name": q.name})
     db.session.delete(q)
     db.session.commit()
-    flash("Pergunta removida.", "success")
+    flash(tr("Pergunta removida.", getattr(g, "lang", None)), "success")
     return redirect(url_for("portal.questions_list"))
 
 
@@ -601,7 +602,7 @@ def users_new():
         password = request.form.get('password','').strip()
         role_ids = request.form.getlist('roles') or []
         if not email or not password:
-            flash('Email e senha são obrigatórios.', 'error')
+            flash(tr('Email e senha são obrigatórios.', getattr(g, "lang", None)), 'error')
             return render_template('portal/users_new.html', tenant=g.tenant, roles=roles)
         u = User(tenant_id=g.tenant.id, email=email)
         u.set_password(password)
@@ -609,7 +610,7 @@ def users_new():
             u.roles = Role.query.filter(Role.id.in_(role_ids)).all()
         db.session.add(u)
         db.session.commit()
-        flash('Usuário criado.', 'success')
+        flash(tr('Usuário criado.', getattr(g, "lang", None)), 'success')
         return redirect(url_for('portal.users_list'))
     return render_template('portal/users_new.html', tenant=g.tenant, roles=roles)
 
@@ -622,7 +623,7 @@ def users_delete(user_id: int):
     u = User.query.filter_by(id=user_id, tenant_id=g.tenant.id).first_or_404()
     db.session.delete(u)
     db.session.commit()
-    flash('Usuário removido.', 'success')
+    flash(tr('Usuário removido.', getattr(g, "lang", None)), 'success')
     return redirect(url_for('portal.users_list'))
 
 
@@ -636,7 +637,7 @@ def dashboards_new():
         name = request.form.get("name", "").strip()
         selected = request.form.getlist("question_ids")
         if not name:
-            flash("Informe um nome.", "error")
+            flash(tr("Informe um nome.", getattr(g, "lang", None)), "error")
             return render_template("portal/dashboards_new.html", tenant=g.tenant, questions=questions)
 
         dash = Dashboard(tenant_id=g.tenant.id, name=name, layout_json={}, filters_json={}, acl_json={})
@@ -665,7 +666,7 @@ def dashboards_new():
 
         _audit("bi.dashboard.created", {"id": dash.id, "name": dash.name, "cards": len(selected)})
         db.session.commit()
-        flash("Dashboard criado.", "success")
+        flash(tr("Dashboard criado.", getattr(g, "lang", None)), "success")
         return redirect(url_for("portal.dashboard_view", dashboard_id=dash.id))
 
     return render_template("portal/dashboards_new.html", tenant=g.tenant, questions=questions)
@@ -705,14 +706,22 @@ def dashboard_view(dashboard_id: int):
             res = execute_sql(src, q.sql_text, params={"tenant_id": g.tenant.id})
         except QueryExecutionError as e:
             res = {"columns": [], "rows": [], "error": str(e)}
-        viz_cfg = {}
-        # Card-level config overrides question-level.
-        if isinstance(getattr(c, "viz_config_json", None), dict) and c.viz_config_json:
-            viz_cfg = c.viz_config_json
-        elif isinstance(getattr(q, "viz_config_json", None), dict) and q.viz_config_json:
-            viz_cfg = q.viz_config_json
-        else:
-            viz_cfg = {"type": "table"}
+        
+        # Determine visualization config with intelligent fallback
+        viz_cfg = {"type": "table"}
+        
+        # Use question-level config as base
+        if isinstance(getattr(q, "viz_config_json", None), dict) and q.viz_config_json:
+            viz_cfg = q.viz_config_json.copy() if isinstance(q.viz_config_json, dict) else {}
+        
+        # Card-level config overrides, but only if it specifies more than just type
+        card_cfg = getattr(c, "viz_config_json", None)
+        if isinstance(card_cfg, dict) and card_cfg and len(card_cfg) > 1:
+            # Card has meaningful overrides beyond just type
+            viz_cfg = card_cfg
+        elif isinstance(card_cfg, dict) and card_cfg and card_cfg.get("type") not in [None, "table"]:
+            # Card specifies a non-table type, use it but merge with question config
+            viz_cfg.update(card_cfg)
 
         rendered_cards.append({"card": c, "question": q, "result": res, "viz_config": viz_cfg})
 
@@ -736,7 +745,7 @@ def dashboards_delete(dashboard_id: int):
     _audit("bi.dashboard.deleted", {"id": dash.id, "name": dash.name})
     db.session.delete(dash)
     db.session.commit()
-    flash("Dashboard removido.", "success")
+    flash(tr("Dashboard removido.", getattr(g, "lang", None)), "success")
     return redirect(url_for("portal.dashboards_list"))
 
 
@@ -751,10 +760,10 @@ def dashboards_set_primary(dashboard_id: int):
         Dashboard.query.filter_by(tenant_id=g.tenant.id, is_primary=True).update({"is_primary": False})
         dash.is_primary = True
         db.session.commit()
-        flash("Dashboard definido como principal.", "success")
+        flash(tr("Dashboard definido como principal.", getattr(g, "lang", None)), "success")
     except Exception:
         db.session.rollback()
-        flash("Operação não suportada: execute as migrações do banco para habilitar essa função.", "error")
+        flash(tr("Operação não suportada: execute as migrações do banco para habilitar essa função.", getattr(g, "lang", None)), "error")
     return redirect(url_for("portal.dashboards_list"))
 
 

@@ -37,6 +37,69 @@ SUPPORTED_LANGS: dict[str, LangInfo] = {
 
 # msgid -> translation
 TRANSLATIONS: dict[str, dict[str, str]] = {
+    "pt": {
+        # Nota: As chaves em português já são os msgid, então este dicionário é principalmente
+        # para referência e consistência. A função tr() retorna a chave quando lang==DEFAULT_LANG
+
+        # Auth messages
+        "Tenant não encontrado.": "Tenant não encontrado.",
+        "Credenciais inválidas.": "Credenciais inválidas.",
+        "Preencha todos os campos.": "Preencha todos os campos.",
+        "Slug já existe.": "Slug já existe.",
+        "Tenant criado. Faça login.": "Tenant criado. Faça login.",
+
+        # Data source messages
+        "Preencha nome, tipo e URL de conexão.": "Preencha nome, tipo e URL de conexão.",
+        "Fonte criada.": "Fonte criada.",
+        "Fonte removida.": "Fonte removida.",
+        "Falha ao introspectar: {error}": "Falha ao introspectar: {error}",
+        "Selecione uma fonte válida.": "Selecione uma fonte válida.",
+        "Selecione uma fonte.": "Selecione uma fonte.",
+        "Fonte inválida.": "Fonte inválida.",
+
+        # Question messages
+        "Preencha nome, fonte e SQL.": "Preencha nome, fonte e SQL.",
+        "Pergunta criada.": "Pergunta criada.",
+        "Pergunta removida.": "Pergunta removida.",
+
+        # Dashboard messages
+        "Dashboard criado.": "Dashboard criado.",
+        "Dashboard removido.": "Dashboard removido.",
+        "Dashboard definido como principal.": "Dashboard definido como principal.",
+        "Operação não suportada: execute as migrações do banco para habilitar essa função.": "Operação não suportada: execute as migrações do banco para habilitar essa função.",
+        "Informe um nome.": "Informe um nome.",
+
+        # Configuration messages
+        "Configuração inválida.": "Configuração inválida.",
+
+        # User messages
+        "Email e senha são obrigatórios.": "Email e senha são obrigatórios.",
+        "Usuário criado.": "Usuário criado.",
+        "Usuário removido.": "Usuário removido.",
+
+        # NLQ service messages
+        "Não foi possível identificar uma tabela com segurança.": "Não foi possível identificar uma tabela com segurança.",
+        "Selecione uma tabela no Query Builder (à direita) ou escreva o SQL manualmente.": "Selecione uma tabela no Query Builder (à direita) ou escreva o SQL manualmente.",
+        "Tabela não identificada": "Tabela não identificada",
+        "Texto vazio": "Texto vazio",
+        "Coluna métrica escolhida por fallback": "Coluna métrica escolhida por fallback",
+        "Coluna métrica não identificada": "Coluna métrica não identificada",
+
+        # Placeholder texts
+        "Ex.: DW Produção": "Ex.: DW Produção",
+        "Ex.: postgresql+psycopg://user:pass@host:5432/dbname": "Ex.: postgresql+psycopg://user:pass@host:5432/dbname",
+        "public": "public",
+        "tenant_id": "tenant_id",
+        "ex: total vendas por mês": "ex: total vendas por mês",
+        "acme": "acme",
+        "you@example.com": "you@example.com",
+        "tenant slug (ex.: acme)": "tenant slug (ex.: acme)",
+        "nome do tenant": "nome do tenant",
+        "email do admin": "email do admin",
+        "senha": "senha",
+        "value": "value",
+        "SELECT ...": "SELECT ...",
+    },
     "en": {
         "Accueil": "Home",
         "À propos": "About",
@@ -219,6 +282,65 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "Refresh": "Refresh",
             "Click a node to highlight relations. Use mousewheel to zoom.": "Click a node to highlight relations. Use mousewheel to zoom.",
 
+            # Auth messages
+            "Tenant não encontrado.": "Tenant not found.",
+            "Credenciais inválidas.": "Invalid credentials.",
+            "Preencha todos os campos.": "Fill in all fields.",
+            "Slug já existe.": "Slug already exists.",
+            "Tenant criado. Faça login.": "Tenant created. Please log in.",
+
+            # Data source messages
+            "Preencha nome, tipo e URL de conexão.": "Fill in name, type, and connection URL.",
+            "Fonte criada.": "Data source created.",
+            "Fonte removida.": "Data source removed.",
+            "Falha ao introspectar: {error}": "Introspection failed: {error}",
+            "Selecione uma fonte válida.": "Select a valid data source.",
+            "Selecione uma fonte.": "Select a data source.",
+            "Fonte inválida.": "Invalid data source.",
+
+            # Question messages
+            "Preencha nome, fonte e SQL.": "Fill in name, data source, and SQL.",
+            "Pergunta criada.": "Question created.",
+            "Pergunta removida.": "Question removed.",
+
+            # Dashboard messages
+            "Dashboard criado.": "Dashboard created.",
+            "Dashboard removido.": "Dashboard removed.",
+            "Dashboard definido como principal.": "Dashboard set as primary.",
+            "Operação não suportada: execute as migrações do banco para habilitar essa função.": "Operation not supported: run database migrations to enable this feature.",
+            "Informe um nome.": "Enter a name.",
+
+            # Configuration messages
+            "Configuração inválida.": "Invalid configuration.",
+
+            # User messages
+            "Email e senha são obrigatórios.": "Email and password are required.",
+            "Usuário criado.": "User created.",
+            "Usuário removido.": "User removed.",
+
+            # NLQ service messages
+            "Não foi possível identificar uma tabela com segurança.": "Could not safely identify a table.",
+            "Selecione uma tabela no Query Builder (à direita) ou escreva o SQL manualmente.": "Select a table in Query Builder (on the right) or write SQL manually.",
+            "Tabela não identificada": "Table not identified",
+            "Texto vazio": "Empty text",
+            "Coluna métrica escolhida por fallback": "Metric column chosen by fallback",
+            "Coluna métrica não identificada": "Metric column not identified",
+
+            # Placeholder texts
+            "Ex.: DW Produção": "Ex.: DW Production",
+            "Ex.: postgresql+psycopg://user:pass@host:5432/dbname": "Ex.: postgresql+psycopg://user:pass@host:5432/dbname",
+            "public": "public",
+            "tenant_id": "tenant_id",
+            "ex: total vendas por mês": "ex: total sales per month",
+            "acme": "acme",
+            "you@example.com": "you@example.com",
+            "tenant slug (ex.: acme)": "tenant slug (ex.: acme)",
+            "nome do tenant": "tenant name",
+            "email do admin": "admin email",
+            "senha": "password",
+            "value": "value",
+            "SELECT ...": "SELECT ...",
+
     },
     "fr": {
         # Public
@@ -396,6 +518,65 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "Refresh": "Rafraîchir",
         "Click a node to highlight relations. Use mousewheel to zoom.": "Cliquez sur un nœud pour mettre en évidence les relations. Utilisez la molette pour zoomer.",
 
+        # Auth messages
+        "Tenant não encontrado.": "Tenant non trouvé.",
+        "Credenciais inválidas.": "Identifiants invalides.",
+        "Preencha todos os campos.": "Veuillez remplir tous les champs.",
+        "Slug já existe.": "Le slug existe déjà.",
+        "Tenant criado. Faça login.": "Tenant créé. Veuillez vous connecter.",
+
+        # Data source messages
+        "Preencha nome, tipo e URL de conexão.": "Veuillez remplir le nom, le type et l'URL de connexion.",
+        "Fonte criada.": "Source de données créée.",
+        "Fonte removida.": "Source de données supprimée.",
+        "Falha ao introspectar: {error}": "Introspection échouée : {error}",
+        "Selecione uma fonte válida.": "Sélectionnez une source de données valide.",
+        "Selecione uma fonte.": "Sélectionnez une source de données.",
+        "Fonte inválida.": "Source de données invalide.",
+
+        # Question messages
+        "Preencha nome, fonte e SQL.": "Veuillez remplir le nom, la source et le SQL.",
+        "Pergunta criada.": "Question créée.",
+        "Pergunta removida.": "Question supprimée.",
+
+        # Dashboard messages
+        "Dashboard criado.": "Tableau de bord créé.",
+        "Dashboard removido.": "Tableau de bord supprimé.",
+        "Dashboard definido como principal.": "Tableau de bord défini comme principal.",
+        "Operação não suportada: execute as migrações do banco para habilitar essa função.": "Opération non supportée : exécutez les migrations de la base de données pour activer cette fonction.",
+        "Informe um nome.": "Veuillez entrer un nom.",
+
+        # Configuration messages
+        "Configuração inválida.": "Configuration invalide.",
+
+        # User messages
+        "Email e senha são obrigatórios.": "L'e-mail et le mot de passe sont obligatoires.",
+        "Usuário criado.": "Utilisateur créé.",
+        "Usuário removido.": "Utilisateur supprimé.",
+
+        # NLQ service messages
+        "Não foi possível identificar uma tabela com segurança.": "Impossible d'identifier une table en toute sécurité.",
+        "Selecione uma tabela no Query Builder (à direita) ou escreva o SQL manualmente.": "Sélectionnez une table dans le Constructeur de requêtes (à droite) ou écrivez le SQL manuellement.",
+        "Tabela não identificada": "Table non identifiée",
+        "Texto vazio": "Texte vide",
+        "Coluna métrica escolhida por fallback": "Colonne de métrique choisie par défaut",
+        "Coluna métrica não identificada": "Colonne de métrique non identifiée",
+
+        # Placeholder texts
+        "Ex.: DW Produção": "Ex. : DW Production",
+        "Ex.: postgresql+psycopg://user:pass@host:5432/dbname": "Ex. : postgresql+psycopg://user:pass@host:5432/dbname",
+        "public": "public",
+        "tenant_id": "tenant_id",
+        "ex: total vendas por mês": "ex : ventes totales par mois",
+        "acme": "acme",
+        "you@example.com": "you@example.com",
+        "tenant slug (ex.: acme)": "slug du tenant (ex. : acme)",
+        "nome do tenant": "nom du tenant",
+        "email do admin": "e-mail de l'administrateur",
+        "senha": "mot de passe",
+        "value": "valeur",
+        "SELECT ...": "SELECT ...",
+
     },
     "es": {
         "Accueil": "Inicio",
@@ -570,6 +751,65 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "Load diagram": "Cargar diagrama",
         "Refresh": "Actualizar",
         "Click a node to highlight relations. Use mousewheel to zoom.": "Haga clic en un nodo para resaltar las relaciones. Use la rueda del ratón para acercar/alejar.",
+
+        # Auth messages
+        "Tenant não encontrado.": "Tenant no encontrado.",
+        "Credenciais inválidas.": "Credenciales inválidas.",
+        "Preencha todos os campos.": "Completa todos los campos.",
+        "Slug já existe.": "El slug ya existe.",
+        "Tenant criado. Faça login.": "Tenant creado. Por favor, inicia sesión.",
+
+        # Data source messages
+        "Preencha nome, tipo e URL de conexão.": "Completa el nombre, tipo y URL de conexión.",
+        "Fonte criada.": "Fuente de datos creada.",
+        "Fonte removida.": "Fuente de datos eliminada.",
+        "Falha ao introspectar: {error}": "Error de introspección: {error}",
+        "Selecione uma fonte válida.": "Selecciona una fuente de datos válida.",
+        "Selecione uma fonte.": "Selecciona una fuente de datos.",
+        "Fonte inválida.": "Fuente de datos inválida.",
+
+        # Question messages
+        "Preencha nome, fonte e SQL.": "Completa el nombre, la fuente y el SQL.",
+        "Pergunta criada.": "Pregunta creada.",
+        "Pergunta removida.": "Pregunta eliminada.",
+
+        # Dashboard messages
+        "Dashboard criado.": "Dashboard creado.",
+        "Dashboard removido.": "Dashboard eliminado.",
+        "Dashboard definido como principal.": "Dashboard definido como principal.",
+        "Operação não suportada: execute as migrações do banco para habilitar essa função.": "Operación no soportada: ejecuta las migraciones de base de datos para habilitar esta función.",
+        "Informe um nome.": "Ingresa un nombre.",
+
+        # Configuration messages
+        "Configuração inválida.": "Configuración inválida.",
+
+        # User messages
+        "Email e senha são obrigatórios.": "El correo electrónico y la contraseña son obligatorios.",
+        "Usuário criado.": "Usuario creado.",
+        "Usuário removido.": "Usuario eliminado.",
+
+        # NLQ service messages
+        "Não foi possível identificar uma tabela com segurança.": "No se pudo identificar una tabla de forma segura.",
+        "Selecione uma tabela no Query Builder (à direita) ou escreva o SQL manualmente.": "Selecciona una tabla en Query Builder (a la derecha) o escribe el SQL manualmente.",
+        "Tabela não identificada": "Tabla no identificada",
+        "Texto vazio": "Texto vacío",
+        "Coluna métrica escolhida por fallback": "Columna de métrica elegida por defecto",
+        "Coluna métrica não identificada": "Columna de métrica no identificada",
+
+        # Placeholder texts
+        "Ex.: DW Produção": "Ej.: DW Producción",
+        "Ex.: postgresql+psycopg://user:pass@host:5432/dbname": "Ej.: postgresql+psycopg://user:pass@host:5432/dbname",
+        "public": "public",
+        "tenant_id": "tenant_id",
+        "ex: total vendas por mês": "ej: total de ventas por mes",
+        "acme": "acme",
+        "you@example.com": "you@example.com",
+        "tenant slug (ex.: acme)": "slug del tenant (ej.: acme)",
+        "nome do tenant": "nombre del tenant",
+        "email do admin": "correo del administrador",
+        "senha": "contraseña",
+        "value": "valor",
+        "SELECT ...": "SELECT ...",
 
     },
     "it": {
@@ -746,6 +986,65 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "Refresh": "Aggiorna",
         "Click a node to highlight relations. Use mousewheel to zoom.": "Clicca un nodo per evidenziare le relazioni. Usa la rotellina per zoomare.",
 
+        # Auth messages
+        "Tenant não encontrado.": "Tenant non trovato.",
+        "Credenciais inválidas.": "Credenziali non valide.",
+        "Preencha todos os campos.": "Completa tutti i campi.",
+        "Slug já existe.": "Lo slug esiste già.",
+        "Tenant criado. Faça login.": "Tenant creato. Accedi.",
+
+        # Data source messages
+        "Preencha nome, tipo e URL de conexão.": "Completa il nome, il tipo e l'URL di connessione.",
+        "Fonte criada.": "Fonte dati creata.",
+        "Fonte removida.": "Fonte dati rimossa.",
+        "Falha ao introspectar: {error}": "Errore di introspezione: {error}",
+        "Selecione uma fonte válida.": "Seleziona una fonte dati valida.",
+        "Selecione uma fonte.": "Seleziona una fonte dati.",
+        "Fonte inválida.": "Fonte dati non valida.",
+
+        # Question messages
+        "Preencha nome, fonte e SQL.": "Completa il nome, la fonte e l'SQL.",
+        "Pergunta criada.": "Domanda creata.",
+        "Pergunta removida.": "Domanda rimossa.",
+
+        # Dashboard messages
+        "Dashboard criado.": "Dashboard creato.",
+        "Dashboard removido.": "Dashboard rimosso.",
+        "Dashboard definido como principal.": "Dashboard impostato come principale.",
+        "Operação não suportada: execute as migrações do banco para habilitar essa função.": "Operazione non supportata: esegui le migrazioni del database per abilitare questa funzione.",
+        "Informe um nome.": "Inserisci un nome.",
+
+        # Configuration messages
+        "Configuração inválida.": "Configurazione non valida.",
+
+        # User messages
+        "Email e senha são obrigatórios.": "Email e password sono obbligatori.",
+        "Usuário criado.": "Utente creato.",
+        "Usuário removido.": "Utente rimosso.",
+
+        # NLQ service messages
+        "Não foi possível identificar uma tabela com segurança.": "Impossibile identificare una tabella in modo sicuro.",
+        "Selecione uma tabela no Query Builder (à direita) ou escreva o SQL manualmente.": "Seleziona una tabella nel Query Builder (a destra) o scrivi l'SQL manualmente.",
+        "Tabela não identificada": "Tabella non identificata",
+        "Texto vazio": "Testo vuoto",
+        "Coluna métrica escolhida por fallback": "Colonna metrica scelta per default",
+        "Coluna métrica não identificada": "Colonna metrica non identificata",
+
+        # Placeholder texts
+        "Ex.: DW Produção": "Es.: DW Produzione",
+        "Ex.: postgresql+psycopg://user:pass@host:5432/dbname": "Es.: postgresql+psycopg://user:pass@host:5432/dbname",
+        "public": "public",
+        "tenant_id": "tenant_id",
+        "ex: total vendas por mês": "es: vendite totali al mese",
+        "acme": "acme",
+        "you@example.com": "you@example.com",
+        "tenant slug (ex.: acme)": "slug del tenant (es.: acme)",
+        "nome do tenant": "nome del tenant",
+        "email do admin": "email dell'amministratore",
+        "senha": "password",
+        "value": "valore",
+        "SELECT ...": "SELECT ...",
+
     },
     "de": {
         "Accueil": "Start",
@@ -920,6 +1219,65 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "Load diagram": "Diagramm laden",
         "Refresh": "Aktualisieren",
         "Click a node to highlight relations. Use mousewheel to zoom.": "Klicken Sie auf einen Knoten, um Beziehungen hervorzuheben. Verwenden Sie das Mausrad zum Zoomen.",
+
+        # Auth messages
+        "Tenant não encontrado.": "Mandant nicht gefunden.",
+        "Credenciais inválidas.": "Ungültige Anmeldedaten.",
+        "Preencha todos os campos.": "Füllen Sie alle Felder aus.",
+        "Slug já existe.": "Slug existiert bereits.",
+        "Tenant criado. Faça login.": "Mandant erstellt. Bitte melden Sie sich an.",
+
+        # Data source messages
+        "Preencha nome, tipo e URL de conexão.": "Geben Sie Namen, Typ und Verbindungs-URL ein.",
+        "Fonte criada.": "Datenquelle erstellt.",
+        "Fonte removida.": "Datenquelle entfernt.",
+        "Falha ao introspectar: {error}": "Introspektionsfehler: {error}",
+        "Selecione uma fonte válida.": "Wählen Sie eine gültige Datenquelle.",
+        "Selecione uma fonte.": "Wählen Sie eine Datenquelle.",
+        "Fonte inválida.": "Ungültige Datenquelle.",
+
+        # Question messages
+        "Preencha nome, fonte e SQL.": "Geben Sie Namen, Datenquelle und SQL ein.",
+        "Pergunta criada.": "Frage erstellt.",
+        "Pergunta removida.": "Frage entfernt.",
+
+        # Dashboard messages
+        "Dashboard criado.": "Dashboard erstellt.",
+        "Dashboard removido.": "Dashboard entfernt.",
+        "Dashboard definido como principal.": "Dashboard als primär festgelegt.",
+        "Operação não suportada: execute as migrações do banco para habilitar essa função.": "Vorgang nicht unterstützt: Führen Sie Datenbankmigrationen durch, um diese Funktion zu aktivieren.",
+        "Informe um nome.": "Geben Sie einen Namen ein.",
+
+        # Configuration messages
+        "Configuração inválida.": "Ungültige Konfiguration.",
+
+        # User messages
+        "Email e senha são obrigatórios.": "E-Mail und Passwort sind erforderlich.",
+        "Usuário criado.": "Benutzer erstellt.",
+        "Usuário removido.": "Benutzer entfernt.",
+
+        # NLQ service messages
+        "Não foi possível identificar uma tabela com segurança.": "Tabelle konnte nicht sicher identifiziert werden.",
+        "Selecione uma tabela no Query Builder (à direita) ou escreva o SQL manualmente.": "Wählen Sie eine Tabelle im Query Builder (auf der rechten Seite) oder schreiben Sie SQL manuell.",
+        "Tabela não identificada": "Tabelle nicht identifiziert",
+        "Texto vazio": "Leerer Text",
+        "Coluna métrica escolhida por fallback": "Metrik-Spalte als Fallback gewählt",
+        "Coluna métrica não identificada": "Metrik-Spalte nicht identifiziert",
+
+        # Placeholder texts
+        "Ex.: DW Produção": "Z.B.: DW Produktion",
+        "Ex.: postgresql+psycopg://user:pass@host:5432/dbname": "Z.B.: postgresql+psycopg://user:pass@host:5432/dbname",
+        "public": "public",
+        "tenant_id": "tenant_id",
+        "ex: total vendas por mês": "z.B.: Gesamtumsatz pro Monat",
+        "acme": "acme",
+        "you@example.com": "you@example.com",
+        "tenant slug (ex.: acme)": "Mandanten-Slug (z.B.: acme)",
+        "nome do tenant": "Name des Mandanten",
+        "email do admin": "Administrator-E-Mail",
+        "senha": "Passwort",
+        "value": "Wert",
+        "SELECT ...": "SELECT ...",
 
     },
 }
