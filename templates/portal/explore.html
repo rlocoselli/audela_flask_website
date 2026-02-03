@@ -31,9 +31,8 @@
         </select>
 
         <div class="mt-3">
-          <label class="form-label">{{ _('Parâmetros (JSON)') }}</label>
-          <textarea class="form-control" id="ex-params" rows="5" placeholder="{\n  \"from\": \"2025-01-01\"\n}"></textarea>
-          <div class="form-text">{{ _('Use :nome_param no SQL e preencha valores aqui. tenant_id é aplicado automaticamente.') }}</div>
+          <label class="form-label">{{ _('Parâmetros') }}</label>
+          <div class="form-text">{{ _('Parametros parametrizados devem ser passados via filtros ou definidos na Pergunta. tenant_id é aplicado automaticamente.') }}</div>
         </div>
 
         <div class="row g-2 mt-3">
@@ -75,6 +74,16 @@
           <div class="col-6">
             <label class="form-label">{{ _('Métrica') }}</label>
             <select class="form-select" id="ex-met"></select>
+            <div class="mt-2">
+              <label class="form-label">{{ _('Agregação') }}</label>
+              <select id="ex-agg-func" class="form-select form-select-sm">
+                <option value="SUM">SUM</option>
+                <option value="AVG">AVG</option>
+                <option value="COUNT">COUNT</option>
+                <option value="MIN">MIN</option>
+                <option value="MAX">MAX</option>
+              </select>
+            </div>
           </div>
           <div class="col-12">
             <label class="form-label">{{ _('Drill-down') }}</label>

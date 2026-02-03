@@ -1,0 +1,28 @@
+{% extends "portal/layout.html" %}
+{% set title = "Usuários" %}
+
+{% block portal_content %}
+  <div class="box">
+    <h3>Usuários do tenant</h3>
+    <p><a class="btn btn-primary btn-sm" href="{{ url_for('portal.users_new') }}">Novo usuário</a></p>
+    <table class="table table-hover">
+      <thead>
+        <tr><th>Email</th><th>Funções</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+          <tr>
+            <td>{{ u.email }}</td>
+            <td>{{ ', '.join([r.code for r in u.roles]) }}</td>
+            <td>
+              <form method="post" action="{{ url_for('portal.users_delete', user_id=u.id) }}" onsubmit="return confirm('Remover usuário?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <button class="btn btn-outline-danger btn-sm">Remover</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

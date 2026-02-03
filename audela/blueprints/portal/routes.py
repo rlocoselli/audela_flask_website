@@ -10,6 +10,7 @@ from flask_login import current_user, login_required
 from ...extensions import db
 from ...models.bi import AuditEvent, Dashboard, DashboardCard, DataSource, Question, QueryRun
 from ...models.core import Tenant
+from ...models.core import User, Role
 from ...security import require_roles
 from ...services.query_service import QueryExecutionError, execute_sql
 from ...services.datasource_service import decrypt_config, introspect_source
@@ -57,7 +58,15 @@ def _audit(event_type: str, payload: dict | None = None) -> None:
 @login_required
 def home():
     _require_tenant()
-    return render_template("portal/home.html", tenant=g.tenant)
+    # Show main dashboard (if any) and recent dashboards on home
+    main = None
+    try:
+        main = Dashboard.query.filter_by(tenant_id=g.tenant.id, is_primary=True).first()
+    except Exception:
+        # DB schema may be out of date (missing is_primary). Don't crash the home page.
+        main = None
+    dashes = Dashboard.query.filter_by(tenant_id=g.tenant.id).order_by(Dashboard.updated_at.desc()).all()
+    return render_template("portal/home.html", tenant=g.tenant, dashboards=dashes, main_dashboard=main)
 
 
 # -----------------------------
@@ -572,6 +581,51 @@ def dashboards_list():
     return render_template("portal/dashboards_list.html", tenant=g.tenant, dashboards=ds)
 
 
+@bp.route('/users')
+@login_required
+@require_roles('tenant_admin')
+def users_list():
+    _require_tenant()
+    users = User.query.filter_by(tenant_id=g.tenant.id).order_by(User.email.asc()).all()
+    return render_template('portal/users_list.html', tenant=g.tenant, users=users)
+
+
+@bp.route('/users/new', methods=['GET', 'POST'])
+@login_required
+@require_roles('tenant_admin')
+def users_new():
+    _require_tenant()
+    roles = Role.query.order_by(Role.code.asc()).all()
+    if request.method == 'POST':
+        email = request.form.get('email','').strip().lower()
+        password = request.form.get('password','').strip()
+        role_ids = request.form.getlist('roles') or []
+        if not email or not password:
+            flash('Email e senha são obrigatórios.', 'error')
+            return render_template('portal/users_new.html', tenant=g.tenant, roles=roles)
+        u = User(tenant_id=g.tenant.id, email=email)
+        u.set_password(password)
+        if role_ids:
+            u.roles = Role.query.filter(Role.id.in_(role_ids)).all()
+        db.session.add(u)
+        db.session.commit()
+        flash('Usuário criado.', 'success')
+        return redirect(url_for('portal.users_list'))
+    return render_template('portal/users_new.html', tenant=g.tenant, roles=roles)
+
+
+@bp.route('/users/<int:user_id>/delete', methods=['POST'])
+@login_required
+@require_roles('tenant_admin')
+def users_delete(user_id: int):
+    _require_tenant()
+    u = User.query.filter_by(id=user_id, tenant_id=g.tenant.id).first_or_404()
+    db.session.delete(u)
+    db.session.commit()
+    flash('Usuário removido.', 'success')
+    return redirect(url_for('portal.users_list'))
+
+
 @bp.route("/dashboards/new", methods=["GET", "POST"])
 @login_required
 @require_roles("tenant_admin", "creator")
@@ -686,6 +740,24 @@ def dashboards_delete(dashboard_id: int):
     return redirect(url_for("portal.dashboards_list"))
 
 
+@bp.route("/dashboards/<int:dashboard_id>/set_primary", methods=["POST"])
+@login_required
+@require_roles("tenant_admin")
+def dashboards_set_primary(dashboard_id: int):
+    _require_tenant()
+    dash = Dashboard.query.filter_by(id=dashboard_id, tenant_id=g.tenant.id).first_or_404()
+    try:
+        # clear previous primary
+        Dashboard.query.filter_by(tenant_id=g.tenant.id, is_primary=True).update({"is_primary": False})
+        dash.is_primary = True
+        db.session.commit()
+        flash("Dashboard definido como principal.", "success")
+    except Exception:
+        db.session.rollback()
+        flash("Operação não suportada: execute as migrações do banco para habilitar essa função.", "error")
+    return redirect(url_for("portal.dashboards_list"))
+
+
 
 
 # -----------------------------
@@ -710,6 +782,7 @@ def api_question_data(question_id: int):
     src = DataSource.query.filter_by(id=q.source_id, tenant_id=g.tenant.id).first_or_404()
     payload = request.get_json(silent=True) or {}
     params = payload.get("params") or {}
+    agg = payload.get("agg")
     if params and not isinstance(params, dict):
         return jsonify({"error": "Parâmetros devem ser um objeto JSON."}), 400
     user_params: dict = {}
@@ -717,7 +790,18 @@ def api_question_data(question_id: int):
         user_params.update(params)
     user_params["tenant_id"] = g.tenant.id
     try:
-        res = execute_sql(src, q.sql_text, params=user_params)
+        # If aggregation requested, build an aggregated SQL wrapping the original query
+        if agg and isinstance(agg, dict):
+            dim = agg.get("dim")
+            metric = agg.get("metric")
+            func = (agg.get("func") or "SUM").upper()
+            if not dim or not metric:
+                return jsonify({"error": "Agg requires dim and metric."}), 400
+            # Build a safe-ish aggregated query by wrapping the original SQL as a subquery
+            agg_sql = f"SELECT {dim} AS dim, {func}({metric}) AS value FROM (\n{q.sql_text}\n) AS _t GROUP BY {dim} ORDER BY value DESC LIMIT 1000"
+            res = execute_sql(src, agg_sql, params=user_params)
+        else:
+            res = execute_sql(src, q.sql_text, params=user_params)
     except QueryExecutionError as e:
         return jsonify({"error": str(e)}), 400
     # trim for safety

@@ -1,0 +1,32 @@
+{% extends "portal/layout.html" %}
+{% set title = "Novo usuário" %}
+
+{% block portal_content %}
+  <div class="box">
+    <h3>Criar usuário</h3>
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <div class="mb-2">
+        <label class="form-label">Email</label>
+        <input type="email" name="email" class="form-control" required />
+      </div>
+      <div class="mb-2">
+        <label class="form-label">Senha</label>
+        <input type="password" name="password" class="form-control" required />
+      </div>
+      <div class="mb-2">
+        <label class="form-label">Funções</label>
+        {% for r in roles %}
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="roles" value="{{ r.id }}" id="role-{{ r.id }}">
+            <label class="form-check-label" for="role-{{ r.id }}">{{ r.code }} — {{ r.description or '' }}</label>
+          </div>
+        {% endfor %}
+      </div>
+      <div class="mt-2">
+        <button class="btn btn-primary">Criar</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('portal.users_list') }}">Cancelar</a>
+      </div>
+    </form>
+  </div>
+{% endblock %}

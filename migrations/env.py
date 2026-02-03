@@ -1,7 +1,16 @@
 import logging
 from logging.config import fileConfig
 
+import os
+import sys
+
+# Ensure the project root is on sys.path so we can import the application package
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 from flask import current_app
+from audela import create_app
 
 from alembic import context
 
@@ -13,6 +22,22 @@ config = context.config
 # This line sets up loggers basically.
 fileConfig(config.config_file_name)
 logger = logging.getLogger('alembic.env')
+
+
+def _ensure_app_context():
+    """Ensure a Flask application context is available when Alembic runs from the CLI.
+
+    Returns a Context object if one was pushed, otherwise None.
+    """
+    try:
+        # access current_app to see if an app context is active
+        _ = current_app.name
+        return None
+    except RuntimeError:
+        app = create_app()
+        ctx = app.app_context()
+        ctx.push()
+        return ctx
 
 
 def get_engine():
@@ -36,6 +61,7 @@ def get_engine_url():
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
+_ctx = _ensure_app_context()
 config.set_main_option('sqlalchemy.url', get_engine_url())
 target_db = current_app.extensions['migrate'].db
 
@@ -111,3 +137,7 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
+
+# If we pushed an application context above, pop it now.
+if _ctx is not None:
+    _ctx.pop()

@@ -50,11 +50,13 @@
     const type = qs('#ex-type')?.value || 'table';
     const dim = qs('#ex-dim')?.value || '';
     const met = qs('#ex-met')?.value || '';
+    const aggFunc = qs('#ex-agg-func')?.value || '';
     const drill = qs('#ex-drill')?.value || '';
     const cfg = { type };
     if (type !== 'table' && type !== 'pivot') {
       if (dim) cfg.dim = dim;
       if (met) cfg.metric = met;
+      if (aggFunc) cfg.agg = { func: aggFunc, metric: met, dim: dim };
       if (drill) cfg.drill_field = drill;
     }
     if (type === 'pivot') {
@@ -204,7 +206,23 @@
       if (params === null) { alert(window.t('Parâmetros JSON inválidos.')); return; }
       setStatus(window.t('Carregando...'));
       try {
-        raw = await fetchData(qid, params);
+        // include aggregation info if present
+        const cfg = cfgFromUi();
+        const agg = cfg.agg || null;
+        raw = await (async () => {
+          const resp = await fetch(`/app/api/questions/${qid}/data`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(getCsrfToken() ? { 'X-CSRFToken': getCsrfToken() } : {})
+            },
+            body: JSON.stringify({ params: params || {}, agg: agg })
+          });
+          const data = await resp.json().catch(() => ({}));
+          if (!resp.ok) throw new Error(data.error || 'Request failed');
+          return data;
+        })();
         fillColumns(raw);
         filters.length = 0;
         renderFiltersSummary(filters);

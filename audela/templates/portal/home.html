@@ -23,4 +23,30 @@
       <li>Salve uma <a href="{{ url_for('portal.questions_new') }}">Pergunta</a> e crie um <a href="{{ url_for('portal.dashboards_new') }}">Dashboard</a></li>
     </ol>
   </div>
+  
+  <div class="box mt-3">
+    <h3>Dashboards</h3>
+    {% if main_dashboard %}
+      <div class="mb-2">
+        <strong>Principal:</strong> <a href="{{ url_for('portal.dashboard_view', dashboard_id=main_dashboard.id) }}">{{ main_dashboard.name }}</a>
+      </div>
+    {% endif %}
+    {% if dashboards %}
+      <ul>
+        {% for d in dashboards %}
+          <li>
+            <a href="{{ url_for('portal.dashboard_view', dashboard_id=d.id) }}">{{ d.name }}</a>
+            {% if current_user.has_role('tenant_admin') %}
+              <form method="post" action="{{ url_for('portal.dashboards_set_primary', dashboard_id=d.id) }}" style="display:inline; margin-left:.5rem;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <button class="btn btn-sm btn-outline-secondary">Definir como principal</button>
+              </form>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p>Nenhum dashboard criado ainda.</p>
+    {% endif %}
+  </div>
 {% endblock %}

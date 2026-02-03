@@ -80,6 +80,9 @@ class Dashboard(TenantScopedMixin, db.Model):
     filters_json = db.Column(db.JSON, nullable=False, default=dict)
     acl_json = db.Column(db.JSON, nullable=False, default=dict)
 
+    # Mark a dashboard as the tenant's primary/default dashboard
+    is_primary = db.Column(db.Boolean, nullable=False, default=False, index=True)
+
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 

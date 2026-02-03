@@ -4,7 +4,9 @@ from flask_login import LoginManager
 from flask_wtf import CSRFProtect
 
 
-db = SQLAlchemy()
+# Prevent instances from being expired after commit to avoid detached-instance surprises
+# during tests and request handling where objects may be used after session commits.
+db = SQLAlchemy(session_options={"expire_on_commit": False})
 migrate = Migrate()
 login_manager = LoginManager()
 csrf = CSRFProtect()
