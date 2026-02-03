@@ -132,11 +132,11 @@
             </button>
           </div>
         </div>
-        <div class="card-body-inner">
+        <div class="card-body-inner" style="height: 100%; display: flex; flex-direction: column; overflow: auto;">
           {% if item.result.error %}
             <div class="alert alert-danger py-2">{{ _('Erro') }}: {{ item.result.error }}</div>
           {% endif %}
-          <div class="bi-viz viz" id="viz-{{ item.card.id }}"></div>
+          <div class="bi-viz viz" id="viz-{{ item.card.id }}" style="flex: 1; min-height: 300px; width: 100%;"></div>
           <script type="application/json" id="data-{{ item.card.id }}">{{ item.result|tojson }}</script>
           <script type="application/json" id="cfg-{{ item.card.id }}">{{ item.viz_config|tojson }}</script>
         </div>
