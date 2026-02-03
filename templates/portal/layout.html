@@ -14,6 +14,7 @@
     <nav class="nav flex-column gap-1">
       <a class="nav-link" href="{{ url_for('portal.home') }}"><i class="bi bi-house me-2"></i>{{ _('Home') }}</a>
       <a class="nav-link" href="{{ url_for('portal.sources_list') }}"><i class="bi bi-database me-2"></i>{{ _('Fontes') }}</a>
+      <a class="nav-link" href="{{ url_for('portal.sources_diagram') }}"><i class="bi bi-diagram-3 me-2"></i>{{ _('Source Diagram') }}</a>
       <a class="nav-link" href="{{ url_for('portal.sql_editor') }}"><i class="bi bi-braces me-2"></i>{{ _('Editor SQL') }}</a>
       <a class="nav-link" href="{{ url_for('portal.questions_list') }}"><i class="bi bi-question-circle me-2"></i>{{ _('Perguntas') }}</a>
       <a class="nav-link" href="{{ url_for('portal.dashboards_list') }}"><i class="bi bi-grid-1x2 me-2"></i>{{ _('Dashboards') }}</a>
@@ -52,6 +53,16 @@
                 <li><a class="dropdown-item" href="{{ url_for('public.set_language', lang_code=code, next=request.full_path) }}">{{ info.label }}</a></li>
               {% endfor %}
             </ul>
+          </div>
+          
+          <!-- Theme selector -->
+          <div class="ms-2">
+            <select id="theme-select" class="form-select form-select-sm">
+              <option value="default">{{ _('Default') }}</option>
+              <option value="aurora">{{ _('Aurora') }}</option>
+              <option value="nimbus">{{ _('Nimbus') }}</option>
+              <option value="onyx">{{ _('Onyx') }}</option>
+            </select>
           </div>
 
           <button class="btn btn-outline-secondary btn-sm" type="button" onclick="__toggleTheme()" title="{{ _('Tema') }}">
@@ -99,6 +110,7 @@
       <a class="nav-link" href="{{ url_for('portal.questions_list') }}">{{ _('Perguntas') }}</a>
       <a class="nav-link" href="{{ url_for('portal.dashboards_list') }}">{{ _('Dashboards') }}</a>
       <a class="nav-link" href="{{ url_for('portal.explore') }}">{{ _('Explorar') }}</a>
+      <a class="nav-link" href="{{ url_for('portal.sources_diagram') }}">{{ _('Source Diagram') }}</a>
       <a class="nav-link" href="{{ url_for('portal.explore') }}"><i class="bi bi-compass me-2"></i>{{ _('Explorar') }}</a>
       <a class="nav-link" href="{{ url_for('portal.ai_chat') }}">{{ _('Chat IA') }}</a>
       <a class="nav-link" href="{{ url_for('portal.runs_list') }}">{{ _('Execuções') }}</a>
@@ -107,3 +119,7 @@
   </div>
 </div>
 {% endblock %}
+  {% block body_scripts %}
+    {{ super() }}
+    <script src="{{ url_for('static', filename='portal/theme_switcher.js') }}"></script>
+  {% endblock %}

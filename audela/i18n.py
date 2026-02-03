@@ -199,11 +199,25 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "Interopérabilité : connexion ERP/CRM/outils métiers, synchronisation et automatisation.": "Interoperability: ERP/CRM/business tools connectivity, synchronization and automation.",
         "Delivery et transfert : cadrage, documentation et montée en compétence de vos équipes.": "Delivery and handover: scoping, documentation and upskilling your teams.",
         "Découvrir nos plans BI": "Discover our BI plans",
+        "Default": "Default",
+        "Aurora": "Aurora",
+        "Nimbus": "Nimbus",
+        "Onyx": "Onyx",
+        "Select data source": "Select data source",
+        "Load diagram": "Load diagram",
+        "Refresh": "Refresh",
+        "Click a node to highlight relations. Use mousewheel to zoom.": "Click a node to highlight relations. Use mousewheel to zoom.",
         "Parlons de votre projet": "Let's talk about your project",
         "Décrivez votre besoin (Data/BI, ERP, LegalTech, IA, Mobile, IoT). Nous vous recontactons rapidement.": "Describe your need (Data/BI, ERP, LegalTech, AI, Mobile, IoT). We'll get back to you quickly.",
         "Votre adresse e-mail": "Your email address",
         "Être rappelé": "Be contacted",
         "OK": "OK",
+            # Source diagram module
+            "Source Diagram": "Source Diagram",
+            "Select data source": "Select data source",
+            "Load diagram": "Load diagram",
+            "Refresh": "Refresh",
+            "Click a node to highlight relations. Use mousewheel to zoom.": "Click a node to highlight relations. Use mousewheel to zoom.",
 
     },
     "fr": {
@@ -375,6 +389,13 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "Carregando...": "Chargement…",
         "OK": "OK",
 
+        # Source diagram module
+        "Source Diagram": "Diagramme source",
+        "Select data source": "Sélectionnez la source de données",
+        "Load diagram": "Charger le diagramme",
+        "Refresh": "Rafraîchir",
+        "Click a node to highlight relations. Use mousewheel to zoom.": "Cliquez sur un nœud pour mettre en évidence les relations. Utilisez la molette pour zoomer.",
+
     },
     "es": {
         "Accueil": "Inicio",
@@ -542,6 +563,13 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "Être rappelé": "Ser contactado",
         "Carregando...": "Cargando...",
         "OK": "OK",
+
+        # Source diagram module
+        "Source Diagram": "Diagrama de fuente",
+        "Select data source": "Seleccione la fuente de datos",
+        "Load diagram": "Cargar diagrama",
+        "Refresh": "Actualizar",
+        "Click a node to highlight relations. Use mousewheel to zoom.": "Haga clic en un nodo para resaltar las relaciones. Use la rueda del ratón para acercar/alejar.",
 
     },
     "it": {
@@ -711,6 +739,13 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "Carregando...": "Caricamento...",
         "OK": "OK",
 
+        # Source diagram module
+        "Source Diagram": "Diagramma sorgente",
+        "Select data source": "Seleziona sorgente dati",
+        "Load diagram": "Carica diagramma",
+        "Refresh": "Aggiorna",
+        "Click a node to highlight relations. Use mousewheel to zoom.": "Clicca un nodo per evidenziare le relazioni. Usa la rotellina per zoomare.",
+
     },
     "de": {
         "Accueil": "Start",
@@ -878,6 +913,13 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "Être rappelé": "Zurückgerufen werden",
         "Carregando...": "Laden...",
         "OK": "OK",
+
+        # Source diagram module
+        "Source Diagram": "Quellendiagramm",
+        "Select data source": "Datenquelle auswählen",
+        "Load diagram": "Diagramm laden",
+        "Refresh": "Aktualisieren",
+        "Click a node to highlight relations. Use mousewheel to zoom.": "Klicken Sie auf einen Knoten, um Beziehungen hervorzuheben. Verwenden Sie das Mausrad zum Zoomen.",
 
     },
 }

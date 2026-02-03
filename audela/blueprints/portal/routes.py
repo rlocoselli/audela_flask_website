@@ -166,6 +166,19 @@ def sources_introspect(source_id: int):
     )
 
 
+@bp.route("/sources/diagram")
+@login_required
+@require_roles("tenant_admin", "creator")
+def sources_diagram():
+    _require_tenant()
+    sources = (
+        DataSource.query.filter_by(tenant_id=g.tenant.id)
+        .order_by(DataSource.name.asc())
+        .all()
+    )
+    return render_template("portal/sources_diagram.html", tenant=g.tenant, sources=sources)
+
+
 # -----------------------------
 # API (schema, NLQ, export)
 # -----------------------------
@@ -179,6 +192,51 @@ def api_source_schema(source_id: int):
     src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first_or_404()
     meta = introspect_source(src)
     return jsonify(meta)
+
+
+@bp.route("/api/sources/<int:source_id>/diagram")
+@login_required
+@require_roles("tenant_admin", "creator")
+def api_source_diagram(source_id: int):
+    """Return a simple graph (tables + inferred relations) for a source."""
+    _require_tenant()
+    src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first_or_404()
+    meta = introspect_source(src)
+    # Flatten tables across schemas
+    tables = []
+    for s in meta.get("schemas", []):
+        for t in s.get("tables", []):
+            tables.append({"name": t.get("name"), "columns": [c.get("name") for c in t.get("columns", [])]})
+
+    # Infer relations via simple foreign-key naming heuristics (col ending with _id)
+    name_index = {t["name"]: t for t in tables}
+    relations = []
+    for t in tables:
+        for col in t.get("columns", []):
+            if not isinstance(col, str):
+                continue
+            if not col.endswith("_id"):
+                continue
+            base = col[:-3]
+            target = None
+            # direct match
+            if base in name_index:
+                target = base
+            # try plural/singular heuristics
+            elif base + "s" in name_index:
+                target = base + "s"
+            elif base.endswith("s") and base[:-1] in name_index:
+                target = base[:-1]
+            else:
+                # fallback: find table that contains base
+                for tn in name_index:
+                    if tn.endswith(base) or tn.startswith(base):
+                        target = tn
+                        break
+            if target:
+                relations.append({"from": f"{t['name']}.{col}", "to": f"{target}.id"})
+
+    return jsonify({"tables": tables, "relations": relations})
 
 
 @bp.route("/api/nlq", methods=["POST"])
