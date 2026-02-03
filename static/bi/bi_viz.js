@@ -209,7 +209,7 @@ window.BI = window.BI || {};
   }
 
   // ----- Dashboard renderer -----
-  function bootDashboard() {
+  window.BI.bootDashboard = function bootDashboard() {
     const cards = document.querySelectorAll('[data-bi-card="1"]');
     if (!cards.length) return;
 
@@ -315,7 +315,7 @@ window.BI = window.BI || {};
 
     renderFilterSummary();
     rerender();
-  }
+  };
 
   // ----- Question visualization page -----
   function bootQuestionViz() {
@@ -405,7 +405,7 @@ window.BI = window.BI || {};
   };
 
   document.addEventListener('DOMContentLoaded', () => {
-    bootDashboard();
+    window.BI.bootDashboard();
     bootQuestionViz();
   });
 })();

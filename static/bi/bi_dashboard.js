@@ -16,11 +16,15 @@
     if (grid.children.length) return;
     const frag = tpl.content.cloneNode(true);
     grid.appendChild(frag);
+    // After hydration, boot the visualization renderer
+    if (window.BI && window.BI.bootDashboard) {
+      setTimeout(() => window.BI.bootDashboard(), 50);
+    }
   }
 
   function resizeVizIn (cardEl) {
     // For ECharts: resize without re-render if possible.
-    const viz = cardEl?.querySelector?.('.bi-viz');
+    const viz = cardEl?.querySelector('.bi-viz');
     if (!viz) return;
     try {
       const inst = (typeof echarts !== 'undefined') ? echarts.getInstanceByDom(viz) : null;
