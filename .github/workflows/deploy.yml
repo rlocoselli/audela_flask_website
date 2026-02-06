@@ -31,9 +31,6 @@ jobs:
             echo "📥 Git pull"
             git pull origin main
 
-            echo "🐍 Activate venv"
-            source .venv/bin/activate
-
             echo "🔧 Run install"
             chmod +x install.sh
             ./install.sh
