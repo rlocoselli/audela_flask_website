@@ -124,19 +124,6 @@ nginx -t
 systemctl reload nginx
 
 # ==========================
-# SSL
-# ==========================
-certbot --nginx \
-  -d $DOMAIN \
-  -d $WWW_DOMAIN \
-  --non-interactive \
-  --agree-tos \
-  -m $EMAIL \
-  --redirect
-
-certbot renew --dry-run
-
-# ==========================
 # DONE
 # ==========================
 echo ""
