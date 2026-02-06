@@ -85,6 +85,26 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "Coluna métrica escolhida por fallback": "Coluna métrica escolhida por fallback",
         "Coluna métrica não identificada": "Coluna métrica não identificada",
 
+        # Home page
+        "O que já está no MVP": "O que já está no MVP",
+        "Fontes por tenant (cadastro + introspecção)": "Fontes por tenant (cadastro + introspecção)",
+        "Editor SQL (execução ad-hoc com limites)": "Editor SQL (execução ad-hoc com limites)",
+        "Perguntas (queries salvas) + execução": "Perguntas (queries salvas) + execução",
+        "Dashboards (cards simples com perguntas)": "Dashboards (cards simples com perguntas)",
+        "Auditoria + Query Runs por tenant": "Auditoria + Query Runs por tenant",
+        "Começar": "Começar",
+        "Crie uma fonte em Fontes → Nova": "Crie uma fonte em Fontes → Nova",
+        "Introspecte metadados na fonte (botão 'Introspectar')": "Introspecte metadados na fonte (botão 'Introspectar')",
+        "Teste uma consulta no Editor SQL": "Teste uma consulta no Editor SQL",
+        "Salve uma Pergunta e crie um Dashboard": "Salve uma Pergunta e crie um Dashboard",
+        "cadastro + introspecção": "cadastro + introspecção",
+        "execução ad-hoc com limites": "execução ad-hoc com limites",
+        "queries salvas": "queries salvas",
+        "cards simples com perguntas": "cards simples com perguntas",
+        "por tenant": "por tenant",
+        "Nova": "Nova",
+        "e crie um": "e crie um",
+
         # Placeholder texts
         "Ex.: DW Produção": "Ex.: DW Produção",
         "Ex.: postgresql+psycopg://user:pass@host:5432/dbname": "Ex.: postgresql+psycopg://user:pass@host:5432/dbname",
@@ -99,6 +119,18 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "senha": "senha",
         "value": "value",
         "SELECT ...": "SELECT ...",
+
+        # AI service prompts
+        "You are a BI analyst": "Você é um analista de BI",
+        "You receive metadata and data sample": "Você recebe metadados e uma amostra de dados (colunas/linhas) de uma pergunta SQL",
+        "Respond with clear insights": "Responda com insights claros, hipóteses, limitações, e sugira gráficos",
+        "Your output MUST be valid JSON": "Sua saída DEVE ser um JSON válido (sem markdown, sem blocos de código) com estas chaves",
+        "analysis key": "analysis: string (markdown simples permitido, mas sem HTML)",
+        "charts key": "charts: lista de objetos {title: string, echarts_option: object}",
+        "followups key": "followups: lista de strings",
+        "Use only the provided sample": "Use apenas a amostra e o perfil fornecidos; se faltar algo, diga explicitamente",
+        "For charts generate safe ECharts": "Para charts, gere opções ECharts seguras, sem funções JS",
+        "If insufficient data return empty": "Se não houver dados suficientes, retorne charts=[] e explique no analysis",
     },
     "en": {
         "Accueil": "Home",
@@ -282,6 +314,26 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "Refresh": "Refresh",
             "Click a node to highlight relations. Use mousewheel to zoom.": "Click a node to highlight relations. Use mousewheel to zoom.",
 
+            # Home page
+            "O que já está no MVP": "What's already in the MVP",
+            "Fontes por tenant (cadastro + introspecção)": "Data sources per tenant (registration + introspection)",
+            "Editor SQL (execução ad-hoc com limites)": "SQL Editor (ad-hoc execution with limits)",
+            "Perguntas (queries salvas) + execução": "Questions (saved queries) + execution",
+            "Dashboards (cards simples com perguntas)": "Dashboards (simple cards with questions)",
+            "Auditoria + Query Runs por tenant": "Audit + Query Runs per tenant",
+            "Começar": "Getting Started",
+            "Crie uma fonte em Fontes → Nova": "Create a data source in Sources → New",
+            "Introspecte metadados na fonte (botão 'Introspectar')": "Introspect metadata on the source (\"Introspect\" button)",
+            "Teste uma consulta no Editor SQL": "Test a query in SQL Editor",
+            "Salve uma Pergunta e crie um Dashboard": "Save a Question and create a Dashboard",
+            "cadastro + introspecção": "registration + introspection",
+            "execução ad-hoc com limites": "ad-hoc execution with limits",
+            "queries salvas": "saved queries",
+            "cards simples com perguntas": "simple cards with questions",
+            "por tenant": "per tenant",
+            "Nova": "New",
+            "e crie um": "and create a",
+
             # Auth messages
             "Tenant não encontrado.": "Tenant not found.",
             "Credenciais inválidas.": "Invalid credentials.",
@@ -326,6 +378,26 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "Coluna métrica escolhida por fallback": "Metric column chosen by fallback",
             "Coluna métrica não identificada": "Metric column not identified",
 
+            # Home page
+            "O que já está no MVP": "What's already in the MVP",
+            "Fontes por tenant (cadastro + introspecção)": "Data sources per tenant (registration + introspection)",
+            "Editor SQL (execução ad-hoc com limites)": "SQL Editor (ad-hoc execution with limits)",
+            "Perguntas (queries salvas) + execução": "Questions (saved queries) + execution",
+            "Dashboards (cards simples com perguntas)": "Dashboards (simple cards with questions)",
+            "Auditoria + Query Runs por tenant": "Audit + Query Runs per tenant",
+            "Começar": "Getting Started",
+            "Crie uma fonte em Fontes → Nova": "Create a data source in Sources → New",
+            "Introspecte metadados na fonte (botão 'Introspectar')": "Introspect metadata on the source (\"Introspect\" button)",
+            "Teste uma consulta no Editor SQL": "Test a query in SQL Editor",
+            "Salve uma Pergunta e crie um Dashboard": "Save a Question and create a Dashboard",
+            "cadastro + introspecção": "registration + introspection",
+            "execução ad-hoc com limites": "ad-hoc execution with limits",
+            "queries salvas": "saved queries",
+            "cards simples com perguntas": "simple cards with questions",
+            "por tenant": "per tenant",
+            "Nova": "New",
+            "e crie um": "and create a",
+
             # Placeholder texts
             "Ex.: DW Produção": "Ex.: DW Production",
             "Ex.: postgresql+psycopg://user:pass@host:5432/dbname": "Ex.: postgresql+psycopg://user:pass@host:5432/dbname",
@@ -340,6 +412,18 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
             "senha": "password",
             "value": "value",
             "SELECT ...": "SELECT ...",
+
+            # AI service prompts
+            "You are a BI analyst": "You are a BI analyst",
+            "You receive metadata and data sample": "You receive metadata and a data sample (columns/rows) from a SQL question",
+            "Respond with clear insights": "Respond with clear insights, hypotheses, limitations, and suggest charts",
+            "Your output MUST be valid JSON": "Your output MUST be valid JSON (no markdown, no code blocks) with these keys",
+            "analysis key": "analysis: string (simple markdown allowed, but no HTML)",
+            "charts key": "charts: list of objects {title: string, echarts_option: object}",
+            "followups key": "followups: list of strings",
+            "Use only the provided sample": "Use only the provided sample and profile; if something is missing, say so explicitly",
+            "For charts generate safe ECharts": "For charts, generate safe ECharts options, without JS functions",
+            "If insufficient data return empty": "If there is insufficient data, return charts=[] and explain in the analysis",
 
     },
     "fr": {
@@ -378,6 +462,26 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "Plateformes métiers, ERP & IA appliquée": "Plateformes métiers, ERP & IA appliquée",
         "Des outils métier qui reflètent vos workflows, avec une IA utile et explicable.": "Des outils métier qui reflètent vos workflows, avec une IA utile et explicable.",
         "Découvrir BeLegal": "Découvrir BeLegal",
+
+        # Home page
+        "O que já está no MVP": "Ce qui est déjà dans le MVP",
+        "Fontes por tenant (cadastro + introspecção)": "Sources de données par locataire (enregistrement + introspection)",
+        "Editor SQL (execução ad-hoc com limites)": "Éditeur SQL (exécution ad-hoc avec limites)",
+        "Perguntas (queries salvas) + execução": "Questions (requêtes enregistrées) + exécution",
+        "Dashboards (cards simples com perguntas)": "Tableaux de bord (cartes simples avec questions)",
+        "Auditoria + Query Runs por tenant": "Audit + Exécutions de requêtes par locataire",
+        "Começar": "Commencer",
+        "Crie uma fonte em Fontes → Nova": "Créez une source de données dans Sources → Nouvelle",
+        "Introspecte metadados na fonte (botão 'Introspectar')": "Introspectez les métadonnées sur la source (bouton \"Introspect\")",
+        "Teste uma consulta no Editor SQL": "Testez une requête dans l'Éditeur SQL",
+        "Salve uma Pergunta e crie um Dashboard": "Enregistrez une Question et créez un Tableau de bord",
+        "cadastro + introspecção": "enregistrement + introspection",
+        "execução ad-hoc com limites": "exécution ad-hoc avec limites",
+        "queries salvas": "requêtes enregistrées",
+        "cards simples com perguntas": "cartes simples avec questions",
+        "por tenant": "par locataire",
+        "Nova": "Nouvelle",
+        "e crie um": "et créez un",
 
         # Portal
         "Portal BI": "Portail BI",
@@ -562,6 +666,19 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "Coluna métrica escolhida por fallback": "Colonne de métrique choisie par défaut",
         "Coluna métrica não identificada": "Colonne de métrique non identifiée",
 
+        # Home page
+        "O que já está no MVP": "Ce qui est déjà dans le MVP",
+        "Fontes por tenant (cadastro + introspecção)": "Sources de données par locataire (enregistrement + introspection)",
+        "Editor SQL (execução ad-hoc com limites)": "Éditeur SQL (exécution ad-hoc avec limites)",
+        "Perguntas (queries salvas) + execução": "Questions (requêtes enregistrées) + exécution",
+        "Dashboards (cards simples com perguntas)": "Tableaux de bord (cartes simples avec questions)",
+        "Auditoria + Query Runs por tenant": "Audit + Exécutions de requêtes par locataire",
+        "Começar": "Commencer",
+        "Crie uma fonte em Fontes → Nova": "Créez une source de données dans Sources → Nouvelle",
+        "Introspecte metadados na fonte (botão 'Introspectar')": "Introspectez les métadonnées sur la source (bouton \"Introspect\")",
+        "Teste uma consulta no Editor SQL": "Testez une requête dans l'Éditeur SQL",
+        "Salve uma Pergunta e crie um Dashboard": "Enregistrez une Question et créez un Tableau de bord",
+
         # Placeholder texts
         "Ex.: DW Produção": "Ex. : DW Production",
         "Ex.: postgresql+psycopg://user:pass@host:5432/dbname": "Ex. : postgresql+psycopg://user:pass@host:5432/dbname",
@@ -576,6 +693,18 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "senha": "mot de passe",
         "value": "valeur",
         "SELECT ...": "SELECT ...",
+
+        # AI service prompts
+        "You are a BI analyst": "Vous êtes un analyste BI",
+        "You receive metadata and data sample": "Vous recevez des métadonnées et un exemple de données (colonnes/lignes) d'une question SQL",
+        "Respond with clear insights": "Répondez avec des aperçus clairs, des hypothèses, des limitations et suggérez des graphiques",
+        "Your output MUST be valid JSON": "Votre sortie DOIT être un JSON valide (pas de markdown, pas de blocs de code) avec ces clés",
+        "analysis key": "analysis: string (markdown simple autorisé, mais pas de HTML)",
+        "charts key": "charts: liste d'objets {title: string, echarts_option: object}",
+        "followups key": "followups: liste de strings",
+        "Use only the provided sample": "Utilisez uniquement l'exemple et le profil fournis ; s'il manque quelque chose, dites-le explicitement",
+        "For charts generate safe ECharts": "Pour les graphiques, générez des options ECharts sûres, sans fonctions JS",
+        "If insufficient data return empty": "S'il n'y a pas assez de données, retournez charts=[] et expliquez dans l'analysis",
 
     },
     "es": {
@@ -613,6 +742,26 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "Plateformes métiers, ERP & IA appliquée": "Plataformas empresariales, ERP e IA aplicada",
         "Des outils métier qui reflètent vos workflows, avec une IA utile et explicable.": "Herramientas empresariales que reflejan sus flujos de trabajo, con IA útil y explicable.",
         "Découvrir BeLegal": "Descubrir BeLegal",
+
+        # Home page
+        "O que já está no MVP": "Lo que ya está en el MVP",
+        "Fontes por tenant (cadastro + introspecção)": "Fuentes de datos por inquilino (registro + introspección)",
+        "Editor SQL (execução ad-hoc com limites)": "Editor SQL (ejecución ad-hoc con límites)",
+        "Perguntas (queries salvas) + execução": "Preguntas (consultas guardadas) + ejecución",
+        "Dashboards (cards simples com perguntas)": "Paneles (tarjetas simples con preguntas)",
+        "Auditoria + Query Runs por tenant": "Auditoría + Ejecuciones de consultas por inquilino",
+        "Começar": "Primeros pasos",
+        "Crie uma fonte em Fontes → Nova": "Cree una fuente de datos en Fuentes → Nueva",
+        "Introspecte metadados na fonte (botão 'Introspectar')": "Introspeccione metadatos en la fuente (botón \"Introspect\")",
+        "Teste uma consulta no Editor SQL": "Pruebe una consulta en el Editor SQL",
+        "Salve uma Pergunta e crie um Dashboard": "Guarde una Pregunta y cree un Panel",
+        "cadastro + introspecção": "registro + introspección",
+        "execução ad-hoc com limites": "ejecución ad-hoc con límites",
+        "queries salvas": "consultas guardadas",
+        "cards simples com perguntas": "tarjetas simples con preguntas",
+        "por tenant": "por inquilino",
+        "Nova": "Nueva",
+        "e crie um": "y cree un",
 
         "Portal BI": "Portal BI",
         "Usuário": "Usuario",
@@ -796,6 +945,26 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "Coluna métrica escolhida por fallback": "Columna de métrica elegida por defecto",
         "Coluna métrica não identificada": "Columna de métrica no identificada",
 
+        # Home page
+        "O que já está no MVP": "Lo que ya está en el MVP",
+        "Fontes por tenant (cadastro + introspecção)": "Fuentes de datos por inquilino (registro + introspección)",
+        "Editor SQL (execução ad-hoc com limites)": "Editor SQL (ejecución ad-hoc con límites)",
+        "Perguntas (queries salvas) + execução": "Preguntas (consultas guardadas) + ejecución",
+        "Dashboards (cards simples com perguntas)": "Paneles (tarjetas simples con preguntas)",
+        "Auditoria + Query Runs por tenant": "Auditoría + Ejecuciones de consultas por inquilino",
+        "Começar": "Primeros pasos",
+        "Crie uma fonte em Fontes → Nova": "Cree una fuente de datos en Fuentes → Nueva",
+        "Introspecte metadados na fonte (botão 'Introspectar')": "Introspeccione metadatos en la fuente (botón \"Introspect\")",
+        "Teste uma consulta no Editor SQL": "Pruebe una consulta en el Editor SQL",
+        "Salve uma Pergunta e crie um Dashboard": "Guarde una Pregunta y cree un Panel",
+        "cadastro + introspecção": "registro + introspección",
+        "execução ad-hoc com limites": "ejecución ad-hoc con límites",
+        "queries salvas": "consultas guardadas",
+        "cards simples com perguntas": "tarjetas simples con preguntas",
+        "por tenant": "por inquilino",
+        "Nova": "Nueva",
+        "e crie um": "y cree un",
+
         # Placeholder texts
         "Ex.: DW Produção": "Ej.: DW Producción",
         "Ex.: postgresql+psycopg://user:pass@host:5432/dbname": "Ej.: postgresql+psycopg://user:pass@host:5432/dbname",
@@ -810,6 +979,18 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "senha": "contraseña",
         "value": "valor",
         "SELECT ...": "SELECT ...",
+
+        # AI service prompts
+        "You are a BI analyst": "Eres un analista de BI",
+        "You receive metadata and data sample": "Recibes metadatos y una muestra de datos (columnas/filas) de una pregunta SQL",
+        "Respond with clear insights": "Responde con información clara, hipótesis, limitaciones y sugiere gráficos",
+        "Your output MUST be valid JSON": "Tu salida DEBE ser JSON válido (sin markdown, sin bloques de código) con estas claves",
+        "analysis key": "analysis: string (se permite markdown simple, pero sin HTML)",
+        "charts key": "charts: lista de objetos {title: string, echarts_option: object}",
+        "followups key": "followups: lista de strings",
+        "Use only the provided sample": "Usa solo la muestra y el perfil proporcionados; si falta algo, dilo explícitamente",
+        "For charts generate safe ECharts": "Para gráficos, genera opciones ECharts seguras, sin funciones JS",
+        "If insufficient data return empty": "Si hay datos insuficientes, retorna charts=[] y explica en el análisis",
 
     },
     "it": {
@@ -847,6 +1028,26 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "Plateformes métiers, ERP & IA appliquée": "Piattaforme business, ERP & IA applicata",
         "Des outils métier qui reflètent vos workflows, avec une IA utile et explicable.": "Strumenti business che rispecchiano i vostri workflow, con IA utile e spiegabile.",
         "Découvrir BeLegal": "Scopri BeLegal",
+
+        # Home page
+        "O que já está no MVP": "Cosa è già nel MVP",
+        "Fontes por tenant (cadastro + introspecção)": "Fonti di dati per tenant (registrazione + introspezione)",
+        "Editor SQL (execução ad-hoc com limites)": "Editor SQL (esecuzione ad-hoc con limiti)",
+        "Perguntas (queries salvas) + execução": "Domande (query salvate) + esecuzione",
+        "Dashboards (cards simples com perguntas)": "Dashboard (schede semplici con domande)",
+        "Auditoria + Query Runs por tenant": "Audit + Query Runs per tenant",
+        "Começar": "Iniziare",
+        "Crie uma fonte em Fontes → Nova": "Crea una fonte di dati in Fonti → Nuovo",
+        "Introspecte metadados na fonte (botão 'Introspectar')": "Ispeziona i metadati nella fonte (pulsante \"Introspect\")",
+        "Teste uma consulta no Editor SQL": "Prova una query nell'Editor SQL",
+        "Salve uma Pergunta e crie um Dashboard": "Salva una Domanda e crea un Dashboard",
+        "cadastro + introspecção": "registrazione + introspezione",
+        "execução ad-hoc com limites": "esecuzione ad-hoc con limiti",
+        "queries salvas": "query salvate",
+        "cards simples com perguntas": "schede semplici con domande",
+        "por tenant": "per tenant",
+        "Nova": "Nuovo",
+        "e crie um": "e crea un",
 
         "Portal BI": "Portale BI",
         "Usuário": "Utente",
@@ -1030,6 +1231,26 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "Coluna métrica escolhida por fallback": "Colonna metrica scelta per default",
         "Coluna métrica não identificada": "Colonna metrica non identificata",
 
+        # Home page
+        "O que já está no MVP": "Cosa c'è già nell'MVP",
+        "Fontes por tenant (cadastro + introspecção)": "Sorgenti dati per inquilino (registrazione + introspezione)",
+        "Editor SQL (execução ad-hoc com limites)": "Editor SQL (esecuzione ad-hoc con limiti)",
+        "Perguntas (queries salvas) + execução": "Domande (query salvate) + esecuzione",
+        "Dashboards (cards simples com perguntas)": "Dashboard (schede semplici con domande)",
+        "Auditoria + Query Runs por tenant": "Audit + Esecuzioni query per inquilino",
+        "Começar": "Iniziare",
+        "Crie uma fonte em Fontes → Nova": "Crea una sorgente dati in Fonti → Nuova",
+        "Introspecte metadados na fonte (botão 'Introspectar')": "Ispeziona i metadati sulla sorgente (pulsante \"Introspect\")",
+        "Teste uma consulta no Editor SQL": "Testa una query nell'Editor SQL",
+        "Salve uma Pergunta e crie um Dashboard": "Salva una Domanda e crea un Dashboard",
+        "cadastro + introspecção": "registrazione + introspezione",
+        "execução ad-hoc com limites": "esecuzione ad-hoc con limiti",
+        "queries salvas": "query salvate",
+        "cards simples com perguntas": "schede semplici con domande",
+        "por tenant": "per inquilino",
+        "Nova": "Nuova",
+        "e crie um": "e crea un",
+
         # Placeholder texts
         "Ex.: DW Produção": "Es.: DW Produzione",
         "Ex.: postgresql+psycopg://user:pass@host:5432/dbname": "Es.: postgresql+psycopg://user:pass@host:5432/dbname",
@@ -1044,6 +1265,18 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "senha": "password",
         "value": "valore",
         "SELECT ...": "SELECT ...",
+
+        # AI service prompts
+        "You are a BI analyst": "Sei un analista di BI",
+        "You receive metadata and data sample": "Ricevi metadati e un campione di dati (colonne/righe) da una domanda SQL",
+        "Respond with clear insights": "Rispondi con intuizioni chiare, ipotesi, limitazioni e suggerisci grafici",
+        "Your output MUST be valid JSON": "Il tuo output DEVE essere un JSON valido (senza markdown, senza blocchi di codice) con queste chiavi",
+        "analysis key": "analysis: string (markdown semplice consentito, ma senza HTML)",
+        "charts key": "charts: lista di oggetti {title: string, echarts_option: object}",
+        "followups key": "followups: lista di stringhe",
+        "Use only the provided sample": "Usa solo il campione e il profilo forniti; se manca qualcosa, dillo esplicitamente",
+        "For charts generate safe ECharts": "Per i grafici, genera opzioni ECharts sicure, senza funzioni JS",
+        "If insufficient data return empty": "Se ci sono dati insufficienti, restituisci charts=[] e spiega nell'analisi",
 
     },
     "de": {
@@ -1081,6 +1314,26 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "Plateformes métiers, ERP & IA appliquée": "Fachplattformen, ERP & angewandte KI",
         "Des outils métier qui reflètent vos workflows, avec une IA utile et explicable.": "Business-Tools, die Ihre Workflows abbilden, mit nützlicher und erklärbarer KI.",
         "Découvrir BeLegal": "BeLegal entdecken",
+
+        # Home page
+        "O que já está no MVP": "Was ist bereits im MVP",
+        "Fontes por tenant (cadastro + introspecção)": "Datenquellen pro Mandant (Registrierung + Introspection)",
+        "Editor SQL (execução ad-hoc com limites)": "SQL-Editor (Ad-hoc-Ausführung mit Limits)",
+        "Perguntas (queries salvas) + execução": "Fragen (gespeicherte Abfragen) + Ausführung",
+        "Dashboards (cards simples com perguntas)": "Dashboards (einfache Karten mit Fragen)",
+        "Auditoria + Query Runs por tenant": "Audit + Query Runs pro Mandant",
+        "Começar": "Erste Schritte",
+        "Crie uma fonte em Fontes → Nova": "Erstellen Sie eine Datenquelle unter Datenquellen → Neu",
+        "Introspecte metadados na fonte (botão 'Introspectar')": "Metadaten in der Quelle introspizieren (Schaltfläche \"Introspect\")",
+        "Teste uma consulta no Editor SQL": "Testen Sie eine Abfrage im SQL-Editor",
+        "Salve uma Pergunta e crie um Dashboard": "Speichern Sie eine Frage und erstellen Sie ein Dashboard",
+        "cadastro + introspecção": "Registrierung + Introspection",
+        "execução ad-hoc com limites": "Ad-hoc-Ausführung mit Limits",
+        "queries salvas": "gespeicherte Abfragen",
+        "cards simples com perguntas": "einfache Karten mit Fragen",
+        "por tenant": "pro Mandant",
+        "Nova": "Neu",
+        "e crie um": "und erstellen Sie ein",
 
         "Portal BI": "BI-Portal",
         "Usuário": "Benutzer",
@@ -1264,6 +1517,26 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "Coluna métrica escolhida por fallback": "Metrik-Spalte als Fallback gewählt",
         "Coluna métrica não identificada": "Metrik-Spalte nicht identifiziert",
 
+        # Home page
+        "O que já está no MVP": "Was bereits im MVP vorhanden ist",
+        "Fontes por tenant (cadastro + introspecção)": "Datenquellen pro Mandant (Registrierung + Introspection)",
+        "Editor SQL (execução ad-hoc com limites)": "SQL-Editor (Ad-hoc-Ausführung mit Limits)",
+        "Perguntas (queries salvas) + execução": "Fragen (gespeicherte Abfragen) + Ausführung",
+        "Dashboards (cards simples com perguntas)": "Dashboards (einfache Karten mit Fragen)",
+        "Auditoria + Query Runs por tenant": "Audit + Query-Ausführungen pro Mandant",
+        "Começar": "Erste Schritte",
+        "Crie uma fonte em Fontes → Nova": "Erstellen Sie eine Datenquelle unter Quellen → Neu",
+        "Introspecte metadados na fonte (botão 'Introspectar')": "Introspektieren Sie Metadaten auf der Quelle (Schaltfläche \"Introspect\")",
+        "Teste uma consulta no Editor SQL": "Testen Sie eine Abfrage im SQL-Editor",
+        "Salve uma Pergunta e crie um Dashboard": "Speichern Sie eine Frage und erstellen Sie ein Dashboard",
+        "cadastro + introspecção": "Registrierung + Introspection",
+        "execução ad-hoc com limites": "Ad-hoc-Ausführung mit Limits",
+        "queries salvas": "gespeicherte Abfragen",
+        "cards simples com perguntas": "einfache Karten mit Fragen",
+        "por tenant": "pro Mandant",
+        "Nova": "Neu",
+        "e crie um": "und erstellen Sie ein",
+
         # Placeholder texts
         "Ex.: DW Produção": "Z.B.: DW Produktion",
         "Ex.: postgresql+psycopg://user:pass@host:5432/dbname": "Z.B.: postgresql+psycopg://user:pass@host:5432/dbname",
@@ -1278,6 +1551,18 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "senha": "Passwort",
         "value": "Wert",
         "SELECT ...": "SELECT ...",
+
+        # AI service prompts
+        "You are a BI analyst": "Sie sind ein BI-Analyst",
+        "You receive metadata and data sample": "Sie erhalten Metadaten und ein Datenmuster (Spalten/Zeilen) aus einer SQL-Frage",
+        "Respond with clear insights": "Antworten Sie mit klaren Erkenntnissen, Hypothesen, Limitierungen und schlagen Sie Diagramme vor",
+        "Your output MUST be valid JSON": "Ihre Ausgabe MUSS gültiges JSON sein (ohne Markdown, ohne Code-Blöcke) mit diesen Schlüsseln",
+        "analysis key": "analysis: string (einfaches Markdown erlaubt, aber kein HTML)",
+        "charts key": "charts: Liste von Objekten {title: string, echarts_option: object}",
+        "followups key": "followups: Liste von Strings",
+        "Use only the provided sample": "Verwenden Sie nur das bereitgestellte Muster und Profil; wenn etwas fehlt, sagen Sie es explizit",
+        "For charts generate safe ECharts": "Generieren Sie für Diagramme sichere ECharts-Optionen ohne JS-Funktionen",
+        "If insufficient data return empty": "Wenn nicht genügend Daten vorhanden sind, geben Sie charts=[] zurück und erklären Sie die Analyse",
 
     },
 }

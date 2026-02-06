@@ -4,23 +4,23 @@
 
 {% block portal_content %}
   <div class="box">
-    <h3>O que já está no MVP</h3>
+    <h3>{{ _("O que já está no MVP") }}</h3>
     <ul>
-      <li><strong>Fontes por tenant</strong> (cadastro + introspecção)</li>
-      <li><strong>Editor SQL</strong> (execução ad-hoc com limites)</li>
-      <li><strong>Perguntas</strong> (queries salvas) + execução</li>
-      <li><strong>Dashboards</strong> (cards simples com perguntas)</li>
-      <li><strong>Auditoria</strong> + <strong>Query Runs</strong> por tenant</li>
+      <li><strong>{{ _("Fontes por tenant") }}</strong> ({{ _("cadastro + introspecção") }})</li>
+      <li><strong>{{ _("Editor SQL") }}</strong> ({{ _("execução ad-hoc com limites") }})</li>
+      <li><strong>{{ _("Perguntas") }}</strong> ({{ _("queries salvas") }}) + {{ _("execução") }}</li>
+      <li><strong>{{ _("Dashboards") }}</strong> ({{ _("cards simples com perguntas") }})</li>
+      <li><strong>{{ _("Auditoria") }}</strong> + <strong>{{ _("Query Runs") }}</strong> {{ _("por tenant") }}</li>
     </ul>
   </div>
 
   <div class="box">
-    <h3>Começar</h3>
+    <h3>{{ _("Começar") }}</h3>
     <ol>
-      <li>Crie uma fonte em <a href="{{ url_for('portal.sources_new') }}">Fontes → Nova</a></li>
-      <li>Introspecte metadados na fonte (botão “Introspectar”)</li>
-      <li>Teste uma consulta no <a href="{{ url_for('portal.sql_editor') }}">Editor SQL</a></li>
-      <li>Salve uma <a href="{{ url_for('portal.questions_new') }}">Pergunta</a> e crie um <a href="{{ url_for('portal.dashboards_new') }}">Dashboard</a></li>
+      <li>{{ _("Crie uma fonte em Fontes → Nova") }} <a href="{{ url_for('portal.sources_new') }}">{{ _("Fontes") }} → {{ _("Nova") }}</a></li>
+      <li>{{ _("Introspecte metadados na fonte (botão 'Introspectar')") }}</li>
+      <li>{{ _("Teste uma consulta no Editor SQL") }} <a href="{{ url_for('portal.sql_editor') }}">{{ _("Editor SQL") }}</a></li>
+      <li>{{ _("Salve uma Pergunta e crie um Dashboard") }} <a href="{{ url_for('portal.questions_new') }}">{{ _("Pergunta") }}</a> {{ _("e crie um") }} <a href="{{ url_for('portal.dashboards_new') }}">{{ _("Dashboard") }}</a></li>
     </ol>
   </div>
 {% endblock %}

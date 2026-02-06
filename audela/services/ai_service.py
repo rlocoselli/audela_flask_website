@@ -6,6 +6,8 @@ from typing import Any
 
 import requests
 
+from ..i18n import DEFAULT_LANG, tr
+
 
 def _env(name: str, default: str | None = None) -> str | None:
     v = os.environ.get(name)
@@ -32,25 +34,29 @@ def analyze_with_ai(data_bundle: dict[str, Any], user_message: str, history: lis
     """Call OpenAI (optional) and return {analysis, charts, followups}.
 
     This is an MVP. If OPENAI_API_KEY is not set, returns an error dict.
+    Response will be in the language specified by `lang` parameter.
     """
     api_key = _env("OPENAI_API_KEY")
     if not api_key:
-        return {"error": "Chave OpenAI ausente. Defina OPENAI_API_KEY no servidor."}
+        lang_code = lang or DEFAULT_LANG
+        return {"error": tr("Chave OpenAI ausente. Defina OPENAI_API_KEY no servidor.", lang_code)}
 
     model = _env("OPENAI_MODEL", "gpt-4o-mini")
     base_url = _env("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    lang_code = lang or DEFAULT_LANG
 
+    # Build system prompt in the selected language
     sys_prompt = (
-        "Você é um analista de BI. Você recebe metadados e uma amostra de dados (colunas/linhas) "
-        "de uma pergunta SQL. Responda com insights claros, hipóteses, limitações, e sugira gráficos. "
-        "Sua saída DEVE ser um JSON válido (sem markdown, sem blocos de código) com estas chaves:\n"
-        "- analysis: string (markdown simples permitido, mas sem HTML)\n"
-        "- charts: lista de objetos {title: string, echarts_option: object}\n"
-        "- followups: lista de strings\n\n"
-        "Regras:\n"
-        "- Use apenas a amostra e o perfil fornecidos; se faltar algo, diga explicitamente.\n"
-        "- Para charts, gere opções ECharts seguras, sem funções JS.\n"
-        "- Se não houver dados suficientes, retorne charts=[] e explique no analysis."
+        f"{tr('You are a BI analyst', lang_code)}. {tr('You receive metadata and data sample', lang_code)}. "
+        f"{tr('Respond with clear insights', lang_code)}. "
+        f"{tr('Your output MUST be valid JSON', lang_code)}:\n"
+        f"- {tr('analysis key', lang_code)}\n"
+        f"- {tr('charts key', lang_code)}\n"
+        f"- {tr('followups key', lang_code)}\n\n"
+        f"Rules:\n"
+        f"- {tr('Use only the provided sample', lang_code)}.\n"
+        f"- {tr('For charts generate safe ECharts', lang_code)}.\n"
+        f"- {tr('If insufficient data return empty', lang_code)}."
     )
 
     # Keep context light
