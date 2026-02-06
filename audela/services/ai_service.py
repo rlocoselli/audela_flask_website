@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import os
 from typing import Any
+from decimal import Decimal
+from datetime import date, datetime
 
 import requests
 
@@ -30,7 +32,21 @@ def _json_safe(text: str) -> dict[str, Any] | None:
         return None
 
 
-def analyze_with_ai(data_bundle: dict[str, Any], user_message: str, history: list[dict[str, Any]] | None = None, lang: str | None = None) -> dict[str, Any]:
+# 🔹 JSON serializer seguro (Decimal, datetime, etc.)
+def json_default(o: Any):
+    if isinstance(o, Decimal):
+        return float(o)
+    if isinstance(o, (datetime, date)):
+        return o.isoformat()
+    return str(o)
+
+
+def analyze_with_ai(
+    data_bundle: dict[str, Any],
+    user_message: str,
+    history: list[dict[str, Any]] | None = None,
+    lang: str | None = None,
+) -> dict[str, Any]:
     """Call OpenAI (optional) and return {analysis, charts, followups}.
 
     This is an MVP. If OPENAI_API_KEY is not set, returns an error dict.
@@ -67,7 +83,9 @@ def analyze_with_ai(data_bundle: dict[str, Any], user_message: str, history: lis
         "profile": data_bundle.get("profile"),
     }
 
-    messages: list[dict[str, Any]] = [{"role": "system", "content": sys_prompt}]
+    messages: list[dict[str, Any]] = [
+        {"role": "system", "content": sys_prompt}
+    ]
 
     # Light history (last 8)
     if history:
@@ -75,13 +93,23 @@ def analyze_with_ai(data_bundle: dict[str, Any], user_message: str, history: lis
             role = msg.get("role")
             content = msg.get("content")
             if role in ("user", "assistant") and isinstance(content, str) and content.strip():
-                messages.append({"role": role, "content": content.strip()[:4000]})
+                messages.append(
+                    {"role": role, "content": content.strip()[:4000]}
+                )
 
+    # 🔧 FIX AQUI: json.dumps com default=json_default
     messages.append({
         "role": "user",
         "content": (
-            "Contexto (JSON):\n" + json.dumps(payload_context, ensure_ascii=False) + "\n\n" +
-            "Pergunta do usuário: " + user_message
+            "Contexto (JSON):\n"
+            + json.dumps(
+                payload_context,
+                ensure_ascii=False,
+                default=json_default
+            )
+            + "\n\n"
+            + "Pergunta do usuário: "
+            + user_message
         )
     })
 
@@ -129,7 +157,10 @@ def analyze_with_ai(data_bundle: dict[str, Any], user_message: str, history: lis
             title = ch.get("title")
             opt = ch.get("echarts_option")
             if isinstance(title, str) and isinstance(opt, dict):
-                safe_charts.append({"title": title[:120], "echarts_option": opt})
+                safe_charts.append({
+                    "title": title[:120],
+                    "echarts_option": opt
+                })
 
     safe_followups: list[str] = []
     if isinstance(followups, list):
@@ -137,4 +168,8 @@ def analyze_with_ai(data_bundle: dict[str, Any], user_message: str, history: lis
             if isinstance(s, str) and s.strip():
                 safe_followups.append(s.strip()[:200])
 
-    return {"analysis": analysis, "charts": safe_charts, "followups": safe_followups}
+    return {
+        "analysis": analysis,
+        "charts": safe_charts,
+        "followups": safe_followups,
+    }
