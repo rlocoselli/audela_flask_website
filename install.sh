@@ -7,27 +7,27 @@ DOMAIN="audeladedonnees.fr"
 WWW_DOMAIN="www.audeladedonnees.fr"
 EMAIL="admin@audeladedonnees.fr"
 
-APP_NAME="audeladedonnees"
+APP_NAME="audela_flask_website"
 SRC_DIR="$(pwd)"
-APP_DIR="/var/www/$APP_NAME"
+APP_DIR="/root/audela_flask_website"
 
 VENV_DIR="$APP_DIR/.venv"
-USER="www-data"
+USER="root"
 PORT="8000"
 
-echo "🚀 Deploying Flask app factory project"
+echo "🚀 Deploying Flask app (root-based)"
 echo "📁 $SRC_DIR → $APP_DIR"
 
 # ==========================
 # CHECK
 # ==========================
 if [ ! -d "$SRC_DIR/audela" ]; then
-  echo "❌ audela package not found (app factory expected)"
+  echo "❌ audela package not found (Flask app factory expected)"
   exit 1
 fi
 
 # ==========================
-# SYSTEM
+# SYSTEM PACKAGES
 # ==========================
 apt update
 apt install -y \
@@ -37,37 +37,45 @@ apt install -y \
 # ==========================
 # COPY APP
 # ==========================
-mkdir -p $APP_DIR
+mkdir -p "$APP_DIR"
 rsync -av --delete --exclude='.venv' "$SRC_DIR/" "$APP_DIR/"
 
 # ==========================
-# PERMISSIONS
+# PERMISSIONS (root)
 # ==========================
-chown -R $USER:$USER $APP_DIR
-chmod -R 755 $APP_DIR
+chmod -R 755 "$APP_DIR"
+
+# ==========================
+# ENV FILE (if missing)
+# ==========================
+if [ ! -f "$APP_DIR/.env" ]; then
+  cat <<EOF > "$APP_DIR/.env"
+OPENAI_API_KEY=sk-CHANGE_ME
+EOF
+  chmod 600 "$APP_DIR/.env"
+  echo "⚠️  .env created at $APP_DIR/.env (edit it!)"
+fi
 
 # ==========================
 # VIRTUAL ENV
 # ==========================
-sudo -u $USER python3 -m venv $VENV_DIR
-sudo -u $USER $VENV_DIR/bin/pip install --upgrade pip
+python3 -m venv "$VENV_DIR"
+"$VENV_DIR/bin/pip" install --upgrade pip
 
 if [ -f "$APP_DIR/requirements.txt" ]; then
-  sudo -u $USER $VENV_DIR/bin/pip install -r $APP_DIR/requirements.txt
+  "$VENV_DIR/bin/pip" install -r "$APP_DIR/requirements.txt"
 else
-  sudo -u $USER $VENV_DIR/bin/pip install flask gunicorn
+  "$VENV_DIR/bin/pip" install flask gunicorn python-dotenv openai sqlalchemy psycopg2-binary
 fi
 
 # ==========================
 # WSGI (FACTORY SAFE)
 # ==========================
-cat <<EOF > $APP_DIR/wsgi.py
+cat <<EOF > "$APP_DIR/wsgi.py"
 from audela import create_app
 
 app = create_app()
 EOF
-
-chown $USER:$USER $APP_DIR/wsgi.py
 
 # ==========================
 # SYSTEMD SERVICE
@@ -78,13 +86,15 @@ Description=Gunicorn $APP_NAME
 After=network.target
 
 [Service]
-User=$USER
-Group=$USER
+User=root
+Group=root
+
 WorkingDirectory=$APP_DIR
-Environment="PATH=$VENV_DIR/bin"
-ExecStart=$VENV_DIR/bin/gunicorn \
-  --workers 2 \
-  --bind 127.0.0.1:$PORT \
+EnvironmentFile=$APP_DIR/.env
+
+ExecStart=$VENV_DIR/bin/gunicorn \\
+  --workers 2 \\
+  --bind 127.0.0.1:$PORT \\
   wsgi:app
 
 Restart=always
@@ -95,8 +105,8 @@ WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable $APP_NAME
-systemctl restart $APP_NAME
+systemctl enable "$APP_NAME"
+systemctl restart "$APP_NAME"
 
 # ==========================
 # NGINX
@@ -127,11 +137,11 @@ systemctl reload nginx
 # SSL
 # ==========================
 certbot --nginx \
-  -d $DOMAIN \
-  -d $WWW_DOMAIN \
+  -d "$DOMAIN" \
+  -d "$WWW_DOMAIN" \
   --non-interactive \
   --agree-tos \
-  -m $EMAIL \
+  -m "$EMAIL" \
   --redirect
 
 # ==========================
@@ -140,5 +150,6 @@ certbot --nginx \
 echo ""
 echo "✅ DEPLOY SUCCESSFUL"
 echo "🌍 https://$DOMAIN"
-echo "🚀 Gunicorn running (Flask app factory)"
-echo "🔒 SSL auto-renew enabled"
+echo "🚀 Gunicorn running as root"
+echo "🔐 Environment loaded from $APP_DIR/.env"
+echo "⚠️  Reminder: running as root is NOT recommended for prod"
