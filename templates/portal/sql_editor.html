@@ -3,151 +3,286 @@
 
 {% block head_extra %}
   {{ super() }}
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css" />
+
+  <!-- CodeMirror -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css">
+
   <style>
-    .bi-panel { border:1px solid #e6e6e6; border-radius: 10px; padding: 1em; }
-    .bi-schema { max-height: 520px; overflow:auto; }
-    .bi-schema .tbl { margin:.3em 0; }
-    .bi-schema .cols { margin:.2em 0 0 1em; font-size:.9em; color:#444; }
-    .bi-schema button.btn-link{ text-decoration:none; color: inherit; }
-    .bi-schema button.btn-link:hover{ text-decoration:underline; }
-    .CodeMirror { height: 360px; border:1px solid #e6e6e6; border-radius: 10px; }
+    .bi-panel {
+      border: 1px solid var(--bs-border-color);
+      border-radius: .75rem;
+      padding: 1rem;
+      background: #fff;
+    }
+
+    .bi-schema {
+      max-height: 520px;
+      overflow: auto;
+      font-size: .9rem;
+    }
+
+    .bi-schema .tbl { margin-bottom: .25rem; }
+    .bi-schema .cols { margin-left: 1rem; color: #555; }
+
+    .CodeMirror {
+      height: 360px;
+      border: 1px solid var(--bs-border-color);
+      border-radius: .75rem;
+      font-size: .95rem;
+    }
   </style>
 {% endblock %}
 
 {% block portal_content %}
-  <div class="box">
-    <h3>{{ _('Editor SQL') }}</h3>
-    <p style="margin:0;">{{ _('Execute consultas ad-hoc, com autocomplete, Query Builder e linguagem humana.') }}</p>
+<div class="container-fluid px-0">
+
+  <!-- HEADER -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <h4 class="mb-1">{{ _('Editor SQL') }}</h4>
+      <p class="text-muted mb-0">
+        {{ _('Execute consultas ad-hoc, com autocomplete, Query Builder e linguagem humana.') }}
+      </p>
+    </div>
   </div>
 
-  <div class="row gtr-uniform gtr-50">
-    <div class="col-8 col-12-medium">
-      <div class="box">
-        <form method="post" id="sql-form">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+  <div class="row g-4">
 
-          <div class="row gtr-uniform gtr-50">
-            <div class="col-12">
-              <label>{{ _('Fonte de dados') }}</label>
-              <select name="source_id" id="source_id" required>
+    <!-- =======================
+         MAIN PANEL
+    ======================== -->
+    <div class="col-lg-8">
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+
+          <form method="post" id="sql-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <!-- Fonte -->
+            <div class="mb-3">
+              <label class="form-label">{{ _('Fonte de dados') }}</label>
+              <select name="source_id" id="source_id" class="form-select" required>
                 <option value="">--</option>
                 {% for s in sources %}
-                  <option value="{{ s.id }}" data-dbtype="{{ s.type }}">{{ s.name }} ({{ s.type }})</option>
+                  <option value="{{ s.id }}" data-dbtype="{{ s.type }}">
+                    {{ s.name }} ({{ s.type }})
+                  </option>
                 {% endfor %}
               </select>
             </div>
 
-            <div class="col-12">
-              <label>{{ _('Linguagem humana') }}</label>
-              <div style="display:flex; gap:.6em; flex-wrap:wrap; align-items:center;">
-                <input type="text" id="nlq-text" placeholder="ex: total vendas por mês" style="flex:1; min-width: 260px;" />
-                <a href="#" class="button" id="nlq-generate">{{ _('Gerar SQL') }}</a>
+            <!-- NLQ -->
+            <div class="mb-4">
+              <label class="form-label">{{ _('Linguagem humana') }}</label>
+              <div class="d-flex gap-2 flex-wrap">
+                <input
+                  type="text"
+                  id="nlq-text"
+                  class="form-control"
+                  placeholder="ex: total vendas por mês"
+                >
+                <button
+                  type="button"
+                  class="btn btn-outline-primary"
+                  id="nlq-generate"
+                >
+                  {{ _('Gerar SQL') }}
+                </button>
               </div>
-              <div id="nlq-warnings" style="margin-top:.4em; font-size:.9em;"></div>
+              <div id="nlq-warnings" class="form-text mt-1"></div>
             </div>
 
-            <div class="col-12" id="builder">
-              <details>
-                <summary style="cursor:pointer;"><strong>{{ _('Query Builder') }}</strong> — {{ _('montar SELECT com ajuda da estrutura') }}</summary>
-                <div class="bi-panel" style="margin-top:.8em;">
-                  <div class="row gtr-uniform gtr-50">
-                    <div class="col-6 col-12-small">
-                      <label>{{ _('Tabela') }}</label>
-                      <select id="qb-table"><option value="">--</option></select>
-                    </div>
-                    <div class="col-6 col-12-small">
-                      <label>{{ _('Limite') }}</label>
-                      <input id="qb-limit" type="number" value="100" min="1" max="5000" />
-                    </div>
-                    <div class="col-12">
-                      <label>{{ _('Colunas') }}</label>
-                      <div id="qb-columns" style="display:flex; flex-wrap:wrap; gap:.6em;"></div>
-                    </div>
-                    <div class="col-12">
-                      <label>{{ _('Filtros') }}</label>
-                      <div style="display:flex; gap:.6em; flex-wrap:wrap; align-items:center;">
-                        <select id="qb-filter-field" style="min-width: 180px;"></select>
-                        <select id="qb-filter-op" style="min-width: 140px;">
-                          <option value="=">=</option>
-                          <option value="!=">!=</option>
-                          <option value=">">&gt;</option>
-                          <option value="<">&lt;</option>
-                          <option value="LIKE">LIKE</option>
-                        </select>
-                        <input id="qb-filter-value" type="text" placeholder="value" style="min-width: 180px;" />
-                        <a href="#" class="button small" id="qb-add-filter">{{ _('Adicionar filtro') }}</a>
-                      </div>
-                      <div id="qb-filter-list" style="margin-top:.6em;"></div>
-                    </div>
-                    <div class="col-12">
-                      <a href="#" class="button primary" id="qb-generate">{{ _('Gerar SQL no editor') }}</a>
-                    </div>
+            <!-- QUERY BUILDER -->
+            <details class="mb-4">
+              <summary class="fw-semibold cursor-pointer">
+                {{ _('Query Builder') }}
+                <span class="text-muted">
+                  — {{ _('montar SELECT com ajuda da estrutura') }}
+                </span>
+              </summary>
+
+              <div class="bi-panel mt-3">
+                <div class="row g-3">
+
+                  <div class="col-md-6">
+                    <label class="form-label">{{ _('Tabela') }}</label>
+                    <select id="qb-table" class="form-select">
+                      <option value="">--</option>
+                    </select>
                   </div>
+
+                  <div class="col-md-6">
+                    <label class="form-label">{{ _('Limite') }}</label>
+                    <input
+                      id="qb-limit"
+                      type="number"
+                      class="form-control"
+                      value="100"
+                      min="1"
+                      max="5000"
+                    >
+                  </div>
+
+                  <div class="col-12">
+                    <label class="form-label">{{ _('Colunas') }}</label>
+                    <div id="qb-columns" class="d-flex flex-wrap gap-2"></div>
+                  </div>
+
+                  <div class="col-12">
+                    <label class="form-label">{{ _('Filtros') }}</label>
+                    <div class="d-flex gap-2 flex-wrap">
+                      <select id="qb-filter-field" class="form-select" style="min-width:180px;"></select>
+                      <select id="qb-filter-op" class="form-select" style="min-width:120px;">
+                        <option value="=">=</option>
+                        <option value="!=">!=</option>
+                        <option value=">">&gt;</option>
+                        <option value="<">&lt;</option>
+                        <option value="LIKE">LIKE</option>
+                      </select>
+                      <input
+                        id="qb-filter-value"
+                        class="form-control"
+                        placeholder="value"
+                        style="min-width:180px;"
+                      >
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-outline-secondary"
+                        id="qb-add-filter"
+                      >
+                        {{ _('Adicionar filtro') }}
+                      </button>
+                    </div>
+                    <div id="qb-filter-list" class="mt-2"></div>
+                  </div>
+
+                  <div class="col-12">
+                    <button
+                      type="button"
+                      class="btn btn-primary"
+                      id="qb-generate"
+                    >
+                      {{ _('Gerar SQL no editor') }}
+                    </button>
+                  </div>
+
                 </div>
-              </details>
+              </div>
+            </details>
+
+            <!-- SQL -->
+            <div class="mb-3">
+              <label class="form-label">SQL</label>
+              <textarea
+                name="sql_text"
+                id="sql_text"
+                class="form-control"
+                rows="8"
+                placeholder="SELECT ..."
+              ></textarea>
             </div>
 
-            <div class="col-12">
-              <label>SQL</label>
-              <textarea name="sql_text" id="sql_text" rows="10" placeholder="SELECT ..."></textarea>
+            <!-- PARAMS -->
+            <div class="mb-4">
+              <label class="form-label">{{ _('Parâmetros (JSON)') }}</label>
+              <textarea
+                name="params_json"
+                id="params_json"
+                class="form-control"
+                rows="5"
+              ></textarea>
+              <div class="form-text">
+                {{ _('Use :nome_param no SQL. tenant_id é aplicado automaticamente.') }}
+              </div>
             </div>
 
-            <div class="col-12">
-              <label>{{ _('Parâmetros (JSON)') }}</label>
-              <textarea name="params_json" id="params_json" rows="6" placeholder='{"start_date": "2026-01-01", "end_date": "2026-02-01"}'></textarea>
-              <p style="margin:.4em 0 0 0; font-size:.9em;"><em>{{ _('Use :nome_param no SQL e preencha valores aqui. tenant_id é aplicado automaticamente.') }}</em></p>
+            <div class="text-end">
+              <button type="submit" class="btn btn-primary">
+                ▶ {{ _('Executar') }}
+              </button>
             </div>
 
-            <div class="col-12">
-              <button type="submit" class="button primary">{{ _('Executar') }}</button>
-            </div>
-          </div>
-        </form>
+          </form>
+        </div>
       </div>
 
+      <!-- ERROR -->
       {% if error %}
-        <div class="box">
-          <h3>{{ _('Erro') }}</h3>
-          <pre style="white-space: pre-wrap;">{{ error }}</pre>
-        </div>
+      <div class="alert alert-danger">
+        <strong>{{ _('Erro') }}</strong>
+        <pre class="mb-0 mt-2">{{ error }}</pre>
+      </div>
       {% endif %}
 
+      <!-- RESULT -->
       {% if result %}
-        <div class="box">
-          <h3>{{ _('Resultado') }}{% if elapsed_ms %} ({{ elapsed_ms }} ms){% endif %}</h3>
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="mb-3">
+            {{ _('Resultado') }}
+            {% if elapsed_ms %}
+              <span class="text-muted">({{ elapsed_ms }} ms)</span>
+            {% endif %}
+          </h5>
+
           {% if result.columns %}
-            <div id="ad-hoc-viz" style="min-height: 420px;"></div>
-            <p style="margin-top:.6em;">
-              <a class="button" href="#" id="adhoc-export-pdf">{{ _('Exportar PDF') }}</a>
-              <em style="margin-left:.7em;">{{ _('Linhas retornadas') }}: {{ result.rows|length }}</em>
-            </p>
-            <script type="application/json" id="adhoc-data">{{ result|tojson }}</script>
+            <div id="ad-hoc-viz" style="min-height:420px;"></div>
+
+            <div class="d-flex align-items-center gap-3 mt-3">
+              <a href="#" class="btn btn-outline-secondary" id="adhoc-export-pdf">
+                {{ _('Exportar PDF') }}
+              </a>
+              <span class="text-muted">
+                {{ _('Linhas retornadas') }}: {{ result.rows|length }}
+              </span>
+            </div>
+
+            <script type="application/json" id="adhoc-data">
+              {{ result|tojson }}
+            </script>
           {% else %}
-            <p>{{ _('Sem linhas retornadas.') }}</p>
+            <p class="text-muted">{{ _('Sem linhas retornadas.') }}</p>
           {% endif %}
         </div>
+      </div>
       {% endif %}
+
     </div>
 
-    <div class="col-4 col-12-medium">
-      <div class="box">
-        <h4>{{ _('Estrutura') }}</h4>
-        <p style="margin-top:0; font-size:.95em;">{{ _('Escolha uma fonte para ver tabelas e colunas (autocomplete).') }}</p>
-        <div class="bi-schema" id="schema"></div>
+    <!-- =======================
+         SIDEBAR
+    ======================== -->
+    <div class="col-lg-4">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h6 class="mb-2">{{ _('Estrutura') }}</h6>
+          <p class="text-muted small">
+            {{ _('Escolha uma fonte para ver tabelas e colunas (autocomplete).') }}
+          </p>
+          <div class="bi-schema" id="schema"></div>
+        </div>
       </div>
     </div>
+
   </div>
+</div>
 {% endblock %}
 
 {% block body_scripts %}
   {{ super() }}
+
+  <!-- CodeMirror -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/sql/sql.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/sql-hint.min.js"></script>
+
+  <!-- Charts -->
   <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+
+  <!-- BI logic -->
   <script src="{{ url_for('static', filename='bi/bi_viz.js') }}"></script>
   <script src="{{ url_for('static', filename='bi/bi_editor.js') }}"></script>
 
@@ -156,10 +291,13 @@
     document.addEventListener('DOMContentLoaded', () => {
       const dataEl = document.getElementById('adhoc-data');
       const container = document.getElementById('ad-hoc-viz');
+
       if (dataEl && container && window.BI && BI.renderViz) {
         let data = {};
         try { data = JSON.parse(dataEl.textContent); } catch (e) {}
+
         BI.renderViz(container, data, { type: 'table' }, null);
+
         const btn = document.getElementById('adhoc-export-pdf');
         if (btn) {
           btn.addEventListener('click', async (e) => {

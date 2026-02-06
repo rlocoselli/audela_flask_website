@@ -2,34 +2,89 @@
 {% set title = "Nova pergunta" %}
 
 {% block portal_content %}
-  <div class="box">
-    <form method="post">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+<div class="container-fluid px-0">
 
-      <div class="row gtr-uniform gtr-50">
-        <div class="col-12">
-          <label>Nome</label>
-          <input type="text" name="name" required />
+  <!-- HEADER -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <h4 class="mb-1">➕ Nova pergunta</h4>
+      <p class="text-muted mb-0">
+        Defina uma pergunta reutilizável baseada em uma consulta SQL.
+      </p>
+    </div>
+  </div>
+
+  <!-- FORM CARD -->
+  <div class="card shadow-sm">
+    <div class="card-body">
+
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <!-- Nome -->
+        <div class="mb-3">
+          <label class="form-label">Nome</label>
+          <input
+            type="text"
+            name="name"
+            class="form-control"
+            placeholder="Ex.: Total de vendas por mês"
+            required
+          >
+          <div class="form-text">
+            Nome exibido para usuários e dashboards.
+          </div>
         </div>
-        <div class="col-12">
-          <label>Fonte</label>
-          <select name="source_id" required>
-            <option value="">-- selecione --</option>
+
+        <!-- Fonte -->
+        <div class="mb-3">
+          <label class="form-label">Fonte de dados</label>
+          <select name="source_id" class="form-select" required>
+            <option value="">— selecione —</option>
             {% for s in sources %}
-              <option value="{{ s.id }}">{{ s.name }} ({{ s.type }})</option>
+              <option value="{{ s.id }}">
+                {{ s.name }} ({{ s.type }})
+              </option>
             {% endfor %}
           </select>
+          <div class="form-text">
+            A pergunta ficará vinculada a esta fonte.
+          </div>
         </div>
-        <div class="col-12">
-          <label>SQL</label>
-          <textarea name="sql_text" rows="10" required></textarea>
-          <p style="margin: .4em 0 0 0; font-size: .9em;">Somente leitura. Se a fonte exigir tenant, inclua <code>:tenant_id</code>.</p>
+
+        <!-- SQL -->
+        <div class="mb-4">
+          <label class="form-label">SQL</label>
+          <textarea
+            name="sql_text"
+            class="form-control"
+            rows="10"
+            placeholder="SELECT ..."
+            required
+          ></textarea>
+          <div class="form-text">
+            Somente leitura.
+            Se a fonte exigir tenant, inclua <code>:tenant_id</code>.
+          </div>
         </div>
-        <div class="col-12">
-          <button class="button primary" type="submit">Salvar</button>
-          <a class="button" href="{{ url_for('portal.questions_list') }}">Cancelar</a>
+
+        <!-- ACTIONS -->
+        <div class="d-flex justify-content-end gap-2">
+          <a
+            href="{{ url_for('portal.questions_list') }}"
+            class="btn btn-outline-secondary"
+          >
+            Cancelar
+          </a>
+          <button type="submit" class="btn btn-primary">
+            💾 Salvar pergunta
+          </button>
         </div>
-      </div>
-    </form>
+
+      </form>
+
+    </div>
   </div>
+
+</div>
 {% endblock %}

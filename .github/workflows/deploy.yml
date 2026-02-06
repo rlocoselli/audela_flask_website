@@ -29,6 +29,7 @@ jobs:
             cd /root/audela_flask_website
 
             echo "📥 Git pull"
+            git reset --hard
             git pull origin main
 
             echo "🔧 Run install"
