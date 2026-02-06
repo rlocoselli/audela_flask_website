@@ -1,9 +1,17 @@
-import os
+from flask import Flask
+from werkzeug.middleware.proxy_fix import ProxyFix
 
-from audela import create_app
+def create_app():
+    app = Flask(__name__)
 
-app = create_app()
+    # 🔑 Indispensable derrière Nginx + SSL
+    app.wsgi_app = ProxyFix(
+        app.wsgi_app,
+        x_proto=1,
+        x_host=1
+    )
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", "5000"))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.config["PREFERRED_URL_SCHEME"] = "https"
+
+    # blueprints, config, extensions…
+    return app

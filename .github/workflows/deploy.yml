@@ -1,0 +1,43 @@
+name: Deploy Flask App (root)
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH as root
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: root
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+
+          script: |
+            set -e
+            echo "🚀 Deploy started (root)"
+
+            cd /root/audela_flask_website
+
+            echo "📥 Git pull"
+            git pull origin main
+
+            echo "🐍 Activate venv"
+            source .venv/bin/activate
+
+            echo "🔧 Run install"
+            chmod +x install.sh
+            ./install.sh
+
+            echo "🔄 Restart service"
+            systemctl restart audeladedonnees
+
+            echo "✅ Deploy completed"
