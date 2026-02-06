@@ -8,7 +8,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: audeladedonnees
+    environment: audeladesdonnees
 
     steps:
       - name: Checkout
