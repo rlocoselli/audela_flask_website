@@ -24,7 +24,12 @@
   </div>
   <div class="d-flex gap-2">
     <a class="btn btn-outline-secondary" href="{{ url_for('portal.reports_list') }}"><i class="bi bi-arrow-left me-1"></i>{{ _('Voltar') }}</a>
-    <a class="btn btn-outline-primary" href="{{ url_for('portal.report_view', report_id=report.id) }}" target="_blank"><i class="bi bi-eye me-1"></i>{{ _('Visualizar') }}</a>
+    <a class="btn btn-outline-secondary" target="_blank" href="{{ url_for('portal.report_view', report_id=report.id) }}">
+      <i class="bi bi-eye me-1"></i>{{ _('Visualizar') }}
+    </a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('portal.report_pdf', report_id=report.id) }}">
+      <i class="bi bi-filetype-pdf me-1"></i>{{ _('PDF') }}
+    </a>
     <button class="btn btn-primary" id="rb-save"><i class="bi bi-save me-1"></i>{{ _('Salvar') }}</button>
   </div>
 </div>
@@ -96,8 +101,8 @@
     </div>
 
     <div class="alert alert-info mb-0">
-      <div class="fw-semibold">{{ _('MVP Report Builder') }}</div>
-      <div class="small">{{ _('Nesta fase, o builder salva o layout. Render/Export PDF completo pode ser adicionado em seguida.') }}</div>
+      <div class="fw-semibold">{{ _('Report Builder') }}</div>
+      <div class="small">{{ _('Dica: use “Visualizar” para ver o relatório renderizado e “PDF” para exportar.') }}</div>
     </div>
   </div>
 
@@ -154,49 +159,6 @@
     csrfToken: "{{ csrf_token() }}",
   };
 </script>
-
-<!-- Bootstrap Modal: edit block (replaces prompt/alert) -->
-<div class="modal fade" id="rbEditModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content" style="border-radius: 1rem;">
-      <div class="modal-header">
-        <h5 class="modal-title" id="rbEditModalTitle">{{ _('Editar bloco') }}</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        <div class="mb-3">
-          <label class="form-label">{{ _('Título') }}</label>
-          <input type="text" class="form-control" id="rb-edit-title" />
-        </div>
-        <div class="mb-0" id="rb-edit-text-wrap">
-          <label class="form-label">{{ _('Conteúdo') }}</label>
-          <textarea class="form-control" id="rb-edit-text" rows="6"></textarea>
-          <div class="form-text" id="rb-edit-help"></div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
-        <button type="button" class="btn btn-primary" id="rb-edit-save"><i class="bi bi-check2 me-1"></i>{{ _('Salvar') }}</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Bootstrap Modal: alerts (replaces alert()) -->
-<div class="modal fade" id="rbAlertModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content" style="border-radius: 1rem;">
-      <div class="modal-header">
-        <h5 class="modal-title" id="rbAlertModalTitle">{{ _('Aviso') }}</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body" id="rbAlertModalBody"></div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
-      </div>
-    </div>
-  </div>
-</div>
 {% endblock %}
 
 {% block body_scripts %}

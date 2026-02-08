@@ -194,7 +194,8 @@ window.BI = window.BI || {};
     });
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
-      alert(err.error || 'Falha ao exportar PDF');
+      if (window.uiToast) window.uiToast(err.error || 'Falha ao exportar PDF', { variant: 'danger' });
+      else alert(err.error || 'Falha ao exportar PDF');
       return;
     }
     const blob = await resp.blob();

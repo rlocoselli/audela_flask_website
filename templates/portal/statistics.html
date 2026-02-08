@@ -1,0 +1,316 @@
+{% extends "portal/layout.html" %}
+{% set title = _('Estatísticas') %}
+
+{% block head_extra %}
+  {{ super() }}
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+{% endblock %}
+
+{% block portal_content %}
+<div class="container-fluid px-0">
+
+  <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+    <div>
+      <h1 class="h4 mb-1">{{ _('Estatísticas') }}</h1>
+      <div class="text-secondary">{{ _('Análise avançada: distribuição, correlação, regressão e Monte Carlo (amostra).') }}</div>
+    </div>
+
+    <div class="d-flex gap-2 flex-wrap">
+      {% if stats %}
+        <a class="btn btn-outline-secondary" href="{{ url_for('portal.statistics_pdf') }}">
+          <i class="bi bi-filetype-pdf"></i> {{ _('Exportar PDF') }}
+        </a>
+      {% endif %}
+      <a class="btn btn-outline-secondary" href="{{ url_for('portal.sql_editor') }}">
+        <i class="bi bi-braces"></i> {{ _('Editor SQL') }}
+      </a>
+    </div>
+  </div>
+
+  {% if error %}
+    <div class="alert alert-danger shadow-sm rounded-4" role="alert">
+      <div class="d-flex align-items-start gap-2">
+        <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+        <div>{{ error }}</div>
+      </div>
+    </div>
+  {% endif %}
+
+  <!-- Form -->
+  <div class="card border-0 shadow-sm rounded-4 mb-3">
+    <div class="card-body">
+      <form method="post" action="{{ url_for('portal.statistics_run') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="row g-3">
+          <div class="col-12 col-xl-4">
+            <label class="form-label">{{ _('Fonte') }}</label>
+            <select class="form-select" name="source_id">
+              <option value="">—</option>
+              {% for s in sources %}
+                <option value="{{ s.id }}">{{ s.name }} ({{ s.type }})</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">{{ _('Selecione a fonte se for usar SQL manual.') }}</div>
+          </div>
+
+          <div class="col-12 col-xl-4">
+            <label class="form-label">{{ _('Ou escolha uma pergunta') }}</label>
+            <select class="form-select" name="question_id">
+              <option value="">—</option>
+              {% for q in questions %}
+                <option value="{{ q.id }}">{{ q.name }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">{{ _('Usa a fonte e o SQL salvos na pergunta.') }}</div>
+          </div>
+
+          <div class="col-12 col-xl-4">
+            <label class="form-label">{{ _('Observação para a IA (opcional)') }}</label>
+            <input class="form-control" name="note" placeholder="Ex.: foco em risco, tendência, outliers..." />
+            <div class="form-text">{{ _('Se OPENAI_API_KEY estiver configurada, a IA gera um resumo executivo.') }}</div>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">SQL (somente leitura)</label>
+            <textarea class="form-control" name="sql_text" rows="5" placeholder="SELECT ..."></textarea>
+            <div class="form-text">{{ _('Se a fonte exigir tenant, inclua :tenant_id no WHERE.') }}</div>
+          </div>
+
+          <div class="col-12 d-flex gap-2 justify-content-end">
+            <button class="btn btn-primary" type="submit"><i class="bi bi-graph-up"></i> {{ _('Analisar') }}</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if stats and result %}
+    <!-- KPI cards -->
+    <div class="row g-3 mb-3">
+      <div class="col-12 col-md-4">
+        <div class="card border-0 shadow-sm rounded-4">
+          <div class="card-body">
+            <div class="text-secondary small">{{ _('Linhas (amostra)') }}</div>
+            <div class="display-6 mb-0">{{ stats.summary.rows }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-4">
+        <div class="card border-0 shadow-sm rounded-4">
+          <div class="card-body">
+            <div class="text-secondary small">{{ _('Colunas') }}</div>
+            <div class="display-6 mb-0">{{ stats.summary.columns }}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-4">
+        <div class="card border-0 shadow-sm rounded-4">
+          <div class="card-body">
+            <div class="text-secondary small">{{ _('Colunas numéricas detectadas') }}</div>
+            <div class="display-6 mb-0">{{ stats.summary.numeric_columns }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <!-- Left: tables -->
+      <div class="col-12 col-xl-5">
+        <div class="card border-0 shadow-sm rounded-4 mb-3">
+          <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-3">
+            <div class="fw-semibold"><i class="bi bi-table me-1"></i> {{ _('Estatísticas descritivas') }}</div>
+          </div>
+          <div class="card-body">
+            {% if stats.numeric %}
+              <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                  <thead>
+                    <tr>
+                      <th>{{ _('Coluna') }}</th>
+                      <th class="text-end">mean</th>
+                      <th class="text-end">std</th>
+                      <th class="text-end">min</th>
+                      <th class="text-end">p5</th>
+                      <th class="text-end">median</th>
+                      <th class="text-end">p95</th>
+                      <th class="text-end">max</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for n in stats.numeric[:15] %}
+                      <tr>
+                        <td class="text-truncate" style="max-width: 180px;" title="{{ n.name }}">{{ n.name }}</td>
+                        <td class="text-end">{{ '%.6g'|format(n.mean) if n.mean is not none else '' }}</td>
+                        <td class="text-end">{{ '%.6g'|format(n.std) if n.std is not none else '' }}</td>
+                        <td class="text-end">{{ '%.6g'|format(n.min) if n.min is not none else '' }}</td>
+                        <td class="text-end">{{ '%.6g'|format(n.p5) if n.p5 is not none else '' }}</td>
+                        <td class="text-end">{{ '%.6g'|format(n.median) if n.median is not none else '' }}</td>
+                        <td class="text-end">{{ '%.6g'|format(n.p95) if n.p95 is not none else '' }}</td>
+                        <td class="text-end">{{ '%.6g'|format(n.max) if n.max is not none else '' }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            {% else %}
+              <div class="text-secondary">{{ _('Nenhuma coluna numérica detectada na amostra.') }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        {% if stats.regression %}
+          <div class="card border-0 shadow-sm rounded-4 mb-3">
+            <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-3">
+              <div class="fw-semibold"><i class="bi bi-bezier2 me-1"></i> {{ _('Regressão linear') }}</div>
+            </div>
+            <div class="card-body">
+              <div class="row g-2">
+                <div class="col-12">
+                  <div class="small text-secondary">Y</div>
+                  <div class="fw-semibold">{{ stats.regression.y }}</div>
+                </div>
+                <div class="col-12">
+                  <div class="small text-secondary">X</div>
+                  <div class="fw-semibold">{{ stats.regression.x }}</div>
+                </div>
+                <div class="col-6">
+                  <div class="small text-secondary">Slope</div>
+                  <div class="fw-semibold">{{ '%.6g'|format(stats.regression.slope) }}</div>
+                </div>
+                <div class="col-6">
+                  <div class="small text-secondary">R²</div>
+                  <div class="fw-semibold">{{ '%.6g'|format(stats.regression.r2) if stats.regression.r2 is not none else '' }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        {% endif %}
+
+        {% if stats.monte_carlo %}
+          <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-3">
+              <div class="fw-semibold"><i class="bi bi-dice-5 me-1"></i> {{ _('Monte Carlo') }}</div>
+            </div>
+            <div class="card-body">
+              <div class="d-flex align-items-center justify-content-between">
+                <div>
+                  <div class="text-secondary small">{{ _('Coluna') }}</div>
+                  <div class="fw-semibold">{{ stats.monte_carlo.column }}</div>
+                </div>
+                <div class="text-end">
+                  <div class="text-secondary small">{{ _('Prob < 0') }}</div>
+                  <div class="fw-semibold">{{ (stats.monte_carlo.prob_lt_0 * 100)|round(2) }}%</div>
+                </div>
+              </div>
+
+              <div class="mt-3">
+                <div class="d-flex justify-content-between small text-secondary">
+                  <span>P5</span><span>P50</span><span>P95</span>
+                </div>
+                <div class="progress" style="height: .8rem;">
+                  <div class="progress-bar" role="progressbar" style="width: 100%"></div>
+                </div>
+                <div class="d-flex justify-content-between small mt-1">
+                  <span>{{ '%.6g'|format(stats.monte_carlo.p5) }}</span>
+                  <span>{{ '%.6g'|format(stats.monte_carlo.p50) }}</span>
+                  <span>{{ '%.6g'|format(stats.monte_carlo.p95) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+
+      <!-- Right: charts + AI -->
+      <div class="col-12 col-xl-7">
+        {% if ai %}
+          <div class="card border-0 shadow-sm rounded-4 mb-3">
+            <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-3">
+              <div class="fw-semibold"><i class="bi bi-stars me-1"></i> {{ _('Resumo (IA)') }}</div>
+            </div>
+            <div class="card-body">
+              {% if ai.error %}
+                <div class="text-secondary">{{ ai.error }}</div>
+              {% else %}
+                <div style="white-space: pre-wrap;">{{ ai.analysis }}</div>
+                {% if ai.followups %}
+                  <hr>
+                  <div class="fw-semibold mb-2">{{ _('Sugestões') }}</div>
+                  <ul class="mb-0">
+                    {% for s in ai.followups %}<li>{{ s }}</li>{% endfor %}
+                  </ul>
+                {% endif %}
+              {% endif %}
+            </div>
+          </div>
+        {% endif %}
+
+        <div class="card border-0 shadow-sm rounded-4">
+          <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-3">
+            <div class="fw-semibold"><i class="bi bi-bar-chart me-1"></i> {{ _('Gráficos') }}</div>
+          </div>
+          <div class="card-body">
+            {% if stats.gauges %}
+              <div class="row g-3 mb-3">
+                {% for g in stats.gauges %}
+                  <div class="col-12 col-lg-6">
+                    <div class="border rounded-4 p-2">
+                      <div class="d-flex align-items-center justify-content-between mb-1">
+                        <div class="fw-semibold small">{{ g.title }}</div>
+                        {% if g.mean is not none and (g.p95 is not none or g.max is not none) %}
+                          <span class="badge text-bg-light border">
+                            mean {{ '%.6g'|format(g.mean) if g.mean is not none else '' }} /
+                            {% if g.p95 is not none %}P95 {{ '%.6g'|format(g.p95) }}{% else %}max {{ '%.6g'|format(g.max) }}{% endif %}
+                          </span>
+                        {% endif %}
+                      </div>
+                      <div class="border rounded-4" style="height: 260px;" id="gauge-{{ loop.index }}"></div>
+                      <script type="application/json" id="gaugecfg-{{ loop.index }}">{{ g.echarts_option|tojson }}</script>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% endif %}
+
+            {% if stats.charts %}
+              <div class="row g-3">
+                {% for ch in stats.charts %}
+                  <div class="col-12">
+                    <div class="fw-semibold mb-2">{{ ch.title }}</div>
+                    <div class="border rounded-4" style="height: 360px;" id="chart-{{ loop.index }}"></div>
+                    <script type="application/json" id="chartcfg-{{ loop.index }}">{{ ch.echarts_option|tojson }}</script>
+                  </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="text-secondary">{{ _('Sem gráficos para mostrar (faltam colunas numéricas).') }}</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function(){
+        function initChart(id, cfgId){
+          const el = document.getElementById(id);
+          const cfgEl = document.getElementById(cfgId);
+          if (!el || !cfgEl || !window.echarts) return;
+          const opt = JSON.parse(cfgEl.textContent || '{}');
+          const chart = echarts.init(el);
+          chart.setOption(opt);
+          window.addEventListener('resize', () => chart.resize());
+        }
+        {% for g in stats.gauges %}
+          initChart('gauge-{{ loop.index }}', 'gaugecfg-{{ loop.index }}');
+        {% endfor %}
+        {% for ch in stats.charts %}
+          initChart('chart-{{ loop.index }}', 'chartcfg-{{ loop.index }}');
+        {% endfor %}
+      })();
+    </script>
+  {% endif %}
+
+</div>
+{% endblock %}

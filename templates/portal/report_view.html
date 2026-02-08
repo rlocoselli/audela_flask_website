@@ -1,78 +1,93 @@
 {% extends "portal/layout.html" %}
 {% set title = report.name %}
 
-{% block head_extra %}
-  {{ super() }}
-  <style>
-    .report-paper { background: var(--bs-body-bg); border:1px solid var(--bs-border-color); border-radius: 1rem; }
-    .report-section-title { font-size: .8rem; letter-spacing: .05em; text-transform: uppercase; color: var(--bs-secondary-color); }
-    .report-block { border:1px solid var(--bs-border-color); border-radius: 1rem; background: var(--bs-body-bg); }
-    .report-text { white-space: pre-wrap; }
-  </style>
-{% endblock %}
-
 {% block portal_content %}
-<div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
-  <div>
-    <h1 class="h4 mb-1">{{ report.name }}</h1>
-    <div class="text-muted small">{{ _('Fonte') }}: {{ source.name }} ({{ source.type }})</div>
+<div class="container-fluid px-0">
+
+  <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+    <div>
+      <h1 class="h4 mb-1">{{ report.name }}</h1>
+      <div class="text-secondary small"><i class="bi bi-database me-1"></i>{{ source.name }} ({{ source.type }})</div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.report_builder', report_id=report.id) }}">
+        <i class="bi bi-pencil"></i> {{ _('Editar') }}
+      </a>
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.reports_list') }}">
+        <i class="bi bi-arrow-left"></i> {{ _('Voltar') }}
+      </a>
+      <a class="btn btn-primary btn-sm" href="{{ url_for('portal.report_pdf', report_id=report.id) }}">
+        <i class="bi bi-filetype-pdf"></i> {{ _('Exportar PDF') }}
+      </a>
+    </div>
   </div>
-  <div class="d-flex align-items-center gap-2">
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.reports_list') }}">
-      <i class="bi bi-arrow-left"></i> {{ _('Voltar') }}
-    </a>
-    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('portal.report_builder', report_id=report.id) }}">
-      <i class="bi bi-pencil-square"></i> {{ _('Abrir builder') }}
-    </a>
-  </div>
-</div>
 
-<div class="report-paper p-3 p-lg-4 shadow-sm">
-  {% for sec_key, sec_label in [('header','Header'),('body','Body'),('footer','Footer')] %}
-    {% set blocks = sections.get(sec_key) or [] %}
-    <div class="mb-4">
-      <div class="d-flex align-items-center justify-content-between mb-2">
-        <div class="report-section-title">{{ sec_label }}</div>
-        {% if not blocks %}<div class="text-muted small">{{ _('Vazio') }}</div>{% endif %}
-      </div>
+  {% set sections = (layout.sections or layout.get('sections') or {}) %}
 
-      <div class="d-grid gap-3">
-        {% for b in blocks %}
-          <div class="report-block p-3">
-            {% if b.type in ['text', 'markdown', 'question'] and b.title %}
-              <div class="fw-semibold mb-2">{{ b.title }}</div>
-            {% endif %}
+  <div class="card border-0 shadow-sm rounded-4 mb-3">
+    <div class="card-body">
+      <div class="row g-4">
+        {% for sec_name in ['header','body','footer'] %}
+          {% set blocks = sections.get(sec_name) or [] %}
+          <div class="col-12">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <div class="fw-semibold text-uppercase small text-secondary">{{ sec_name }}</div>
+            </div>
 
-            {% if b.type == 'text' %}
-              <div class="report-text">{{ b.text or '' }}</div>
-
-            {% elif b.type == 'markdown' %}
-              <div class="report-markdown" data-rb-md="{{ b.md_script_id }}"></div>
-              <script type="application/json" id="{{ b.md_script_id }}">{{ (b.text or '')|tojson }}</script>
-
-            {% elif b.type == 'question' %}
-              {% if b.result and b.result.error %}
-                <div class="alert alert-danger py-2 mb-2">{{ _('Erro') }}: {{ b.result.error }}</div>
-              {% endif %}
-              <div class="bi-viz report-viz" id="{{ b.viz_id }}" data-data-id="{{ b.data_script_id }}" data-cfg-id="{{ b.cfg_script_id }}"></div>
-              <script type="application/json" id="{{ b.data_script_id }}">{{ (b.result or {})|tojson }}</script>
-              <script type="application/json" id="{{ b.cfg_script_id }}">{{ (b.viz_config or {'type':'table'})|tojson }}</script>
+            {% if not blocks %}
+              <div class="text-secondary small">{{ _('Sem blocos.') }}</div>
             {% else %}
-              <div class="text-muted">{{ _('Bloco desconhecido') }}</div>
+              <div class="d-grid gap-3">
+                {% for b in blocks %}
+                  {% set btype = (b.type or b.get('type') or '') %}
+                  {% if btype in ['text','markdown'] %}
+                    <div class="border rounded-4 p-3 bg-body">
+                      {% if b.title or b.get('title') %}
+                        <div class="fw-semibold mb-1">{{ b.title or b.get('title') }}</div>
+                      {% endif %}
+                      <div class="text-secondary" style="white-space: pre-wrap;">{{ b.content or b.get('content') }}</div>
+                    </div>
+                  {% elif btype == 'question' %}
+                    {% set qid = (b.question_id or b.get('question_id') or 0)|int %}
+                    {% set q = questions.get(qid) %}
+                    {% set d = blocks_data.get(qid) %}
+                    <div class="border rounded-4 p-3 bg-body">
+                      <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                        <div class="fw-semibold"><i class="bi bi-ui-checks me-1"></i>{{ q.name if q else ('Pergunta #' ~ qid) }}</div>
+                        <span class="badge text-bg-light border">{{ _('Tabela') }}</span>
+                      </div>
+                      {% if d and d.error %}
+                        <div class="alert alert-danger py-2 mb-0">{{ d.error }}</div>
+                      {% elif d and d.rows %}
+                        <div class="table-responsive">
+                          <table class="table table-sm align-middle mb-0">
+                            <thead>
+                              <tr>
+                                {% for c in d.columns %}<th>{{ c }}</th>{% endfor %}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {% for r in d.rows %}
+                                <tr>
+                                  {% for cell in r %}<td>{{ cell }}</td>{% endfor %}
+                                </tr>
+                              {% endfor %}
+                            </tbody>
+                          </table>
+                        </div>
+                      {% else %}
+                        <div class="text-secondary small">{{ _('Sem linhas retornadas.') }}</div>
+                      {% endif %}
+                    </div>
+                  {% endif %}
+                {% endfor %}
+              </div>
             {% endif %}
           </div>
         {% endfor %}
       </div>
     </div>
-  {% endfor %}
-</div>
-{% endblock %}
+  </div>
 
-{% block body_scripts %}
-  {{ super() }}
-  <!-- Markdown renderer (optional) -->
-  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
-  <script src="{{ url_for('static', filename='bi/bi_viz.js') }}"></script>
-  <script src="{{ url_for('static', filename='bi/bi_dashboard.js') }}"></script>
-  <script src="{{ url_for('static', filename='portal/report_view.js') }}"></script>
+</div>
 {% endblock %}

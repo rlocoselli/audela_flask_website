@@ -34,12 +34,17 @@
                 <td class="text-muted">#{{ r.source_id }}</td>
                 <td class="text-muted">{{ r.updated_at.strftime('%Y-%m-%d %H:%M') if r.updated_at else '' }}</td>
                 <td class="text-end">
-                  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('portal.report_view', report_id=r.id) }}" target="_blank">
-                    <i class="bi bi-eye me-1"></i>{{ _('Visualizar') }}
-                  </a>
-                  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('portal.report_builder', report_id=r.id) }}">
-                    <i class="bi bi-pencil-square me-1"></i>{{ _('Abrir builder') }}
-                  </a>
+                  <div class="btn-group" role="group" aria-label="report actions">
+                    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('portal.report_view', report_id=r.id) }}" title="{{ _('Visualizar') }}">
+                      <i class="bi bi-eye"></i>
+                    </a>
+                    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('portal.report_pdf', report_id=r.id) }}" title="{{ _('Exportar PDF') }}">
+                      <i class="bi bi-filetype-pdf"></i>
+                    </a>
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('portal.report_builder', report_id=r.id) }}" title="{{ _('Abrir builder') }}">
+                      <i class="bi bi-pencil-square"></i>
+                    </a>
+                  </div>
                 </td>
               </tr>
             {% endfor %}

@@ -17,6 +17,8 @@ from ...services.datasource_service import decrypt_config, introspect_source
 from ...services.nlq_service import generate_sql_from_nl
 from ...services.pdf_export import table_to_pdf_bytes
 from ...services.ai_service import analyze_with_ai
+from ...services.statistics_service import run_statistics_analysis, stats_report_to_pdf_bytes
+from ...services.report_render_service import report_to_pdf_bytes
 from ...tenancy import get_current_tenant_id
 from ...i18n import tr
 from . import bp
@@ -287,6 +289,195 @@ def api_export_pdf():
         rows = rows[:5000]
 
     pdf_bytes = table_to_pdf_bytes(title, [str(c) for c in columns], rows)
+    resp = make_response(pdf_bytes)
+    resp.headers["Content-Type"] = "application/pdf"
+    resp.headers["Content-Disposition"] = f'attachment; filename="{title[:80].replace(" ", "_")}.pdf"'
+    return resp
+
+
+# -----------------------------
+# Statistics (advanced analysis)
+# -----------------------------
+
+
+@bp.route("/statistics", methods=["GET"]) 
+@login_required
+@require_roles("tenant_admin", "creator")
+def statistics_home():
+    """Statistics module: run advanced analyses on a selected datasource/query."""
+    _require_tenant()
+    sources = DataSource.query.filter_by(tenant_id=g.tenant.id).order_by(DataSource.name.asc()).all()
+    questions = Question.query.filter_by(tenant_id=g.tenant.id).order_by(Question.updated_at.desc()).all()
+    return render_template(
+        "portal/statistics.html",
+        tenant=g.tenant,
+        sources=sources,
+        questions=questions,
+        result=None,
+        stats=None,
+        ai=None,
+        error=None,
+    )
+
+
+@bp.route("/statistics/run", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def statistics_run():
+    _require_tenant()
+    sources = DataSource.query.filter_by(tenant_id=g.tenant.id).order_by(DataSource.name.asc()).all()
+    questions = Question.query.filter_by(tenant_id=g.tenant.id).order_by(Question.updated_at.desc()).all()
+
+    # Inputs
+    source_id = int(request.form.get("source_id") or 0)
+    question_id = int(request.form.get("question_id") or 0)
+    sql_text = (request.form.get("sql_text") or "").strip()
+    note = (request.form.get("note") or "").strip()
+
+    src = None
+    q = None
+    if question_id:
+        q = Question.query.filter_by(id=question_id, tenant_id=g.tenant.id).first()
+        if q:
+            src = DataSource.query.filter_by(id=q.source_id, tenant_id=g.tenant.id).first()
+            sql_text = (q.sql_text or "").strip()
+
+    if not src and source_id:
+        src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first()
+
+    if not src:
+        return render_template(
+            "portal/statistics.html",
+            tenant=g.tenant,
+            sources=sources,
+            questions=questions,
+            result=None,
+            stats=None,
+            ai=None,
+            error=tr("Selecione uma fonte (ou pergunta).", getattr(g, "lang", None)),
+        )
+
+    if not sql_text:
+        return render_template(
+            "portal/statistics.html",
+            tenant=g.tenant,
+            sources=sources,
+            questions=questions,
+            result=None,
+            stats=None,
+            ai=None,
+            error=tr("Informe um SQL (somente leitura) ou selecione uma pergunta.", getattr(g, "lang", None)),
+        )
+
+    # Run query (light sample for analysis)
+    try:
+        res = execute_sql(src, sql_text, params={"tenant_id": g.tenant.id})
+    except QueryExecutionError as e:
+        return render_template(
+            "portal/statistics.html",
+            tenant=g.tenant,
+            sources=sources,
+            questions=questions,
+            result=None,
+            stats=None,
+            ai=None,
+            error=str(e),
+        )
+
+    # Keep the in-memory dataset bounded for UI + OpenAI
+    if isinstance(res.get("rows"), list) and len(res["rows"]) > 2000:
+        res["rows"] = res["rows"][:2000]
+
+    stats = run_statistics_analysis(res)
+
+    # Ask OpenAI for an interpreted report (optional)
+    ai = None
+    try:
+        # Send a compact bundle (stats + a small sample)
+        sample_rows = (res.get("rows") or [])[:200]
+        bundle = {
+            "question": {"name": q.name, "id": q.id} if q else None,
+            "source": {"id": src.id, "name": src.name, "type": src.type},
+            "result": {"columns": res.get("columns"), "rows": sample_rows},
+            "stats": stats,
+        }
+        user_msg = note or tr(
+            "Faça uma análise estatística completa (distribuição normal/gaussiana, correlação, regressão linear e um pequeno cenário de Monte Carlo). Explique achados e riscos. Retorne em linguagem clara.",
+            getattr(g, "lang", None),
+        )
+        ai = analyze_with_ai(bundle, user_msg, history=None, lang=getattr(g, "lang", None))
+    except Exception as e:  # noqa: BLE001
+        ai = {"error": f"IA indisponível: {e}"}
+
+    # Store last run in session for PDF export
+    try:
+        from flask import session
+
+        session["stats_last"] = {
+            "source_id": src.id,
+            "question_id": q.id if q else None,
+            "sql_text": sql_text,
+            "note": note,
+            "generated_at": datetime.utcnow().isoformat(),
+        }
+    except Exception:
+        pass
+
+    return render_template(
+        "portal/statistics.html",
+        tenant=g.tenant,
+        sources=sources,
+        questions=questions,
+        result=res,
+        stats=stats,
+        ai=ai,
+        error=None,
+    )
+
+
+@bp.route("/statistics/pdf", methods=["GET"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def statistics_pdf():
+    """Export the last statistics report to PDF."""
+    _require_tenant()
+    from flask import session
+
+    payload = session.get("stats_last") or {}
+    source_id = int(payload.get("source_id") or 0)
+    sql_text = (payload.get("sql_text") or "").strip()
+    if not source_id or not sql_text:
+        flash(tr("Nenhuma análise recente para exportar.", getattr(g, "lang", None)), "error")
+        return redirect(url_for("portal.statistics_home"))
+
+    src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first_or_404()
+
+    res = execute_sql(src, sql_text, params={"tenant_id": g.tenant.id})
+    if isinstance(res.get("rows"), list) and len(res["rows"]) > 5000:
+        res["rows"] = res["rows"][:5000]
+
+    stats = run_statistics_analysis(res)
+
+    # Try to reuse AI output from a fresh call (best-effort)
+    ai = None
+    try:
+        sample_rows = (res.get("rows") or [])[:200]
+        bundle = {
+            "source": {"id": src.id, "name": src.name, "type": src.type},
+            "result": {"columns": res.get("columns"), "rows": sample_rows},
+            "stats": stats,
+        }
+        user_msg = (payload.get("note") or "").strip() or tr(
+            "Gere um resumo executivo da análise estatística, com recomendações.",
+            getattr(g, "lang", None),
+        )
+        ai = analyze_with_ai(bundle, user_msg, history=None, lang=getattr(g, "lang", None))
+    except Exception:
+        ai = None
+
+    title = f"Statistics - {src.name}"
+    pdf_bytes = stats_report_to_pdf_bytes(title=title, source=src, sql_text=sql_text, result=res, stats=stats, ai=ai)
+
     resp = make_response(pdf_bytes)
     resp.headers["Content-Type"] = "application/pdf"
     resp.headers["Content-Disposition"] = f'attachment; filename="{title[:80].replace(" ", "_")}.pdf"'
@@ -672,99 +863,62 @@ def report_builder(report_id: int):
 @bp.route("/reports/<int:report_id>/view", methods=["GET"])
 @login_required
 def report_view(report_id: int):
-    """Render a saved report layout (HTML preview).
-
-    MVP: executes question blocks at view time and renders them with the BI viz layer.
-    """
+    """Read-only viewer for Report Builder layouts."""
     _require_tenant()
     rep = Report.query.filter_by(id=report_id, tenant_id=g.tenant.id).first_or_404()
     src = DataSource.query.filter_by(id=rep.source_id, tenant_id=g.tenant.id).first_or_404()
+    questions = Question.query.filter_by(tenant_id=g.tenant.id, source_id=src.id).order_by(Question.name.asc()).all()
+    q_by_id = {q.id: q for q in questions}
 
+    # For HTML preview, fetch data for question blocks (limited) so we can render tables quickly.
     layout = rep.layout_json or {}
-    secs = (layout.get("sections") or {}) if isinstance(layout, dict) else {}
-
-    out_sections: dict = {"header": [], "body": [], "footer": []}
-    block_idx = 0
-
-    for sec_key in ["header", "body", "footer"]:
-        raw_blocks = secs.get(sec_key) or []
-        if not isinstance(raw_blocks, list):
-            raw_blocks = []
-
-        for b in raw_blocks:
-            if not isinstance(b, dict):
-                continue
-            btype = (b.get("type") or "text")
-            title = (b.get("title") or "")
-            text = (b.get("text") or "")
-            qid = b.get("question_id")
-
-            blk = {
-                "id": block_idx,
-                "type": btype,
-                "title": title,
-                "text": text,
-            }
-
-            if btype == "markdown":
-                blk["md_script_id"] = f"rbmd-{block_idx}"
-
-            if btype == "question" and qid:
+    sections = (layout.get("sections") or {})
+    blocks_data = {}
+    for sec in ("header", "body", "footer"):
+        for b in (sections.get(sec) or []):
+            if (b.get("type") or "").lower() == "question":
+                qid = int(b.get("question_id") or 0)
+                q = q_by_id.get(qid)
+                if not q:
+                    continue
                 try:
-                    qid_int = int(qid)
-                except Exception:
-                    qid_int = 0
+                    blocks_data[qid] = execute_sql(src, q.sql_text or "", {"tenant_id": g.tenant.id}, row_limit=25)
+                except Exception as e:
+                    blocks_data[qid] = {"columns": [], "rows": [], "error": str(e)}
 
-                q = None
-                if qid_int:
-                    q = Question.query.filter_by(id=qid_int, tenant_id=g.tenant.id).first()
-
-                # Default title to question name
-                if (not title) and q is not None:
-                    blk["title"] = q.name
-
-                # Viz config: fallback to table
-                viz_cfg = {"type": "table"}
-                if q is not None and isinstance(getattr(q, "viz_config_json", None), dict) and q.viz_config_json:
-                    viz_cfg = q.viz_config_json
-
-                # Execute SQL
-                res = {"columns": [], "rows": []}
-                if q is None:
-                    res = {"columns": [], "rows": [], "error": "Pergunta não encontrada."}
-                else:
-                    try:
-                        user_params = {"tenant_id": g.tenant.id}
-                        res = execute_sql(src, q.sql_text, params=user_params)
-                        # safety trim
-                        rows = res.get("rows") or []
-                        if isinstance(rows, list) and len(rows) > 5000:
-                            res["rows"] = rows[:5000]
-                    except QueryExecutionError as e:
-                        res = {"columns": [], "rows": [], "error": str(e)}
-
-                blk.update(
-                    {
-                        "result": res,
-                        "viz_config": viz_cfg,
-                        "viz_id": f"rbviz-{block_idx}",
-                        "data_script_id": f"rbdata-{block_idx}",
-                        "cfg_script_id": f"rbcfg-{block_idx}",
-                    }
-                )
-
-            out_sections[sec_key].append(blk)
-            block_idx += 1
-
-    _audit("bi.report.viewed", {"id": rep.id, "name": rep.name})
-    db.session.commit()
     return render_template(
         "portal/report_view.html",
         tenant=g.tenant,
         report=rep,
         source=src,
-        sections=out_sections,
+        questions=q_by_id,
+        layout=layout,
+        blocks_data=blocks_data,
     )
+
+
+@bp.route("/reports/<int:report_id>/pdf", methods=["GET"])
+@login_required
+def report_pdf(report_id: int):
+    """Export a Report Builder layout to PDF."""
+    _require_tenant()
+    rep = Report.query.filter_by(id=report_id, tenant_id=g.tenant.id).first_or_404()
+    src = DataSource.query.filter_by(id=rep.source_id, tenant_id=g.tenant.id).first_or_404()
+    questions = Question.query.filter_by(tenant_id=g.tenant.id, source_id=src.id).order_by(Question.name.asc()).all()
+    q_by_id = {q.id: q for q in questions}
+
+    pdf = report_to_pdf_bytes(
+        title=rep.name or "Report",
+        report=rep,
+        source=src,
+        tenant_id=g.tenant.id,
+        questions_by_id=q_by_id,
+    )
+    resp = make_response(pdf)
+    resp.headers["Content-Type"] = "application/pdf"
+    safe = (rep.name or "report").replace("/", "-")
+    resp.headers["Content-Disposition"] = f'attachment; filename="{safe}.pdf"'
+    return resp
 
 
 @bp.route("/api/reports/<int:report_id>", methods=["GET"])

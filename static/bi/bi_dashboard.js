@@ -166,10 +166,12 @@ function boot () {
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok) {
-          alert((data && data.error) ? data.error : window.t('Falha ao salvar layout.'));
+          if (window.uiToast) window.uiToast((data && data.error) ? data.error : window.t('Falha ao salvar layout.'), { variant: 'danger' });
+          else alert((data && data.error) ? data.error : window.t('Falha ao salvar layout.'));
           return;
         }
-        alert(window.t('Layout salvo.'));
+        if (window.uiToast) window.uiToast(window.t('Layout salvo.'), { variant: 'success' });
+        else alert(window.t('Layout salvo.'));
         setEditMode(false);
       });
     }
@@ -195,16 +197,16 @@ if (qSearch) qSearch.addEventListener('input', filterQuestions);
 if (createBtn) {
   createBtn.addEventListener('click', async () => {
     const qid = Number(qSel?.value || 0);
-    if (!qid) { alert(window.t('Selecione uma pergunta.')); return; }
+    if (!qid) { if (window.uiToast) window.uiToast(window.t('Selecione uma pergunta.'), { variant: 'danger' }); else alert(window.t('Selecione uma pergunta.')); return; }
     let params = {};
     if (paramsEl && paramsEl.value.trim()) {
-      try { params = JSON.parse(paramsEl.value); } catch (e) { alert(window.t('Parâmetros JSON inválidos.')); return; }
+      try { params = JSON.parse(paramsEl.value); } catch (e) { if (window.uiToast) window.uiToast(window.t('Parâmetros JSON inválidos.'), { variant: 'danger' }); else alert(window.t('Parâmetros JSON inválidos.')); return; }
     }
     const vizType = typeSel?.value || 'table';
     try {
       await apiAddCard(dashboardId, qid, params, vizType);
     } catch (e) {
-      alert(String(e.message || e));
+      if (window.uiToast) window.uiToast(String(e.message || e), { variant: 'danger' }); else alert(String(e.message || e));
     }
   });
 }
@@ -221,7 +223,7 @@ document.querySelectorAll('[data-card-remove="1"]').forEach(btn => {
       await apiDeleteCard(dashboardId, cardId);
       if (item) grid.removeWidget(item);
     } catch (err) {
-      alert(String(err.message || err));
+      if (window.uiToast) window.uiToast(String(err.message || err), { variant: 'danger' }); else alert(String(err.message || err));
     }
   });
 });

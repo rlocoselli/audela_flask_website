@@ -49,11 +49,62 @@
   <body class="bg-body">
     {% block content %}{% endblock %}
 
+    <!-- Toast container (Bootstrap) -->
+    <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1100;">
+      <div id="app-toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="toast-header">
+          <i class="bi bi-info-circle me-2" id="app-toast-icon" style="opacity:.8"></i>
+          <strong class="me-auto" id="app-toast-title">Info</strong>
+          <small class="text-secondary" id="app-toast-time"></small>
+          <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+        <div class="toast-body" id="app-toast-body"></div>
+      </div>
+    </div>
+
     <!-- JS libs (order matters) -->
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jquery-ui-dist@1.13.2/jquery-ui.min.js"></script>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+      // Global toast helper: window.uiToast(message, {title, variant})
+      window.uiToast = function(message, opts){
+        try {
+          const t = document.getElementById('app-toast');
+          if (!t || !window.bootstrap) return alert(message);
+          const titleEl = document.getElementById('app-toast-title');
+          const bodyEl = document.getElementById('app-toast-body');
+          const iconEl = document.getElementById('app-toast-icon');
+          const timeEl = document.getElementById('app-toast-time');
+          const o = opts || {};
+          const variant = (o.variant || 'info').toLowerCase();
+          const title = o.title || (variant === 'danger' ? 'Erro' : (variant === 'success' ? 'Sucesso' : 'Info'));
+
+          titleEl.textContent = title;
+          bodyEl.textContent = (message ?? '').toString();
+          timeEl.textContent = new Date().toLocaleTimeString();
+          // icon
+          iconEl.className = 'me-2 ' + (
+            variant === 'danger' ? 'bi bi-exclamation-triangle-fill' :
+            variant === 'success' ? 'bi bi-check-circle-fill' :
+            'bi bi-info-circle'
+          );
+          // header background
+          const header = t.querySelector('.toast-header');
+          header.classList.remove('text-bg-danger','text-bg-success','text-bg-primary');
+          if (variant === 'danger') header.classList.add('text-bg-danger');
+          else if (variant === 'success') header.classList.add('text-bg-success');
+          else header.classList.add('text-bg-primary');
+
+          const toast = window.bootstrap.Toast.getOrCreateInstance(t, { delay: o.delay || 4500 });
+          toast.show();
+        } catch (e) {
+          alert(message);
+        }
+      };
+    </script>
 
     <!-- ECharts -->
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>

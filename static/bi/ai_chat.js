@@ -103,14 +103,16 @@
       const qid = Number(questionSel.value || 0);
       const msg = (input.value || '').trim();
       if (!qid) {
-        alert(window.t('Selecione uma pergunta'));
+        if (window.uiToast) window.uiToast(window.t('Selecione uma pergunta'), { variant: 'danger' });
+        else alert(window.t('Selecione uma pergunta'));
         return;
       }
       if (!msg) return;
 
       const params = parseJsonSafe(paramsEl ? paramsEl.value : '');
       if (params === null) {
-        alert('Parâmetros JSON inválidos.');
+        if (window.uiToast) window.uiToast('Parâmetros JSON inválidos.', { variant: 'danger' });
+        else alert('Parâmetros JSON inválidos.');
         return;
       }
 

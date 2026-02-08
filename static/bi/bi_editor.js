@@ -425,7 +425,8 @@ if (schemaEl) {
         const parsed = getParamsObject();
         if (parsed === null) {
           e.preventDefault();
-          alert('Parâmetros JSON inválidos. Corrija antes de executar.');
+          if (window.uiToast) window.uiToast('Parâmetros JSON inválidos. Corrija antes de executar.', { variant: 'danger' });
+          else alert('Parâmetros JSON inválidos. Corrija antes de executar.');
           return;
         }
         // Keep params in sync with SQL placeholders

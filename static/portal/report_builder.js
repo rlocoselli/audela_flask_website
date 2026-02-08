@@ -7,111 +7,6 @@
 (function () {
   function qs (sel) { return document.querySelector(sel); }
 
-  // -----------------------------
-  // Bootstrap modal helpers (replaces prompt/alert)
-  // -----------------------------
-
-  function hasBootstrapModal () {
-    return typeof window.bootstrap !== 'undefined' && typeof window.bootstrap.Modal === 'function';
-  }
-
-  function showAlert (message, title) {
-    const msg = String(message || '');
-    const ttl = String(title || window.t?.('Aviso') || 'Aviso');
-    // Prefer Bootstrap modal
-    if (hasBootstrapModal()) {
-      const modalEl = document.getElementById('rbAlertModal');
-      const titleEl = document.getElementById('rbAlertModalTitle');
-      const bodyEl = document.getElementById('rbAlertModalBody');
-      if (modalEl && bodyEl) {
-        if (titleEl) titleEl.textContent = ttl;
-        bodyEl.textContent = msg;
-        const inst = window.bootstrap.Modal.getOrCreateInstance(modalEl);
-        inst.show();
-        return;
-      }
-    }
-    // Fallback
-    // eslint-disable-next-line no-alert
-    alert(msg);
-  }
-
-  function editModal (opts) {
-    const type = (opts && opts.type) || 'text';
-    const curTitle = (opts && opts.title) || '';
-    const curText = (opts && opts.text) || '';
-
-    // Bootstrap modal path
-    if (hasBootstrapModal()) {
-      const modalEl = document.getElementById('rbEditModal');
-      const titleInput = document.getElementById('rb-edit-title');
-      const textWrap = document.getElementById('rb-edit-text-wrap');
-      const textArea = document.getElementById('rb-edit-text');
-      const helpEl = document.getElementById('rb-edit-help');
-      const saveBtn = document.getElementById('rb-edit-save');
-
-      if (modalEl && titleInput && saveBtn) {
-        titleInput.value = curTitle;
-        if (textArea) textArea.value = curText;
-
-        const needsText = (type === 'text' || type === 'markdown');
-        if (textWrap) textWrap.style.display = needsText ? '' : 'none';
-        if (helpEl) {
-          helpEl.textContent = (type === 'markdown')
-            ? (window.t?.('Markdown suportado (básico).') || 'Markdown suportado (básico).')
-            : '';
-        }
-
-        const inst = window.bootstrap.Modal.getOrCreateInstance(modalEl);
-
-        return new Promise((resolve) => {
-          let resolved = false;
-
-          function cleanup () {
-            saveBtn.removeEventListener('click', onSave);
-            modalEl.removeEventListener('hidden.bs.modal', onHidden);
-          }
-
-          function onSave () {
-            if (resolved) return;
-            resolved = true;
-            const outTitle = String(titleInput.value || '').trim();
-            const outText = needsText ? String(textArea?.value || '') : curText;
-            cleanup();
-            inst.hide();
-            resolve({ title: outTitle, text: outText });
-          }
-
-          function onHidden () {
-            if (resolved) return;
-            resolved = true;
-            cleanup();
-            resolve(null);
-          }
-
-          saveBtn.addEventListener('click', onSave);
-          modalEl.addEventListener('hidden.bs.modal', onHidden);
-          inst.show();
-          setTimeout(() => { try { titleInput.focus(); titleInput.select(); } catch (e) {} }, 50);
-        });
-      }
-    }
-
-    // Fallback to prompt
-    // eslint-disable-next-line no-alert
-    let newTitle = prompt('Título do bloco:', curTitle);
-    if (newTitle === null) return Promise.resolve(null);
-    newTitle = String(newTitle).trim();
-    if (!newTitle) newTitle = curTitle || 'Bloco';
-    let newText = curText;
-    if (type === 'text' || type === 'markdown') {
-      // eslint-disable-next-line no-alert
-      const t = prompt(type === 'markdown' ? 'Texto (Markdown):' : 'Texto:', curText);
-      if (t !== null) newText = String(t);
-    }
-    return Promise.resolve({ title: newTitle, text: newText });
-  }
-
 function jsonFetch (url, opts) {
   opts = opts || {};
   const method = String(opts.method || 'GET').toUpperCase();
@@ -235,17 +130,22 @@ function jsonFetch (url, opts) {
     };
   }
 
-  async function editBlock (el) {
+  function editBlock (el) {
     const type = el.getAttribute('data-type') || 'text';
     const curTitle = el.getAttribute('data-title') || '';
 
-    const curText = el.getAttribute('data-text') || '';
-    const edited = await editModal({ type, title: curTitle, text: curText });
-    if (!edited) return;
-    const newTitle = String(edited.title || '').trim() || (curTitle || 'Bloco');
+    let newTitle = prompt('Título do bloco:', curTitle);
+    if (newTitle === null) return;
+    newTitle = String(newTitle).trim();
+    if (!newTitle) newTitle = curTitle || 'Bloco';
+
     el.setAttribute('data-title', newTitle);
+
     if (type === 'text' || type === 'markdown') {
-      el.setAttribute('data-text', String(edited.text || ''));
+      const curText = el.getAttribute('data-text') || '';
+      let newText = prompt(type === 'markdown' ? 'Texto (Markdown):' : 'Texto:', curText);
+      if (newText === null) newText = curText;
+      el.setAttribute('data-text', String(newText));
     }
 
     // refresh display
@@ -360,7 +260,8 @@ function jsonFetch (url, opts) {
           saveBtn.innerHTML = '<i class="bi bi-check2 me-1"></i>Salvo';
           setTimeout(() => { saveBtn.innerHTML = '<i class="bi bi-save me-1"></i>Salvar'; }, 1200);
         } catch (err) {
-          showAlert(err?.error || 'Falha ao salvar');
+          if (window.uiToast) window.uiToast(err?.error || 'Falha ao salvar', { variant: 'danger' });
+          else alert(err?.error || 'Falha ao salvar');
         } finally {
           saveBtn.disabled = false;
         }

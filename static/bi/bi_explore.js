@@ -203,7 +203,11 @@
       const qid = Number(qSel.value || 0);
       if (!qid) return;
       const params = parseParams();
-      if (params === null) { alert(window.t('Parâmetros JSON inválidos.')); return; }
+      if (params === null) {
+        if (window.uiToast) window.uiToast(window.t('Parâmetros JSON inválidos.'), { variant: 'danger' });
+        else alert(window.t('Parâmetros JSON inválidos.'));
+        return;
+      }
       setStatus(window.t('Carregando...'));
       try {
         // include aggregation info if present
@@ -237,7 +241,8 @@
         }
       } catch (e) {
         setStatus(window.t('Erro'));
-        alert(String(e.message || e));
+        if (window.uiToast) window.uiToast(String(e.message || e), { variant: 'danger' });
+        else alert(String(e.message || e));
       }
     }
 
@@ -311,9 +316,11 @@
       if (!qid) return;
       try {
         await saveViz(qid, cfgFromUi());
-        alert(window.t('Visualização salva.'));
+        if (window.uiToast) window.uiToast(window.t('Visualização salva.'), { variant: 'success' });
+        else alert(window.t('Visualização salva.'));
       } catch (e) {
-        alert(String(e.message || e));
+        if (window.uiToast) window.uiToast(String(e.message || e), { variant: 'danger' });
+        else alert(String(e.message || e));
       }
     });
 
@@ -323,9 +330,11 @@
       if (!qid || !did) return;
       try {
         await addToDashboard(did, qid, cfgFromUi());
-        alert(window.t('Card adicionado ao dashboard.'));
+        if (window.uiToast) window.uiToast(window.t('Card adicionado ao dashboard.'), { variant: 'success' });
+        else alert(window.t('Card adicionado ao dashboard.'));
       } catch (e) {
-        alert(String(e.message || e));
+        if (window.uiToast) window.uiToast(String(e.message || e), { variant: 'danger' });
+        else alert(String(e.message || e));
       }
     });
 

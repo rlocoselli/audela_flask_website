@@ -21,6 +21,13 @@ def create_app() -> Flask:
 
     app = Flask(__name__, static_folder=static_dir, template_folder=template_dir)
 
+    # Ensure instance folder exists (SQLite, uploads, etc.)
+    try:
+        os.makedirs(os.path.join(project_root, "instance"), exist_ok=True)
+    except Exception:
+        # If filesystem is read-only, the app can still run if DATABASE_URL points elsewhere.
+        pass
+
     env = os.environ.get("FLASK_ENV", "development").lower()
     app.config.from_object(DevConfig if env != "production" else ProdConfig)
 
