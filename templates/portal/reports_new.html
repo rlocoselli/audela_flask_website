@@ -1,0 +1,40 @@
+{% extends "portal/layout.html" %}
+{% set title = _('Novo relatório') %}
+
+{% block portal_content %}
+<div class="card shadow-sm mb-4">
+  <div class="card-body">
+    <h4 class="mb-1">{{ _('Novo relatório') }}</h4>
+    <div class="text-muted">{{ _('Escolha uma fonte de dados e depois monte o layout no builder.') }}</div>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label">{{ _('Nome') }}</label>
+          <input class="form-control" type="text" name="name" required>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">{{ _('Fonte') }}</label>
+          <select class="form-select" name="source_id" required>
+            <option value="">--</option>
+            {% for s in sources %}
+              <option value="{{ s.id }}">{{ s.name }} ({{ s.type }})</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-12 d-flex gap-2 justify-content-end">
+          <a class="btn btn-outline-secondary" href="{{ url_for('portal.reports_list') }}">{{ _('Cancelar') }}</a>
+          <button class="btn btn-primary" type="submit">{{ _('Criar') }}</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

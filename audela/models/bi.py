@@ -127,3 +127,51 @@ class AuditEvent(TenantScopedMixin, db.Model):
     payload_json = db.Column(db.JSON, nullable=False, default=dict)
 
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+# -----------------------------
+# Reports (Crystal-like builder)
+# -----------------------------
+
+
+class Report(TenantScopedMixin, db.Model):
+    """A saved report definition with a drag-and-drop layout."""
+
+    __tablename__ = "reports"
+
+    id = db.Column(db.Integer, primary_key=True)
+    source_id = db.Column(db.Integer, db.ForeignKey("data_sources.id", ondelete="RESTRICT"), nullable=False)
+
+    name = db.Column(db.String(128), nullable=False)
+
+    # Layout JSON stores sections/blocks positions and configuration.
+    layout_json = db.Column(db.JSON, nullable=False, default=dict)
+
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    data_source = db.relationship("DataSource")
+
+
+class ReportBlock(TenantScopedMixin, db.Model):
+    """Reusable blocks that can be placed in a report layout."""
+
+    __tablename__ = "report_blocks"
+
+    id = db.Column(db.Integer, primary_key=True)
+    report_id = db.Column(db.Integer, db.ForeignKey("reports.id", ondelete="CASCADE"), nullable=False)
+
+    # text / question (table/chart) / markdown
+    block_type = db.Column(db.String(32), nullable=False, default="text")
+
+    # For block_type == question
+    question_id = db.Column(db.Integer, db.ForeignKey("questions.id", ondelete="SET NULL"), nullable=True)
+
+    title = db.Column(db.String(200), nullable=True)
+    config_json = db.Column(db.JSON, nullable=False, default=dict)
+
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    report = db.relationship("Report", backref=db.backref("blocks", lazy="dynamic"))
+    question = db.relationship("Question")

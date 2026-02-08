@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import re
 import time
-from dataclasses import dataclass
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import text
@@ -18,6 +19,30 @@ class QueryExecutionError(Exception):
 
 
 _READONLY_PREFIXES = ("select", "with", "show", "describe", "explain")
+
+
+def _json_safe_value(v: Any) -> Any:
+    """Best-effort conversion to JSON-serializable values.
+
+    Jinja's `tojson` will fail on `Decimal`, `datetime`, etc.
+    """
+    if v is None:
+        return None
+    if isinstance(v, Decimal):
+        # preserve numeric nature for charts
+        return float(v)
+    if isinstance(v, (datetime, date)):
+        return v.isoformat()
+    if isinstance(v, (bytes, bytearray)):
+        try:
+            return v.decode("utf-8", errors="replace")
+        except Exception:
+            return str(v)
+    return v
+
+
+def _json_safe_row(row: Any) -> list[Any]:
+    return [_json_safe_value(x) for x in list(row)]
 
 
 def _strip_sql_comments(sql: str) -> str:
@@ -113,8 +138,8 @@ def execute_sql(source: DataSource, sql_text: str, params: dict[str, Any] | None
             if res.returns_rows:
                 rows = res.fetchmany(size=max_rows)
                 cols = list(res.keys())
-                # Convert row tuples to plain lists for template rendering.
-                data = [list(r) for r in rows]
+                # Convert row tuples to JSON-safe plain lists for template rendering.
+                data = [_json_safe_row(r) for r in rows]
             else:
                 cols, data = [], []
 

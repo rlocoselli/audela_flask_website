@@ -1,0 +1,206 @@
+{% extends "portal/layout.html" %}
+{% set title = _('Report Builder') %}
+
+{% block head_extra %}
+  {{ super() }}
+  <style>
+    .rb-panel { border:1px solid var(--bs-border-color); border-radius: .75rem; background: var(--bs-body-bg); }
+    .rb-palette .rb-item { cursor: grab; user-select:none; }
+    .rb-canvas { min-height: 620px; background: #f8f9fa; border:1px dashed var(--bs-border-color); border-radius: .75rem; }
+    .rb-section { background: #fff; border:1px solid var(--bs-border-color); border-radius: .75rem; padding: .75rem; }
+    .rb-section-title { font-size: .85rem; text-transform: uppercase; letter-spacing: .04em; color: var(--bs-secondary-color); }
+    .rb-block { border:1px solid var(--bs-border-color); border-radius: .75rem; background: #fff; padding: .6rem .75rem; display:flex; align-items:center; justify-content-between; gap:.6rem; }
+    .rb-block .meta { display:flex; align-items:center; gap:.5rem; }
+    .rb-block .badge { font-weight:600; }
+    .rb-drop-hint { color: var(--bs-secondary-color); font-size:.9rem; }
+  </style>
+{% endblock %}
+
+{% block portal_content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h4 class="mb-0">{{ report.name }}</h4>
+    <div class="text-muted small">{{ _('Fonte') }}: {{ source.name }} ({{ source.type }})</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary" href="{{ url_for('portal.reports_list') }}"><i class="bi bi-arrow-left me-1"></i>{{ _('Voltar') }}</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('portal.report_view', report_id=report.id) }}" target="_blank"><i class="bi bi-eye me-1"></i>{{ _('Visualizar') }}</a>
+    <button class="btn btn-primary" id="rb-save"><i class="bi bi-save me-1"></i>{{ _('Salvar') }}</button>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Palette / Settings -->
+  <div class="col-lg-4">
+    <div class="rb-panel p-3 mb-4">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <div class="fw-semibold">{{ _('Componentes') }}</div>
+        <span class="text-muted small">drag & drop</span>
+      </div>
+
+      <div id="rb-palette" class="rb-palette d-grid gap-2">
+        <div class="rb-item rb-block" data-type="text" data-title="Texto">
+          <div class="meta">
+            <span class="badge text-bg-secondary">T</span>
+            <div>
+              <div class="fw-semibold">{{ _('Texto') }}</div>
+              <div class="text-muted small">{{ _('Título / parágrafo simples') }}</div>
+            </div>
+          </div>
+          <i class="bi bi-grip-vertical"></i>
+        </div>
+
+        <div class="rb-item rb-block" data-type="markdown" data-title="Markdown">
+          <div class="meta">
+            <span class="badge text-bg-secondary">MD</span>
+            <div>
+              <div class="fw-semibold">{{ _('Markdown') }}</div>
+              <div class="text-muted small">{{ _('Texto com formatação') }}</div>
+            </div>
+          </div>
+          <i class="bi bi-grip-vertical"></i>
+        </div>
+
+        <div class="rb-item rb-block" data-type="question" data-title="Tabela">
+          <div class="meta">
+            <span class="badge text-bg-secondary">Q</span>
+            <div>
+              <div class="fw-semibold">{{ _('Tabela/Gráfico de pergunta') }}</div>
+              <div class="text-muted small">{{ _('Reaproveita uma Pergunta salva') }}</div>
+            </div>
+          </div>
+          <i class="bi bi-grip-vertical"></i>
+        </div>
+      </div>
+
+      <hr>
+
+      <div class="fw-semibold mb-2">{{ _('Adicionar pergunta') }}</div>
+      <div class="d-flex gap-2">
+        <select id="rb-question" class="form-select">
+          <option value="">--</option>
+          {% for q in questions %}
+            <option value="{{ q.id }}">{{ q.name }}</option>
+          {% endfor %}
+        </select>
+        <button class="btn btn-outline-primary" id="rb-add-question" type="button">{{ _('Inserir') }}</button>
+      </div>
+      <div class="form-text">{{ _('Isso cria um bloco “Pergunta” no corpo do relatório.') }}</div>
+
+      <hr>
+
+      <div class="fw-semibold mb-2">{{ _('Dica') }}</div>
+      <div class="text-muted small">
+        {{ _('Arraste componentes para Header/Body/Footer. Clique no bloco para editar. Salve para persistir o layout.') }}
+      </div>
+    </div>
+
+    <div class="alert alert-info mb-0">
+      <div class="fw-semibold">{{ _('MVP Report Builder') }}</div>
+      <div class="small">{{ _('Nesta fase, o builder salva o layout. Render/Export PDF completo pode ser adicionado em seguida.') }}</div>
+    </div>
+  </div>
+
+  <!-- Canvas -->
+  <div class="col-lg-8">
+    <div class="rb-canvas p-3">
+      <div class="row g-3">
+        <div class="col-12">
+          <div class="rb-section">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <div class="rb-section-title">Header</div>
+              <span class="text-muted small">{{ _('Topo do relatório') }}</span>
+            </div>
+            <div id="rb-header" class="rb-dropzone d-grid gap-2">
+              <div class="rb-drop-hint">{{ _('Arraste aqui...') }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12">
+          <div class="rb-section">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <div class="rb-section-title">Body</div>
+              <span class="text-muted small">{{ _('Conteúdo principal') }}</span>
+            </div>
+            <div id="rb-body" class="rb-dropzone d-grid gap-2">
+              <div class="rb-drop-hint">{{ _('Arraste aqui...') }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12">
+          <div class="rb-section">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <div class="rb-section-title">Footer</div>
+              <span class="text-muted small">{{ _('Rodapé') }}</span>
+            </div>
+            <div id="rb-footer" class="rb-dropzone d-grid gap-2">
+              <div class="rb-drop-hint">{{ _('Arraste aqui...') }}</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  window.__RB = {
+    reportId: {{ report.id }},
+    apiUrl: "{{ url_for('portal.api_report_get', report_id=report.id) }}",
+    saveUrl: "{{ url_for('portal.api_report_save', report_id=report.id) }}",
+    csrfToken: "{{ csrf_token() }}",
+  };
+</script>
+
+<!-- Bootstrap Modal: edit block (replaces prompt/alert) -->
+<div class="modal fade" id="rbEditModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius: 1rem;">
+      <div class="modal-header">
+        <h5 class="modal-title" id="rbEditModalTitle">{{ _('Editar bloco') }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">{{ _('Título') }}</label>
+          <input type="text" class="form-control" id="rb-edit-title" />
+        </div>
+        <div class="mb-0" id="rb-edit-text-wrap">
+          <label class="form-label">{{ _('Conteúdo') }}</label>
+          <textarea class="form-control" id="rb-edit-text" rows="6"></textarea>
+          <div class="form-text" id="rb-edit-help"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+        <button type="button" class="btn btn-primary" id="rb-edit-save"><i class="bi bi-check2 me-1"></i>{{ _('Salvar') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bootstrap Modal: alerts (replaces alert()) -->
+<div class="modal fade" id="rbAlertModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border-radius: 1rem;">
+      <div class="modal-header">
+        <h5 class="modal-title" id="rbAlertModalTitle">{{ _('Aviso') }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="rbAlertModalBody"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+  <script src="{{ url_for('static', filename='portal/report_builder.js') }}"></script>
+{% endblock %}

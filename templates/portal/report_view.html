@@ -1,0 +1,78 @@
+{% extends "portal/layout.html" %}
+{% set title = report.name %}
+
+{% block head_extra %}
+  {{ super() }}
+  <style>
+    .report-paper { background: var(--bs-body-bg); border:1px solid var(--bs-border-color); border-radius: 1rem; }
+    .report-section-title { font-size: .8rem; letter-spacing: .05em; text-transform: uppercase; color: var(--bs-secondary-color); }
+    .report-block { border:1px solid var(--bs-border-color); border-radius: 1rem; background: var(--bs-body-bg); }
+    .report-text { white-space: pre-wrap; }
+  </style>
+{% endblock %}
+
+{% block portal_content %}
+<div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="h4 mb-1">{{ report.name }}</h1>
+    <div class="text-muted small">{{ _('Fonte') }}: {{ source.name }} ({{ source.type }})</div>
+  </div>
+  <div class="d-flex align-items-center gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.reports_list') }}">
+      <i class="bi bi-arrow-left"></i> {{ _('Voltar') }}
+    </a>
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('portal.report_builder', report_id=report.id) }}">
+      <i class="bi bi-pencil-square"></i> {{ _('Abrir builder') }}
+    </a>
+  </div>
+</div>
+
+<div class="report-paper p-3 p-lg-4 shadow-sm">
+  {% for sec_key, sec_label in [('header','Header'),('body','Body'),('footer','Footer')] %}
+    {% set blocks = sections.get(sec_key) or [] %}
+    <div class="mb-4">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <div class="report-section-title">{{ sec_label }}</div>
+        {% if not blocks %}<div class="text-muted small">{{ _('Vazio') }}</div>{% endif %}
+      </div>
+
+      <div class="d-grid gap-3">
+        {% for b in blocks %}
+          <div class="report-block p-3">
+            {% if b.type in ['text', 'markdown', 'question'] and b.title %}
+              <div class="fw-semibold mb-2">{{ b.title }}</div>
+            {% endif %}
+
+            {% if b.type == 'text' %}
+              <div class="report-text">{{ b.text or '' }}</div>
+
+            {% elif b.type == 'markdown' %}
+              <div class="report-markdown" data-rb-md="{{ b.md_script_id }}"></div>
+              <script type="application/json" id="{{ b.md_script_id }}">{{ (b.text or '')|tojson }}</script>
+
+            {% elif b.type == 'question' %}
+              {% if b.result and b.result.error %}
+                <div class="alert alert-danger py-2 mb-2">{{ _('Erro') }}: {{ b.result.error }}</div>
+              {% endif %}
+              <div class="bi-viz report-viz" id="{{ b.viz_id }}" data-data-id="{{ b.data_script_id }}" data-cfg-id="{{ b.cfg_script_id }}"></div>
+              <script type="application/json" id="{{ b.data_script_id }}">{{ (b.result or {})|tojson }}</script>
+              <script type="application/json" id="{{ b.cfg_script_id }}">{{ (b.viz_config or {'type':'table'})|tojson }}</script>
+            {% else %}
+              <div class="text-muted">{{ _('Bloco desconhecido') }}</div>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <!-- Markdown renderer (optional) -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+  <script src="{{ url_for('static', filename='bi/bi_viz.js') }}"></script>
+  <script src="{{ url_for('static', filename='bi/bi_dashboard.js') }}"></script>
+  <script src="{{ url_for('static', filename='portal/report_view.js') }}"></script>
+{% endblock %}

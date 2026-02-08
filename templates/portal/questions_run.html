@@ -3,49 +3,260 @@
 
 {% block head_extra %}
   {{ super() }}
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pivottable/2.23.0/pivot.min.css" />
-  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.13.2/jquery-ui.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pivottable/2.23.0/pivot.min.js"></script>
+
+  <!-- CodeMirror -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css">
+
+  <style>
+    .bi-panel {
+      border: 1px solid var(--bs-border-color);
+      border-radius: .75rem;
+      padding: 1rem;
+      background: #fff;
+    }
+
+    .bi-schema {
+      max-height: 520px;
+      overflow: auto;
+      font-size: .9rem;
+    }
+
+    .bi-schema .tbl { margin-bottom: .25rem; }
+    .bi-schema .cols { margin-left: 1rem; color: #555; }
+
+    .CodeMirror {
+      height: 360px;
+      border: 1px solid var(--bs-border-color);
+      border-radius: .75rem;
+      font-size: .95rem;
+    }
+  </style>
 {% endblock %}
 
 {% block portal_content %}
-  <div class="box">
-    <h3>{{ question.name }}</h3>
-    <p><strong>Fonte:</strong> {{ source.name }}</p>
-    <p>
-      <a class="button" href="{{ url_for('portal.questions_view', question_id=question.id) }}">{{ _('Voltar') }}</a>
-      {% if result and result.columns %}
-        <a class="button" href="#" id="export-pdf">{{ _('Exportar PDF') }}</a>
-      {% endif %}
-    </p>
+<div class="container-fluid px-0">
+
+  <!-- HEADER -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <div class="d-flex flex-wrap align-items-start justify-content-between gap-2">
+        <div>
+          <h4 class="mb-1">{{ question.name }}</h4>
+          <div class="text-muted small">
+            <strong>{{ _('Fonte') }}:</strong> {{ source.name }}
+          </div>
+        </div>
+        <div class="d-flex gap-2">
+          <a class="btn btn-outline-secondary" href="{{ url_for('portal.questions_view', question_id=question.id) }}">
+            ← {{ _('Voltar') }}
+          </a>
+          {% if result and result.columns %}
+            <a class="btn btn-outline-secondary" href="#" id="export-pdf">{{ _('Exportar PDF') }}</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
   </div>
 
-  {% if error %}
-    <div class="box">
-      <h3>{{ _('Erro') }}</h3>
-      <pre style="white-space: pre-wrap;">{{ error }}</pre>
-    </div>
-  {% endif %}
+  <div class="row g-4">
 
-  {% if result %}
-    <div class="box">
-      <h3>{{ _('Resultado') }}{% if elapsed_ms %} ({{ elapsed_ms }} ms){% endif %}</h3>
-      {% if result.columns %}
-        <div id="run-viz" style="min-height: 420px;"></div>
-        <p style="margin-top:.6em;"><em>{{ _('Linhas retornadas') }}:</em> {{ result.rows|length }}</p>
-      {% else %}
-        <p>{{ _('Sem linhas retornadas.') }}</p>
+    <!-- MAIN -->
+    <div class="col-lg-8">
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+
+          <form method="post" id="sql-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <!-- Fonte (fixa) -->
+            <div class="mb-3">
+              <label class="form-label">{{ _('Fonte de dados') }}</label>
+              <select name="source_id" id="source_id" class="form-select" disabled>
+                <option value="{{ source.id }}" data-dbtype="{{ source.type }}" selected>
+                  {{ source.name }} ({{ source.type }})
+                </option>
+              </select>
+              <!-- for JS + POST payloads (disabled selects are not submitted) -->
+              <input type="hidden" id="source_id_hidden" value="{{ source.id }}">
+            </div>
+
+            <!-- NLQ -->
+            <div class="mb-4">
+              <label class="form-label">{{ _('Linguagem humana') }}</label>
+              <div class="d-flex gap-2 flex-wrap">
+                <input type="text" id="nlq-text" class="form-control" placeholder="ex: total pedidos por mês">
+                <button type="button" class="btn btn-outline-primary" id="nlq-generate">
+                  {{ _('Gerar SQL') }}
+                </button>
+              </div>
+              <div id="nlq-warnings" class="form-text mt-1"></div>
+            </div>
+
+            <!-- QUERY BUILDER -->
+            <details class="mb-4">
+              <summary class="fw-semibold cursor-pointer">
+                {{ _('Query Builder') }}
+                <span class="text-muted">— {{ _('montar SELECT com ajuda da estrutura') }}</span>
+              </summary>
+
+              <div class="bi-panel mt-3">
+                <div class="row g-3">
+
+                  <div class="col-md-6">
+                    <label class="form-label">{{ _('Tabela') }}</label>
+                    <select id="qb-table" class="form-select">
+                      <option value="">--</option>
+                    </select>
+                  </div>
+
+                  <div class="col-md-6">
+                    <label class="form-label">{{ _('Limite') }}</label>
+                    <input id="qb-limit" type="number" class="form-control" value="100" min="1" max="5000">
+                  </div>
+
+                  <div class="col-12">
+                    <label class="form-label">{{ _('Colunas') }}</label>
+                    <div id="qb-columns" class="d-flex flex-wrap gap-2"></div>
+                  </div>
+
+                  <div class="col-12">
+                    <label class="form-label">{{ _('Filtros') }}</label>
+                    <div class="d-flex gap-2 flex-wrap">
+                      <select id="qb-filter-field" class="form-select" style="min-width:180px;"></select>
+                      <select id="qb-filter-op" class="form-select" style="min-width:120px;">
+                        <option value="=">=</option>
+                        <option value="!=">!=</option>
+                        <option value=">">&gt;</option>
+                        <option value="<">&lt;</option>
+                        <option value="LIKE">LIKE</option>
+                      </select>
+                      <input id="qb-filter-value" class="form-control" placeholder="value" style="min-width:180px;">
+                      <button type="button" class="btn btn-sm btn-outline-secondary" id="qb-add-filter">
+                        {{ _('Adicionar filtro') }}
+                      </button>
+                    </div>
+                    <div id="qb-filter-list" class="mt-2"></div>
+                  </div>
+
+                  <div class="col-12">
+                    <button type="button" class="btn btn-primary" id="qb-generate">
+                      {{ _('Gerar SQL no editor') }}
+                    </button>
+                  </div>
+
+                </div>
+              </div>
+            </details>
+
+            <!-- SQL -->
+            <div class="mb-3">
+              <label class="form-label">SQL</label>
+              <textarea name="sql_text" id="sql_text" class="form-control" rows="8" placeholder="SELECT ...">{{ sql_text or '' }}</textarea>
+              <div class="form-text">
+                {{ _('Dica') }}: {{ _('Use Ctrl+Space para autocomplete. Ctrl+Enter para executar.') }}
+              </div>
+            </div>
+
+            <!-- PARAMS -->
+            <div class="mb-4">
+              <label class="form-label">{{ _('Parâmetros (JSON)') }}</label>
+              <textarea name="params_json" id="params_json" class="form-control" rows="5">{{ params_json or '' }}</textarea>
+              <div class="form-text">
+                {{ _('Use :nome_param no SQL. tenant_id é aplicado automaticamente.') }}
+              </div>
+            </div>
+
+            <div class="text-end">
+              <button type="submit" class="btn btn-primary">▶ {{ _('Executar') }}</button>
+            </div>
+
+          </form>
+        </div>
+      </div>
+
+      <!-- ERROR -->
+      {% if error %}
+      <div class="alert alert-danger">
+        <strong>{{ _('Erro') }}</strong>
+        <pre class="mb-0 mt-2">{{ error }}</pre>
+      </div>
       {% endif %}
+
+      <!-- RESULT -->
+      {% if result %}
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="mb-3">
+            {{ _('Resultado') }}
+            {% if elapsed_ms %}
+              <span class="text-muted">({{ elapsed_ms }} ms)</span>
+            {% endif %}
+          </h5>
+
+          {% if result.columns %}
+            <div id="run-viz" style="min-height:420px;"></div>
+
+            <div class="d-flex align-items-center gap-3 mt-3">
+              <span class="text-muted">{{ _('Linhas retornadas') }}: {{ result.rows|length }}</span>
+            </div>
+
+            <script type="application/json" id="run-data">{{ result|tojson }}</script>
+            <script type="application/json" id="run-cfg">{{ viz_config|tojson }}</script>
+          {% else %}
+            <p class="text-muted">{{ _('Sem linhas retornadas.') }}</p>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+
     </div>
-    <script type="application/json" id="run-data">{{ result|tojson }}</script>
-    <script type="application/json" id="run-cfg">{{ viz_config|tojson }}</script>
-  {% endif %}
+
+    <!-- SIDEBAR -->
+    <div class="col-lg-4">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h6 class="mb-2">{{ _('Estrutura') }}</h6>
+          <p class="text-muted small">{{ _('Tabelas e colunas da fonte (autocomplete).') }}</p>
+          <div class="bi-schema" id="schema"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
 {% endblock %}
 
 {% block body_scripts %}
   {{ super() }}
+
+  <!-- CodeMirror -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/sql/sql.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/sql-hint.min.js"></script>
+
+  <!-- Charts -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+
+  <!-- BI logic -->
   <script src="{{ url_for('static', filename='bi/bi_viz.js') }}"></script>
+  <script src="{{ url_for('static', filename='bi/bi_editor.js') }}"></script>
+
+  <script>
+    // bi_editor.js expects #source_id to be enabled to read value; but our select is disabled.
+    // Workaround: mirror the hidden value back into the select value for JS.
+    document.addEventListener('DOMContentLoaded', () => {
+      const sel = document.getElementById('source_id');
+      const hid = document.getElementById('source_id_hidden');
+      if (sel && hid && hid.value) {
+        sel.value = hid.value;
+      }
+    });
+  </script>
+
+  {% if result and result.columns %}
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       const dataEl = document.getElementById('run-data');
@@ -57,6 +268,7 @@
         try { data = JSON.parse(dataEl.textContent); } catch (e) {}
         try { cfg = JSON.parse(cfgEl.textContent); } catch (e) {}
         BI.renderViz(container, data, cfg, null);
+
         const btn = document.getElementById('export-pdf');
         if (btn) {
           btn.addEventListener('click', async (e) => {
@@ -67,4 +279,5 @@
       }
     });
   </script>
+  {% endif %}
 {% endblock %}

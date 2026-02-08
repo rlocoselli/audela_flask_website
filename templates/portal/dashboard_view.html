@@ -2,148 +2,304 @@
 {% set title = dashboard.name %}
 
 {% block portal_content %}
-<div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
-  <div>
-    <h1 class="h4 mb-1">{{ dashboard.name }}</h1>
-    {% if dashboard.description %}<div class="text-secondary">{{ dashboard.description }}</div>{% endif %}
-  </div>
+<div class="container-fluid px-0">
 
-  <div class="d-flex align-items-center gap-2">
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.dashboards_list') }}">
-      <i class="bi bi-arrow-left"></i> {{ _('Voltar') }}
-    </a>
+  <!-- Header / Toolbar -->
+  <div class="card border-0 shadow-sm rounded-4 mb-3">
+    <div class="card-body py-3">
+      <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
 
-    <button class="btn btn-outline-primary btn-sm" id="layout-edit">
-      <i class="bi bi-arrows-move"></i> {{ _('Editar layout') }}
-    </button>
-    <button class="btn btn-primary btn-sm d-none" id="layout-save">
-      <i class="bi bi-check2"></i> {{ _('Salvar layout') }}
-    </button>
-    <button class="btn btn-success btn-sm d-none" id="layout-add-card" data-bs-toggle="offcanvas" data-bs-target="#addCardCanvas">
-  <i class="bi bi-plus-lg"></i> {{ _('Adicionar card') }}
-</button>
-    <button class="btn btn-outline-secondary btn-sm d-none" id="layout-cancel">
-      <i class="bi bi-x"></i> {{ _('Cancelar edição') }}
-    </button>
-  </div>
-</div>
-
-<div class="card border-0 shadow-sm mb-3" style="border-radius: 1rem;">
-  <div class="card-body">
-    <div class="row g-2 align-items-end">
-      <div class="col-12 col-lg-3">
-        <label class="form-label mb-1">{{ _('Filtros') }}</label>
-        <select id="bi-filter-field" class="form-select form-select-sm"></select>
-      </div>
-      <div class="col-6 col-lg-2">
-        <label class="form-label mb-1">&nbsp;</label>
-        <select id="bi-filter-op" class="form-select form-select-sm">
-          <option value="eq">=</option>
-          <option value="contains">contains</option>
-          <option value="gt">&gt;</option>
-          <option value="lt">&lt;</option>
-        </select>
-      </div>
-      <div class="col-6 col-lg-3">
-        <label class="form-label mb-1">&nbsp;</label>
-        <input id="bi-filter-value" class="form-control form-control-sm" type="text" placeholder="value" />
-      </div>
-      <div class="col-12 col-lg-4">
-        <label class="form-label mb-1">&nbsp;</label>
-        <div class="d-flex flex-wrap gap-2">
-          <button class="btn btn-outline-primary btn-sm" id="bi-add-filter">{{ _('Adicionar filtro') }}</button>
-          <button class="btn btn-outline-secondary btn-sm" id="bi-clear-filters">{{ _('Limpar filtros') }}</button>
-          <button class="btn btn-outline-secondary btn-sm" id="bi-export-pdf"><i class="bi bi-filetype-pdf"></i> {{ _('Exportar PDF') }}</button>
-        </div>
-      </div>
-    </div>
-    <div id="bi-filter-summary" class="mt-2"></div>
-  </div>
-</div>
-
-{% if not cards %}
-  <div class="alert alert-info">{{ _('Nenhum card ainda. Crie um dashboard escolhendo perguntas.') }}</div>
-{% endif %}
-
-<div class="grid-stack" id="dash-grid" data-dashboard-id="{{ dashboard.id }}"></div>
-<!-- Add Card (Builder) -->
-<div class="offcanvas offcanvas-end" tabindex="-1" id="addCardCanvas">
-  <div class="offcanvas-header">
-    <h5 class="offcanvas-title">{{ _('Adicionar card') }}</h5>
-    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-  </div>
-  <div class="offcanvas-body">
-    <div class="mb-2">
-      <label class="form-label">{{ _('Buscar pergunta') }}</label>
-      <input class="form-control" id="addcard-search" placeholder="{{ _('Digite para filtrar...') }}" />
-    </div>
-    <div class="mb-2">
-      <label class="form-label">{{ _('Pergunta') }}</label>
-      <select class="form-select" id="addcard-question">
-        <option value="">--</option>
-        {% for q in all_questions %}
-          <option value="{{ q.id }}">{{ q.name }}</option>
-        {% endfor %}
-      </select>
-    </div>
-    <div class="mb-2">
-      <label class="form-label">{{ _('Visualização') }}</label>
-      <select class="form-select" id="addcard-type">
-        <option value="table">{{ _('Tabela') }}</option>
-        <option value="bar">Bar</option>
-        <option value="line">Line</option>
-        <option value="area">Area</option>
-        <option value="pie">Pie</option>
-        <option value="scatter">Scatter</option>
-        <option value="gauge">Gauge</option>
-        <option value="pivot">Pivot</option>
-      </select>
-      <div class="form-text">{{ _('Você pode refinar depois em Configurar visualização.') }}</div>
-    </div>
-    <div class="mb-2">
-      <label class="form-label">{{ _('Parâmetros (JSON)') }}</label>
-      <textarea class="form-control" id="addcard-params" rows="4" placeholder="{\n  \"from\": \"2025-01-01\"\n}"></textarea>
-    </div>
-    <div class="d-flex gap-2 mt-3">
-      <button class="btn btn-primary" id="addcard-create"><i class="bi bi-plus-lg"></i> {{ _('Adicionar') }}</button>
-      <button class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">{{ _('Cancelar') }}</button>
-    </div>
-    <div class="small-muted mt-2" id="addcard-status"></div>
-  </div>
-</div>
-
-<!-- Initial cards as HTML templates (hydrated by JS into Gridstack) -->
-<template id="dash-cards-template">
-  {% for item in cards %}
-    {% set pos = item.card.position_json or {} %}
-    <div class="grid-stack-item" gs-x="{{ pos.get('x', 0) }}" gs-y="{{ pos.get('y', loop.index0 * 6) }}" gs-w="{{ pos.get('w', 12) }}" gs-h="{{ pos.get('h', 6) }}" data-bi-card="1" data-card-id="{{ item.card.id }}">
-      <div class="grid-stack-item-content">
-        <div class="card-head">
-          <div class="d-flex align-items-center gap-2" style="min-width: 0;">
-            <i class="bi bi-ui-checks" style="opacity:.65"></i>
-            <div class="card-title">{{ item.question.name }}</div>
-          </div>
-          <div class="d-flex gap-1">
-            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.questions_viz', question_id=item.question.id) }}" title="{{ _('Configurar visualização') }}">
-              <i class="bi bi-sliders"></i>
+        <div class="min-w-0">
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.dashboards_list') }}">
+              <i class="bi bi-arrow-left"></i> {{ _('Voltar') }}
             </a>
-            <button class="btn btn-outline-danger btn-sm d-none" data-card-remove="1" title="{{ _('Remover card') }}">
-              <i class="bi bi-trash"></i>
+
+            <span class="badge text-bg-light border">
+              <i class="bi bi-speedometer2 me-1"></i> Dashboard
+            </span>
+          </div>
+
+          <h1 class="h4 mb-1 text-truncate">{{ dashboard.name }}</h1>
+
+          {% if dashboard.description %}
+            <div class="text-secondary small">
+              {{ dashboard.description }}
+            </div>
+          {% endif %}
+        </div>
+
+        <div class="d-flex flex-wrap align-items-center justify-content-lg-end gap-2">
+
+          <div class="btn-group" role="group" aria-label="layout actions">
+            <button class="btn btn-outline-primary btn-sm" id="layout-edit">
+              <i class="bi bi-arrows-move"></i> {{ _('Editar layout') }}
+            </button>
+
+            <button class="btn btn-primary btn-sm d-none" id="layout-save">
+              <i class="bi bi-check2"></i> {{ _('Salvar') }}
+            </button>
+
+            <button class="btn btn-outline-secondary btn-sm d-none" id="layout-cancel">
+              <i class="bi bi-x"></i> {{ _('Cancelar') }}
             </button>
           </div>
-        </div>
-        <div class="card-body-inner">
-          {% if item.result.error %}
-            <div class="alert alert-danger py-2">{{ _('Erro') }}: {{ item.result.error }}</div>
-          {% endif %}
-          <div class="bi-viz viz" id="viz-{{ item.card.id }}"></div>
-          <script type="application/json" id="data-{{ item.card.id }}">{{ item.result|tojson }}</script>
-          <script type="application/json" id="cfg-{{ item.card.id }}">{{ item.viz_config|tojson }}</script>
+
+          <button
+            class="btn btn-success btn-sm d-none"
+            id="layout-add-card"
+            data-bs-toggle="offcanvas"
+            data-bs-target="#addCardCanvas"
+          >
+            <i class="bi bi-plus-lg"></i> {{ _('Adicionar card') }}
+          </button>
+
         </div>
       </div>
     </div>
-  {% endfor %}
-</template>
+  </div>
+
+  <!-- Filters -->
+  <div class="card border-0 shadow-sm rounded-4 mb-3">
+    <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-3">
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-funnel" style="opacity:.75"></i>
+          <div class="fw-semibold">{{ _('Filtros') }}</div>
+          <span class="text-secondary small">{{ _('aplicados ao dashboard') }}</span>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2">
+          <button class="btn btn-outline-secondary btn-sm" id="bi-clear-filters">
+            <i class="bi bi-eraser"></i> {{ _('Limpar') }}
+          </button>
+
+          <button class="btn btn-outline-secondary btn-sm" id="bi-export-pdf">
+            <i class="bi bi-filetype-pdf"></i> {{ _('Exportar PDF') }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-body">
+      <div class="row g-2 align-items-end">
+        <div class="col-12 col-lg-4">
+          <label class="form-label small text-secondary mb-1">{{ _('Campo') }}</label>
+          <select id="bi-filter-field" class="form-select form-select-sm"></select>
+        </div>
+
+        <div class="col-6 col-lg-2">
+          <label class="form-label small text-secondary mb-1">{{ _('Operador') }}</label>
+          <select id="bi-filter-op" class="form-select form-select-sm">
+            <option value="eq">=</option>
+            <option value="contains">contains</option>
+            <option value="gt">&gt;</option>
+            <option value="lt">&lt;</option>
+          </select>
+        </div>
+
+        <div class="col-6 col-lg-3">
+          <label class="form-label small text-secondary mb-1">{{ _('Valor') }}</label>
+          <input
+            id="bi-filter-value"
+            class="form-control form-control-sm"
+            type="text"
+            placeholder="{{ _('Digite um valor...') }}"
+          />
+        </div>
+
+        <div class="col-12 col-lg-3">
+          <label class="form-label small text-secondary mb-1">&nbsp;</label>
+          <button class="btn btn-primary btn-sm w-100" id="bi-add-filter">
+            <i class="bi bi-plus-circle"></i> {{ _('Adicionar filtro') }}
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-3">
+        <div class="small text-secondary mb-1">{{ _('Resumo') }}</div>
+        <div id="bi-filter-summary" class="p-2 bg-body-tertiary rounded-3 border"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Empty state -->
+  {% if not cards %}
+    <div class="card border-0 shadow-sm rounded-4">
+      <div class="card-body py-5 text-center">
+        <div class="display-6 mb-2"><i class="bi bi-grid-1x2"></i></div>
+        <h2 class="h5 mb-2">{{ _('Nenhum card ainda') }}</h2>
+        <p class="text-secondary mb-3">
+          {{ _('Crie um dashboard escolhendo perguntas e adicionando visualizações.') }}
+        </p>
+
+        <button
+          class="btn btn-success"
+          data-bs-toggle="offcanvas"
+          data-bs-target="#addCardCanvas"
+        >
+          <i class="bi bi-plus-lg"></i> {{ _('Adicionar primeiro card') }}
+        </button>
+      </div>
+    </div>
+  {% endif %}
+
+  <!-- Grid container -->
+  <div class="card border-0 shadow-sm rounded-4 {% if cards %}mb-3{% endif %}">
+    <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-3">
+      <div class="d-flex align-items-center justify-content-between">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-layout-wtf" style="opacity:.75"></i>
+          <div class="fw-semibold">{{ _('Dashboard') }}</div>
+        </div>
+        <div class="text-secondary small">
+          <i class="bi bi-info-circle me-1"></i>
+          {{ _('Arraste e redimensione os cards no modo de edição') }}
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="grid-stack" id="dash-grid" data-dashboard-id="{{ dashboard.id }}"></div>
+    </div>
+  </div>
+
+  <!-- Add Card (Builder) -->
+  <div class="offcanvas offcanvas-end" tabindex="-1" id="addCardCanvas" aria-labelledby="addCardCanvasLabel">
+    <div class="offcanvas-header border-bottom">
+      <div>
+        <h5 class="offcanvas-title mb-0" id="addCardCanvasLabel">{{ _('Adicionar card') }}</h5>
+        <div class="text-secondary small">{{ _('Escolha uma pergunta e o tipo de visualização') }}</div>
+      </div>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+
+    <div class="offcanvas-body">
+      <div class="mb-3">
+        <label class="form-label">{{ _('Buscar pergunta') }}</label>
+        <div class="input-group">
+          <span class="input-group-text"><i class="bi bi-search"></i></span>
+          <input class="form-control" id="addcard-search" placeholder="{{ _('Digite para filtrar...') }}" />
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">{{ _('Pergunta') }}</label>
+        <select class="form-select" id="addcard-question">
+          <option value="">--</option>
+          {% for q in all_questions %}
+            <option value="{{ q.id }}">{{ q.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">{{ _('Visualização') }}</label>
+        <select class="form-select" id="addcard-type">
+          <option value="table">{{ _('Tabela') }}</option>
+          <option value="bar">Bar</option>
+          <option value="line">Line</option>
+          <option value="area">Area</option>
+          <option value="pie">Pie</option>
+          <option value="scatter">Scatter</option>
+          <option value="gauge">Gauge</option>
+          <option value="pivot">Pivot</option>
+        </select>
+        <div class="form-text">
+          {{ _('Você pode refinar depois em Configurar visualização.') }}
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">{{ _('Parâmetros (JSON)') }}</label>
+        <textarea
+          class="form-control font-monospace"
+          id="addcard-params"
+          rows="5"
+          placeholder="{\n  \"from\": \"2025-01-01\"\n}"
+        ></textarea>
+      </div>
+
+      <div class="d-flex gap-2 mt-3">
+        <button class="btn btn-success flex-grow-1" id="addcard-create">
+          <i class="bi bi-plus-lg"></i> {{ _('Adicionar') }}
+        </button>
+        <button class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">{{ _('Cancelar') }}</button>
+      </div>
+
+      <div class="mt-3">
+        <div class="small text-secondary" id="addcard-status"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Initial cards as HTML templates (hydrated by JS into Gridstack) -->
+  <template id="dash-cards-template">
+    {% for item in cards %}
+      {% set pos = item.card.position_json or {} %}
+      <div
+        class="grid-stack-item"
+        gs-x="{{ pos.get('x', 0) }}"
+        gs-y="{{ pos.get('y', loop.index0 * 6) }}"
+        gs-w="{{ pos.get('w', 12) }}"
+        gs-h="{{ pos.get('h', 6) }}"
+        data-bi-card="1"
+        data-card-id="{{ item.card.id }}"
+      >
+        <div class="grid-stack-item-content">
+
+          <div class="card border-0 shadow-sm rounded-4 h-100">
+            <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-2">
+              <div class="d-flex align-items-center justify-content-between gap-2">
+
+                <div class="d-flex align-items-center gap-2 min-w-0">
+                  <i class="bi bi-ui-checks" style="opacity:.7"></i>
+                  <div class="fw-semibold text-truncate" title="{{ item.question.name }}">
+                    {{ item.question.name }}
+                  </div>
+                </div>
+
+                <div class="d-flex gap-1 flex-shrink-0">
+                  <a
+                    class="btn btn-outline-secondary btn-sm"
+                    href="{{ url_for('portal.questions_viz', question_id=item.question.id) }}"
+                    title="{{ _('Configurar visualização') }}"
+                  >
+                    <i class="bi bi-sliders"></i>
+                  </a>
+
+                  <button
+                    class="btn btn-outline-danger btn-sm d-none"
+                    data-card-remove="1"
+                    title="{{ _('Remover card') }}"
+                  >
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </div>
+
+              </div>
+            </div>
+
+            <div class="card-body">
+              {% if item.result.error %}
+                <div class="alert alert-danger py-2 mb-2">
+                  <i class="bi bi-exclamation-triangle me-1"></i>
+                  <strong>{{ _('Erro') }}:</strong> {{ item.result.error }}
+                </div>
+              {% endif %}
+
+              <div class="bi-viz viz" id="viz-{{ item.card.id }}"></div>
+
+              <script type="application/json" id="data-{{ item.card.id }}">{{ item.result|tojson }}</script>
+              <script type="application/json" id="cfg-{{ item.card.id }}">{{ item.viz_config|tojson }}</script>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    {% endfor %}
+  </template>
+
+</div>
 {% endblock %}
 
 {% block body_scripts %}

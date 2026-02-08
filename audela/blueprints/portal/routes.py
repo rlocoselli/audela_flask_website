@@ -8,7 +8,7 @@ from flask import abort, flash, g, jsonify, make_response, redirect, render_temp
 from flask_login import current_user, login_required
 
 from ...extensions import db
-from ...models.bi import AuditEvent, Dashboard, DashboardCard, DataSource, Question, QueryRun
+from ...models.bi import AuditEvent, Dashboard, DashboardCard, DataSource, Question, QueryRun, Report
 from ...models.core import Tenant
 from ...models.core import User, Role
 from ...security import require_roles
@@ -482,13 +482,29 @@ def questions_viz(question_id: int):
     )
 
 
-@bp.route("/questions/<int:question_id>/run", methods=["POST"])
+@bp.route("/questions/<int:question_id>/run", methods=["GET", "POST"])
 @login_required
 def questions_run(question_id: int):
     _require_tenant()
     q = Question.query.filter_by(id=question_id, tenant_id=g.tenant.id).first_or_404()
     src = DataSource.query.filter_by(id=q.source_id, tenant_id=g.tenant.id).first_or_404()
 
+    if request.method == "GET":
+        return render_template(
+            "portal/questions_run.html",
+            tenant=g.tenant,
+            question=q,
+            source=src,
+            result=None,
+            error=None,
+            elapsed_ms=None,
+            viz_config=q.viz_config_json or {},
+            sql_text=q.sql_text,
+            params_json="",
+        )
+
+    # Allow editing the SQL at runtime (does not overwrite the saved Question unless explicitly saved elsewhere)
+    sql_text = (request.form.get("sql_text") or q.sql_text or "").strip()
     params_text = (request.form.get("params_json") or "").strip()
 
     started = datetime.utcnow()
@@ -530,7 +546,7 @@ def questions_run(question_id: int):
     user_params["tenant_id"] = g.tenant.id
 
     try:
-        result = execute_sql(src, q.sql_text, params=user_params)
+        result = execute_sql(src, sql_text, params=user_params)
         qr.status = "success"
         qr.rows = len(result.get("rows", []))
         _audit("bi.question.executed", {"id": q.id, "query_run_id": qr.id})
@@ -553,6 +569,8 @@ def questions_run(question_id: int):
         error=error,
         elapsed_ms=elapsed_ms,
         viz_config=q.viz_config_json or {},
+        sql_text=sql_text,
+        params_json=params_text,
     )
 
 
@@ -580,6 +598,197 @@ def dashboards_list():
     _require_tenant()
     ds = Dashboard.query.filter_by(tenant_id=g.tenant.id).order_by(Dashboard.updated_at.desc()).all()
     return render_template("portal/dashboards_list.html", tenant=g.tenant, dashboards=ds)
+
+
+# -----------------------------
+# Reports (Crystal-like builder)
+# -----------------------------
+
+
+@bp.route("/reports")
+@login_required
+def reports_list():
+    _require_tenant()
+    reps = Report.query.filter_by(tenant_id=g.tenant.id).order_by(Report.updated_at.desc()).all()
+    return render_template("portal/reports_list.html", tenant=g.tenant, reports=reps)
+
+
+@bp.route("/reports/new", methods=["GET", "POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def reports_new():
+    _require_tenant()
+    sources = DataSource.query.filter_by(tenant_id=g.tenant.id).order_by(DataSource.name.asc()).all()
+    if request.method == "POST":
+        name = (request.form.get("name") or "").strip()
+        source_id = int(request.form.get("source_id") or 0)
+        if not name or not source_id:
+            flash(tr("Informe nome e fonte.", getattr(g, "lang", None)), "error")
+            return render_template("portal/reports_new.html", tenant=g.tenant, sources=sources)
+        src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first()
+        if not src:
+            flash(tr("Fonte inválida.", getattr(g, "lang", None)), "error")
+            return render_template("portal/reports_new.html", tenant=g.tenant, sources=sources)
+
+        rep = Report(
+            tenant_id=g.tenant.id,
+            source_id=src.id,
+            name=name,
+            layout_json={
+                "version": 1,
+                "page": {"size": "A4", "orientation": "portrait"},
+                "sections": {
+                    "header": [],
+                    "body": [],
+                    "footer": [],
+                },
+            },
+        )
+        db.session.add(rep)
+        db.session.commit()
+        flash(tr("Relatório criado.", getattr(g, "lang", None)), "success")
+        return redirect(url_for("portal.report_builder", report_id=rep.id))
+
+    return render_template("portal/reports_new.html", tenant=g.tenant, sources=sources)
+
+
+@bp.route("/reports/<int:report_id>/builder", methods=["GET"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def report_builder(report_id: int):
+    _require_tenant()
+    rep = Report.query.filter_by(id=report_id, tenant_id=g.tenant.id).first_or_404()
+    src = DataSource.query.filter_by(id=rep.source_id, tenant_id=g.tenant.id).first_or_404()
+    questions = Question.query.filter_by(tenant_id=g.tenant.id, source_id=src.id).order_by(Question.name.asc()).all()
+    return render_template(
+        "portal/report_builder.html",
+        tenant=g.tenant,
+        report=rep,
+        source=src,
+        questions=questions,
+    )
+
+
+@bp.route("/reports/<int:report_id>/view", methods=["GET"])
+@login_required
+def report_view(report_id: int):
+    """Render a saved report layout (HTML preview).
+
+    MVP: executes question blocks at view time and renders them with the BI viz layer.
+    """
+    _require_tenant()
+    rep = Report.query.filter_by(id=report_id, tenant_id=g.tenant.id).first_or_404()
+    src = DataSource.query.filter_by(id=rep.source_id, tenant_id=g.tenant.id).first_or_404()
+
+    layout = rep.layout_json or {}
+    secs = (layout.get("sections") or {}) if isinstance(layout, dict) else {}
+
+    out_sections: dict = {"header": [], "body": [], "footer": []}
+    block_idx = 0
+
+    for sec_key in ["header", "body", "footer"]:
+        raw_blocks = secs.get(sec_key) or []
+        if not isinstance(raw_blocks, list):
+            raw_blocks = []
+
+        for b in raw_blocks:
+            if not isinstance(b, dict):
+                continue
+            btype = (b.get("type") or "text")
+            title = (b.get("title") or "")
+            text = (b.get("text") or "")
+            qid = b.get("question_id")
+
+            blk = {
+                "id": block_idx,
+                "type": btype,
+                "title": title,
+                "text": text,
+            }
+
+            if btype == "markdown":
+                blk["md_script_id"] = f"rbmd-{block_idx}"
+
+            if btype == "question" and qid:
+                try:
+                    qid_int = int(qid)
+                except Exception:
+                    qid_int = 0
+
+                q = None
+                if qid_int:
+                    q = Question.query.filter_by(id=qid_int, tenant_id=g.tenant.id).first()
+
+                # Default title to question name
+                if (not title) and q is not None:
+                    blk["title"] = q.name
+
+                # Viz config: fallback to table
+                viz_cfg = {"type": "table"}
+                if q is not None and isinstance(getattr(q, "viz_config_json", None), dict) and q.viz_config_json:
+                    viz_cfg = q.viz_config_json
+
+                # Execute SQL
+                res = {"columns": [], "rows": []}
+                if q is None:
+                    res = {"columns": [], "rows": [], "error": "Pergunta não encontrada."}
+                else:
+                    try:
+                        user_params = {"tenant_id": g.tenant.id}
+                        res = execute_sql(src, q.sql_text, params=user_params)
+                        # safety trim
+                        rows = res.get("rows") or []
+                        if isinstance(rows, list) and len(rows) > 5000:
+                            res["rows"] = rows[:5000]
+                    except QueryExecutionError as e:
+                        res = {"columns": [], "rows": [], "error": str(e)}
+
+                blk.update(
+                    {
+                        "result": res,
+                        "viz_config": viz_cfg,
+                        "viz_id": f"rbviz-{block_idx}",
+                        "data_script_id": f"rbdata-{block_idx}",
+                        "cfg_script_id": f"rbcfg-{block_idx}",
+                    }
+                )
+
+            out_sections[sec_key].append(blk)
+            block_idx += 1
+
+    _audit("bi.report.viewed", {"id": rep.id, "name": rep.name})
+    db.session.commit()
+    return render_template(
+        "portal/report_view.html",
+        tenant=g.tenant,
+        report=rep,
+        source=src,
+        sections=out_sections,
+    )
+
+
+@bp.route("/api/reports/<int:report_id>", methods=["GET"])
+@login_required
+def api_report_get(report_id: int):
+    _require_tenant()
+    rep = Report.query.filter_by(id=report_id, tenant_id=g.tenant.id).first_or_404()
+    return jsonify({"id": rep.id, "name": rep.name, "source_id": rep.source_id, "layout": rep.layout_json or {}})
+
+
+@bp.route("/api/reports/<int:report_id>", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def api_report_save(report_id: int):
+    _require_tenant()
+    rep = Report.query.filter_by(id=report_id, tenant_id=g.tenant.id).first_or_404()
+    payload = request.get_json(silent=True) or {}
+    layout = payload.get("layout")
+    if not isinstance(layout, dict):
+        return jsonify({"error": "layout inválido"}), 400
+    # keep it small / safe
+    rep.layout_json = layout
+    db.session.commit()
+    return jsonify({"ok": True})
 
 
 @bp.route('/users')
