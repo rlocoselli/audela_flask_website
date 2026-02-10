@@ -86,7 +86,13 @@ def _apply_tenant_scoping_if_configured(sql: str, tenant_id: int, cfg: dict[str,
     return sql, {"tenant_id": tenant_id}
 
 
-def execute_sql(source: DataSource, sql_text: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+def execute_sql(
+    source: DataSource,
+    sql_text: str,
+    params: dict[str, Any] | None = None,
+    *,
+    row_limit: int | None = None,
+) -> dict[str, Any]:
     """Execute a SQL query with conservative safety limits.
 
     Returns {columns: [...], rows: [...]}.
@@ -98,6 +104,16 @@ def execute_sql(source: DataSource, sql_text: str, params: dict[str, Any] | None
     policy = source.policy_json or {}
     read_only = bool(policy.get("read_only", True))
     max_rows = int(policy.get("max_rows", Config.QUERY_MAX_ROWS))
+
+    # Optional caller-side row limit (e.g. report preview/PDF).
+    # We never exceed datasource policy max_rows.
+    if row_limit is not None:
+        try:
+            rl = int(row_limit)
+            if rl > 0:
+                max_rows = min(max_rows, rl)
+        except Exception:
+            pass
     timeout_seconds = int(policy.get("timeout_seconds", Config.QUERY_TIMEOUT_SECONDS))
 
     if read_only and not _is_readonly(sql_text):

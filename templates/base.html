@@ -6,7 +6,7 @@
 -->
 <html>
 	<head>
-		<title>{% block title %}AUDELA – Data, BI, ERP, LegalTech & IA{% endblock %}</title>
+		<title>{% block title %}{{ _('AUDELA – Data, BI, ERP, LegalTech & IA') }}{% endblock %}</title>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
 		<link rel="stylesheet" href="{{ url_for('static', filename='assets/css/main.css') }}" />
@@ -21,15 +21,15 @@
 			<header id="header">
 				<h1 id="logo">
 					<a href="{{ url_for('public.index') }}">
-						<img src="{{ url_for('static', filename='images/audela-logo.svg') }}" alt="AUDELA" />
-						<span class="brand-text">Au-delà des données</span>
+						<img src="{{ url_for('static', filename='images/audela-logo.svg') }}" alt="{{ _('AUDELA') }}" />
+						<span class="brand-text">{{ _('Au-delà des données') }}</span>
 					</a>
 				</h1>
 				<nav id="nav">
 					<ul>
 						<li><a href="{{ url_for('public.index') }}" class="scrolly">{{ _('Accueil') }}</a></li>
 						<li>
-							<a href="#">AUDELA</a>
+							<a href="#">{{ _('AUDELA') }}</a>
 							<ul>
 								<li><a href="{{ url_for('public.index') }}#one" class="scrolly">{{ _('À propos') }}</a></li>
 								<li><a href="{{ url_for('public.index') }}#two" class="scrolly">{{ _('Expertise') }}</a></li>
@@ -68,16 +68,16 @@
 			<!-- Footer -->
 			<footer id="footer">
 				<ul class="icons">
-					<li><a href="#" class="icon brands alt fa-linkedin-in"><span class="label">LinkedIn</span></a></li>
-					<li><a href="#" class="icon brands alt fa-github"><span class="label">GitHub</span></a></li>
-					<li><a href="mailto:admin@audeladedonees.fr" class="icon solid alt fa-envelope"><span class="label">E-mail</span></a></li>
+					<li><a href="#" class="icon brands alt fa-linkedin-in"><span class="label">{{ _('LinkedIn') }}</span></a></li>
+					<li><a href="#" class="icon brands alt fa-github"><span class="label">{{ _('GitHub') }}</span></a></li>
+					<li><a href="mailto:admin@audeladedonees.fr" class="icon solid alt fa-envelope"><span class="label">{{ _('E-mail') }}</span></a></li>
 				</ul>
 
 				<p style="margin-top:10px; font-size:0.95em;">
-					<strong>Email:</strong>
+					<strong>{{ _('Email') }}:</strong>
 					<a href="mailto:admin@audeladedonees.fr">admin@audeladedonees.fr</a>
 					&nbsp;&nbsp;|&nbsp;&nbsp;
-					<strong>Téléphone:</strong>
+					<strong>{{ _('Téléphone') }}:</strong>
 					<a href="tel:+33764142031">+33 07 64 14 20 31</a>
 				</p>
 

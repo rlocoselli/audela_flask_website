@@ -13,6 +13,9 @@
     .rb-block .meta { display:flex; align-items:center; gap:.5rem; }
     .rb-block .badge { font-weight:600; }
     .rb-drop-hint { color: var(--bs-secondary-color); font-size:.9rem; }
+    .rb-color-palette .rb-swatch { cursor: pointer; }
+    .rb-color-palette .rb-swatch { padding:0; }
+    .rb-color-palette .rb-swatch:not(.btn) { border:none; }
   </style>
 {% endblock %}
 
@@ -40,11 +43,11 @@
     <div class="rb-panel p-3 mb-4">
       <div class="d-flex align-items-center justify-content-between mb-2">
         <div class="fw-semibold">{{ _('Componentes') }}</div>
-        <span class="text-muted small">drag & drop</span>
+        <span class="text-muted small">{{ _('Arraste e solte') }}</span>
       </div>
 
       <div id="rb-palette" class="rb-palette d-grid gap-2">
-        <div class="rb-item rb-block" data-type="text" data-title="Texto">
+        <div class="rb-item rb-block" data-type="text" data-title="{{ _('Texto') }}">
           <div class="meta">
             <span class="badge text-bg-secondary">T</span>
             <div>
@@ -55,7 +58,7 @@
           <i class="bi bi-grip-vertical"></i>
         </div>
 
-        <div class="rb-item rb-block" data-type="markdown" data-title="Markdown">
+        <div class="rb-item rb-block" data-type="markdown" data-title="{{ _('Markdown') }}">
           <div class="meta">
             <span class="badge text-bg-secondary">MD</span>
             <div>
@@ -66,7 +69,18 @@
           <i class="bi bi-grip-vertical"></i>
         </div>
 
-        <div class="rb-item rb-block" data-type="question" data-title="Tabela">
+<div class="rb-item rb-block" data-type="image" data-title="{{ _('Imagem') }}">
+  <div class="meta">
+    <span class="badge text-bg-secondary">IMG</span>
+    <div>
+      <div class="fw-semibold">{{ _('Imagem') }}</div>
+      <div class="text-muted small">{{ _('Figura / logotipo / screenshot') }}</div>
+    </div>
+  </div>
+  <i class="bi bi-grip-vertical"></i>
+</div>
+
+        <div class="rb-item rb-block" data-type="question" data-title="{{ _('Tabela') }}">
           <div class="meta">
             <span class="badge text-bg-secondary">Q</span>
             <div>
@@ -92,6 +106,16 @@
       </div>
       <div class="form-text">{{ _('Isso cria um bloco “Pergunta” no corpo do relatório.') }}</div>
 
+
+<hr>
+
+<div class="fw-semibold mb-2">{{ _('Adicionar imagem') }}</div>
+<div class="d-flex gap-2">
+  <input id="rb-image-url" class="form-control" placeholder="{{ _('URL (https://...)') }}" />
+  <button class="btn btn-outline-primary" id="rb-add-image" type="button">{{ _('Inserir') }}</button>
+</div>
+<div class="form-text">{{ _('Isso cria um bloco “Imagem” no corpo do relatório.') }}</div>
+
       <hr>
 
       <div class="fw-semibold mb-2">{{ _('Dica') }}</div>
@@ -113,7 +137,7 @@
         <div class="col-12">
           <div class="rb-section">
             <div class="d-flex align-items-center justify-content-between mb-2">
-              <div class="rb-section-title">Header</div>
+              <div class="rb-section-title">{{ _('Cabeçalho') }}</div>
               <span class="text-muted small">{{ _('Topo do relatório') }}</span>
             </div>
             <div id="rb-header" class="rb-dropzone d-grid gap-2">
@@ -125,7 +149,7 @@
         <div class="col-12">
           <div class="rb-section">
             <div class="d-flex align-items-center justify-content-between mb-2">
-              <div class="rb-section-title">Body</div>
+              <div class="rb-section-title">{{ _('Corpo') }}</div>
               <span class="text-muted small">{{ _('Conteúdo principal') }}</span>
             </div>
             <div id="rb-body" class="rb-dropzone d-grid gap-2">
@@ -137,7 +161,7 @@
         <div class="col-12">
           <div class="rb-section">
             <div class="d-flex align-items-center justify-content-between mb-2">
-              <div class="rb-section-title">Footer</div>
+              <div class="rb-section-title">{{ _('Rodapé') }}</div>
               <span class="text-muted small">{{ _('Rodapé') }}</span>
             </div>
             <div id="rb-footer" class="rb-dropzone d-grid gap-2">
@@ -150,6 +174,128 @@
     </div>
   </div>
 </div>
+
+
+<!-- Block editor modal -->
+<div class="modal fade" id="rb-edit-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="rb-edit-modal-title">{{ _('Editar bloco') }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Fechar') }}"></button>
+      </div>
+      <div class="modal-body">
+        <form id="rb-edit-form" autocomplete="off">
+          <input type="hidden" id="rb-edit-type" />
+          <div class="mb-3">
+            <label class="form-label" for="rb-edit-title">{{ _('Título') }}</label>
+            <input class="form-control" id="rb-edit-title" />
+          </div>
+
+          <div class="mb-3" id="rb-edit-text-group">
+            <label class="form-label" id="rb-edit-content-label" for="rb-edit-content">{{ _('Texto') }}</label>
+            <textarea class="form-control" id="rb-edit-content" rows="8"></textarea>
+          </div>
+
+          <div class="d-none" id="rb-edit-image-group">
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label" for="rb-edit-image-url">{{ _('URL da imagem') }}</label>
+                <input class="form-control" id="rb-edit-image-url" placeholder="{{ _('https://...') }}" />
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="rb-edit-image-alt">{{ _('Texto alternativo (alt)') }}</label>
+                <input class="form-control" id="rb-edit-image-alt" />
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="rb-edit-image-width">{{ _('Largura') }}</label>
+                <input class="form-control" id="rb-edit-image-width" placeholder="{{ _('ex.: 300px ou 50%') }}" />
+              </div>
+              <div class="col-12">
+                <label class="form-label" for="rb-edit-image-caption">{{ _('Legenda (opcional)') }}</label>
+                <input class="form-control" id="rb-edit-image-caption" />
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="rb-edit-image-align">{{ _('Alinhamento') }}</label>
+                <select class="form-select" id="rb-edit-image-align">
+                  <option value="">{{ _('Padrão') }}</option>
+                  <option value="left">{{ _('Esquerda') }}</option>
+                  <option value="center">{{ _('Centro') }}</option>
+                  <option value="right">{{ _('Direita') }}</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <div class="border rounded-3 p-2 bg-light">
+                  <div class="text-muted small mb-1">{{ _('Pré-visualização') }}</div>
+                  <div class="d-flex justify-content-center">
+                    <img id="rb-edit-image-preview" alt="" style="max-width:100%; max-height:160px; border-radius:.5rem; border:1px solid rgba(0,0,0,.08);" />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <hr>
+          </div>
+
+          <div class="fw-semibold mb-2">{{ _('Estilo') }}</div>
+
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label" for="rb-edit-color">{{ _('Cor do texto') }}</label>
+              <div class="d-flex flex-wrap gap-2 mb-2 rb-color-palette" data-target="rb-edit-color">
+                <button type="button" class="btn btn-sm btn-outline-secondary rb-swatch" data-color="">{{ _('Sem') }}</button>
+                <button type="button" class="rb-swatch" data-color="#111827" style="width:26px;height:26px;border-radius:.5rem;border:1px solid var(--bs-border-color);background:#111827"></button>
+                <button type="button" class="rb-swatch" data-color="#374151" style="width:26px;height:26px;border-radius:.5rem;border:1px solid var(--bs-border-color);background:#374151"></button>
+                <button type="button" class="rb-swatch" data-color="#6b7280" style="width:26px;height:26px;border-radius:.5rem;border:1px solid var(--bs-border-color);background:#6b7280"></button>
+                <button type="button" class="rb-swatch" data-color="#0d6efd" style="width:26px;height:26px;border-radius:.5rem;border:1px solid var(--bs-border-color);background:#0d6efd"></button>
+                <button type="button" class="rb-swatch" data-color="#198754" style="width:26px;height:26px;border-radius:.5rem;border:1px solid var(--bs-border-color);background:#198754"></button>
+                <button type="button" class="rb-swatch" data-color="#dc3545" style="width:26px;height:26px;border-radius:.5rem;border:1px solid var(--bs-border-color);background:#dc3545"></button>
+                <button type="button" class="rb-swatch" data-color="#f59e0b" style="width:26px;height:26px;border-radius:.5rem;border:1px solid var(--bs-border-color);background:#f59e0b"></button>
+              </div>
+              <div class="input-group">
+                <span class="input-group-text">#</span>
+                <input class="form-control" id="rb-edit-color" placeholder="{{ _('hex ou vazio') }}" />
+              </div>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label" for="rb-edit-bg">{{ _('Cor de fundo') }}</label>
+              <div class="d-flex flex-wrap gap-2 mb-2 rb-color-palette" data-target="rb-edit-bg">
+                <button type="button" class="btn btn-sm btn-outline-secondary rb-swatch" data-color="">{{ _('Sem') }}</button>
+                <button type="button" class="rb-swatch" data-color="#ffffff" style="width:26px;height:26px;border-radius:.5rem;border:1px solid var(--bs-border-color);background:#ffffff"></button>
+                <button type="button" class="rb-swatch" data-color="#f8f9fa" style="width:26px;height:26px;border-radius:.5rem;border:1px solid var(--bs-border-color);background:#f8f9fa"></button>
+                <button type="button" class="rb-swatch" data-color="#e9ecef" style="width:26px;height:26px;border-radius:.5rem;border:1px solid var(--bs-border-color);background:#e9ecef"></button>
+                <button type="button" class="rb-swatch" data-color="#0d6efd" style="width:26px;height:26px;border-radius:.5rem;border:1px solid var(--bs-border-color);background:#0d6efd"></button>
+                <button type="button" class="rb-swatch" data-color="#198754" style="width:26px;height:26px;border-radius:.5rem;border:1px solid var(--bs-border-color);background:#198754"></button>
+                <button type="button" class="rb-swatch" data-color="#dc3545" style="width:26px;height:26px;border-radius:.5rem;border:1px solid var(--bs-border-color);background:#dc3545"></button>
+                <button type="button" class="rb-swatch" data-color="#111827" style="width:26px;height:26px;border-radius:.5rem;border:1px solid var(--bs-border-color);background:#111827"></button>
+              </div>
+              <div class="input-group">
+                <span class="input-group-text">#</span>
+                <input class="form-control" id="rb-edit-bg" placeholder="{{ _('hex ou vazio') }}" />
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-3">
+            <label class="form-label" for="rb-edit-align">{{ _('Alinhamento') }}</label>
+            <select class="form-select" id="rb-edit-align">
+              <option value="">{{ _('Padrão') }}</option>
+              <option value="left">{{ _('Esquerda') }}</option>
+              <option value="center">{{ _('Centro') }}</option>
+              <option value="right">{{ _('Direita') }}</option>
+            </select>
+          </div>
+        </form>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+        <button type="button" class="btn btn-primary" id="rb-edit-save">{{ _('Aplicar') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 
 <script>
   window.__RB = {

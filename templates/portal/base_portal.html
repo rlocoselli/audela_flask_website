@@ -29,6 +29,11 @@
       // JS i18n helper (dictionary-based)
       window.I18N = {{ i18n_strings|tojson }};
       window.t = function (k) { return (window.I18N && window.I18N[k]) ? window.I18N[k] : k; };
+      window.tf = function (k, vars) {
+        let s = window.t(k);
+        const v = vars || {};
+        return String(s).replace(/\{(\w+)\}/g, function(_, key){ return (key in v) ? v[key] : _; });
+      };
 
       // Theme (Bootstrap 5.3) - persisted in localStorage
       (function(){
@@ -54,9 +59,9 @@
       <div id="app-toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
         <div class="toast-header">
           <i class="bi bi-info-circle me-2" id="app-toast-icon" style="opacity:.8"></i>
-          <strong class="me-auto" id="app-toast-title">Info</strong>
+          <strong class="me-auto" id="app-toast-title">{{ _('Info') }}</strong>
           <small class="text-secondary" id="app-toast-time"></small>
-          <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+          <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="{{ _('Fechar') }}"></button>
         </div>
         <div class="toast-body" id="app-toast-body"></div>
       </div>
@@ -80,7 +85,7 @@
           const timeEl = document.getElementById('app-toast-time');
           const o = opts || {};
           const variant = (o.variant || 'info').toLowerCase();
-          const title = o.title || (variant === 'danger' ? 'Erro' : (variant === 'success' ? 'Sucesso' : 'Info'));
+          const title = o.title || (variant === 'danger' ? window.t('Erro') : (variant === 'success' ? window.t('Sucesso') : window.t('Info')));
 
           titleEl.textContent = title;
           bodyEl.textContent = (message ?? '').toString();

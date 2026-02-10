@@ -913,6 +913,7 @@ def report_pdf(report_id: int):
         source=src,
         tenant_id=g.tenant.id,
         questions_by_id=q_by_id,
+        lang=getattr(g, "lang", None),
     )
     resp = make_response(pdf)
     resp.headers["Content-Type"] = "application/pdf"
