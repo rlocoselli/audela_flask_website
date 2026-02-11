@@ -1448,3 +1448,9 @@ def api_ai_chat():
     ai = analyze_with_ai(data_bundle, message, history=history, lang=getattr(g, "lang", None))
     return jsonify(ai)
 
+
+
+@bp.get("/etls")
+def etls_list():
+    # List saved ETL workflows for the current tenant
+    return render_template("portal/etls_list.html", title="ETLs")

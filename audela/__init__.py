@@ -60,6 +60,7 @@ def create_app() -> Flask:
             "lang_label": lambda code: SUPPORTED_LANGS.get(code, SUPPORTED_LANGS[DEFAULT_LANG]).label,
             "request": request,
             "i18n_strings": TRANSLATIONS.get(getattr(g, "lang", DEFAULT_LANG), {}),
+            "tenant": getattr(g, "tenant", None),
         
         }
 
@@ -80,7 +81,6 @@ def create_app() -> Flask:
     app.register_blueprint(auth_bp)
     app.register_blueprint(portal_bp)
     app.register_blueprint(etl_bp)
-    
     # DEV: ensure core tables exist (use Alembic migrations in production)
     if app.config.get("AUTO_CREATE_DB", False):
         with app.app_context():

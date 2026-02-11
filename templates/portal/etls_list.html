@@ -1,0 +1,62 @@
+{% extends "portal/layout.html" %}
+{% block title %}{{ _('ETLs') }}{% endblock %}
+
+{% block portal_content %}
+<div class="container-fluid py-3">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h3 class="m-0"><i class="bi bi-diagram-3 me-2"></i>{{ _('ETLs') }}</h3>
+    <a class="btn btn-primary btn-sm" href="{{ url_for('etl.builder') }}">
+      <i class="bi bi-plus-lg me-1"></i>{{ _('Novo workflow') }}
+    </a>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead>
+            <tr>
+              <th>{{ _('Nome') }}</th>
+              <th class="text-muted">{{ _('Formato') }}</th>
+              <th class="text-end">{{ _('Ações') }}</th>
+            </tr>
+          </thead>
+          <tbody id="etlRows">
+            <tr><td colspan="3" class="text-muted">{{ _('Carregando...') }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function escapeHtml(s){return (s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");}
+function loadEtls(){
+  fetch("/etl/api/workflows")
+    .then(r=>r.json())
+    .then(data=>{
+      const rows = document.getElementById("etlRows");
+      const items = data.workflows || [];
+      if (!items.length){ rows.innerHTML = `<tr><td colspan="3" class="text-muted">{{ _('Nenhum workflow salvo.') }}</td></tr>`; return; }
+      rows.innerHTML = items.map(it=>{
+        const name = it.name;
+        const kind = it.has_drawflow ? "Drawflow" : "Workflow";
+        return `<tr>
+          <td><strong>${escapeHtml(name)}</strong></td>
+          <td class="text-muted">${kind}</td>
+          <td class="text-end">
+            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('etl.builder') }}?load=${encodeURIComponent(name)}">
+              <i class="bi bi-pencil-square me-1"></i>{{ _('Abrir') }}
+            </a>
+          </td>
+        </tr>`;
+      }).join("");
+    })
+    .catch(()=>{
+      document.getElementById("etlRows").innerHTML = `<tr><td colspan="3" class="text-danger">{{ _('Erro ao carregar.') }}</td></tr>`;
+    });
+}
+loadEtls();
+</script>
+{% endblock %}

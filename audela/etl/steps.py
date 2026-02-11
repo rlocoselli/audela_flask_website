@@ -3,6 +3,10 @@ from __future__ import annotations
 from typing import Any, Dict, List
 import requests
 from sqlalchemy import text
+
+from audela.models.bi import DataSource
+from audela.services.datasource_service import get_engine
+
 from flask import current_app
 
 from .registry import register
@@ -25,11 +29,48 @@ def _validate_connection(config: Dict[str, Any], app):
         return None
 
 
+
+def _get_api_source(app, api_source_id: int):
+    # ApiSource is stored in table api_sources (legacy module). We query via main SQLAlchemy engine.
+    try:
+        from audela.extensions import db  # main app db
+        row = db.session.execute(text("SELECT id, name, base_url, method, headers, params, auth_type, auth_token FROM api_sources WHERE id = :id"), {"id": api_source_id}).mappings().first()
+        return dict(row) if row else None
+    except Exception:
+        return None
+
+def _get_db_source(source_id: int):
+    return DataSource.query.get(source_id)
+
+
 @register("extract.http")
 def extract_http(config: Dict[str, Any], ctx, app=None):
-    url = config.get("url")
+    # Can use a saved API source (api_sources table) + path overrides
+    api_source_id = config.get("api_source_id")
+    if api_source_id and (app is not None):
+        src = _get_api_source(app, int(api_source_id))
+        if src:
+            base_url = (src.get("base_url") or "").strip()
+            path = (config.get("path") or config.get("url") or "").strip()
+            if path.startswith("http://") or path.startswith("https://"):
+                url = path
+            else:
+                if not base_url:
+                    url = path
+                else:
+                    url = (base_url.rstrip("/") + "/" + path.lstrip("/")).rstrip("/")
+            config = {
+                **config,
+                "url": url,
+                "method": config.get("method") or src.get("method") or "GET",
+                "headers": {**(src.get("headers") or {}), **(config.get("headers") or {})},
+                "params": {**(src.get("params") or {}), **(config.get("params") or {})},
+            }
+
+    url = (config.get("url") or "").strip()
     if not url:
-        raise ValueError("extract.http requires config.url")
+        raise ValueError("extract.http requires config.url (or api_source_id + path)")
+
     method = (config.get("method") or "GET").upper()
     headers = config.get("headers") or {}
     params = config.get("params") or {}
@@ -37,8 +78,14 @@ def extract_http(config: Dict[str, Any], ctx, app=None):
 
     resp = requests.request(method=method, url=url, headers=headers, params=params, timeout=timeout)
     resp.raise_for_status()
-    data = resp.json()
-    # If it's a dict, wrap into list with one row
+
+    # Try JSON; fallback to text
+    try:
+        data = resp.json()
+    except Exception:
+        txt = resp.text or ""
+        return [{"value": txt[:20000]}]
+
     if isinstance(data, dict):
         return [data]
     if isinstance(data, list):
@@ -51,9 +98,19 @@ def extract_sql(config: Dict[str, Any], ctx, app=None):
     query = config.get("query")
     if not query:
         raise ValueError("extract.sql requires config.query")
-    # use Flask-SQLAlchemy engine
-    from audela.extensions import db
-    engine = db.get_engine(app or current_app)
+
+    # If a saved DB source is selected, use its SQLAlchemy engine.
+    db_source_id = config.get("db_source_id") or config.get("source_id")
+    if db_source_id:
+        src = _get_db_source(int(db_source_id))
+        if not src:
+            raise ValueError(f"Unknown DB source id: {db_source_id}")
+        engine = get_engine(src)
+    else:
+        # Fallback to the app's main DB
+        from audela.extensions import db
+        engine = db.engine
+
     with engine.begin() as conn:
         rows = conn.execute(text(query)).mappings().all()
     return [dict(r) for r in rows]
@@ -109,6 +166,9 @@ def load_warehouse(config: Dict[str, Any], ctx, app=None):
         raise ValueError("load.warehouse expects list of rows")
 
     table_name = config.get("table") or config.get("table_name")
+    if not table_name:
+        raise ValueError("load.warehouse requires config.table")
+
     schema = config.get("schema") or "public"
     create_if_missing = bool(config.get("create_table_if_missing", True))
     add_cols = bool(config.get("add_columns_if_missing", True))
@@ -117,8 +177,16 @@ def load_warehouse(config: Dict[str, Any], ctx, app=None):
     if mode not in ("append",):
         raise ValueError("Only mode=append supported in MVP")
 
-    from audela.extensions import db
-    engine = db.get_engine(app or current_app)
+    warehouse_source_id = config.get("warehouse_source_id") or config.get("db_source_id") or config.get("source_id")
+    if warehouse_source_id:
+        src = _get_db_source(int(warehouse_source_id))
+        if not src:
+            raise ValueError(f"Unknown warehouse source id: {warehouse_source_id}")
+        engine = get_engine(src)
+    else:
+        from audela.extensions import db
+        engine = db.engine
+
 
     # Ensure table exists + columns
     table = ensure_table(engine, schema=schema, table_name=table_name, rows=data,

@@ -503,3 +503,11 @@ ul.actions li{ margin:0; }
   padding: 0.5rem;
   border-bottom: 1px solid var(--border-subtle, #f3f4f6);
 }
+
+
+/* ETL Builder: highlight current running step */
+.drawflow-node.etl-active-step { outline: 3px solid var(--bs-primary); box-shadow: 0 0 0 0.25rem rgba(13,110,253,.25); }
+
+
+/* ETL Builder: ensure drawflow connectors are clickable/visible */
+#drawflow { position: relative; width: 100%; }

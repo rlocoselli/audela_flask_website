@@ -31,7 +31,9 @@ def ensure_table(engine: Engine, *, schema: str, table_name: str, rows: List[Dic
     if not has:
         if not create_table_if_missing:
             raise ValueError(f"Target table {schema}.{table_name} does not exist")
-        columns = [Column("etl_loaded_at", text("CURRENT_TIMESTAMP").type, nullable=True)]
+        from sqlalchemy import Column, DateTime, func
+
+        columns = [Column("etl_loaded_at", DateTime(), nullable=False, server_default=func.now())]
         for k, t in cols_map.items():
             columns.append(Column(k, t))
         table = Table(table_name, metadata, *columns)

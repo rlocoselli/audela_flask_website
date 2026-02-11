@@ -2,13 +2,14 @@ const editor = new Drawflow(document.getElementById("drawflow"));
 editor.start();
 
 let _configModal = null;
+let _dbSources = [];
+let _apiSources = [];
+let _workflows = [];
 
 function _getBootstrapModal() {
   const el = document.getElementById("nodeConfigModal");
   if (!el) return null;
-  if (!_configModal) {
-    _configModal = new bootstrap.Modal(el);
-  }
+  if (!_configModal) _configModal = new bootstrap.Modal(el);
   return _configModal;
 }
 
@@ -24,25 +25,14 @@ function _jsonPretty(obj) {
 }
 
 function _defaultConfig(type) {
-  if (type === "extract.http") {
-    return { url: "", method: "GET", headers: {}, params: {}, timeout: 30 };
-  }
-  if (type === "extract.sql") {
-    return { query: "", connection_name: "" };
-  }
-  if (type === "transform.mapping") {
-    return { fields: {} };
-  }
-  if (type === "load.warehouse") {
-    return {
-      table: "",
-      schema: "public",
-      mode: "append",
-      create_table_if_missing: true,
-      add_columns_if_missing: true,
-      connection_name: ""
-    };
-  }
+  if (type === "extract.http") return { api_source_id: "", path: "", method: "GET", headers: {}, params: {}, timeout: 30 };
+  if (type === "extract.sql") return { query: "", db_source_id: "" };
+  if (type === "transform.mapping") return { fields: {} };
+  if (type === "load.warehouse") return {
+    table: "", schema: "public", mode: "append",
+    create_table_if_missing: true, add_columns_if_missing: true,
+    warehouse_source_id: ""
+  };
   return {};
 }
 
@@ -72,62 +62,239 @@ function _fetchJson(url, options) {
   });
 }
 
+// ---------------- Workflows ----------------
+
+function getWorkflowName() {
+  const el = document.getElementById("workflowName");
+  const v = el ? el.value.trim() : "";
+  return v || "workflow";
+}
+function setWorkflowName(name) {
+  const el = document.getElementById("workflowName");
+  if (el) el.value = name || "";
+}
+
+function refreshWorkflows() {
+  _fetchJson("/etl/api/workflows", { method: "GET" })
+    .then(data => {
+      _workflows = data.workflows || [];
+      const sel = document.getElementById("savedWorkflows");
+      if (!sel) return;
+      sel.innerHTML = "";
+      if (!_workflows.length) {
+        sel.innerHTML = `<option value="">(empty)</option>`;
+        return;
+      }
+      _workflows.forEach(w => {
+        const opt = document.createElement("option");
+        opt.value = w.name;
+        opt.textContent = w.name;
+        sel.appendChild(opt);
+      });
+    })
+    .catch(err => console.error("workflows:", err));
+}
+
+function loadSelectedWorkflow() {
+  const sel = document.getElementById("savedWorkflows");
+  const name = sel ? sel.value : "";
+  if (!name) return;
+  _fetchJson(`/etl/api/workflows/${encodeURIComponent(name)}`, { method: "GET" })
+    .then(res => {
+      setWorkflowName(res.name);
+      if (res.kind === "drawflow") {
+        editor.clear();
+        editor.import(res.data);
+      } else {
+        const el = document.getElementById("etlPreview");
+        if (el) el.textContent = _jsonPretty(res.data);
+        alert("Loaded workflow definition (preview). For now, graphs load from Drawflow format.");
+      }
+    })
+    .catch(err => alert("Load error: " + err.message));
+}
+
+// ---------------- Sources lists & tests ----------------
+
+function refreshDbSources() {
+  _fetchJson("/etl/api/sources/db", { method: "GET" })
+    .then(data => {
+      _dbSources = data.sources || [];
+      const sel = document.getElementById("dbSourceSelect");
+      if (sel) {
+        sel.innerHTML = `<option value="">(none)</option>`;
+        _dbSources.forEach(s => {
+          const opt = document.createElement("option");
+          opt.value = s.id;
+          opt.textContent = `${s.name} (${s.type})`;
+          sel.appendChild(opt);
+        });
+      }
+    })
+    .catch(err => console.error("db sources:", err));
+}
+
+function refreshApiSources() {
+  _fetchJson("/etl/api/sources/api", { method: "GET" })
+    .then(data => {
+      _apiSources = data.sources || [];
+      const sel = document.getElementById("apiSourceSelect");
+      if (sel) {
+        sel.innerHTML = `<option value="">(none)</option>`;
+        _apiSources.forEach(s => {
+          const opt = document.createElement("option");
+          opt.value = s.id;
+          opt.textContent = `${s.name}`;
+          sel.appendChild(opt);
+        });
+      }
+    })
+    .catch(err => console.error("api sources:", err));
+}
+
+function testSelectedDbSource() {
+  const sel = document.getElementById("dbSourceSelect");
+  const id = sel ? sel.value : "";
+  if (!id) return alert("Select a DB source");
+  _fetchJson(`/etl/api/sources/db/${encodeURIComponent(id)}/test`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })
+    .then(res => {
+      const el = document.getElementById("etlPreview");
+      if (el) el.textContent = _jsonPretty(res);
+      alert(res.ok ? "DB source OK" : "DB source failed");
+    })
+    .catch(err => alert("Test error: " + err.message));
+}
+
+function testSelectedApiSource() {
+  const sel = document.getElementById("apiSourceSelect");
+  const id = sel ? sel.value : "";
+  if (!id) return alert("Select an API source");
+  _fetchJson(`/etl/api/sources/api/${encodeURIComponent(id)}/test`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })
+    .then(res => {
+      const el = document.getElementById("etlPreview");
+      if (el) el.textContent = _jsonPretty(res);
+      alert(res.ok ? "API source OK" : "API source failed");
+    })
+    .catch(err => alert("Test error: " + err.message));
+}
+
+function _dbOptionsHtml(selectedId) {
+  const opts = [`<option value="">(none)</option>`]
+    .concat(_dbSources.map(s => `<option value="${s.id}" ${String(s.id)===String(selectedId)?"selected":""}>${s.name} (${s.type})</option>`));
+  return opts.join("");
+}
+
+function _apiOptionsHtml(selectedId) {
+  const opts = [`<option value="">(none)</option>`]
+    .concat(_apiSources.map(s => `<option value="${s.id}" ${String(s.id)===String(selectedId)?"selected":""}>${s.name}</option>`));
+  return opts.join("");
+}
+
+// ---------------- Save/Run/Preview ----------------
+
 function saveWorkflow() {
   const workflow = editor.export();
+  workflow.name = getWorkflowName();
+
   _fetchJson("/etl/api/workflows", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(workflow)
   })
   .then(data => {
-    alert("Workflow saved successfully!");
-    console.log(data);
+    refreshWorkflows();
+    const el = document.getElementById("etlPreview");
+    if (el) el.textContent = _jsonPretty(data);
+    if (data.warning) alert("Saved graph. Warning: " + data.warning);
+    else alert("Workflow saved successfully!");
   })
-  .catch(err => {
-    console.error(err);
-    alert("Error saving workflow: " + err.message);
-  });
-}
-
-function runWorkflow() {
-  const wf = editor.export();
-  _fetchJson("/etl/api/run", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(wf)
-  })
-  .then(data => {
-    console.log("Run result:", data);
-    alert("Workflow executed.");
-  })
-  .catch(err => {
-    console.error(err);
-    alert("Error executing workflow: " + err.message);
-  });
+  .catch(err => alert("Error saving workflow: " + err.message));
 }
 
 function previewWorkflow() {
   const wf = editor.export();
+  wf.name = getWorkflowName();
+
   _fetchJson("/etl/api/preview?limit=20", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(wf)
   })
   .then(data => {
-    console.log("Preview:", data);
     const el = document.getElementById("etlPreview");
     if (el) el.textContent = _jsonPretty(data.previews || data);
   })
-  .catch(err => {
-    console.error(err);
-    alert("Error previewing workflow: " + err.message);
+  .catch(err => alert("Error previewing workflow: " + err.message));
+}
+
+function _setActiveStep(stepId) {
+  // remove existing
+  document.querySelectorAll(".drawflow-node.etl-active-step").forEach(n => n.classList.remove("etl-active-step"));
+  if (!stepId) return;
+  const el = document.getElementById("node-" + stepId);
+  if (el) el.classList.add("etl-active-step");
+}
+
+async function runWorkflow() {
+  const wf = editor.export();
+  wf.name = getWorkflowName();
+
+  const elPreview = document.getElementById("etlPreview");
+  if (elPreview) elPreview.textContent = "Running...";
+
+  _setActiveStep(null);
+
+  const resp = await fetch("/etl/api/run_stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(wf)
   });
+
+  if (!resp.ok) {
+    const t = await resp.text();
+    throw new Error(t || `HTTP ${resp.status}`);
+  }
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buf = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+
+    let idx;
+    while ((idx = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, idx).trim();
+      buf = buf.slice(idx + 1);
+      if (!line) continue;
+
+      let msg;
+      try { msg = JSON.parse(line); } catch(e) { continue; }
+
+      if (msg.event === "step_start") {
+        const stepId = (msg.step && msg.step.id) ? msg.step.id : null;
+        _setActiveStep(stepId);
+        if (elPreview) elPreview.textContent = `Running step: ${msg.step.type} (#${stepId})`;
+      } else if (msg.event === "step_end") {
+        const stepId = (msg.step && msg.step.id) ? msg.step.id : null;
+        if (elPreview) elPreview.textContent = `Done step: ${msg.step.type} (#${stepId}) rows_out=${msg.rows_out}`;
+      } else if (msg.event === "done") {
+        _setActiveStep(null);
+        if (elPreview) elPreview.textContent = _jsonPretty(msg.result);
+      } else if (msg.event === "error") {
+        _setActiveStep(null);
+        if (elPreview) elPreview.textContent = "Error: " + msg.error;
+        alert("Run error: " + msg.error);
+      }
+    }
+  }
 }
 
 // ---------- Node config modal (double click) ----------
 
 function _nodeIdFromElement(el) {
-  // drawflow nodes have id like "node-3"
   if (!el || !el.id) return null;
   const m = el.id.match(/^node-(\d+)$/);
   return m ? m[1] : null;
@@ -154,14 +321,20 @@ function openNodeConfig(nodeId) {
   if (titleEl) titleEl.textContent = `${type} (#${nodeId})`;
   if (idEl) idEl.value = nodeId;
 
-  // Build a simple form depending on type
   let html = "";
 
   if (type === "extract.http") {
     html += `
       <div class="mb-3">
-        <label class="form-label">URL</label>
-        <input class="form-control" id="cfg_url" value="${cfg.url || ""}" placeholder="https://api.example.com/endpoint">
+        <label class="form-label">API Source</label>
+        <select class="form-select" id="cfg_api_source">
+          ${_apiOptionsHtml(cfg.api_source_id)}
+        </select>
+        <div class="form-text">Select existing API source (optional). If set, URL is base_url + path.</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Path (optional)</label>
+        <input class="form-control" id="cfg_path" value="${cfg.path || ""}" placeholder="/v1/items or ?q=...">
       </div>
       <div class="row g-2">
         <div class="col-md-4">
@@ -176,24 +349,25 @@ function openNodeConfig(nodeId) {
         </div>
       </div>
       <div class="mt-3">
-        <label class="form-label">Headers (JSON)</label>
+        <label class="form-label">Headers override (JSON)</label>
         <textarea class="form-control" id="cfg_headers" rows="4" placeholder='{"Authorization":"Bearer ..."}'>${_jsonPretty(cfg.headers || {})}</textarea>
       </div>
       <div class="mt-3">
-        <label class="form-label">Params (JSON)</label>
+        <label class="form-label">Params override (JSON)</label>
         <textarea class="form-control" id="cfg_params" rows="4" placeholder='{"q":"Grenoble"}'>${_jsonPretty(cfg.params || {})}</textarea>
       </div>
     `;
   } else if (type === "extract.sql") {
     html += `
       <div class="mb-3">
-        <label class="form-label">SQL Query</label>
-        <textarea class="form-control" id="cfg_query" rows="6" placeholder="SELECT * FROM ...">${cfg.query || ""}</textarea>
+        <label class="form-label">DB Source</label>
+        <select class="form-select" id="cfg_db_source">
+          ${_dbOptionsHtml(cfg.db_source_id)}
+        </select>
       </div>
       <div class="mb-3">
-        <label class="form-label">Connection name (optional)</label>
-        <input class="form-control" id="cfg_conn" value="${cfg.connection_name || ""}" placeholder="warehouse / source_db ...">
-        <div class="form-text">Connection catalog is available via /etl/api/connections (MVP: validated if exists).</div>
+        <label class="form-label">SQL Query</label>
+        <textarea class="form-control" id="cfg_query" rows="7" placeholder="SELECT * FROM ...">${cfg.query || ""}</textarea>
       </div>
     `;
   } else if (type === "transform.mapping") {
@@ -205,6 +379,12 @@ function openNodeConfig(nodeId) {
     `;
   } else if (type === "load.warehouse") {
     html += `
+      <div class="mb-3">
+        <label class="form-label">Warehouse (DB Source)</label>
+        <select class="form-select" id="cfg_wh_source">
+          ${_dbOptionsHtml(cfg.warehouse_source_id)}
+        </select>
+      </div>
       <div class="row g-2">
         <div class="col-md-6">
           <label class="form-label">Schema</label>
@@ -221,10 +401,6 @@ function openNodeConfig(nodeId) {
           <select class="form-select" id="cfg_mode">
             <option ${((cfg.mode||"append")==="append")?"selected":""}>append</option>
           </select>
-        </div>
-        <div class="col-md-6">
-          <label class="form-label">Connection name (optional)</label>
-          <input class="form-control" id="cfg_conn" value="${cfg.connection_name || ""}" placeholder="warehouse">
         </div>
       </div>
       <div class="form-check mt-3">
@@ -255,7 +431,9 @@ function saveNodeConfig() {
   let cfg = {};
 
   if (type === "extract.http") {
-    cfg.url = document.getElementById("cfg_url").value.trim();
+    const sel = document.getElementById("cfg_api_source");
+    cfg.api_source_id = sel ? sel.value : "";
+    cfg.path = document.getElementById("cfg_path").value.trim();
     cfg.method = document.getElementById("cfg_method").value.trim();
     cfg.timeout = parseInt(document.getElementById("cfg_timeout").value || "30", 10);
     const headers = _safeJsonParse(document.getElementById("cfg_headers").value, {});
@@ -265,22 +443,23 @@ function saveNodeConfig() {
     cfg.headers = headers;
     cfg.params = params;
   } else if (type === "extract.sql") {
+    const sel = document.getElementById("cfg_db_source");
+    cfg.db_source_id = sel ? sel.value : "";
     cfg.query = document.getElementById("cfg_query").value;
-    cfg.connection_name = document.getElementById("cfg_conn").value.trim();
   } else if (type === "transform.mapping") {
     const fields = _safeJsonParse(document.getElementById("cfg_fields").value, {});
     if (fields === null) return alert("Fields JSON invalid");
     cfg.fields = fields;
   } else if (type === "load.warehouse") {
+    const sel = document.getElementById("cfg_wh_source");
+    cfg.warehouse_source_id = sel ? sel.value : "";
     cfg.schema = document.getElementById("cfg_schema").value.trim() || "public";
     cfg.table = document.getElementById("cfg_table").value.trim();
     cfg.mode = document.getElementById("cfg_mode").value.trim() || "append";
-    cfg.connection_name = document.getElementById("cfg_conn").value.trim();
     cfg.create_table_if_missing = document.getElementById("cfg_create").checked;
     cfg.add_columns_if_missing = document.getElementById("cfg_addcols").checked;
   }
 
-  // update node data
   node.data = node.data || {};
   node.data.config = cfg;
   editor.updateNodeDataFromId(nodeId, node.data);
@@ -288,3 +467,25 @@ function saveNodeConfig() {
   const modal = _getBootstrapModal();
   if (modal) modal.hide();
 }
+
+// ---------------- init ----------------
+function initEtlBuilder() {
+  refreshWorkflows();
+  refreshDbSources();
+  refreshApiSources();
+
+  const params = new URLSearchParams(window.location.search);
+  const load = params.get("load");
+  if (load) {
+    _fetchJson(`/etl/api/workflows/${encodeURIComponent(load)}`, { method: "GET" })
+      .then(res => {
+        setWorkflowName(res.name);
+        if (res.kind === "drawflow") {
+          editor.clear();
+          editor.import(res.data);
+        }
+      })
+      .catch(err => console.error(err));
+  }
+}
+document.addEventListener("DOMContentLoaded", initEtlBuilder);
