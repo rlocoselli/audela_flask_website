@@ -14,6 +14,7 @@
     <nav class="nav flex-column gap-1">
       <a class="nav-link" href="{{ url_for('portal.home') }}"><i class="bi bi-house me-2"></i>{{ _('Home') }}</a>
       <a class="nav-link" href="{{ url_for('portal.sources_list') }}"><i class="bi bi-database me-2"></i>{{ _('Fontes') }}</a>
+      <a class="nav-link" href="{{ url_for('etl.builder') }}"><i class="bi bi-diagram-3 me-2"></i>{{ _('ETL') }}</a>
       <a class="nav-link" href="{{ url_for('portal.sources_diagram') }}"><i class="bi bi-diagram-3 me-2"></i>{{ _('Source Diagram') }}</a>
       <a class="nav-link" href="{{ url_for('portal.sql_editor') }}"><i class="bi bi-braces me-2"></i>{{ _('Editor SQL') }}</a>
       <a class="nav-link" href="{{ url_for('portal.questions_list') }}"><i class="bi bi-question-circle me-2"></i>{{ _('Perguntas') }}</a>
@@ -24,10 +25,13 @@
       <a class="nav-link" href="{{ url_for('portal.ai_chat') }}"><i class="bi bi-stars me-2"></i>{{ _('Chat IA') }}</a>
       <a class="nav-link" href="{{ url_for('portal.runs_list') }}"><i class="bi bi-clock-history me-2"></i>{{ _('Execuções') }}</a>
       <a class="nav-link" href="{{ url_for('portal.audit_list') }}"><i class="bi bi-shield-check me-2"></i>{{ _('Auditoria') }}</a>
+      <a class="nav-link" href="{{ url_for('etl.builder') }}">
+        <i class="bi bi-diagram-3 me-2"></i>{{ _('ETL Builder') }}
+      </a>
     </nav>
 
     <div class="mt-auto pt-3 small-muted">
-      <div class="fw-semibold">{{ tenant.name }}</div>
+      <div class="fw-semibold">{{ tenant.name if tenant else '' }}</div>
       <div>{{ _('Usuário') }}: {{ current_user.email }}</div>
     </div>
   </aside>
@@ -42,7 +46,7 @@
             <i class="bi bi-list"></i>
           </button>
           <div class="fw-semibold">{{ _('Portal BI') }}</div>
-          <span class="small-muted">· {{ tenant.name }}</span>
+          <span class="small-muted">· {{ tenant.name if tenant else '' }}</span>
         </div>
 
         <div class="d-flex align-items-center gap-2">

@@ -14,3 +14,4 @@ __all__ = [
     "QueryRun",
     "AuditEvent",
 ]
+from .etl_catalog import ETLConnection  # noqa: F401

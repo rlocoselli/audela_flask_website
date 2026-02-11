@@ -22,3 +22,5 @@ pyodbc
 # AI (optional)
 requests==2.32.3
 
+
+PyYAML==6.0.2

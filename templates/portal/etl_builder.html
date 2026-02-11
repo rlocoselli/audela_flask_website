@@ -1,0 +1,94 @@
+{% extends "portal/layout.html" %}
+{% block title %}{{ _('ETL Builder') }}{% endblock %}
+
+{% block portal_content %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/drawflow/dist/drawflow.min.css">
+
+<div class="container-fluid py-3">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <h3 class="m-0"><i class="bi bi-diagram-3 me-2"></i>{{ _('ETL Builder') }}</h3>
+    <div class="d-flex gap-2">
+      <button class="btn btn-outline-secondary btn-sm" onclick="previewWorkflow()">
+        <i class="bi bi-eye me-1"></i>{{ _('Preview') }}
+      </button>
+      <button class="btn btn-outline-secondary btn-sm" onclick="saveWorkflow()">
+        <i class="bi bi-save me-1"></i>{{ _('Salvar workflow') }}
+      </button>
+      <button class="btn btn-primary btn-sm" onclick="runWorkflow()">
+        <i class="bi bi-play-fill me-1"></i>{{ _('Executar') }}
+      </button>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-lg-3">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="small text-muted mb-2">{{ _('Adicionar passos') }}</div>
+
+          <button class="btn btn-sm btn-primary w-100 mb-2" onclick="addNode('extract.http')">
+            <i class="bi bi-cloud-download me-2"></i>{{ _('HTTP Extract') }}
+          </button>
+
+          <button class="btn btn-sm btn-secondary w-100 mb-2" onclick="addNode('extract.sql')">
+            <i class="bi bi-database-down me-2"></i>{{ _('SQL Extract') }}
+          </button>
+
+          <button class="btn btn-sm btn-warning w-100 mb-2" onclick="addNode('transform.mapping')">
+            <i class="bi bi-funnel me-2"></i>{{ _('Transform') }}
+          </button>
+
+          <button class="btn btn-sm btn-success w-100 mb-3" onclick="addNode('load.warehouse')">
+            <i class="bi bi-database-up me-2"></i>{{ _('Load (Warehouse)') }}
+          </button>
+
+          <div class="alert alert-info py-2 small mb-0">
+            {{ _('Duplo clique em um nó para editar a configuração. Conecte os nós na ordem Extract → Transform → Load. (MVP: fluxo linear)') }}
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mt-3">
+        <div class="card-body">
+          <div class="small text-muted mb-2">{{ _('Preview (últimos resultados)') }}</div>
+          <pre id="etlPreview" class="small mb-0" style="max-height:260px; overflow:auto; white-space:pre-wrap;"></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-9">
+      <div class="card shadow-sm">
+        <div class="card-body p-0">
+          <div id="drawflow" style="height:70vh; min-height:520px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Node Config Modal -->
+<div class="modal fade" id="nodeConfigModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-gear me-2"></i><span id="nodeConfigTitle">Node</span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="cfgNodeId" />
+        <div id="cfgForm"></div>
+        <div class="form-text mt-2">
+          {{ _('Dica: campos JSON devem ser um JSON válido (ex: {"Authorization":"Bearer ..."}).') }}
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+        <button class="btn btn-primary" onclick="saveNodeConfig()"><i class="bi bi-check2 me-1"></i>{{ _('Salvar') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/drawflow/dist/drawflow.min.js"></script>
+<script src="{{ url_for('static', filename='etl/drawflow_builder.js') }}"></script>
+{% endblock %}
