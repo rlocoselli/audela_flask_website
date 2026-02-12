@@ -20,7 +20,9 @@ class DataSource(TenantScopedMixin, db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     type = db.Column(db.String(32), nullable=False)  # postgres/mysql/sqlserver/oracle...
-
+    base_url = db.Column(db.String(300), nullable=True)
+    method = db.Column(db.String(300), nullable=True)
+    
     # Encrypted JSON config (host, port, dbname, username, etc.)
     config_encrypted = db.Column(db.LargeBinary, nullable=False)
 

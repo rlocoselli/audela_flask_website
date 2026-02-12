@@ -14,6 +14,7 @@
     <nav class="nav flex-column gap-1">
       <a class="nav-link" href="{{ url_for('portal.home') }}"><i class="bi bi-house me-2"></i>{{ _('Home') }}</a>
       <a class="nav-link" href="{{ url_for('portal.sources_list') }}"><i class="bi bi-database me-2"></i>{{ _('Fontes') }}</a>
+      <a class="nav-link" href="{{ url_for('portal.api_sources_list') }}"><i class="bi bi-plug me-2"></i>{{ _('Fontes API') }}</a>
       <a class="nav-link" href="{{ url_for('portal.etls_list') }}"><i class="bi bi-diagram-3 me-2"></i>{{ _('ETL') }}</a>
       <a class="nav-link" href="{{ url_for('portal.sources_diagram') }}"><i class="bi bi-diagram-3 me-2"></i>{{ _('Source Diagram') }}</a>
       <a class="nav-link" href="{{ url_for('portal.sql_editor') }}"><i class="bi bi-braces me-2"></i>{{ _('Editor SQL') }}</a>
@@ -24,9 +25,8 @@
       <a class="nav-link" href="{{ url_for('portal.explore') }}"><i class="bi bi-compass me-2"></i>{{ _('Explorar') }}</a>
       <a class="nav-link" href="{{ url_for('portal.ai_chat') }}"><i class="bi bi-stars me-2"></i>{{ _('Chat IA') }}</a>
       <a class="nav-link" href="{{ url_for('portal.runs_list') }}"><i class="bi bi-clock-history me-2"></i>{{ _('Execuções') }}</a>
-      <a class="nav-link" href="{{ url_for('portal.etls_list') }}"><i class="bi bi-diagram-3 me-2"></i>{{ _('ETLs') }}</a>
       <a class="nav-link" href="{{ url_for('portal.audit_list') }}"><i class="bi bi-shield-check me-2"></i>{{ _('Auditoria') }}</a>
-      <a class="nav-link" href="{{ url_for('portal.etls_list') }}">
+      <a class="nav-link" href="{{ url_for('etl.builder') }}">
         <i class="bi bi-diagram-3 me-2"></i>{{ _('ETL Builder') }}
       </a>
     </nav>
@@ -123,7 +123,6 @@
       <a class="nav-link" href="{{ url_for('portal.explore') }}"><i class="bi bi-compass me-2"></i>{{ _('Explorar') }}</a>
       <a class="nav-link" href="{{ url_for('portal.ai_chat') }}">{{ _('Chat IA') }}</a>
       <a class="nav-link" href="{{ url_for('portal.runs_list') }}">{{ _('Execuções') }}</a>
-      <a class="nav-link" href="{{ url_for('portal.etls_list') }}">{{ _('ETLs') }}</a>
       <a class="nav-link" href="{{ url_for('portal.audit_list') }}">{{ _('Auditoria') }}</a>
     </div>
   </div>

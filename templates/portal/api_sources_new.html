@@ -1,0 +1,38 @@
+{% extends "portal/layout.html" %}
+
+{% block portal_content %}
+  <h2 class="h4 mb-3">{{ _('Nova fonte API') }}</h2>
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <form method="post" class="row g-3">
+        <div class="col-12 col-lg-6">
+          <label class="form-label">{{ _('Nome') }}</label>
+          <input class="form-control" name="name" required placeholder="{{ _('Ex.: API Vendas') }}">
+        </div>
+
+        <div class="col-12 col-lg-6">
+          <label class="form-label">{{ _('URL base') }}</label>
+          <input class="form-control" name="base_url" required placeholder="https://api.exemplo.com">
+        </div>
+
+        <div class="col-12">
+          <label class="form-label">{{ _('Cabeçalhos (JSON)') }}</label>
+          <textarea class="form-control" name="headers_json" rows="4" placeholder='{ "Authorization": "Bearer ..." }'></textarea>
+          <div class="form-text">{{ _('Opcional. Exemplo: Authorization, Accept, X-API-Key, etc.') }}</div>
+        </div>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+        <div class="col-12">
+          <label class="form-label">{{ _('Descrição') }}</label>
+          <input class="form-control" name="description" placeholder="{{ _('Opcional') }}">
+        </div>
+
+        <div class="col-12 d-flex gap-2">
+          <button class="btn btn-primary" type="submit">{{ _('Criar') }}</button>
+          <a class="btn btn-outline-secondary" href="{{ url_for('portal.api_sources_list') }}">{{ _('Voltar') }}</a>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock %}

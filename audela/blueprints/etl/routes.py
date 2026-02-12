@@ -295,7 +295,7 @@ def test_db_source(source_id: int):
 def list_api_sources():
     try:
         from audela.extensions import db as _db
-        rows = _db.session.execute(text("SELECT id, name, base_url, method FROM api_sources ORDER BY created_at DESC")).mappings().all()
+        rows = _db.session.execute(text("SELECT id, name, base_url, method FROM data_sources where type='api' ORDER BY created_at DESC")).mappings().all()
         return jsonify({"sources": [dict(r) for r in rows]})
     except Exception:
         return jsonify({"sources": []})
@@ -305,7 +305,7 @@ def list_api_sources():
 def test_api_source(source_id: int):
     try:
         from audela.extensions import db as _db
-        row = _db.session.execute(text("SELECT id, base_url, method, headers, params, auth_token, auth_type FROM api_sources WHERE id=:id"), {"id": source_id}).mappings().first()
+        row = _db.session.execute(text("SELECT id, base_url, method, headers, params, auth_token, auth_type FROM data_sources WHERE id=:id and type='api'"), {"id": source_id}).mappings().first()
         if not row:
             return jsonify({"ok": False, "error": "not found"}), 404
         url = row["base_url"]

@@ -1,0 +1,42 @@
+{% extends "portal/layout.html" %}
+
+{% block portal_content %}
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h2 class="h4 mb-0">{{ _('Fontes API') }}</h2>
+    <a class="btn btn-sm btn-primary" href="{{ url_for('portal.api_sources_new') }}">{{ _('Nova fonte API') }}</a>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      {% if not sources %}
+        <p class="text-muted mb-0">{{ _('Nenhuma fonte API cadastrada ainda.') }}</p>
+      {% else %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th>{{ _('Nome') }}</th>
+                <th>{{ _('URL base') }}</th>
+                <th class="text-end">{{ _('Ações') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in sources %}
+                <tr>
+                  <td>{{ s.name }}</td>
+                  <td class="text-muted">{{ s.base_url }}</td>
+                  <td class="text-end">
+                    <form method="post" action="{{ url_for('portal.apisources_delete', source_id=s.id) }}" onsubmit="return confirm('{{ _('Remover?') }}');" style="display:inline">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                      <button class="btn btn-sm btn-outline-danger" type="submit">{{ _('Remover') }}</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

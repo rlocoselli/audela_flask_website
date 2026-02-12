@@ -34,7 +34,7 @@ def _get_api_source(app, api_source_id: int):
     # ApiSource is stored in table api_sources (legacy module). We query via main SQLAlchemy engine.
     try:
         from audela.extensions import db  # main app db
-        row = db.session.execute(text("SELECT id, name, base_url, method, headers, params, auth_type, auth_token FROM api_sources WHERE id = :id"), {"id": api_source_id}).mappings().first()
+        row = db.session.execute(text("SELECT id, name, base_url FROM data_sources WHERE id = :id"), {"id": api_source_id}).mappings().first()
         return dict(row) if row else None
     except Exception:
         return None

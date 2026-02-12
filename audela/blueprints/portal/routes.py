@@ -134,6 +134,84 @@ def sources_new():
     return render_template("portal/sources_new.html", tenant=g.tenant)
 
 
+@bp.get("/sources/api")
+def api_sources_list():
+    """List API sources separately (for quick access)."""
+    _require_tenant()
+    sources = (
+        db.session.query(DataSource)
+        .filter(DataSource.tenant_id == g.tenant.id)
+        .filter(DataSource.type == "api")
+        .order_by(DataSource.created_at.desc())
+        .all()
+    )
+    return render_template("portal/api_sources_list.html", tenant=g.tenant, sources=sources)
+
+
+@bp.route("/sources/api/new", methods=["GET", "POST"])
+@login_required
+@require_roles("tenant_admin")
+def api_sources_new():
+    """Create a new API source.
+
+    We store the API base URL in the encrypted config.
+    Headers can be provided as JSON (optional).
+    """
+    _require_tenant()
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        base_url = request.form.get("base_url", "").strip()
+        headers_raw = (request.form.get("headers_json", "") or "").strip()
+
+        if not name or not base_url:
+            flash(tr("Preencha nome e URL base.", getattr(g, "lang", None)), "error")
+            return render_template("portal/api_sources_new.html", tenant=g.tenant)
+
+        headers = None
+        if headers_raw:
+            import json
+
+            try:
+                headers = json.loads(headers_raw)
+                if not isinstance(headers, dict):
+                    raise ValueError("headers_json must be a JSON object")
+            except Exception as e:
+                flash(tr("JSON inválido em cabeçalhos: {error}", getattr(g, "lang", None), error=str(e)), "error")
+                return render_template(
+                    "portal/api_sources_new.html",
+                    tenant=g.tenant,
+                    form={"name": name, "base_url": base_url, "headers_json": headers_raw},
+                )
+
+        from ...services.crypto import encrypt_json
+
+        config = {
+            "base_url": base_url,
+            "headers": headers or {},
+        }
+
+        ds = DataSource(
+            tenant_id=g.tenant.id,
+            type="api",
+            name=name,
+            base_url=base_url,
+            config_encrypted=encrypt_json(config),
+            policy_json={
+                "timeout_seconds": 30,
+                "max_rows": 5000,
+                "read_only": True,
+            },
+        )
+        db.session.add(ds)
+        _audit("bi.datasource.created", {"id": None, "name": name, "type": "api"})
+        db.session.commit()
+
+        flash(tr("Fonte API criada.", getattr(g, "lang", None)), "success")
+        return redirect(url_for("portal.api_sources_list"))
+
+    return render_template("portal/api_sources_new.html", tenant=g.tenant)
+
+
 @bp.route("/sources/<int:source_id>/delete", methods=["POST"])
 @login_required
 @require_roles("tenant_admin")
@@ -146,6 +224,17 @@ def sources_delete(source_id: int):
     flash(tr("Fonte removida.", getattr(g, "lang", None)), "success")
     return redirect(url_for("portal.sources_list"))
 
+@bp.route("/apisources/<int:source_id>/delete", methods=["POST"])
+@login_required
+@require_roles("tenant_admin")
+def apisources_delete(source_id: int):
+    _require_tenant()
+    src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first_or_404()
+    _audit("bi.datasource.deleted", {"id": src.id, "name": src.name})
+    db.session.delete(src)
+    db.session.commit()
+    flash(tr("Fonte removida.", getattr(g, "lang", None)), "success")
+    return redirect(url_for("portal.api_sources_list"))
 
 @bp.route("/sources/<int:source_id>")
 @login_required
@@ -1447,8 +1536,6 @@ def api_ai_chat():
 
     ai = analyze_with_ai(data_bundle, message, history=history, lang=getattr(g, "lang", None))
     return jsonify(ai)
-
-
 
 @bp.get("/etls")
 def etls_list():
