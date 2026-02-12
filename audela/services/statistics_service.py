@@ -21,6 +21,9 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 
+# ----------------------------
+# Parsing / formatting helpers
+# ----------------------------
 def _to_float(v: Any) -> float | None:
     if v is None:
         return None
@@ -66,6 +69,49 @@ def _to_float(v: Any) -> float | None:
         return None
 
 
+def _fmt(v: Any) -> str:
+    """Always format numeric values with 2 decimals."""
+    if v is None:
+        return ""
+    if isinstance(v, bool):
+        return ""
+    if isinstance(v, int):
+        return str(v)
+    try:
+        fv = float(v)
+        if not math.isfinite(fv):
+            return ""
+        return f"{fv:.2f}"
+    except Exception:
+        return str(v)
+
+
+def _fmt_pct(p: Any) -> str:
+    """Format probability (0..1) as percent with 2 decimals."""
+    if p is None:
+        return ""
+    try:
+        fp = float(p)
+        if not math.isfinite(fp):
+            return ""
+        return f"{(fp * 100.0):.2f}%"
+    except Exception:
+        return str(p)
+
+
+def _escape(s: str) -> str:
+    return (
+        (s or "")
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
+
+
+# ----------------------------
+# Math/stat helpers
+# ----------------------------
 def _percentile(sorted_vals: list[float], p: float) -> float | None:
     if not sorted_vals:
         return None
@@ -152,7 +198,7 @@ def _histogram(vals: list[float], bins: int = 12) -> dict[str, Any]:
         return {"bins": [], "counts": []}
     vmin, vmax = min(vals), max(vals)
     if vmin == vmax:
-        return {"bins": [f"{vmin:.3g}"], "counts": [len(vals)]}
+        return {"bins": [f"{vmin:.2f}"], "counts": [len(vals)], "min": vmin, "max": vmax}
     step = (vmax - vmin) / bins
     counts = [0] * bins
     for v in vals:
@@ -160,7 +206,7 @@ def _histogram(vals: list[float], bins: int = 12) -> dict[str, Any]:
         if idx == bins:
             idx = bins - 1
         counts[idx] += 1
-    labels = [f"{(vmin + i * step):.3g}–{(vmin + (i + 1) * step):.3g}" for i in range(bins)]
+    labels = [f"{(vmin + i * step):.2f}–{(vmin + (i + 1) * step):.2f}" for i in range(bins)]
     return {"bins": labels, "counts": counts, "min": vmin, "max": vmax}
 
 
@@ -176,6 +222,34 @@ def _numeric_series_for_column(rows: list[list[Any]], col_idx: int) -> list[floa
     return vals
 
 
+def _paired_numeric_series(rows: list[list[Any]], x_idx: int, y_idx: int) -> tuple[list[float], list[float]]:
+    x: list[float] = []
+    y: list[float] = []
+    for r in rows:
+        if x_idx >= len(r) or y_idx >= len(r):
+            continue
+        fx = _to_float(r[x_idx])
+        fy = _to_float(r[y_idx])
+        if fx is None or fy is None:
+            continue
+        x.append(fx)
+        y.append(fy)
+    return x, y
+
+
+def _is_non_null_like(val: Any) -> bool:
+    if val is None:
+        return False
+    try:
+        s = str(val).strip()
+        return s != "" and s.lower() not in {"null", "none", "nan", "n/a", "-"}
+    except Exception:
+        return True
+
+
+# ----------------------------
+# Main analysis
+# ----------------------------
 def run_statistics_analysis(result: dict[str, Any]) -> dict[str, Any]:
     """Compute statistics from a query result {columns, rows}.
 
@@ -190,17 +264,8 @@ def run_statistics_analysis(result: dict[str, Any]) -> dict[str, Any]:
 
     for i, c in enumerate(cols):
         series = _numeric_series_for_column(rows, i)
-        # numeric if we can parse enough values (be lenient because many DBs return strings)
-        def _is_non_null(val: Any) -> bool:
-            if val is None:
-                return False
-            try:
-                s = str(val).strip()
-                return s != "" and s.lower() not in {"null", "none", "nan", "n/a", "-"}
-            except Exception:
-                return True
 
-        non_null = sum(1 for r in rows if i < len(r) and _is_non_null(r[i]))
+        non_null = sum(1 for r in rows if i < len(r) and _is_non_null_like(r[i]))
         if non_null == 0:
             continue
         if len(series) < 2:
@@ -222,8 +287,8 @@ def run_statistics_analysis(result: dict[str, Any]) -> dict[str, Any]:
             "p95": _percentile(series_sorted, 95),
             "skew": _skewness(series_sorted),
             "kurtosis_excess": _kurtosis_excess(series_sorted),
+            "histogram": _histogram(series_sorted, bins=12),
         }
-        entry["histogram"] = _histogram(series_sorted, bins=12)
         numeric_cols.append(entry)
         numeric_idx.append(i)
 
@@ -231,16 +296,14 @@ def run_statistics_analysis(result: dict[str, Any]) -> dict[str, Any]:
     corr = None
     corr_cols = [cols[i] for i in numeric_idx[:10]]
     if len(corr_cols) >= 2:
-        series_map = {name: _numeric_series_for_column(rows, cols.index(name)) for name in corr_cols}
         matrix: list[list[float | None]] = []
         for a in corr_cols:
             rowv = []
+            ia = cols.index(a)
             for b in corr_cols:
-                # align by index: best-effort using same row positions where both parse
+                ib = cols.index(b)
                 xa: list[float] = []
                 yb: list[float] = []
-                ia = cols.index(a)
-                ib = cols.index(b)
                 for r in rows:
                     if ia >= len(r) or ib >= len(r):
                         continue
@@ -254,49 +317,92 @@ def run_statistics_analysis(result: dict[str, Any]) -> dict[str, Any]:
             matrix.append(rowv)
         corr = {"columns": corr_cols, "matrix": matrix}
 
-    # Linear regression: first 2 numeric columns
-    reg = None
+    # ----------------------------
+    # Linear regression for ALL numeric "value" columns
+    # ----------------------------
+    regressions: list[dict[str, Any]] = []
+
     if len(numeric_idx) >= 2:
-        xi = numeric_idx[0]
-        yi = numeric_idx[1]
+        # X is the first numeric column; Y is each remaining numeric column
+        x_idx = numeric_idx[0]
+        x_name = cols[x_idx]
+        for y_idx in numeric_idx[1:]:
+            y_name = cols[y_idx]
+            x, y = _paired_numeric_series(rows, x_idx, y_idx)
+            lr = _linear_regression(x, y)
+            if not lr:
+                continue
+            pts = [[x[i], y[i]] for i in range(min(len(x), 400))]
+            regressions.append(
+                {
+                    "x": x_name,
+                    "y": y_name,
+                    "n": len(x),
+                    "points": pts,
+                    **lr,
+                }
+            )
+    elif len(numeric_idx) == 1:
+        # Only one numeric column: regression vs row index (trend)
+        y_idx = numeric_idx[0]
+        y_name = cols[y_idx]
         x: list[float] = []
         y: list[float] = []
-        for r in rows:
-            if xi >= len(r) or yi >= len(r):
+        for i, r in enumerate(rows):
+            if y_idx >= len(r):
                 continue
-            fx = _to_float(r[xi])
-            fy = _to_float(r[yi])
-            if fx is None or fy is None:
+            fy = _to_float(r[y_idx])
+            if fy is None:
                 continue
-            x.append(fx)
+            x.append(float(i + 1))  # 1-based index
             y.append(fy)
         lr = _linear_regression(x, y)
         if lr:
-            # keep a small sample for plotting
             pts = [[x[i], y[i]] for i in range(min(len(x), 400))]
-            reg = {"x": cols[xi], "y": cols[yi], "points": pts, **lr}
+            regressions.append(
+                {
+                    "x": "row_index",
+                    "y": y_name,
+                    "n": len(x),
+                    "points": pts,
+                    **lr,
+                }
+            )
 
-    # Monte Carlo: simulate a numeric column (first numeric)
-    mc = None
-    if numeric_cols:
-        base = numeric_cols[0]
+    reg_compat = regressions[0] if regressions else None
+
+    # ----------------------------
+    # Monte Carlo for ALL numeric columns
+    # ----------------------------
+    rng = random.Random(42)  # deterministic
+    monte_carlos: list[dict[str, Any]] = []
+
+    for base in numeric_cols:
         mu = base.get("mean")
         sd = base.get("std")
-        if isinstance(mu, (int, float)) and isinstance(sd, (int, float)) and sd and sd > 0:
-            sims = [random.gauss(mu, sd) for _ in range(5000)]
-            sims.sort()
-            mc = {
-                "column": base["name"],
-                "n": len(sims),
-                "mean": mean(sims),
-                "p5": _percentile(sims, 5),
-                "p50": _percentile(sims, 50),
-                "p95": _percentile(sims, 95),
-                "prob_lt_0": sum(1 for v in sims if v < 0) / len(sims),
-            }
+        if not isinstance(mu, (int, float)):
+            continue
+        if not isinstance(sd, (int, float)):
+            continue
+        if not sd or sd <= 0:
+            continue
+
+        sims = [rng.gauss(float(mu), float(sd)) for _ in range(5000)]
+        sims.sort()
+        mc = {
+            "column": base["name"],
+            "n": len(sims),
+            "mean": mean(sims),
+            "p5": _percentile(sims, 5),
+            "p50": _percentile(sims, 50),
+            "p95": _percentile(sims, 95),
+            "prob_lt_0": sum(1 for v in sims if v < 0) / len(sims),
+        }
+        monte_carlos.append(mc)
+
+    mc_compat = monte_carlos[0] if monte_carlos else None
 
     # Gauges: mean normalized vs P95 (fallback max) for the first numeric column
-    # The intent is to give a quick "level" indicator without assuming a hard business threshold.
     gauges: list[dict[str, Any]] = []
     if numeric_cols:
         base = numeric_cols[0]
@@ -309,8 +415,8 @@ def run_statistics_analysis(result: dict[str, Any]) -> dict[str, Any]:
         if isinstance(base_mean, (int, float)) and isinstance(denom, (int, float)) and denom not in (0, 0.0):
             try:
                 raw = (float(base_mean) / float(denom)) * 100.0
-                # Keep gauge in [0, 100] for UI stability
                 value = max(0.0, min(100.0, raw))
+                value = round(value, 2)  # 2 decimals
             except Exception:
                 value = None
 
@@ -360,6 +466,8 @@ def run_statistics_analysis(result: dict[str, Any]) -> dict[str, Any]:
 
     # ECharts options (client-side rendering)
     charts: list[dict[str, Any]] = []
+
+    # Histograms
     for nc in numeric_cols[:3]:
         h = nc.get("histogram") or {}
         charts.append(
@@ -375,6 +483,7 @@ def run_statistics_analysis(result: dict[str, Any]) -> dict[str, Any]:
             }
         )
 
+    # Correlation heatmap
     if corr and len(corr.get("columns") or []) >= 2:
         cols_corr = corr["columns"]
         mat = corr["matrix"]
@@ -384,7 +493,7 @@ def run_statistics_analysis(result: dict[str, Any]) -> dict[str, Any]:
                 v = mat[i][j]
                 if v is None:
                     continue
-                data.append([j, i, round(float(v), 4)])
+                data.append([j, i, round(float(v), 2)])  # 2 decimals
         charts.append(
             {
                 "title": "Correlação (Pearson) — heatmap",
@@ -415,9 +524,9 @@ def run_statistics_analysis(result: dict[str, Any]) -> dict[str, Any]:
             }
         )
 
-    if reg:
+    # Regression charts (show only first 2 to keep UI light)
+    for reg in regressions[:2]:
         pts = reg.get("points") or []
-        # regression line endpoints based on x range
         xs = [p[0] for p in pts] if pts else []
         x_min = min(xs) if xs else 0
         x_max = max(xs) if xs else 1
@@ -448,13 +557,20 @@ def run_statistics_analysis(result: dict[str, Any]) -> dict[str, Any]:
         },
         "numeric": numeric_cols,
         "correlation": corr,
-        "regression": reg,
-        "monte_carlo": mc,
+        # new multi outputs
+        "regressions": regressions,
+        "monte_carlos": monte_carlos,
+        # backwards-compat
+        "regression": reg_compat,
+        "monte_carlo": mc_compat,
         "gauges": gauges,
         "charts": charts,
     }
 
 
+# ----------------------------
+# PDF export
+# ----------------------------
 def _kv_table(title: str, pairs: Iterable[tuple[str, Any]]) -> Table:
     data = [["Campo", "Valor"]]
     for k, v in pairs:
@@ -506,6 +622,7 @@ def stats_report_to_pdf_bytes(
     story.append(Paragraph(title or "Statistics", styles["Title"]))
     story.append(Spacer(1, 8))
 
+    gauge_val = ((stats.get("gauges") or [{}])[0] or {}).get("value")
     story.append(
         _kv_table(
             "Meta",
@@ -515,10 +632,7 @@ def stats_report_to_pdf_bytes(
                 ("Linhas (amostra)", (stats.get("summary") or {}).get("rows")),
                 ("Colunas", (stats.get("summary") or {}).get("columns")),
                 ("Colunas numéricas", (stats.get("summary") or {}).get("numeric_columns")),
-                (
-                    "Gauge (mean/P95)",
-                    _fmt(((stats.get("gauges") or [{}])[0] or {}).get("value")),
-                ),
+                ("Gauge (mean/P95)", _fmt(gauge_val)),
             ],
         )
     )
@@ -527,9 +641,8 @@ def stats_report_to_pdf_bytes(
     if ai and isinstance(ai, dict) and ai.get("analysis"):
         story.append(Paragraph("Resumo executivo (IA)", styles["Heading2"]))
         story.append(Spacer(1, 4))
-        # keep it short to avoid huge PDFs
         text = str(ai.get("analysis"))
-        story.append(Paragraph(text[:4000].replace("\n", "<br/>") , styles["BodyText"]))
+        story.append(Paragraph(text[:4000].replace("\n", "<br/>"), styles["BodyText"]))
         story.append(Spacer(1, 10))
 
     story.append(Paragraph("Estatísticas descritivas", styles["Heading2"]))
@@ -567,71 +680,78 @@ def stats_report_to_pdf_bytes(
     story.append(tbl)
     story.append(Spacer(1, 10))
 
-    reg = stats.get("regression")
-    if reg:
-        story.append(Paragraph("Regressão linear", styles["Heading2"]))
+    # Regressions (multi)
+    regressions = stats.get("regressions") or ([] if not stats.get("regression") else [stats.get("regression")])
+    if regressions:
+        story.append(Paragraph("Regressão linear (múltiplas)", styles["Heading2"]))
         story.append(Spacer(1, 6))
-        story.append(
-            _kv_table(
-                "Regressão",
+
+        reg_data = [["X", "Y", "N", "Slope", "Intercept", "R²"]]
+        for r in regressions[:20]:
+            reg_data.append(
                 [
-                    ("X", reg.get("x")),
-                    ("Y", reg.get("y")),
-                    ("Slope", _fmt(reg.get("slope"))),
-                    ("Intercept", _fmt(reg.get("intercept"))),
-                    ("R²", _fmt(reg.get("r2"))),
-                ],
+                    r.get("x"),
+                    r.get("y"),
+                    r.get("n"),
+                    _fmt(r.get("slope")),
+                    _fmt(r.get("intercept")),
+                    _fmt(r.get("r2")),
+                ]
+            )
+
+        reg_tbl = Table(reg_data, repeatRows=1)
+        reg_tbl.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f2f2f2")),
+                    ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cccccc")),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ]
             )
         )
+        story.append(reg_tbl)
         story.append(Spacer(1, 10))
 
-    mc = stats.get("monte_carlo")
-    if mc:
-        story.append(Paragraph("Monte Carlo (normal aproximada)", styles["Heading2"]))
+    # Monte Carlo (multi)
+    monte_carlos = stats.get("monte_carlos") or ([] if not stats.get("monte_carlo") else [stats.get("monte_carlo")])
+    if monte_carlos:
+        story.append(Paragraph("Monte Carlo (normal aproximada) — múltiplas colunas", styles["Heading2"]))
         story.append(Spacer(1, 6))
-        story.append(
-            _kv_table(
-                "Monte Carlo",
+
+        mc_data = [["Coluna", "Simulações", "Mean", "P5", "P50", "P95", "Prob < 0"]]
+        for mc in monte_carlos[:20]:
+            mc_data.append(
                 [
-                    ("Coluna", mc.get("column")),
-                    ("Simulações", mc.get("n")),
-                    ("Mean", _fmt(mc.get("mean"))),
-                    ("P5", _fmt(mc.get("p5"))),
-                    ("P50", _fmt(mc.get("p50"))),
-                    ("P95", _fmt(mc.get("p95"))),
-                    ("Prob < 0", _fmt(mc.get("prob_lt_0"))),
-                ],
+                    mc.get("column"),
+                    mc.get("n"),
+                    _fmt(mc.get("mean")),
+                    _fmt(mc.get("p5")),
+                    _fmt(mc.get("p50")),
+                    _fmt(mc.get("p95")),
+                    _fmt_pct(mc.get("prob_lt_0")),
+                ]
+            )
+
+        mc_tbl = Table(mc_data, repeatRows=1)
+        mc_tbl.setStyle(
+            TableStyle(
+                [
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f2f2f2")),
+                    ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#cccccc")),
+                    ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                    ("FONTSIZE", (0, 0), (-1, -1), 8),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ]
             )
         )
+        story.append(mc_tbl)
         story.append(Spacer(1, 10))
 
     story.append(Paragraph("SQL (executado)", styles["Heading2"]))
     story.append(Spacer(1, 6))
-    story.append(Paragraph("<pre>%s</pre>" % _escape(sql_text[:4000]), styles["BodyText"]))
+    story.append(Paragraph("<pre>%s</pre>" % _escape((sql_text or "")[:4000]), styles["BodyText"]))
 
     doc.build(story)
     return buf.getvalue()
-
-
-def _escape(s: str) -> str:
-    return (
-        (s or "")
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
-    )
-
-
-def _fmt(v: Any) -> str:
-    if v is None:
-        return ""
-    try:
-        if isinstance(v, float):
-            return f"{v:.6g}"
-        if isinstance(v, int):
-            return str(v)
-        fv = float(v)
-        return f"{fv:.6g}"
-    except Exception:
-        return str(v)

@@ -27,68 +27,78 @@
   <div class="card border-0 shadow-sm rounded-4 mb-3">
     <div class="card-body">
       <div class="row g-4">
+
+        {# Rendu “view” : pas de titres Header/Body/Footer, pas de placeholders #}
         {% for sec_name in ['header','body','footer'] %}
           {% set blocks = sections.get(sec_name) or [] %}
-          <div class="col-12">
-            <div class="d-flex align-items-center justify-content-between mb-2">
-              {% set sec_label = _('Cabeçalho') if sec_name=='header' else (_('Corpo') if sec_name=='body' else _('Rodapé')) %}
-              <div class="fw-semibold text-uppercase small text-secondary">{{ sec_label }}</div>
-            </div>
-
-            {% if not blocks %}
-              <div class="text-secondary small">{{ _('Sem blocos.') }}</div>
-            {% else %}
+          {% if blocks %}
+            <div class="col-12">
               <div class="d-grid gap-3">
                 {% for b in blocks %}
                   {% set btype = (b.type or b.get('type') or '') %}
-                  {% if btype in ['text','markdown'] %}
-  {% set st = (b.style or b.get('style') or {}) %}
-  {% set color = st.get('color') if st is mapping else '' %}
-  {% set bg = st.get('background') if st is mapping else '' %}
-  {% set align = st.get('align') if st is mapping else '' %}
-  {% set style_inline = ('color:' ~ color ~ ';') if color else '' %}
-  {% set style_inline = style_inline ~ (('background:' ~ bg ~ ';') if bg else '') %}
-  {% set style_inline = style_inline ~ (('text-align:' ~ align ~ ';') if align else '') %}
-  <div class="border rounded-4 p-3 bg-body" style="{{ style_inline }}">
-    {% if b.title or b.get('title') %}
-      <div class="fw-semibold mb-1">{{ b.title or b.get('title') }}</div>
-    {% endif %}
-    <div class="text-secondary" style="white-space: pre-wrap;{% if color %} color: {{ color }};{% endif %}">{{ b.content or b.get('content') or b.text or b.get('text') }}</div>
-  </div>
-{% elif btype == 'image' %}
-  {% set st = (b.style or b.get('style') or {}) %}
-  {% set color = st.get('color') if st is mapping else '' %}
-  {% set bg = st.get('background') if st is mapping else '' %}
-  {% set align = (b.align or b.get('align') or st.get('align')) if st is mapping else (b.align or b.get('align') or '') %}
-  {% set width = b.width or b.get('width') or '' %}
-  {% set url = b.url or b.get('url') or b.image_url or b.get('image_url') or '' %}
-  {% set alt = b.alt or b.get('alt') or '' %}
-  {% set caption = b.caption or b.get('caption') or '' %}
-  {% set style_inline = ('background:' ~ bg ~ ';') if bg else '' %}
-  {% set style_inline = style_inline ~ (('text-align:' ~ align ~ ';') if align else '') %}
-  <div class="border rounded-4 p-3 bg-body" style="{{ style_inline }}">
-    {% if b.title or b.get('title') %}
-      <div class="fw-semibold mb-2" {% if color %}style="color: {{ color }};"{% endif %}>{{ b.title or b.get('title') }}</div>
-    {% endif %}
-    {% if url %}
-      <img src="{{ url }}" alt="{{ alt }}" style="max-width:100%; {% if width %}width: {{ width }};{% endif %} border-radius: .5rem;" />
-    {% else %}
-      <div class="text-secondary small">{{ _('Imagem não disponível') }}</div>
-    {% endif %}
-    {% if caption %}
-      <div class="text-secondary small mt-2" {% if color %}style="color: {{ color }};"{% endif %}>{{ caption }}</div>
-    {% endif %}
-  </div>
-{% elif btype == 'question' %}
 
+                  {% if btype in ['text','markdown'] %}
+                    {% set st = (b.style or b.get('style') or {}) %}
+                    {% set color = st.get('color') if st is mapping else '' %}
+                    {% set bg = st.get('background') if st is mapping else '' %}
+                    {% set align = st.get('align') if st is mapping else '' %}
+                    {% set style_inline = ('color:' ~ color ~ ';') if color else '' %}
+                    {% set style_inline = style_inline ~ (('background:' ~ bg ~ ';') if bg else '') %}
+                    {% set style_inline = style_inline ~ (('text-align:' ~ align ~ ';') if align else '') %}
+
+                    <div class="border rounded-4 p-3 bg-body" style="{{ style_inline }}">
+                      {% if b.title or b.get('title') %}
+                        <div class="fw-semibold mb-1">{{ b.title or b.get('title') }}</div>
+                      {% endif %}
+                      <div class="text-secondary" style="white-space: pre-wrap;{% if color %} color: {{ color }};{% endif %}">
+                        {{ b.content or b.get('content') or b.text or b.get('text') }}
+                      </div>
+                    </div>
+
+                  {% elif btype == 'image' %}
+                    {% set st = (b.style or b.get('style') or {}) %}
+                    {% set color = st.get('color') if st is mapping else '' %}
+                    {% set bg = st.get('background') if st is mapping else '' %}
+                    {% set align = (b.align or b.get('align') or st.get('align')) if st is mapping else (b.align or b.get('align') or '') %}
+                    {% set width = b.width or b.get('width') or '' %}
+                    {% set url = b.url or b.get('url') or b.image_url or b.get('image_url') or '' %}
+                    {% set alt = b.alt or b.get('alt') or '' %}
+                    {% set caption = b.caption or b.get('caption') or '' %}
+                    {% set style_inline = ('background:' ~ bg ~ ';') if bg else '' %}
+                    {% set style_inline = style_inline ~ (('text-align:' ~ align ~ ';') if align else '') %}
+
+                    <div class="border rounded-4 p-3 bg-body" style="{{ style_inline }}">
+                      {% if b.title or b.get('title') %}
+                        <div class="fw-semibold mb-2" {% if color %}style="color: {{ color }};"{% endif %}>
+                          {{ b.title or b.get('title') }}
+                        </div>
+                      {% endif %}
+
+                      {% if url %}
+                        <img src="{{ url }}" alt="{{ alt }}"
+                             style="max-width:100%; {% if width %}width: {{ width }};{% endif %} border-radius: .5rem;" />
+                      {% else %}
+                        <div class="text-secondary small">{{ _('Imagem não disponível') }}</div>
+                      {% endif %}
+
+                      {% if caption %}
+                        <div class="text-secondary small mt-2" {% if color %}style="color: {{ color }};"{% endif %}>
+                          {{ caption }}
+                        </div>
+                      {% endif %}
+                    </div>
+
+                  {% elif btype == 'question' %}
                     {% set qid = (b.question_id or b.get('question_id') or 0)|int %}
                     {% set q = questions.get(qid) %}
                     {% set d = blocks_data.get(qid) %}
+
                     <div class="border rounded-4 p-3 bg-body">
                       <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
                         <div class="fw-semibold"><i class="bi bi-ui-checks me-1"></i>{{ q.name if q else ('Pergunta #' ~ qid) }}</div>
                         <span class="badge text-bg-light border">{{ _('Tabela') }}</span>
                       </div>
+
                       {% if d and d.error %}
                         <div class="alert alert-danger py-2 mb-0">{{ d.error }}</div>
                       {% elif d and d.rows %}
@@ -113,11 +123,13 @@
                       {% endif %}
                     </div>
                   {% endif %}
+
                 {% endfor %}
               </div>
-            {% endif %}
-          </div>
+            </div>
+          {% endif %}
         {% endfor %}
+
       </div>
     </div>
   </div>

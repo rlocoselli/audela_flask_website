@@ -141,13 +141,13 @@
                     {% for n in stats.numeric[:15] %}
                       <tr>
                         <td class="text-truncate" style="max-width: 180px;" title="{{ n.name }}">{{ n.name }}</td>
-                        <td class="text-end">{{ '%.6g'|format(n.mean) if n.mean is not none else '' }}</td>
-                        <td class="text-end">{{ '%.6g'|format(n.std) if n.std is not none else '' }}</td>
-                        <td class="text-end">{{ '%.6g'|format(n.min) if n.min is not none else '' }}</td>
-                        <td class="text-end">{{ '%.6g'|format(n.p5) if n.p5 is not none else '' }}</td>
-                        <td class="text-end">{{ '%.6g'|format(n.median) if n.median is not none else '' }}</td>
-                        <td class="text-end">{{ '%.6g'|format(n.p95) if n.p95 is not none else '' }}</td>
-                        <td class="text-end">{{ '%.6g'|format(n.max) if n.max is not none else '' }}</td>
+                        <td class="text-end">{{ '%.2f'|format(n.mean) if n.mean is not none else '' }}</td>
+                        <td class="text-end">{{ '%.2f'|format(n.std) if n.std is not none else '' }}</td>
+                        <td class="text-end">{{ '%.2f'|format(n.min) if n.min is not none else '' }}</td>
+                        <td class="text-end">{{ '%.2f'|format(n.p5) if n.p5 is not none else '' }}</td>
+                        <td class="text-end">{{ '%.2f'|format(n.median) if n.median is not none else '' }}</td>
+                        <td class="text-end">{{ '%.2f'|format(n.p95) if n.p95 is not none else '' }}</td>
+                        <td class="text-end">{{ '%.2f'|format(n.max) if n.max is not none else '' }}</td>
                       </tr>
                     {% endfor %}
                   </tbody>
@@ -159,63 +159,160 @@
           </div>
         </div>
 
-        {% if stats.regression %}
+        {# =========================
+           Regressão linear (multi)
+           - Novo: stats.regressions = lista
+           - Compat: stats.regression = 1 item
+           ========================= #}
+        {% set regressions = [] %}
+        {% if stats.regressions is defined and stats.regressions %}
+          {% set regressions = stats.regressions %}
+        {% elif stats.regression %}
+          {% set regressions = [stats.regression] %}
+        {% endif %}
+
+        {% if regressions %}
           <div class="card border-0 shadow-sm rounded-4 mb-3">
             <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-3">
               <div class="fw-semibold"><i class="bi bi-bezier2 me-1"></i> {{ _('Regressão linear') }}</div>
+              <div class="text-secondary small">{{ _('Resultados por coluna (amostra).') }}</div>
             </div>
             <div class="card-body">
-              <div class="row g-2">
-                <div class="col-12">
-                  <div class="small text-secondary">Y</div>
-                  <div class="fw-semibold">{{ stats.regression.y }}</div>
-                </div>
-                <div class="col-12">
-                  <div class="small text-secondary">X</div>
-                  <div class="fw-semibold">{{ stats.regression.x }}</div>
-                </div>
-                <div class="col-6">
-                  <div class="small text-secondary">Slope</div>
-                  <div class="fw-semibold">{{ '%.6g'|format(stats.regression.slope) }}</div>
-                </div>
-                <div class="col-6">
-                  <div class="small text-secondary">R²</div>
-                  <div class="fw-semibold">{{ '%.6g'|format(stats.regression.r2) if stats.regression.r2 is not none else '' }}</div>
-                </div>
+              <div class="accordion" id="acc-reg">
+                {% for r in regressions %}
+                  <div class="accordion-item">
+                    <h2 class="accordion-header" id="reg-h-{{ loop.index }}">
+                      <button class="accordion-button collapsed" type="button"
+                              data-bs-toggle="collapse" data-bs-target="#reg-c-{{ loop.index }}"
+                              aria-expanded="false" aria-controls="reg-c-{{ loop.index }}">
+                        <span class="fw-semibold">{{ r.y }}</span>
+                        <span class="text-secondary ms-2 small">vs {{ r.x }}</span>
+                        {% if r.r2 is not none %}
+                          <span class="badge text-bg-light border ms-3">R² {{ '%.2f'|format(r.r2) }}</span>
+                        {% endif %}
+                      </button>
+                    </h2>
+
+                    <div id="reg-c-{{ loop.index }}" class="accordion-collapse collapse"
+                         aria-labelledby="reg-h-{{ loop.index }}" data-bs-parent="#acc-reg">
+                      <div class="accordion-body">
+                        <div class="row g-2">
+                          <div class="col-12 col-md-6">
+                            <div class="small text-secondary">Y</div>
+                            <div class="fw-semibold">{{ r.y }}</div>
+                          </div>
+                          <div class="col-12 col-md-6">
+                            <div class="small text-secondary">X</div>
+                            <div class="fw-semibold">{{ r.x }}</div>
+                          </div>
+                          <div class="col-6">
+                            <div class="small text-secondary">Slope</div>
+                            <div class="fw-semibold">{{ '%.2f'|format(r.slope) if r.slope is not none else '' }}</div>
+                          </div>
+                          <div class="col-6">
+                            <div class="small text-secondary">R²</div>
+                            <div class="fw-semibold">{{ '%.2f'|format(r.r2) if r.r2 is not none else '' }}</div>
+                          </div>
+
+                          {% if r.intercept is defined %}
+                            <div class="col-6">
+                              <div class="small text-secondary">Intercept</div>
+                              <div class="fw-semibold">{{ '%.2f'|format(r.intercept) if r.intercept is not none else '' }}</div>
+                            </div>
+                          {% endif %}
+                          {% if r.n is defined %}
+                            <div class="col-6">
+                              <div class="small text-secondary">N</div>
+                              <div class="fw-semibold">{{ r.n }}</div>
+                            </div>
+                          {% endif %}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                {% endfor %}
               </div>
             </div>
           </div>
         {% endif %}
 
-        {% if stats.monte_carlo %}
+        {# ======================
+           Monte Carlo (multi)
+           - Novo: stats.monte_carlos = lista
+           - Compat: stats.monte_carlo = 1 item
+           ====================== #}
+        {% set monte_carlos = [] %}
+        {% if stats.monte_carlos is defined and stats.monte_carlos %}
+          {% set monte_carlos = stats.monte_carlos %}
+        {% elif stats.monte_carlo %}
+          {% set monte_carlos = [stats.monte_carlo] %}
+        {% endif %}
+
+        {% if monte_carlos %}
           <div class="card border-0 shadow-sm rounded-4">
             <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-3">
               <div class="fw-semibold"><i class="bi bi-dice-5 me-1"></i> {{ _('Monte Carlo') }}</div>
+              <div class="text-secondary small">{{ _('Simulação por coluna (amostra).') }}</div>
             </div>
             <div class="card-body">
-              <div class="d-flex align-items-center justify-content-between">
-                <div>
-                  <div class="text-secondary small">{{ _('Coluna') }}</div>
-                  <div class="fw-semibold">{{ stats.monte_carlo.column }}</div>
-                </div>
-                <div class="text-end">
-                  <div class="text-secondary small">{{ _('Prob < 0') }}</div>
-                  <div class="fw-semibold">{{ (stats.monte_carlo.prob_lt_0 * 100)|round(2) }}%</div>
-                </div>
-              </div>
+              <div class="accordion" id="acc-mc">
+                {% for mc in monte_carlos %}
+                  <div class="accordion-item">
+                    <h2 class="accordion-header" id="mc-h-{{ loop.index }}">
+                      <button class="accordion-button collapsed" type="button"
+                              data-bs-toggle="collapse" data-bs-target="#mc-c-{{ loop.index }}"
+                              aria-expanded="false" aria-controls="mc-c-{{ loop.index }}">
+                        <span class="fw-semibold">{{ mc.column }}</span>
+                        <span class="badge text-bg-light border ms-3">
+                          {{ _('Prob < 0') }} {{ (mc.prob_lt_0 * 100)|round(2) }}%
+                        </span>
+                      </button>
+                    </h2>
 
-              <div class="mt-3">
-                <div class="d-flex justify-content-between small text-secondary">
-                  <span>P5</span><span>P50</span><span>P95</span>
-                </div>
-                <div class="progress" style="height: .8rem;">
-                  <div class="progress-bar" role="progressbar" style="width: 100%"></div>
-                </div>
-                <div class="d-flex justify-content-between small mt-1">
-                  <span>{{ '%.6g'|format(stats.monte_carlo.p5) }}</span>
-                  <span>{{ '%.6g'|format(stats.monte_carlo.p50) }}</span>
-                  <span>{{ '%.6g'|format(stats.monte_carlo.p95) }}</span>
-                </div>
+                    <div id="mc-c-{{ loop.index }}" class="accordion-collapse collapse"
+                         aria-labelledby="mc-h-{{ loop.index }}" data-bs-parent="#acc-mc">
+                      <div class="accordion-body">
+
+                        <div class="d-flex justify-content-between small text-secondary">
+                          <span>P5</span><span>P50</span><span>P95</span>
+                        </div>
+                        <div class="progress" style="height: .8rem;">
+                          <div class="progress-bar" role="progressbar" style="width: 100%"></div>
+                        </div>
+                        <div class="d-flex justify-content-between small mt-1">
+                          <span>{{ '%.2f'|format(mc.p5) if mc.p5 is not none else '' }}</span>
+                          <span>{{ '%.2f'|format(mc.p50) if mc.p50 is not none else '' }}</span>
+                          <span>{{ '%.2f'|format(mc.p95) if mc.p95 is not none else '' }}</span>
+                        </div>
+
+                        {% if mc.mean is defined or mc.std is defined or mc.n_sims is defined %}
+                          <hr class="my-3">
+                          <div class="row g-2">
+                            {% if mc.mean is defined %}
+                              <div class="col-6">
+                                <div class="small text-secondary">mean</div>
+                                <div class="fw-semibold">{{ '%.2f'|format(mc.mean) if mc.mean is not none else '' }}</div>
+                              </div>
+                            {% endif %}
+                            {% if mc.std is defined %}
+                              <div class="col-6">
+                                <div class="small text-secondary">std</div>
+                                <div class="fw-semibold">{{ '%.2f'|format(mc.std) if mc.std is not none else '' }}</div>
+                              </div>
+                            {% endif %}
+                            {% if mc.n_sims is defined %}
+                              <div class="col-6">
+                                <div class="small text-secondary">{{ _('Simulações') }}</div>
+                                <div class="fw-semibold">{{ mc.n_sims }}</div>
+                              </div>
+                            {% endif %}
+                          </div>
+                        {% endif %}
+
+                      </div>
+                    </div>
+                  </div>
+                {% endfor %}
               </div>
             </div>
           </div>
@@ -260,8 +357,8 @@
                         <div class="fw-semibold small">{{ g.title }}</div>
                         {% if g.mean is not none and (g.p95 is not none or g.max is not none) %}
                           <span class="badge text-bg-light border">
-                            mean {{ '%.6g'|format(g.mean) if g.mean is not none else '' }} /
-                            {% if g.p95 is not none %}P95 {{ '%.6g'|format(g.p95) }}{% else %}max {{ '%.6g'|format(g.max) }}{% endif %}
+                            mean {{ '%.2f'|format(g.mean) if g.mean is not none else '' }} /
+                            {% if g.p95 is not none %}P95 {{ '%.2f'|format(g.p95) }}{% else %}max {{ '%.2f'|format(g.max) }}{% endif %}
                           </span>
                         {% endif %}
                       </div>
