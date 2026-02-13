@@ -95,7 +95,7 @@ User=root
 Group=root
 
 WorkingDirectory=$APP_DIR
-EnvironmentFile=$APP_DIR/.env
+EnvironmentFile=$APP_DIR/.venv
 
 ExecStart=$VENV_DIR/bin/gunicorn \\
   --workers 2 \\
