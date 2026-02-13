@@ -51,17 +51,6 @@ git reset --hard origin/main
 git clean -fdx
 
 # ==========================
-# ENV FILE (if missing)
-# ==========================
-if [ ! -f "$APP_DIR/.env" ]; then
-  cat <<EOF > "$APP_DIR/.env"
-OPENAI_API_KEY=sk-CHANGE_ME
-EOF
-  chmod 600 "$APP_DIR/.env"
-  echo "⚠️  .env created at $APP_DIR/.env (edit it!)"
-fi
-
-# ==========================
 # VIRTUAL ENV
 # ==========================
 python3 -m venv "$VENV_DIR"
@@ -95,7 +84,6 @@ User=root
 Group=root
 
 WorkingDirectory=$APP_DIR
-EnvironmentFile=$APP_DIR/.venv
 
 ExecStart=$VENV_DIR/bin/gunicorn \\
   --workers 2 \\
@@ -138,7 +126,7 @@ rm -f /etc/nginx/sites-enabled/default
 nginx -t
 systemctl reload nginx
 
-# ==========================
+# ==========================n
 # SSL
 # ==========================
 certbot --nginx \
