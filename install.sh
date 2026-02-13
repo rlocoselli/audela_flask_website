@@ -44,6 +44,11 @@ rsync -av --delete --exclude='.venv' "$SRC_DIR/" "$APP_DIR/"
 # PERMISSIONS (root)
 # ==========================
 chmod -R 755 "$APP_DIR"
+cd "$APP_DIR"
+git fetch origin
+git switch main
+git reset --hard origin/main
+git clean -fdx
 
 # ==========================
 # ENV FILE (if missing)
