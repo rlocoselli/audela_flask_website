@@ -7,9 +7,9 @@ class Config:
     if os.environ.get("DATABASE_URL"):
         SQLALCHEMY_DATABASE_URI = os.environ["DATABASE_URL"]
     else:
-        db_host = os.environ.get("HOST")
-        db_user = os.environ.get("USER")
-        db_password = os.environ.get("PASSWORD")
+        db_host = os.environ.get("APP_HOST")
+        db_user = os.environ.get("APP_USER")
+        db_password = os.environ.get("APP_PASSWORD")
         db_name = os.environ.get("DB_NAME", "audela")
         db_port = os.environ.get("DB_PORT", "5432")
 
