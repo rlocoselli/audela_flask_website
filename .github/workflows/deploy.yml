@@ -38,16 +38,6 @@ jobs:
             git reset --hard
             git pull origin main
 
-            echo "🔐 Creating .env (workspace)"
-            umask 077
-            cat > .env <<EOF
-            HOST=${APP_HOST}
-            USER=${APP_USER}
-            PASSWORD=${APP_PASSWORD}
-            OPENAI_API_KEY=${APP_OPENAI_API_KEY}
-            EOF
-            chmod 600 .env
-
             echo "🔧 Run install"
             chmod +x install.sh
             ./install.sh

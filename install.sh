@@ -71,6 +71,16 @@ from audela import create_app
 app = create_app()
 EOF
 
+echo "🔐 Creating .env (workspace)"
+umask 077
+cat > "$APP_DIR/.env" <<EOF
+HOST=${APP_HOST}
+USER=${APP_USER}
+PASSWORD=${APP_PASSWORD}
+OPENAI_API_KEY=${APP_OPENAI_API_KEY}
+EOF
+chmod 600 "$APP_DIR/.env"
+
 # ==========================
 # SYSTEMD SERVICE
 # ==========================
