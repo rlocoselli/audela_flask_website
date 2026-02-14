@@ -38,6 +38,14 @@ from ...services.file_storage_service import (
 )
 from ...services.file_introspect_service import introspect_file_schema
 from ...tenancy import get_current_tenant_id
+
+from ...i18n import tr, DEFAULT_LANG
+
+
+def _(msgid: str, **kwargs):
+    """Translation helper for server-side flash/messages."""
+    return tr(msgid, getattr(g, "lang", DEFAULT_LANG), **kwargs)
+
 from ...i18n import tr
 from . import bp
 
@@ -309,11 +317,7 @@ def sources_diagram():
 def api_source_schema(source_id: int):
     _require_tenant()
     src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first_or_404()
-    try:
-        meta = introspect_source(src)
-    except Exception as e:  # noqa: BLE001
-        # Não quebra a UI (workspaces / join builder) se a conexão falhar
-        return jsonify({"schemas": [], "error": str(e)}), 200
+    meta = introspect_source(src)
     return jsonify(meta)
 
 
