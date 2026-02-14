@@ -53,9 +53,9 @@ git clean -fdx
 echo "🔐 Creating .env (workspace)"
 umask 077
 cat > "$APP_DIR/.env" <<EOF
-HOST=$1
-USER=$2
-PASSWORD=$3
+APP_HOST=$1
+APP_USER=$2
+APP_PASSWORD=$3
 OPENAI_API_KEY=$4
 EOF
 chmod 600 "$APP_DIR/.env"
