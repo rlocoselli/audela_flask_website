@@ -39,7 +39,7 @@ jobs:
             git pull origin main
 
             echo "🔧 Run install"
-            chmod +x install.sh
+            chmod +x install.sh ${{ secrets.HOST }} ${{ secrets.USER }} ${{ secrets.PASSWORD }} ${{ secrets.OPENAI_API_KEY }}
             ./install.sh
 
             echo "🔄 Restart service"
