@@ -10,27 +10,45 @@ jobs:
     runs-on: ubuntu-latest
     environment: audeladesdonnees
 
+    # Mapeia secrets para env vars do job (com nomes que não conflitam com $USER do Linux)
+    env:
+      APP_HOST: ${{ secrets.HOST }}
+      APP_USER: ${{ secrets.USER }}
+      APP_PASSWORD: ${{ secrets.PASSWORD }}
+      APP_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Deploy via SSH as root
+      - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: root
-          key: ${{ secrets.SSH_KEY }}
-          port: ${{ secrets.SSH_PORT }}
+          host: ${{ env.APP_HOST }}
+          username: ${{ env.APP_USER }}
+          password: ${{ env.APP_PASSWORD }}
+          # Se você usa porta custom, crie o secret SSH_PORT e descomente abaixo:
+          # port: ${{ secrets.SSH_PORT }}
 
           script: |
             set -e
-            echo "🚀 Deploy started (root)"
+            echo "🚀 Deploy started"
 
             cd /root/audela_flask_website
 
             echo "📥 Git pull"
             git reset --hard
             git pull origin main
+
+            echo "🔐 Creating .env (workspace)"
+            umask 077
+            cat > .env <<EOF
+            HOST=${APP_HOST}
+            USER=${APP_USER}
+            PASSWORD=${APP_PASSWORD}
+            OPENAI_API_KEY=${APP_OPENAI_API_KEY}
+            EOF
+            chmod 600 .env
 
             echo "🔧 Run install"
             chmod +x install.sh

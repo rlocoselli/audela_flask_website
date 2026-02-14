@@ -1,15 +1,28 @@
 import os
-
+from urllib.parse import quote_plus
 
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-change-me")
 
-    # App DB (for tenants/users/BI objects)
-    SQLALCHEMY_DATABASE_URI = os.environ.get(
-        "DATABASE_URL",
-        # local dev
-        "sqlite:///audela.db",
-    )
+    if os.environ.get("DATABASE_URL"):
+        SQLALCHEMY_DATABASE_URI = os.environ["DATABASE_URL"]
+    else:
+        db_host = os.environ.get("HOST")
+        db_user = os.environ.get("USER")
+        db_password = os.environ.get("PASSWORD")
+        db_name = os.environ.get("DB_NAME", "audela")
+        db_port = os.environ.get("DB_PORT", "5432")
+
+        if all([db_host, db_user, db_password]):
+            SQLALCHEMY_DATABASE_URI = (
+                "postgresql+psycopg2://"
+                f"{quote_plus(db_user)}:{quote_plus(db_password)}"
+                f"@{db_host}:{db_port}/{quote_plus(db_name)}"
+            )
+        else:
+            # local dev fallback
+            SQLALCHEMY_DATABASE_URI = "sqlite:///audela.db"    
+            
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # Security / session
