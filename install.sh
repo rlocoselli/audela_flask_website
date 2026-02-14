@@ -1,5 +1,38 @@
 #!/usr/bin/env bash
 
+install_sqlserver_drivers() {
+  echo "🧩 Installing SQL Server ODBC drivers (msodbcsql18)..."
+
+  # deps
+  apt-get update
+  apt-get install -y curl ca-certificates gnupg2 apt-transport-https lsb-release unixodbc unixodbc-dev
+
+  # Add Microsoft repo key (keyring, méthode moderne)
+  install -d -m 0755 /etc/apt/keyrings
+  curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /etc/apt/keyrings/microsoft.gpg
+  chmod 0644 /etc/apt/keyrings/microsoft.gpg
+
+  # Add Microsoft repo (Ubuntu version + codename)
+  UBU_VER="$(lsb_release -rs)"      # ex: 22.04 / 24.04
+  UBU_CODE="$(lsb_release -cs)"     # ex: jammy / noble
+  cat > /etc/apt/sources.list.d/microsoft-prod.list <<EOF
+deb [arch=amd64,arm64 signed-by=/etc/apt/keyrings/microsoft.gpg] https://packages.microsoft.com/ubuntu/${UBU_VER}/prod ${UBU_CODE} main
+EOF
+
+  apt-get update
+
+  # ODBC driver 18
+  ACCEPT_EULA=Y apt-get install -y msodbcsql18
+
+  # Optionnel: outils sqlcmd/bcp (pratique pour tester la connexion)
+  # ACCEPT_EULA=Y apt-get install -y mssql-tools18
+  # echo 'export PATH="$PATH:/opt/mssql-tools18/bin"' > /etc/profile.d/mssql-tools18.sh
+
+  echo "✅ SQL Server ODBC driver installed"
+}
+
+install_sqlserver_drivers
+
 # ==========================
 # CONFIG
 # ==========================
