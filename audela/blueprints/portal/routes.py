@@ -121,43 +121,158 @@ def sources_list():
 @require_roles("tenant_admin", "creator")
 def sources_new():
     _require_tenant()
-    if request.method == "POST":
-        name = request.form.get("name", "").strip()
-        ds_type = request.form.get("type", "").strip().lower()
-        url = request.form.get("url", "").strip()
-        default_schema = request.form.get("default_schema", "").strip() or None
-        tenant_column = request.form.get("tenant_column", "").strip() or None
+
+    def _build_url_from_parts(ds_type: str, parts: dict) -> str:
+        """Build a SQLAlchemy URL from structured form fields (best-effort)."""
+        ds_type = (ds_type or '').lower().strip()
+        host = (parts.get('host') or '').strip()
+        port = (parts.get('port') or '').strip()
+        database = (parts.get('database') or '').strip()
+        username = (parts.get('username') or '').strip()
+        password = (parts.get('password') or '')
+        driver = (parts.get('driver') or '').strip()
+        service_name = (parts.get('service_name') or '').strip()
+        sid = (parts.get('sid') or '').strip()
+        sqlite_path = (parts.get('sqlite_path') or '').strip()
+
+        from sqlalchemy.engine import URL
+
+        if ds_type == 'postgres':
+            return str(URL.create(
+                'postgresql+psycopg',
+                username=username or None,
+                password=password or None,
+                host=host or None,
+                port=int(port) if port else None,
+                database=database or None,
+            ))
+
+        if ds_type == 'mysql':
+            return str(URL.create(
+                'mysql+pymysql',
+                username=username or None,
+                password=password or None,
+                host=host or None,
+                port=int(port) if port else None,
+                database=database or None,
+            ))
+
+        if ds_type == 'sqlserver':
+            query = {}
+            if driver:
+                query['driver'] = driver
+            return str(URL.create(
+                'mssql+pyodbc',
+                username=username or None,
+                password=password or None,
+                host=host or None,
+                port=int(port) if port else None,
+                database=database or None,
+                query=query or None,
+            ))
+
+        if ds_type == 'oracle':
+            query = {}
+            if service_name:
+                query['service_name'] = service_name
+            elif sid:
+                query['sid'] = sid
+            return str(URL.create(
+                'oracle+oracledb',
+                username=username or None,
+                password=password or None,
+                host=host or None,
+                port=int(port) if port else None,
+                database=None,
+                query=query or None,
+            ))
+
+        if ds_type == 'sqlite':
+            # accept either a fully formed sqlite URL or a path
+            if sqlite_path.startswith('sqlite:'):
+                return sqlite_path
+            p = sqlite_path or database
+            if not p:
+                return ''
+            if p.startswith('/'):
+                return 'sqlite:////' + p.lstrip('/')
+            return 'sqlite:///' + p
+
+        # fallback: keep raw
+        return ''
+
+    form = {
+        'name': (request.form.get('name') or '').strip(),
+        'type': (request.form.get('type') or '').strip().lower(),
+        'url': (request.form.get('url') or '').strip(),
+        'default_schema': (request.form.get('default_schema') or '').strip(),
+        'tenant_column': (request.form.get('tenant_column') or '').strip(),
+        'host': (request.form.get('host') or '').strip(),
+        'port': (request.form.get('port') or '').strip(),
+        'database': (request.form.get('database') or '').strip(),
+        'username': (request.form.get('username') or '').strip(),
+        'password': (request.form.get('password') or ''),
+        'driver': (request.form.get('driver') or '').strip(),
+        'service_name': (request.form.get('service_name') or '').strip(),
+        'sid': (request.form.get('sid') or '').strip(),
+        'sqlite_path': (request.form.get('sqlite_path') or '').strip(),
+        'use_builder': (request.form.get('use_builder') or '').strip(),
+    }
+
+    if request.method == 'POST':
+        name = form['name']
+        ds_type = form['type']
+        default_schema = form['default_schema'] or None
+        tenant_column = form['tenant_column'] or None
+
+        url = form['url']
+        if form['use_builder'] == '1' or not url:
+            url = _build_url_from_parts(ds_type, form)
 
         if not name or not ds_type or not url:
-            flash(tr("Preencha nome, tipo e URL de conexão.", getattr(g, "lang", None)), "error")
-            return render_template("portal/sources_new.html", tenant=g.tenant)
+            flash(tr('Preencha nome, tipo e conexão.', getattr(g, 'lang', None)), 'error')
+            return render_template('portal/sources_new.html', tenant=g.tenant, form=form)
 
         from ...services.crypto import encrypt_json
 
-        config = {
-            "url": url,
-            "default_schema": default_schema,
-            "tenant_column": tenant_column,
+        conn = {
+            'host': form['host'],
+            'port': form['port'],
+            'database': form['database'],
+            'username': form['username'],
+            'password': form['password'],
+            'driver': form['driver'],
+            'service_name': form['service_name'],
+            'sid': form['sid'],
+            'sqlite_path': form['sqlite_path'],
         }
+
+        config = {
+            'url': url,
+            'default_schema': default_schema,
+            'tenant_column': tenant_column,
+            'conn': conn,
+        }
+
         ds = DataSource(
             tenant_id=g.tenant.id,
             type=ds_type,
             name=name,
             config_encrypted=encrypt_json(config),
             policy_json={
-                "timeout_seconds": 30,
-                "max_rows": 5000,
-                "read_only": True,
+                'timeout_seconds': 30,
+                'max_rows': 5000,
+                'read_only': True,
             },
         )
         db.session.add(ds)
-        _audit("bi.datasource.created", {"id": None, "name": name, "type": ds_type})
+        _audit('bi.datasource.created', {'id': None, 'name': name, 'type': ds_type})
         db.session.commit()
 
-        flash(tr("Fonte criada.", getattr(g, "lang", None)), "success")
-        return redirect(url_for("portal.sources_list"))
+        flash(tr('Fonte criada.', getattr(g, 'lang', None)), 'success')
+        return redirect(url_for('portal.sources_list'))
 
-    return render_template("portal/sources_new.html", tenant=g.tenant)
+    return render_template('portal/sources_new.html', tenant=g.tenant, form=form)
 
 
 @bp.get("/sources/api")
@@ -270,6 +385,186 @@ def sources_view(source_id: int):
     src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first_or_404()
     cfg = decrypt_config(src)
     return render_template("portal/sources_view.html", tenant=g.tenant, source=src, config=cfg)
+
+@bp.route("/sources/<int:source_id>/edit", methods=["GET", "POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def sources_edit(source_id: int):
+    _require_tenant()
+    src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first_or_404()
+    cfg_existing = decrypt_config(src) or {}
+
+    def _build_url_from_parts(ds_type: str, parts: dict) -> str:
+        ds_type = (ds_type or '').lower().strip()
+        host = (parts.get('host') or '').strip()
+        port = (parts.get('port') or '').strip()
+        database = (parts.get('database') or '').strip()
+        username = (parts.get('username') or '').strip()
+        password = (parts.get('password') or '')
+        driver = (parts.get('driver') or '').strip()
+        service_name = (parts.get('service_name') or '').strip()
+        sid = (parts.get('sid') or '').strip()
+        sqlite_path = (parts.get('sqlite_path') or '').strip()
+
+        from sqlalchemy.engine import URL
+
+        if ds_type == 'postgres':
+            return str(URL.create(
+                'postgresql+psycopg',
+                username=username or None,
+                password=password or None,
+                host=host or None,
+                port=int(port) if port else None,
+                database=database or None,
+            ))
+
+        if ds_type == 'mysql':
+            return str(URL.create(
+                'mysql+pymysql',
+                username=username or None,
+                password=password or None,
+                host=host or None,
+                port=int(port) if port else None,
+                database=database or None,
+            ))
+
+        if ds_type == 'sqlserver':
+            query = {}
+            if driver:
+                query['driver'] = driver
+            return str(URL.create(
+                'mssql+pyodbc',
+                username=username or None,
+                password=password or None,
+                host=host or None,
+                port=int(port) if port else None,
+                database=database or None,
+                query=query or None,
+            ))
+
+        if ds_type == 'oracle':
+            query = {}
+            if service_name:
+                query['service_name'] = service_name
+            elif sid:
+                query['sid'] = sid
+            return str(URL.create(
+                'oracle+oracledb',
+                username=username or None,
+                password=password or None,
+                host=host or None,
+                port=int(port) if port else None,
+                database=None,
+                query=query or None,
+            ))
+
+        if ds_type == 'sqlite':
+            if sqlite_path.startswith('sqlite:'):
+                return sqlite_path
+            p = sqlite_path or database
+            if not p:
+                return ''
+            if p.startswith('/'):
+                return 'sqlite:////' + p.lstrip('/')
+            return 'sqlite:///' + p
+
+        return ''
+
+    # build initial form
+    conn = cfg_existing.get('conn') if isinstance(cfg_existing.get('conn'), dict) else {}
+    url_existing = (cfg_existing.get('url') or '').strip()
+
+    # If no structured conn, best-effort parse from SQLAlchemy URL
+    if not conn and url_existing:
+        try:
+            from sqlalchemy.engine.url import make_url
+            u = make_url(url_existing)
+            conn = {
+                'host': u.host or '',
+                'port': str(u.port or ''),
+                'database': u.database or '',
+                'username': u.username or '',
+                'password': u.password or '',
+            }
+            q = dict(u.query or {})
+            if (src.type or '').lower() == 'sqlserver':
+                conn['driver'] = q.get('driver', '')
+            if (src.type or '').lower() == 'oracle':
+                conn['service_name'] = q.get('service_name', '')
+                conn['sid'] = q.get('sid', '')
+        except Exception:
+            conn = {}
+
+    form = {
+        'name': (request.form.get('name') or src.name or '').strip(),
+        'type': (request.form.get('type') or src.type or '').strip().lower(),
+        'url': (request.form.get('url') or url_existing or '').strip(),
+        'default_schema': (request.form.get('default_schema') or (cfg_existing.get('default_schema') or '')).strip(),
+        'tenant_column': (request.form.get('tenant_column') or (cfg_existing.get('tenant_column') or '')).strip(),
+        'host': (request.form.get('host') or conn.get('host') or '').strip(),
+        'port': (request.form.get('port') or conn.get('port') or '').strip(),
+        'database': (request.form.get('database') or conn.get('database') or '').strip(),
+        'username': (request.form.get('username') or conn.get('username') or '').strip(),
+        'password': (request.form.get('password') or '').strip(),
+        'driver': (request.form.get('driver') or conn.get('driver') or '').strip(),
+        'service_name': (request.form.get('service_name') or conn.get('service_name') or '').strip(),
+        'sid': (request.form.get('sid') or conn.get('sid') or '').strip(),
+        'sqlite_path': (request.form.get('sqlite_path') or conn.get('sqlite_path') or '').strip(),
+        'use_builder': (request.form.get('use_builder') or '').strip(),
+    }
+
+    if request.method == 'POST':
+        name = form['name']
+        ds_type = form['type']
+        default_schema = form['default_schema'] or None
+        tenant_column = form['tenant_column'] or None
+
+        # If password left empty, keep existing password if we have it
+        existing_pwd = (conn.get('password') or '')
+        if not form['password'] and existing_pwd:
+            form['password'] = existing_pwd
+
+        url = form['url']
+        if form['use_builder'] == '1' or not url:
+            url = _build_url_from_parts(ds_type, form)
+
+        if not name or not ds_type or not url:
+            flash(tr('Preencha nome, tipo e conexão.', getattr(g, 'lang', None)), 'error')
+            return render_template('portal/sources_edit.html', tenant=g.tenant, source=src, form=form)
+
+        from ...services.crypto import encrypt_json
+        from ...services.datasource_service import clear_engine_cache
+
+        new_conn = {
+            'host': form['host'],
+            'port': form['port'],
+            'database': form['database'],
+            'username': form['username'],
+            'password': form['password'],
+            'driver': form['driver'],
+            'service_name': form['service_name'],
+            'sid': form['sid'],
+            'sqlite_path': form['sqlite_path'],
+        }
+
+        config = {
+            'url': url,
+            'default_schema': default_schema,
+            'tenant_column': tenant_column,
+            'conn': new_conn,
+        }
+
+        src.name = name
+        src.type = ds_type
+        src.config_encrypted = encrypt_json(config)
+        db.session.commit()
+        clear_engine_cache()
+
+        flash(tr('Fonte atualizada.', getattr(g, 'lang', None)), 'success')
+        return redirect(url_for('portal.sources_view', source_id=src.id))
+
+    return render_template('portal/sources_edit.html', tenant=g.tenant, source=src, form=form)
+
 
 
 @bp.route("/sources/<int:source_id>/introspect")
@@ -1696,13 +1991,21 @@ def reports_new():
             source_id=src.id,
             name=name,
             layout_json={
-                "version": 1,
+                "version": 4,
                 "page": {"size": "A4", "orientation": "portrait"},
-                "sections": {
-                    "header": [],
-                    "body": [],
-                    "footer": [],
+                "settings": {
+                    "page_number": True,
+                    "page_number_label": "Page {page} / {pages}",
                 },
+                "bands": {
+                    "report_header": [],
+                    "page_header": [],
+                    "detail": [],
+                    "page_footer": [],
+                    "report_footer": [],
+                },
+                # backward compat (older viewers)
+                "sections": {"header": [], "body": [], "footer": []},
             },
         )
         db.session.add(rep)
@@ -1740,21 +2043,123 @@ def report_view(report_id: int):
     questions = Question.query.filter_by(tenant_id=g.tenant.id, source_id=src.id).order_by(Question.name.asc()).all()
     q_by_id = {q.id: q for q in questions}
 
-    # For HTML preview, fetch data for question blocks (limited) so we can render tables quickly.
     layout = rep.layout_json or {}
-    sections = (layout.get("sections") or {})
-    blocks_data = {}
-    for sec in ("header", "body", "footer"):
-        for b in (sections.get(sec) or []):
-            if (b.get("type") or "").lower() == "question":
-                qid = int(b.get("question_id") or 0)
+    bands = (layout.get("bands") or {})
+    if not bands:
+        # Backward compat: map header/body/footer -> page_header/detail/page_footer
+        secs = (layout.get("sections") or {})
+        bands = {
+            "report_header": [],
+            "page_header": secs.get("header") or [],
+            "detail": secs.get("body") or [],
+            "page_footer": secs.get("footer") or [],
+            "report_footer": [],
+        }
+
+    from datetime import datetime, date
+
+    def _fmt_date(dt: object, fmt: str) -> str:
+        fmt = (fmt or "dd/MM/yyyy").strip()
+        mapping = {
+            "yyyy": "%Y",
+            "MM": "%m",
+            "dd": "%d",
+            "HH": "%H",
+            "mm": "%M",
+            "ss": "%S",
+        }
+        py = fmt
+        for k, v in mapping.items():
+            py = py.replace(k, v)
+        try:
+            if isinstance(dt, datetime):
+                return dt.strftime(py)
+            if isinstance(dt, date):
+                return dt.strftime(py)
+        except Exception:
+            pass
+        return str(dt)
+
+    def _fmt_number(v: object, decimals: int | None) -> str:
+        if decimals is None:
+            return str(v)
+        try:
+            if v is None:
+                return ""
+            if isinstance(v, (int, float)):
+                return f"{float(v):.{decimals}f}"
+            # try numeric strings
+            if isinstance(v, str) and v.strip() and v.strip().replace('.', '', 1).replace('-', '', 1).isdigit():
+                return f"{float(v):.{decimals}f}"
+        except Exception:
+            pass
+        return str(v)
+
+    def _format_cell(v: object, decimals: int | None, date_fmt: str | None) -> str:
+        if v is None:
+            return ""
+        if isinstance(v, (datetime, date)):
+            return _fmt_date(v, date_fmt or "dd/MM/yyyy")
+        if decimals is not None and isinstance(v, (int, float, str)):
+            return _fmt_number(v, decimals)
+        return str(v)
+
+    # Build a render-friendly bands structure and prefetch tables per block
+    render_bands: dict[str, list[dict]] = {}
+    blocks_data: dict[str, dict] = {}
+
+    order = [
+        "report_header",
+        "page_header",
+        "detail",
+        "page_footer",
+        "report_footer",
+    ]
+
+    for band_name in order:
+        out_list: list[dict] = []
+        for idx, b in enumerate(bands.get(band_name) or []):
+            bb = dict(b) if isinstance(b, dict) else {}
+            btype = (bb.get("type") or "").lower()
+            key = f"{band_name}:{idx}"
+            bb["_key"] = key
+
+            if btype == "question":
+                qid = int(bb.get("question_id") or 0)
                 q = q_by_id.get(qid)
-                if not q:
-                    continue
+                cfg = bb.get("config") if isinstance(bb.get("config"), dict) else {}
+                tcfg = (cfg.get("table") or {}) if isinstance(cfg.get("table"), dict) else {}
+                decimals = None
                 try:
-                    blocks_data[qid] = execute_sql(src, q.sql_text or "", {"tenant_id": g.tenant.id}, row_limit=25)
-                except Exception as e:
-                    blocks_data[qid] = {"columns": [], "rows": [], "error": str(e)}
+                    if tcfg.get("decimals") is not None and str(tcfg.get("decimals")).strip() != "":
+                        decimals = int(tcfg.get("decimals"))
+                except Exception:
+                    decimals = None
+                date_fmt = tcfg.get("date_format") or None
+
+                if not q:
+                    blocks_data[key] = {"columns": [], "rows": [], "error": "Pergunta não encontrada"}
+                else:
+                    try:
+                        res = execute_sql(src, q.sql_text or "", {"tenant_id": g.tenant.id}, row_limit=25)
+                        cols = res.get("columns") or []
+                        rows = res.get("rows") or []
+                        # format cells
+                        rows_fmt = [[_format_cell(c, decimals, date_fmt) for c in r] for r in rows]
+                        blocks_data[key] = {"columns": cols, "rows": rows_fmt}
+                    except Exception as e:
+                        blocks_data[key] = {"columns": [], "rows": [], "error": str(e)}
+
+            elif btype == "field":
+                cfg = bb.get("config") if isinstance(bb.get("config"), dict) else {}
+                kind = (cfg.get("kind") or "date").lower()
+                fmt = cfg.get("format") or ("dd/MM/yyyy HH:mm" if kind == "datetime" else "dd/MM/yyyy")
+                now = datetime.now()
+                val = _fmt_date(now, fmt)
+                bb["value"] = val
+
+            out_list.append(bb)
+        render_bands[band_name] = out_list
 
     return render_template(
         "portal/report_view.html",
@@ -1763,8 +2168,10 @@ def report_view(report_id: int):
         source=src,
         questions=q_by_id,
         layout=layout,
+        bands=render_bands,
         blocks_data=blocks_data,
     )
+
 
 
 @bp.route("/reports/<int:report_id>/pdf", methods=["GET"])

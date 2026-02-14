@@ -2,17 +2,43 @@
 {% set title = "Fonte" %}
 
 {% block portal_content %}
-  <div class="box">
-    <h3>{{ source.name }}</h3>
-    <p><strong>Tipo:</strong> {{ source.type }}</p>
-    <p><strong>Política:</strong> <code>{{ source.policy_json }}</code></p>
-
-    <p><strong>Config (descriptografada):</strong></p>
-    <pre style="white-space: pre-wrap;">{{ config | tojson(indent=2) }}</pre>
-
-    <p>
-      <a class="button" href="{{ url_for('portal.sources_introspect', source_id=source.id) }}">Introspectar metadados</a>
-      <a class="button" href="{{ url_for('portal.sql_editor') }}">Abrir Editor SQL</a>
-    </p>
+<div class="container-fluid px-0">
+  <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+    <div>
+      <h1 class="h4 mb-1">{{ source.name }}</h1>
+      <div class="text-muted small">
+        <i class="bi bi-database me-1"></i>{{ source.type }}
+      </div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.sources_list') }}">
+        <i class="bi bi-arrow-left"></i> Voltar
+      </a>
+      <a class="btn btn-outline-primary btn-sm" href="{{ url_for('portal.sources_edit', source_id=source.id) }}">
+        <i class="bi bi-pencil"></i> Editar
+      </a>
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.sources_introspect', source_id=source.id) }}">
+        <i class="bi bi-diagram-3"></i> Introspectar
+      </a>
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.sql_editor') }}">
+        <i class="bi bi-terminal"></i> Editor SQL
+      </a>
+    </div>
   </div>
+
+  <div class="card shadow-sm border-0 rounded-4">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-lg-6">
+          <div class="fw-semibold mb-2">Política</div>
+          <pre class="bg-light p-3 rounded-4 mb-0" style="white-space: pre-wrap;">{{ source.policy_json | tojson(indent=2) }}</pre>
+        </div>
+        <div class="col-lg-6">
+          <div class="fw-semibold mb-2">Config (descriptografada)</div>
+          <pre class="bg-light p-3 rounded-4 mb-0" style="white-space: pre-wrap;">{{ config | tojson(indent=2) }}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}

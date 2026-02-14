@@ -69,16 +69,16 @@
           <i class="bi bi-grip-vertical"></i>
         </div>
 
-<div class="rb-item rb-block" data-type="image" data-title="{{ _('Imagem') }}">
-  <div class="meta">
-    <span class="badge text-bg-secondary">IMG</span>
-    <div>
-      <div class="fw-semibold">{{ _('Imagem') }}</div>
-      <div class="text-muted small">{{ _('Figura / logotipo / screenshot') }}</div>
-    </div>
-  </div>
-  <i class="bi bi-grip-vertical"></i>
-</div>
+        <div class="rb-item rb-block" data-type="image" data-title="{{ _('Imagem') }}">
+          <div class="meta">
+            <span class="badge text-bg-secondary">IMG</span>
+            <div>
+              <div class="fw-semibold">{{ _('Imagem') }}</div>
+              <div class="text-muted small">{{ _('Figura / logotipo / screenshot') }}</div>
+            </div>
+          </div>
+          <i class="bi bi-grip-vertical"></i>
+        </div>
 
         <div class="rb-item rb-block" data-type="question" data-title="{{ _('Tabela') }}">
           <div class="meta">
@@ -86,6 +86,17 @@
             <div>
               <div class="fw-semibold">{{ _('Tabela/Gráfico de pergunta') }}</div>
               <div class="text-muted small">{{ _('Reaproveita uma Pergunta salva') }}</div>
+            </div>
+          </div>
+          <i class="bi bi-grip-vertical"></i>
+        </div>
+
+        <div class="rb-item rb-block" data-type="field" data-title="{{ _('Campo') }}">
+          <div class="meta">
+            <span class="badge text-bg-secondary">F</span>
+            <div>
+              <div class="fw-semibold">{{ _('Campo') }}</div>
+              <div class="text-muted small">{{ _('Data / data-hora (sistema)') }}</div>
             </div>
           </div>
           <i class="bi bi-grip-vertical"></i>
@@ -104,29 +115,42 @@
         </select>
         <button class="btn btn-outline-primary" id="rb-add-question" type="button">{{ _('Inserir') }}</button>
       </div>
-      <div class="form-text">{{ _('Isso cria um bloco “Pergunta” no corpo do relatório.') }}</div>
+      <div class="form-text">{{ _('Isso cria um bloco “Pergunta” no detalhe do relatório.') }}</div>
 
+      <hr>
 
-<hr>
-
-<div class="fw-semibold mb-2">{{ _('Adicionar imagem') }}</div>
-<div class="d-flex gap-2">
-  <input id="rb-image-url" class="form-control" placeholder="{{ _('URL (https://...)') }}" />
-  <button class="btn btn-outline-primary" id="rb-add-image" type="button">{{ _('Inserir') }}</button>
-</div>
-<div class="form-text">{{ _('Isso cria um bloco “Imagem” no corpo do relatório.') }}</div>
+      <div class="fw-semibold mb-2">{{ _('Adicionar imagem') }}</div>
+      <div class="d-flex gap-2">
+        <input id="rb-image-url" class="form-control" placeholder="{{ _('URL (https://...)') }}" />
+        <button class="btn btn-outline-primary" id="rb-add-image" type="button">{{ _('Inserir') }}</button>
+      </div>
+      <div class="form-text">{{ _('Isso cria um bloco “Imagem” no detalhe do relatório.') }}</div>
 
       <hr>
 
       <div class="fw-semibold mb-2">{{ _('Dica') }}</div>
       <div class="text-muted small">
-        {{ _('Arraste componentes para Header/Body/Footer. Clique no bloco para editar. Salve para persistir o layout.') }}
+        {{ _('Bandas tipo Crystal/DevExpress: Report Header (1ª página), Page Header (todas), Detail, Page Footer (todas), Report Footer (última). Clique no bloco para editar.') }}
       </div>
     </div>
 
-    <div class="alert alert-info mb-0">
+    
+
+    <div class="rb-panel p-3 mb-4" id="rb-settings-panel">
+      <div class="fw-semibold mb-2">{{ _('Configurações') }}</div>
+      <div class="form-check mb-2">
+        <input class="form-check-input" type="checkbox" id="rb-setting-page-number" checked />
+        <label class="form-check-label" for="rb-setting-page-number">{{ _('Numeração de páginas no PDF') }}</label>
+      </div>
+      <div class="mb-0">
+        <label class="form-label" for="rb-setting-page-label">{{ _('Formato') }}</label>
+        <input class="form-control" id="rb-setting-page-label" placeholder="Page {page} / {pages}" value="Page {page} / {pages}" />
+        <div class="form-text">{{ _('Use {page} e {pages}.') }}</div>
+      </div>
+    </div>
+<div class="alert alert-info mb-0">
       <div class="fw-semibold">{{ _('Report Builder') }}</div>
-      <div class="small">{{ _('Dica: use “Visualizar” para ver o relatório renderizado e “PDF” para exportar.') }}</div>
+      <div class="small">{{ _('Use “Visualizar” para ver o relatório e “PDF” para exportar com cabeçalho/rodapé repetidos e número de página.') }}</div>
     </div>
   </div>
 
@@ -134,13 +158,14 @@
   <div class="col-lg-8">
     <div class="rb-canvas p-3">
       <div class="row g-3">
+
         <div class="col-12">
           <div class="rb-section">
             <div class="d-flex align-items-center justify-content-between mb-2">
-              <div class="rb-section-title">{{ _('Cabeçalho') }}</div>
-              <span class="text-muted small">{{ _('Topo do relatório') }}</span>
+              <div class="rb-section-title">{{ _('Report Header') }}</div>
+              <span class="text-muted small">{{ _('Apenas na 1ª página') }}</span>
             </div>
-            <div id="rb-header" class="rb-dropzone d-grid gap-2">
+            <div id="rb-report-header" class="rb-dropzone d-grid gap-2">
               <div class="rb-drop-hint">{{ _('Arraste aqui...') }}</div>
             </div>
           </div>
@@ -149,10 +174,22 @@
         <div class="col-12">
           <div class="rb-section">
             <div class="d-flex align-items-center justify-content-between mb-2">
-              <div class="rb-section-title">{{ _('Corpo') }}</div>
+              <div class="rb-section-title">{{ _('Page Header') }}</div>
+              <span class="text-muted small">{{ _('Repete em todas as páginas') }}</span>
+            </div>
+            <div id="rb-page-header" class="rb-dropzone d-grid gap-2">
+              <div class="rb-drop-hint">{{ _('Arraste aqui...') }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12">
+          <div class="rb-section">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <div class="rb-section-title">{{ _('Detail') }}</div>
               <span class="text-muted small">{{ _('Conteúdo principal') }}</span>
             </div>
-            <div id="rb-body" class="rb-dropzone d-grid gap-2">
+            <div id="rb-detail" class="rb-dropzone d-grid gap-2">
               <div class="rb-drop-hint">{{ _('Arraste aqui...') }}</div>
             </div>
           </div>
@@ -161,10 +198,22 @@
         <div class="col-12">
           <div class="rb-section">
             <div class="d-flex align-items-center justify-content-between mb-2">
-              <div class="rb-section-title">{{ _('Rodapé') }}</div>
-              <span class="text-muted small">{{ _('Rodapé') }}</span>
+              <div class="rb-section-title">{{ _('Page Footer') }}</div>
+              <span class="text-muted small">{{ _('Repete em todas as páginas') }}</span>
             </div>
-            <div id="rb-footer" class="rb-dropzone d-grid gap-2">
+            <div id="rb-page-footer" class="rb-dropzone d-grid gap-2">
+              <div class="rb-drop-hint">{{ _('Arraste aqui...') }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12">
+          <div class="rb-section">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <div class="rb-section-title">{{ _('Report Footer') }}</div>
+              <span class="text-muted small">{{ _('Apenas na última página') }}</span>
+            </div>
+            <div id="rb-report-footer" class="rb-dropzone d-grid gap-2">
               <div class="rb-drop-hint">{{ _('Arraste aqui...') }}</div>
             </div>
           </div>
@@ -187,6 +236,7 @@
       <div class="modal-body">
         <form id="rb-edit-form" autocomplete="off">
           <input type="hidden" id="rb-edit-type" />
+
           <div class="mb-3">
             <label class="form-label" for="rb-edit-title">{{ _('Título') }}</label>
             <input class="form-control" id="rb-edit-title" />
@@ -230,6 +280,54 @@
                   <div class="d-flex justify-content-center">
                     <img id="rb-edit-image-preview" alt="" style="max-width:100%; max-height:160px; border-radius:.5rem; border:1px solid rgba(0,0,0,.08);" />
                   </div>
+                </div>
+              </div>
+            </div>
+            <hr>
+          </div>
+
+          <div class="d-none" id="rb-edit-field-group">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label" for="rb-edit-field-kind">{{ _('Tipo de campo') }}</label>
+                <select class="form-select" id="rb-edit-field-kind">
+                  <option value="date">{{ _('Data') }}</option>
+                  <option value="datetime">{{ _('Data e hora') }}</option>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="rb-edit-field-format">{{ _('Formato') }}</label>
+                <input class="form-control" id="rb-edit-field-format" placeholder="dd/MM/yyyy" />
+              </div>
+            </div>
+            <hr>
+          </div>
+
+          <div class="d-none" id="rb-edit-question-group">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label" for="rb-edit-table-theme">{{ _('Tema da tabela') }}</label>
+                <select class="form-select" id="rb-edit-table-theme">
+                  <option value="crystal">Crystal</option>
+                  <option value="devexpress">DevExpress</option>
+                  <option value="minimal">Minimal</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label" for="rb-edit-decimals">{{ _('Decimais') }}</label>
+                <input type="number" class="form-control" id="rb-edit-decimals" min="0" max="10" step="1" placeholder="2" />
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">{{ _('PDF') }}</label>
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="rb-edit-repeat-header" />
+                  <label class="form-check-label" for="rb-edit-repeat-header">{{ _('Repetir header') }}</label>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="rb-edit-zebra" />
+                  <label class="form-check-label" for="rb-edit-zebra">{{ _('Zebra (linhas alternadas)') }}</label>
                 </div>
               </div>
             </div>

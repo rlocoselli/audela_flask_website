@@ -82,3 +82,11 @@ def introspect_source(source: DataSource) -> dict[str, Any]:
             )
         out["schemas"].append({"name": schema_name, "tables": tables})
     return out
+
+
+def clear_engine_cache() -> None:
+    """Clear cached SQLAlchemy engines (use after changing a datasource URL)."""
+    try:
+        _engine_for_source.cache_clear()
+    except Exception:
+        pass

@@ -7,7 +7,6 @@
   <div class="card shadow-sm">
     <div class="card-body">
 
-      <!-- Header -->
       <div class="mb-4">
         <h4 class="mb-1">➕ Nova fonte de dados</h4>
         <p class="text-muted mb-0">
@@ -15,111 +14,145 @@
         </p>
       </div>
 
-      <form method="post">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      {% set f = form or {} %}
 
-        <!-- =====================
-             BASIC INFO
-        ====================== -->
+      <form method="post" id="ds-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <input type="hidden" name="use_builder" id="ds-use-builder" value="{{ f.get('use_builder','1') }}" />
+
         <h6 class="text-uppercase text-muted mb-3">Informações básicas</h6>
 
         <div class="row g-3">
           <div class="col-md-6">
             <label class="form-label">Nome</label>
-            <input
-              type="text"
-              name="name"
-              class="form-control"
-              placeholder="Ex.: DW Produção"
-              required
-            />
-            <div class="form-text">
-              Nome interno para identificar a fonte.
-            </div>
+            <input type="text" name="name" class="form-control" placeholder="Ex.: DW Produção" required value="{{ f.get('name','') }}" />
+            <div class="form-text">Nome interno para identificar a fonte.</div>
           </div>
 
           <div class="col-md-6">
             <label class="form-label">Tipo de banco</label>
-            <select name="type" class="form-select" required>
-              <option value="postgres">PostgreSQL</option>
-              <option value="mysql">MySQL / MariaDB</option>
-              <option value="sqlserver">SQL Server</option>
-              <option value="oracle">Oracle</option>
-              <option value="sqlite">SQLite</option>
+            <select name="type" id="ds-type" class="form-select" required>
+              {% set t = (f.get('type') or 'postgres') %}
+              <option value="postgres" {% if t=='postgres' %}selected{% endif %}>PostgreSQL</option>
+              <option value="mysql" {% if t=='mysql' %}selected{% endif %}>MySQL / MariaDB</option>
+              <option value="sqlserver" {% if t=='sqlserver' %}selected{% endif %}>SQL Server</option>
+              <option value="oracle" {% if t=='oracle' %}selected{% endif %}>Oracle</option>
+              <option value="sqlite" {% if t=='sqlite' %}selected{% endif %}>SQLite</option>
             </select>
           </div>
         </div>
 
-        <!-- =====================
-             CONNECTION
-        ====================== -->
         <hr class="my-4" />
 
-        <h6 class="text-uppercase text-muted mb-3">Conexão</h6>
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h6 class="text-uppercase text-muted mb-0">Conexão</h6>
+          <div class="small text-muted">Assistente para montar a string (opcional)</div>
+        </div>
 
-        <div class="mb-3">
-          <label class="form-label">URL de conexão (SQLAlchemy)</label>
-          <input
-            type="text"
-            name="url"
-            class="form-control"
-            placeholder="postgresql+psycopg://user:pass@host:5432/dbname"
-            required
-          />
-          <div class="form-text">
-            SQLite local:
-            <code>sqlite:////caminho/arquivo.db</code>
+        <ul class="nav nav-tabs" id="ds-tabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="ds-tab-builder" data-bs-toggle="tab" data-bs-target="#ds-pane-builder" type="button" role="tab">Assistente</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="ds-tab-manual" data-bs-toggle="tab" data-bs-target="#ds-pane-manual" type="button" role="tab">URL manual</button>
+          </li>
+        </ul>
+
+        <div class="tab-content border border-top-0 rounded-bottom-4 p-3" id="ds-tabs-content">
+          <div class="tab-pane fade show active" id="ds-pane-builder" role="tabpanel">
+
+            <div class="row g-3">
+              <div class="col-md-6" id="ds-row-host">
+                <label class="form-label">Host</label>
+                <input class="form-control" name="host" id="ds-host" placeholder="ex: db.company.com" value="{{ f.get('host','') }}" />
+              </div>
+              <div class="col-md-3" id="ds-row-port">
+                <label class="form-label">Porta</label>
+                <input class="form-control" name="port" id="ds-port" placeholder="5432" value="{{ f.get('port','') }}" />
+              </div>
+              <div class="col-md-3" id="ds-row-db">
+                <label class="form-label">Database</label>
+                <input class="form-control" name="database" id="ds-database" placeholder="ex: dw" value="{{ f.get('database','') }}" />
+              </div>
+
+              <div class="col-md-6" id="ds-row-user">
+                <label class="form-label">Usuário</label>
+                <input class="form-control" name="username" id="ds-username" placeholder="ex: readonly" value="{{ f.get('username','') }}" />
+              </div>
+              <div class="col-md-6" id="ds-row-pass">
+                <label class="form-label">Senha</label>
+                <input class="form-control" name="password" id="ds-password" type="password" placeholder="(opcional)" value="{{ f.get('password','') }}" />
+                <div class="form-text">Fica criptografado no config. Se preferir, cole uma URL pronta no modo “URL manual”.</div>
+              </div>
+
+              <div class="col-12 d-none" id="ds-row-driver">
+                <label class="form-label">Driver (SQL Server)</label>
+                <select class="form-select" name="driver" id="ds-driver">
+                  {% set d = f.get('driver','ODBC Driver 18 for SQL Server') %}
+                  <option value="ODBC Driver 18 for SQL Server" {% if d=='ODBC Driver 18 for SQL Server' %}selected{% endif %}>ODBC Driver 18 for SQL Server</option>
+                  <option value="ODBC Driver 17 for SQL Server" {% if d=='ODBC Driver 17 for SQL Server' %}selected{% endif %}>ODBC Driver 17 for SQL Server</option>
+                </select>
+              </div>
+
+              <div class="col-md-6 d-none" id="ds-row-service">
+                <label class="form-label">Service Name (Oracle)</label>
+                <input class="form-control" name="service_name" id="ds-service" placeholder="ex: ORCLPDB1" value="{{ f.get('service_name','') }}" />
+              </div>
+              <div class="col-md-6 d-none" id="ds-row-sid">
+                <label class="form-label">SID (Oracle)</label>
+                <input class="form-control" name="sid" id="ds-sid" placeholder="ex: ORCL" value="{{ f.get('sid','') }}" />
+              </div>
+
+              <div class="col-12 d-none" id="ds-row-sqlite">
+                <label class="form-label">Arquivo SQLite</label>
+                <input class="form-control" name="sqlite_path" id="ds-sqlite-path" placeholder="/caminho/arquivo.db" value="{{ f.get('sqlite_path','') }}" />
+                <div class="form-text">Exemplo: <code>sqlite:////caminho/arquivo.db</code> ou apenas o caminho.</div>
+              </div>
+            </div>
+
+            <hr class="my-3" />
+            <div class="row g-2 align-items-end">
+              <div class="col-12">
+                <label class="form-label">URL gerada (SQLAlchemy)</label>
+                <div class="input-group">
+                  <input type="text" class="form-control" id="ds-url-preview" readonly />
+                  <button class="btn btn-outline-secondary" type="button" id="ds-copy-url"><i class="bi bi-clipboard"></i></button>
+                </div>
+                <div class="form-text">A URL abaixo será copiada para o campo “URL manual” automaticamente.</div>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="tab-pane fade" id="ds-pane-manual" role="tabpanel">
+            <label class="form-label">URL de conexão (SQLAlchemy)</label>
+            <input type="text" name="url" id="ds-url" class="form-control" placeholder="postgresql+psycopg://user:pass@host:5432/dbname" value="{{ f.get('url','') }}" />
+            <div class="form-text">
+              SQLite local: <code>sqlite:////caminho/arquivo.db</code>
+            </div>
           </div>
         </div>
 
-        <!-- =====================
-             ADVANCED
-        ====================== -->
         <hr class="my-4" />
-
         <h6 class="text-uppercase text-muted mb-3">Opções avançadas</h6>
 
         <div class="row g-3">
           <div class="col-md-6">
             <label class="form-label">Schema padrão</label>
-            <input
-              type="text"
-              name="default_schema"
-              class="form-control"
-              placeholder="public"
-            />
-            <div class="form-text">
-              Schema usado por padrão nas consultas.
-            </div>
+            <input type="text" name="default_schema" class="form-control" placeholder="public" value="{{ f.get('default_schema','') }}" />
+            <div class="form-text">Schema usado por padrão nas consultas.</div>
           </div>
 
           <div class="col-md-6">
             <label class="form-label">Coluna tenant</label>
-            <input
-              type="text"
-              name="tenant_column"
-              class="form-control"
-              placeholder="tenant_id"
-            />
-            <div class="form-text">
-              Se preenchida, o SQL deve conter <code>:tenant_id</code>.
-            </div>
+            <input type="text" name="tenant_column" class="form-control" placeholder="tenant_id" value="{{ f.get('tenant_column','') }}" />
+            <div class="form-text">Se preenchida, o SQL deve conter <code>:tenant_id</code>.</div>
           </div>
         </div>
 
-        <!-- =====================
-             ACTIONS
-        ====================== -->
         <div class="d-flex justify-content-end gap-2 mt-4">
-          <a
-            href="{{ url_for('portal.sources_list') }}"
-            class="btn btn-outline-secondary"
-          >
-            Cancelar
-          </a>
-          <button type="submit" class="btn btn-primary">
-            💾 Salvar fonte
-          </button>
+          <a href="{{ url_for('portal.sources_list') }}" class="btn btn-outline-secondary">Cancelar</a>
+          <button type="submit" class="btn btn-primary">💾 Salvar fonte</button>
         </div>
 
       </form>
@@ -127,4 +160,9 @@
   </div>
 
 </div>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='portal/sources_form.js') }}"></script>
 {% endblock %}

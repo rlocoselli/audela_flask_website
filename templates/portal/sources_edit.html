@@ -1,0 +1,163 @@
+{% extends "portal/layout.html" %}
+{% set title = "Editar fonte" %}
+
+{% block portal_content %}
+<div class="container-fluid px-0">
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+
+      <div class="mb-4">
+        <h4 class="mb-1">✏️ Editar fonte de dados</h4>
+        <p class="text-muted mb-0">
+          Atualize a conexão e as opções avançadas.
+        </p>
+      </div>
+
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+        <h6 class="text-uppercase text-muted mb-3">Informações básicas</h6>
+
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Nome</label>
+            <input type="text" name="name" class="form-control" required value="{{ (form.name if form is defined else source.name) }}" />
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label">Tipo de banco</label>
+            <select name="type" id="ds-type" class="form-select" required>
+              {% set t = (form.type if form is defined else source.type) %}
+              <option value="postgres" {% if t=='postgres' %}selected{% endif %}>PostgreSQL</option>
+              <option value="mysql" {% if t=='mysql' %}selected{% endif %}>MySQL / MariaDB</option>
+              <option value="sqlserver" {% if t=='sqlserver' %}selected{% endif %}>SQL Server</option>
+              <option value="oracle" {% if t=='oracle' %}selected{% endif %}>Oracle</option>
+              <option value="sqlite" {% if t=='sqlite' %}selected{% endif %}>SQLite</option>
+            </select>
+          </div>
+        </div>
+
+        <hr class="my-4" />
+        <h6 class="text-uppercase text-muted mb-3">Conexão</h6>
+
+        <input type="hidden" name="use_builder" id="ds-use-builder" value="{{ (form.use_builder if form is defined else '') }}" />
+
+        <ul class="nav nav-tabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="ds-tab-assist" data-bs-toggle="tab" data-bs-target="#ds-pane-assist" type="button" role="tab">
+              Assistente
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="ds-tab-manual" data-bs-toggle="tab" data-bs-target="#ds-pane-manual" type="button" role="tab">
+              URL (manual)
+            </button>
+          </li>
+        </ul>
+
+        <div class="tab-content border border-top-0 rounded-bottom p-3 bg-body">
+          <div class="tab-pane fade show active" id="ds-pane-assist" role="tabpanel">
+
+            <div class="row g-3">
+              <div class="col-md-7">
+                <label class="form-label">Host</label>
+                <input type="text" name="host" id="ds-host" class="form-control" value="{{ form.host if form is defined else '' }}" placeholder="db.example.com" />
+              </div>
+              <div class="col-md-5">
+                <label class="form-label">Porta</label>
+                <input type="text" name="port" id="ds-port" class="form-control" value="{{ form.port if form is defined else '' }}" placeholder="5432" />
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Database</label>
+                <input type="text" name="database" id="ds-database" class="form-control" value="{{ form.database if form is defined else '' }}" placeholder="ex.: app_db" />
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Usuário</label>
+                <input type="text" name="username" id="ds-username" class="form-control" value="{{ form.username if form is defined else '' }}" />
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label">Senha</label>
+                <input type="password" name="password" id="ds-password" class="form-control" placeholder="(deixe vazio para manter)" />
+                <div class="form-text">Por segurança, a senha não é exibida. Se deixar vazio, manteremos a atual.</div>
+              </div>
+
+              <div class="col-md-6" id="ds-driver-row">
+                <label class="form-label">Driver (SQL Server)</label>
+                <select class="form-select" name="driver" id="ds-driver">
+                  {% set drv = form.driver if form is defined else '' %}
+                  <option value="">(padrão)</option>
+                  <option value="ODBC Driver 18 for SQL Server" {% if drv=='ODBC Driver 18 for SQL Server' %}selected{% endif %}>ODBC Driver 18 for SQL Server</option>
+                  <option value="ODBC Driver 17 for SQL Server" {% if drv=='ODBC Driver 17 for SQL Server' %}selected{% endif %}>ODBC Driver 17 for SQL Server</option>
+                </select>
+              </div>
+
+              <div class="col-md-6 d-none" id="ds-oracle-service-row">
+                <label class="form-label">Service Name (Oracle)</label>
+                <input type="text" name="service_name" id="ds-service-name" class="form-control" value="{{ form.service_name if form is defined else '' }}" placeholder="ORCLPDB1" />
+              </div>
+              <div class="col-md-6 d-none" id="ds-oracle-sid-row">
+                <label class="form-label">SID (Oracle)</label>
+                <input type="text" name="sid" id="ds-sid" class="form-control" value="{{ form.sid if form is defined else '' }}" placeholder="ORCL" />
+              </div>
+
+              <div class="col-12 d-none" id="ds-sqlite-row">
+                <label class="form-label">Caminho do arquivo (SQLite)</label>
+                <input type="text" name="sqlite_path" id="ds-sqlite-path" class="form-control" value="{{ form.sqlite_path if form is defined else '' }}" placeholder="/caminho/arquivo.db" />
+                <div class="form-text">Pode usar um caminho absoluto, relativo, ou uma URL <code>sqlite:///...</code>.</div>
+              </div>
+            </div>
+
+            <hr class="my-3" />
+
+            <label class="form-label">URL SQLAlchemy (gerada)</label>
+            <div class="input-group">
+              <input type="text" class="form-control" id="ds-url-generated" readonly />
+              <button class="btn btn-outline-secondary" type="button" id="ds-copy-url">Copiar</button>
+            </div>
+            <div class="form-text">A URL abaixo também será salva no campo manual.</div>
+
+          </div>
+
+          <div class="tab-pane fade" id="ds-pane-manual" role="tabpanel">
+            <label class="form-label">URL de conexão (SQLAlchemy)</label>
+            <input type="text" name="url" id="ds-url" class="form-control" value="{{ form.url if form is defined else '' }}" required />
+            <div class="form-text">
+              Ex.: <code>postgresql+psycopg://user:pass@host:5432/dbname</code>
+            </div>
+          </div>
+        </div>
+
+        <hr class="my-4" />
+        <h6 class="text-uppercase text-muted mb-3">Opções avançadas</h6>
+
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Schema padrão</label>
+            <input type="text" name="default_schema" class="form-control" value="{{ form.default_schema if form is defined else '' }}" placeholder="public" />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Coluna tenant</label>
+            <input type="text" name="tenant_column" class="form-control" value="{{ form.tenant_column if form is defined else '' }}" placeholder="tenant_id" />
+            <div class="form-text">Se preenchida, o SQL deve conter <code>:tenant_id</code>.</div>
+          </div>
+        </div>
+
+        <div class="d-flex justify-content-end gap-2 mt-4">
+          <a href="{{ url_for('portal.sources_view', source_id=source.id) }}" class="btn btn-outline-secondary">Cancelar</a>
+          <button type="submit" class="btn btn-primary">💾 Salvar alterações</button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='portal/sources_form.js') }}"></script>
+{% endblock %}

@@ -1,10 +1,10 @@
 /* global Sortable, bootstrap */
 
-// Report Builder:
-// - Drag from palette into Header/Body/Footer
-// - Support blocks: text, markdown, question, image
-// - Styling per block: text color + background color + alignment
-// - Block editor uses a Bootstrap modal (with color palettes)
+// Report Builder (banded / Crystal-like):
+// - Drag from palette into: ReportHeader, PageHeader, Detail, PageFooter, ReportFooter
+// - Blocks: text, markdown, question (table), image, field (date/datetime)
+// - Per-block style: text color + background color + alignment
+// - Per-question table style: theme, zebra, repeat header, decimals
 // - Save layout JSON via /api/reports/<id>
 
 (function () {
@@ -44,8 +44,16 @@
     });
   }
 
+  const ZONES = [
+    'rb-report-header',
+    'rb-page-header',
+    'rb-detail',
+    'rb-page-footer',
+    'rb-report-footer'
+  ];
+
   function normalizeDropHints () {
-    for (const id of ['rb-header', 'rb-body', 'rb-footer']) {
+    for (const id of ZONES) {
       const dz = qs('#' + id);
       if (!dz) continue;
       const hint = dz.querySelector('.rb-drop-hint');
@@ -85,9 +93,31 @@
     }));
   }
 
+  function readConfigFromEl (el) {
+    const raw = el.getAttribute('data-config') || '';
+    const cfg = safeJsonParse(raw, null);
+    return (cfg && typeof cfg === 'object') ? cfg : null;
+  }
+
+  function writeConfigToEl (el, cfg) {
+    if (!cfg || typeof cfg !== 'object' || !Object.keys(cfg).length) {
+      el.removeAttribute('data-config');
+      return;
+    }
+    el.setAttribute('data-config', JSON.stringify(cfg));
+  }
+
   function blockSummary (b) {
     const type = (b.type || '').toLowerCase();
-    if (type === 'question') return b.question_name ? `${t('Pergunta')}: ${b.question_name}` : t('Pergunta salva');
+    if (type === 'question') {
+      const tbl = b.config && b.config.table ? b.config.table : {};
+      const dec = (tbl.decimals != null && tbl.decimals !== '') ? `, ${tbl.decimals}d` : '';
+      return b.question_name ? `${t('Pergunta')}: ${b.question_name}${dec}` : `${t('Tabela')}${dec}`;
+    }
+    if (type === 'field') {
+      const k = (b.config && b.config.kind) ? b.config.kind : 'date';
+      return (k === 'datetime') ? t('Campo: Data e hora') : t('Campo: Data');
+    }
     if (type === 'image') {
       const u = (b.url || b.image_url || '').trim();
       const cap = (b.caption || '').trim();
@@ -102,10 +132,11 @@
     const type = String(block.type || 'text').toLowerCase();
     const defaultTitle =
       type === 'text' ? t('Texto')
-      : type === 'markdown' ? t('Markdown')
-      : type === 'question' ? t('Pergunta')
-      : type === 'image' ? t('Imagem')
-      : type;
+        : type === 'markdown' ? t('Markdown')
+          : type === 'question' ? t('Pergunta')
+            : type === 'image' ? t('Imagem')
+              : type === 'field' ? t('Campo')
+                : type;
 
     const title = block.title || defaultTitle;
 
@@ -127,8 +158,14 @@
     if (block.align) el.setAttribute('data-image-align', String(block.align));
 
     if (block.style && typeof block.style === 'object') writeStyleToEl(el, block.style);
+    if (block.config && typeof block.config === 'object') writeConfigToEl(el, block.config);
 
-    const badgeTxt = (type === 'question') ? 'Q' : (type === 'markdown') ? 'MD' : (type === 'image') ? 'IMG' : 'T';
+    const badgeTxt =
+      (type === 'question') ? 'Q'
+        : (type === 'markdown') ? 'MD'
+          : (type === 'image') ? 'IMG'
+            : (type === 'field') ? 'F'
+              : 'T';
 
     el.innerHTML = `
       <div class="meta">
@@ -172,7 +209,7 @@
     if (qid) out.question_id = Number(qid);
 
     const content = el.getAttribute('data-content');
-    if (content != null) out.content = content;
+    if (content != null && (type === 'text' || type === 'markdown')) out.content = content;
 
     if (type === 'image') {
       out.url = el.getAttribute('data-image-url') || '';
@@ -182,10 +219,24 @@
       out.align = el.getAttribute('data-image-align') || '';
     }
 
+    const cfg = readConfigFromEl(el);
+    if (cfg) out.config = cfg;
+
     const st = readStyleFromEl(el);
     if (st) out.style = st;
 
     return out;
+  }
+
+  function readSettingsFromDom () {
+    const enabledEl = qs("#rb-setting-page-number");
+    const labelEl = qs("#rb-setting-page-label");
+    const enabled = enabledEl ? !!enabledEl.checked : true;
+    const label = labelEl ? String(labelEl.value || "").trim() : "";
+    return {
+      page_number: enabled,
+      page_number_label: label || "Page {page} / {pages}"
+    };
   }
 
   function extractLayoutFromDom () {
@@ -197,12 +248,15 @@
     }
 
     return {
-      version: 3,
+      version: 4,
       page: { size: 'A4', orientation: 'portrait' },
-      sections: {
-        header: readZone('rb-header'),
-        body: readZone('rb-body'),
-        footer: readZone('rb-footer')
+      settings: readSettingsFromDom(),
+      bands: {
+        report_header: readZone('rb-report-header'),
+        page_header: readZone('rb-page-header'),
+        detail: readZone('rb-detail'),
+        page_footer: readZone('rb-page-footer'),
+        report_footer: readZone('rb-report-footer')
       }
     };
   }
@@ -238,6 +292,16 @@
       imageWidth: qs('#rb-edit-image-width', modalEl),
       imageAlign: qs('#rb-edit-image-align', modalEl),
       imagePreview: qs('#rb-edit-image-preview', modalEl),
+
+      fieldGroup: qs('#rb-edit-field-group', modalEl),
+      fieldKind: qs('#rb-edit-field-kind', modalEl),
+      fieldFormat: qs('#rb-edit-field-format', modalEl),
+
+      questionGroup: qs('#rb-edit-question-group', modalEl),
+      qTheme: qs('#rb-edit-q-theme', modalEl),
+      qDecimals: qs('#rb-edit-q-decimals', modalEl),
+      qRepeatHeader: qs('#rb-edit-q-repeat-header', modalEl),
+      qZebra: qs('#rb-edit-q-zebra', modalEl),
 
       colorInput: qs('#rb-edit-color', modalEl),
       bgInput: qs('#rb-edit-bg', modalEl),
@@ -308,16 +372,17 @@
     _editor.saveBtn.addEventListener('click', (e) => {
       e.preventDefault();
       if (!_editor.onSave) { _editor.modal.hide(); return; }
-      const type = String(_editor.typeEl.value || '').toLowerCase() || 'text';
 
+      const type = String(_editor.typeEl.value || '').toLowerCase() || 'text';
       const out = { ...(_editor.currentBlock || {}), type };
 
       let title = String(_editor.titleInput.value || '').trim();
       if (!title) {
         title = (type === 'markdown') ? t('Markdown')
           : (type === 'question') ? t('Pergunta')
-          : (type === 'image') ? t('Imagem')
-          : t('Texto');
+            : (type === 'image') ? t('Imagem')
+              : (type === 'field') ? t('Campo')
+                : t('Texto');
       }
       out.title = title;
 
@@ -336,15 +401,29 @@
         out.align = ia;
       }
 
+      if (type === 'field') {
+        const kind = String(_editor.fieldKind.value || 'date').trim().toLowerCase();
+        const fmt = String(_editor.fieldFormat.value || '').trim();
+        out.config = out.config || {};
+        out.config.kind = (kind === 'datetime') ? 'datetime' : 'date';
+        out.config.format = fmt;
+      }
+
+      if (type === 'question') {
+        out.config = out.config || {};
+        out.config.table = out.config.table || {};
+        out.config.table.theme = String(_editor.qTheme.value || 'crystal').trim().toLowerCase();
+        const decRaw = String(_editor.qDecimals.value || '').trim();
+        out.config.table.decimals = (decRaw === '') ? '' : Number(decRaw);
+        out.config.table.repeat_header = !!(_editor.qRepeatHeader && _editor.qRepeatHeader.checked);
+        out.config.table.zebra = !!(_editor.qZebra && _editor.qZebra.checked);
+      }
+
       // Style (hex fields stored without leading '#')
       let color = String(_editor.colorInput.value || '').trim();
       let bg = String(_editor.bgInput.value || '').trim();
-
-      // normalize: allow user to paste with '#'
       if (color.startsWith('#')) color = color.slice(1);
       if (bg.startsWith('#')) bg = bg.slice(1);
-
-      // write out with leading '#'
       color = color ? ('#' + color) : '';
       bg = bg ? ('#' + bg) : '';
 
@@ -353,6 +432,12 @@
 
       out.style = { color, background: bg, align };
       if (!out.style.color && !out.style.background && !out.style.align) delete out.style;
+
+      // cleanup empty configs
+      if (out.config && typeof out.config === 'object') {
+        const str = JSON.stringify(out.config);
+        if (str === '{}' || str === 'null') delete out.config;
+      }
 
       _editor.onSave(out);
       _editor.modal.hide();
@@ -412,6 +497,33 @@
       if (ed.imagePreview) ed.imagePreview.src = '';
     }
 
+    // Field
+    if (type === 'field') {
+      ed.fieldGroup.classList.remove('d-none');
+      const cfg = block.config || {};
+      ed.fieldKind.value = (cfg.kind === 'datetime') ? 'datetime' : 'date';
+      ed.fieldFormat.value = cfg.format || (cfg.kind === 'datetime' ? 'dd/MM/yyyy HH:mm' : 'dd/MM/yyyy');
+    } else {
+      ed.fieldGroup.classList.add('d-none');
+      if (ed.fieldFormat) ed.fieldFormat.value = '';
+    }
+
+    // Question
+    if (type === 'question') {
+      ed.questionGroup.classList.remove('d-none');
+      const cfg = block.config || {};
+      const tbl = cfg.table || {};
+      ed.qTheme.value = (tbl.theme || 'crystal');
+      ed.qDecimals.value = (tbl.decimals === 0) ? '0' : (tbl.decimals != null ? String(tbl.decimals) : '');
+      if (ed.qRepeatHeader) ed.qRepeatHeader.checked = (tbl.repeat_header !== false);
+      if (ed.qZebra) ed.qZebra.checked = !!tbl.zebra;
+    } else {
+      ed.questionGroup.classList.add('d-none');
+      if (ed.qDecimals) ed.qDecimals.value = '';
+      if (ed.qRepeatHeader) ed.qRepeatHeader.checked = true;
+      if (ed.qZebra) ed.qZebra.checked = false;
+    }
+
     const st = block.style || {};
     ed.colorInput.value = (st.color || '').replace('#', '');
     ed.bgInput.value = (st.background || '').replace('#', '');
@@ -447,6 +559,20 @@
       block.content = String(newText);
     }
 
+    if (type === 'field') {
+      const curK = (block.config && block.config.kind) ? block.config.kind : 'date';
+      let k = prompt(t('Campo (date/datetime):'), curK);
+      if (k === null) k = curK;
+      k = String(k || '').trim().toLowerCase();
+      if (!['date', 'datetime'].includes(k)) k = 'date';
+      block.config = block.config || {};
+      block.config.kind = k;
+      const curF = block.config.format || '';
+      let f = prompt(t('Formato (dd/MM/yyyy HH:mm):'), curF);
+      if (f === null) f = curF;
+      block.config.format = String(f || '').trim();
+    }
+
     if (type === 'image') {
       const curUrl = block.url || '';
       let url = prompt(t('URL da imagem:'), curUrl);
@@ -474,6 +600,17 @@
       a = String(a || '').trim().toLowerCase();
       if (a && !['left', 'center', 'right'].includes(a)) a = '';
       block.align = a;
+    }
+
+    if (type === 'question') {
+      const tbl = (block.config && block.config.table) ? block.config.table : {};
+      let dec = prompt(t('Decimais (vazio para auto):'), (tbl.decimals != null ? String(tbl.decimals) : ''));
+      if (dec !== null) {
+        dec = String(dec || '').trim();
+        block.config = block.config || {};
+        block.config.table = block.config.table || {};
+        block.config.table.decimals = dec === '' ? '' : Number(dec);
+      }
     }
 
     const curColor = (block.style && block.style.color) ? block.style.color : '';
@@ -513,9 +650,11 @@
     if (!cfg || !cfg.apiUrl) return;
 
     const palette = qs('#rb-palette');
-    const header = qs('#rb-header');
-    const body = qs('#rb-body');
-    const footer = qs('#rb-footer');
+    const reportHeader = qs('#rb-report-header');
+    const pageHeader = qs('#rb-page-header');
+    const detail = qs('#rb-detail');
+    const pageFooter = qs('#rb-page-footer');
+    const reportFooter = qs('#rb-report-footer');
     const saveBtn = qs('#rb-save');
 
     Sortable.create(palette, {
@@ -538,40 +677,84 @@
           const type = (it.getAttribute('data-type') || 'text').toLowerCase();
           const title = it.getAttribute('data-title') || (
             type === 'markdown' ? t('Markdown')
-            : type === 'question' ? t('Tabela')
-            : type === 'image' ? t('Imagem')
-            : t('Texto')
+              : type === 'question' ? t('Tabela')
+                : type === 'image' ? t('Imagem')
+                  : type === 'field' ? t('Campo')
+                    : t('Texto')
           );
 
           const block = { type, title, content: '' };
+          if (type === 'field') block.config = { kind: 'date', format: 'dd/MM/yyyy' };
+          if (type === 'question') block.config = { table: { theme: 'crystal', repeat_header: true, zebra: false, decimals: '' } };
+
           const newEl = makeBlockEl(block);
           it.replaceWith(newEl);
           normalizeDropHints();
 
-          // open editor immediately for text/markdown/image
-          if (['text', 'markdown', 'image'].includes(type)) editBlock(newEl);
+          // open editor immediately for most blocks
+          if (['text', 'markdown', 'image', 'field', 'question'].includes(type)) editBlock(newEl);
         },
         onSort: normalizeDropHints,
         onRemove: normalizeDropHints
       };
     }
 
-    Sortable.create(header, zoneOptions());
-    Sortable.create(body, zoneOptions());
-    Sortable.create(footer, zoneOptions());
+    Sortable.create(reportHeader, zoneOptions());
+    Sortable.create(pageHeader, zoneOptions());
+    Sortable.create(detail, zoneOptions());
+    Sortable.create(pageFooter, zoneOptions());
+    Sortable.create(reportFooter, zoneOptions());
 
     // Load existing layout
     try {
       const rep = await jsonFetch(cfg.apiUrl);
       const layout = rep.layout || {};
-      const secs = (layout.sections || {});
-      const zoneMap = { header, body, footer };
+      const settings = (layout.settings || {});
+      const spn = qs('#rb-setting-page-number');
+      const spl = qs('#rb-setting-page-label');
+      if (spn) spn.checked = settings.page_number !== false;
+      if (spl) spl.value = String(settings.page_number_label || 'Page {page} / {pages}');
 
-      for (const key of ['header', 'body', 'footer']) {
-        const dz = zoneMap[key];
+
+      // Backward compat: sections -> bands
+      const bands = layout.bands || null;
+      const secs = layout.sections || null;
+      const effective = bands ? {
+        report_header: bands.report_header || [],
+        page_header: bands.page_header || [],
+        detail: bands.detail || [],
+        page_footer: bands.page_footer || [],
+        report_footer: bands.report_footer || []
+      } : {
+        report_header: [],
+        page_header: (secs && Array.isArray(secs.header)) ? secs.header : [],
+        detail: (secs && Array.isArray(secs.body)) ? secs.body : [],
+        page_footer: (secs && Array.isArray(secs.footer)) ? secs.footer : [],
+        report_footer: []
+      };
+
+      const zoneMap = {
+        'rb-report-header': reportHeader,
+        'rb-page-header': pageHeader,
+        'rb-detail': detail,
+        'rb-page-footer': pageFooter,
+        'rb-report-footer': reportFooter
+      };
+
+      const bandToZone = {
+        report_header: 'rb-report-header',
+        page_header: 'rb-page-header',
+        detail: 'rb-detail',
+        page_footer: 'rb-page-footer',
+        report_footer: 'rb-report-footer'
+      };
+
+      for (const bandKey of Object.keys(bandToZone)) {
+        const zoneId = bandToZone[bandKey];
+        const dz = zoneMap[zoneId];
         if (!dz) continue;
         dz.innerHTML = `<div class="rb-drop-hint">${t('Arraste aqui...')}</div>`;
-        const blocks = Array.isArray(secs[key]) ? secs[key] : [];
+        const blocks = Array.isArray(effective[bandKey]) ? effective[bandKey] : [];
         for (const b of blocks) {
           const bb = { ...b };
           if (bb.text != null && bb.content == null) bb.content = bb.text;
@@ -594,12 +777,17 @@
         const qid = Number(qSel.value || 0);
         if (!qid) return;
         const label = qSel.options[qSel.selectedIndex]?.textContent || tf('Pergunta #{n}', { n: qid });
-        body.appendChild(makeBlockEl({ type: 'question', title: label, question_id: qid }));
+        detail.appendChild(makeBlockEl({
+          type: 'question',
+          title: label,
+          question_id: qid,
+          config: { table: { theme: 'crystal', repeat_header: true, zebra: false, decimals: '' } }
+        }));
         normalizeDropHints();
       });
     }
 
-    // Add image shortcut (kept as-is)
+    // Add image shortcut
     const imgUrlInput = qs('#rb-image-url');
     const addImg = qs('#rb-add-image');
     if (addImg && imgUrlInput) {
@@ -608,8 +796,30 @@
         const url = String(imgUrlInput.value || '').trim();
         if (!url) return;
         const el = makeBlockEl({ type: 'image', title: t('Imagem'), url });
-        body.appendChild(el);
+        detail.appendChild(el);
         imgUrlInput.value = '';
+        normalizeDropHints();
+        editBlock(el);
+      });
+    }
+
+    // Add field shortcut
+    const addFieldDate = qs('#rb-add-field-date');
+    const addFieldDateTime = qs('#rb-add-field-datetime');
+    if (addFieldDate) {
+      addFieldDate.addEventListener('click', (e) => {
+        e.preventDefault();
+        const el = makeBlockEl({ type: 'field', title: t('Data'), config: { kind: 'date', format: 'dd/MM/yyyy' } });
+        pageHeader.appendChild(el);
+        normalizeDropHints();
+        editBlock(el);
+      });
+    }
+    if (addFieldDateTime) {
+      addFieldDateTime.addEventListener('click', (e) => {
+        e.preventDefault();
+        const el = makeBlockEl({ type: 'field', title: t('Data e hora'), config: { kind: 'datetime', format: 'dd/MM/yyyy HH:mm' } });
+        pageHeader.appendChild(el);
         normalizeDropHints();
         editBlock(el);
       });

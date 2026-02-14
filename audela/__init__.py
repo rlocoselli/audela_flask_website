@@ -67,16 +67,24 @@ def create_app() -> Flask:
         def _(msgid: str, **kwargs):
             return tr(msgid, getattr(g, "lang", DEFAULT_LANG), **kwargs)
 
+        _lang = getattr(g, "lang", DEFAULT_LANG)
+        _merged = {}
+        # JS translations: include fallbacks to reduce mixed-language UI
+        _merged.update(TRANSLATIONS.get("pt", {}))
+        _merged.update(TRANSLATIONS.get("en", {}))
+        _merged.update(TRANSLATIONS.get(_lang, {}))
+
         return {
             "_": _,
-            "current_lang": getattr(g, "lang", DEFAULT_LANG),
+            "current_lang": _lang,
             "supported_langs": SUPPORTED_LANGS,
             "lang_label": lambda code: SUPPORTED_LANGS.get(code, SUPPORTED_LANGS[DEFAULT_LANG]).label,
             "request": request,
-            "i18n_strings": TRANSLATIONS.get(getattr(g, "lang", DEFAULT_LANG), {}),
+            "i18n_strings": _merged,
             "tenant": getattr(g, "tenant", None),
-        
+
         }
+
 
     @login_manager.user_loader
     def load_user(user_id: str):

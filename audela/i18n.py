@@ -2363,14 +2363,1387 @@ def best_lang_from_accept_language(header: str | None) -> str:
     return DEFAULT_LANG
 
 
+
+# --- AUTO: Extra BI/ETL/Portal translations
+_EXTRA_TRANSLATIONS = {'de': {'A extensão determina o tipo (csv/xlsx/parquet).': 'Die Dateiendung bestimmt den Typ (csv/xlsx/parquet).',
+        'A pasta será criada dentro da pasta atual.': 'Der Ordner wird im aktuellen Ordner erstellt.',
+        'Abrir': 'Öffnen',
+        'Adicionar': 'Hinzufügen',
+        'Adicionar passos': 'Schritte hinzufügen',
+        'Adicionar pergunta': 'Frage hinzufügen',
+        'Agregação': 'Aggregation',
+        'Alinhamento': 'Ausrichtung',
+        'Analisar': 'Analysieren',
+        'Análise avançada: distribuição, correlação, regressão e Monte Carlo (amostra).': 'Erweiterte Analyse: '
+                                                                                          'Verteilung, Korrelation, '
+                                                                                          'Regression und Monte Carlo '
+                                                                                          '(Stichprobe).',
+        'Apenas na 1ª página': 'Nur auf der 1. Seite',
+        'Apenas na última página': 'Nur auf der letzten Seite',
+        'Area': 'Fläche',
+        'Arquivo': 'Datei',
+        'Arquivos': 'Dateien',
+        'Arraste e solte para mover': 'Zum Verschieben ziehen und ablegen',
+        'Atualizado': 'Aktualisiert',
+        'Atualizado em': 'Aktualisiert am',
+        'Aurora': 'Aurora',
+        'Ações': 'Aktionen',
+        'Baixar': 'Herunterladen',
+        'Bandas tipo Crystal/DevExpress: Report Header (1ª página), Page Header (todas), Detail, Page Footer (todas), Report Footer (última). Clique no bloco para editar.': 'Crystal/DevExpress-Bänder: '
+                                                                                                                                                                             'Berichtskopf '
+                                                                                                                                                                             '(1. '
+                                                                                                                                                                             'Seite), '
+                                                                                                                                                                             'Seitenkopf '
+                                                                                                                                                                             '(alle), '
+                                                                                                                                                                             'Detail, '
+                                                                                                                                                                             'Seitenfuß '
+                                                                                                                                                                             '(alle), '
+                                                                                                                                                                             'Berichtsfuß '
+                                                                                                                                                                             '(letzte). '
+                                                                                                                                                                             'Klicken '
+                                                                                                                                                                             'Sie '
+                                                                                                                                                                             'auf '
+                                                                                                                                                                             'einen '
+                                                                                                                                                                             'Block '
+                                                                                                                                                                             'zum '
+                                                                                                                                                                             'Bearbeiten.',
+        'Bar': 'Balken',
+        'Bucket': 'Bucket',
+        'Cabeçalhos (JSON)': 'Header (JSON)',
+        'Clique em um ponto/barra para filtrar o dashboard por esse valor.': 'Klicken Sie auf einen Punkt/Balken, um '
+                                                                             'das Dashboard nach diesem Wert zu '
+                                                                             'filtern.',
+        'Colunas numéricas detectadas': 'Numerische Spalten erkannt',
+        'Componentes': 'Komponenten',
+        'Configurações': 'Einstellungen',
+        'Conteúdo principal': 'Hauptinhalt',
+        'Crie uma Pergunta e um Dashboard': 'Erstellen Sie eine Frage und ein Dashboard',
+        'Dashboards recentes': 'Neueste Dashboards',
+        'Data': 'Datum',
+        'Data / data-hora (sistema)': 'Datum / Datum-Uhrzeit (System)',
+        'Data e hora': 'Datum und Uhrzeit',
+        'Decimais': 'Dezimalstellen',
+        'Default': 'Standard',
+        'Descrição': 'Beschreibung',
+        'Destino': 'Ziel',
+        'Detail': 'Detail',
+        'Dica': 'Tipp',
+        'Dica: campos JSON devem ser um JSON válido (ex: {"Authorization":"Bearer ..."}).': 'Tipp: JSON-Felder müssen '
+                                                                                            'gültiges JSON sein (z. B. '
+                                                                                            '{"Authorization":"Bearer '
+                                                                                            '..."}).',
+        'Dica: para pivot avançado use o tipo Pivot e personalize na tela.': 'Tipp: Für erweiterte Pivot-Ansichten den '
+                                                                             'Typ Pivot verwenden und im Bildschirm '
+                                                                             'anpassen.',
+        'Duplo clique em um nó para editar a configuração. Conecte os nós na ordem Extract → Transform → Load. (MVP: fluxo linear)': 'Doppelklicken '
+                                                                                                                                     'Sie '
+                                                                                                                                     'auf '
+                                                                                                                                     'einen '
+                                                                                                                                     'Knoten, '
+                                                                                                                                     'um '
+                                                                                                                                     'die '
+                                                                                                                                     'Konfiguration '
+                                                                                                                                     'zu '
+                                                                                                                                     'bearbeiten. '
+                                                                                                                                     'Verbinden '
+                                                                                                                                     'Sie '
+                                                                                                                                     'die '
+                                                                                                                                     'Knoten '
+                                                                                                                                     'in '
+                                                                                                                                     'der '
+                                                                                                                                     'Reihenfolge '
+                                                                                                                                     'Extract '
+                                                                                                                                     '→ '
+                                                                                                                                     'Transform '
+                                                                                                                                     '→ '
+                                                                                                                                     'Load. '
+                                                                                                                                     '(MVP: '
+                                                                                                                                     'linearer '
+                                                                                                                                     'Ablauf)',
+        'ETL': 'ETL',
+        'ETL Builder': 'ETL-Builder',
+        'ETLs': 'ETLs',
+        'Erro ao carregar.': 'Fehler beim Laden.',
+        'Escolha uma fonte de dados e depois monte o layout no builder.': 'Wählen Sie eine Datenquelle und erstellen '
+                                                                          'Sie dann das Layout im Builder.',
+        'Estatísticas': 'Statistiken',
+        'Estatísticas descritivas': 'Deskriptive Statistiken',
+        'Este é o dashboard padrão do seu tenant. Você pode alterá-lo na lista de dashboards.': 'Dies ist das '
+                                                                                                'Standard-Dashboard '
+                                                                                                'Ihres Tenants. Sie '
+                                                                                                'können es in der '
+                                                                                                'Dashboard-Liste '
+                                                                                                'ändern.',
+        'Ex.: API Vendas': 'z. B.: Sales-API',
+        'Ex.: Financeiro': 'z. B.: Finanzen',
+        'Excluir': 'Löschen',
+        'Excluir esta pasta e tudo dentro?': 'Diesen Ordner und alles darin löschen?',
+        'Excluir este arquivo?': 'Diese Datei löschen?',
+        'Expandir': 'Erweitern',
+        'Faça upload ou importe arquivos para usar como datasource.': 'Laden Sie Dateien hoch oder importieren Sie '
+                                                                      'sie, um sie als Datenquelle zu verwenden.',
+        'Fonte': 'Quelle',
+        'Fontes API': 'API-Quellen',
+        'Formato': 'Format',
+        'Formatos suportados': 'Unterstützte Formate',
+        'Gauge': 'Tacho',
+        'Gráficos': 'Diagramme',
+        'HTTP Extract': 'HTTP-Extraktion',
+        'Importar': 'Importieren',
+        'Importar S3': 'S3 importieren',
+        'Importar URL': 'URL importieren',
+        'Inserir': 'Einfügen',
+        'Introspecte metadados na fonte (botão Introspectar).': 'Metadaten in der Quelle introspektieren (Schaltfläche '
+                                                                '„Introspectar“).',
+        'Isso cria um bloco “Imagem” no detalhe do relatório.': 'Dies erstellt einen „Bild“-Block im Detail des '
+                                                                'Berichts.',
+        'Isso cria um bloco “Pergunta” no detalhe do relatório.': 'Dies erstellt einen „Frage“-Block im Detail des '
+                                                                  'Berichts.',
+        'Itens': 'Elemente',
+        'Key (caminho no bucket)': 'Key (Pfad im Bucket)',
+        'Legenda (opcional)': 'Legende (optional)',
+        'Line': 'Linie',
+        'Linhas (amostra)': 'Zeilen (Stichprobe)',
+        'Load (Warehouse)': 'Laden (Warehouse)',
+        'Markdown': 'Markdown',
+        'Monte Carlo': 'Monte Carlo',
+        'Mover': 'Verschieben',
+        'Nada por aqui ainda.': 'Hier gibt es noch nichts.',
+        'Nenhum dashboard ainda.': 'Noch keine Dashboards.',
+        'Nenhum workflow salvo.': 'Keine Workflows gespeichert.',
+        'Nenhuma coluna numérica detectada na amostra.': 'Keine numerischen Spalten in der Stichprobe erkannt.',
+        'Nenhuma fonte API cadastrada ainda.': 'Noch keine API-Quellen registriert.',
+        'Nimbus': 'Nimbus',
+        'Nome': 'Name',
+        'Nome (opcional)': 'Name (optional)',
+        'Nome amigável': 'Anzeigename',
+        'Nome amigável para o BI': 'Anzeigename für BI',
+        'Nome do arquivo (opcional)': 'Dateiname (optional)',
+        'Nova fonte API': 'Neue API-Quelle',
+        'Nova pasta': 'Neuer Ordner',
+        'Novo workflow': 'Neuer Workflow',
+        'Numeração de páginas no PDF': 'PDF-Seitennummerierung',
+        'Observação para a IA (opcional)': 'Notiz für KI (optional)',
+        'Onyx': 'Onyx',
+        'Opcional': 'Optional',
+        'Opcional. Exemplo: Authorization, Accept, X-API-Key, etc.': 'Optional. Beispiel: Authorization, Accept, '
+                                                                     'X-API-Key, usw.',
+        'Ou escolha uma pergunta': 'Oder wählen Sie eine Frage',
+        'PDF': 'PDF',
+        'Page Footer': 'Seitenfuß',
+        'Page Header': 'Seitenkopf',
+        'Parametros parametrizados devem ser passados via filtros ou definidos na Pergunta. tenant_id é aplicado automaticamente.': 'Parametrisierte '
+                                                                                                                                    'Parameter '
+                                                                                                                                    'müssen '
+                                                                                                                                    'über '
+                                                                                                                                    'Filter '
+                                                                                                                                    'übergeben '
+                                                                                                                                    'oder '
+                                                                                                                                    'in '
+                                                                                                                                    'der '
+                                                                                                                                    'Frage '
+                                                                                                                                    'definiert '
+                                                                                                                                    'werden. '
+                                                                                                                                    'tenant_id '
+                                                                                                                                    'wird '
+                                                                                                                                    'automatisch '
+                                                                                                                                    'angewendet.',
+        'Parâmetros': 'Parameter',
+        'Pasta': 'Ordner',
+        'Pastas': 'Ordner',
+        'Pergunta': 'Frage',
+        'Pesquisar...': 'Suchen...',
+        'Pie': 'Torte',
+        'Preview': 'Vorschau',
+        'Preview (últimos resultados)': 'Vorschau (letzte Ergebnisse)',
+        'Principal': 'Haupt',
+        'Prob < 0': 'Prob < 0',
+        'Raiz': 'Wurzel',
+        'Reaproveita uma Pergunta salva': 'Gespeicherte Frage wiederverwenden',
+        'Região (opcional)': 'Region (optional)',
+        'Regressão linear': 'Lineare Regression',
+        'Remover?': 'Entfernen?',
+        'Renomear': 'Umbenennen',
+        'Repete em todas as páginas': 'Auf allen Seiten wiederholen',
+        'Repetir header': 'Kopfzeile wiederholen',
+        'Report Builder': 'Report-Builder',
+        'Report Footer': 'Berichtsfuß',
+        'Report Header': 'Berichtskopf',
+        'Resultados por coluna (amostra).': 'Ergebnisse nach Spalte (Stichprobe).',
+        'Resumo (IA)': 'Zusammenfassung (KI)',
+        'Rows / Cols / Value': 'Zeilen / Spalten / Wert',
+        'SQL Extract': 'SQL-Extraktion',
+        'Salvar workflow': 'Workflow speichern',
+        'Scatter': 'Streuung',
+        'Schema': 'Schema',
+        'Se OPENAI_API_KEY estiver configurada, a IA gera um resumo executivo.': 'Wenn OPENAI_API_KEY konfiguriert '
+                                                                                 'ist, erzeugt die KI eine Executive '
+                                                                                 'Summary.',
+        'Se a fonte exigir tenant, inclua :tenant_id no WHERE.': 'Wenn die Quelle einen Tenant erfordert, fügen Sie '
+                                                                 ':tenant_id in der WHERE-Klausel hinzu.',
+        'Selecione a fonte se for usar SQL manual.': 'Wählen Sie die Quelle, wenn Sie manuelles SQL verwenden.',
+        'Sem gráficos para mostrar (faltam colunas numéricas).': 'Keine Diagramme anzuzeigen (keine numerischen '
+                                                                 'Spalten).',
+        'Simulação por coluna (amostra).': 'Simulation nach Spalte (Stichprobe).',
+        'Simulações': 'Simulationen',
+        'Subir': 'Hochladen',
+        'Sugestões': 'Vorschläge',
+        'Tabela/Gráfico de pergunta': 'Tabellen/Diagramm der Frage',
+        'Tabelas e colunas da fonte (autocomplete).': 'Tabellen und Spalten der Quelle (Autovervollständigung).',
+        'Tamanho': 'Größe',
+        'Tema da tabela': 'Tabellenthema',
+        'Texto': 'Text',
+        'Texto com formatação': 'Formatierter Text',
+        'Tipo de campo': 'Feldtyp',
+        'Todos os dashboards': 'Alle Dashboards',
+        'Transform': 'Transformieren',
+        'Título / parágrafo simples': 'Titel / einfacher Absatz',
+        'URL': 'URL',
+        'URL base': 'Basis-URL',
+        'Upload': 'Hochladen',
+        'Upload e organização por pastas, com isolamento por tenant.': 'Upload und Ordnerorganisation, mit '
+                                                                       'Tenant-Isolierung.',
+        'Usa a fonte e o SQL salvos na pergunta.': 'Verwendet die in der Frage gespeicherte Quelle und das SQL.',
+        'Use :nome_param no SQL. tenant_id é aplicado automaticamente.': 'Verwenden Sie :param_name im SQL. tenant_id '
+                                                                         'wird automatisch angewendet.',
+        'Use Ctrl+Space para autocomplete. Ctrl+Enter para executar.': 'Strg+Leertaste für Autovervollständigung. '
+                                                                       'Strg+Enter zum Ausführen.',
+        'Use {page} e {pages}.': 'Verwenden Sie {page} und {pages}.',
+        'Use “Visualizar” para ver o relatório e “PDF” para exportar com cabeçalho/rodapé repetidos e número de página.': 'Verwenden '
+                                                                                                                          'Sie '
+                                                                                                                          '„Anzeigen“, '
+                                                                                                                          'um '
+                                                                                                                          'den '
+                                                                                                                          'Bericht '
+                                                                                                                          'zu '
+                                                                                                                          'sehen, '
+                                                                                                                          'und '
+                                                                                                                          '„PDF“, '
+                                                                                                                          'um '
+                                                                                                                          'mit '
+                                                                                                                          'wiederholter '
+                                                                                                                          'Kopf-/Fußzeile '
+                                                                                                                          'und '
+                                                                                                                          'Seitennummern '
+                                                                                                                          'zu '
+                                                                                                                          'exportieren.',
+        'Ver todos': 'Alle anzeigen',
+        'Visualizar': 'Anzeigen',
+        'Você pode arrastar arquivos/pastas para outra pasta na árvore.': 'Sie können Dateien/Ordner in einen anderen '
+                                                                          'Ordner im Baum ziehen.',
+        'Você também pode arrastar e soltar no painel de pastas.': 'Sie können auch im Ordner-Panel ziehen und '
+                                                                   'ablegen.',
+        'Zebra (linhas alternadas)': 'Zebra (abwechselnde Zeilen)'},
+ 'en': {'A extensão determina o tipo (csv/xlsx/parquet).': 'The extension determines the type (csv/xlsx/parquet).',
+        'A pasta será criada dentro da pasta atual.': 'The folder will be created inside the current folder.',
+        'Abrir': 'Open',
+        'Adicionar': 'Add',
+        'Adicionar passos': 'Add steps',
+        'Adicionar pergunta': 'Add question',
+        'Agregação': 'Aggregation',
+        'Alinhamento': 'Alignment',
+        'Analisar': 'Analyze',
+        'Análise avançada: distribuição, correlação, regressão e Monte Carlo (amostra).': 'Advanced analysis: '
+                                                                                          'distribution, correlation, '
+                                                                                          'regression and Monte Carlo '
+                                                                                          '(sample).',
+        'Apenas na 1ª página': 'Only on the 1st page',
+        'Apenas na última página': 'Only on the last page',
+        'Area': 'Area',
+        'Arquivo': 'File',
+        'Arquivos': 'Files',
+        'Arraste e solte para mover': 'Drag and drop to move',
+        'Atualizado': 'Updated',
+        'Atualizado em': 'Updated on',
+        'Aurora': 'Aurora',
+        'Ações': 'Actions',
+        'Baixar': 'Download',
+        'Bandas tipo Crystal/DevExpress: Report Header (1ª página), Page Header (todas), Detail, Page Footer (todas), Report Footer (última). Clique no bloco para editar.': 'Crystal/DevExpress-style '
+                                                                                                                                                                             'bands: '
+                                                                                                                                                                             'Report '
+                                                                                                                                                                             'Header '
+                                                                                                                                                                             '(1st '
+                                                                                                                                                                             'page), '
+                                                                                                                                                                             'Page '
+                                                                                                                                                                             'Header '
+                                                                                                                                                                             '(all '
+                                                                                                                                                                             'pages), '
+                                                                                                                                                                             'Detail, '
+                                                                                                                                                                             'Page '
+                                                                                                                                                                             'Footer '
+                                                                                                                                                                             '(all '
+                                                                                                                                                                             'pages), '
+                                                                                                                                                                             'Report '
+                                                                                                                                                                             'Footer '
+                                                                                                                                                                             '(last '
+                                                                                                                                                                             'page). '
+                                                                                                                                                                             'Click '
+                                                                                                                                                                             'a '
+                                                                                                                                                                             'block '
+                                                                                                                                                                             'to '
+                                                                                                                                                                             'edit.',
+        'Bar': 'Bar',
+        'Bucket': 'Bucket',
+        'Cabeçalhos (JSON)': 'Headers (JSON)',
+        'Clique em um ponto/barra para filtrar o dashboard por esse valor.': 'Click a point/bar to filter the '
+                                                                             'dashboard by this value.',
+        'Colunas numéricas detectadas': 'Numeric columns detected',
+        'Componentes': 'Components',
+        'Configurações': 'Settings',
+        'Conteúdo principal': 'Main content',
+        'Crie uma Pergunta e um Dashboard': 'Create a Question and a Dashboard',
+        'Dashboards recentes': 'Recent dashboards',
+        'Data': 'Date',
+        'Data / data-hora (sistema)': 'Date / date-time (system)',
+        'Data e hora': 'Date and time',
+        'Decimais': 'Decimals',
+        'Default': 'Default',
+        'Descrição': 'Description',
+        'Destino': 'Destination',
+        'Detail': 'Detail',
+        'Dica': 'Tip',
+        'Dica: campos JSON devem ser um JSON válido (ex: {"Authorization":"Bearer ..."}).': 'Tip: JSON fields must be '
+                                                                                            'valid JSON (e.g. '
+                                                                                            '{"Authorization":"Bearer '
+                                                                                            '..."}).',
+        'Dica: para pivot avançado use o tipo Pivot e personalize na tela.': 'Tip: for advanced pivot use the Pivot '
+                                                                             'type and customize on the screen.',
+        'Duplo clique em um nó para editar a configuração. Conecte os nós na ordem Extract → Transform → Load. (MVP: fluxo linear)': 'Double-click '
+                                                                                                                                     'a '
+                                                                                                                                     'node '
+                                                                                                                                     'to '
+                                                                                                                                     'edit '
+                                                                                                                                     'its '
+                                                                                                                                     'configuration. '
+                                                                                                                                     'Connect '
+                                                                                                                                     'nodes '
+                                                                                                                                     'in '
+                                                                                                                                     'order '
+                                                                                                                                     'Extract '
+                                                                                                                                     '→ '
+                                                                                                                                     'Transform '
+                                                                                                                                     '→ '
+                                                                                                                                     'Load. '
+                                                                                                                                     '(MVP: '
+                                                                                                                                     'linear '
+                                                                                                                                     'flow)',
+        'ETL': 'ETL',
+        'ETL Builder': 'ETL Builder',
+        'ETLs': 'ETLs',
+        'Erro ao carregar.': 'Error loading.',
+        'Escolha uma fonte de dados e depois monte o layout no builder.': 'Choose a data source and then build the '
+                                                                          'layout in the builder.',
+        'Estatísticas': 'Statistics',
+        'Estatísticas descritivas': 'Descriptive statistics',
+        'Este é o dashboard padrão do seu tenant. Você pode alterá-lo na lista de dashboards.': "This is your tenant's "
+                                                                                                'default dashboard. '
+                                                                                                'You can change it in '
+                                                                                                'the dashboards list.',
+        'Ex.: API Vendas': 'e.g.: Sales API',
+        'Ex.: Financeiro': 'e.g.: Finance',
+        'Excluir': 'Delete',
+        'Excluir esta pasta e tudo dentro?': 'Delete this folder and everything inside?',
+        'Excluir este arquivo?': 'Delete this file?',
+        'Expandir': 'Expand',
+        'Faça upload ou importe arquivos para usar como datasource.': 'Upload or import files to use as a datasource.',
+        'Fonte': 'Source',
+        'Fontes API': 'API Sources',
+        'Formato': 'Format',
+        'Formatos suportados': 'Supported formats',
+        'Gauge': 'Gauge',
+        'Gráficos': 'Charts',
+        'HTTP Extract': 'HTTP Extract',
+        'Importar': 'Import',
+        'Importar S3': 'Import S3',
+        'Importar URL': 'Import URL',
+        'Inserir': 'Insert',
+        'Introspecte metadados na fonte (botão Introspectar).': 'Introspect metadata in the source ("Introspect" '
+                                                                'button).',
+        'Isso cria um bloco “Imagem” no detalhe do relatório.': 'This creates an “Image” block in the report detail.',
+        'Isso cria um bloco “Pergunta” no detalhe do relatório.': 'This creates a “Question” block in the report '
+                                                                  'detail.',
+        'Itens': 'Items',
+        'Key (caminho no bucket)': 'Key (path in bucket)',
+        'Legenda (opcional)': 'Caption (optional)',
+        'Line': 'Line',
+        'Linhas (amostra)': 'Rows (sample)',
+        'Load (Warehouse)': 'Load (Warehouse)',
+        'Markdown': 'Markdown',
+        'Monte Carlo': 'Monte Carlo',
+        'Mover': 'Move',
+        'Nada por aqui ainda.': 'Nothing here yet.',
+        'Nenhum dashboard ainda.': 'No dashboards yet.',
+        'Nenhum workflow salvo.': 'No workflows saved.',
+        'Nenhuma coluna numérica detectada na amostra.': 'No numeric columns detected in the sample.',
+        'Nenhuma fonte API cadastrada ainda.': 'No API sources registered yet.',
+        'Nimbus': 'Nimbus',
+        'Nome': 'Name',
+        'Nome (opcional)': 'Name (optional)',
+        'Nome amigável': 'Display name',
+        'Nome amigável para o BI': 'Display name for BI',
+        'Nome do arquivo (opcional)': 'File name (optional)',
+        'Nova fonte API': 'New API source',
+        'Nova pasta': 'New folder',
+        'Novo workflow': 'New workflow',
+        'Numeração de páginas no PDF': 'PDF page numbering',
+        'Observação para a IA (opcional)': 'Note for AI (optional)',
+        'Onyx': 'Onyx',
+        'Opcional': 'Optional',
+        'Opcional. Exemplo: Authorization, Accept, X-API-Key, etc.': 'Optional. Example: Authorization, Accept, '
+                                                                     'X-API-Key, etc.',
+        'Ou escolha uma pergunta': 'Or choose a question',
+        'PDF': 'PDF',
+        'Page Footer': 'Page Footer',
+        'Page Header': 'Page Header',
+        'Parametros parametrizados devem ser passados via filtros ou definidos na Pergunta. tenant_id é aplicado automaticamente.': 'Parameterized '
+                                                                                                                                    'params '
+                                                                                                                                    'must '
+                                                                                                                                    'be '
+                                                                                                                                    'passed '
+                                                                                                                                    'via '
+                                                                                                                                    'filters '
+                                                                                                                                    'or '
+                                                                                                                                    'defined '
+                                                                                                                                    'in '
+                                                                                                                                    'the '
+                                                                                                                                    'Question. '
+                                                                                                                                    'tenant_id '
+                                                                                                                                    'is '
+                                                                                                                                    'applied '
+                                                                                                                                    'automatically.',
+        'Parâmetros': 'Parameters',
+        'Pasta': 'Folder',
+        'Pastas': 'Folders',
+        'Pergunta': 'Question',
+        'Pesquisar...': 'Search...',
+        'Pie': 'Pie',
+        'Preview': 'Preview',
+        'Preview (últimos resultados)': 'Preview (latest results)',
+        'Principal': 'Main',
+        'Prob < 0': 'Prob < 0',
+        'Raiz': 'Root',
+        'Reaproveita uma Pergunta salva': 'Reuse a saved Question',
+        'Região (opcional)': 'Region (optional)',
+        'Regressão linear': 'Linear regression',
+        'Remover?': 'Remove?',
+        'Renomear': 'Rename',
+        'Repete em todas as páginas': 'Repeat on all pages',
+        'Repetir header': 'Repeat header',
+        'Report Builder': 'Report Builder',
+        'Report Footer': 'Report Footer',
+        'Report Header': 'Report Header',
+        'Resultados por coluna (amostra).': 'Results by column (sample).',
+        'Resumo (IA)': 'Summary (AI)',
+        'Rows / Cols / Value': 'Rows / Cols / Value',
+        'SQL Extract': 'SQL Extract',
+        'Salvar workflow': 'Save workflow',
+        'Scatter': 'Scatter',
+        'Schema': 'Schema',
+        'Se OPENAI_API_KEY estiver configurada, a IA gera um resumo executivo.': 'If OPENAI_API_KEY is configured, the '
+                                                                                 'AI generates an executive summary.',
+        'Se a fonte exigir tenant, inclua :tenant_id no WHERE.': 'If the source requires tenant, include :tenant_id in '
+                                                                 'the WHERE.',
+        'Selecione a fonte se for usar SQL manual.': 'Select the source if you will use manual SQL.',
+        'Sem gráficos para mostrar (faltam colunas numéricas).': 'No charts to display (missing numeric columns).',
+        'Simulação por coluna (amostra).': 'Simulation by column (sample).',
+        'Simulações': 'Simulations',
+        'Subir': 'Upload',
+        'Sugestões': 'Suggestions',
+        'Tabela/Gráfico de pergunta': 'Question table/chart',
+        'Tabelas e colunas da fonte (autocomplete).': 'Tables and columns from the source (autocomplete).',
+        'Tamanho': 'Size',
+        'Tema da tabela': 'Table theme',
+        'Texto': 'Text',
+        'Texto com formatação': 'Formatted text',
+        'Tipo de campo': 'Field type',
+        'Todos os dashboards': 'All dashboards',
+        'Transform': 'Transform',
+        'Título / parágrafo simples': 'Title / simple paragraph',
+        'URL': 'URL',
+        'URL base': 'Base URL',
+        'Upload': 'Upload',
+        'Upload e organização por pastas, com isolamento por tenant.': 'Upload and folder organization, with tenant '
+                                                                       'isolation.',
+        'Usa a fonte e o SQL salvos na pergunta.': 'Uses the source and the SQL saved in the question.',
+        'Use :nome_param no SQL. tenant_id é aplicado automaticamente.': 'Use :param_name in SQL. tenant_id is applied '
+                                                                         'automatically.',
+        'Use Ctrl+Space para autocomplete. Ctrl+Enter para executar.': 'Use Ctrl+Space for autocomplete. Ctrl+Enter to '
+                                                                       'run.',
+        'Use {page} e {pages}.': 'Use {page} and {pages}.',
+        'Use “Visualizar” para ver o relatório e “PDF” para exportar com cabeçalho/rodapé repetidos e número de página.': 'Use '
+                                                                                                                          '“View” '
+                                                                                                                          'to '
+                                                                                                                          'see '
+                                                                                                                          'the '
+                                                                                                                          'report '
+                                                                                                                          'and '
+                                                                                                                          '“PDF” '
+                                                                                                                          'to '
+                                                                                                                          'export '
+                                                                                                                          'with '
+                                                                                                                          'repeated '
+                                                                                                                          'header/footer '
+                                                                                                                          'and '
+                                                                                                                          'page '
+                                                                                                                          'numbers.',
+        'Ver todos': 'View all',
+        'Visualizar': 'View',
+        'Você pode arrastar arquivos/pastas para outra pasta na árvore.': 'You can drag files/folders to another '
+                                                                          'folder in the tree.',
+        'Você também pode arrastar e soltar no painel de pastas.': 'You can also drag and drop into the folders panel.',
+        'Zebra (linhas alternadas)': 'Zebra (alternating rows)'},
+ 'es': {'A extensão determina o tipo (csv/xlsx/parquet).': 'La extensión determina el tipo (csv/xlsx/parquet).',
+        'A pasta será criada dentro da pasta atual.': 'La carpeta se creará dentro de la carpeta actual.',
+        'Abrir': 'Abrir',
+        'Adicionar': 'Añadir',
+        'Adicionar passos': 'Añadir pasos',
+        'Adicionar pergunta': 'Añadir pregunta',
+        'Agregação': 'Agregación',
+        'Alinhamento': 'Alineación',
+        'Analisar': 'Analizar',
+        'Análise avançada: distribuição, correlação, regressão e Monte Carlo (amostra).': 'Análisis avanzado: '
+                                                                                          'distribución, correlación, '
+                                                                                          'regresión y Monte Carlo '
+                                                                                          '(muestra).',
+        'Apenas na 1ª página': 'Solo en la 1.ª página',
+        'Apenas na última página': 'Solo en la última página',
+        'Area': 'Área',
+        'Arquivo': 'Archivo',
+        'Arquivos': 'Archivos',
+        'Arraste e solte para mover': 'Arrastra y suelta para mover',
+        'Atualizado': 'Actualizado',
+        'Atualizado em': 'Actualizado el',
+        'Aurora': 'Aurora',
+        'Ações': 'Acciones',
+        'Baixar': 'Descargar',
+        'Bandas tipo Crystal/DevExpress: Report Header (1ª página), Page Header (todas), Detail, Page Footer (todas), Report Footer (última). Clique no bloco para editar.': 'Bandas '
+                                                                                                                                                                             'estilo '
+                                                                                                                                                                             'Crystal/DevExpress: '
+                                                                                                                                                                             'Encabezado '
+                                                                                                                                                                             'del '
+                                                                                                                                                                             'informe '
+                                                                                                                                                                             '(1.ª '
+                                                                                                                                                                             'página), '
+                                                                                                                                                                             'Encabezado '
+                                                                                                                                                                             'de '
+                                                                                                                                                                             'página '
+                                                                                                                                                                             '(todas), '
+                                                                                                                                                                             'Detalle, '
+                                                                                                                                                                             'Pie '
+                                                                                                                                                                             'de '
+                                                                                                                                                                             'página '
+                                                                                                                                                                             '(todas), '
+                                                                                                                                                                             'Pie '
+                                                                                                                                                                             'del '
+                                                                                                                                                                             'informe '
+                                                                                                                                                                             '(última). '
+                                                                                                                                                                             'Haz '
+                                                                                                                                                                             'clic '
+                                                                                                                                                                             'en '
+                                                                                                                                                                             'el '
+                                                                                                                                                                             'bloque '
+                                                                                                                                                                             'para '
+                                                                                                                                                                             'editar.',
+        'Bar': 'Barras',
+        'Bucket': 'Bucket',
+        'Cabeçalhos (JSON)': 'Encabezados (JSON)',
+        'Clique em um ponto/barra para filtrar o dashboard por esse valor.': 'Haz clic en un punto/barra para filtrar '
+                                                                             'el dashboard por este valor.',
+        'Colunas numéricas detectadas': 'Columnas numéricas detectadas',
+        'Componentes': 'Componentes',
+        'Configurações': 'Configuración',
+        'Conteúdo principal': 'Contenido principal',
+        'Crie uma Pergunta e um Dashboard': 'Crea una Pregunta y un Dashboard',
+        'Dashboards recentes': 'Dashboards recientes',
+        'Data': 'Fecha',
+        'Data / data-hora (sistema)': 'Fecha / fecha-hora (sistema)',
+        'Data e hora': 'Fecha y hora',
+        'Decimais': 'Decimales',
+        'Default': 'Predeterminado',
+        'Descrição': 'Descripción',
+        'Destino': 'Destino',
+        'Detail': 'Detalle',
+        'Dica': 'Consejo',
+        'Dica: campos JSON devem ser um JSON válido (ex: {"Authorization":"Bearer ..."}).': 'Consejo: los campos JSON '
+                                                                                            'deben ser un JSON válido '
+                                                                                            '(ej.: '
+                                                                                            '{"Authorization":"Bearer '
+                                                                                            '..."}).',
+        'Dica: para pivot avançado use o tipo Pivot e personalize na tela.': 'Consejo: para un pivot avanzado usa el '
+                                                                             'tipo Pivot y personaliza en la pantalla.',
+        'Duplo clique em um nó para editar a configuração. Conecte os nós na ordem Extract → Transform → Load. (MVP: fluxo linear)': 'Doble '
+                                                                                                                                     'clic '
+                                                                                                                                     'en '
+                                                                                                                                     'un '
+                                                                                                                                     'nodo '
+                                                                                                                                     'para '
+                                                                                                                                     'editar '
+                                                                                                                                     'su '
+                                                                                                                                     'configuración. '
+                                                                                                                                     'Conecta '
+                                                                                                                                     'los '
+                                                                                                                                     'nodos '
+                                                                                                                                     'en '
+                                                                                                                                     'el '
+                                                                                                                                     'orden '
+                                                                                                                                     'Extract '
+                                                                                                                                     '→ '
+                                                                                                                                     'Transform '
+                                                                                                                                     '→ '
+                                                                                                                                     'Load. '
+                                                                                                                                     '(MVP: '
+                                                                                                                                     'flujo '
+                                                                                                                                     'lineal)',
+        'ETL': 'ETL',
+        'ETL Builder': 'Constructor ETL',
+        'ETLs': 'ETLs',
+        'Erro ao carregar.': 'Error al cargar.',
+        'Escolha uma fonte de dados e depois monte o layout no builder.': 'Elige una fuente de datos y luego arma el '
+                                                                          'diseño en el builder.',
+        'Estatísticas': 'Estadísticas',
+        'Estatísticas descritivas': 'Estadísticas descriptivas',
+        'Este é o dashboard padrão do seu tenant. Você pode alterá-lo na lista de dashboards.': 'Este es el dashboard '
+                                                                                                'predeterminado de tu '
+                                                                                                'tenant. Puedes '
+                                                                                                'cambiarlo en la lista '
+                                                                                                'de dashboards.',
+        'Ex.: API Vendas': 'Ej.: API Ventas',
+        'Ex.: Financeiro': 'Ej.: Finanzas',
+        'Excluir': 'Eliminar',
+        'Excluir esta pasta e tudo dentro?': '¿Eliminar esta carpeta y todo lo que contiene?',
+        'Excluir este arquivo?': '¿Eliminar este archivo?',
+        'Expandir': 'Expandir',
+        'Faça upload ou importe arquivos para usar como datasource.': 'Sube o importa archivos para usarlos como '
+                                                                      'fuente de datos.',
+        'Fonte': 'Fuente',
+        'Fontes API': 'Fuentes API',
+        'Formato': 'Formato',
+        'Formatos suportados': 'Formatos compatibles',
+        'Gauge': 'Indicador',
+        'Gráficos': 'Gráficos',
+        'HTTP Extract': 'Extracción HTTP',
+        'Importar': 'Importar',
+        'Importar S3': 'Importar S3',
+        'Importar URL': 'Importar URL',
+        'Inserir': 'Insertar',
+        'Introspecte metadados na fonte (botão Introspectar).': 'Introspecta metadatos en la fuente (botón « '
+                                                                'Introspectar »).',
+        'Isso cria um bloco “Imagem” no detalhe do relatório.': 'Esto crea un bloque « Imagen » en el detalle del '
+                                                                'informe.',
+        'Isso cria um bloco “Pergunta” no detalhe do relatório.': 'Esto crea un bloque « Pregunta » en el detalle del '
+                                                                  'informe.',
+        'Itens': 'Ítems',
+        'Key (caminho no bucket)': 'Clave (ruta en el bucket)',
+        'Legenda (opcional)': 'Leyenda (opcional)',
+        'Line': 'Línea',
+        'Linhas (amostra)': 'Filas (muestra)',
+        'Load (Warehouse)': 'Carga (Almacén)',
+        'Markdown': 'Markdown',
+        'Monte Carlo': 'Monte Carlo',
+        'Mover': 'Mover',
+        'Nada por aqui ainda.': 'Nada por aquí todavía.',
+        'Nenhum dashboard ainda.': 'Aún no hay dashboards.',
+        'Nenhum workflow salvo.': 'Ningún workflow guardado.',
+        'Nenhuma coluna numérica detectada na amostra.': 'No se detectaron columnas numéricas en la muestra.',
+        'Nenhuma fonte API cadastrada ainda.': 'Aún no hay fuentes API registradas.',
+        'Nimbus': 'Nimbus',
+        'Nome': 'Nombre',
+        'Nome (opcional)': 'Nombre (opcional)',
+        'Nome amigável': 'Nombre para mostrar',
+        'Nome amigável para o BI': 'Nombre para BI',
+        'Nome do arquivo (opcional)': 'Nombre de archivo (opcional)',
+        'Nova fonte API': 'Nueva fuente API',
+        'Nova pasta': 'Nueva carpeta',
+        'Novo workflow': 'Nuevo workflow',
+        'Numeração de páginas no PDF': 'Numeración de páginas en PDF',
+        'Observação para a IA (opcional)': 'Nota para IA (opcional)',
+        'Onyx': 'Onyx',
+        'Opcional': 'Opcional',
+        'Opcional. Exemplo: Authorization, Accept, X-API-Key, etc.': 'Opcional. Ejemplo: Authorization, Accept, '
+                                                                     'X-API-Key, etc.',
+        'Ou escolha uma pergunta': 'O elige una pregunta',
+        'PDF': 'PDF',
+        'Page Footer': 'Pie de página',
+        'Page Header': 'Encabezado de página',
+        'Parametros parametrizados devem ser passados via filtros ou definidos na Pergunta. tenant_id é aplicado automaticamente.': 'Los '
+                                                                                                                                    'parámetros '
+                                                                                                                                    'deben '
+                                                                                                                                    'pasarse '
+                                                                                                                                    'mediante '
+                                                                                                                                    'filtros '
+                                                                                                                                    'o '
+                                                                                                                                    'definirse '
+                                                                                                                                    'en '
+                                                                                                                                    'la '
+                                                                                                                                    'Pregunta. '
+                                                                                                                                    'tenant_id '
+                                                                                                                                    'se '
+                                                                                                                                    'aplica '
+                                                                                                                                    'automáticamente.',
+        'Parâmetros': 'Parámetros',
+        'Pasta': 'Carpeta',
+        'Pastas': 'Carpetas',
+        'Pergunta': 'Pregunta',
+        'Pesquisar...': 'Buscar...',
+        'Pie': 'Tarta',
+        'Preview': 'Vista previa',
+        'Preview (últimos resultados)': 'Vista previa (últimos resultados)',
+        'Principal': 'Principal',
+        'Prob < 0': 'Prob < 0',
+        'Raiz': 'Raíz',
+        'Reaproveita uma Pergunta salva': 'Reutiliza una Pregunta guardada',
+        'Região (opcional)': 'Región (opcional)',
+        'Regressão linear': 'Regresión lineal',
+        'Remover?': '¿Eliminar?',
+        'Renomear': 'Renombrar',
+        'Repete em todas as páginas': 'Repetir en todas las páginas',
+        'Repetir header': 'Repetir encabezado',
+        'Report Builder': 'Constructor de informes',
+        'Report Footer': 'Pie del informe',
+        'Report Header': 'Encabezado del informe',
+        'Resultados por coluna (amostra).': 'Resultados por columna (muestra).',
+        'Resumo (IA)': 'Resumen (IA)',
+        'Rows / Cols / Value': 'Filas / Columnas / Valor',
+        'SQL Extract': 'Extracción SQL',
+        'Salvar workflow': 'Guardar workflow',
+        'Scatter': 'Dispersión',
+        'Schema': 'Esquema',
+        'Se OPENAI_API_KEY estiver configurada, a IA gera um resumo executivo.': 'Si OPENAI_API_KEY está configurada, '
+                                                                                 'la IA genera un resumen ejecutivo.',
+        'Se a fonte exigir tenant, inclua :tenant_id no WHERE.': 'Si la fuente requiere tenant, incluye :tenant_id en '
+                                                                 'el WHERE.',
+        'Selecione a fonte se for usar SQL manual.': 'Selecciona la fuente si vas a usar SQL manual.',
+        'Sem gráficos para mostrar (faltam colunas numéricas).': 'No hay gráficos para mostrar (faltan columnas '
+                                                                 'numéricas).',
+        'Simulação por coluna (amostra).': 'Simulación por columna (muestra).',
+        'Simulações': 'Simulaciones',
+        'Subir': 'Subir',
+        'Sugestões': 'Sugerencias',
+        'Tabela/Gráfico de pergunta': 'Tabla/Gráfico de pregunta',
+        'Tabelas e colunas da fonte (autocomplete).': 'Tablas y columnas de la fuente (autocompletar).',
+        'Tamanho': 'Tamaño',
+        'Tema da tabela': 'Tema de tabla',
+        'Texto': 'Texto',
+        'Texto com formatação': 'Texto con formato',
+        'Tipo de campo': 'Tipo de campo',
+        'Todos os dashboards': 'Todos los dashboards',
+        'Transform': 'Transformación',
+        'Título / parágrafo simples': 'Título / párrafo simple',
+        'URL': 'URL',
+        'URL base': 'URL base',
+        'Upload': 'Subir',
+        'Upload e organização por pastas, com isolamento por tenant.': 'Subida y organización por carpetas, con '
+                                                                       'aislamiento por tenant.',
+        'Usa a fonte e o SQL salvos na pergunta.': 'Usa la fuente y el SQL guardados en la pregunta.',
+        'Use :nome_param no SQL. tenant_id é aplicado automaticamente.': 'Usa :nombre_param en el SQL. tenant_id se '
+                                                                         'aplica automáticamente.',
+        'Use Ctrl+Space para autocomplete. Ctrl+Enter para executar.': 'Usa Ctrl+Espacio para autocompletar. '
+                                                                       'Ctrl+Enter para ejecutar.',
+        'Use {page} e {pages}.': 'Usa {page} y {pages}.',
+        'Use “Visualizar” para ver o relatório e “PDF” para exportar com cabeçalho/rodapé repetidos e número de página.': 'Usa '
+                                                                                                                          '« '
+                                                                                                                          'Ver '
+                                                                                                                          '» '
+                                                                                                                          'para '
+                                                                                                                          'ver '
+                                                                                                                          'el '
+                                                                                                                          'informe '
+                                                                                                                          'y '
+                                                                                                                          '« '
+                                                                                                                          'PDF '
+                                                                                                                          '» '
+                                                                                                                          'para '
+                                                                                                                          'exportar '
+                                                                                                                          'con '
+                                                                                                                          'encabezado/pie '
+                                                                                                                          'repetidos '
+                                                                                                                          'y '
+                                                                                                                          'número '
+                                                                                                                          'de '
+                                                                                                                          'página.',
+        'Ver todos': 'Ver todo',
+        'Visualizar': 'Ver',
+        'Você pode arrastar arquivos/pastas para outra pasta na árvore.': 'Puedes arrastrar archivos/carpetas a otra '
+                                                                          'carpeta en el árbol.',
+        'Você também pode arrastar e soltar no painel de pastas.': 'También puedes arrastrar y soltar en el panel de '
+                                                                   'carpetas.',
+        'Zebra (linhas alternadas)': 'Cebra (filas alternas)'},
+ 'fr': {'A extensão determina o tipo (csv/xlsx/parquet).': 'L’extension détermine le type (csv/xlsx/parquet).',
+        'A pasta será criada dentro da pasta atual.': 'Le dossier sera créé dans le dossier actuel.',
+        'Abrir': 'Ouvrir',
+        'Adicionar': 'Ajouter',
+        'Adicionar passos': 'Ajouter des étapes',
+        'Adicionar pergunta': 'Ajouter une question',
+        'Agregação': 'Agrégation',
+        'Alinhamento': 'Alignement',
+        'Analisar': 'Analyser',
+        'Análise avançada: distribuição, correlação, regressão e Monte Carlo (amostra).': 'Analyse avancée : '
+                                                                                          'distribution, corrélation, '
+                                                                                          'régression et Monte Carlo '
+                                                                                          '(échantillon).',
+        'Apenas na 1ª página': 'Uniquement sur la 1ʳᵉ page',
+        'Apenas na última página': 'Uniquement sur la dernière page',
+        'Area': 'Aire',
+        'Arquivo': 'Fichier',
+        'Arquivos': 'Fichiers',
+        'Arraste e solte para mover': 'Glisser-déposer pour déplacer',
+        'Atualizado': 'Mis à jour',
+        'Atualizado em': 'Mis à jour le',
+        'Aurora': 'Aurora',
+        'Ações': 'Actions',
+        'Baixar': 'Télécharger',
+        'Bandas tipo Crystal/DevExpress: Report Header (1ª página), Page Header (todas), Detail, Page Footer (todas), Report Footer (última). Clique no bloco para editar.': 'Bandes '
+                                                                                                                                                                             'type '
+                                                                                                                                                                             'Crystal/DevExpress '
+                                                                                                                                                                             ': '
+                                                                                                                                                                             'En-tête '
+                                                                                                                                                                             'de '
+                                                                                                                                                                             'rapport '
+                                                                                                                                                                             '(1ʳᵉ '
+                                                                                                                                                                             'page), '
+                                                                                                                                                                             'En-tête '
+                                                                                                                                                                             'de '
+                                                                                                                                                                             'page '
+                                                                                                                                                                             '(toutes), '
+                                                                                                                                                                             'Détail, '
+                                                                                                                                                                             'Pied '
+                                                                                                                                                                             'de '
+                                                                                                                                                                             'page '
+                                                                                                                                                                             '(toutes), '
+                                                                                                                                                                             'Pied '
+                                                                                                                                                                             'de '
+                                                                                                                                                                             'rapport '
+                                                                                                                                                                             '(dernière). '
+                                                                                                                                                                             'Cliquez '
+                                                                                                                                                                             'sur '
+                                                                                                                                                                             'un '
+                                                                                                                                                                             'bloc '
+                                                                                                                                                                             'pour '
+                                                                                                                                                                             'l’éditer.',
+        'Bar': 'Barres',
+        'Bucket': 'Bucket',
+        'Cabeçalhos (JSON)': 'En-têtes (JSON)',
+        'Clique em um ponto/barra para filtrar o dashboard por esse valor.': 'Cliquez sur un point/une barre pour '
+                                                                             'filtrer le dashboard par cette valeur.',
+        'Colunas numéricas detectadas': 'Colonnes numériques détectées',
+        'Componentes': 'Composants',
+        'Configurações': 'Paramètres',
+        'Conteúdo principal': 'Contenu principal',
+        'Crie uma Pergunta e um Dashboard': 'Créez une question et un dashboard',
+        'Dashboards recentes': 'Dashboards récents',
+        'Data': 'Date',
+        'Data / data-hora (sistema)': 'Date / date-heure (système)',
+        'Data e hora': 'Date et heure',
+        'Decimais': 'Décimales',
+        'Default': 'Par défaut',
+        'Descrição': 'Description',
+        'Destino': 'Destination',
+        'Detail': 'Détail',
+        'Dica': 'Astuce',
+        'Dica: campos JSON devem ser um JSON válido (ex: {"Authorization":"Bearer ..."}).': 'Astuce : les champs JSON '
+                                                                                            'doivent être un JSON '
+                                                                                            'valide (ex : '
+                                                                                            '{"Authorization":"Bearer '
+                                                                                            '..."}).',
+        'Dica: para pivot avançado use o tipo Pivot e personalize na tela.': 'Astuce : pour un pivot avancé, utilisez '
+                                                                             'le type Pivot et personnalisez sur '
+                                                                             'l’écran.',
+        'Duplo clique em um nó para editar a configuração. Conecte os nós na ordem Extract → Transform → Load. (MVP: fluxo linear)': 'Double-cliquez '
+                                                                                                                                     'sur '
+                                                                                                                                     'un '
+                                                                                                                                     'nœud '
+                                                                                                                                     'pour '
+                                                                                                                                     'éditer '
+                                                                                                                                     'sa '
+                                                                                                                                     'configuration. '
+                                                                                                                                     'Connectez '
+                                                                                                                                     'les '
+                                                                                                                                     'nœuds '
+                                                                                                                                     'dans '
+                                                                                                                                     'l’ordre '
+                                                                                                                                     'Extract '
+                                                                                                                                     '→ '
+                                                                                                                                     'Transform '
+                                                                                                                                     '→ '
+                                                                                                                                     'Load. '
+                                                                                                                                     '(MVP '
+                                                                                                                                     ': '
+                                                                                                                                     'flux '
+                                                                                                                                     'linéaire)',
+        'ETL': 'ETL',
+        'ETL Builder': 'Constructeur ETL',
+        'ETLs': 'ETLs',
+        'Erro ao carregar.': 'Erreur de chargement.',
+        'Escolha uma fonte de dados e depois monte o layout no builder.': 'Choisissez une source de données puis '
+                                                                          'composez la mise en page dans le builder.',
+        'Estatísticas': 'Statistiques',
+        'Estatísticas descritivas': 'Statistiques descriptives',
+        'Este é o dashboard padrão do seu tenant. Você pode alterá-lo na lista de dashboards.': 'C’est le dashboard '
+                                                                                                'par défaut de votre '
+                                                                                                'tenant. Vous pouvez '
+                                                                                                'le modifier dans la '
+                                                                                                'liste des dashboards.',
+        'Ex.: API Vendas': 'Ex. : API Ventes',
+        'Ex.: Financeiro': 'Ex. : Finance',
+        'Excluir': 'Supprimer',
+        'Excluir esta pasta e tudo dentro?': 'Supprimer ce dossier et tout son contenu ?',
+        'Excluir este arquivo?': 'Supprimer ce fichier ?',
+        'Expandir': 'Développer',
+        'Faça upload ou importe arquivos para usar como datasource.': 'Téléversez ou importez des fichiers pour les '
+                                                                      'utiliser comme source de données.',
+        'Fonte': 'Source',
+        'Fontes API': 'Sources API',
+        'Formato': 'Format',
+        'Formatos suportados': 'Formats pris en charge',
+        'Gauge': 'Jauge',
+        'Gráficos': 'Graphiques',
+        'HTTP Extract': 'Extraction HTTP',
+        'Importar': 'Importer',
+        'Importar S3': 'Importer S3',
+        'Importar URL': 'Importer URL',
+        'Inserir': 'Insérer',
+        'Introspecte metadados na fonte (botão Introspectar).': 'Introspectez les métadonnées de la source (bouton « '
+                                                                'Introspecter »).',
+        'Isso cria um bloco “Imagem” no detalhe do relatório.': 'Cela crée un bloc « Image » dans le détail du '
+                                                                'rapport.',
+        'Isso cria um bloco “Pergunta” no detalhe do relatório.': 'Cela crée un bloc « Question » dans le détail du '
+                                                                  'rapport.',
+        'Itens': 'Éléments',
+        'Key (caminho no bucket)': 'Clé (chemin dans le bucket)',
+        'Legenda (opcional)': 'Légende (optionnel)',
+        'Line': 'Ligne',
+        'Linhas (amostra)': 'Lignes (échantillon)',
+        'Load (Warehouse)': 'Chargement (Entrepôt)',
+        'Markdown': 'Markdown',
+        'Monte Carlo': 'Monte Carlo',
+        'Mover': 'Déplacer',
+        'Nada por aqui ainda.': 'Rien ici pour le moment.',
+        'Nenhum dashboard ainda.': 'Aucun dashboard pour l’instant.',
+        'Nenhum workflow salvo.': 'Aucun workflow enregistré.',
+        'Nenhuma coluna numérica detectada na amostra.': 'Aucune colonne numérique détectée dans l’échantillon.',
+        'Nenhuma fonte API cadastrada ainda.': 'Aucune source API enregistrée pour l’instant.',
+        'Nimbus': 'Nimbus',
+        'Nome': 'Nom',
+        'Nome (opcional)': 'Nom (optionnel)',
+        'Nome amigável': 'Nom d’affichage',
+        'Nome amigável para o BI': 'Nom d’affichage pour le BI',
+        'Nome do arquivo (opcional)': 'Nom du fichier (optionnel)',
+        'Nova fonte API': 'Nouvelle source API',
+        'Nova pasta': 'Nouveau dossier',
+        'Novo workflow': 'Nouveau workflow',
+        'Numeração de páginas no PDF': 'Numérotation des pages PDF',
+        'Observação para a IA (opcional)': 'Note pour l’IA (optionnel)',
+        'Onyx': 'Onyx',
+        'Opcional': 'Optionnel',
+        'Opcional. Exemplo: Authorization, Accept, X-API-Key, etc.': 'Optionnel. Exemple : Authorization, Accept, '
+                                                                     'X-API-Key, etc.',
+        'Ou escolha uma pergunta': 'Ou choisissez une question',
+        'PDF': 'PDF',
+        'Page Footer': 'Pied de page',
+        'Page Header': 'En-tête de page',
+        'Parametros parametrizados devem ser passados via filtros ou definidos na Pergunta. tenant_id é aplicado automaticamente.': 'Les '
+                                                                                                                                    'paramètres '
+                                                                                                                                    'doivent '
+                                                                                                                                    'être '
+                                                                                                                                    'passés '
+                                                                                                                                    'via '
+                                                                                                                                    'des '
+                                                                                                                                    'filtres '
+                                                                                                                                    'ou '
+                                                                                                                                    'définis '
+                                                                                                                                    'dans '
+                                                                                                                                    'la '
+                                                                                                                                    'question. '
+                                                                                                                                    'tenant_id '
+                                                                                                                                    'est '
+                                                                                                                                    'appliqué '
+                                                                                                                                    'automatiquement.',
+        'Parâmetros': 'Paramètres',
+        'Pasta': 'Dossier',
+        'Pastas': 'Dossiers',
+        'Pergunta': 'Question',
+        'Pesquisar...': 'Rechercher...',
+        'Pie': 'Camembert',
+        'Preview': 'Aperçu',
+        'Preview (últimos resultados)': 'Aperçu (derniers résultats)',
+        'Principal': 'Principal',
+        'Prob < 0': 'Prob < 0',
+        'Raiz': 'Racine',
+        'Reaproveita uma Pergunta salva': 'Réutilise une question enregistrée',
+        'Região (opcional)': 'Région (optionnel)',
+        'Regressão linear': 'Régression linéaire',
+        'Remover?': 'Supprimer ?',
+        'Renomear': 'Renommer',
+        'Repete em todas as páginas': 'Répéter sur toutes les pages',
+        'Repetir header': 'Répéter l’en-tête',
+        'Report Builder': 'Concepteur de rapports',
+        'Report Footer': 'Pied de rapport',
+        'Report Header': 'En-tête de rapport',
+        'Resultados por coluna (amostra).': 'Résultats par colonne (échantillon).',
+        'Resumo (IA)': 'Résumé (IA)',
+        'Rows / Cols / Value': 'Lignes / Colonnes / Valeur',
+        'SQL Extract': 'Extraction SQL',
+        'Salvar workflow': 'Enregistrer le workflow',
+        'Scatter': 'Dispersion',
+        'Schema': 'Schéma',
+        'Se OPENAI_API_KEY estiver configurada, a IA gera um resumo executivo.': 'Si OPENAI_API_KEY est configurée, '
+                                                                                 'l’IA génère un résumé exécutif.',
+        'Se a fonte exigir tenant, inclua :tenant_id no WHERE.': 'Si la source exige un tenant, incluez :tenant_id '
+                                                                 'dans le WHERE.',
+        'Selecione a fonte se for usar SQL manual.': 'Sélectionnez la source si vous utilisez du SQL manuel.',
+        'Sem gráficos para mostrar (faltam colunas numéricas).': 'Aucun graphique à afficher (colonnes numériques '
+                                                                 'manquantes).',
+        'Simulação por coluna (amostra).': 'Simulation par colonne (échantillon).',
+        'Simulações': 'Simulations',
+        'Subir': 'Téléverser',
+        'Sugestões': 'Suggestions',
+        'Tabela/Gráfico de pergunta': 'Tableau/graphique de question',
+        'Tabelas e colunas da fonte (autocomplete).': 'Tables et colonnes de la source (auto-complétion).',
+        'Tamanho': 'Taille',
+        'Tema da tabela': 'Thème de tableau',
+        'Texto': 'Texte',
+        'Texto com formatação': 'Texte formaté',
+        'Tipo de campo': 'Type de champ',
+        'Todos os dashboards': 'Tous les dashboards',
+        'Transform': 'Transformation',
+        'Título / parágrafo simples': 'Titre / paragraphe simple',
+        'URL': 'URL',
+        'URL base': 'URL de base',
+        'Upload': 'Téléverser',
+        'Upload e organização por pastas, com isolamento por tenant.': 'Téléversement et organisation par dossiers, '
+                                                                       'avec isolation par tenant.',
+        'Usa a fonte e o SQL salvos na pergunta.': 'Utilise la source et le SQL enregistrés dans la question.',
+        'Use :nome_param no SQL. tenant_id é aplicado automaticamente.': 'Utilisez :nom_param dans le SQL. tenant_id '
+                                                                         'est appliqué automatiquement.',
+        'Use Ctrl+Space para autocomplete. Ctrl+Enter para executar.': 'Utilisez Ctrl+Espace pour l’auto-complétion. '
+                                                                       'Ctrl+Entrée pour exécuter.',
+        'Use {page} e {pages}.': 'Utilisez {page} et {pages}.',
+        'Use “Visualizar” para ver o relatório e “PDF” para exportar com cabeçalho/rodapé repetidos e número de página.': 'Utilisez '
+                                                                                                                          '« '
+                                                                                                                          'Voir '
+                                                                                                                          '» '
+                                                                                                                          'pour '
+                                                                                                                          'afficher '
+                                                                                                                          'le '
+                                                                                                                          'rapport '
+                                                                                                                          'et '
+                                                                                                                          '« '
+                                                                                                                          'PDF '
+                                                                                                                          '» '
+                                                                                                                          'pour '
+                                                                                                                          'exporter '
+                                                                                                                          'avec '
+                                                                                                                          'en-tête/pied '
+                                                                                                                          'répétés '
+                                                                                                                          'et '
+                                                                                                                          'numérotation '
+                                                                                                                          'des '
+                                                                                                                          'pages.',
+        'Ver todos': 'Voir tout',
+        'Visualizar': 'Voir',
+        'Você pode arrastar arquivos/pastas para outra pasta na árvore.': 'Vous pouvez glisser-déposer des '
+                                                                          'fichiers/dossiers vers un autre dossier '
+                                                                          'dans l’arborescence.',
+        'Você também pode arrastar e soltar no painel de pastas.': 'Vous pouvez aussi glisser-déposer dans le panneau '
+                                                                   'des dossiers.',
+        'Zebra (linhas alternadas)': 'Zébrage (lignes alternées)'},
+ 'it': {'A extensão determina o tipo (csv/xlsx/parquet).': 'L’estensione determina il tipo (csv/xlsx/parquet).',
+        'A pasta será criada dentro da pasta atual.': 'La cartella verrà creata nella cartella corrente.',
+        'Abrir': 'Apri',
+        'Adicionar': 'Aggiungi',
+        'Adicionar passos': 'Aggiungi passaggi',
+        'Adicionar pergunta': 'Aggiungi domanda',
+        'Agregação': 'Aggregazione',
+        'Alinhamento': 'Allineamento',
+        'Analisar': 'Analizza',
+        'Análise avançada: distribuição, correlação, regressão e Monte Carlo (amostra).': 'Analisi avanzata: '
+                                                                                          'distribuzione, '
+                                                                                          'correlazione, regressione e '
+                                                                                          'Monte Carlo (campione).',
+        'Apenas na 1ª página': 'Solo nella 1ª pagina',
+        'Apenas na última página': 'Solo nell’ultima pagina',
+        'Area': 'Area',
+        'Arquivo': 'File',
+        'Arquivos': 'File',
+        'Arraste e solte para mover': 'Trascina e rilascia per spostare',
+        'Atualizado': 'Aggiornato',
+        'Atualizado em': 'Aggiornato il',
+        'Aurora': 'Aurora',
+        'Ações': 'Azioni',
+        'Baixar': 'Scarica',
+        'Bandas tipo Crystal/DevExpress: Report Header (1ª página), Page Header (todas), Detail, Page Footer (todas), Report Footer (última). Clique no bloco para editar.': 'Bande '
+                                                                                                                                                                             'stile '
+                                                                                                                                                                             'Crystal/DevExpress: '
+                                                                                                                                                                             'Intestazione '
+                                                                                                                                                                             'report '
+                                                                                                                                                                             '(1ª '
+                                                                                                                                                                             'pagina), '
+                                                                                                                                                                             'Intestazione '
+                                                                                                                                                                             'pagina '
+                                                                                                                                                                             '(tutte), '
+                                                                                                                                                                             'Dettaglio, '
+                                                                                                                                                                             'Piè '
+                                                                                                                                                                             'di '
+                                                                                                                                                                             'pagina '
+                                                                                                                                                                             '(tutte), '
+                                                                                                                                                                             'Piè '
+                                                                                                                                                                             'del '
+                                                                                                                                                                             'report '
+                                                                                                                                                                             '(ultima). '
+                                                                                                                                                                             'Clicca '
+                                                                                                                                                                             'sul '
+                                                                                                                                                                             'blocco '
+                                                                                                                                                                             'per '
+                                                                                                                                                                             'modificare.',
+        'Bar': 'Barre',
+        'Bucket': 'Bucket',
+        'Cabeçalhos (JSON)': 'Intestazioni (JSON)',
+        'Clique em um ponto/barra para filtrar o dashboard por esse valor.': 'Clicca su un punto/barra per filtrare la '
+                                                                             'dashboard con questo valore.',
+        'Colunas numéricas detectadas': 'Colonne numeriche rilevate',
+        'Componentes': 'Componenti',
+        'Configurações': 'Impostazioni',
+        'Conteúdo principal': 'Contenuto principale',
+        'Crie uma Pergunta e um Dashboard': 'Crea una Domanda e una Dashboard',
+        'Dashboards recentes': 'Dashboard recenti',
+        'Data': 'Data',
+        'Data / data-hora (sistema)': 'Data / data-ora (sistema)',
+        'Data e hora': 'Data e ora',
+        'Decimais': 'Decimali',
+        'Default': 'Predefinito',
+        'Descrição': 'Descrizione',
+        'Destino': 'Destinazione',
+        'Detail': 'Dettaglio',
+        'Dica': 'Suggerimento',
+        'Dica: campos JSON devem ser um JSON válido (ex: {"Authorization":"Bearer ..."}).': 'Suggerimento: i campi '
+                                                                                            'JSON devono essere un '
+                                                                                            'JSON valido (es.: '
+                                                                                            '{"Authorization":"Bearer '
+                                                                                            '..."}).',
+        'Dica: para pivot avançado use o tipo Pivot e personalize na tela.': 'Suggerimento: per un pivot avanzato usa '
+                                                                             'il tipo Pivot e personalizza nella '
+                                                                             'schermata.',
+        'Duplo clique em um nó para editar a configuração. Conecte os nós na ordem Extract → Transform → Load. (MVP: fluxo linear)': 'Doppio '
+                                                                                                                                     'clic '
+                                                                                                                                     'su '
+                                                                                                                                     'un '
+                                                                                                                                     'nodo '
+                                                                                                                                     'per '
+                                                                                                                                     'modificare '
+                                                                                                                                     'la '
+                                                                                                                                     'configurazione. '
+                                                                                                                                     'Collega '
+                                                                                                                                     'i '
+                                                                                                                                     'nodi '
+                                                                                                                                     'nell’ordine '
+                                                                                                                                     'Extract '
+                                                                                                                                     '→ '
+                                                                                                                                     'Transform '
+                                                                                                                                     '→ '
+                                                                                                                                     'Load. '
+                                                                                                                                     '(MVP: '
+                                                                                                                                     'flusso '
+                                                                                                                                     'lineare)',
+        'ETL': 'ETL',
+        'ETL Builder': 'Builder ETL',
+        'ETLs': 'ETLs',
+        'Erro ao carregar.': 'Errore durante il caricamento.',
+        'Escolha uma fonte de dados e depois monte o layout no builder.': 'Scegli una fonte dati e poi componi il '
+                                                                          'layout nel builder.',
+        'Estatísticas': 'Statistiche',
+        'Estatísticas descritivas': 'Statistiche descrittive',
+        'Este é o dashboard padrão do seu tenant. Você pode alterá-lo na lista de dashboards.': 'Questa è la dashboard '
+                                                                                                'predefinita del tuo '
+                                                                                                'tenant. Puoi '
+                                                                                                'modificarla nella '
+                                                                                                'lista delle '
+                                                                                                'dashboard.',
+        'Ex.: API Vendas': 'Es.: API Vendite',
+        'Ex.: Financeiro': 'Es.: Finanza',
+        'Excluir': 'Elimina',
+        'Excluir esta pasta e tudo dentro?': 'Eliminare questa cartella e tutto il contenuto?',
+        'Excluir este arquivo?': 'Eliminare questo file?',
+        'Expandir': 'Espandi',
+        'Faça upload ou importe arquivos para usar como datasource.': 'Carica o importa file per usarli come sorgente '
+                                                                      'dati.',
+        'Fonte': 'Fonte',
+        'Fontes API': 'Sorgenti API',
+        'Formato': 'Formato',
+        'Formatos suportados': 'Formati supportati',
+        'Gauge': 'Indicatore',
+        'Gráficos': 'Grafici',
+        'HTTP Extract': 'Estrazione HTTP',
+        'Importar': 'Importa',
+        'Importar S3': 'Importa S3',
+        'Importar URL': 'Importa URL',
+        'Inserir': 'Inserisci',
+        'Introspecte metadados na fonte (botão Introspectar).': 'Introspeziona i metadati nella fonte (pulsante « '
+                                                                'Introspectar »).',
+        'Isso cria um bloco “Imagem” no detalhe do relatório.': 'Questo crea un blocco « Immagine » nel dettaglio del '
+                                                                'report.',
+        'Isso cria um bloco “Pergunta” no detalhe do relatório.': 'Questo crea un blocco « Domanda » nel dettaglio del '
+                                                                  'report.',
+        'Itens': 'Elementi',
+        'Key (caminho no bucket)': 'Chiave (percorso nel bucket)',
+        'Legenda (opcional)': 'Didascalia (opzionale)',
+        'Line': 'Linea',
+        'Linhas (amostra)': 'Righe (campione)',
+        'Load (Warehouse)': 'Caricamento (Warehouse)',
+        'Markdown': 'Markdown',
+        'Monte Carlo': 'Monte Carlo',
+        'Mover': 'Sposta',
+        'Nada por aqui ainda.': 'Niente qui per ora.',
+        'Nenhum dashboard ainda.': 'Nessuna dashboard ancora.',
+        'Nenhum workflow salvo.': 'Nessun workflow salvato.',
+        'Nenhuma coluna numérica detectada na amostra.': 'Nessuna colonna numerica rilevata nel campione.',
+        'Nenhuma fonte API cadastrada ainda.': 'Nessuna sorgente API registrata.',
+        'Nimbus': 'Nimbus',
+        'Nome': 'Nome',
+        'Nome (opcional)': 'Nome (opzionale)',
+        'Nome amigável': 'Nome visualizzato',
+        'Nome amigável para o BI': 'Nome per BI',
+        'Nome do arquivo (opcional)': 'Nome file (opzionale)',
+        'Nova fonte API': 'Nuova sorgente API',
+        'Nova pasta': 'Nuova cartella',
+        'Novo workflow': 'Nuovo workflow',
+        'Numeração de páginas no PDF': 'Numerazione pagine PDF',
+        'Observação para a IA (opcional)': 'Nota per l’IA (opzionale)',
+        'Onyx': 'Onyx',
+        'Opcional': 'Opzionale',
+        'Opcional. Exemplo: Authorization, Accept, X-API-Key, etc.': 'Opzionale. Esempio: Authorization, Accept, '
+                                                                     'X-API-Key, ecc.',
+        'Ou escolha uma pergunta': 'Oppure scegli una domanda',
+        'PDF': 'PDF',
+        'Page Footer': 'Piè di pagina',
+        'Page Header': 'Intestazione pagina',
+        'Parametros parametrizados devem ser passados via filtros ou definidos na Pergunta. tenant_id é aplicado automaticamente.': 'I '
+                                                                                                                                    'parametri '
+                                                                                                                                    'devono '
+                                                                                                                                    'essere '
+                                                                                                                                    'passati '
+                                                                                                                                    'tramite '
+                                                                                                                                    'filtri '
+                                                                                                                                    'o '
+                                                                                                                                    'definiti '
+                                                                                                                                    'nella '
+                                                                                                                                    'Domanda. '
+                                                                                                                                    'tenant_id '
+                                                                                                                                    'viene '
+                                                                                                                                    'applicato '
+                                                                                                                                    'automaticamente.',
+        'Parâmetros': 'Parametri',
+        'Pasta': 'Cartella',
+        'Pastas': 'Cartelle',
+        'Pergunta': 'Domanda',
+        'Pesquisar...': 'Cerca...',
+        'Pie': 'Torta',
+        'Preview': 'Anteprima',
+        'Preview (últimos resultados)': 'Anteprima (ultimi risultati)',
+        'Principal': 'Principale',
+        'Prob < 0': 'Prob < 0',
+        'Raiz': 'Radice',
+        'Reaproveita uma Pergunta salva': 'Riutilizza una domanda salvata',
+        'Região (opcional)': 'Regione (opzionale)',
+        'Regressão linear': 'Regressione lineare',
+        'Remover?': 'Rimuovere?',
+        'Renomear': 'Rinomina',
+        'Repete em todas as páginas': 'Ripeti su tutte le pagine',
+        'Repetir header': 'Ripeti intestazione',
+        'Report Builder': 'Report Builder',
+        'Report Footer': 'Piè del report',
+        'Report Header': 'Intestazione del report',
+        'Resultados por coluna (amostra).': 'Risultati per colonna (campione).',
+        'Resumo (IA)': 'Riepilogo (IA)',
+        'Rows / Cols / Value': 'Righe / Colonne / Valore',
+        'SQL Extract': 'Estrazione SQL',
+        'Salvar workflow': 'Salva workflow',
+        'Scatter': 'Dispersione',
+        'Schema': 'Schema',
+        'Se OPENAI_API_KEY estiver configurada, a IA gera um resumo executivo.': 'Se OPENAI_API_KEY è configurata, '
+                                                                                 'l’IA genera un riepilogo esecutivo.',
+        'Se a fonte exigir tenant, inclua :tenant_id no WHERE.': 'Se la fonte richiede tenant, includi :tenant_id nel '
+                                                                 'WHERE.',
+        'Selecione a fonte se for usar SQL manual.': 'Seleziona la fonte se userai SQL manuale.',
+        'Sem gráficos para mostrar (faltam colunas numéricas).': 'Nessun grafico da mostrare (mancano colonne '
+                                                                 'numeriche).',
+        'Simulação por coluna (amostra).': 'Simulazione per colonna (campione).',
+        'Simulações': 'Simulazioni',
+        'Subir': 'Carica',
+        'Sugestões': 'Suggerimenti',
+        'Tabela/Gráfico de pergunta': 'Tabella/Grafico domanda',
+        'Tabelas e colunas da fonte (autocomplete).': 'Tabelle e colonne della fonte (autocomplete).',
+        'Tamanho': 'Dimensione',
+        'Tema da tabela': 'Tema tabella',
+        'Texto': 'Testo',
+        'Texto com formatação': 'Testo formattato',
+        'Tipo de campo': 'Tipo di campo',
+        'Todos os dashboards': 'Tutte le dashboard',
+        'Transform': 'Trasformazione',
+        'Título / parágrafo simples': 'Titolo / paragrafo semplice',
+        'URL': 'URL',
+        'URL base': 'URL di base',
+        'Upload': 'Carica',
+        'Upload e organização por pastas, com isolamento por tenant.': 'Upload e organizzazione per cartelle, con '
+                                                                       'isolamento per tenant.',
+        'Usa a fonte e o SQL salvos na pergunta.': "Usa la fonte e l'SQL salvati nella domanda.",
+        'Use :nome_param no SQL. tenant_id é aplicado automaticamente.': 'Usa :nome_param nello SQL. tenant_id viene '
+                                                                         'applicato automaticamente.',
+        'Use Ctrl+Space para autocomplete. Ctrl+Enter para executar.': 'Usa Ctrl+Spazio per l’autocomplete. Ctrl+Invio '
+                                                                       'per eseguire.',
+        'Use {page} e {pages}.': 'Usa {page} e {pages}.',
+        'Use “Visualizar” para ver o relatório e “PDF” para exportar com cabeçalho/rodapé repetidos e número de página.': 'Usa '
+                                                                                                                          '« '
+                                                                                                                          'Visualizza '
+                                                                                                                          '» '
+                                                                                                                          'per '
+                                                                                                                          'vedere '
+                                                                                                                          'il '
+                                                                                                                          'report '
+                                                                                                                          'e '
+                                                                                                                          '« '
+                                                                                                                          'PDF '
+                                                                                                                          '» '
+                                                                                                                          'per '
+                                                                                                                          'esportare '
+                                                                                                                          'con '
+                                                                                                                          'intestazione/piè '
+                                                                                                                          'ripetuti '
+                                                                                                                          'e '
+                                                                                                                          'numeri '
+                                                                                                                          'di '
+                                                                                                                          'pagina.',
+        'Ver todos': 'Vedi tutto',
+        'Visualizar': 'Visualizza',
+        'Você pode arrastar arquivos/pastas para outra pasta na árvore.': 'Puoi trascinare file/cartelle in un’altra '
+                                                                          'cartella nell’albero.',
+        'Você também pode arrastar e soltar no painel de pastas.': 'Puoi anche trascinare e rilasciare nel pannello '
+                                                                   'delle cartelle.',
+        'Zebra (linhas alternadas)': 'Zebratura (righe alternate)'}}
+
+for _lang, _mp in _EXTRA_TRANSLATIONS.items():
+    TRANSLATIONS.setdefault(_lang, {}).update(_mp)
+
+
 def tr(msgid: str, lang: str | None = None, **kwargs: Any) -> str:
     """Translate msgid using the configured dictionary.
 
     kwargs can be used for basic string formatting, e.g. tr('Hello {name}', name='Rodrigo')
+
+    Fallback order:
+    - requested language (e.g. 'fr')
+    - English ('en')
+    - Portuguese ('pt')
+    - msgid (as-is)
     """
     lang = normalize_lang(lang)
-    out = TRANSLATIONS.get(lang, {}).get(msgid, msgid)
+
+    out = (
+        TRANSLATIONS.get(lang, {}).get(msgid)
+        or TRANSLATIONS.get("en", {}).get(msgid)
+        or TRANSLATIONS.get("pt", {}).get(msgid)
+        or msgid
+    )
     try:
-        return out.format(**kwargs)
+        return str(out).format(**kwargs)
     except Exception:
-        return out
+        return str(out)
