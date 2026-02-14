@@ -1,9 +1,21 @@
 {% extends "portal/layout.html" %}
 {% block title %}{{ _('ETL Builder') }}{% endblock %}
 
-{% block portal_content %}
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/drawflow/dist/drawflow.min.css">
+{% block head_extra %}
+  {{ super() }}
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/drawflow/dist/drawflow.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css">
+  <style>
+    /* Make CodeMirror usable inside Bootstrap modal */
+    .CodeMirror { height: 320px; }
+    .CodeMirror-hints { z-index: 2000; }
+    .bi-schema details > summary { list-style: none; }
+    .bi-schema summary::-webkit-details-marker { display: none; }
+  </style>
+{% endblock %}
 
+{% block portal_content %}
 <div class="container-fluid py-3">
   <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
     <h3 class="m-0"><i class="bi bi-diagram-3 me-2"></i>{{ _('ETL Builder') }}</h3>
@@ -68,7 +80,7 @@
 
 <!-- Node Config Modal -->
 <div class="modal fade" id="nodeConfigModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title"><i class="bi bi-gear me-2"></i><span id="nodeConfigTitle">Node</span></h5>
@@ -88,7 +100,17 @@
     </div>
   </div>
 </div>
+{% endblock %}
 
-<script src="https://cdn.jsdelivr.net/npm/drawflow/dist/drawflow.min.js"></script>
-<script src="{{ url_for('static', filename='etl/drawflow_builder.js') }}"></script>
+{% block body_scripts %}
+  {{ super() }}
+  <script src="https://cdn.jsdelivr.net/npm/drawflow/dist/drawflow.min.js"></script>
+
+  <!-- CodeMirror (for SQL autocomplete in extract.sql modal) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/sql/sql.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/sql-hint.min.js"></script>
+
+  <script src="{{ url_for('static', filename='etl/drawflow_builder.js') }}"></script>
 {% endblock %}

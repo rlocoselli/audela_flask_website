@@ -1,0 +1,39 @@
+{% extends "portal/layout.html" %}
+{% set title = "Workspaces" %}
+
+{% block portal_content %}
+  <div class="box">
+    <p>
+      <a class="button" href="{{ url_for('portal.workspaces_new') }}">Novo workspace</a>
+      &nbsp;
+      <a class="button" href="{{ url_for('portal.sources_list') }}">Voltar para Fontes</a>
+    </p>
+
+    {% if not workspaces %}
+      <p>Nenhum workspace criado ainda.</p>
+    {% else %}
+      <div style="overflow-x:auto;">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>Criado em</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for w in workspaces %}
+              <tr>
+                <td><a href="{{ url_for('portal.sources_view', source_id=w.id) }}">{{ w.name }}</a></td>
+                <td>{{ w.created_at }}</td>
+                <td>
+                  <a href="{{ url_for('portal.sources_introspect', source_id=w.id) }}">Introspectar</a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}

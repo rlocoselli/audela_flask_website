@@ -177,3 +177,65 @@ class ReportBlock(TenantScopedMixin, db.Model):
 
     report = db.relationship("Report", backref=db.backref("blocks", lazy="dynamic"))
     question = db.relationship("Question")
+
+
+# -----------------------------
+# BI Files (uploads, URL, S3)
+# -----------------------------
+
+
+class FileFolder(TenantScopedMixin, db.Model):
+    """Tenant-scoped folders to organize uploaded files in a tree view."""
+
+    __tablename__ = "file_folders"
+
+    id = db.Column(db.Integer, primary_key=True)
+    parent_id = db.Column(db.Integer, db.ForeignKey("file_folders.id", ondelete="CASCADE"), nullable=True)
+    name = db.Column(db.String(200), nullable=False)
+
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    parent = db.relationship("FileFolder", remote_side=[id], backref=db.backref("children", lazy="dynamic"))
+
+
+class FileAsset(TenantScopedMixin, db.Model):
+    """A file available as a BI datasource (CSV/Excel/Parquet).
+
+    Files can come from:
+    - direct upload
+    - URL download
+    - AWS S3 object download
+    """
+
+    __tablename__ = "file_assets"
+
+    id = db.Column(db.Integer, primary_key=True)
+    folder_id = db.Column(db.Integer, db.ForeignKey("file_folders.id", ondelete="SET NULL"), nullable=True)
+
+    # Display name (can differ from original filename)
+    name = db.Column(db.String(255), nullable=False)
+    original_filename = db.Column(db.String(255), nullable=True)
+
+    # upload | url | s3
+    source_type = db.Column(db.String(32), nullable=False, default="upload")
+
+    # csv | excel | parquet
+    file_format = db.Column(db.String(32), nullable=False)
+
+    # Relative path in tenant storage root.
+    storage_path = db.Column(db.String(500), nullable=False)
+
+    size_bytes = db.Column(db.Integer, nullable=True)
+    sha256 = db.Column(db.String(64), nullable=True)
+
+    # Optional encrypted config for URL/S3 connector metadata (not required for direct uploads).
+    config_encrypted = db.Column(db.LargeBinary, nullable=True)
+
+    # Cached schema for autocomplete: {"columns": [{"name":..., "type":...}, ...]}
+    schema_json = db.Column(db.JSON, nullable=False, default=dict)
+
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    folder = db.relationship("FileFolder")

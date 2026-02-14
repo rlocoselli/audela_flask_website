@@ -1,0 +1,239 @@
+{% extends "portal/layout.html" %}
+{% set title = _("Novo workspace") %}
+
+{% block portal_content %}
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+    <div>
+      <h3 class="mb-0">{{ _('Novo workspace') }}</h3>
+      <div class="text-secondary small">{{ _('Workspace permite fazer JOIN entre arquivos (CSV/Excel/Parquet) e tabelas do banco, tudo em DuckDB.') }}</div>
+    </div>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.workspaces_list') }}">
+      <i class="bi bi-arrow-left"></i> {{ _('Voltar') }}
+    </a>
+  </div>
+
+  <form method="post" action="{{ url_for('portal.workspaces_new') }}" id="ws-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <input type="hidden" name="db_tables" id="ws-db-tables" value="" />
+    <input type="hidden" name="starter_sql" id="ws-starter-sql" value="" />
+
+    <div class="row g-3">
+      <!-- Left: configuration + selections -->
+      <div class="col-lg-6">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title">{{ _('Configuração') }}</h5>
+
+            <div class="mb-3">
+              <label class="form-label">{{ _('Nome') }}</label>
+              <input class="form-control" name="name" placeholder="{{ _('Ex.: BI - Vendas + Clientes') }}" required />
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">{{ _('Fonte de banco (opcional)') }}</label>
+              <select class="form-select" name="db_source_id" id="ws-db-source">
+                <option value="">({{ _('sem banco') }})</option>
+                {% for s in db_sources %}
+                  <option value="{{ s.id }}">{{ s.name }} ({{ s.type }})</option>
+                {% endfor %}
+              </select>
+              <div class="form-text">{{ _('Para JOIN com banco, selecione as tabelas. Elas ficam acessíveis como db.<tabela>.') }}</div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">{{ _('Tabelas do banco') }}</label>
+              <div class="d-flex gap-2 flex-wrap align-items-center">
+                <button class="btn btn-outline-primary btn-sm" type="button" id="ws-pick-db-tables">
+                  <i class="bi bi-table"></i> {{ _('Selecionar tabelas') }}
+                </button>
+                <div id="ws-db-table-tags" class="d-flex gap-2 flex-wrap"></div>
+              </div>
+              <div class="form-text">{{ _('Dica: use o Construtor rápido de JOIN para gerar um SQL inicial.') }}</div>
+            </div>
+
+            <div class="mb-0">
+              <label class="form-label">{{ _('Limite de linhas') }}</label>
+              <input class="form-control" type="number" name="max_rows" value="5000" min="100" max="50000" />
+              <div class="form-text">{{ _('Usado para amostragem (segurança/performance).') }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card shadow-sm mt-3">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between">
+              <h5 class="card-title mb-0">{{ _('Arquivos') }}</h5>
+              <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.files_home') }}">
+                <i class="bi bi-folder2-open"></i> {{ _('Abrir File Explorer') }}
+              </a>
+            </div>
+
+            {% if not files %}
+              <p class="text-secondary mt-2"><em>{{ _('Nenhum arquivo uploadado ainda. Use o menu Arquivos.') }}</em></p>
+            {% else %}
+              <div class="input-group mt-3">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input class="form-control" id="ws-file-filter" placeholder="{{ _('Filtrar arquivos…') }}" />
+              </div>
+
+              <div class="table-responsive mt-2" style="max-height: 360px; overflow:auto;">
+                <table class="table table-sm align-middle" id="ws-files-table">
+                  <thead>
+                    <tr>
+                      <th style="width:40px;"></th>
+                      <th>{{ _('Arquivo') }}</th>
+                      <th style="width:90px;">{{ _('Formato') }}</th>
+                      <th style="width:200px;">{{ _('Alias (tabela)') }}</th>
+                      <th style="width:80px;"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for f in files %}
+                      <tr data-file-row="1" data-file-id="{{ f.id }}" data-file-name="{{ f.name|e }}" data-file-format="{{ f.file_format|e }}">
+                        <td><input class="form-check-input ws-file-check" type="checkbox" name="file_id" value="{{ f.id }}" /></td>
+                        <td>
+                          <div class="fw-semibold">{{ f.name }}</div>
+                          <div class="text-secondary small">#{{ f.id }}</div>
+                        </td>
+                        <td><span class="badge text-bg-secondary">{{ f.file_format }}</span></td>
+                        <td>
+                          <input class="form-control form-control-sm ws-alias" name="alias_{{ f.id }}" value="file_{{ f.id }}" />
+                        </td>
+                        <td class="text-end">
+                          <button type="button" class="btn btn-outline-secondary btn-sm ws-show-schema" data-file-id="{{ f.id }}">
+                            {{ _('Schema') }}
+                          </button>
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="d-flex gap-2 mt-3">
+          <button class="btn btn-primary" type="submit">
+            <i class="bi bi-plus-circle"></i> {{ _('Criar workspace') }}
+          </button>
+          <a class="btn btn-outline-secondary" href="{{ url_for('portal.workspaces_list') }}">{{ _('Cancelar') }}</a>
+        </div>
+      </div>
+
+      <!-- Right: join builder -->
+      <div class="col-lg-6">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title">{{ _('Construtor rápido de JOIN') }}</h5>
+            <p class="text-secondary small mb-3">{{ _('Selecione arquivos/tabelas e gere um SQL inicial com JOINs e autocomplete de colunas.') }}</p>
+
+            <div class="mb-3">
+              <label class="form-label">{{ _('Tabela base') }}</label>
+              <select class="form-select" id="ws-base-table"></select>
+            </div>
+
+            <div class="mb-3">
+              <div class="d-flex align-items-center justify-content-between">
+                <div class="fw-semibold">{{ _('Sugestões de JOIN') }}</div>
+                <button class="btn btn-outline-secondary btn-sm" type="button" id="ws-refresh-suggestions">
+                  <i class="bi bi-arrow-repeat"></i> {{ _('Atualizar') }}
+                </button>
+              </div>
+              <div id="ws-suggestions" class="list-group mt-2" style="max-height: 180px; overflow:auto;"></div>
+            </div>
+
+            <div class="mb-2 d-flex align-items-center justify-content-between">
+              <div class="fw-semibold">{{ _('JOINs') }}</div>
+              <button class="btn btn-outline-primary btn-sm" type="button" id="ws-add-join">
+                <i class="bi bi-plus"></i> {{ _('Adicionar JOIN') }}
+              </button>
+            </div>
+
+            <div class="table-responsive">
+              <table class="table table-sm align-middle" id="ws-joins-table">
+                <thead>
+                  <tr>
+                    <th style="width:110px;">{{ _('Tipo') }}</th>
+                    <th>{{ _('Tabela') }}</th>
+                    <th>{{ _('Coluna') }}</th>
+                    <th>{{ _('Coluna') }}</th>
+                    <th style="width:60px;"></th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+
+            <div class="mb-2 d-flex gap-2 flex-wrap">
+              <button class="btn btn-success" type="button" id="ws-generate-sql">
+                <i class="bi bi-braces"></i> {{ _('Gerar SQL') }}
+              </button>
+              <button class="btn btn-outline-success" type="button" id="ws-ai-sql">
+                <i class="bi bi-stars"></i> {{ _('Gerar SQL com IA') }}
+              </button>
+            </div>
+
+            <div class="mb-2">
+              <label class="form-label">{{ _('Descreva sua análise') }}</label>
+              <input class="form-control" id="ws-ai-prompt" placeholder="{{ _('Ex.: total de vendas por mês e segmento, com ticket médio') }}" />
+            </div>
+
+            <div class="mb-0">
+              <label class="form-label">{{ _('SQL inicial') }}</label>
+              <textarea class="form-control font-monospace" id="ws-sql-preview" rows="10" placeholder="{{ _('Seu SQL aparecerá aqui…') }}"></textarea>
+              <div class="form-text">{{ _('Ao criar o workspace, este SQL fica salvo como rascunho (starter_sql) para você copiar no Editor SQL.') }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <!-- Modal: pick DB tables -->
+  <div class="modal fade" id="wsDbTablesModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">{{ _('Selecionar tabelas') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Fechar') }}"></button>
+        </div>
+        <div class="modal-body">
+          <div class="input-group mb-2">
+            <span class="input-group-text"><i class="bi bi-search"></i></span>
+            <input class="form-control" id="ws-db-table-search" placeholder="{{ _('Filtrar tabelas…') }}" />
+          </div>
+          <div id="ws-db-table-list" class="list-group"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ _('Fechar') }}</button>
+          <button type="button" class="btn btn-primary" id="ws-db-table-apply">{{ _('Aplicar') }}</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: show schema -->
+  <div class="modal fade" id="wsSchemaModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="ws-schema-title">{{ _('Schema') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Fechar') }}"></button>
+        </div>
+        <div class="modal-body">
+          <div id="ws-schema-body" class="small"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block head_extra %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='portal/workspaces_new.css') }}">
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='portal/workspaces_new.js') }}"></script>
+{% endblock %}

@@ -8,7 +8,17 @@ from flask import abort, flash, g, jsonify, make_response, redirect, render_temp
 from flask_login import current_user, login_required
 
 from ...extensions import db
-from ...models.bi import AuditEvent, Dashboard, DashboardCard, DataSource, Question, QueryRun, Report
+from ...models.bi import (
+    AuditEvent,
+    Dashboard,
+    DashboardCard,
+    DataSource,
+    Question,
+    QueryRun,
+    Report,
+    FileFolder,
+    FileAsset,
+)
 from ...models.core import Tenant
 from ...models.core import User, Role
 from ...security import require_roles
@@ -19,6 +29,14 @@ from ...services.pdf_export import table_to_pdf_bytes
 from ...services.ai_service import analyze_with_ai
 from ...services.statistics_service import run_statistics_analysis, stats_report_to_pdf_bytes
 from ...services.report_render_service import report_to_pdf_bytes
+from ...services.file_storage_service import (
+    delete_folder_tree,
+    delete_stored_file,
+    resolve_abs_path,
+    store_upload,
+    store_stream,
+)
+from ...services.file_introspect_service import introspect_file_schema
 from ...tenancy import get_current_tenant_id
 from ...i18n import tr
 from . import bp
@@ -291,8 +309,31 @@ def sources_diagram():
 def api_source_schema(source_id: int):
     _require_tenant()
     src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first_or_404()
-    meta = introspect_source(src)
+    try:
+        meta = introspect_source(src)
+    except Exception as e:  # noqa: BLE001
+        # Não quebra a UI (workspaces / join builder) se a conexão falhar
+        return jsonify({"schemas": [], "error": str(e)}), 200
     return jsonify(meta)
+
+
+@bp.route("/api/files/<int:file_id>/schema")
+@login_required
+@require_roles("tenant_admin", "creator")
+def api_file_schema(file_id: int):
+    """Return cached file schema (or infer it) for autocomplete/join builder."""
+    _require_tenant()
+    asset = FileAsset.query.filter_by(id=file_id, tenant_id=g.tenant.id).first_or_404()
+    schema = asset.schema_json
+    if not schema:
+        try:
+            abs_path = resolve_abs_path(g.tenant.id, asset.storage_path)
+            schema = introspect_file_schema(abs_path, asset.file_format)
+            asset.schema_json = schema
+            db.session.commit()
+        except Exception:
+            schema = {"columns": []}
+    return jsonify(schema or {"columns": []})
 
 
 @bp.route("/api/sources/<int:source_id>/diagram")
@@ -360,6 +401,96 @@ def api_nlq():
     return jsonify({"sql": sql_text, "warnings": warnings})
 
 
+@bp.route("/api/workspaces/draft_sql", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def api_workspaces_draft_sql():
+    """Generate a SQL draft (optionally via OpenAI) for a *new* workspace.
+
+    We build an in-memory workspace datasource using the selected files + DB tables,
+    then reuse the existing NLQ service grounded on its schema.
+    """
+    _require_tenant()
+    payload = request.get_json(silent=True) or {}
+
+    prompt = (payload.get("prompt") or payload.get("text") or "").strip()
+    if not prompt:
+        return jsonify({"error": tr("Descreva sua análise.", getattr(g, "lang", None))}), 400
+
+    try:
+        base_db_source_id = int(payload.get("db_source_id") or 0) or None
+    except Exception:
+        base_db_source_id = None
+
+    db_tables = payload.get("db_tables") or []
+    if isinstance(db_tables, str):
+        db_tables = [x.strip() for x in db_tables.split(",") if x.strip()]
+    if not isinstance(db_tables, list):
+        db_tables = []
+
+    files_cfg_in = payload.get("files") or []
+    if not isinstance(files_cfg_in, list):
+        files_cfg_in = []
+
+    # Enforce tenant isolation for file ids
+    file_ids = []
+    for x in files_cfg_in:
+        try:
+            fid = int((x or {}).get("file_id") or 0)
+            if fid:
+                file_ids.append(fid)
+        except Exception:
+            continue
+
+    allowed_ids = set()
+    if file_ids:
+        allowed_ids = {a.id for a in FileAsset.query.filter(FileAsset.tenant_id == g.tenant.id, FileAsset.id.in_(file_ids)).all()}
+
+    files_cfg: list[dict] = []
+    for x in files_cfg_in:
+        try:
+            fid = int((x or {}).get("file_id") or 0)
+        except Exception:
+            continue
+        if fid and fid in allowed_ids:
+            alias = (x or {}).get("table") or f"file_{fid}"
+            files_cfg.append({"file_id": fid, "table": str(alias).strip()})
+
+    # Validate DB source id belongs to tenant
+    if base_db_source_id:
+        base = DataSource.query.filter_by(id=int(base_db_source_id), tenant_id=g.tenant.id).first()
+        if not base:
+            base_db_source_id = None
+            db_tables = []
+
+    try:
+        max_rows = int(payload.get("max_rows") or 5000)
+    except Exception:
+        max_rows = 5000
+    max_rows = max(100, min(max_rows, 50000))
+
+    cfg = {
+        "db_source_id": base_db_source_id,
+        "db_tables": [str(x).strip() for x in db_tables if str(x).strip()][:200],
+        "db_views": [],
+        "files": files_cfg,
+        "max_rows": max_rows,
+    }
+
+    from ...services.crypto import encrypt_json
+
+    draft = DataSource(
+        tenant_id=g.tenant.id,
+        name="__draft_workspace__",
+        type="workspace",
+        config_encrypted=encrypt_json(cfg),
+        policy_json={"read_only": True, "max_rows": max_rows, "timeout_seconds": 30},
+    )
+
+    sql_text, warnings = generate_sql_from_nl(draft, prompt, lang=getattr(g, "lang", None))
+    return jsonify({"sql": sql_text, "warnings": warnings})
+
+
 @bp.route("/api/export/pdf", methods=["POST"])
 @login_required
 def api_export_pdf():
@@ -382,6 +513,652 @@ def api_export_pdf():
     resp.headers["Content-Type"] = "application/pdf"
     resp.headers["Content-Disposition"] = f'attachment; filename="{title[:80].replace(" ", "_")}.pdf"'
     return resp
+
+
+# -----------------------------
+# Files (Upload / URL / S3)
+# -----------------------------
+
+
+def _folder_rel_path(folder: FileFolder | None) -> str:
+    """Map a folder tree to a stable on-disk path.
+
+    Uses folder IDs instead of names to avoid rename/move issues.
+    """
+    if not folder:
+        return ""
+    chain = []
+    cur = folder
+    while cur is not None:
+        chain.append(f"f_{cur.id}")
+        cur = cur.parent
+    chain.reverse()
+    return "folders/" + "/".join(chain)
+
+
+def _build_files_tree(tenant_id: int):
+    folders = FileFolder.query.filter_by(tenant_id=tenant_id).all()
+    files = FileAsset.query.filter_by(tenant_id=tenant_id).order_by(FileAsset.created_at.desc()).all()
+
+    f_by_id: dict[int, dict] = {}
+    roots: list[dict] = []
+    for f in folders:
+        f_by_id[f.id] = {"folder": f, "children": [], "files": []}
+    for f in folders:
+        node = f_by_id[f.id]
+        if f.parent_id and f.parent_id in f_by_id:
+            f_by_id[f.parent_id]["children"].append(node)
+        else:
+            roots.append(node)
+    for a in files:
+        if a.folder_id and a.folder_id in f_by_id:
+            f_by_id[a.folder_id]["files"].append(a)
+    # root-level files
+    root_files = [a for a in files if not a.folder_id]
+    return {"roots": roots, "root_files": root_files}
+
+
+@bp.route("/files", methods=["GET"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def files_home():
+    _require_tenant()
+
+    # Current folder selection
+    folder_id = request.args.get("folder")
+    current_folder: FileFolder | None = None
+    if folder_id:
+        try:
+            current_folder = FileFolder.query.filter_by(
+                id=int(folder_id), tenant_id=g.tenant.id
+            ).first()
+        except Exception:
+            current_folder = None
+
+    tree = _build_files_tree(g.tenant.id)
+    all_folders = FileFolder.query.filter_by(tenant_id=g.tenant.id).order_by(FileFolder.name.asc()).all()
+
+    # Children listing (explorer right pane)
+    parent_id = current_folder.id if current_folder else None
+    child_folders = (
+        FileFolder.query.filter_by(tenant_id=g.tenant.id, parent_id=parent_id)
+        .order_by(FileFolder.name.asc())
+        .all()
+    )
+    child_files = (
+        FileAsset.query.filter_by(tenant_id=g.tenant.id, folder_id=parent_id)
+        .order_by(FileAsset.created_at.desc())
+        .all()
+    )
+
+    # Breadcrumb
+    breadcrumb: list[FileFolder] = []
+    breadcrumb_ids: list[int] = []
+    cur = current_folder
+    while cur is not None:
+        breadcrumb.append(cur)
+        breadcrumb_ids.append(cur.id)
+        cur = cur.parent
+    breadcrumb.reverse()
+    breadcrumb_ids.reverse()
+
+    return render_template(
+        "portal/files.html",
+        tenant=g.tenant,
+        tree=tree,
+        folders=all_folders,
+        current_folder=current_folder,
+        child_folders=child_folders,
+        child_files=child_files,
+        breadcrumb=breadcrumb,
+        breadcrumb_ids=set(breadcrumb_ids),
+    )
+
+
+def _safe_next_url() -> str | None:
+    nxt = request.form.get("next") or request.args.get("next")
+    if not nxt:
+        return None
+    nxt = str(nxt)
+    # Basic open-redirect protection: only allow local relative URLs
+    if nxt.startswith("/") and "://" not in nxt and "\\" not in nxt:
+        return nxt
+    return None
+
+def _redirect_back(default_endpoint: str = "portal.files_home", **kwargs):
+    nxt = _safe_next_url()
+    if nxt:
+        return redirect(nxt)
+    return redirect(url_for(default_endpoint, **kwargs))
+
+
+@bp.route("/files/folders", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def files_create_folder():
+    _require_tenant()
+
+    name = (request.form.get("name") or "").strip()
+    parent_id = request.form.get("parent_id")
+
+    if not name:
+        flash(_("Nome da pasta é obrigatório."), "danger")
+        return _redirect_back()
+
+    parent = None
+    if parent_id:
+        try:
+            parent = FileFolder.query.filter_by(id=int(parent_id), tenant_id=g.tenant.id).first()
+        except Exception:
+            parent = None
+
+    folder = FileFolder(tenant_id=g.tenant.id, name=name, parent_id=parent.id if parent else None)
+    db.session.add(folder)
+    db.session.commit()
+
+    # Ensure folder path exists on disk
+    rel = _folder_rel_path(folder)
+    from ...services.file_storage_service import ensure_tenant_root
+
+    base = ensure_tenant_root(g.tenant.id)
+    import os
+
+    os.makedirs(os.path.join(base, rel), exist_ok=True)
+
+    flash(_("Pasta criada."), "success")
+    return _redirect_back(folder=folder.parent_id or "")
+
+
+@bp.route("/files/upload", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def files_upload():
+    _require_tenant()
+
+    f = request.files.get("file")
+    display_name = (request.form.get("display_name") or "").strip()
+    folder_id = request.form.get("folder_id")
+
+    folder = None
+    if folder_id:
+        try:
+            folder = FileFolder.query.filter_by(id=int(folder_id), tenant_id=g.tenant.id).first()
+        except Exception:
+            folder = None
+
+    if not f:
+        flash(_("Nenhum arquivo enviado."), "danger")
+        return _redirect_back(folder=folder.id if folder else "")
+
+    from ...services.file_storage_service import store_upload
+    from ...services.file_introspect_service import infer_schema_for_asset
+
+    folder_rel = _folder_rel_path(folder)
+    stored = store_upload(g.tenant.id, f, folder_rel=folder_rel)
+
+    asset = FileAsset(
+        tenant_id=g.tenant.id,
+        folder_id=folder.id if folder else None,
+        name=display_name or stored.get("original_filename") or "arquivo",
+        storage_path=stored["storage_path"],
+        file_format=stored["file_format"],
+        original_filename=stored.get("original_filename"),
+    )
+    asset.schema_json = infer_schema_for_asset(asset)
+    db.session.add(asset)
+    db.session.commit()
+
+    flash(_("Arquivo enviado."), "success")
+    return _redirect_back(folder=folder.id if folder else "")
+
+
+@bp.route("/files/from_url", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def files_from_url():
+    _require_tenant()
+
+    url = (request.form.get("url") or "").strip()
+    filename = (request.form.get("filename") or "").strip()
+    display_name = (request.form.get("display_name") or "").strip()
+    folder_id = request.form.get("folder_id")
+
+    if not url:
+        flash(_("URL é obrigatória."), "danger")
+        return _redirect_back()
+
+    folder = None
+    if folder_id:
+        try:
+            folder = FileFolder.query.filter_by(id=int(folder_id), tenant_id=g.tenant.id).first()
+        except Exception:
+            folder = None
+
+    from ...services.file_storage_service import download_from_url
+    from ...services.file_introspect_service import infer_schema_for_asset
+
+    folder_rel = _folder_rel_path(folder)
+    stored = download_from_url(g.tenant.id, url, filename_hint=filename, folder_rel=folder_rel)
+
+    asset = FileAsset(
+        tenant_id=g.tenant.id,
+        folder_id=folder.id if folder else None,
+        name=display_name or stored.get("original_filename") or filename or "arquivo",
+        storage_path=stored["storage_path"],
+        file_format=stored["file_format"],
+        original_filename=stored.get("original_filename"),
+    )
+    asset.schema_json = infer_schema_for_asset(asset)
+    db.session.add(asset)
+    db.session.commit()
+
+    flash(_("Arquivo importado da URL."), "success")
+    return _redirect_back(folder=folder.id if folder else "")
+
+
+@bp.route("/files/from_s3", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def files_from_s3():
+    _require_tenant()
+
+    bucket = (request.form.get("bucket") or "").strip()
+    key = (request.form.get("key") or "").strip()
+    filename = (request.form.get("filename") or "").strip()
+    region = (request.form.get("region") or "").strip() or None
+    display_name = (request.form.get("display_name") or "").strip()
+    folder_id = request.form.get("folder_id")
+
+    if not bucket or not key:
+        flash(_("Bucket e key são obrigatórios."), "danger")
+        return _redirect_back()
+
+    folder = None
+    if folder_id:
+        try:
+            folder = FileFolder.query.filter_by(id=int(folder_id), tenant_id=g.tenant.id).first()
+        except Exception:
+            folder = None
+
+    from ...services.file_storage_service import download_from_s3
+    from ...services.file_introspect_service import infer_schema_for_asset
+
+    folder_rel = _folder_rel_path(folder)
+    stored = download_from_s3(g.tenant.id, bucket=bucket, key=key, filename_hint=filename, region=region, folder_rel=folder_rel)
+
+    asset = FileAsset(
+        tenant_id=g.tenant.id,
+        folder_id=folder.id if folder else None,
+        name=display_name or stored.get("original_filename") or filename or key.split("/")[-1] or "arquivo",
+        storage_path=stored["storage_path"],
+        file_format=stored["file_format"],
+        original_filename=stored.get("original_filename"),
+    )
+    asset.schema_json = infer_schema_for_asset(asset)
+    db.session.add(asset)
+    db.session.commit()
+
+    flash(_("Arquivo importado do S3."), "success")
+    return _redirect_back(folder=folder.id if folder else "")
+
+
+@bp.route("/files/<int:file_id>/download", methods=["GET"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def files_download(file_id: int):
+    _require_tenant()
+    asset = FileAsset.query.filter_by(id=file_id, tenant_id=g.tenant.id).first_or_404()
+
+    from ...services.file_storage_service import resolve_abs_path
+
+    abs_path = resolve_abs_path(g.tenant.id, asset.storage_path)
+    return send_file(abs_path, as_attachment=True, download_name=asset.original_filename or asset.name)
+
+
+@bp.route("/files/<int:file_id>/delete", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def files_delete(file_id: int):
+    _require_tenant()
+
+    asset = FileAsset.query.filter_by(id=file_id, tenant_id=g.tenant.id).first_or_404()
+
+    from ...services.file_storage_service import delete_storage_path
+
+    delete_storage_path(g.tenant.id, asset.storage_path)
+    db.session.delete(asset)
+    db.session.commit()
+
+    flash(_("Arquivo removido."), "success")
+    return _redirect_back()
+
+
+@bp.route("/files/folders/<int:folder_id>/delete", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def files_folders_delete(folder_id: int):
+    _require_tenant()
+
+    folder = FileFolder.query.filter_by(id=folder_id, tenant_id=g.tenant.id).first_or_404()
+
+    # Delete assets in subtree
+    from ...services.file_storage_service import delete_storage_path
+    import os
+    import shutil
+    from ...services.file_storage_service import ensure_tenant_root
+
+    tenant_root = ensure_tenant_root(g.tenant.id)
+    rel = _folder_rel_path(folder)
+    abs_dir = os.path.join(tenant_root, rel)
+
+    # Remove all file assets that live under that folder path
+    prefix = rel + "/"
+    assets = FileAsset.query.filter(
+        FileAsset.tenant_id == g.tenant.id,
+        FileAsset.storage_path.like(prefix + "%"),
+    ).all()
+    for a in assets:
+        try:
+            delete_storage_path(g.tenant.id, a.storage_path)
+        except Exception:
+            pass
+        db.session.delete(a)
+
+    # Delete folder row + descendants (DB cascade should handle children via relationship; but be explicit)
+    # Remove descendant folders from DB
+    def gather_descendants(fid: int) -> list[FileFolder]:
+        out = []
+        stack = [fid]
+        while stack:
+            x = stack.pop()
+            kids = FileFolder.query.filter_by(tenant_id=g.tenant.id, parent_id=x).all()
+            for k in kids:
+                out.append(k)
+                stack.append(k.id)
+        return out
+
+    for sub in gather_descendants(folder.id):
+        db.session.delete(sub)
+
+    db.session.delete(folder)
+    db.session.commit()
+
+    # Remove directory tree from disk
+    try:
+        if os.path.isdir(abs_dir):
+            shutil.rmtree(abs_dir, ignore_errors=True)
+    except Exception:
+        pass
+
+    flash(_("Pasta removida."), "success")
+    return _redirect_back()
+
+
+# --- Explorer operations (rename / move) ---
+
+@bp.route("/files/<int:file_id>/rename", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def files_rename(file_id: int):
+    _require_tenant()
+    asset = FileAsset.query.filter_by(id=file_id, tenant_id=g.tenant.id).first_or_404()
+
+    if request.is_json:
+        name = (request.json or {}).get("name")
+    else:
+        name = request.form.get("name")
+
+    name = (name or "").strip()
+    if not name:
+        msg = _("Nome é obrigatório.")
+        if request.is_json:
+            return jsonify({"ok": False, "error": msg}), 400
+        flash(msg, "danger")
+        return _redirect_back()
+
+    asset.name = name
+    db.session.commit()
+
+    if request.is_json:
+        return jsonify({"ok": True})
+    flash(_("Arquivo renomeado."), "success")
+    return _redirect_back()
+
+
+@bp.route("/files/folders/<int:folder_id>/rename", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def folders_rename(folder_id: int):
+    _require_tenant()
+    folder = FileFolder.query.filter_by(id=folder_id, tenant_id=g.tenant.id).first_or_404()
+
+    if request.is_json:
+        name = (request.json or {}).get("name")
+    else:
+        name = request.form.get("name")
+
+    name = (name or "").strip()
+    if not name:
+        msg = _("Nome é obrigatório.")
+        if request.is_json:
+            return jsonify({"ok": False, "error": msg}), 400
+        flash(msg, "danger")
+        return _redirect_back()
+
+    folder.name = name
+    db.session.commit()
+
+    if request.is_json:
+        return jsonify({"ok": True})
+    flash(_("Pasta renomeada."), "success")
+    return _redirect_back(folder=folder.id)
+
+
+@bp.route("/files/<int:file_id>/move", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def files_move(file_id: int):
+    _require_tenant()
+    asset = FileAsset.query.filter_by(id=file_id, tenant_id=g.tenant.id).first_or_404()
+
+    if request.is_json:
+        new_folder_id = (request.json or {}).get("folder_id")
+    else:
+        new_folder_id = request.form.get("folder_id")
+
+    new_folder = None
+    if new_folder_id not in (None, "", 0, "0"):
+        try:
+            new_folder = FileFolder.query.filter_by(id=int(new_folder_id), tenant_id=g.tenant.id).first()
+        except Exception:
+            new_folder = None
+
+    import os
+    import shutil
+    from ...services.file_storage_service import ensure_tenant_root
+
+    tenant_root = ensure_tenant_root(g.tenant.id)
+    old_rel = asset.storage_path
+    old_abs = os.path.join(tenant_root, old_rel)
+
+    new_dir_rel = _folder_rel_path(new_folder)
+    filename = os.path.basename(old_rel)
+    new_rel = (new_dir_rel + "/" + filename) if new_dir_rel else filename
+    new_abs = os.path.join(tenant_root, new_rel)
+    os.makedirs(os.path.dirname(new_abs), exist_ok=True)
+
+    try:
+        if os.path.exists(old_abs):
+            shutil.move(old_abs, new_abs)
+    except Exception:
+        pass
+
+    asset.folder_id = new_folder.id if new_folder else None
+    asset.storage_path = new_rel
+    db.session.commit()
+
+    if request.is_json:
+        return jsonify({"ok": True})
+    flash(_("Arquivo movido."), "success")
+    return _redirect_back(folder=new_folder.id if new_folder else "")
+
+
+@bp.route("/files/folders/<int:folder_id>/move", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def folders_move(folder_id: int):
+    _require_tenant()
+    folder = FileFolder.query.filter_by(id=folder_id, tenant_id=g.tenant.id).first_or_404()
+
+    if request.is_json:
+        new_parent_id = (request.json or {}).get("parent_id")
+    else:
+        new_parent_id = request.form.get("parent_id")
+
+    new_parent = None
+    if new_parent_id not in (None, "", 0, "0"):
+        try:
+            new_parent = FileFolder.query.filter_by(id=int(new_parent_id), tenant_id=g.tenant.id).first()
+        except Exception:
+            new_parent = None
+
+    # Prevent cycles: can't move folder into itself/subtree
+    def descendant_ids(root_id: int) -> set[int]:
+        out = set()
+        stack = [root_id]
+        while stack:
+            x = stack.pop()
+            kids = FileFolder.query.filter_by(tenant_id=g.tenant.id, parent_id=x).all()
+            for k in kids:
+                if k.id not in out:
+                    out.add(k.id)
+                    stack.append(k.id)
+        return out
+
+    bad = descendant_ids(folder.id)
+    bad.add(folder.id)
+    if new_parent and new_parent.id in bad:
+        msg = _("Movimento inválido.")
+        if request.is_json:
+            return jsonify({"ok": False, "error": msg}), 400
+        flash(msg, "danger")
+        return _redirect_back(folder=folder.id)
+
+    import os
+    import shutil
+    from ...services.file_storage_service import ensure_tenant_root
+
+    tenant_root = ensure_tenant_root(g.tenant.id)
+
+    old_rel = _folder_rel_path(folder)
+
+    # Update parent
+    folder.parent_id = new_parent.id if new_parent else None
+    folder.parent = new_parent
+    db.session.flush()
+
+    new_rel = _folder_rel_path(folder)
+
+    # Move folder dir on disk
+    old_abs = os.path.join(tenant_root, old_rel)
+    new_abs = os.path.join(tenant_root, new_rel)
+    os.makedirs(os.path.dirname(new_abs), exist_ok=True)
+    try:
+        if os.path.isdir(old_abs):
+            shutil.move(old_abs, new_abs)
+        else:
+            os.makedirs(new_abs, exist_ok=True)
+    except Exception:
+        os.makedirs(new_abs, exist_ok=True)
+
+    # Update storage_path for assets under this folder subtree
+    prefix = old_rel + "/"
+    assets = FileAsset.query.filter(
+        FileAsset.tenant_id == g.tenant.id,
+        FileAsset.storage_path.like(prefix + "%"),
+    ).all()
+    for a in assets:
+        a.storage_path = new_rel + a.storage_path[len(old_rel):]
+
+    db.session.commit()
+
+    if request.is_json:
+        return jsonify({"ok": True})
+    flash(_("Pasta movida."), "success")
+    return _redirect_back(folder=folder.id)
+
+
+# -----------------------------
+# Workspaces (datasource that joins DB + files)
+# -----------------------------
+
+
+@bp.route("/workspaces", methods=["GET"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def workspaces_list():
+    _require_tenant()
+    workspaces = DataSource.query.filter_by(tenant_id=g.tenant.id, type="workspace").order_by(DataSource.created_at.desc()).all()
+    return render_template("portal/workspaces_list.html", tenant=g.tenant, workspaces=workspaces)
+
+
+@bp.route("/workspaces/new", methods=["GET", "POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def workspaces_new():
+    _require_tenant()
+    db_sources = DataSource.query.filter(DataSource.tenant_id == g.tenant.id, DataSource.type != "workspace").order_by(DataSource.name.asc()).all()
+    files = FileAsset.query.filter_by(tenant_id=g.tenant.id).order_by(FileAsset.created_at.desc()).all()
+
+    if request.method == "POST":
+        name = (request.form.get("name") or "").strip()
+        base_db_source_id = int(request.form.get("db_source_id") or 0) or None
+        db_tables_raw = (request.form.get("db_tables") or "").strip()
+        max_rows = int(request.form.get("max_rows") or 5000)
+        starter_sql = (request.form.get("starter_sql") or "").strip()
+
+        if not name:
+            flash(tr("Nome é obrigatório.", getattr(g, "lang", None)), "error")
+            return render_template("portal/workspaces_new.html", tenant=g.tenant, db_sources=db_sources, files=files)
+
+        selected_files = request.form.getlist("file_id")
+        files_cfg = []
+        for fid_s in selected_files:
+            try:
+                fid = int(fid_s)
+            except Exception:
+                continue
+            alias = (request.form.get(f"alias_{fid}") or f"file_{fid}").strip()
+            files_cfg.append({"file_id": fid, "table": alias})
+
+        db_tables_list = [t.strip() for t in db_tables_raw.split(",") if t.strip()] if db_tables_raw else []
+
+        cfg = {
+            "db_source_id": base_db_source_id,
+            "db_tables": db_tables_list,
+            "db_views": [],
+            "files": files_cfg,
+            "max_rows": max(100, min(max_rows, 50000)),
+            "starter_sql": starter_sql,
+        }
+        policy = {"read_only": True, "max_rows": max(100, min(max_rows, 50000)), "timeout_seconds": 30}
+
+        from ...services.crypto import encrypt_json
+
+        ws = DataSource(
+            tenant_id=g.tenant.id,
+            name=name,
+            type="workspace",
+            config_encrypted=encrypt_json(cfg),
+            policy_json=policy,
+        )
+        db.session.add(ws)
+        db.session.commit()
+        _audit("bi.workspaces.created", {"id": ws.id, "name": ws.name, "db_source_id": base_db_source_id, "files": [x.get("file_id") for x in files_cfg]})
+        flash(tr("Workspace criado.", getattr(g, "lang", None)), "success")
+        return redirect(url_for("portal.sources_view", source_id=ws.id))
+
+    return render_template("portal/workspaces_new.html", tenant=g.tenant, db_sources=db_sources, files=files)
 
 
 # -----------------------------

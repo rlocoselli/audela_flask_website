@@ -101,6 +101,12 @@ def execute_sql(
     if not sql_text:
         raise QueryExecutionError("SQL vazio.")
 
+    # Workspace datasource (files + optional base DB)
+    if (source.type or "").lower() == "workspace":
+        from .workspace_query_service import execute_workspace_sql
+
+        return execute_workspace_sql(source, sql_text, params=params, row_limit=row_limit)
+
     policy = source.policy_json or {}
     read_only = bool(policy.get("read_only", True))
     max_rows = int(policy.get("max_rows", Config.QUERY_MAX_ROWS))

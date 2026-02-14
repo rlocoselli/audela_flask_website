@@ -1,0 +1,29 @@
+.ws-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .15rem .5rem;
+  border: 1px solid rgba(0,0,0,.15);
+  border-radius: 999px;
+  font-size: .8rem;
+}
+
+[data-bs-theme="dark"] .ws-tag {
+  border-color: rgba(255,255,255,.2);
+}
+
+.ws-tag button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  line-height: 1;
+  opacity: .75;
+}
+
+.ws-tag button:hover {
+  opacity: 1;
+}
+
+.ws-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}

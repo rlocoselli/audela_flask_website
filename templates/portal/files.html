@@ -1,0 +1,501 @@
+{% extends "portal/layout.html" %}
+{% set title = _("Arquivos") %}
+
+{% block head_extra %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='portal/files_explorer.css') }}">
+{% endblock %}
+
+{% macro render_folder_node(node, current_id, breadcrumb_ids) %}
+  {% set f = node.folder %}
+  {% set is_active = (current_id == f.id) %}
+  {% set is_in_path = (f.id in breadcrumb_ids) %}
+  <li class="fe-node" data-drop-folder-id="{{ f.id }}">
+    <div class="fe-node-row {{ 'active' if is_active else '' }} {{ 'in-path' if is_in_path else '' }}">
+      {% if node.children|length > 0 %}
+        <button class="btn btn-sm btn-link fe-toggle" type="button" data-fe-toggle aria-label="{{ _('Expandir') }}">
+          <i class="bi bi-caret-right-fill"></i>
+        </button>
+      {% else %}
+        <span class="fe-toggle-spacer"></span>
+      {% endif %}
+
+      <a class="fe-node-link" href="{{ url_for('portal.files_home', folder=f.id) }}" title="{{ f.name }}">
+        <i class="bi bi-folder2 me-2"></i>
+        <span class="fe-node-name">{{ f.name }}</span>
+      </a>
+
+      <div class="ms-auto fe-node-actions">
+        <div class="dropdown">
+          <button class="btn btn-sm btn-light" data-bs-toggle="dropdown" aria-expanded="false" title="{{ _('Ações') }}">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><button class="dropdown-item" type="button" data-fe-rename data-kind="folder" data-id="{{ f.id }}" data-name="{{ f.name|e }}">
+              <i class="bi bi-pencil me-2"></i>{{ _('Renomear') }}
+            </button></li>
+            <li><button class="dropdown-item" type="button" data-fe-move data-kind="folder" data-id="{{ f.id }}" data-name="{{ f.name|e }}">
+              <i class="bi bi-folder-symlink me-2"></i>{{ _('Mover') }}
+            </button></li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <form method="post" action="{{ url_for('portal.files_folders_delete', folder_id=f.id) }}" onsubmit="return confirm('{{ _('Excluir esta pasta e tudo dentro?') }}');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <input type="hidden" name="next" value="{{ request.full_path }}" />
+                <button class="dropdown-item text-danger" type="submit">
+                  <i class="bi bi-trash3 me-2"></i>{{ _('Excluir') }}
+                </button>
+              </form>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    {% if node.children|length > 0 %}
+      <ul class="fe-tree" hidden>
+        {% for c in node.children %}
+          {{ render_folder_node(c, current_id, breadcrumb_ids) }}
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </li>
+{% endmacro %}
+
+{% block portal_content %}
+<div class="d-flex flex-column gap-3">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div>
+      <h4 class="mb-0">{{ _('Arquivos') }}</h4>
+      <div class="text-muted small">{{ _('Upload e organização por pastas, com isolamento por tenant.') }}</div>
+    </div>
+
+    <div class="d-flex align-items-center gap-2">
+      <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#modalNewFolder">
+        <i class="bi bi-folder-plus me-1"></i>{{ _('Nova pasta') }}
+      </button>
+      <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#modalUpload">
+        <i class="bi bi-upload me-1"></i>{{ _('Upload') }}
+      </button>
+      <div class="dropdown">
+        <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+          <i class="bi bi-cloud-download me-1"></i>{{ _('Importar') }}
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#modalUrl">
+            <i class="bi bi-link-45deg me-2"></i>{{ _('Importar URL') }}
+          </button></li>
+          <li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#modalS3">
+            <i class="bi bi-amazon me-2"></i>{{ _('Importar S3') }}
+          </button></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3" style="min-height: 560px;">
+    <!-- LEFT: tree -->
+    <div class="col-lg-4 col-xl-3">
+      <div class="card shadow-sm h-100 overflow-hidden">
+        <div class="card-header d-flex align-items-center justify-content-between">
+          <div class="fw-semibold"><i class="bi bi-folder2-open me-2"></i>{{ _('Pastas') }}</div>
+          <span class="text-muted small">{{ _('Arraste e solte para mover') }}</span>
+        </div>
+        <div class="card-body p-2 overflow-auto" style="max-height: calc(100vh - 260px);">
+          <div class="fe-root" data-drop-folder-id="">
+            <a class="fe-node-link {{ 'active' if not current_folder else '' }}" href="{{ url_for('portal.files_home') }}">
+              <i class="bi bi-house-door me-2"></i>{{ _('Raiz') }}
+            </a>
+          </div>
+
+          <ul class="fe-tree mt-2">
+            {% for node in tree.roots %}
+              {{ render_folder_node(node, current_folder.id if current_folder else None, breadcrumb_ids) }}
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: explorer -->
+    <div class="col-lg-8 col-xl-9">
+      <div class="card shadow-sm h-100 overflow-hidden">
+        <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <div>
+            <nav aria-label="breadcrumb">
+              <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="{{ url_for('portal.files_home') }}">{{ _('Raiz') }}</a></li>
+                {% for f in breadcrumb %}
+                  {% if loop.last %}
+                    <li class="breadcrumb-item active" aria-current="page">{{ f.name }}</li>
+                  {% else %}
+                    <li class="breadcrumb-item"><a href="{{ url_for('portal.files_home', folder=f.id) }}">{{ f.name }}</a></li>
+                  {% endif %}
+                {% endfor %}
+              </ol>
+            </nav>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <input id="fe-search" class="form-control form-control-sm" style="width:260px" placeholder="{{ _('Pesquisar...') }}" />
+          </div>
+        </div>
+
+        <div class="card-body p-0 d-flex flex-column overflow-hidden">
+          <div class="fe-list-toolbar p-2 border-bottom d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div class="text-muted small">
+              {% if current_folder %}
+                {{ _('Pasta') }}: <span class="fw-semibold">{{ current_folder.name }}</span>
+              {% else %}
+                {{ _('Pasta') }}: <span class="fw-semibold">{{ _('Raiz') }}</span>
+              {% endif %}
+            </div>
+            <div class="d-flex gap-2">
+              {% if current_folder and current_folder.parent_id %}
+                <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.files_home', folder=current_folder.parent_id) }}">
+                  <i class="bi bi-arrow-up me-1"></i>{{ _('Subir') }}
+                </a>
+              {% elif current_folder and not current_folder.parent_id %}
+                <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.files_home') }}">
+                  <i class="bi bi-arrow-up me-1"></i>{{ _('Subir') }}
+                </a>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="table-responsive fe-table-wrap flex-grow-1">
+            <table class="table table-hover align-middle mb-0" id="fe-table" data-current-folder-id="{{ current_folder.id if current_folder else '' }}">
+              <thead class="table-light sticky-top">
+                <tr>
+                  <th style="width:46%">{{ _('Nome') }}</th>
+                  <th style="width:12%">{{ _('Tipo') }}</th>
+                  <th style="width:12%">{{ _('Tamanho') }}</th>
+                  <th style="width:20%">{{ _('Atualizado') }}</th>
+                  <th style="width:10%" class="text-end">{{ _('Ações') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for f in child_folders %}
+                  <tr class="fe-row" data-name="{{ f.name|lower|e }}" draggable="true" data-drag-type="folder" data-id="{{ f.id }}">
+                    <td>
+                      <div class="d-flex align-items-center gap-2" data-drop-folder-id="{{ f.id }}">
+                        <i class="bi bi-folder-fill text-warning"></i>
+                        <a class="text-decoration-none" href="{{ url_for('portal.files_home', folder=f.id) }}">{{ f.name }}</a>
+                      </div>
+                    </td>
+                    <td class="text-muted">{{ _('Pasta') }}</td>
+                    <td class="text-muted">—</td>
+                    <td class="text-muted">—</td>
+                    <td class="text-end">
+                      <div class="dropdown">
+                        <button class="btn btn-sm btn-light" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-three-dots"></i></button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                          <li><button class="dropdown-item" type="button" data-fe-rename data-kind="folder" data-id="{{ f.id }}" data-name="{{ f.name|e }}">
+                            <i class="bi bi-pencil me-2"></i>{{ _('Renomear') }}
+                          </button></li>
+                          <li><button class="dropdown-item" type="button" data-fe-move data-kind="folder" data-id="{{ f.id }}" data-name="{{ f.name|e }}">
+                            <i class="bi bi-folder-symlink me-2"></i>{{ _('Mover') }}
+                          </button></li>
+                          <li><hr class="dropdown-divider"></li>
+                          <li>
+                            <form method="post" action="{{ url_for('portal.files_folders_delete', folder_id=f.id) }}" onsubmit="return confirm('{{ _('Excluir esta pasta e tudo dentro?') }}');">
+                              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                              <input type="hidden" name="next" value="{{ request.full_path }}" />
+                              <button class="dropdown-item text-danger" type="submit"><i class="bi bi-trash3 me-2"></i>{{ _('Excluir') }}</button>
+                            </form>
+                          </li>
+                        </ul>
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+
+                {% for file in child_files %}
+                  <tr class="fe-row" data-name="{{ file.name|lower|e }}" draggable="true" data-drag-type="file" data-id="{{ file.id }}">
+                    <td>
+                      <div class="d-flex align-items-center gap-2">
+                        {% if file.file_format == 'csv' %}
+                          <i class="bi bi-filetype-csv"></i>
+                        {% elif file.file_format == 'parquet' %}
+                          <i class="bi bi-filetype-raw"></i>
+                        {% elif file.file_format == 'excel' %}
+                          <i class="bi bi-filetype-xlsx"></i>
+                        {% else %}
+                          <i class="bi bi-file-earmark"></i>
+                        {% endif %}
+                        <span class="fw-semibold">{{ file.name }}</span>
+                        <span class="text-muted small">(#{{ file.id }})</span>
+                      </div>
+                      <div class="text-muted small">{{ file.original_filename }}</div>
+                    </td>
+                    <td class="text-muted">{{ file.file_format }}</td>
+                    <td class="text-muted">—</td>
+                    <td class="text-muted">{{ file.created_at.strftime('%Y-%m-%d %H:%M') if file.created_at else '' }}</td>
+                    <td class="text-end">
+                      <div class="btn-group">
+                        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('portal.files_download', file_id=file.id) }}" title="{{ _('Baixar') }}">
+                          <i class="bi bi-download"></i>
+                        </a>
+                        <button class="btn btn-sm btn-light dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
+                          <span class="visually-hidden">{{ _('Ações') }}</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                          <li><button class="dropdown-item" type="button" data-fe-rename data-kind="file" data-id="{{ file.id }}" data-name="{{ file.name|e }}">
+                            <i class="bi bi-pencil me-2"></i>{{ _('Renomear') }}
+                          </button></li>
+                          <li><button class="dropdown-item" type="button" data-fe-move data-kind="file" data-id="{{ file.id }}" data-name="{{ file.name|e }}">
+                            <i class="bi bi-folder-symlink me-2"></i>{{ _('Mover') }}
+                          </button></li>
+                          <li><hr class="dropdown-divider"></li>
+                          <li>
+                            <form method="post" action="{{ url_for('portal.files_delete', file_id=file.id) }}" onsubmit="return confirm('{{ _('Excluir este arquivo?') }}');">
+                              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                              <input type="hidden" name="next" value="{{ request.full_path }}" />
+                              <button class="dropdown-item text-danger" type="submit">
+                                <i class="bi bi-trash3 me-2"></i>{{ _('Excluir') }}
+                              </button>
+                            </form>
+                          </li>
+                        </ul>
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+
+                {% if child_folders|length == 0 and child_files|length == 0 %}
+                  <tr>
+                    <td colspan="5" class="text-center text-muted py-5">
+                      <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+                      <div class="mt-2">{{ _('Nada por aqui ainda.') }}</div>
+                      <div class="small">{{ _('Faça upload ou importe arquivos para usar como datasource.') }}</div>
+                    </td>
+                  </tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="p-2 border-top text-muted small d-flex justify-content-between flex-wrap gap-2">
+            <div>{{ _('Itens') }}: {{ child_folders|length + child_files|length }}</div>
+            <div>{{ _('Dica') }}: {{ _('Você pode arrastar arquivos/pastas para outra pasta na árvore.') }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================== MODALS ================== -->
+
+<!-- New folder -->
+<div class="modal fade" id="modalNewFolder" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('portal.files_create_folder') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <input type="hidden" name="parent_id" value="{{ current_folder.id if current_folder else '' }}" />
+        <input type="hidden" name="next" value="{{ request.full_path }}" />
+
+        <div class="modal-header">
+          <h5 class="modal-title">{{ _('Nova pasta') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Fechar') }}"></button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label">{{ _('Nome') }}</label>
+          <input class="form-control" name="name" placeholder="{{ _('Ex.: Financeiro') }}" required />
+          <div class="form-text">{{ _('A pasta será criada dentro da pasta atual.') }}</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+          <button type="submit" class="btn btn-primary">{{ _('Criar') }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Upload -->
+<div class="modal fade" id="modalUpload" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('portal.files_upload') }}" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <input type="hidden" name="folder_id" value="{{ current_folder.id if current_folder else '' }}" />
+        <input type="hidden" name="next" value="{{ request.full_path }}" />
+
+        <div class="modal-header">
+          <h5 class="modal-title">{{ _('Upload') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Fechar') }}"></button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label">{{ _('Arquivo') }}</label>
+          <input class="form-control" type="file" name="file" required />
+          <div class="row g-2 mt-2">
+            <div class="col-12">
+              <label class="form-label">{{ _('Nome (opcional)') }}</label>
+              <input class="form-control" name="display_name" placeholder="{{ _('Nome amigável para o BI') }}" />
+            </div>
+          </div>
+          <div class="form-text">{{ _('Formatos suportados') }}: CSV, XLSX, Parquet</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+          <button type="submit" class="btn btn-primary">{{ _('Enviar') }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Import URL -->
+<div class="modal fade" id="modalUrl" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('portal.files_from_url') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <input type="hidden" name="folder_id" value="{{ current_folder.id if current_folder else '' }}" />
+        <input type="hidden" name="next" value="{{ request.full_path }}" />
+
+        <div class="modal-header">
+          <h5 class="modal-title">{{ _('Importar URL') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Fechar') }}"></button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label">{{ _('URL') }}</label>
+          <input class="form-control" name="url" placeholder="https://.../arquivo.csv" required />
+
+          <div class="row g-2 mt-2">
+            <div class="col-md-6">
+              <label class="form-label">{{ _('Nome do arquivo (opcional)') }}</label>
+              <input class="form-control" name="filename" placeholder="dados.csv" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ _('Nome (opcional)') }}</label>
+              <input class="form-control" name="display_name" placeholder="{{ _('Nome amigável') }}" />
+            </div>
+          </div>
+          <div class="form-text">{{ _('A extensão determina o tipo (csv/xlsx/parquet).') }}</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+          <button type="submit" class="btn btn-primary">{{ _('Importar') }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Import S3 -->
+<div class="modal fade" id="modalS3" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('portal.files_from_s3') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <input type="hidden" name="folder_id" value="{{ current_folder.id if current_folder else '' }}" />
+        <input type="hidden" name="next" value="{{ request.full_path }}" />
+
+        <div class="modal-header">
+          <h5 class="modal-title">{{ _('Importar S3') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Fechar') }}"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label">{{ _('Bucket') }}</label>
+              <input class="form-control" name="bucket" required />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ _('Região (opcional)') }}</label>
+              <input class="form-control" name="region" placeholder="eu-west-3" />
+            </div>
+          </div>
+          <div class="mt-2">
+            <label class="form-label">{{ _('Key (caminho no bucket)') }}</label>
+            <input class="form-control" name="key" placeholder="data/meu_arquivo.parquet" required />
+          </div>
+          <div class="row g-2 mt-2">
+            <div class="col-md-6">
+              <label class="form-label">{{ _('Nome do arquivo (opcional)') }}</label>
+              <input class="form-control" name="filename" placeholder="meu_arquivo.parquet" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ _('Nome (opcional)') }}</label>
+              <input class="form-control" name="display_name" placeholder="{{ _('Nome amigável') }}" />
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+          <button type="submit" class="btn btn-primary">{{ _('Importar') }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Rename modal -->
+<div class="modal fade" id="modalRename" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="fe-rename-form">
+        <div class="modal-header">
+          <h5 class="modal-title">{{ _('Renomear') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Fechar') }}"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="fe-rename-kind" />
+          <input type="hidden" id="fe-rename-id" />
+          <label class="form-label">{{ _('Nome') }}</label>
+          <input class="form-control" id="fe-rename-name" required />
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+          <button type="submit" class="btn btn-primary">{{ _('Salvar') }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Move modal -->
+<div class="modal fade" id="modalMove" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="fe-move-form">
+        <div class="modal-header">
+          <h5 class="modal-title">{{ _('Mover') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Fechar') }}"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="fe-move-kind" />
+          <input type="hidden" id="fe-move-id" />
+          <div class="mb-2 text-muted small">{{ _('Destino') }}</div>
+          <select class="form-select" id="fe-move-dest">
+            <option value="">{{ _('Raiz') }}</option>
+            {% for fo in folders %}
+              <option value="{{ fo.id }}">{{ fo.name }}</option>
+            {% endfor %}
+          </select>
+          <div class="form-text">{{ _('Você também pode arrastar e soltar no painel de pastas.') }}</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+          <button type="submit" class="btn btn-primary">{{ _('Mover') }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script>
+    window.FE_ENDPOINTS = {
+      renameFile: "{{ url_for('portal.files_rename', file_id=0) }}",
+      renameFolder: "{{ url_for('portal.folders_rename', folder_id=0) }}",
+      moveFile: "{{ url_for('portal.files_move', file_id=0) }}",
+      moveFolder: "{{ url_for('portal.folders_move', folder_id=0) }}"
+    };
+  </script>
+  <script src="{{ url_for('static', filename='portal/files_explorer.js') }}"></script>
+{% endblock %}

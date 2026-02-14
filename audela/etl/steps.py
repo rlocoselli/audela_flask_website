@@ -99,12 +99,21 @@ def extract_sql(config: Dict[str, Any], ctx, app=None):
     if not query:
         raise ValueError("extract.sql requires config.query")
 
-    # If a saved DB source is selected, use its SQLAlchemy engine.
+    # If a saved DB source is selected, use it. Workspace sources are executed via DuckDB.
     db_source_id = config.get("db_source_id") or config.get("source_id")
     if db_source_id:
         src = _get_db_source(int(db_source_id))
         if not src:
             raise ValueError(f"Unknown DB source id: {db_source_id}")
+
+        if (src.type or "").lower() == "workspace":
+            from audela.services.query_service import execute_sql as _execute_sql
+
+            res = _execute_sql(src, query, params={}, row_limit=None)
+            cols = res.get("columns") or []
+            rows = res.get("rows") or []
+            return [dict(zip(cols, r)) for r in rows]
+
         engine = get_engine(src)
     else:
         # Fallback to the app's main DB

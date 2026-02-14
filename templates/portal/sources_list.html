@@ -3,7 +3,13 @@
 
 {% block portal_content %}
   <div class="box">
-    <p><a class="button" href="{{ url_for('portal.sources_new') }}">Nova fonte</a></p>
+    <p>
+      <a class="button" href="{{ url_for('portal.sources_new') }}">Nova fonte</a>
+      &nbsp;
+      <a class="button" href="{{ url_for('portal.workspaces_new') }}">Novo workspace (DB + arquivos)</a>
+      &nbsp;
+      <a class="button" href="{{ url_for('portal.workspaces_list') }}">Ver workspaces</a>
+    </p>
     {% if not sources %}
       <p>Nenhuma fonte cadastrada ainda.</p>
     {% else %}

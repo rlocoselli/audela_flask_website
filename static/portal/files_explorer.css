@@ -1,0 +1,120 @@
+/* File Explorer (portal/files.html) */
+
+.fe-tree {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+
+.fe-node {
+  margin: 0;
+  padding: 0;
+}
+
+.fe-node-row {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .25rem .25rem;
+  border-radius: .5rem;
+}
+
+.fe-node-row:hover {
+  background: rgba(127,127,127,.12);
+}
+
+.fe-node-row.active {
+  background: rgba(13,110,253,.15);
+}
+
+.fe-node-row.in-path {
+  outline: 1px dashed rgba(127,127,127,.25);
+}
+
+.fe-node-link {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  text-decoration: none;
+  color: inherit;
+  min-width: 0;
+}
+
+.fe-node-name {
+  display: inline-block;
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fe-toggle {
+  width: 28px;
+  height: 28px;
+  border-radius: .5rem;
+}
+
+.fe-toggle i {
+  transition: transform .12s ease;
+}
+
+.fe-toggle[aria-expanded="true"] i {
+  transform: rotate(90deg);
+}
+
+.fe-toggle-spacer {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+}
+
+.fe-node-actions {
+  opacity: 0;
+}
+
+.fe-node-row:hover .fe-node-actions,
+.fe-node-row.active .fe-node-actions {
+  opacity: 1;
+}
+
+.fe-root {
+  padding: .25rem .25rem;
+  border-radius: .5rem;
+}
+
+.fe-root:hover {
+  background: rgba(127,127,127,.12);
+}
+
+.fe-root .fe-node-link.active {
+  font-weight: 600;
+}
+
+/* Drag & drop */
+[data-drop-folder-id].drag-over,
+.fe-root.drag-over {
+  background: rgba(25,135,84,.12) !important;
+  outline: 2px dashed rgba(25,135,84,.35);
+}
+
+.fe-table-wrap {
+  overflow: auto;
+}
+
+.fe-row[draggable="true"] {
+  cursor: grab;
+}
+
+#fe-search {
+  max-width: 320px;
+}
+
+.drop-hover {
+  outline: 2px dashed rgba(13,110,253,.6);
+  outline-offset: 2px;
+  background: rgba(13,110,253,.08);
+}
+
+.dragging {
+  opacity: .6;
+}

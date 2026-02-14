@@ -29,6 +29,12 @@ def get_engine(source: DataSource) -> Engine:
 
 
 def introspect_source(source: DataSource) -> dict[str, Any]:
+    # Workspace datasource (files + optional base DB)
+    if (source.type or "").lower() == "workspace":
+        from .workspace_query_service import introspect_workspace
+
+        return introspect_workspace(source)
+
     """Return a lightweight metadata catalog.
 
     Output shape:

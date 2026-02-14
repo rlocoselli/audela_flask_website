@@ -1,5 +1,7 @@
 const editor = new Drawflow(document.getElementById("drawflow"));
 editor.start();
+const t = (window.t ? window.t : (k) => k);
+
 
 let _configModal = null;
 let _dbSources = [];
@@ -180,7 +182,7 @@ function testSelectedApiSource() {
 
 function _dbOptionsHtml(selectedId) {
   const opts = [`<option value="">(none)</option>`]
-    .concat(_dbSources.map(s => `<option value="${s.id}" ${String(s.id)===String(selectedId)?"selected":""}>${s.name} (${s.type})</option>`));
+    .concat(_dbSources.map(s => `<option value="${s.id}" data-dbtype="${s.type}" ${String(s.id)===String(selectedId)?"selected":""}>${s.name} (${s.type})</option>`));
   return opts.join("");
 }
 
@@ -189,6 +191,440 @@ function _apiOptionsHtml(selectedId) {
     .concat(_apiSources.map(s => `<option value="${s.id}" ${String(s.id)===String(selectedId)?"selected":""}>${s.name}</option>`));
   return opts.join("");
 }
+
+
+// -------------------------------
+// extract.sql modal (CodeMirror + NL -> SQL + Query Builder)
+// -------------------------------
+let _extractSqlUi = {
+  cm: null,
+  schemaMeta: null,
+  tablesMap: {},
+  tablesFlat: [],
+  currentDbType: "",
+  qb: null,
+  _onInputRead: null,
+};
+
+function _destroyExtractSqlUi() {
+  try {
+    if (_extractSqlUi.cm && typeof _extractSqlUi.cm.toTextArea === "function") {
+      _extractSqlUi.cm.toTextArea();
+    }
+  } catch (e) {}
+  _extractSqlUi = {
+    cm: null,
+    schemaMeta: null,
+    tablesMap: {},
+    tablesFlat: [],
+    currentDbType: "",
+    qb: null,
+    _onInputRead: null,
+  };
+}
+
+function _getCsrfToken() {
+  const el = document.querySelector('meta[name="csrf-token"]');
+  return el ? el.getAttribute("content") : "";
+}
+
+function _sqlLiteral(val) {
+  const v = String(val ?? "").trim();
+  if (!v) return "''";
+  const numLike = /^[+-]?\d+(\.\d+)?$/.test(v);
+  if (numLike) return v;
+  return "'" + v.replace(/'/g, "''") + "'";
+}
+
+function _sqlLikeLiteral(val) {
+  const v = String(val ?? "").trim();
+  if (!v) return "''";
+  const esc = v.replace(/'/g, "''");
+  if (esc.includes("%")) return "'" + esc + "'";
+  return "'%" + esc + "%'";
+}
+
+function _sqlLimitClause(dbType, limitValue) {
+  const db = String(dbType || "").toLowerCase();
+  const lim = parseInt(limitValue || "0", 10);
+  if (!lim || lim <= 0) return { selectPrefix: "", suffix: "" };
+
+  if (db.includes("sqlserver") || db.includes("mssql")) {
+    return { selectPrefix: `TOP ${lim} `, suffix: "" };
+  }
+  return { selectPrefix: "", suffix: ` LIMIT ${lim}` };
+}
+
+function _buildTablesMap(meta) {
+  const tables = {};
+  const flat = [];
+  if (!meta || !meta.schemas) return { tables, flat };
+
+  meta.schemas.forEach(s => {
+    const schemaName = s.name || "";
+    (s.tables || []).forEach(t => {
+      const tableName = t.name || "";
+      const key = schemaName ? `${schemaName}.${tableName}` : tableName;
+      flat.push(key);
+      tables[key] = {};
+      (t.columns || []).forEach(c => {
+        if (c && c.name) tables[key][c.name] = c.type || "";
+      });
+    });
+  });
+
+  return { tables, flat };
+}
+
+function _setSchemaHtml(container, meta) {
+  if (!container) return;
+  if (!meta || !meta.schemas) {
+    container.innerHTML = `<div class="text-muted small">(sem metadados)</div>`;
+    return;
+  }
+
+  let html = "";
+  meta.schemas.forEach(s => {
+    const schemaName = s.name || "";
+    html += `<div class="mb-2"><div class="fw-semibold">${schemaName || "public"}</div>`;
+    (s.tables || []).forEach(t => {
+      const tableName = t.name || "";
+      const fullName = schemaName ? `${schemaName}.${tableName}` : tableName;
+      html += `<details class="ms-2 mb-1">
+        <summary class="cursor-pointer">
+          <button type="button" class="btn btn-link p-0 text-decoration-none" data-ins="${fullName}">${tableName}</button>
+        </summary>
+        <div class="ms-2 mt-1">`;
+      (t.columns || []).forEach(c => {
+        const col = c.name || "";
+        const typ = c.type ? ` <span class="text-muted">(${c.type})</span>` : "";
+        html += `<div class="d-flex justify-content-between align-items-center gap-2">
+          <button type="button" class="btn btn-link p-0 text-decoration-none small" data-ins="${col}">${col}</button>
+          <span class="small text-muted">${typ}</span>
+        </div>`;
+      });
+      html += `</div></details>`;
+    });
+    html += `</div>`;
+  });
+  container.innerHTML = html;
+}
+
+function _insertTextIntoEditor(text) {
+  const ta = document.getElementById("cfg_query");
+  if (_extractSqlUi.cm) {
+    _extractSqlUi.cm.focus();
+    _extractSqlUi.cm.replaceSelection(text);
+    return;
+  }
+  if (!ta) return;
+  const start = ta.selectionStart || 0;
+  const end = ta.selectionEnd || 0;
+  const before = ta.value.slice(0, start);
+  const after = ta.value.slice(end);
+  ta.value = before + text + after;
+  const pos = start + text.length;
+  ta.setSelectionRange(pos, pos);
+  ta.focus();
+}
+
+function _refreshAutocomplete() {
+  if (!_extractSqlUi.cm || typeof CodeMirror === "undefined") return;
+
+  _extractSqlUi.cm.setOption("hintOptions", { tables: _extractSqlUi.tablesMap });
+
+  // (re)attach inputRead handler
+  try {
+    if (_extractSqlUi._onInputRead) _extractSqlUi.cm.off("inputRead", _extractSqlUi._onInputRead);
+  } catch (e) {}
+
+  const handler = function(cm, change) {
+    if (!change || change.origin === "setValue") return;
+    // Don't autocomplete after deleting
+    if (change.text && change.text.length === 1 && change.text[0] === "") return;
+
+    const cur = cm.getCursor();
+    const token = cm.getTokenAt(cur);
+    const ch = (change.text && change.text[0]) ? change.text[0] : "";
+    const trigger = /^[A-Za-z0-9_\.]$/.test(ch) || (token && token.string && token.string.length >= 2);
+    if (!trigger) return;
+
+    try {
+      cm.showHint({ completeSingle: false });
+    } catch (e) {}
+  };
+
+  _extractSqlUi._onInputRead = handler;
+  _extractSqlUi.cm.on("inputRead", handler);
+}
+
+async function _loadExtractSqlSchema() {
+  const sel = document.getElementById("cfg_db_source");
+  const schemaEl = document.getElementById("cfg_schema");
+  if (!sel || !schemaEl) return;
+
+  const sourceId = sel.value;
+  if (!sourceId) {
+    schemaEl.innerHTML = `<div class="text-muted small">${t("Selecione uma fonte.")}</div>`;
+    _extractSqlUi.schemaMeta = null;
+    _extractSqlUi.tablesMap = {};
+    _extractSqlUi.tablesFlat = [];
+    _refreshAutocomplete();
+    _refreshQueryBuilder();
+    return;
+  }
+
+  // current db type (from option attribute)
+  const opt = sel.options[sel.selectedIndex];
+  _extractSqlUi.currentDbType = opt ? (opt.getAttribute("data-dbtype") || "") : "";
+
+  schemaEl.innerHTML = `<div class="text-muted small">${t("Carregando...")}</div>`;
+  try {
+    const resp = await fetch(`/app/api/sources/${encodeURIComponent(sourceId)}/schema`, {
+      headers: { "Accept": "application/json" }
+    });
+    const meta = await resp.json();
+    _extractSqlUi.schemaMeta = meta;
+    const built = _buildTablesMap(meta);
+    _extractSqlUi.tablesMap = built.tables;
+    _extractSqlUi.tablesFlat = built.flat;
+
+    _setSchemaHtml(schemaEl, meta);
+    _refreshAutocomplete();
+    _refreshQueryBuilder();
+  } catch (e) {
+    schemaEl.innerHTML = `<div class="text-danger small">${String(e)}</div>`;
+  }
+}
+
+function _refreshQueryBuilder() {
+  const tableSel = document.getElementById("cfg_qb_table");
+  const colsWrap = document.getElementById("cfg_qb_columns");
+  const fField = document.getElementById("cfg_qb_filter_field");
+  const fList = document.getElementById("cfg_qb_filter_list");
+  if (!tableSel || !colsWrap || !fField || !fList) return;
+
+  if (!_extractSqlUi.qb) {
+    _extractSqlUi.qb = { table: "", columns: new Set(), filters: [] };
+  }
+
+  // Populate table options once or when schema changes
+  const current = tableSel.value;
+  tableSel.innerHTML = `<option value="">--</option>` + (_extractSqlUi.tablesFlat || []).map(tn => {
+    const sel = (tn === current) ? "selected" : "";
+    return `<option value="${tn}" ${sel}>${tn}</option>`;
+  }).join("");
+
+  const tableName = tableSel.value || _extractSqlUi.qb.table || "";
+  _extractSqlUi.qb.table = tableName;
+
+  const colsObj = _extractSqlUi.tablesMap[tableName] || {};
+  const colNames = Object.keys(colsObj);
+
+  // Columns checkboxes
+  colsWrap.innerHTML = colNames.length ? colNames.map(cn => {
+    const checked = _extractSqlUi.qb.columns.has(cn) ? "checked" : "";
+    return `<label class="form-check form-check-inline me-2">
+      <input class="form-check-input" type="checkbox" data-col="${cn}" ${checked}>
+      <span class="form-check-label small">${cn}</span>
+    </label>`;
+  }).join("") : `<div class="text-muted small">(sem colunas)</div>`;
+
+  // Filter field options
+  const fCur = fField.value;
+  fField.innerHTML = `<option value="">--</option>` + colNames.map(cn => {
+    const sel = (cn === fCur) ? "selected" : "";
+    return `<option value="${cn}" ${sel}>${cn}</option>`;
+  }).join("");
+
+  // Filters list
+  if (!_extractSqlUi.qb.filters.length) {
+    fList.innerHTML = `<span class="text-muted">${t("Sem filtros.")}</span>`;
+  } else {
+    fList.innerHTML = _extractSqlUi.qb.filters.map((f, idx) => {
+      const txt = `${f.field} ${f.op} ${f.value}`;
+      return `<div class="d-flex align-items-center justify-content-between gap-2">
+        <code class="small">${txt}</code>
+        <button type="button" class="btn btn-outline-danger btn-sm py-0" data-filter-rm="${idx}">&times;</button>
+      </div>`;
+    }).join("");
+  }
+}
+
+function _buildSqlFromQueryBuilder() {
+  const tableSel = document.getElementById("cfg_qb_table");
+  const limitEl = document.getElementById("cfg_qb_limit");
+  if (!_extractSqlUi.qb || !tableSel) return "";
+
+  const table = tableSel.value || _extractSqlUi.qb.table;
+  if (!table) return "";
+
+  const cols = Array.from(_extractSqlUi.qb.columns || []);
+  const colList = cols.length ? cols.join(", ") : "*";
+  const limit = limitEl ? (limitEl.value || "") : "";
+  const lim = _sqlLimitClause(_extractSqlUi.currentDbType, limit);
+
+  let sql = `SELECT ${lim.selectPrefix}${colList} FROM ${table}`;
+
+  const whereParts = [];
+  (_extractSqlUi.qb.filters || []).forEach(f => {
+    if (!f.field || !f.op) return;
+    const op = String(f.op).toLowerCase();
+    let rhs;
+    if (op === "like") rhs = _sqlLikeLiteral(f.value);
+    else rhs = _sqlLiteral(f.value);
+    whereParts.push(`${f.field} ${f.op} ${rhs}`);
+  });
+  if (whereParts.length) sql += ` WHERE ${whereParts.join(" AND ")}`;
+
+  sql += lim.suffix;
+  return sql;
+}
+
+function _initExtractSqlUi() {
+  _destroyExtractSqlUi();
+
+  const textarea = document.getElementById("cfg_query");
+  const sel = document.getElementById("cfg_db_source");
+  const schemaEl = document.getElementById("cfg_schema");
+  if (!textarea || !sel) return;
+
+  // CodeMirror
+  if (typeof CodeMirror !== "undefined") {
+    _extractSqlUi.cm = CodeMirror.fromTextArea(textarea, {
+      mode: "text/x-sql",
+      lineNumbers: true,
+      matchBrackets: true,
+      indentWithTabs: false,
+      smartIndent: true,
+      extraKeys: {
+        "Ctrl-Space": "autocomplete",
+        "Cmd-Space": "autocomplete",
+      },
+    });
+    _extractSqlUi.cm.setSize("100%", 320);
+  }
+
+  // Schema click insert
+  if (schemaEl) {
+    schemaEl.addEventListener("click", (ev) => {
+      const btn = ev.target.closest("[data-ins]");
+      if (!btn) return;
+      ev.preventDefault();
+      const txt = btn.getAttribute("data-ins") || "";
+      if (!txt) return;
+      _insertTextIntoEditor(txt);
+    });
+  }
+
+  // DB source change -> reload schema
+  sel.addEventListener("change", () => _loadExtractSqlSchema());
+
+  // Reload schema button
+  const btnReload = document.getElementById("cfg_reload_schema");
+  if (btnReload) btnReload.addEventListener("click", () => _loadExtractSqlSchema());
+
+  // NLQ -> SQL
+  const nlqBtn = document.getElementById("cfg_nlq_generate");
+  const nlqText = document.getElementById("cfg_nlq_text");
+  const nlqWarn = document.getElementById("cfg_nlq_warnings");
+  if (nlqBtn && nlqText) {
+    nlqBtn.addEventListener("click", async () => {
+      const prompt = (nlqText.value || "").trim();
+      if (!prompt) return;
+      if (!sel.value) {
+        if (nlqWarn) nlqWarn.textContent = t("Selecione uma fonte.");
+        return;
+      }
+      if (nlqWarn) nlqWarn.textContent = t("Carregando...");
+
+      try {
+        const resp = await fetch("/app/api/nlq", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": _getCsrfToken(),
+            "Accept": "application/json",
+          },
+          body: JSON.stringify({ source_id: sel.value, text: prompt }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || resp.statusText);
+
+        const sql = data.sql || "";
+        if (_extractSqlUi.cm) _extractSqlUi.cm.setValue(sql);
+        else textarea.value = sql;
+
+        const warnList = (data.warnings || []).filter(Boolean);
+        if (nlqWarn) nlqWarn.textContent = warnList.length ? warnList.join(" • ") : "";
+      } catch (e) {
+        if (nlqWarn) nlqWarn.textContent = String(e);
+      }
+    });
+  }
+
+  // Query Builder events
+  const tableSel = document.getElementById("cfg_qb_table");
+  const colsWrap = document.getElementById("cfg_qb_columns");
+  const fField = document.getElementById("cfg_qb_filter_field");
+  const fOp = document.getElementById("cfg_qb_filter_op");
+  const fVal = document.getElementById("cfg_qb_filter_value");
+  const btnAddFilter = document.getElementById("cfg_qb_add_filter");
+  const btnGen = document.getElementById("cfg_qb_generate");
+  const filterList = document.getElementById("cfg_qb_filter_list");
+
+  if (tableSel) tableSel.addEventListener("change", () => {
+    if (!_extractSqlUi.qb) _extractSqlUi.qb = { table: "", columns: new Set(), filters: [] };
+    _extractSqlUi.qb.table = tableSel.value || "";
+    _refreshQueryBuilder();
+  });
+
+  if (colsWrap) colsWrap.addEventListener("change", (ev) => {
+    const cb = ev.target.closest("input[data-col]");
+    if (!cb) return;
+    const col = cb.getAttribute("data-col");
+    if (!col) return;
+    if (!_extractSqlUi.qb) _extractSqlUi.qb = { table: "", columns: new Set(), filters: [] };
+    if (cb.checked) _extractSqlUi.qb.columns.add(col);
+    else _extractSqlUi.qb.columns.delete(col);
+  });
+
+  if (btnAddFilter) btnAddFilter.addEventListener("click", () => {
+    const field = fField ? fField.value : "";
+    const op = fOp ? fOp.value : "=";
+    const value = fVal ? fVal.value : "";
+    if (!field || value === "") return;
+
+    if (!_extractSqlUi.qb) _extractSqlUi.qb = { table: "", columns: new Set(), filters: [] };
+    _extractSqlUi.qb.filters.push({ field, op, value });
+    if (fVal) fVal.value = "";
+    _refreshQueryBuilder();
+  });
+
+  if (filterList) filterList.addEventListener("click", (ev) => {
+    const btn = ev.target.closest("[data-filter-rm]");
+    if (!btn) return;
+    const idx = parseInt(btn.getAttribute("data-filter-rm") || "-1", 10);
+    if (idx < 0) return;
+    if (_extractSqlUi.qb && _extractSqlUi.qb.filters) {
+      _extractSqlUi.qb.filters.splice(idx, 1);
+      _refreshQueryBuilder();
+    }
+  });
+
+  if (btnGen) btnGen.addEventListener("click", () => {
+    const sql = _buildSqlFromQueryBuilder();
+    if (!sql) return;
+    if (_extractSqlUi.cm) _extractSqlUi.cm.setValue(sql);
+    else textarea.value = sql;
+  });
+
+  // Initial schema load
+  _loadExtractSqlSchema().then(() => {
+    _refreshAutocomplete();
+  });
+}
+
 
 // ---------------- Save/Run/Preview ----------------
 
@@ -313,7 +749,12 @@ function openNodeConfig(nodeId) {
   if (!node) return;
 
   const type = node.name;
+  if (type === "extract.sql" && _extractSqlUi && _extractSqlUi.cm) {
+    try { _extractSqlUi.cm.save(); } catch (e) {}
+  }
   const cfg = (node.data && node.data.config) ? node.data.config : _defaultConfig(type);
+
+  _destroyExtractSqlUi();
 
   const titleEl = document.getElementById("nodeConfigTitle");
   const idEl = document.getElementById("cfgNodeId");
@@ -357,17 +798,97 @@ function openNodeConfig(nodeId) {
         <textarea class="form-control" id="cfg_params" rows="4" placeholder='{"q":"Grenoble"}'>${_jsonPretty(cfg.params || {})}</textarea>
       </div>
     `;
+  
   } else if (type === "extract.sql") {
     html += `
-      <div class="mb-3">
-        <label class="form-label">DB Source</label>
-        <select class="form-select" id="cfg_db_source">
-          ${_dbOptionsHtml(cfg.db_source_id)}
-        </select>
-      </div>
-      <div class="mb-3">
-        <label class="form-label">SQL Query</label>
-        <textarea class="form-control" id="cfg_query" rows="7" placeholder="SELECT * FROM ...">${cfg.query || ""}</textarea>
+      <div class="row g-3">
+        <div class="col-md-8">
+          <div class="mb-3">
+            <label class="form-label">${t("Fonte de dados")}</label>
+            <select class="form-select" id="cfg_db_source">
+              ${_dbOptionsHtml(cfg.db_source_id)}
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">${t("Linguagem humana")}</label>
+            <div class="d-flex gap-2 flex-wrap">
+              <input class="form-control" id="cfg_nlq_text" placeholder="${t("ex: total vendas por mês")}">
+              <button type="button" class="btn btn-outline-primary" id="cfg_nlq_generate">${t("Gerar SQL")}</button>
+            </div>
+            <div id="cfg_nlq_warnings" class="form-text mt-1"></div>
+          </div>
+
+          <details class="mb-3">
+            <summary class="fw-semibold cursor-pointer">
+              ${t("Query Builder")}
+              <span class="text-muted">— ${t("montar SELECT com ajuda da estrutura")}</span>
+            </summary>
+            <div class="border rounded-3 p-3 mt-2">
+              <div class="row g-2">
+                <div class="col-md-6">
+                  <label class="form-label">${t("Tabela")}</label>
+                  <select class="form-select" id="cfg_qb_table">
+                    <option value="">--</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">${t("Limite")}</label>
+                  <input class="form-control" id="cfg_qb_limit" type="number" min="0" placeholder="100">
+                </div>
+              </div>
+
+              <div class="mt-3">
+                <label class="form-label">${t("Colunas")}</label>
+                <div id="cfg_qb_columns" class="d-flex flex-wrap gap-2"></div>
+              </div>
+
+              <div class="mt-3">
+                <label class="form-label">${t("Filtros")}</label>
+                <div class="row g-2">
+                  <div class="col-md-5">
+                    <select class="form-select" id="cfg_qb_filter_field">
+                      <option value="">--</option>
+                    </select>
+                  </div>
+                  <div class="col-md-2">
+                    <select class="form-select" id="cfg_qb_filter_op">
+                      <option value="=">=</option>
+                      <option value=">">&gt;</option>
+                      <option value="<">&lt;</option>
+                      <option value=">=">&gt;=</option>
+                      <option value="<=">&lt;=</option>
+                      <option value="like">LIKE</option>
+                    </select>
+                  </div>
+                  <div class="col-md-5">
+                    <input class="form-control" id="cfg_qb_filter_value" placeholder="...">
+                  </div>
+                </div>
+                <div class="d-flex gap-2 mt-2 flex-wrap">
+                  <button type="button" class="btn btn-outline-secondary btn-sm" id="cfg_qb_add_filter">${t("Adicionar filtro")}</button>
+                  <button type="button" class="btn btn-primary btn-sm" id="cfg_qb_generate">${t("Gerar SQL no editor")}</button>
+                </div>
+                <div id="cfg_qb_filter_list" class="small text-muted mt-2"></div>
+              </div>
+            </div>
+          </details>
+
+          <div class="mb-2">
+            <label class="form-label">SQL</label>
+            <textarea class="form-control" id="cfg_query" rows="9" placeholder="${t("SELECT ...")}">${cfg.query || ""}</textarea>
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <div class="border rounded-3 p-2 bg-body">
+            <div class="d-flex align-items-center justify-content-between">
+              <div class="fw-semibold">${t("Estrutura")}</div>
+              <button type="button" class="btn btn-outline-secondary btn-sm" id="cfg_reload_schema" title="${t("Atualizar")}"><i class="bi bi-arrow-repeat"></i></button>
+            </div>
+            <div id="cfg_schema" class="bi-schema mt-2" style="max-height: 460px; overflow:auto; font-size:.9rem;"></div>
+          </div>
+        </div>
       </div>
     `;
   } else if (type === "transform.mapping") {
@@ -418,6 +939,10 @@ function openNodeConfig(nodeId) {
 
   if (formEl) formEl.innerHTML = html;
 
+  if (type === "extract.sql") {
+    _initExtractSqlUi();
+  }
+
   const modal = _getBootstrapModal();
   if (modal) modal.show();
 }
@@ -428,6 +953,9 @@ function saveNodeConfig() {
   if (!node) return;
 
   const type = node.name;
+  if (type === "extract.sql" && _extractSqlUi && _extractSqlUi.cm) {
+    try { _extractSqlUi.cm.save(); } catch (e) {}
+  }
   let cfg = {};
 
   if (type === "extract.http") {

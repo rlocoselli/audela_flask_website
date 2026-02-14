@@ -28,6 +28,20 @@ def create_app() -> Flask:
         # If filesystem is read-only, the app can still run if DATABASE_URL points elsewhere.
         pass
 
+    # Tenant file storage (uploads + cached URL/S3 files)
+    app.config.setdefault(
+        "TENANT_FILE_ROOT",
+        os.environ.get("TENANT_FILE_ROOT", os.path.join(project_root, "instance", "tenant_files")),
+    )
+    # Default upload limit: 50 MB (can be overridden by env var MAX_CONTENT_LENGTH)
+    try:
+        app.config.setdefault(
+            "MAX_CONTENT_LENGTH",
+            int(os.environ.get("MAX_CONTENT_LENGTH", str(50 * 1024 * 1024))),
+        )
+    except Exception:
+        pass
+
     env = os.environ.get("FLASK_ENV", "development").lower()
     app.config.from_object(DevConfig if env != "production" else ProdConfig)
 
