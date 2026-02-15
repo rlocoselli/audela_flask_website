@@ -1,5 +1,5 @@
 {% extends "portal/layout.html" %}
-{% set title = "Nova fonte" %}
+{% set title = _("Nova fonte") %}
 
 {% block portal_content %}
 <div class="container-fluid px-0">
@@ -8,29 +8,27 @@
     <div class="card-body">
 
       <div class="mb-4">
-        <h4 class="mb-1">➕ Nova fonte de dados</h4>
-        <p class="text-muted mb-0">
-          Configure uma nova origem de dados para consultas e relatórios.
-        </p>
+        <h4 class="mb-1">➕ {{ _('Nova fonte de dados') }}</h4>
+        <p class="text-muted mb-0">{{ _('Configure uma nova origem de dados para consultas e relatórios.') }}</p>
       </div>
 
       {% set f = form or {} %}
 
-      <form method="post" id="ds-form">
+      <form method="post" id="ds-form" data-test-url="{{ url_for('portal.api_sources_test_connection') }}" data-source-id="" data-has-password="0">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
         <input type="hidden" name="use_builder" id="ds-use-builder" value="{{ f.get('use_builder','1') }}" />
 
-        <h6 class="text-uppercase text-muted mb-3">Informações básicas</h6>
+        <h6 class="text-uppercase text-muted mb-3">{{ _('Informações básicas') }}</h6>
 
         <div class="row g-3">
           <div class="col-md-6">
-            <label class="form-label">Nome</label>
-            <input type="text" name="name" class="form-control" placeholder="Ex.: DW Produção" required value="{{ f.get('name','') }}" />
-            <div class="form-text">Nome interno para identificar a fonte.</div>
+            <label class="form-label">{{ _('Nome') }}</label>
+            <input type="text" name="name" class="form-control" placeholder="{{ _('Ex.: DW Produção') }}" required value="{{ f.get('name','') }}" />
+            <div class="form-text">{{ _('Nome interno para identificar a fonte.') }}</div>
           </div>
 
           <div class="col-md-6">
-            <label class="form-label">Tipo de banco</label>
+            <label class="form-label">{{ _('Tipo de banco') }}</label>
             <select name="type" id="ds-type" class="form-select" required>
               {% set t = (f.get('type') or 'postgres') %}
               <option value="postgres" {% if t=='postgres' %}selected{% endif %}>PostgreSQL</option>
@@ -45,16 +43,16 @@
         <hr class="my-4" />
 
         <div class="d-flex align-items-center justify-content-between mb-2">
-          <h6 class="text-uppercase text-muted mb-0">Conexão</h6>
-          <div class="small text-muted">Assistente para montar a string (opcional)</div>
+          <h6 class="text-uppercase text-muted mb-0">{{ _('Conexão') }}</h6>
+          <div class="small text-muted">{{ _('Assistente para montar a string (opcional)') }}</div>
         </div>
 
         <ul class="nav nav-tabs" id="ds-tabs" role="tablist">
           <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="ds-tab-builder" data-bs-toggle="tab" data-bs-target="#ds-pane-builder" type="button" role="tab">Assistente</button>
+            <button class="nav-link active" id="ds-tab-builder" data-bs-toggle="tab" data-bs-target="#ds-pane-builder" type="button" role="tab">{{ _('Assistente') }}</button>
           </li>
           <li class="nav-item" role="presentation">
-            <button class="nav-link" id="ds-tab-manual" data-bs-toggle="tab" data-bs-target="#ds-pane-manual" type="button" role="tab">URL manual</button>
+            <button class="nav-link" id="ds-tab-manual" data-bs-toggle="tab" data-bs-target="#ds-pane-manual" type="button" role="tab">{{ _('URL manual') }}</button>
           </li>
         </ul>
 
@@ -62,31 +60,31 @@
           <div class="tab-pane fade show active" id="ds-pane-builder" role="tabpanel">
 
             <div class="row g-3">
-              <div class="col-md-6" id="ds-row-host">
-                <label class="form-label">Host</label>
+              <div class="col-md-6" data-ds-row="host" id="ds-row-host">
+                <label class="form-label">{{ _('Host') }}</label>
                 <input class="form-control" name="host" id="ds-host" placeholder="ex: db.company.com" value="{{ f.get('host','') }}" />
               </div>
-              <div class="col-md-3" id="ds-row-port">
-                <label class="form-label">Porta</label>
+              <div class="col-md-3" data-ds-row="port" id="ds-row-port">
+                <label class="form-label">{{ _('Porta') }}</label>
                 <input class="form-control" name="port" id="ds-port" placeholder="5432" value="{{ f.get('port','') }}" />
               </div>
-              <div class="col-md-3" id="ds-row-db">
-                <label class="form-label">Database</label>
+              <div class="col-md-3" data-ds-row="database" id="ds-row-db">
+                <label class="form-label">{{ _('Database') }}</label>
                 <input class="form-control" name="database" id="ds-database" placeholder="ex: dw" value="{{ f.get('database','') }}" />
               </div>
 
-              <div class="col-md-6" id="ds-row-user">
-                <label class="form-label">Usuário</label>
+              <div class="col-md-6" data-ds-row="username" id="ds-row-user">
+                <label class="form-label">{{ _('Usuário') }}</label>
                 <input class="form-control" name="username" id="ds-username" placeholder="ex: readonly" value="{{ f.get('username','') }}" />
               </div>
-              <div class="col-md-6" id="ds-row-pass">
-                <label class="form-label">Senha</label>
+              <div class="col-md-6" data-ds-row="password" id="ds-row-pass">
+                <label class="form-label">{{ _('Senha') }}</label>
                 <input class="form-control" name="password" id="ds-password" type="password" placeholder="(opcional)" value="{{ f.get('password','') }}" />
-                <div class="form-text">Fica criptografado no config. Se preferir, cole uma URL pronta no modo “URL manual”.</div>
+                <div class="form-text">{{ _('Fica criptografado no config. Se preferir, cole uma URL pronta no modo "URL manual".') }}</div>
               </div>
 
-              <div class="col-12 d-none" id="ds-row-driver">
-                <label class="form-label">Driver (SQL Server)</label>
+              <div class="col-12 d-none" data-ds-row="driver" id="ds-row-driver">
+                <label class="form-label">{{ _('Driver (SQL Server)') }}</label>
                 <select class="form-select" name="driver" id="ds-driver">
                   {% set d = f.get('driver','ODBC Driver 18 for SQL Server') %}
                   <option value="ODBC Driver 18 for SQL Server" {% if d=='ODBC Driver 18 for SQL Server' %}selected{% endif %}>ODBC Driver 18 for SQL Server</option>
@@ -94,65 +92,75 @@
                 </select>
               </div>
 
-              <div class="col-md-6 d-none" id="ds-row-service">
-                <label class="form-label">Service Name (Oracle)</label>
+              <div class="col-md-6 d-none" data-ds-row="service_name" id="ds-row-service">
+                <label class="form-label">{{ _('Service Name (Oracle)') }}</label>
                 <input class="form-control" name="service_name" id="ds-service" placeholder="ex: ORCLPDB1" value="{{ f.get('service_name','') }}" />
               </div>
-              <div class="col-md-6 d-none" id="ds-row-sid">
-                <label class="form-label">SID (Oracle)</label>
+              <div class="col-md-6 d-none" data-ds-row="sid" id="ds-row-sid">
+                <label class="form-label">{{ _('SID (Oracle)') }}</label>
                 <input class="form-control" name="sid" id="ds-sid" placeholder="ex: ORCL" value="{{ f.get('sid','') }}" />
               </div>
 
-              <div class="col-12 d-none" id="ds-row-sqlite">
-                <label class="form-label">Arquivo SQLite</label>
+              <div class="col-12 d-none" data-ds-row="sqlite_path" id="ds-row-sqlite">
+                <label class="form-label">{{ _('Arquivo SQLite') }}</label>
                 <input class="form-control" name="sqlite_path" id="ds-sqlite-path" placeholder="/caminho/arquivo.db" value="{{ f.get('sqlite_path','') }}" />
-                <div class="form-text">Exemplo: <code>sqlite:////caminho/arquivo.db</code> ou apenas o caminho.</div>
+                <div class="form-text">{{ _('Exemplo:') }} <code>sqlite:////caminho/arquivo.db</code> {{ _('ou apenas o caminho.') }}</div>
               </div>
             </div>
 
             <hr class="my-3" />
             <div class="row g-2 align-items-end">
               <div class="col-12">
-                <label class="form-label">URL gerada (SQLAlchemy)</label>
+                <label class="form-label">{{ _('URL gerada (SQLAlchemy)') }}</label>
                 <div class="input-group">
                   <input type="text" class="form-control" id="ds-url-preview" readonly />
                   <button class="btn btn-outline-secondary" type="button" id="ds-copy-url"><i class="bi bi-clipboard"></i></button>
                 </div>
-                <div class="form-text">A URL abaixo será copiada para o campo “URL manual” automaticamente.</div>
+                <div class="form-text">{{ _('A URL abaixo será copiada para o campo "URL manual" automaticamente.') }}</div>
               </div>
             </div>
 
           </div>
 
           <div class="tab-pane fade" id="ds-pane-manual" role="tabpanel">
-            <label class="form-label">URL de conexão (SQLAlchemy)</label>
+            <label class="form-label">{{ _('URL de conexão (SQLAlchemy)') }}</label>
             <input type="text" name="url" id="ds-url" class="form-control" placeholder="postgresql+psycopg://user:pass@host:5432/dbname" value="{{ f.get('url','') }}" />
             <div class="form-text">
-              SQLite local: <code>sqlite:////caminho/arquivo.db</code>
+              {{ _('SQLite local:') }} <code>sqlite:////caminho/arquivo.db</code>
             </div>
           </div>
         </div>
 
+        <div class="mt-3">
+          <div class="d-flex align-items-center justify-content-between">
+            <label class="form-label mb-1">{{ _('Config (descriptografado)') }}</label>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="ds-copy-config"><i class="bi bi-clipboard"></i> {{ _('Copiar') }}</button>
+          </div>
+          <textarea class="form-control font-monospace" id="ds-config-preview" rows="8" readonly></textarea>
+          <div class="form-text">{{ _('Prévia do JSON que será criptografado ao salvar.') }}</div>
+        </div>
+
         <hr class="my-4" />
-        <h6 class="text-uppercase text-muted mb-3">Opções avançadas</h6>
+        <h6 class="text-uppercase text-muted mb-3">{{ _('Opções avançadas') }}</h6>
 
         <div class="row g-3">
           <div class="col-md-6">
-            <label class="form-label">Schema padrão</label>
+            <label class="form-label">{{ _('Schema padrão') }}</label>
             <input type="text" name="default_schema" class="form-control" placeholder="public" value="{{ f.get('default_schema','') }}" />
-            <div class="form-text">Schema usado por padrão nas consultas.</div>
+            <div class="form-text">{{ _('Schema usado por padrão nas consultas.') }}</div>
           </div>
 
           <div class="col-md-6">
-            <label class="form-label">Coluna tenant</label>
+            <label class="form-label">{{ _('Coluna tenant') }}</label>
             <input type="text" name="tenant_column" class="form-control" placeholder="tenant_id" value="{{ f.get('tenant_column','') }}" />
-            <div class="form-text">Se preenchida, o SQL deve conter <code>:tenant_id</code>.</div>
+            <div class="form-text">{{ _('Se preenchida, o SQL deve conter') }} <code>:tenant_id</code>.</div>
           </div>
         </div>
 
         <div class="d-flex justify-content-end gap-2 mt-4">
-          <a href="{{ url_for('portal.sources_list') }}" class="btn btn-outline-secondary">Cancelar</a>
-          <button type="submit" class="btn btn-primary">💾 Salvar fonte</button>
+          <button type="button" class="btn btn-outline-primary" id="ds-test-conn"><i class="bi bi-plug"></i> {{ _('Testar conexão') }}</button>
+          <a href="{{ url_for('portal.sources_list') }}" class="btn btn-outline-secondary">{{ _('Cancelar') }}</a>
+          <button type="submit" class="btn btn-primary">💾 {{ _('Salvar fonte') }}</button>
         </div>
 
       </form>

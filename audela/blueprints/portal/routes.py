@@ -122,6 +122,14 @@ def sources_list():
 def sources_new():
     _require_tenant()
 
+    # NOTE: we intentionally store the URL with the password redacted (***).
+    # The real password is stored in cfg['conn']['password'] and injected at runtime.
+    from ...services.datasource_service import (
+        build_url_from_conn,
+        inject_password_into_url,
+        redact_url_password,
+    )
+
     def _build_url_from_parts(ds_type: str, parts: dict) -> str:
         """Build a SQLAlchemy URL from structured form fields (best-effort)."""
         ds_type = (ds_type or '').lower().strip()
@@ -229,6 +237,30 @@ def sources_new():
         if form['use_builder'] == '1' or not url:
             url = _build_url_from_parts(ds_type, form)
 
+        # If user used manual URL and did not fill the password field, try extracting it
+        # (but ignore redacted placeholders like "***").
+        if not form.get('password') and url:
+            try:
+                from sqlalchemy.engine.url import make_url
+
+                def _looks_masked(p: str | None) -> bool:
+                    if not p:
+                        return True
+                    s = str(p)
+                    if set(s).issubset({"*"}) and len(s) >= 3:
+                        return True
+                    if set(s).issubset({"•"}) and len(s) >= 3:
+                        return True
+                    if s.endswith("***") and "*" not in s[:-3]:
+                        return True
+                    return False
+
+                u = make_url(url)
+                if u.password and not _looks_masked(u.password):
+                    form['password'] = u.password
+            except Exception:
+                pass
+
         if not name or not ds_type or not url:
             flash(tr('Preencha nome, tipo e conexão.', getattr(g, 'lang', None)), 'error')
             return render_template('portal/sources_new.html', tenant=g.tenant, form=form)
@@ -247,8 +279,19 @@ def sources_new():
             'sqlite_path': form['sqlite_path'],
         }
 
+        # Ensure we have an effective URL that includes the real password for runtime use
+        effective_url = inject_password_into_url(url, conn.get('password'))
+        if (not effective_url) and conn:
+            effective_url = build_url_from_conn(ds_type, conn)
+        if not effective_url:
+            flash(tr('Preencha nome, tipo e conexão.', getattr(g, 'lang', None)), 'error')
+            return render_template('portal/sources_new.html', tenant=g.tenant, form=form)
+
+        # Store URL redacted (no secrets in URL)
+        stored_url = redact_url_password(effective_url)
+
         config = {
-            'url': url,
+            'url': stored_url,
             'default_schema': default_schema,
             'tenant_column': tenant_column,
             'conn': conn,
@@ -383,8 +426,26 @@ def apisources_delete(source_id: int):
 def sources_view(source_id: int):
     _require_tenant()
     src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first_or_404()
-    cfg = decrypt_config(src)
-    return render_template("portal/sources_view.html", tenant=g.tenant, source=src, config=cfg)
+    cfg = decrypt_config(src) or {}
+
+    # Never render raw secrets in the UI
+    cfg_disp = dict(cfg)
+    try:
+        from ...services.datasource_service import redact_url_password
+
+        if isinstance(cfg_disp.get("url"), str):
+            cfg_disp["url"] = redact_url_password(cfg_disp.get("url") or "")
+    except Exception:
+        pass
+
+    c = cfg_disp.get("conn") if isinstance(cfg_disp.get("conn"), dict) else None
+    if c is not None:
+        c2 = dict(c)
+        if c2.get("password"):
+            c2["password"] = "***"
+        cfg_disp["conn"] = c2
+
+    return render_template("portal/sources_view.html", tenant=g.tenant, source=src, config=cfg_disp)
 
 @bp.route("/sources/<int:source_id>/edit", methods=["GET", "POST"])
 @login_required
@@ -393,6 +454,13 @@ def sources_edit(source_id: int):
     _require_tenant()
     src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first_or_404()
     cfg_existing = decrypt_config(src) or {}
+
+    # Store URL with password redacted (***). Password lives in cfg['conn']['password'].
+    from ...services.datasource_service import (
+        build_url_from_conn,
+        inject_password_into_url,
+        redact_url_password,
+    )
 
     def _build_url_from_parts(ds_type: str, parts: dict) -> str:
         ds_type = (ds_type or '').lower().strip()
@@ -513,6 +581,8 @@ def sources_edit(source_id: int):
         'use_builder': (request.form.get('use_builder') or '').strip(),
     }
 
+    has_password = bool(conn.get('password'))
+
     if request.method == 'POST':
         name = form['name']
         ds_type = form['type']
@@ -524,13 +594,37 @@ def sources_edit(source_id: int):
         if not form['password'] and existing_pwd:
             form['password'] = existing_pwd
 
-        url = form['url']
+        url = (form['url'] or '').strip()
         if form['use_builder'] == '1' or not url:
             url = _build_url_from_parts(ds_type, form)
 
+        # If user used manual URL and did not fill the password field, try extracting it
+        # (but ignore redacted placeholders like "***").
+        if not form.get('password') and url:
+            try:
+                from sqlalchemy.engine.url import make_url
+
+                def _looks_masked(p: str | None) -> bool:
+                    if not p:
+                        return True
+                    s = str(p)
+                    if set(s).issubset({"*"}) and len(s) >= 3:
+                        return True
+                    if set(s).issubset({"•"}) and len(s) >= 3:
+                        return True
+                    if s.endswith("***") and "*" not in s[:-3]:
+                        return True
+                    return False
+
+                u = make_url(url)
+                if u.password and not _looks_masked(u.password):
+                    form['password'] = u.password
+            except Exception:
+                pass
+
         if not name or not ds_type or not url:
             flash(tr('Preencha nome, tipo e conexão.', getattr(g, 'lang', None)), 'error')
-            return render_template('portal/sources_edit.html', tenant=g.tenant, source=src, form=form)
+            return render_template('portal/sources_edit.html', tenant=g.tenant, source=src, form=form, has_password=has_password)
 
         from ...services.crypto import encrypt_json
         from ...services.datasource_service import clear_engine_cache
@@ -547,8 +641,18 @@ def sources_edit(source_id: int):
             'sqlite_path': form['sqlite_path'],
         }
 
+        # Ensure we have an effective URL that includes the real password for runtime use
+        effective_url = inject_password_into_url(url, new_conn.get('password'))
+        if (not effective_url) and new_conn:
+            effective_url = build_url_from_conn(ds_type, new_conn)
+        if not effective_url:
+            flash(tr('Preencha nome, tipo e conexão.', getattr(g, 'lang', None)), 'error')
+            return render_template('portal/sources_edit.html', tenant=g.tenant, source=src, form=form, has_password=has_password)
+
+        stored_url = redact_url_password(effective_url)
+
         config = {
-            'url': url,
+            'url': stored_url,
             'default_schema': default_schema,
             'tenant_column': tenant_column,
             'conn': new_conn,
@@ -563,7 +667,178 @@ def sources_edit(source_id: int):
         flash(tr('Fonte atualizada.', getattr(g, 'lang', None)), 'success')
         return redirect(url_for('portal.sources_view', source_id=src.id))
 
-    return render_template('portal/sources_edit.html', tenant=g.tenant, source=src, form=form)
+    return render_template('portal/sources_edit.html', tenant=g.tenant, source=src, form=form, has_password=has_password)
+
+
+@bp.route("/api/sources/test_connection", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def api_sources_test_connection():
+    """Test a DB connection using the provided (unsaved) datasource config.
+
+    This endpoint is used by the 'Test connection' button in the datasource form.
+    It does not persist anything.
+
+    Payload shape (best-effort):
+    {
+      source_id?: int,  # optional (edit form)
+      type: 'postgres'|'mysql'|'sqlserver'|'oracle'|'sqlite',
+      use_builder: '1'|'0',
+      url?: str,
+      host/port/database/username/password/driver/service_name/sid/sqlite_path?: str
+    }
+    """
+    _require_tenant()
+    payload = request.get_json(silent=True) or {}
+
+    # Optional: reuse existing password when editing
+    src = None
+    existing_cfg = {}
+    try:
+        source_id = int(payload.get("source_id") or 0)
+    except Exception:
+        source_id = 0
+    if source_id:
+        src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first()
+        if src:
+            try:
+                existing_cfg = decrypt_config(src) or {}
+            except Exception:
+                existing_cfg = {}
+
+    def _build_url_from_parts(ds_type: str, parts: dict) -> str:
+        ds_type = (ds_type or "").lower().strip()
+        host = (parts.get("host") or "").strip()
+        port = (parts.get("port") or "").strip()
+        database = (parts.get("database") or "").strip()
+        username = (parts.get("username") or "").strip()
+        password = (parts.get("password") or "")
+        driver = (parts.get("driver") or "").strip()
+        service_name = (parts.get("service_name") or "").strip()
+        sid = (parts.get("sid") or "").strip()
+        sqlite_path = (parts.get("sqlite_path") or "").strip()
+
+        from sqlalchemy.engine import URL
+
+        if ds_type == "postgres":
+            return str(
+                URL.create(
+                    "postgresql+psycopg",
+                    username=username or None,
+                    password=password or None,
+                    host=host or None,
+                    port=int(port) if port else None,
+                    database=database or None,
+                )
+            )
+
+        if ds_type == "mysql":
+            return str(
+                URL.create(
+                    "mysql+pymysql",
+                    username=username or None,
+                    password=password or None,
+                    host=host or None,
+                    port=int(port) if port else None,
+                    database=database or None,
+                )
+            )
+
+        if ds_type == "sqlserver":
+            query = {}
+            if driver:
+                query["driver"] = driver
+            return str(
+                URL.create(
+                    "mssql+pyodbc",
+                    username=username or None,
+                    password=password or None,
+                    host=host or None,
+                    port=int(port) if port else None,
+                    database=database or None,
+                    query=query or None,
+                )
+            )
+
+        if ds_type == "oracle":
+            query = {}
+            if service_name:
+                query["service_name"] = service_name
+            elif sid:
+                query["sid"] = sid
+            return str(
+                URL.create(
+                    "oracle+oracledb",
+                    username=username or None,
+                    password=password or None,
+                    host=host or None,
+                    port=int(port) if port else None,
+                    database=None,
+                    query=query or None,
+                )
+            )
+
+        if ds_type == "sqlite":
+            if sqlite_path.startswith("sqlite:"):
+                return sqlite_path
+            p = sqlite_path or database
+            if not p:
+                return ""
+            if p.startswith("/"):
+                return "sqlite:////" + p.lstrip("/")
+            return "sqlite:///" + p
+
+        return ""
+
+    ds_type = (payload.get("type") or "").strip().lower()
+    use_builder = str(payload.get("use_builder") or "0").strip()
+    url = (payload.get("url") or "").strip()
+
+    # merge password from existing config (edit form)
+    existing_conn = existing_cfg.get("conn") if isinstance(existing_cfg.get("conn"), dict) else {}
+    existing_pwd = (existing_conn.get("password") or "") if isinstance(existing_conn, dict) else ""
+
+    parts = {
+        "host": (payload.get("host") or "").strip(),
+        "port": (payload.get("port") or "").strip(),
+        "database": (payload.get("database") or "").strip(),
+        "username": (payload.get("username") or "").strip(),
+        "password": payload.get("password") or "",
+        "driver": (payload.get("driver") or "").strip(),
+        "service_name": (payload.get("service_name") or "").strip(),
+        "sid": (payload.get("sid") or "").strip(),
+        "sqlite_path": (payload.get("sqlite_path") or "").strip(),
+    }
+
+    if not parts["password"] and existing_pwd:
+        parts["password"] = existing_pwd
+
+    if use_builder == "1" or not url:
+        url = _build_url_from_parts(ds_type, parts)
+
+    # If URL has redacted password (***), inject the real one from parts
+    try:
+        from ...services.datasource_service import inject_password_into_url
+
+        url = inject_password_into_url(url, parts.get("password"))
+    except Exception:
+        pass
+
+    if not url:
+        return jsonify({"ok": False, "error": tr("Informe uma URL de conexão.", getattr(g, "lang", None))}), 400
+
+    # Try connecting (no persistence)
+    try:
+        from sqlalchemy import create_engine
+        from sqlalchemy.pool import NullPool
+
+        eng = create_engine(url, pool_pre_ping=True, poolclass=NullPool)
+        with eng.connect() as conn:
+            # connect + close is enough for a smoke test
+            pass
+        return jsonify({"ok": True, "message": tr("Conexão OK.", getattr(g, "lang", None))})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"ok": False, "error": tr("Falha na conexão: {error}", getattr(g, "lang", None), error=str(e))}), 400
 
 
 
