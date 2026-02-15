@@ -16,26 +16,6 @@ def decrypt_config(source: DataSource) -> dict[str, Any]:
 
 
 def _is_masked_password(pwd: str | None) -> bool:
-    """Return True when the password looks like a UI redaction placeholder.
-
-    We treat these as placeholders (not real passwords):
-    - "***", "****", "••••••" and similar
-    - values ending with "***" where the last 3 chars are the only asterisks
-      (common UI masking like "Santana26***")
-    """
-    if pwd is None:
-        return True
-    p = str(pwd)
-    if p == "":
-        return True
-    # All placeholders (only stars / bullets)
-    if set(p).issubset({"*"}) and len(p) >= 3:
-        return True
-    if set(p).issubset({"•"}) and len(p) >= 3:
-        return True
-    # Common masked suffix
-    if p.endswith("***") and "*" not in p[:-3]:
-        return True
     return False
 
 
