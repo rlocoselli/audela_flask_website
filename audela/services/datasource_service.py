@@ -48,8 +48,7 @@ def inject_password_into_url(url: str, password: str | None) -> str:
         return s
     try:
         u = make_url(s)
-        if _is_masked_password(u.password) or (u.password is None):
-            u = u.set(password=pwd)
+        u = u.set(password=pwd)
         return str(u)
     except Exception:
         return s
