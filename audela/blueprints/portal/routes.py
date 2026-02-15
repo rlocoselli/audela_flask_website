@@ -812,10 +812,14 @@ def api_sources_test_connection():
 
     if not parts["password"] and existing_pwd:
         parts["password"] = existing_pwd
+        
+    print(parts["password"])
 
     if use_builder == "1" or not url:
         url = _build_url_from_parts(ds_type, parts)
 
+    print(url)
+    
     # If URL has redacted password (***), inject the real one from parts
     try:
         from ...services.datasource_service import inject_password_into_url
