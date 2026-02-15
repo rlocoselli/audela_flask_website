@@ -47,6 +47,6 @@ MVP uses **model 1** (shared app DB with `tenant_id` on all BI entities) and **e
 
 ## Notes
 
-- To use **PostgreSQL** for the app DB, set `DATABASE_URL` (e.g. `postgresql+psycopg://...`) and run `flask db upgrade`.
+- To use **PostgreSQL** for the app DB, set `DATABASE_URL` (e.g. `postgresql+psycopg2://...`) and run `flask db upgrade`.
 - `DATA_KEY` can be set to rotate the encryption key used for datasource configs (otherwise it derives from `SECRET_KEY` in dev).
 

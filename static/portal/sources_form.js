@@ -44,7 +44,7 @@
     const pp = port ? (':' + port) : '';
 
     if (type === 'postgres') {
-      return `postgresql+psycopg://${auth}${hp}${pp}/${enc(db)}`;
+      return `postgresql+psycopg2://${auth}${hp}${pp}/${enc(db)}`;
     }
     if (type === 'mysql') {
       return `mysql+pymysql://${auth}${hp}${pp}/${enc(db)}`;
@@ -195,7 +195,7 @@
       show(sidRow, isOracle);
 
       // placeholders
-      if (type === 'postgres') urlInp.placeholder = 'postgresql+psycopg://user:pass@host:5432/dbname';
+      if (type === 'postgres') urlInp.placeholder = 'postgresql+psycopg2://user:pass@host:5432/dbname';
       else if (type === 'mysql') urlInp.placeholder = 'mysql+pymysql://user:pass@host:3306/dbname';
       else if (type === 'sqlserver') urlInp.placeholder = 'mssql+pyodbc://user:pass@host:1433/dbname?driver=ODBC+Driver+18+for+SQL+Server';
       else if (type === 'oracle') urlInp.placeholder = 'oracle+oracledb://user:pass@host:1521/?service_name=ORCLPDB1';

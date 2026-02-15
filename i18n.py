@@ -107,7 +107,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 
         # Placeholder texts
         "Ex.: DW Produção": "Ex.: DW Produção",
-        "Ex.: postgresql+psycopg://user:pass@host:5432/dbname": "Ex.: postgresql+psycopg://user:pass@host:5432/dbname",
+        "Ex.: postgresql+psycopg2://user:pass@host:5432/dbname": "Ex.: postgresql+psycopg2://user:pass@host:5432/dbname",
         "public": "public",
         "tenant_id": "tenant_id",
         "ex: total vendas por mês": "ex: total vendas por mês",
@@ -538,7 +538,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 
             # Placeholder texts
             "Ex.: DW Produção": "Ex.: DW Production",
-            "Ex.: postgresql+psycopg://user:pass@host:5432/dbname": "Ex.: postgresql+psycopg://user:pass@host:5432/dbname",
+            "Ex.: postgresql+psycopg2://user:pass@host:5432/dbname": "Ex.: postgresql+psycopg2://user:pass@host:5432/dbname",
             "public": "public",
             "tenant_id": "tenant_id",
             "ex: total vendas por mês": "ex: total sales per month",
@@ -904,7 +904,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 
         # Placeholder texts
         "Ex.: DW Produção": "Ex. : DW Production",
-        "Ex.: postgresql+psycopg://user:pass@host:5432/dbname": "Ex. : postgresql+psycopg://user:pass@host:5432/dbname",
+        "Ex.: postgresql+psycopg2://user:pass@host:5432/dbname": "Ex. : postgresql+psycopg2://user:pass@host:5432/dbname",
         "public": "public",
         "tenant_id": "tenant_id",
         "ex: total vendas por mês": "ex : ventes totales par mois",
@@ -1268,7 +1268,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 
         # Placeholder texts
         "Ex.: DW Produção": "Ej.: DW Producción",
-        "Ex.: postgresql+psycopg://user:pass@host:5432/dbname": "Ej.: postgresql+psycopg://user:pass@host:5432/dbname",
+        "Ex.: postgresql+psycopg2://user:pass@host:5432/dbname": "Ej.: postgresql+psycopg2://user:pass@host:5432/dbname",
         "public": "public",
         "tenant_id": "tenant_id",
         "ex: total vendas por mês": "ej: total de ventas por mes",
@@ -1640,7 +1640,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 
         # Placeholder texts
         "Ex.: DW Produção": "Es.: DW Produzione",
-        "Ex.: postgresql+psycopg://user:pass@host:5432/dbname": "Es.: postgresql+psycopg://user:pass@host:5432/dbname",
+        "Ex.: postgresql+psycopg2://user:pass@host:5432/dbname": "Es.: postgresql+psycopg2://user:pass@host:5432/dbname",
         "public": "public",
         "tenant_id": "tenant_id",
         "ex: total vendas por mês": "es: vendite totali al mese",
@@ -2012,7 +2012,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 
         # Placeholder texts
         "Ex.: DW Produção": "Z.B.: DW Produktion",
-        "Ex.: postgresql+psycopg://user:pass@host:5432/dbname": "Z.B.: postgresql+psycopg://user:pass@host:5432/dbname",
+        "Ex.: postgresql+psycopg2://user:pass@host:5432/dbname": "Z.B.: postgresql+psycopg2://user:pass@host:5432/dbname",
         "public": "public",
         "tenant_id": "tenant_id",
         "ex: total vendas por mês": "z.B.: Gesamtumsatz pro Monat",

@@ -168,7 +168,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 
         # Placeholder texts
         "Ex.: DW Produção": "Ex.: DW Produção",
-        "Ex.: postgresql+psycopg://user:pass@host:5432/dbname": "Ex.: postgresql+psycopg://user:pass@host:5432/dbname",
+        "Ex.: postgresql+psycopg2://user:pass@host:5432/dbname": "Ex.: postgresql+psycopg2://user:pass@host:5432/dbname",
         "public": "public",
         "tenant_id": "tenant_id",
         "ex: total vendas por mês": "ex: total vendas por mês",
@@ -640,7 +640,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 
             # Placeholder texts
             "Ex.: DW Produção": "Ex.: DW Production",
-            "Ex.: postgresql+psycopg://user:pass@host:5432/dbname": "Ex.: postgresql+psycopg://user:pass@host:5432/dbname",
+            "Ex.: postgresql+psycopg2://user:pass@host:5432/dbname": "Ex.: postgresql+psycopg2://user:pass@host:5432/dbname",
             "public": "public",
             "tenant_id": "tenant_id",
             "ex: total vendas por mês": "ex: total sales per month",
@@ -848,6 +848,26 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 
         # Portal
         "Portal BI": "Portail BI",
+
+        # Excel AI
+        "Excel IA": "Excel IA",
+        "Exportar XLSX": "Exporter XLSX",
+        "Gerar XLSX": "Générer XLSX",
+        "Gerando...": "Génération...",
+        "Arquivo gerado.": "Fichier généré.",
+        "Prompt vazio.": "Requête vide.",
+        "Gere um arquivo Excel (XLSX) a partir de uma pergunta em linguagem natural.": "Générez un fichier Excel (XLSX) à partir d’une requête en langage naturel.",
+        "Salvar em Arquivos": "Enregistrer dans Fichiers",
+        "Raiz": "Racine",
+        "Adicionar gráfico automático (se possível)": "Ajouter un graphique automatique (si possible)",
+        "Pedido (linguagem natural)": "Demande (langage naturel)",
+        "Título do arquivo": "Titre du fichier",
+        "Limite de linhas": "Limite de lignes",
+        "Observação: o arquivo é baixado no navegador e (opcionalmente) salvo no módulo Arquivos.": "Remarque : le fichier est téléchargé dans le navigateur et (optionnellement) enregistré dans le module Fichiers.",
+        "Exemplos de pedidos": "Exemples de demandes",
+        "Dica: especifique datas, filtros e como quer ordenar (ex.: \"top 10\").": "Astuce : précisez dates, filtres et ordre souhaité (ex. « top 10 »).",
+        "Ex.: Vendas e Top Produtos": "Ex. : Ventes et Top produits",
+        "Ex.: criar um Excel com uma tabela de vendas por mês e um gráfico com os 10 produtos mais vendidos": "Ex. : créer un Excel avec un tableau des ventes par mois et un graphique des 10 produits les plus vendus",
         "Usuário": "Utilisateur",
         "Sair": "Déconnexion",
         "Home": "Accueil",
@@ -1100,7 +1120,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 
         # Placeholder texts
         "Ex.: DW Produção": "Ex. : DW Production",
-        "Ex.: postgresql+psycopg://user:pass@host:5432/dbname": "Ex. : postgresql+psycopg://user:pass@host:5432/dbname",
+        "Ex.: postgresql+psycopg2://user:pass@host:5432/dbname": "Ex. : postgresql+psycopg2://user:pass@host:5432/dbname",
         "public": "public",
         "tenant_id": "tenant_id",
         "ex: total vendas por mês": "ex : ventes totales par mois",
@@ -1562,7 +1582,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 
         # Placeholder texts
         "Ex.: DW Produção": "Ej.: DW Producción",
-        "Ex.: postgresql+psycopg://user:pass@host:5432/dbname": "Ej.: postgresql+psycopg://user:pass@host:5432/dbname",
+        "Ex.: postgresql+psycopg2://user:pass@host:5432/dbname": "Ej.: postgresql+psycopg2://user:pass@host:5432/dbname",
         "public": "public",
         "tenant_id": "tenant_id",
         "ex: total vendas por mês": "ej: total de ventas por mes",
@@ -2002,7 +2022,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 
         # Placeholder texts
         "Ex.: DW Produção": "Es.: DW Produzione",
-        "Ex.: postgresql+psycopg://user:pass@host:5432/dbname": "Es.: postgresql+psycopg://user:pass@host:5432/dbname",
+        "Ex.: postgresql+psycopg2://user:pass@host:5432/dbname": "Es.: postgresql+psycopg2://user:pass@host:5432/dbname",
         "public": "public",
         "tenant_id": "tenant_id",
         "ex: total vendas por mês": "es: vendite totali al mese",
@@ -2492,7 +2512,7 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
 
         # Placeholder texts
         "Ex.: DW Produção": "Z.B.: DW Produktion",
-        "Ex.: postgresql+psycopg://user:pass@host:5432/dbname": "Z.B.: postgresql+psycopg://user:pass@host:5432/dbname",
+        "Ex.: postgresql+psycopg2://user:pass@host:5432/dbname": "Z.B.: postgresql+psycopg2://user:pass@host:5432/dbname",
         "public": "public",
         "tenant_id": "tenant_id",
         "ex: total vendas por mês": "z.B.: Gesamtumsatz pro Monat",

@@ -15,7 +15,7 @@ class Config:
 
         if all([db_host, db_user, db_password]):
             SQLALCHEMY_DATABASE_URI = (
-                "postgresql+psycopg2://"
+                "postgresql+psycopg22://"
                 f"{quote_plus(db_user)}:{quote_plus(db_password)}"
                 f"@{db_host}:{db_port}/{quote_plus(db_name)}"
             )

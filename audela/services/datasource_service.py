@@ -103,7 +103,7 @@ def build_url_from_conn(ds_type: str, conn: dict[str, Any]) -> str:
     if ds_type == "postgres":
         return str(
             URL.create(
-                "postgresql+psycopg",
+                "postgresql+psycopg2",
                 username=username or None,
                 password=password,
                 host=host or None,

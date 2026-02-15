@@ -21,7 +21,7 @@ def _build_url(conn_type: str, data: Dict[str, Any]) -> str:
         user = data.get("user") or data.get("username") or ""
         password = data.get("password") or ""
         return (
-            "postgresql+psycopg2://"
+            "postgresql+psycopg22://"
             f"{urllib.parse.quote_plus(str(user))}:{urllib.parse.quote_plus(str(password))}"
             f"@{host}:{port}/{database}"
         )

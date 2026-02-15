@@ -234,6 +234,9 @@
               <a href="#" class="btn btn-outline-secondary" id="adhoc-export-pdf">
                 {{ _('Exportar PDF') }}
               </a>
+              <a href="#" class="btn btn-outline-secondary" id="adhoc-export-xlsx">
+                {{ _('Exportar XLSX') }}
+              </a>
               <span class="text-muted">
                 {{ _('Linhas retornadas') }}: {{ result.rows|length }}
               </span>
@@ -303,6 +306,14 @@
           btn.addEventListener('click', async (e) => {
             e.preventDefault();
             await BI.exportPdf('SQL Export', data);
+          });
+        }
+
+        const btnXlsx = document.getElementById('adhoc-export-xlsx');
+        if (btnXlsx) {
+          btnXlsx.addEventListener('click', async (e) => {
+            e.preventDefault();
+            await BI.exportXlsx('SQL Export', data);
           });
         }
       }

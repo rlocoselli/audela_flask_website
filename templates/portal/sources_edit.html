@@ -123,7 +123,7 @@
             <label class="form-label">{{ _('URL de conexão (SQLAlchemy)') }}</label>
             <input type="text" name="url" id="ds-url" class="form-control" value="{{ form.url if form is defined else '' }}" required />
             <div class="form-text">
-              {{ _('Ex.:') }} <code>postgresql+psycopg://user:pass@host:5432/dbname</code>
+              {{ _('Ex.:') }} <code>postgresql+psycopg2://user:pass@host:5432/dbname</code>
             </div>
           </div>
         </div>
@@ -149,6 +149,12 @@
             <label class="form-label">{{ _('Coluna tenant') }}</label>
             <input type="text" name="tenant_column" class="form-control" value="{{ form.tenant_column if form is defined else '' }}" placeholder="tenant_id" />
             <div class="form-text">{{ _('Se preenchida, o SQL deve conter') }} <code>:tenant_id</code>.</div>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">{{ _('Política (JSON)') }}</label>
+            <textarea name="policy_json" class="form-control font-monospace" rows="6">{{ form.policy_json if form is defined else (source.policy_json | tojson(indent=2)) }}</textarea>
+            <div class="form-text">{{ _('Controla limites de segurança (read_only, max_rows, timeout_seconds).') }}</div>
           </div>
         </div>
 

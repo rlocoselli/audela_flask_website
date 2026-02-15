@@ -1,0 +1,168 @@
+{% extends "portal/layout.html" %}
+
+{% block title %}{{ _('Excel IA') }} – {{ _('Portal BI') }}{% endblock %}
+
+{% block portal_content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div>
+    <h2 class="mb-0">{{ _('Excel IA') }}</h2>
+    <div class="text-muted">{{ _('Gere um arquivo Excel (XLSX) a partir de uma pergunta em linguagem natural.') }}</div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label">{{ _('Fonte') }}</label>
+          <select class="form-select" id="excel-source" required>
+            <option value="">—</option>
+            {% for s in sources %}
+              <option value="{{ s.id }}">{{ s.name }} ({{ s.type }})</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">{{ _('Título do arquivo') }}</label>
+          <input class="form-control" id="excel-title" placeholder="{{ _('Ex.: Vendas e Top Produtos') }}" />
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">{{ _('Pedido (linguagem natural)') }}</label>
+          <textarea class="form-control" id="excel-prompt" rows="6" placeholder="{{ _('Ex.: criar um Excel com uma tabela de vendas por mês e um gráfico com os 10 produtos mais vendidos') }}"></textarea>
+          <div class="form-text">
+            {{ _('Dica: especifique datas, filtros e como quer ordenar (ex.: "top 10").') }}
+          </div>
+        </div>
+
+        <div class="row g-2">
+          <div class="col-6">
+            <label class="form-label">{{ _('Limite de linhas') }}</label>
+            <input class="form-control" type="number" id="excel-max-rows" value="5000" min="100" max="50000" />
+          </div>
+          <div class="col-6">
+            <label class="form-label">{{ _('Salvar em Arquivos') }}</label>
+            <select class="form-select" id="excel-folder">
+              <option value="">{{ _('Raiz') }}</option>
+              {% for f in folders %}
+                <option value="{{ f.id }}">{{ f.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="form-check mt-3">
+          <input class="form-check-input" type="checkbox" value="1" id="excel-add-chart" checked>
+          <label class="form-check-label" for="excel-add-chart">
+            {{ _('Adicionar gráfico automático (se possível)') }}
+          </label>
+        </div>
+
+        <div class="d-flex align-items-center gap-2 mt-4">
+          <button class="btn btn-primary" id="excel-generate">
+            <i class="bi bi-magic me-1"></i>{{ _('Gerar XLSX') }}
+          </button>
+          <div class="text-muted small" id="excel-status"></div>
+        </div>
+
+        <div class="mt-3 small text-muted">
+          {{ _('Observação: o arquivo é baixado no navegador e (opcionalmente) salvo no módulo Arquivos.') }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h6 class="mb-2">{{ _('Exemplos de pedidos') }}</h6>
+        <ul class="mb-0">
+          <li>{{ _('"Tabela de vendas por mês em 2025, ordenada por mês"') }}</li>
+          <li>{{ _('"Top 10 produtos mais vendidos (quantidade) no último trimestre"') }}</li>
+          <li>{{ _('"Vendas por vendedor e um gráfico por total"') }}</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script>
+    async function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const btn = document.getElementById('excel-generate');
+      const status = document.getElementById('excel-status');
+      const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+      btn?.addEventListener('click', async () => {
+        const sourceId = document.getElementById('excel-source')?.value;
+        const prompt = document.getElementById('excel-prompt')?.value || '';
+        const title = document.getElementById('excel-title')?.value || 'Excel Export';
+        const addChart = document.getElementById('excel-add-chart')?.checked;
+        const maxRows = Number(document.getElementById('excel-max-rows')?.value || 5000);
+        const folderId = document.getElementById('excel-folder')?.value || '';
+
+        if (!sourceId) {
+          if (window.uiToast) window.uiToast(window.t('Selecione uma fonte.'), { variant: 'danger' });
+          return;
+        }
+        if (!prompt.trim()) {
+          if (window.uiToast) window.uiToast(window.t('Prompt vazio.'), { variant: 'danger' });
+          return;
+        }
+
+        try {
+          btn.disabled = true;
+          status.textContent = window.t('Gerando...');
+          const resp = await fetch('/app/api/excel/generate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(csrf ? { 'X-CSRFToken': csrf } : {})
+            },
+            body: JSON.stringify({
+              source_id: Number(sourceId),
+              prompt: prompt,
+              title: title,
+              add_chart: !!addChart,
+              max_rows: maxRows,
+              store: true,
+              folder_id: folderId ? Number(folderId) : null
+            })
+          });
+
+          if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            if (window.uiToast) window.uiToast(err.error || 'Falha ao gerar XLSX', { variant: 'danger' });
+            status.textContent = '';
+            return;
+          }
+
+          const blob = await resp.blob();
+          await downloadBlob(blob, (title || 'export') + '.xlsx');
+          if (window.uiToast) window.uiToast(window.t('Arquivo gerado.'), { variant: 'success' });
+          status.textContent = '';
+        } catch (e) {
+          if (window.uiToast) window.uiToast(String(e), { variant: 'danger' });
+          status.textContent = '';
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
+  </script>
+{% endblock %}

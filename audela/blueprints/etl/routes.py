@@ -249,7 +249,7 @@ def test_connection(conn_id: int):
                 pwd = data.get("password")
                 if not (host and dbname and user and pwd):
                     return jsonify({"ok": False, "error": "missing postgres fields (host/database/username/password)"}), 400
-                sqlalchemy_url = f"postgresql+psycopg2://{user}:{pwd}@{host}:{port}/{dbname}"
+                sqlalchemy_url = f"postgresql+psycopg22://{user}:{pwd}@{host}:{port}/{dbname}"
             if not sqlalchemy_url:
                 return jsonify({"ok": False, "error": "connection missing sqlalchemy_url/url"}), 400
 

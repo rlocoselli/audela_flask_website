@@ -209,6 +209,39 @@ window.BI = window.BI || {};
     URL.revokeObjectURL(url);
   }
 
+  async function exportXlsx(title, data, opts) {
+    const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+    const o = opts || {};
+    const resp = await fetch('/app/api/export/xlsx', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'X-CSRFToken': token } : {})
+      },
+      body: JSON.stringify({
+        title: title,
+        columns: data.columns || [],
+        rows: data.rows || [],
+        add_chart: o.add_chart !== false
+      })
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      if (window.uiToast) window.uiToast(err.error || 'Falha ao exportar XLSX', { variant: 'danger' });
+      else alert(err.error || 'Falha ao exportar XLSX');
+      return;
+    }
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (title || 'export') + '.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
   // ----- Dashboard renderer -----
   window.BI.bootDashboard = function bootDashboard() {
     const cards = document.querySelectorAll('[data-bi-card="1"]');
@@ -388,6 +421,10 @@ window.BI = window.BI || {};
 
     render();
   }
+
+  // public API
+  window.BI.exportPdf = exportPdf;
+  window.BI.exportXlsx = exportXlsx;
 
   BI.applyFilters = applyFilters;
   BI.exportPdf = exportPdf;

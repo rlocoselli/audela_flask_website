@@ -4,7 +4,7 @@ from datetime import datetime
 
 import json
 
-from flask import abort, flash, g, jsonify, make_response, redirect, render_template, request, url_for
+from flask import abort, flash, g, jsonify, make_response, redirect, render_template, request, url_for, send_file
 from flask_login import current_user, login_required
 
 from ...extensions import db
@@ -26,6 +26,7 @@ from ...services.query_service import QueryExecutionError, execute_sql
 from ...services.datasource_service import decrypt_config, introspect_source
 from ...services.nlq_service import generate_sql_from_nl
 from ...services.pdf_export import table_to_pdf_bytes
+from ...services.xlsx_export import table_to_xlsx_bytes
 from ...services.ai_service import analyze_with_ai
 from ...services.statistics_service import run_statistics_analysis, stats_report_to_pdf_bytes
 from ...services.report_render_service import report_to_pdf_bytes
@@ -147,7 +148,7 @@ def sources_new():
 
         if ds_type == 'postgres':
             return str(URL.create(
-                'postgresql+psycopg',
+                'postgresql+psycopg2',
                 username=username or None,
                 password=password or None,
                 host=host or None,
@@ -225,7 +226,47 @@ def sources_new():
         'sid': (request.form.get('sid') or '').strip(),
         'sqlite_path': (request.form.get('sqlite_path') or '').strip(),
         'use_builder': (request.form.get('use_builder') or '').strip(),
+        'policy_json': (request.form.get('policy_json') or '').strip(),
     }
+
+    # Policy controls safety limits for queries on this datasource
+    import json
+
+    default_policy = {"timeout_seconds": 30, "max_rows": 5000, "read_only": True}
+
+    def _to_bool(v, default=True):
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, (int, float)):
+            return bool(v)
+        if isinstance(v, str):
+            s = v.strip().lower()
+            if s in ("true", "1", "yes", "y", "on"):
+                return True
+            if s in ("false", "0", "no", "n", "off"):
+                return False
+        return default
+
+    def _to_int(v, default, *, min_v=1, max_v=50000):
+        try:
+            i = int(v)
+        except Exception:
+            return default
+        if i < min_v:
+            i = min_v
+        if i > max_v:
+            i = max_v
+        return i
+
+    def _sanitize_policy(p: dict) -> dict:
+        out = dict(p or {})
+        out["read_only"] = _to_bool(out.get("read_only"), bool(default_policy.get("read_only", True)))
+        out["max_rows"] = _to_int(out.get("max_rows"), int(default_policy.get("max_rows", 5000)), min_v=1, max_v=50000)
+        out["timeout_seconds"] = _to_int(out.get("timeout_seconds"), int(default_policy.get("timeout_seconds", 30)), min_v=1, max_v=300)
+        return out
+
+    if not form.get('policy_json'):
+        form['policy_json'] = json.dumps(default_policy, indent=2, ensure_ascii=False)
 
     if request.method == 'POST':
         name = form['name']
@@ -265,6 +306,22 @@ def sources_new():
             flash(tr('Preencha nome, tipo e conexão.', getattr(g, 'lang', None)), 'error')
             return render_template('portal/sources_new.html', tenant=g.tenant, form=form)
 
+        # Parse and validate policy JSON
+        policy_raw = (request.form.get('policy_json') or '').strip()
+        try:
+            if policy_raw:
+                policy_obj = json.loads(policy_raw)
+                if not isinstance(policy_obj, dict):
+                    raise ValueError('policy_json deve ser um objeto JSON')
+            else:
+                policy_obj = default_policy
+            policy_obj = _sanitize_policy(policy_obj)
+        except Exception as e:
+            flash(tr('Política inválida: {error}', getattr(g, 'lang', None), error=str(e)), 'error')
+            form['policy_json'] = policy_raw or form.get('policy_json','')
+            return render_template('portal/sources_new.html', tenant=g.tenant, form=form)
+
+
         from ...services.crypto import encrypt_json
 
         conn = {
@@ -302,11 +359,7 @@ def sources_new():
             type=ds_type,
             name=name,
             config_encrypted=encrypt_json(config),
-            policy_json={
-                'timeout_seconds': 30,
-                'max_rows': 5000,
-                'read_only': True,
-            },
+            policy_json=policy_obj,
         )
         db.session.add(ds)
         _audit('bi.datasource.created', {'id': None, 'name': name, 'type': ds_type})
@@ -478,7 +531,7 @@ def sources_edit(source_id: int):
 
         if ds_type == 'postgres':
             return str(URL.create(
-                'postgresql+psycopg',
+                'postgresql+psycopg2',
                 username=username or None,
                 password=password or None,
                 host=host or None,
@@ -579,7 +632,47 @@ def sources_edit(source_id: int):
         'sid': (request.form.get('sid') or conn.get('sid') or '').strip(),
         'sqlite_path': (request.form.get('sqlite_path') or conn.get('sqlite_path') or '').strip(),
         'use_builder': (request.form.get('use_builder') or '').strip(),
+        'policy_json': (request.form.get('policy_json') or '').strip(),
     }
+
+    # Policy controls safety limits for queries on this datasource
+    import json
+
+    default_policy = src.policy_json or {"timeout_seconds": 30, "max_rows": 5000, "read_only": True}
+
+    def _to_bool(v, default=True):
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, (int, float)):
+            return bool(v)
+        if isinstance(v, str):
+            s = v.strip().lower()
+            if s in ("true", "1", "yes", "y", "on"):
+                return True
+            if s in ("false", "0", "no", "n", "off"):
+                return False
+        return default
+
+    def _to_int(v, default, *, min_v=1, max_v=50000):
+        try:
+            i = int(v)
+        except Exception:
+            return default
+        if i < min_v:
+            i = min_v
+        if i > max_v:
+            i = max_v
+        return i
+
+    def _sanitize_policy(p: dict) -> dict:
+        out = dict(p or {})
+        out["read_only"] = _to_bool(out.get("read_only"), bool(default_policy.get("read_only", True)))
+        out["max_rows"] = _to_int(out.get("max_rows"), int(default_policy.get("max_rows", 5000)), min_v=1, max_v=50000)
+        out["timeout_seconds"] = _to_int(out.get("timeout_seconds"), int(default_policy.get("timeout_seconds", 30)), min_v=1, max_v=300)
+        return out
+
+    if not form.get('policy_json'):
+        form['policy_json'] = json.dumps(default_policy, indent=2, ensure_ascii=False)
 
     has_password = bool(conn.get('password'))
 
@@ -626,6 +719,22 @@ def sources_edit(source_id: int):
             flash(tr('Preencha nome, tipo e conexão.', getattr(g, 'lang', None)), 'error')
             return render_template('portal/sources_edit.html', tenant=g.tenant, source=src, form=form, has_password=has_password)
 
+        # Parse and validate policy JSON
+        policy_raw = (request.form.get('policy_json') or '').strip()
+        try:
+            if policy_raw:
+                policy_obj = json.loads(policy_raw)
+                if not isinstance(policy_obj, dict):
+                    raise ValueError('policy_json deve ser um objeto JSON')
+            else:
+                policy_obj = default_policy
+            policy_obj = _sanitize_policy(policy_obj)
+        except Exception as e:
+            flash(tr('Política inválida: {error}', getattr(g, 'lang', None), error=str(e)), 'error')
+            form['policy_json'] = policy_raw or form.get('policy_json','')
+            return render_template('portal/sources_edit.html', tenant=g.tenant, source=src, form=form, has_password=has_password)
+
+
         from ...services.crypto import encrypt_json
         from ...services.datasource_service import clear_engine_cache
 
@@ -661,6 +770,7 @@ def sources_edit(source_id: int):
         src.name = name
         src.type = ds_type
         src.config_encrypted = encrypt_json(config)
+        src.policy_json = policy_obj
         db.session.commit()
         clear_engine_cache()
 
@@ -723,7 +833,7 @@ def api_sources_test_connection():
         if ds_type == "postgres":
             return str(
                 URL.create(
-                    "postgresql+psycopg",
+                    "postgresql+psycopg2",
                     username=username or None,
                     password=password or None,
                     host=host or None,
@@ -1090,6 +1200,136 @@ def api_export_pdf():
     resp = make_response(pdf_bytes)
     resp.headers["Content-Type"] = "application/pdf"
     resp.headers["Content-Disposition"] = f'attachment; filename="{title[:80].replace(" ", "_")}.pdf"'
+    return resp
+
+
+@bp.route("/api/export/xlsx", methods=["POST"])
+@login_required
+def api_export_xlsx():
+    """Export a result table to Excel.
+
+    Expected payload: {title, columns, rows, add_chart?}
+    """
+    _require_tenant()
+    payload = request.get_json(silent=True) or {}
+    title = (payload.get("title") or "Export").strip()
+    columns = payload.get("columns") or []
+    rows = payload.get("rows") or []
+    add_chart = bool(payload.get("add_chart", True))
+
+    if not isinstance(columns, list) or not isinstance(rows, list):
+        return jsonify({"error": "Payload inválido."}), 400
+    if len(columns) > 300:
+        return jsonify({"error": "Muitas colunas."}), 400
+    if len(rows) > 50000:
+        rows = rows[:50000]
+
+    xlsx_bytes = table_to_xlsx_bytes(title, [str(c) for c in columns], rows, add_chart=add_chart)
+    resp = make_response(xlsx_bytes)
+    resp.headers["Content-Type"] = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    resp.headers["Content-Disposition"] = f'attachment; filename="{title[:80].replace(" ", "_")}.xlsx"'
+    return resp
+
+
+@bp.route("/api/excel/generate", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def api_excel_generate():
+    """Generate an Excel file from a natural-language request.
+
+    Payload:
+      {
+        source_id: int,
+        prompt: str,
+        title?: str,
+        max_rows?: int,
+        add_chart?: bool,
+        store?: bool,
+        folder_id?: int
+      }
+    """
+    _require_tenant()
+    payload = request.get_json(silent=True) or {}
+
+    try:
+        source_id = int(payload.get("source_id"))
+    except Exception:
+        return jsonify({"error": "source_id inválido."}), 400
+
+    prompt = (payload.get("prompt") or "").strip()
+    if not prompt:
+        return jsonify({"error": "Prompt vazio."}), 400
+
+    title = (payload.get("title") or "Excel Export").strip() or "Excel Export"
+    add_chart = bool(payload.get("add_chart", True))
+    store = bool(payload.get("store", True))
+    folder_id = payload.get("folder_id")
+
+    try:
+        max_rows = int(payload.get("max_rows") or 5000)
+    except Exception:
+        max_rows = 5000
+    max_rows = max(100, min(max_rows, 50000))
+
+    source = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first()
+    if not source:
+        return jsonify({"error": "Fonte inválida."}), 404
+
+    # NLQ -> SQL (OpenAI if configured, else heuristic)
+    sql_text, warnings = generate_sql_from_nl(source, prompt, lang=getattr(g, "lang", None))
+
+    # Execute
+    try:
+        result = execute_sql(source, sql_text, params={"tenant_id": g.tenant.id}, row_limit=max_rows)
+    except QueryExecutionError as e:
+        return jsonify({"error": str(e), "sql": sql_text, "warnings": warnings}), 400
+
+    xlsx_bytes = table_to_xlsx_bytes(
+        title,
+        [str(c) for c in (result.get("columns") or [])],
+        result.get("rows") or [],
+        add_chart=add_chart,
+    )
+
+    # Optionally store in tenant files
+    stored_asset = None
+    if store:
+        from werkzeug.utils import secure_filename
+
+        folder = None
+        if folder_id not in (None, "", 0, "0"):
+            try:
+                folder = FileFolder.query.filter_by(id=int(folder_id), tenant_id=g.tenant.id).first()
+            except Exception:
+                folder = None
+
+        folder_rel = _folder_rel_path(folder)
+        filename = secure_filename(f"{title}.xlsx") or "export.xlsx"
+        from ...services.file_storage_service import store_bytes
+        from ...services.file_introspect_service import infer_schema_for_asset
+
+        stored = store_bytes(g.tenant.id, folder_rel, filename, xlsx_bytes)
+        asset = FileAsset(
+            tenant_id=g.tenant.id,
+            folder_id=folder.id if folder else None,
+            name=title,
+            storage_path=stored.rel_path,
+            file_format=stored.file_format,
+            original_filename=stored.original_filename,
+        )
+        asset.schema_json = infer_schema_for_asset(asset)
+        db.session.add(asset)
+        db.session.commit()
+        stored_asset = {"id": asset.id, "name": asset.name}
+
+    # Return as file download (and include diagnostics in headers)
+    resp = make_response(xlsx_bytes)
+    resp.headers["Content-Type"] = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    resp.headers["Content-Disposition"] = f'attachment; filename="{title[:80].replace(" ", "_")}.xlsx"'
+    if warnings:
+        resp.headers["X-Audela-Warnings"] = "; ".join([str(w) for w in warnings[:5]])
+    if stored_asset:
+        resp.headers["X-Audela-FileAsset"] = str(stored_asset.get("id"))
     return resp
 
 
@@ -2007,6 +2247,26 @@ def sql_editor():
         result=result,
         error=error,
         elapsed_ms=elapsed_ms,
+    )
+
+
+# -----------------------------
+# Excel AI (NLQ -> SQL -> XLSX)
+# -----------------------------
+
+
+@bp.route("/excel", methods=["GET"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def excel_ai():
+    _require_tenant()
+    sources = DataSource.query.filter_by(tenant_id=g.tenant.id).order_by(DataSource.name.asc()).all()
+    folders = FileFolder.query.filter_by(tenant_id=g.tenant.id).order_by(FileFolder.name.asc()).all()
+    return render_template(
+        "portal/excel_ai.html",
+        tenant=g.tenant,
+        sources=sources,
+        folders=folders,
     )
 # -----------------------------
 # Questions
