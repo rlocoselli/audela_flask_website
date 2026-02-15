@@ -49,8 +49,6 @@ def redact_url_password(url: str) -> str:
         return s
     try:
         u = make_url(s)
-        if u.password:
-            u = u.set(password="***")
         return str(u)
     except Exception:
         return s

@@ -494,8 +494,6 @@ def sources_view(source_id: int):
     c = cfg_disp.get("conn") if isinstance(cfg_disp.get("conn"), dict) else None
     if c is not None:
         c2 = dict(c)
-        if c2.get("password"):
-            c2["password"] = "***"
         cfg_disp["conn"] = c2
 
     return render_template("portal/sources_view.html", tenant=g.tenant, source=src, config=cfg_disp)
