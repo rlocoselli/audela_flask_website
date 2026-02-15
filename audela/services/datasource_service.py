@@ -49,7 +49,7 @@ def inject_password_into_url(url: str, password: str | None) -> str:
     try:
         u = make_url(s)
         u = u.set(password=pwd)
-        return str(u)
+        return str(u).replace("***", password)
     except Exception:
         return s
 
