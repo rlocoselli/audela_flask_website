@@ -102,7 +102,7 @@ python3 -m venv "$VENV_DIR"
 if [ -f "$APP_DIR/requirements.txt" ]; then
   "$VENV_DIR/bin/pip" install -r "$APP_DIR/requirements.txt"
 else
-  "$VENV_DIR/bin/pip" install flask gunicorn python-dotenv openai sqlalchemy psycopg22-binary
+  "$VENV_DIR/bin/pip" install flask gunicorn python-dotenv openai sqlalchemy psycopg2-binary
 fi
 
 # ==========================
