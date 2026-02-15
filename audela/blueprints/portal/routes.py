@@ -278,30 +278,6 @@ def sources_new():
         if form['use_builder'] == '1' or not url:
             url = _build_url_from_parts(ds_type, form)
 
-        # If user used manual URL and did not fill the password field, try extracting it
-        # (but ignore redacted placeholders like "***").
-        if not form.get('password') and url:
-            try:
-                from sqlalchemy.engine.url import make_url
-
-                def _looks_masked(p: str | None) -> bool:
-                    if not p:
-                        return True
-                    s = str(p)
-                    if set(s).issubset({"*"}) and len(s) >= 3:
-                        return True
-                    if set(s).issubset({"•"}) and len(s) >= 3:
-                        return True
-                    if s.endswith("***") and "*" not in s[:-3]:
-                        return True
-                    return False
-
-                u = make_url(url)
-                if u.password and not _looks_masked(u.password):
-                    form['password'] = u.password
-            except Exception:
-                pass
-
         if not name or not ds_type or not url:
             flash(tr('Preencha nome, tipo e conexão.', getattr(g, 'lang', None)), 'error')
             return render_template('portal/sources_new.html', tenant=g.tenant, form=form)
