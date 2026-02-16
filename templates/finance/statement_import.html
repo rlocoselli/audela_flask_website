@@ -46,6 +46,7 @@
             <select class="form-select" name="provider">
               <option value="auto">{{ _('Auto (local + fallback OCR)') }}</option>
               <option value="local">{{ _('Local (heurístico)') }}</option>
+              <option value="openai">{{ _('OpenAI (IA – JSON)') }}</option>
               <option value="mindee">{{ _('Mindee (API)') }}</option>
               <option value="google">{{ _('Google Vision (OCR)') }}</option>
               <option value="tesseract">{{ _('Tesseract (OCR local)') }}</option>
@@ -53,6 +54,9 @@
             </select>
             <div class="form-text">
               {{ _('“Auto” tenta primeiro local e, se necessário, usa Mindee/Google Vision/Tesseract quando configurados no servidor.') }}
+            </div>
+            <div class="form-text text-warning">
+              <i class="bi bi-shield-exclamation me-1"></i>{{ _('Aviso: o método OpenAI envia o texto do extrato para a API OpenAI.') }}
             </div>
           </div>
         </div>
@@ -65,12 +69,25 @@
         </div>
       </form>
 
+      <!-- Centered loading overlay (shown during import) -->
+      <div id="stmtImportOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-none" style="background: rgba(0,0,0,.35); z-index: 2000;">
+        <div class="position-absolute top-50 start-50 translate-middle bg-body rounded-4 shadow p-4 text-center" style="max-width: 520px; width: calc(100% - 2rem);">
+          <div class="spinner-border" role="status" aria-hidden="true"></div>
+          <div class="mt-3 fw-semibold" id="stmtImportTitle">{{ _('Importando extrato…') }}</div>
+          <div class="text-secondary small mt-1" id="stmtImportMsg">{{ _('Isso pode levar até 2 minutos dependendo do PDF e do método escolhido.') }}</div>
+          <div class="mt-3">
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="stmtImportCancel">{{ _('Cancelar') }}</button>
+          </div>
+        </div>
+      </div>
+
       <hr class="my-4" />
 
       <details>
         <summary class="text-secondary">{{ _('Configuração (admin)') }}</summary>
         <div class="mt-2 small text-secondary">
           <ul>
+            <li>{{ _('OpenAI: defina OPENAI_API_KEY (e opcional OPENAI_MODEL).') }}</li>
             <li>{{ _('Mindee: defina MINDEE_API_KEY') }}</li>
             <li>{{ _('Google Vision: defina GOOGLE_VISION_API_KEY') }}</li>
             <li>{{ _('API custom: STATEMENT_PARSER_ENDPOINT e (opcional) STATEMENT_PARSER_API_KEY') }}</li>
@@ -80,4 +97,61 @@
       </details>
     </div>
   </div>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script>
+    window.onReady(function(){
+      const form = document.querySelector('form[enctype="multipart/form-data"]');
+      const overlay = document.getElementById('stmtImportOverlay');
+      const msg = document.getElementById('stmtImportMsg');
+      const btnCancel = document.getElementById('stmtImportCancel');
+      if (!form || !overlay || !msg) return;
+
+      const SHOW_TIMEOUT_MS = 120000; // 2 minutes
+      let t1 = null;
+      let t2 = null;
+
+      function showOverlay(){
+        overlay.classList.remove('d-none');
+        // NOTE: Do NOT disable form controls here.
+        // Disabled inputs are NOT submitted by the browser, which breaks CSRF (and file upload).
+        // We only block interactions visually with the overlay and guard double-submit in the handler below.
+
+        // Optionally disable only the primary submit button (after the submit event has fired).
+        // This prevents impatient double-clicks without affecting form payload.
+        const submitBtn = form.querySelector('button[type="submit"], button.btn.btn-primary');
+        if (submitBtn) submitBtn.setAttribute('disabled', 'disabled');
+
+        // After 90s, soften message
+        t1 = setTimeout(function(){
+          msg.textContent = window.t('Ainda estamos processando… Se o PDF for um scan, pode demorar um pouco mais.');
+        }, 90000);
+
+        // After 2 minutes, warn user about potential timeout
+        t2 = setTimeout(function(){
+          msg.textContent = window.t('Isso está demorando mais de 2 minutos. Se aparecer erro de timeout, tente novamente ou use “Local/OCR”.');
+        }, SHOW_TIMEOUT_MS);
+      }
+
+      form.addEventListener('submit', function(e){
+        // Prevent double-submit (e.g., double click)
+        if (form.dataset.submitted === '1') {
+          e.preventDefault();
+          return;
+        }
+        form.dataset.submitted = '1';
+        showOverlay();
+      });
+
+      if (btnCancel) {
+        btnCancel.addEventListener('click', function(){
+          try { if (t1) clearTimeout(t1); if (t2) clearTimeout(t2); } catch(e) {}
+          // Navigating away will abort the request in the browser.
+          window.location.href = "{{ url_for('finance.account_view', account_id=account.id) }}";
+        });
+      }
+    });
+  </script>
 {% endblock %}

@@ -1,0 +1,57 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'liabilities' %}
+
+{% block finance_content %}
+  <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+    <div>
+      <div class="h5 mb-0">{{ _('Financiamentos') }}</div>
+      <div class="text-secondary small">{{ _('Registre empréstimos, dívidas e outras obrigações.') }}</div>
+    </div>
+    <a class="btn btn-primary btn-sm" href="{{ url_for('finance.liability_new') }}">
+      <i class="bi bi-plus-lg me-1"></i>{{ _('Novo') }}
+    </a>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      {% if liabilities %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th>{{ _('Nome') }}</th>
+                <th>{{ _('Credor') }}</th>
+                <th>{{ _('Moeda') }}</th>
+                <th class="text-end">{{ _('Saldo') }}</th>
+                <th class="text-end">{{ _('Taxa (%)') }}</th>
+                <th>{{ _('Vencimento') }}</th>
+                <th class="text-end">{{ _('Ações') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for l in liabilities %}
+                <tr>
+                  <td class="fw-semibold">{{ l.name }}</td>
+                  <td>{{ l.lender_name }}</td>
+                  <td>{{ l.currency_code or '' }}</td>
+                  <td class="text-end">{{ l.outstanding_fmt }}</td>
+                  <td class="text-end">{{ l.rate_fmt }}</td>
+                  <td>{{ l.maturity_date or '' }}</td>
+                  <td class="text-end">
+                    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.liability_edit', liability_id=l.id) }}">{{ _('Editar') }}</a>
+                    <form method="post" action="{{ url_for('finance.liability_delete', liability_id=l.id) }}" class="d-inline">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                      <button class="btn btn-outline-danger btn-sm" onclick="return confirm('{{ _('Remover?') }}')">{{ _('Excluir') }}</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="text-secondary">{{ _('Nenhum financiamento registrado ainda.') }}</div>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

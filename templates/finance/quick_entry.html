@@ -1,0 +1,271 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'quick_entry' %}
+
+{% block finance_content %}
+  <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+    <div>
+      <div class="h5 mb-0">{{ _('Entrada rápida') }}</div>
+      <div class="text-secondary small">{{ _('Diga ou escreva: categoria, valor e contraparte. Ex.: "Restaurante 23 euros Carrefour".') }}</div>
+    </div>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.accounts_list') }}">{{ _('Voltar') }}</a>
+  </div>
+
+  <div id="qeAlert" class="alert alert-danger d-none" role="alert"></div>
+
+  <div class="card">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-12">
+          <label class="form-label">{{ _('Texto / Voz') }}</label>
+          <div class="input-group">
+            <input class="form-control" id="qeText" placeholder="{{ _('Ex.: Loyer 950 euros BNP') }}" />
+            <button class="btn btn-outline-secondary" type="button" id="qeMicBtn" title="{{ _('Microfone') }}">
+              <i class="bi bi-mic"></i>
+            </button>
+            <button class="btn btn-outline-primary" type="button" id="qeParseBtn">
+              <i class="bi bi-magic me-1"></i>{{ _('Analisar') }}
+            </button>
+          </div>
+          <div class="form-text" id="qeMicHelp"></div>
+        </div>
+      </div>
+
+      <hr class="my-4" />
+
+      <form method="post" id="qeForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+        <div class="row g-3">
+          <div class="col-12 col-lg-4">
+            <label class="form-label">{{ _('Conta') }}</label>
+            <select class="form-select" name="account_id">
+              {% for a in accounts %}
+                <option value="{{ a.id }}" {% if a.id==default_account_id %}selected{% endif %}>{{ a.name }} ({{ a.currency }})</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">{{ _('Por padrão, usamos a primeira conta bancária.') }}</div>
+          </div>
+
+          <div class="col-6 col-lg-2">
+            <label class="form-label">{{ _('Tipo') }}</label>
+            <select class="form-select" name="direction" id="qeDirection">
+              <option value="outflow">{{ _('Saída') }}</option>
+              <option value="inflow">{{ _('Entrada') }}</option>
+            </select>
+          </div>
+
+          <div class="col-6 col-lg-2">
+            <label class="form-label">{{ _('Data') }}</label>
+            <input class="form-control" type="date" name="txn_date" id="qeDate" value="{{ today }}" />
+          </div>
+
+          <div class="col-12 col-lg-4">
+            <label class="form-label">{{ _('Valor') }}</label>
+            <input class="form-control" name="amount" id="qeAmount" placeholder="23.50" required />
+          </div>
+
+          <div class="col-12 col-lg-6">
+            <label class="form-label">{{ _('Categoria') }}</label>
+            <input class="form-control" name="category" id="qeCategory" list="catList" />
+            <datalist id="catList">
+              {% for c in categories %}
+                <option value="{{ c.name }}"></option>
+              {% endfor %}
+            </datalist>
+            <div class="form-text">{{ _('Se não existir, a categoria será criada automaticamente.') }}</div>
+          </div>
+
+          <div class="col-12 col-lg-6">
+            <label class="form-label">{{ _('Contraparte') }}</label>
+            <input class="form-control" name="counterparty" id="qeCounterparty" list="cpList" />
+            <datalist id="cpList">
+              {% for c in counterparties %}
+                <option value="{{ c.name }}"></option>
+              {% endfor %}
+            </datalist>
+            <div class="form-text">{{ _('Se não existir, a contraparte será criada automaticamente.') }}</div>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">{{ _('Descrição') }}</label>
+            <input class="form-control" name="description" id="qeDescription" />
+          </div>
+        </div>
+
+        <div class="mt-3 d-flex gap-2">
+          <button class="btn btn-primary" type="submit">
+            <i class="bi bi-check2-circle me-1"></i>{{ _('Salvar') }}
+          </button>
+          <a class="btn btn-outline-secondary" href="{{ url_for('finance.accounts_list') }}">{{ _('Cancelar') }}</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Overlay -->
+  <div id="qeOverlay" class="position-fixed top-0 start-0 w-100 h-100 d-none" style="background: rgba(0,0,0,.35); z-index: 2000;">
+    <div class="position-absolute top-50 start-50 translate-middle bg-body rounded-4 shadow p-4 text-center" style="max-width: 520px; width: calc(100% - 2rem);">
+      <div class="spinner-border" role="status" aria-hidden="true"></div>
+      <div class="mt-3 fw-semibold" id="qeOverlayTitle">{{ _('Analisando…') }}</div>
+      <div class="text-secondary small mt-1" id="qeOverlayMsg">{{ _('Estamos interpretando sua frase com IA.') }}</div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script>
+    window.onReady(function(){
+      const alertBox = document.getElementById('qeAlert');
+      const overlay = document.getElementById('qeOverlay');
+      const txt = document.getElementById('qeText');
+      const btnParse = document.getElementById('qeParseBtn');
+      const btnMic = document.getElementById('qeMicBtn');
+      const micHelp = document.getElementById('qeMicHelp');
+      const form = document.getElementById('qeForm');
+      const csrf = form.querySelector('input[name="csrf_token"]').value;
+
+      // Simple in-page translations for JS-only messages
+      const LANG = "{{ current_lang }}";
+      const M = {
+        'pt': {
+          voice_unsupported: 'Reconhecimento de voz não suportado neste navegador.',
+          listening: 'Ouvindo…',
+          voice_error: 'Erro de voz: ',
+          empty: 'Digite ou dite uma frase primeiro.',
+          calling_ai: 'Chamando IA…',
+          timeout: 'Timeout após 2 minutos. Tente novamente, ou simplifique a frase.'
+        },
+        'fr': {
+          voice_unsupported: 'Reconnaissance vocale non prise en charge par ce navigateur.',
+          listening: 'Écoute…',
+          voice_error: 'Erreur audio : ',
+          empty: 'Écrivez ou dictez une phrase d\'abord.',
+          calling_ai: 'Appel de l\'IA…',
+          timeout: 'Délai dépassé après 2 minutes. Réessayez ou simplifiez la phrase.'
+        },
+        'en': {
+          voice_unsupported: 'Voice recognition is not supported in this browser.',
+          listening: 'Listening…',
+          voice_error: 'Voice error: ',
+          empty: 'Type or dictate a sentence first.',
+          calling_ai: 'Calling AI…',
+          timeout: 'Timed out after 2 minutes. Try again or simplify the sentence.'
+        }
+      };
+      function msg(key){
+        const d = M[LANG] || M['en'];
+        return (d && d[key]) ? d[key] : (M['en'][key] || key);
+      }
+
+      function showError(msg){
+        alertBox.textContent = msg;
+        alertBox.classList.remove('d-none');
+      }
+      function clearError(){
+        alertBox.classList.add('d-none');
+        alertBox.textContent = '';
+      }
+      function showOverlay(msg){
+        if (msg) document.getElementById('qeOverlayMsg').textContent = msg;
+        overlay.classList.remove('d-none');
+      }
+      function hideOverlay(){
+        overlay.classList.add('d-none');
+      }
+
+      // Voice recognition (browser)
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      let recognition = null;
+      if (!SpeechRecognition) {
+        micHelp.textContent = msg('voice_unsupported');
+        btnMic.setAttribute('disabled', 'disabled');
+      } else {
+        recognition = new SpeechRecognition();
+        const appLang = "{{ current_lang }}";
+        const speechLang = ({
+          'pt': 'pt-BR',
+          'fr': 'fr-FR',
+          'en': 'en-US',
+          'es': 'es-ES',
+          'it': 'it-IT',
+          'de': 'de-DE'
+        })[appLang] || 'en-US';
+        recognition.lang = speechLang;
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        btnMic.addEventListener('click', function(){
+          clearError();
+          try {
+            micHelp.textContent = msg('listening');
+            recognition.start();
+          } catch (e) {
+            // If already started
+          }
+        });
+
+        recognition.onresult = function(event){
+          const res = event.results && event.results[0] && event.results[0][0] ? event.results[0][0].transcript : '';
+          if (res) txt.value = res;
+          micHelp.textContent = '';
+        };
+        recognition.onerror = function(event){
+          micHelp.textContent = '';
+          showError(msg('voice_error') + (event.error || 'unknown'));
+        };
+        recognition.onend = function(){
+          micHelp.textContent = '';
+        };
+      }
+
+      async function parseText(){
+        clearError();
+        const v = (txt.value || '').trim();
+        if (!v) {
+          showError(msg('empty'));
+          return;
+        }
+        showOverlay(msg('calling_ai'));
+        try {
+          const controller = new AbortController();
+          const TIMEOUT_MS = 120000; // 2 minutes
+          const t = setTimeout(function(){
+            try { controller.abort(); } catch(e) {}
+          }, TIMEOUT_MS);
+
+          const resp = await fetch("{{ url_for('finance.ai_parse_quick_entry') }}", {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': csrf
+            },
+            body: JSON.stringify({text: v, lang: "{{ current_lang }}"}),
+            signal: controller.signal
+          });
+          clearTimeout(t);
+          const data = await resp.json();
+          if (!resp.ok || !data || !data.ok) {
+            throw new Error((data && data.error) ? data.error : ('HTTP ' + resp.status));
+          }
+          // Fill the form
+          document.getElementById('qeDirection').value = data.parsed.direction;
+          document.getElementById('qeAmount').value = data.parsed.amount;
+          if (data.parsed.txn_date) document.getElementById('qeDate').value = data.parsed.txn_date;
+          if (data.parsed.category) document.getElementById('qeCategory').value = data.parsed.category;
+          if (data.parsed.counterparty) document.getElementById('qeCounterparty').value = data.parsed.counterparty;
+          if (data.parsed.description) document.getElementById('qeDescription').value = data.parsed.description;
+        } catch (e) {
+          const errMsg = (e && e.name === 'AbortError')
+            ? msg('timeout')
+            : String(e.message || e);
+          showError(errMsg);
+        } finally {
+          hideOverlay();
+        }
+      }
+
+      btnParse.addEventListener('click', parseText);
+    });
+  </script>
+{% endblock %}

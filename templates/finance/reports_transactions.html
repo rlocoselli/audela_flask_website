@@ -1,0 +1,175 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'reports' %}
+
+{% block finance_content %}
+  <div class="position-sticky" style="top: 1rem; z-index: 10;">
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+        <form method="get" class="row g-2 align-items-end">
+          <div class="col-12 col-md-3">
+            <label class="form-label">{{ _('Visão') }}</label>
+            <select class="form-select" name="view" onchange="this.form.submit()">
+              <option value="month" {% if view=='month' %}selected{% endif %}>{{ _('Mês') }}</option>
+              <option value="year" {% if view=='year' %}selected{% endif %}>{{ _('Ano') }}</option>
+            </select>
+          </div>
+
+          <div class="col-6 col-md-2">
+            <label class="form-label">{{ _('Ano') }}</label>
+            <select class="form-select" name="year" onchange="this.form.submit()">
+              {% for y in years %}
+                <option value="{{ y }}" {% if y==year %}selected{% endif %}>{{ y }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-6 col-md-2">
+            <label class="form-label">{{ _('Mês') }}</label>
+            <select class="form-select" name="month" {% if view!='month' %}disabled{% endif %} onchange="this.form.submit()">
+              {% for m in range(1,13) %}
+                <option value="{{ m }}" {% if m==month %}selected{% endif %}>{{ '%02d'|format(m) }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-12 col-md-5 text-md-end">
+            <div class="text-secondary small">
+              {{ _('Período') }}: <span class="fw-semibold">{{ period_label }}</span>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-md-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="text-secondary small">{{ _('Entradas') }}</div>
+          <div class="h4 mb-0">{{ kpis.inflow_fmt }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="text-secondary small">{{ _('Saídas') }}</div>
+          <div class="h4 mb-0">{{ kpis.outflow_fmt }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="text-secondary small">{{ _('Net') }}</div>
+          <div class="h4 mb-0">{{ kpis.net_fmt }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="text-secondary small">{{ _('Transações') }}</div>
+          <div class="h4 mb-0">{{ kpis.count }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-lg-6">
+      <div class="card">
+        <div class="card-body">
+          <div class="fw-semibold mb-2">{{ _('Por categoria') }}</div>
+          {% if by_category %}
+            <div class="table-responsive">
+              <table class="table table-sm align-middle">
+                <thead>
+                  <tr>
+                    <th>{{ _('Categoria') }}</th>
+                    <th class="text-end">{{ _('Net') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in by_category %}
+                    <tr>
+                      <td>{{ row.name }}</td>
+                      <td class="text-end">{{ row.net_fmt }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="text-secondary">{{ _('Sem transações neste período.') }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-6">
+      <div class="card">
+        <div class="card-body">
+          <div class="fw-semibold mb-2">{{ _('Por contraparte') }}</div>
+          {% if by_counterparty %}
+            <div class="table-responsive">
+              <table class="table table-sm align-middle">
+                <thead>
+                  <tr>
+                    <th>{{ _('Contraparte') }}</th>
+                    <th class="text-end">{{ _('Net') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in by_counterparty %}
+                    <tr>
+                      <td>{{ row.name }}</td>
+                      <td class="text-end">{{ row.net_fmt }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="text-secondary">{{ _('Sem transações neste período.') }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mt-3">
+    <div class="card-body">
+      <div class="fw-semibold mb-2">{{ _('Últimas transações do período') }}</div>
+      {% if latest %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th>{{ _('Data') }}</th>
+                <th>{{ _('Descrição') }}</th>
+                <th>{{ _('Categoria') }}</th>
+                <th>{{ _('Contraparte') }}</th>
+                <th class="text-end">{{ _('Valor') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for t in latest %}
+                <tr>
+                  <td>{{ t.txn_date }}</td>
+                  <td>{{ t.description or '' }}</td>
+                  <td>{{ t.category_name }}</td>
+                  <td>{{ t.counterparty_name }}</td>
+                  <td class="text-end">{{ t.amount_fmt }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="text-secondary">{{ _('Sem transações neste período.') }}</div>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

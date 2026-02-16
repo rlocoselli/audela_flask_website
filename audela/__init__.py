@@ -110,4 +110,28 @@ def create_app() -> Flask:
         with app.app_context():
             db.create_all()
 
+            # SQLite dev convenience: add new columns without requiring a manual DB reset.
+            # (In production, use Alembic migrations.)
+            try:
+                from sqlalchemy import text
+
+                uri = str(app.config.get("SQLALCHEMY_DATABASE_URI") or "")
+                if uri.startswith("sqlite"):
+                    engine = db.get_engine()
+                    with engine.begin() as conn:
+                        cols = [
+                            row[1]
+                            for row in conn.execute(text("PRAGMA table_info(finance_transactions);"))
+                        ]
+                        if "gl_account_id" not in cols:
+                            conn.execute(text("ALTER TABLE finance_transactions ADD COLUMN gl_account_id INTEGER"))
+                            conn.execute(
+                                text(
+                                    "CREATE INDEX IF NOT EXISTS ix_finance_transactions_gl_account_id ON finance_transactions (gl_account_id)"
+                                )
+                            )
+            except Exception:
+                # Best effort only; schema issues will surface in logs/errors.
+                pass
+
     return app

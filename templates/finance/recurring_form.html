@@ -1,0 +1,115 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'recurring' %}
+
+{% block finance_content %}
+  <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+    <div>
+      <div class="h5 mb-0">{{ title }}</div>
+      <div class="text-secondary small">{{ _('Valores são armazenados positivos; o sentido (entrada/saída) define o sinal quando gerar.') }}</div>
+    </div>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.recurring_list') }}">{{ _('Voltar') }}</a>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+        <div class="row g-3">
+          <div class="col-12 col-lg-6">
+            <label class="form-label">{{ _('Nome') }}</label>
+            <input class="form-control" name="name" value="{{ form.name }}" required />
+          </div>
+
+          <div class="col-12 col-lg-6">
+            <label class="form-label">{{ _('Conta') }}</label>
+            <select class="form-select" name="account_id" required>
+              {% for a in accounts %}
+                <option value="{{ a.id }}" {% if a.id==form.account_id %}selected{% endif %}>{{ a.name }} ({{ a.currency }})</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-6 col-lg-3">
+            <label class="form-label">{{ _('Tipo') }}</label>
+            <select class="form-select" name="direction">
+              <option value="outflow" {% if form.direction=='outflow' %}selected{% endif %}>{{ _('Saída') }}</option>
+              <option value="inflow" {% if form.direction=='inflow' %}selected{% endif %}>{{ _('Entrada') }}</option>
+            </select>
+          </div>
+
+          <div class="col-6 col-lg-3">
+            <label class="form-label">{{ _('Valor') }}</label>
+            <input class="form-control" name="amount" value="{{ form.amount }}" placeholder="100" required />
+          </div>
+
+          <div class="col-6 col-lg-3">
+            <label class="form-label">{{ _('Moeda') }}</label>
+            <select class="form-select" name="currency">
+              <option value="">—</option>
+              {% for cur in currencies %}
+                <option value="{{ cur.code }}" {% if cur.code==form.currency %}selected{% endif %}>{{ cur.code }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-6 col-lg-3">
+            <label class="form-label">{{ _('Frequência') }}</label>
+            <select class="form-select" name="frequency">
+              {% for opt in ['daily','weekly','monthly','yearly'] %}
+                <option value="{{ opt }}" {% if opt==form.frequency %}selected{% endif %}>{{ opt }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-6 col-lg-3">
+            <label class="form-label">{{ _('Próxima data') }}</label>
+            <input class="form-control" type="date" name="next_run_date" value="{{ form.next_run_date }}" required />
+          </div>
+
+          <div class="col-6 col-lg-3">
+            <label class="form-label">{{ _('Fim (opcional)') }}</label>
+            <input class="form-control" type="date" name="end_date" value="{{ form.end_date }}" />
+          </div>
+
+          <div class="col-12 col-lg-6">
+            <label class="form-label">{{ _('Categoria') }}</label>
+            <input class="form-control" name="category" list="catList" value="{{ form.category }}" />
+            <datalist id="catList">
+              {% for c in categories %}
+                <option value="{{ c.name }}"></option>
+              {% endfor %}
+            </datalist>
+          </div>
+
+          <div class="col-12 col-lg-6">
+            <label class="form-label">{{ _('Contraparte') }}</label>
+            <input class="form-control" name="counterparty" list="cpList" value="{{ form.counterparty }}" />
+            <datalist id="cpList">
+              {% for c in counterparties %}
+                <option value="{{ c.name }}"></option>
+              {% endfor %}
+            </datalist>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">{{ _('Descrição') }}</label>
+            <input class="form-control" name="description" value="{{ form.description }}" />
+          </div>
+
+          <div class="col-12">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="active" value="1" id="activeChk" {% if form.active %}checked{% endif %} />
+              <label class="form-check-label" for="activeChk">{{ _('Ativo') }}</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-3 d-flex gap-2">
+          <button class="btn btn-primary">{{ _('Salvar') }}</button>
+          <a class="btn btn-outline-secondary" href="{{ url_for('finance.recurring_list') }}">{{ _('Cancelar') }}</a>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock %}

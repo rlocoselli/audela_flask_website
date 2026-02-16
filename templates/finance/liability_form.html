@@ -1,0 +1,91 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'liabilities' %}
+
+{% block finance_content %}
+  <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+    <div>
+      <div class="h5 mb-0">{{ title }}</div>
+      <div class="text-secondary small">{{ _('Campos simples (MVP).') }}</div>
+    </div>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.liabilities_list') }}">{{ _('Voltar') }}</a>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+        <div class="row g-3">
+          <div class="col-12 col-lg-6">
+            <label class="form-label">{{ _('Nome') }}</label>
+            <input class="form-control" name="name" value="{{ form.name }}" required />
+          </div>
+
+          <div class="col-12 col-lg-6">
+            <label class="form-label">{{ _('Credor (contraparte)') }}</label>
+            <input class="form-control" name="lender" list="cpList" value="{{ form.lender }}" placeholder="{{ _('Ex.: BNP, Revolut, Banco X, Fornecedor Y') }}" />
+            <datalist id="cpList">
+              {% for c in counterparties %}
+                <option value="{{ c.name }}"></option>
+              {% endfor %}
+            </datalist>
+          </div>
+
+          <div class="col-6 col-lg-3">
+            <label class="form-label">{{ _('Moeda') }}</label>
+            <select class="form-select" name="currency">
+              <option value="">—</option>
+              {% for cur in currencies %}
+                <option value="{{ cur.code }}" {% if cur.code==form.currency %}selected{% endif %}>{{ cur.code }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-6 col-lg-3">
+            <label class="form-label">{{ _('Taxa (%)') }}</label>
+            <input class="form-control" name="interest_rate" value="{{ form.interest_rate }}" placeholder="3.25" />
+          </div>
+
+          <div class="col-6 col-lg-3">
+            <label class="form-label">{{ _('Principal') }}</label>
+            <input class="form-control" name="principal_amount" value="{{ form.principal_amount }}" placeholder="10000" />
+          </div>
+
+          <div class="col-6 col-lg-3">
+            <label class="form-label">{{ _('Saldo atual') }}</label>
+            <input class="form-control" name="outstanding_amount" value="{{ form.outstanding_amount }}" placeholder="8500" />
+          </div>
+
+          <div class="col-6 col-lg-3">
+            <label class="form-label">{{ _('Início') }}</label>
+            <input class="form-control" type="date" name="start_date" value="{{ form.start_date }}" />
+          </div>
+
+          <div class="col-6 col-lg-3">
+            <label class="form-label">{{ _('Vencimento') }}</label>
+            <input class="form-control" type="date" name="maturity_date" value="{{ form.maturity_date }}" />
+          </div>
+
+          <div class="col-12 col-lg-6">
+            <label class="form-label">{{ _('Frequência de pagamento') }}</label>
+            <select class="form-select" name="payment_frequency">
+              {% for opt in ['monthly','quarterly','yearly','other'] %}
+                <option value="{{ opt }}" {% if opt==form.payment_frequency %}selected{% endif %}>{{ opt }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">{{ _('Notas') }}</label>
+            <textarea class="form-control" name="notes" rows="3">{{ form.notes }}</textarea>
+          </div>
+        </div>
+
+        <div class="mt-3 d-flex gap-2">
+          <button class="btn btn-primary">{{ _('Salvar') }}</button>
+          <a class="btn btn-outline-secondary" href="{{ url_for('finance.liabilities_list') }}">{{ _('Cancelar') }}</a>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock %}

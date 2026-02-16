@@ -1,0 +1,63 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'recurring' %}
+
+{% block finance_content %}
+  <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+    <div>
+      <div class="h5 mb-0">{{ _('Transações recorrentes') }}</div>
+      <div class="text-secondary small">{{ _('Configure modelos e gere lançamentos automaticamente...') }}</div>
+    </div>
+    <div class="d-flex gap-2">
+      <form method="post" action="{{ url_for('finance.recurring_generate') }}" class="d-inline">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <button class="btn btn-outline-secondary btn-sm" title="{{ _('Gerar até hoje') }}">
+          <i class="bi bi-play-circle me-1"></i>{{ _('Gerar') }}
+        </button>
+      </form>
+      <a class="btn btn-primary btn-sm" href="{{ url_for('finance.recurring_new') }}">
+        <i class="bi bi-plus-lg me-1"></i>{{ _('Novo') }}
+      </a>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      {% if items %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th>{{ _('Nome') }}</th>
+                <th>{{ _('Conta') }}</th>
+                <th>{{ _('Frequência') }}</th>
+                <th>{{ _('Próxima data') }}</th>
+                <th class="text-end">{{ _('Valor') }}</th>
+                <th class="text-end">{{ _('Ações') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in items %}
+                <tr>
+                  <td class="fw-semibold">{{ r.name }}</td>
+                  <td>{{ r.account_name }}</td>
+                  <td>{{ r.frequency }}</td>
+                  <td>{{ r.next_run_date }}</td>
+                  <td class="text-end">{{ r.amount_fmt }}</td>
+                  <td class="text-end">
+                    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.recurring_edit', recurring_id=r.id) }}">{{ _('Editar') }}</a>
+                    <form method="post" action="{{ url_for('finance.recurring_delete', recurring_id=r.id) }}" class="d-inline">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                      <button class="btn btn-outline-danger btn-sm" onclick="return confirm('{{ _('Remover?') }}')">{{ _('Excluir') }}</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="text-secondary">{{ _('Nenhuma recorrência configurada ainda.') }}</div>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

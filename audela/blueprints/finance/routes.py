@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
-from flask import abort, flash, g, redirect, render_template, request, session, url_for, current_app
+from flask import abort, flash, g, redirect, render_template, request, session, url_for, current_app, jsonify
 from flask_login import current_user, login_required
 from werkzeug.utils import secure_filename
 
@@ -20,10 +20,14 @@ from ...models.finance_ext import (
     FinanceGLAccount,
     FinanceLedgerVoucher,
     FinanceLedgerLine,
+    FinanceLiability,
+    FinanceRecurringTransaction,
 )
 from ...security import require_roles
 from ...services.bank_bridge import BridgeClient, BridgeError
 from ...services.bank_statement import import_bank_statement, StatementImportError
+from ...services.openai_statement import parse_bank_statement_pdf_via_openai, OpenAIStatementError
+from ...services.openai_quick_entry import parse_quick_entry_text_via_openai, OpenAIQuickEntryError
 from ...services.finance_service import (
     compute_basic_risk,
     compute_cashflow,
@@ -862,6 +866,41 @@ def statement_import(account_id: int):
         rows: list[dict] = []
         payload: dict = {"provider": provider, "bank_hint": bank_hint or "auto"}
 
+        # OpenAI Structured Outputs parsing (optional)
+        if provider == "openai":
+            gv_key = (current_app.config.get("GOOGLE_VISION_API_KEY") or "").strip() or None
+            try:
+                bank_detected, parsed_rows, meta = parse_bank_statement_pdf_via_openai(
+                    pdf_bytes,
+                    filename=filename,
+                    default_currency=(acc.currency or company.base_currency or "EUR"),
+                    bank_hint=bank_hint,
+                    google_vision_api_key=gv_key,
+                    max_pages=10,
+                )
+                payload["bank_detected"] = bank_detected
+                payload["meta"] = meta
+                rows = parsed_rows
+            except OpenAIStatementError as j:
+                # Missing key, timeout, schema errors, or OpenAI failure.
+                current_app.logger.warning("OpenAI statement parse failed: %s", str(j))
+                msg = (str(j) or "").strip()
+                if len(msg) > 260:
+                    msg = msg[:260] + "…"
+                # Show the underlying error message to the user (truncated).
+                flash(_("Falha ao importar via OpenAI: {msg}", msg=msg), "error")
+                return redirect(url_for("finance.statement_import", account_id=acc.id))
+            except StatementImportError:
+                flash(_("Falha ao extrair texto do PDF. Tente OCR ou um PDF com texto."), "error")
+                return redirect(url_for("finance.statement_import", account_id=acc.id))
+            except Exception as e:
+                payload["openai_error"] = str(e)[:250]
+                msg = (str(e) or "").strip()
+                if len(msg) > 260:
+                    msg = msg[:260] + "…"
+                flash(_("Falha ao importar via OpenAI: {msg}", msg=msg), "error")
+                return redirect(url_for("finance.statement_import", account_id=acc.id))
+
         # External parsing API (optional)
         if provider == "api":
             endpoint = (current_app.config.get("STATEMENT_PARSER_ENDPOINT") or "").strip()
@@ -1654,3 +1693,814 @@ def reconcile_create_voucher(txn_id: int):
     db.session.commit()
     flash(_("Conciliado."), "success")
     return redirect(url_for("finance.reconciliation"))
+
+
+# -----------------
+# Reports (transactions)
+# -----------------
+
+
+def _fmt_money(value: Decimal | None, currency: str | None) -> str:
+    try:
+        v = Decimal(str(value or 0))
+    except Exception:
+        v = Decimal("0")
+    cur = (currency or "").strip() or "EUR"
+    # Keep simple formatting (no locale dependency)
+    return f"{v.quantize(Decimal('0.01'))} {cur}"
+
+
+def _date_range_from_view(view: str, year: int, month: int) -> tuple[date, date, str]:
+    if view == "year":
+        start = date(year, 1, 1)
+        end = date(year + 1, 1, 1)
+        label = str(year)
+        return start, end, label
+    # default month
+    start = date(year, month, 1)
+    if month == 12:
+        end = date(year + 1, 1, 1)
+    else:
+        end = date(year, month + 1, 1)
+    label = f"{year}-{month:02d}"
+    return start, end, label
+
+
+@bp.route("/reports/transactions")
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def reports_transactions():
+    company = _get_company()
+    view = (request.args.get("view") or "month").strip().lower()
+    if view not in ("month", "year"):
+        view = "month"
+
+    today = date.today()
+    try:
+        year = int(request.args.get("year") or today.year)
+    except Exception:
+        year = today.year
+    try:
+        month = int(request.args.get("month") or today.month)
+    except Exception:
+        month = today.month
+    month = max(1, min(12, month))
+
+    start, end, label = _date_range_from_view(view, year, month)
+    base_cur = company.base_currency or "EUR"
+
+    txns = (
+        _q_txns(company)
+        .filter(FinanceTransaction.txn_date >= start)
+        .filter(FinanceTransaction.txn_date < end)
+        .order_by(FinanceTransaction.txn_date.desc(), FinanceTransaction.id.desc())
+        .all()
+    )
+
+    inflow = Decimal("0")
+    outflow = Decimal("0")
+    net = Decimal("0")
+    by_cat: dict[str, Decimal] = {}
+    by_cp: dict[str, Decimal] = {}
+
+    latest = []
+    for t in txns:
+        amt = Decimal(str(t.amount or 0))
+        net += amt
+        if amt >= 0:
+            inflow += amt
+        else:
+            outflow += abs(amt)
+
+        cat_name = (t.category_ref.name if getattr(t, "category_ref", None) else None) or (t.category or "Sem categoria")
+        cp_name = (t.counterparty_ref.name if getattr(t, "counterparty_ref", None) else None) or (t.counterparty or "—")
+        by_cat[cat_name] = by_cat.get(cat_name, Decimal("0")) + amt
+        by_cp[cp_name] = by_cp.get(cp_name, Decimal("0")) + amt
+
+    def _top_map(d: dict[str, Decimal]):
+        items = sorted(d.items(), key=lambda kv: abs(kv[1]), reverse=True)[:10]
+        return [{"name": k, "net": v, "net_fmt": _fmt_money(v, base_cur)} for k, v in items]
+
+    latest_rows = []
+    for t in txns[:25]:
+        cat_name = (t.category_ref.name if getattr(t, "category_ref", None) else None) or (t.category or "Sem categoria")
+        cp_name = (t.counterparty_ref.name if getattr(t, "counterparty_ref", None) else None) or (t.counterparty or "—")
+        latest_rows.append(
+            {
+                "txn_date": t.txn_date,
+                "description": t.description,
+                "category_name": cat_name,
+                "counterparty_name": cp_name,
+                "amount_fmt": _fmt_money(Decimal(str(t.amount or 0)), base_cur),
+            }
+        )
+
+    years = list(range(today.year - 5, today.year + 1))
+
+    return render_template(
+        "finance/reports_transactions.html",
+        tenant=g.tenant,
+        company=company,
+        view=view,
+        year=year,
+        month=month,
+        years=years,
+        period_label=label,
+        kpis={
+            "inflow_fmt": _fmt_money(inflow, base_cur),
+            "outflow_fmt": _fmt_money(outflow, base_cur),
+            "net_fmt": _fmt_money(net, base_cur),
+            "count": len(txns),
+        },
+        by_category=_top_map(by_cat),
+        by_counterparty=_top_map(by_cp),
+        latest=latest_rows,
+    )
+
+
+# -----------------
+# Liabilities / financing
+# -----------------
+
+
+def _find_or_create_counterparty(company: FinanceCompany, name: str | None) -> FinanceCounterparty | None:
+    nm = (name or "").strip()
+    if not nm:
+        return None
+    existing = (
+        FinanceCounterparty.query
+        .filter_by(tenant_id=g.tenant.id)
+        .filter(FinanceCounterparty.company_id == company.id)
+        .filter(db.func.lower(FinanceCounterparty.name) == nm.lower())
+        .first()
+    )
+    if existing:
+        return existing
+    cp = FinanceCounterparty(tenant_id=g.tenant.id, company_id=company.id, name=nm, kind="other")
+    db.session.add(cp)
+    db.session.flush()
+    return cp
+
+
+def _find_or_create_category(company: FinanceCompany, name: str | None, *, direction: str | None = None) -> FinanceCategory | None:
+    nm = (name or "").strip()
+    if not nm:
+        return None
+    existing = (
+        FinanceCategory.query
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+        .filter(db.func.lower(FinanceCategory.name) == nm.lower())
+        .first()
+    )
+    if existing:
+        return existing
+    kind = "expense"
+    if direction == "inflow":
+        kind = "income"
+    cat = FinanceCategory(tenant_id=g.tenant.id, company_id=company.id, name=nm, kind=kind)
+    db.session.add(cat)
+    db.session.flush()
+    return cat
+
+
+@bp.route("/liabilities")
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def liabilities_list():
+    company = _get_company()
+    items = (
+        FinanceLiability.query
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+        .order_by(FinanceLiability.updated_at.desc())
+        .all()
+    )
+    rows = []
+    for l in items:
+        rows.append(
+            {
+                "id": l.id,
+                "name": l.name,
+                "currency_code": l.currency_code,
+                "maturity_date": l.maturity_date,
+                "lender_name": l.lender.name if l.lender else "",
+                "outstanding_fmt": _fmt_money(Decimal(str(l.outstanding_amount or 0)), l.currency_code or company.base_currency),
+                "rate_fmt": (str(l.interest_rate) if l.interest_rate is not None else ""),
+            }
+        )
+    return render_template(
+        "finance/liabilities_list.html",
+        tenant=g.tenant,
+        company=company,
+        liabilities=rows,
+    )
+
+
+@bp.route("/liabilities/new", methods=["GET", "POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def liability_new():
+    company = _get_company()
+    if request.method == "POST":
+        name = (request.form.get("name") or "").strip()
+        lender_name = (request.form.get("lender") or "").strip()
+        currency = (request.form.get("currency") or "").strip().upper() or None
+        principal = (request.form.get("principal_amount") or "").strip()
+        outstanding = (request.form.get("outstanding_amount") or "").strip()
+        rate = (request.form.get("interest_rate") or "").strip()
+        start_date = (request.form.get("start_date") or "").strip() or None
+        maturity_date = (request.form.get("maturity_date") or "").strip() or None
+        freq = (request.form.get("payment_frequency") or "monthly").strip() or "monthly"
+        notes = (request.form.get("notes") or "").strip() or None
+
+        if not name:
+            flash(_("Preencha o nome."), "error")
+            return redirect(url_for("finance.liability_new"))
+
+        cp = _find_or_create_counterparty(company, lender_name)
+
+        def _dec(v: str) -> Decimal | None:
+            v = (v or "").strip()
+            if not v:
+                return None
+            return Decimal(v.replace(",", "."))
+
+        l = FinanceLiability(
+            tenant_id=g.tenant.id,
+            company_id=company.id,
+            name=name,
+            lender_counterparty_id=cp.id if cp else None,
+            currency_code=currency,
+            principal_amount=_dec(principal),
+            outstanding_amount=_dec(outstanding),
+            interest_rate=_dec(rate),
+            start_date=date.fromisoformat(start_date) if start_date else None,
+            maturity_date=date.fromisoformat(maturity_date) if maturity_date else None,
+            payment_frequency=freq,
+            notes=notes,
+        )
+        db.session.add(l)
+        db.session.commit()
+        flash(_("Financiamento criado."), "success")
+        return redirect(url_for("finance.liabilities_list"))
+
+    return render_template(
+        "finance/liability_form.html",
+        tenant=g.tenant,
+        company=company,
+        title=_("Novo financiamento"),
+        currencies=get_currencies(),
+        counterparties=get_counterparties(company),
+        form={
+            "name": "",
+            "lender": "",
+            "currency": company.base_currency,
+            "principal_amount": "",
+            "outstanding_amount": "",
+            "interest_rate": "",
+            "start_date": "",
+            "maturity_date": "",
+            "payment_frequency": "monthly",
+            "notes": "",
+        },
+    )
+
+
+@bp.route("/liabilities/<int:liability_id>/edit", methods=["GET", "POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def liability_edit(liability_id: int):
+    company = _get_company()
+    l = FinanceLiability.query.filter_by(id=liability_id, tenant_id=g.tenant.id, company_id=company.id).first_or_404()
+
+    if request.method == "POST":
+        name = (request.form.get("name") or "").strip()
+        lender_name = (request.form.get("lender") or "").strip()
+        currency = (request.form.get("currency") or "").strip().upper() or None
+        principal = (request.form.get("principal_amount") or "").strip()
+        outstanding = (request.form.get("outstanding_amount") or "").strip()
+        rate = (request.form.get("interest_rate") or "").strip()
+        start_date = (request.form.get("start_date") or "").strip() or None
+        maturity_date = (request.form.get("maturity_date") or "").strip() or None
+        freq = (request.form.get("payment_frequency") or "monthly").strip() or "monthly"
+        notes = (request.form.get("notes") or "").strip() or None
+
+        if not name:
+            flash(_("Preencha o nome."), "error")
+            return redirect(url_for("finance.liability_edit", liability_id=liability_id))
+
+        cp = _find_or_create_counterparty(company, lender_name)
+
+        def _dec(v: str) -> Decimal | None:
+            v = (v or "").strip()
+            if not v:
+                return None
+            return Decimal(v.replace(",", "."))
+
+        l.name = name
+        l.lender_counterparty_id = cp.id if cp else None
+        l.currency_code = currency
+        l.principal_amount = _dec(principal)
+        l.outstanding_amount = _dec(outstanding)
+        l.interest_rate = _dec(rate)
+        l.start_date = date.fromisoformat(start_date) if start_date else None
+        l.maturity_date = date.fromisoformat(maturity_date) if maturity_date else None
+        l.payment_frequency = freq
+        l.notes = notes
+        db.session.commit()
+        flash(_("Financiamento atualizado."), "success")
+        return redirect(url_for("finance.liabilities_list"))
+
+    return render_template(
+        "finance/liability_form.html",
+        tenant=g.tenant,
+        company=company,
+        title=_("Editar financiamento"),
+        currencies=get_currencies(),
+        counterparties=get_counterparties(company),
+        form={
+            "name": l.name,
+            "lender": l.lender.name if l.lender else "",
+            "currency": l.currency_code or company.base_currency,
+            "principal_amount": str(l.principal_amount or ""),
+            "outstanding_amount": str(l.outstanding_amount or ""),
+            "interest_rate": str(l.interest_rate or ""),
+            "start_date": l.start_date.isoformat() if l.start_date else "",
+            "maturity_date": l.maturity_date.isoformat() if l.maturity_date else "",
+            "payment_frequency": l.payment_frequency or "monthly",
+            "notes": l.notes or "",
+        },
+    )
+
+
+@bp.route("/liabilities/<int:liability_id>/delete", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def liability_delete(liability_id: int):
+    company = _get_company()
+    l = FinanceLiability.query.filter_by(id=liability_id, tenant_id=g.tenant.id, company_id=company.id).first_or_404()
+    db.session.delete(l)
+    db.session.commit()
+    flash(_("Financiamento removido."), "success")
+    return redirect(url_for("finance.liabilities_list"))
+
+
+# -----------------
+# Recurring transactions
+# -----------------
+
+
+def _add_months(d: date, months: int) -> date:
+    y = d.year + (d.month - 1 + months) // 12
+    m = (d.month - 1 + months) % 12 + 1
+    # clamp day
+    day = d.day
+    # days in month
+    if m == 12:
+        next_month = date(y + 1, 1, 1)
+    else:
+        next_month = date(y, m + 1, 1)
+    last_day = (next_month - timedelta(days=1)).day
+    day = min(day, last_day)
+    return date(y, m, day)
+
+
+def _next_date(d: date, freq: str) -> date:
+    if freq == "daily":
+        return d + timedelta(days=1)
+    if freq == "weekly":
+        return d + timedelta(days=7)
+    if freq == "yearly":
+        try:
+            return date(d.year + 1, d.month, d.day)
+        except Exception:
+            # Feb 29 -> Feb 28
+            return date(d.year + 1, d.month, 28)
+    # monthly default
+    return _add_months(d, 1)
+
+
+@bp.route("/recurring")
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def recurring_list():
+    company = _get_company()
+    items = (
+        FinanceRecurringTransaction.query
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+        .order_by(FinanceRecurringTransaction.active.desc(), FinanceRecurringTransaction.next_run_date.asc())
+        .all()
+    )
+    rows = []
+    for r in items:
+        rows.append(
+            {
+                "id": r.id,
+                "name": r.name,
+                "account_name": r.account.name if r.account else "",
+                "frequency": r.frequency,
+                "next_run_date": r.next_run_date,
+                "amount_fmt": _fmt_money(Decimal(str(r.amount or 0)), r.currency_code or (r.account.currency if r.account else company.base_currency)),
+            }
+        )
+    return render_template(
+        "finance/recurring_list.html",
+        tenant=g.tenant,
+        company=company,
+        items=rows,
+    )
+
+
+def _recurring_form_context(company: FinanceCompany, r: FinanceRecurringTransaction | None = None):
+    accounts = _q_accounts(company).order_by(FinanceAccount.name.asc()).all()
+    categories = get_categories(company)
+    counterparties = get_counterparties(company)
+    currencies = get_currencies()
+
+    if r is None:
+        today = date.today().isoformat()
+        return {
+            "accounts": accounts,
+            "categories": categories,
+            "counterparties": counterparties,
+            "currencies": currencies,
+            "form": {
+                "name": "",
+                "account_id": (accounts[0].id if accounts else None),
+                "direction": "outflow",
+                "amount": "",
+                "currency": company.base_currency,
+                "frequency": "monthly",
+                "next_run_date": today,
+                "end_date": "",
+                "category": "",
+                "counterparty": "",
+                "description": "",
+                "active": True,
+            },
+        }
+
+    return {
+        "accounts": accounts,
+        "categories": categories,
+        "counterparties": counterparties,
+        "currencies": currencies,
+        "form": {
+            "name": r.name,
+            "account_id": r.account_id,
+            "direction": r.direction,
+            "amount": str(r.amount),
+            "currency": r.currency_code or company.base_currency,
+            "frequency": r.frequency,
+            "next_run_date": r.next_run_date.isoformat() if r.next_run_date else date.today().isoformat(),
+            "end_date": r.end_date.isoformat() if r.end_date else "",
+            "category": r.category_ref.name if r.category_ref else "",
+            "counterparty": r.counterparty_ref.name if r.counterparty_ref else "",
+            "description": r.description or "",
+            "active": bool(r.active),
+        },
+    }
+
+
+@bp.route("/recurring/new", methods=["GET", "POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def recurring_new():
+    company = _get_company()
+    ctx = _recurring_form_context(company)
+    if request.method == "POST":
+        try:
+            account_id = int(request.form.get("account_id") or 0)
+        except Exception:
+            account_id = 0
+        account = FinanceAccount.query.filter_by(id=account_id, tenant_id=g.tenant.id, company_id=company.id).first()
+        if not account:
+            flash(_("Conta inválida."), "error")
+            return redirect(url_for("finance.recurring_new"))
+
+        name = (request.form.get("name") or "").strip()
+        direction = (request.form.get("direction") or "outflow").strip()
+        amount_raw = (request.form.get("amount") or "").strip()
+        currency = (request.form.get("currency") or "").strip().upper() or None
+        frequency = (request.form.get("frequency") or "monthly").strip()
+        next_run = (request.form.get("next_run_date") or "").strip()
+        end_date = (request.form.get("end_date") or "").strip() or None
+        category_name = (request.form.get("category") or "").strip()
+        cp_name = (request.form.get("counterparty") or "").strip()
+        desc = (request.form.get("description") or "").strip() or None
+        active = bool(request.form.get("active"))
+
+        if not name or not amount_raw or not next_run:
+            flash(_("Preencha nome, valor e próxima data."), "error")
+            return redirect(url_for("finance.recurring_new"))
+
+        cat = _find_or_create_category(company, category_name, direction=direction)
+        cp = _find_or_create_counterparty(company, cp_name)
+
+        amount = Decimal(amount_raw.replace(",", "."))
+
+        r = FinanceRecurringTransaction(
+            tenant_id=g.tenant.id,
+            company_id=company.id,
+            name=name,
+            account_id=account.id,
+            direction=direction if direction in ("inflow", "outflow") else "outflow",
+            amount=amount,
+            currency_code=currency,
+            category_id=cat.id if cat else None,
+            counterparty_id=cp.id if cp else None,
+            description=desc,
+            frequency=frequency if frequency in ("daily", "weekly", "monthly", "yearly") else "monthly",
+            next_run_date=date.fromisoformat(next_run),
+            end_date=date.fromisoformat(end_date) if end_date else None,
+            active=active,
+        )
+        db.session.add(r)
+        db.session.commit()
+        flash(_("Recorrência criada."), "success")
+        return redirect(url_for("finance.recurring_list"))
+
+    return render_template(
+        "finance/recurring_form.html",
+        tenant=g.tenant,
+        company=company,
+        title=_("Nova recorrência"),
+        **ctx,
+    )
+
+
+@bp.route("/recurring/<int:recurring_id>/edit", methods=["GET", "POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def recurring_edit(recurring_id: int):
+    company = _get_company()
+    r = FinanceRecurringTransaction.query.filter_by(id=recurring_id, tenant_id=g.tenant.id, company_id=company.id).first_or_404()
+    ctx = _recurring_form_context(company, r)
+
+    if request.method == "POST":
+        try:
+            account_id = int(request.form.get("account_id") or 0)
+        except Exception:
+            account_id = 0
+        account = FinanceAccount.query.filter_by(id=account_id, tenant_id=g.tenant.id, company_id=company.id).first()
+        if not account:
+            flash(_("Conta inválida."), "error")
+            return redirect(url_for("finance.recurring_edit", recurring_id=recurring_id))
+
+        name = (request.form.get("name") or "").strip()
+        direction = (request.form.get("direction") or "outflow").strip()
+        amount_raw = (request.form.get("amount") or "").strip()
+        currency = (request.form.get("currency") or "").strip().upper() or None
+        frequency = (request.form.get("frequency") or "monthly").strip()
+        next_run = (request.form.get("next_run_date") or "").strip()
+        end_date = (request.form.get("end_date") or "").strip() or None
+        category_name = (request.form.get("category") or "").strip()
+        cp_name = (request.form.get("counterparty") or "").strip()
+        desc = (request.form.get("description") or "").strip() or None
+        active = bool(request.form.get("active"))
+
+        if not name or not amount_raw or not next_run:
+            flash(_("Preencha nome, valor e próxima data."), "error")
+            return redirect(url_for("finance.recurring_edit", recurring_id=recurring_id))
+
+        cat = _find_or_create_category(company, category_name, direction=direction)
+        cp = _find_or_create_counterparty(company, cp_name)
+
+        amount = Decimal(amount_raw.replace(",", "."))
+
+        r.name = name
+        r.account_id = account.id
+        r.direction = direction if direction in ("inflow", "outflow") else "outflow"
+        r.amount = amount
+        r.currency_code = currency
+        r.category_id = cat.id if cat else None
+        r.counterparty_id = cp.id if cp else None
+        r.description = desc
+        r.frequency = frequency if frequency in ("daily", "weekly", "monthly", "yearly") else "monthly"
+        r.next_run_date = date.fromisoformat(next_run)
+        r.end_date = date.fromisoformat(end_date) if end_date else None
+        r.active = active
+
+        db.session.commit()
+        flash(_("Recorrência atualizada."), "success")
+        return redirect(url_for("finance.recurring_list"))
+
+    return render_template(
+        "finance/recurring_form.html",
+        tenant=g.tenant,
+        company=company,
+        title=_("Editar recorrência"),
+        **ctx,
+    )
+
+
+@bp.route("/recurring/<int:recurring_id>/delete", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def recurring_delete(recurring_id: int):
+    company = _get_company()
+    r = FinanceRecurringTransaction.query.filter_by(id=recurring_id, tenant_id=g.tenant.id, company_id=company.id).first_or_404()
+    db.session.delete(r)
+    db.session.commit()
+    flash(_("Recorrência removida."), "success")
+    return redirect(url_for("finance.recurring_list"))
+
+
+@bp.route("/recurring/generate", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def recurring_generate():
+    company = _get_company()
+    target = date.today()
+
+    items = (
+        FinanceRecurringTransaction.query
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id, active=True)
+        .order_by(FinanceRecurringTransaction.next_run_date.asc())
+        .all()
+    )
+
+    created = 0
+    for r in items:
+        next_d = r.next_run_date
+        while next_d and next_d <= target:
+            if r.end_date and next_d > r.end_date:
+                break
+
+            sign = Decimal("1")
+            if r.direction == "outflow":
+                sign = Decimal("-1")
+            amt = sign * Decimal(str(r.amount or 0))
+
+            txn = FinanceTransaction(
+                tenant_id=g.tenant.id,
+                company_id=company.id,
+                account_id=r.account_id,
+                txn_date=next_d,
+                amount=amt,
+                description=r.description or r.name,
+                category_id=r.category_id,
+                category=(r.category_ref.name if r.category_ref else None),
+                counterparty_id=r.counterparty_id,
+                counterparty=(r.counterparty_ref.name if r.counterparty_ref else None),
+            )
+            db.session.add(txn)
+            created += 1
+
+            next_d = _next_date(next_d, r.frequency)
+
+        # update next_run_date to the first date after target
+        if next_d and next_d != r.next_run_date:
+            r.next_run_date = next_d
+
+    db.session.commit()
+    flash(_(f"{created} transações geradas."), "success")
+    return redirect(url_for("finance.recurring_list"))
+
+
+# -----------------
+# Quick entry (+ AI parsing)
+# -----------------
+
+
+def _get_default_account(company: FinanceCompany) -> FinanceAccount | None:
+    acc = (
+        _q_accounts(company)
+        .filter(FinanceAccount.account_type == "bank")
+        .order_by(FinanceAccount.id.asc())
+        .first()
+    )
+    if acc:
+        return acc
+    return _q_accounts(company).order_by(FinanceAccount.id.asc()).first()
+
+
+@bp.route("/quick-entry", methods=["GET", "POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def quick_entry():
+    company = _get_company()
+    accounts = _q_accounts(company).order_by(FinanceAccount.name.asc()).all()
+    categories = get_categories(company)
+    counterparties = get_counterparties(company)
+    default_acc = _get_default_account(company)
+
+    if request.method == "POST":
+        try:
+            account_id = int(request.form.get("account_id") or (default_acc.id if default_acc else 0))
+        except Exception:
+            account_id = default_acc.id if default_acc else 0
+        account = FinanceAccount.query.filter_by(id=account_id, tenant_id=g.tenant.id, company_id=company.id).first()
+        if not account:
+            flash(_("Conta inválida."), "error")
+            return redirect(url_for("finance.quick_entry"))
+
+        direction = (request.form.get("direction") or "outflow").strip()
+        amt_raw = (request.form.get("amount") or "").strip()
+        d_raw = (request.form.get("txn_date") or "").strip()
+        category_name = (request.form.get("category") or "").strip()
+        cp_name = (request.form.get("counterparty") or "").strip()
+        desc = (request.form.get("description") or "").strip() or None
+
+        if not amt_raw:
+            flash(_("Informe o valor."), "error")
+            return redirect(url_for("finance.quick_entry"))
+
+        try:
+            amount = Decimal(amt_raw.replace(",", "."))
+        except Exception:
+            flash(_("Valor inválido."), "error")
+            return redirect(url_for("finance.quick_entry"))
+
+        if amount < 0:
+            amount = abs(amount)
+
+        sign = Decimal("-1") if direction == "outflow" else Decimal("1")
+        signed_amount = sign * amount
+
+        txn_date = date.today()
+        if d_raw:
+            try:
+                txn_date = date.fromisoformat(d_raw)
+            except Exception:
+                pass
+
+        cat = _find_or_create_category(company, category_name, direction=direction)
+        cp = _find_or_create_counterparty(company, cp_name)
+
+        txn = FinanceTransaction(
+            tenant_id=g.tenant.id,
+            company_id=company.id,
+            account_id=account.id,
+            txn_date=txn_date,
+            amount=signed_amount,
+            description=desc,
+            category_id=cat.id if cat else None,
+            category=cat.name if cat else (category_name or None),
+            counterparty_id=cp.id if cp else None,
+            counterparty=cp.name if cp else (cp_name or None),
+        )
+
+        # If category has a default GL mapping, set it.
+        if cat and cat.default_gl_account_id:
+            txn.gl_account_id = cat.default_gl_account_id
+
+        db.session.add(txn)
+        db.session.commit()
+        flash(_("Transação registrada."), "success")
+        return redirect(url_for("finance.account_view", account_id=account.id))
+
+    return render_template(
+        "finance/quick_entry.html",
+        tenant=g.tenant,
+        company=company,
+        accounts=accounts,
+        categories=categories,
+        counterparties=counterparties,
+        default_account_id=(default_acc.id if default_acc else None),
+        today=date.today().isoformat(),
+    )
+
+
+@bp.route("/ai/parse-quick-entry", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def ai_parse_quick_entry():
+    company = _get_company()
+    data = request.get_json(silent=True) or {}
+    text = (data.get("text") or "").strip()
+    lang = (data.get("lang") or "").strip() or getattr(g, "lang", DEFAULT_LANG)
+
+    if not text:
+        return jsonify({"ok": False, "error": _("Texto vazio.")}), 400
+
+    try:
+        parsed = parse_quick_entry_text_via_openai(text, lang=lang, default_currency=company.base_currency or "EUR")
+    except OpenAIQuickEntryError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"{str(e)[:200]}"}), 400
+
+    # Ensure minimum fields
+    try:
+        direction = parsed.get("direction")
+        amount = parsed.get("amount")
+        if direction not in ("inflow", "outflow"):
+            direction = "outflow"
+        # amount returned as number
+        amount_val = float(amount) if amount is not None else 0
+        if amount_val < 0:
+            amount_val = abs(amount_val)
+    except Exception:
+        direction = "outflow"
+        amount_val = 0
+
+    resp = {
+        "direction": direction,
+        "amount": amount_val,
+        "currency": parsed.get("currency"),
+        "category": parsed.get("category"),
+        "counterparty": parsed.get("counterparty"),
+        "description": parsed.get("description"),
+        "txn_date": parsed.get("txn_date"),
+    }
+    return jsonify({"ok": True, "parsed": resp})

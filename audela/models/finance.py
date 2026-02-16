@@ -121,8 +121,17 @@ class FinanceTransaction(db.Model):
     ledger_voucher_id = db.Column(db.Integer, db.ForeignKey("finance_ledger_vouchers.id", ondelete="SET NULL"), nullable=True, index=True)
     reconciled_at = db.Column(db.DateTime, nullable=True)
 
+    # Optional accounting mapping (used for reconciliation / ledger exports)
+    gl_account_id = db.Column(
+        db.Integer,
+        db.ForeignKey("finance_gl_accounts.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     counterparty_ref = db.relationship("FinanceCounterparty")
     category_ref = db.relationship("FinanceCategory", foreign_keys=[category_id])
+    gl_account_ref = db.relationship("FinanceGLAccount", foreign_keys=[gl_account_id])
     reference = db.Column(db.String(120), nullable=True)
 
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)

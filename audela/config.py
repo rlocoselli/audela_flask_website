@@ -1,6 +1,22 @@
 import os
 from urllib.parse import quote_plus
 
+def _sqlite_db_uri(db_filename: str = "audela.db") -> str:
+    """Return a SQLite URI that points to a writable location.
+
+    We deliberately avoid placing the DB next to the source code because many
+    deployments mount the code directory read-only (Docker images, PaaS builds,
+    etc.). Using an "instance" directory also prevents the common
+    "attempt to write a readonly database" SQLite error.
+    """
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+    instance_dir = os.path.join(project_root, "instance")
+    os.makedirs(instance_dir, exist_ok=True)
+    db_path = os.path.join(instance_dir, db_filename)
+    # SQLAlchemy expects forward slashes in SQLite URIs.
+    db_path = db_path.replace("\\", "/")
+    return f"sqlite:///{db_path}"
+
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-change-me")
 
@@ -21,7 +37,7 @@ class Config:
             )
         else:
             # local dev fallback
-            SQLALCHEMY_DATABASE_URI = "sqlite:///audela.db"    
+            SQLALCHEMY_DATABASE_URI = _sqlite_db_uri("audela.db")
             
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
@@ -49,6 +65,20 @@ class Config:
     # Dev convenience: auto-create tables when using SQLite and no migrations yet.
     # In production you should run Alembic migrations instead.
     AUTO_CREATE_DB = os.environ.get("AUTO_CREATE_DB", "true").lower() == "true"
+
+    # -----------------
+    # Optional integrations (read from env)
+    # -----------------
+    # Bank statement parsing
+    MINDEE_API_KEY = os.environ.get("MINDEE_API_KEY", "")
+    GOOGLE_VISION_API_KEY = os.environ.get("GOOGLE_VISION_API_KEY", "")
+    STATEMENT_PARSER_ENDPOINT = os.environ.get("STATEMENT_PARSER_ENDPOINT", "")
+    STATEMENT_PARSER_API_KEY = os.environ.get("STATEMENT_PARSER_API_KEY", "")
+
+    # OpenAI (used by BI/NLQ + optional statement import)
+    OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+    OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "")
+    OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL", "")
 
 
 class DevConfig(Config):

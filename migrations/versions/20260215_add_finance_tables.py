@@ -1,7 +1,7 @@
 """add finance tables
 
 Revision ID: 20260215_add_finance_tables
-Revises: 20260213_add_file_assets_and_folders
+Revises: 20260216_merge_heads
 Create Date: 2026-02-15
 
 """
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = "20260215_add_finance_tables"
-down_revision = "20260213_add_file_assets_and_folders"
+down_revision = "20260216_merge_heads"
 branch_labels = None
 depends_on = None
 
