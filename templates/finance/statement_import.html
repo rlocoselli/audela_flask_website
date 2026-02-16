@@ -1,0 +1,83 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'accounts' %}
+
+{% block finance_content %}
+  <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+    <div>
+      <div class="h5 mb-0">{{ _('Importar extrato bancário (PDF)') }}</div>
+      <div class="text-secondary small">{{ account.name }} · {{ _('Moeda') }}: {{ account.currency }}</div>
+    </div>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.account_view', account_id=account.id) }}">{{ _('Voltar') }}</a>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <div class="alert alert-info">
+        <div class="fw-semibold mb-1">{{ _('Como funciona') }}</div>
+        <ul class="mb-0">
+          <li>{{ _('Você envia um PDF do extrato (texto ou scan).') }}</li>
+          <li>{{ _('O sistema tenta extrair transações (data, descrição, valor) e cria contrapartes automaticamente.') }}</li>
+          <li>{{ _('Mapeamento automático “extrato → categorias” é aplicado por regras (palavras‑chave) e pode ser ajustado nas Configurações.') }}</li>
+          <li>{{ _('Duplicatas são ignoradas automaticamente.') }}</li>
+        </ul>
+      </div>
+
+      <form method="post" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <div class="row g-3">
+          <div class="col-12 col-lg-6">
+            <label class="form-label">{{ _('PDF do extrato') }}</label>
+            <input class="form-control" type="file" name="file" accept="application/pdf,.pdf" required />
+            <div class="form-text">{{ _('Dica: PDFs “texto” importam melhor; scans podem exigir OCR.') }}</div>
+          </div>
+          <div class="col-12 col-lg-3">
+            <label class="form-label">{{ _('Formato do banco') }}</label>
+            <select class="form-select" name="bank">
+              <option value="auto">{{ _('Auto (detectar)') }}</option>
+              <option value="bnp">BNP</option>
+              <option value="sg">SG</option>
+              <option value="revolut">Revolut</option>
+              <option value="generic">{{ _('Genérico') }}</option>
+            </select>
+            <div class="form-text">{{ _('Escolha o banco se a detecção automática falhar.') }}</div>
+          </div>
+          <div class="col-12 col-lg-3">
+            <label class="form-label">{{ _('Método de extração') }}</label>
+            <select class="form-select" name="provider">
+              <option value="auto">{{ _('Auto (local + fallback OCR)') }}</option>
+              <option value="local">{{ _('Local (heurístico)') }}</option>
+              <option value="mindee">{{ _('Mindee (API)') }}</option>
+              <option value="google">{{ _('Google Vision (OCR)') }}</option>
+              <option value="tesseract">{{ _('Tesseract (OCR local)') }}</option>
+              <option value="api">{{ _('API (parser custom)') }}</option>
+            </select>
+            <div class="form-text">
+              {{ _('“Auto” tenta primeiro local e, se necessário, usa Mindee/Google Vision/Tesseract quando configurados no servidor.') }}
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-3 d-flex gap-2">
+          <button class="btn btn-primary">
+            <i class="bi bi-file-earmark-arrow-up me-1"></i>{{ _('Importar') }}
+          </button>
+          <a class="btn btn-outline-secondary" href="{{ url_for('finance.account_view', account_id=account.id) }}">{{ _('Cancelar') }}</a>
+        </div>
+      </form>
+
+      <hr class="my-4" />
+
+      <details>
+        <summary class="text-secondary">{{ _('Configuração (admin)') }}</summary>
+        <div class="mt-2 small text-secondary">
+          <ul>
+            <li>{{ _('Mindee: defina MINDEE_API_KEY') }}</li>
+            <li>{{ _('Google Vision: defina GOOGLE_VISION_API_KEY') }}</li>
+            <li>{{ _('API custom: STATEMENT_PARSER_ENDPOINT e (opcional) STATEMENT_PARSER_API_KEY') }}</li>
+            <li>{{ _('Tesseract: requer dependências locais (tesseract + pdf2image/poppler).') }}</li>
+          </ul>
+        </div>
+      </details>
+    </div>
+  </div>
+{% endblock %}

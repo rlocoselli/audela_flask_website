@@ -1,0 +1,36 @@
+{% extends "finance/layout.html" %}
+
+{% block finance_page %}
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <div>
+      <h1 class="h4 mb-1">{{ _('AUDELA Finance') }}</h1>
+      <div class="text-secondary small">
+        {{ _('Empresa') }}: <span class="fw-semibold">{{ company.name if company else '' }}</span>
+        <a class="ms-2" href="{{ url_for('finance.companies') }}">{{ _('Mudar') }}</a>
+      </div>
+    </div>
+
+    <div class="d-flex align-items-center gap-2">
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.accounts_list') }}">
+        <i class="bi bi-journal-text me-1"></i>{{ _('Contas') }}
+      </a>
+      <a class="btn btn-primary btn-sm" href="{{ url_for('finance.transaction_new') }}">
+        <i class="bi bi-plus-lg me-1"></i>{{ _('Nova transação') }}
+      </a>
+    </div>
+  </div>
+
+  <ul class="nav nav-pills flex-wrap gap-1 mb-4">
+    <li class="nav-item"><a class="nav-link {% if active=='dashboard' %}active{% endif %}" href="{{ url_for('finance.dashboard') }}">{{ _('Visão geral') }}</a></li>
+    <li class="nav-item"><a class="nav-link {% if active=='accounts' %}active{% endif %}" href="{{ url_for('finance.accounts_list') }}">{{ _('Contas') }}</a></li>
+    <li class="nav-item"><a class="nav-link {% if active=='cashflow' %}active{% endif %}" href="{{ url_for('finance.cashflow') }}">{{ _('Cashflow') }}</a></li>
+    <li class="nav-item"><a class="nav-link {% if active=='nii' %}active{% endif %}" href="{{ url_for('finance.nii') }}">{{ _('NII') }}</a></li>
+    <li class="nav-item"><a class="nav-link {% if active=='gaps' %}active{% endif %}" href="{{ url_for('finance.gaps') }}">{{ _('Gaps') }}</a></li>
+    <li class="nav-item"><a class="nav-link {% if active=='liquidity' %}active{% endif %}" href="{{ url_for('finance.liquidity') }}">{{ _('Liquidez') }}</a></li>
+    <li class="nav-item"><a class="nav-link {% if active=='risk' %}active{% endif %}" href="{{ url_for('finance.risk') }}">{{ _('Risco') }}</a></li>
+    <li class="nav-item"><a class="nav-link {% if active=='settings' %}active{% endif %}" href="{{ url_for('finance.settings_categories') }}">{{ _('Configurações') }}</a></li>
+    <li class="nav-item"><a class="nav-link {% if active=='help' %}active{% endif %}" href="{{ url_for('finance.help_page') }}">{{ _('Ajuda') }}</a></li>
+  </ul>
+
+  {% block finance_content %}{% endblock %}
+{% endblock %}

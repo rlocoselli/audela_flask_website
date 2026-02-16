@@ -1,0 +1,77 @@
+{% extends "portal/base_portal.html" %}
+
+{% block title %}{% if title %}{{ title }} – {% endif %}{{ _('AUDELA Finance') }}{% endblock %}
+
+{% block content %}
+  <nav class="navbar navbar-expand-lg border-bottom bg-body sticky-top">
+    <div class="container-fluid">
+      <a class="navbar-brand fw-semibold" href="{{ url_for('finance.dashboard') }}">
+        <i class="bi bi-cash-coin me-1"></i>{{ _('AUDELA Finance') }}
+      </a>
+
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#financeTopNav" aria-controls="financeTopNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="financeTopNav">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('finance.dashboard') }}">{{ _('Visão geral') }}</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('finance.accounts_list') }}">{{ _('Contas') }}</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('finance.banks') }}">{{ _('Bancos') }}</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('finance.reconciliation') }}">{{ _('Reconciliação') }}</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('finance.settings_categories') }}">{{ _('Configurações') }}</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('finance.help_page') }}">{{ _('Ajuda') }}</a></li>
+        </ul>
+
+        <div class="d-flex align-items-center gap-2">
+          <button class="btn btn-outline-secondary btn-sm" type="button" onclick="window.__toggleTheme()" title="{{ _('Tema') }}">
+            <i class="bi bi-moon-stars"></i>
+          </button>
+
+          <div class="dropdown">
+            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown">{{ lang_label(current_lang) }}</button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              {% for code, info in supported_langs.items() %}
+                <li><a class="dropdown-item" href="{{ url_for('public.set_language', lang_code=code, next=request.full_path) }}">{{ info.label }}</a></li>
+              {% endfor %}
+            </ul>
+          </div>
+
+          <a class="btn btn-outline-danger btn-sm" href="{{ url_for('auth.logout') }}">
+            <i class="bi bi-box-arrow-right"></i>
+            <span class="ms-1 d-none d-md-inline">{{ _('Sair') }}</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Flash -->
+  <div class="container-fluid pt-3">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ 'danger' if category in ['error', 'danger'] else ('success' if category in ['success'] else 'secondary') }}" role="alert">
+            {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+  </div>
+
+  <div class="container-fluid pb-4">
+    {% block finance_page %}{% endblock %}
+  </div>
+
+  <footer class="text-center text-secondary py-3 small">
+    <a href="{{ url_for('public.legal_notice') }}" target="_blank" rel="noopener">{{ _('footer.notice') }}</a>
+    <span class="mx-2">·</span>
+    <a href="{{ url_for('public.legal_terms') }}" target="_blank" rel="noopener">{{ _('footer.terms') }}</a>
+    <span class="mx-2">·</span>
+    <a href="{{ url_for('public.legal_privacy') }}" target="_blank" rel="noopener">{{ _('footer.privacy') }}</a>
+    <span class="mx-2">·</span>
+    <a href="{{ url_for('public.legal_retention') }}" target="_blank" rel="noopener">{{ _('footer.retention') }}</a>
+    <span class="mx-2">·</span>
+    <a href="{{ url_for('public.legal_cookies') }}" target="_blank" rel="noopener">{{ _('footer.cookies') }}</a>
+  </footer>
+{% endblock %}

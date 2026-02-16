@@ -1,0 +1,79 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'settings' %}
+
+{% block finance_content %}
+<div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+  <div>
+    <div class="h5 mb-0">{{ _('Contas contábeis') }}</div>
+    <div class="text-secondary small">{{ _('Plano de contas simplificado para reconciliação.') }}</div>
+  </div>
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.settings_categories') }}">{{ _('Voltar às configurações') }}</a>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-lg-4">
+    <div class="card">
+      <div class="card-header fw-semibold">{{ _('Criar conta contábil') }}</div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('finance.settings_gl') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <div class="mb-2">
+            <label class="form-label">{{ _('Código') }}</label>
+            <input class="form-control" name="code" placeholder="512" required />
+          </div>
+          <div class="mb-2">
+            <label class="form-label">{{ _('Nome') }}</label>
+            <input class="form-control" name="name" placeholder="{{ _('Banque') }}" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">{{ _('Tipo') }}</label>
+            <select class="form-select" name="kind">
+              <option value="asset">{{ _('Ativo') }}</option>
+              <option value="liability">{{ _('Passivo') }}</option>
+              <option value="equity">{{ _('Patrimônio') }}</option>
+              <option value="income">{{ _('Receita') }}</option>
+              <option value="expense" selected>{{ _('Despesa') }}</option>
+            </select>
+          </div>
+          <button class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>{{ _('Criar') }}</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-8">
+    <div class="card">
+      <div class="card-header fw-semibold">{{ _('Plano de contas') }}</div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>{{ _('Código') }}</th>
+                <th>{{ _('Nome') }}</th>
+                <th>{{ _('Tipo') }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for gl in gl_accounts %}
+                <tr>
+                  <td class="fw-semibold">{{ gl.code }}</td>
+                  <td>{{ gl.name }}</td>
+                  <td class="text-secondary small">{{ gl.kind }}</td>
+                  <td class="text-end">
+                    <form method="post" action="{{ url_for('finance.gl_delete', gl_id=gl.id) }}" onsubmit="return confirm('{{ _('Remover conta?') }}')">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                      <button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

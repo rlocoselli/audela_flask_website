@@ -1,0 +1,189 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'settings' %}
+
+{% block finance_content %}
+<div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+  <div>
+    <div class="h5 mb-0">{{ _('Configurações') }}</div>
+    <div class="text-secondary small">{{ _('Categorias, regras de mapeamento e contas contábeis sugeridas.') }}</div>
+  </div>
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.settings_gl') }}">
+    <i class="bi bi-list-columns-reverse me-1"></i>{{ _('Contas contábeis') }}
+  </a>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-lg-5">
+    <div class="card">
+      <div class="card-header fw-semibold">{{ _('Criar categoria') }}</div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('finance.settings_categories') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <div class="mb-2">
+            <label class="form-label">{{ _('Nome') }}</label>
+            <input class="form-control" name="name" placeholder="{{ _('Ex.: Frais bancaires') }}" required />
+          </div>
+          <div class="row g-2">
+            <div class="col-6">
+              <label class="form-label">{{ _('Código') }}</label>
+              <input class="form-control" name="code" placeholder="fees" />
+            </div>
+            <div class="col-6">
+              <label class="form-label">{{ _('Tipo') }}</label>
+              <select class="form-select" name="kind">
+                <option value="income">{{ _('Receita') }}</option>
+                <option value="expense" selected>{{ _('Despesa') }}</option>
+                <option value="transfer">{{ _('Transferência') }}</option>
+                <option value="other">{{ _('Outro') }}</option>
+              </select>
+            </div>
+          </div>
+          <div class="mt-2">
+            <label class="form-label">{{ _('Conta contábil padrão') }}</label>
+            <select class="form-select" name="default_gl_account_id">
+              <option value="">—</option>
+              {% for gl in gl_accounts %}
+                <option value="{{ gl.id }}">{{ gl.code }} · {{ gl.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <button class="btn btn-primary mt-3">
+            <i class="bi bi-plus-lg me-1"></i>{{ _('Adicionar') }}
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header fw-semibold">{{ _('Categorias') }}</div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm mb-0 align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>{{ _('Nome') }}</th>
+                <th>{{ _('Tipo') }}</th>
+                <th>{{ _('GL') }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for c in categories %}
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ c.name }}</div>
+                    <div class="text-secondary small">{{ c.code or '' }}</div>
+                  </td>
+                  <td class="text-secondary small">{{ c.kind }}</td>
+                  <td class="text-secondary small">
+                    {% if c.default_gl_account %}{{ c.default_gl_account.code }}{% endif %}
+                  </td>
+                  <td class="text-end">
+                    <form method="post" action="{{ url_for('finance.category_delete', category_id=c.id) }}" onsubmit="return confirm('{{ _('Remover categoria?') }}')">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                      <button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-7">
+    <div class="card">
+      <div class="card-header fw-semibold">{{ _('Regras de mapeamento automático') }}</div>
+      <div class="card-body">
+        <p class="text-secondary small mb-3">
+          {{ _('As regras são avaliadas por prioridade (menor primeiro). Se “palavras‑chave” aparece na descrição, a transação recebe a categoria. Você pode restringir por direção, contraparte e faixa de valor.') }}
+        </p>
+
+        <form method="post" action="{{ url_for('finance.rule_create') }}" class="border rounded p-3 mb-3">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <div class="row g-2">
+            <div class="col-12 col-md-4">
+              <label class="form-label">{{ _('Categoria') }}</label>
+              <select class="form-select" name="category_id" required>
+                {% for c in categories %}
+                  <option value="{{ c.id }}">{{ c.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-6 col-md-2">
+              <label class="form-label">{{ _('Direção') }}</label>
+              <select class="form-select" name="direction">
+                <option value="any">{{ _('Qualquer') }}</option>
+                <option value="inflow">{{ _('Entrada') }}</option>
+                <option value="outflow">{{ _('Saída') }}</option>
+              </select>
+            </div>
+            <div class="col-6 col-md-2">
+              <label class="form-label">{{ _('Prioridade') }}</label>
+              <input class="form-control" name="priority" value="50" />
+            </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label">{{ _('Contraparte (opcional)') }}</label>
+              <select class="form-select" name="counterparty_id">
+                <option value="">—</option>
+                {% for cp in counterparties %}
+                  <option value="{{ cp.id }}">{{ cp.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label">{{ _('Palavras‑chave (separadas por vírgula)') }}</label>
+              <input class="form-control" name="keywords" placeholder="fee, commission, frais" />
+            </div>
+            <div class="col-6">
+              <label class="form-label">{{ _('Valor mínimo (abs)') }}</label>
+              <input class="form-control" name="min_amount" />
+            </div>
+            <div class="col-6">
+              <label class="form-label">{{ _('Valor máximo (abs)') }}</label>
+              <input class="form-control" name="max_amount" />
+            </div>
+          </div>
+          <button class="btn btn-primary mt-3">
+            <i class="bi bi-magic me-1"></i>{{ _('Adicionar regra') }}
+          </button>
+        </form>
+
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>{{ _('Prioridade') }}</th>
+                <th>{{ _('Categoria') }}</th>
+                <th>{{ _('Direção') }}</th>
+                <th>{{ _('Contraparte') }}</th>
+                <th>{{ _('Palavras‑chave') }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in rules %}
+                <tr>
+                  <td class="text-secondary small">{{ r.priority }}</td>
+                  <td class="fw-semibold">{{ r.category.name if r.category else '' }}</td>
+                  <td class="text-secondary small">{{ r.direction }}</td>
+                  <td class="text-secondary small">{{ r.counterparty.name if r.counterparty else '' }}</td>
+                  <td class="text-secondary small">{{ r.keywords or '' }}</td>
+                  <td class="text-end">
+                    <form method="post" action="{{ url_for('finance.rule_delete', rule_id=r.id) }}" onsubmit="return confirm('{{ _('Remover regra?') }}')">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                      <button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

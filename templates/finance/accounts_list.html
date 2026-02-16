@@ -1,0 +1,45 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'accounts' %}
+
+{% block finance_content %}
+  <div class="card">
+    <div class="card-header d-flex align-items-center justify-content-between">
+      <span class="fw-semibold">{{ _('Contas') }}</span>
+      <a class="btn btn-sm btn-primary" href="{{ url_for('finance.account_new') }}">
+        <i class="bi bi-plus-lg me-1"></i>{{ _('Nova conta') }}
+      </a>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+          <thead>
+            <tr>
+              <th>{{ _('Nome') }}</th>
+              <th>{{ _('Tipo') }}</th>
+              <th>{{ _('Side') }}</th>
+              <th>{{ _('Moeda') }}</th>
+              <th class="text-end">{{ _('Saldo') }}</th>
+              <th class="text-end">{{ _('Ações') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for a in accounts %}
+              <tr>
+                <td><a href="{{ url_for('finance.account_view', account_id=a.id) }}">{{ a.name }}</a></td>
+                <td>{{ a.account_type }}</td>
+                <td>{{ a.side }}</td>
+                <td>{{ a.currency }}</td>
+                <td class="text-end">{{ a.balance }}</td>
+                <td class="text-end">
+                  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('finance.account_edit', account_id=a.id) }}">{{ _('Editar') }}</a>
+                </td>
+              </tr>
+            {% else %}
+              <tr><td colspan="6" class="text-center text-secondary py-4">{{ _('Nenhuma conta ainda.') }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+{% endblock %}

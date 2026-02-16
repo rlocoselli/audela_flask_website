@@ -1,0 +1,122 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'help' %}
+
+{% block finance_content %}
+  <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+    <div>
+      <div class="h5 mb-0">{{ _('Ajuda: cálculos e conceitos') }}</div>
+      <div class="text-secondary small">{{ _('Explicações resumidas do que a AUDELA Finance calcula e como.') }}</div>
+    </div>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.dashboard') }}">{{ _('Voltar') }}</a>
+  </div>
+
+  <div class="accordion" id="financeHelp">
+    <div class="accordion-item">
+      <h2 class="accordion-header" id="hCashflow">
+        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#cCashflow" aria-expanded="true" aria-controls="cCashflow">
+          {{ _('Cashflow') }}
+        </button>
+      </h2>
+      <div id="cCashflow" class="accordion-collapse collapse show" aria-labelledby="hCashflow" data-bs-parent="#financeHelp">
+        <div class="accordion-body">
+          <p class="mb-2">{{ _('O cashflow é baseado nas transações importadas ou lançadas manualmente.') }}</p>
+          <ul class="mb-0">
+            <li>{{ _('Entradas: valores positivos; Saídas: valores negativos.') }}</li>
+            <li>{{ _('Categorias (sales/payroll/tax etc) são livres e servem para filtros e agregações.') }}</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="accordion-item">
+      <h2 class="accordion-header" id="hLiquidity">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#cLiquidity" aria-expanded="false" aria-controls="cLiquidity">
+          {{ _('Liquidez') }}
+        </button>
+      </h2>
+      <div id="cLiquidity" class="accordion-collapse collapse" aria-labelledby="hLiquidity" data-bs-parent="#financeHelp">
+        <div class="accordion-body">
+          <p class="mb-2">{{ _('A visão de liquidez estima “caixa disponível” e necessidades por horizonte de tempo.') }}</p>
+          <ul class="mb-0">
+            <li>{{ _('Ativos líquidos (muito simplificado): contas do tipo cash/bank e linhas de crédito (limit).') }}</li>
+            <li>{{ _('Saídas esperadas: passivos (liabilities) com vencimento próximo; entradas esperadas: recebíveis (receivable).') }}</li>
+            <li>{{ _('O sistema agrupa por “maturity_date” (se informado). Sem vencimento, assume bucket “sem data”.') }}</li>
+          </ul>
+          <div class="alert alert-warning mt-3 mb-0">
+            {{ _('Nota: Este cálculo é uma aproximação para PMEs e não substitui metodologia regulatória (LCR/NSFR).') }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="accordion-item">
+      <h2 class="accordion-header" id="hGap">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#cGap" aria-expanded="false" aria-controls="cGap">
+          {{ _('GAP de liquidez') }}
+        </button>
+      </h2>
+      <div id="cGap" class="accordion-collapse collapse" aria-labelledby="hGap" data-bs-parent="#financeHelp">
+        <div class="accordion-body">
+          <p class="mb-2">{{ _('O “gap” é o saldo líquido (entradas - saídas) por intervalo de tempo.') }}</p>
+          <ul class="mb-0">
+            <li>{{ _('Por bucket: soma de ativos com vencimento no bucket menos soma de passivos com vencimento no bucket.') }}</li>
+            <li>{{ _('Também mostramos acumulado (cumulative gap) para ver pressão de liquidez ao longo do tempo.') }}</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="accordion-item">
+      <h2 class="accordion-header" id="hNII">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#cNII" aria-expanded="false" aria-controls="cNII">
+          {{ _('NII (Net Interest Income)') }}
+        </button>
+      </h2>
+      <div id="cNII" class="accordion-collapse collapse" aria-labelledby="hNII" data-bs-parent="#financeHelp">
+        <div class="accordion-body">
+          <p class="mb-2">{{ _('O NII estima receita de juros - custo de juros com base nas contas marcadas como remuneradas.') }}</p>
+          <ul class="mb-0">
+            <li>{{ _('Para cada conta remunerada: juros ≈ balance × annual_rate × (dias/365).') }}</li>
+            <li>{{ _('Ativos geram receita; passivos geram custo (sinal depende do “side” e/ou saldo).') }}</li>
+            <li>{{ _('Para taxa flutuante: use “repricing_date” para posicionar no bucket de repricing (sensibilidade).') }}</li>
+          </ul>
+          <div class="text-secondary small mt-2">{{ _('Você pode ajustar annual_rate e rate_type em cada conta.') }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="accordion-item">
+      <h2 class="accordion-header" id="hRisk">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#cRisk" aria-expanded="false" aria-controls="cRisk">
+          {{ _('Risco') }}
+        </button>
+      </h2>
+      <div id="cRisk" class="accordion-collapse collapse" aria-labelledby="hRisk" data-bs-parent="#financeHelp">
+        <div class="accordion-body">
+          <p class="mb-2">{{ _('A visão de risco é um resumo simples por contraparte e tipo de conta.') }}</p>
+          <ul class="mb-0">
+            <li>{{ _('Exposição (exposure) usa saldo atual e/ou limite para linhas de crédito.') }}</li>
+            <li>{{ _('Concentração por contraparte: mostra onde está a maior dependência (bancos/fornecedores etc).') }}</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="accordion-item">
+      <h2 class="accordion-header" id="hImport">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#cImport" aria-expanded="false" aria-controls="cImport">
+          {{ _('Importação de extratos (PDF)') }}
+        </button>
+      </h2>
+      <div id="cImport" class="accordion-collapse collapse" aria-labelledby="hImport" data-bs-parent="#financeHelp">
+        <div class="accordion-body">
+          <p class="mb-2">{{ _('O parser local tenta identificar linhas com data e valor. Para PDFs escaneados, use uma API/OCR.') }}</p>
+          <ul class="mb-0">
+            <li>{{ _('Quando usar API: configure STATEMENT_PARSER_ENDPOINT e STATEMENT_PARSER_API_KEY no servidor.') }}</li>
+            <li>{{ _('Formato esperado: JSON com lista “transactions” contendo date, amount, description (opcional).') }}</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

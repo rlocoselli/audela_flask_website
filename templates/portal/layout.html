@@ -13,6 +13,7 @@
 
     <nav class="nav flex-column gap-1">
       <a class="nav-link" href="{{ url_for('portal.home') }}"><i class="bi bi-house me-2"></i>{{ _('Home') }}</a>
+      <a class="nav-link" href="{{ url_for('finance.dashboard') }}"><i class="bi bi-cash-coin me-2"></i>{{ _('Finanças') }}</a>
       <a class="nav-link" href="{{ url_for('portal.sources_list') }}"><i class="bi bi-database me-2"></i>{{ _('Fontes') }}</a>
       <a class="nav-link" href="{{ url_for('portal.api_sources_list') }}"><i class="bi bi-plug me-2"></i>{{ _('Fontes API') }}</a>
       <a class="nav-link" href="{{ url_for('portal.etls_list') }}"><i class="bi bi-diagram-3 me-2"></i>{{ _('ETL') }}</a>
@@ -102,6 +103,18 @@
     <div class="container-fluid pb-4">
       {% block portal_content %}{% endblock %}
     </div>
+
+    <footer class="text-center text-secondary py-3 small">
+      <a href="{{ url_for('public.legal_notice') }}" target="_blank" rel="noopener">{{ _('footer.notice') }}</a>
+      <span class="mx-2">·</span>
+      <a href="{{ url_for('public.legal_terms') }}" target="_blank" rel="noopener">{{ _('footer.terms') }}</a>
+      <span class="mx-2">·</span>
+      <a href="{{ url_for('public.legal_privacy') }}" target="_blank" rel="noopener">{{ _('footer.privacy') }}</a>
+      <span class="mx-2">·</span>
+      <a href="{{ url_for('public.legal_retention') }}" target="_blank" rel="noopener">{{ _('footer.retention') }}</a>
+      <span class="mx-2">·</span>
+      <a href="{{ url_for('public.legal_cookies') }}" target="_blank" rel="noopener">{{ _('footer.cookies') }}</a>
+    </footer>
   </div>
 </div>
 
@@ -114,6 +127,7 @@
   <div class="offcanvas-body">
     <div class="nav flex-column gap-1">
       <a class="nav-link" href="{{ url_for('portal.home') }}">{{ _('Home') }}</a>
+      <a class="nav-link" href="{{ url_for('finance.dashboard') }}">{{ _('Finanças') }}</a>
       <a class="nav-link" href="{{ url_for('portal.sources_list') }}">{{ _('Fontes') }}</a>
       <a class="nav-link" href="{{ url_for('portal.sql_editor') }}">{{ _('Editor SQL') }}</a>
       <a class="nav-link" href="{{ url_for('portal.excel_ai') }}">{{ _('Excel IA') }}</a>

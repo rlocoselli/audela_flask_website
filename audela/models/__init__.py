@@ -1,4 +1,15 @@
 from .core import Tenant, User, Role, UserRole
+from .finance import FinanceCompany, FinanceAccount, FinanceTransaction, FinanceReportSnapshot
+from .finance_ref import FinanceCurrency, FinanceCounterparty, FinanceStatementImport
+from .finance_ext import (
+    FinanceCategory,
+    FinanceCategoryRule,
+    FinanceBankConnection,
+    FinanceBankAccountLink,
+    FinanceGLAccount,
+    FinanceLedgerVoucher,
+    FinanceLedgerLine,
+)
 from .bi import (
     DataSource,
     Collection,
@@ -29,5 +40,19 @@ __all__ = [
     "ReportBlock",
     "FileFolder",
     "FileAsset",
+    "FinanceCompany",
+    "FinanceAccount",
+    "FinanceTransaction",
+    "FinanceReportSnapshot",
+    "FinanceCurrency",
+    "FinanceCounterparty",
+    "FinanceStatementImport",
+    "FinanceCategory",
+    "FinanceCategoryRule",
+    "FinanceBankConnection",
+    "FinanceBankAccountLink",
+    "FinanceGLAccount",
+    "FinanceLedgerVoucher",
+    "FinanceLedgerLine",
 ]
 from .etl_catalog import ETLConnection  # noqa: F401

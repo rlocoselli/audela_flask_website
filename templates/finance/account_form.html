@@ -1,0 +1,132 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'accounts' %}
+
+{% block finance_content %}
+  <div class="card">
+    <div class="card-header fw-semibold">
+      {% if account %}{{ _('Editar conta') }}{% else %}{{ _('Nova conta') }}{% endif %}
+    </div>
+    <div class="card-body">
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            <label class="form-label">{{ _('Nome') }}</label>
+            <input class="form-control" name="name" value="{{ account.name if account else '' }}" required />
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label">{{ _('Tipo') }}</label>
+            <select class="form-select" name="account_type">
+              {% set v = account.account_type if account else 'bank' %}
+              {% for t in ['cash','bank','loan','deposit','receivable','payable','credit_line','other'] %}
+                <option value="{{ t }}" {% if v==t %}selected{% endif %}>{{ t }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label">{{ _('Side') }}</label>
+            {% set v = account.side if account else 'asset' %}
+            <select class="form-select" name="side">
+              <option value="asset" {% if v=='asset' %}selected{% endif %}>asset</option>
+              <option value="liability" {% if v=='liability' %}selected{% endif %}>liability</option>
+            </select>
+          </div>
+
+          <div class="col-6 col-md-3">
+            <label class="form-label">{{ _('Moeda') }}</label>
+            {% set cur = account.currency if account else (company.base_currency or 'EUR') %}
+            <select class="form-select" name="currency">
+              {% for ccy in currencies %}
+                <option value="{{ ccy.code }}" {% if ccy.code == cur %}selected{% endif %}>{{ ccy.code }}{% if ccy.name %} — {{ ccy.name }}{% endif %}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">{{ _('Moedas são gerenciadas em Configurações.') }}</div>
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label">{{ _('Saldo') }}</label>
+            <input class="form-control" name="balance" value="{{ account.balance if account else 0 }}" />
+            <div class="form-text">{{ _('Use negativo para passivos, se preferir.') }}</div>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">{{ _('Limite (linha de crédito)') }}</label>
+            <input class="form-control" name="limit_amount" value="{{ account.limit_amount if account else '' }}" />
+          </div>
+
+          <div class="col-12"><hr class="my-1"/></div>
+
+          <div class="col-12 col-md-6">
+            <div class="form-check mt-2">
+              <input class="form-check-input" type="checkbox" name="is_interest_bearing" id="is_interest_bearing" {% if account and account.is_interest_bearing %}checked{% endif %} />
+              <label class="form-check-label" for="is_interest_bearing">{{ _('Conta remunerada / com juros') }}</label>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label">{{ _('Taxa anual (ex: 0.05)') }}</label>
+            <input class="form-control" name="annual_rate" value="{{ account.annual_rate if account else '' }}" />
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label">{{ _('Tipo de taxa') }}</label>
+            {% set v = account.rate_type if account else 'fixed' %}
+            <select class="form-select" name="rate_type">
+              <option value="fixed" {% if v=='fixed' %}selected{% endif %}>fixed</option>
+              <option value="float" {% if v=='float' %}selected{% endif %}>float</option>
+            </select>
+          </div>
+
+          <div class="col-6 col-md-3">
+            <label class="form-label">{{ _('Data de repricing') }}</label>
+            <input class="form-control" type="date" name="repricing_date" value="{{ account.repricing_date if account and account.repricing_date else '' }}" />
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label">{{ _('Data de vencimento') }}</label>
+            <input class="form-control" type="date" name="maturity_date" value="{{ account.maturity_date if account and account.maturity_date else '' }}" />
+          </div>
+
+          <div class="col-12 col-md-6">
+            <label class="form-label">{{ _('Contraparte') }}</label>
+            {% set cp_id = account.counterparty_id if account else None %}
+            <select class="form-select" name="counterparty_id">
+              <option value="">{{ _('(nenhuma)') }}</option>
+              {% for cp in counterparties %}
+                <option value="{{ cp.id }}" {% if cp_id and cp.id == cp_id %}selected{% endif %}>{{ cp.name }}{% if cp.kind %} ({{ cp.kind }}){% endif %}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">{{ _('Escolha uma contraparte existente ou crie uma nova abaixo.') }}</div>
+            <div class="row g-2 mt-1">
+              <div class="col-md-8">
+                <input class="form-control" name="counterparty_name" placeholder="{{ _('Nova contraparte (opcional)') }}" />
+              </div>
+              <div class="col-md-4">
+                <select class="form-select" name="counterparty_kind">
+                  {% for k in ['bank','customer','supplier','employee','tax_authority','other'] %}
+                    <option value="{{ k }}">{{ k }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+            <details class="mt-2">
+              <summary class="text-secondary small">{{ _('Texto livre (legado)') }}</summary>
+              <input class="form-control mt-2" name="counterparty" value="{{ account.counterparty if account else '' }}" placeholder="{{ _('Use apenas se não quiser cadastrar a contraparte.') }}" />
+            </details>
+          </div>
+          <div class="col-12">
+            <label class="form-label">{{ _('Notas') }}</label>
+            <textarea class="form-control" name="notes" rows="3">{{ account.notes if account else '' }}</textarea>
+          </div>
+        </div>
+
+        <div class="mt-4 d-flex gap-2">
+          <button class="btn btn-primary">{{ _('Salvar') }}</button>
+          <a class="btn btn-outline-secondary" href="{{ url_for('finance.accounts_list') }}">{{ _('Cancelar') }}</a>
+        </div>
+      </form>
+
+      {% if account %}
+        <form class="mt-3" method="post" action="{{ url_for('finance.account_delete', account_id=account.id) }}" onsubmit="return confirm('{{ _('Remover esta conta?') }}');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <button class="btn btn-outline-danger">{{ _('Remover') }}</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

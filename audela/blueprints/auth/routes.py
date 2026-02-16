@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from flask import flash, redirect, render_template, request, url_for, g
+from flask import flash, redirect, render_template, request, url_for, g, session
 from flask_login import login_user, logout_user
 
 from ...extensions import db
@@ -54,9 +54,59 @@ def login():
         db.session.commit()
 
         set_current_tenant(CurrentTenant(id=tenant.id, slug=tenant.slug, name=tenant.name))
+        session.pop("app_mode", None)
         return redirect(url_for("portal.home"))
 
     return render_template("portal/login.html")
+
+
+@bp.route("/login/finance", methods=["GET", "POST"])
+def login_finance():
+    """Dedicated login entry point for AUDELA Finance.
+
+    This keeps BI and Finance separated at the UI level.
+    """
+    if request.method == "POST":
+        tenant_slug = request.form.get("tenant_slug", "").strip().lower()
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
+
+        tenant = Tenant.query.filter_by(slug=tenant_slug).first()
+        if not tenant:
+            flash(tr("Tenant não encontrado.", getattr(g, "lang", None)), "error")
+            return render_template("portal/login_finance.html")
+
+        user = User.query.filter_by(tenant_id=tenant.id, email=email).first()
+        if not user or not user.check_password(password):
+            flash(tr("Credenciais inválidas.", getattr(g, "lang", None)), "error")
+            db.session.add(
+                AuditEvent(
+                    tenant_id=tenant.id,
+                    user_id=user.id if user else None,
+                    event_type="auth.login.failed",
+                    payload_json={"email": email, "app": "finance"},
+                )
+            )
+            db.session.commit()
+            return render_template("portal/login_finance.html")
+
+        login_user(user)
+        user.last_login_at = datetime.utcnow()
+        db.session.add(
+            AuditEvent(
+                tenant_id=tenant.id,
+                user_id=user.id,
+                event_type="auth.login.success",
+                payload_json={"email": email, "app": "finance"},
+            )
+        )
+        db.session.commit()
+
+        set_current_tenant(CurrentTenant(id=tenant.id, slug=tenant.slug, name=tenant.name))
+        session["app_mode"] = "finance"
+        return redirect(url_for("finance.dashboard"))
+
+    return render_template("portal/login_finance.html")
 
 
 @bp.route("/logout")

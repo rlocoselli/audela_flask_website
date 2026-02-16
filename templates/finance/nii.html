@@ -1,0 +1,63 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'nii' %}
+
+{% block finance_content %}
+  <div class="card mb-3">
+    <div class="card-header d-flex align-items-center justify-content-between">
+      <span class="fw-semibold">{{ _('NII') }}</span>
+      <form method="get" class="d-flex align-items-center gap-2">
+        <span class="text-secondary small">{{ _('Horizonte (dias)') }}</span>
+        <input class="form-control form-control-sm" style="width: 120px" name="days" value="{{ horizon }}" />
+        <button class="btn btn-sm btn-primary">{{ _('Atualizar') }}</button>
+      </form>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead>
+            <tr>
+              <th>{{ _('Conta') }}</th>
+              <th>{{ _('Side') }}</th>
+              <th class="text-end">{{ _('Saldo') }}</th>
+              <th class="text-end">{{ _('Taxa') }}</th>
+              <th class="text-end">{{ _('NII') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in rows %}
+              <tr>
+                <td><a href="{{ url_for('finance.account_view', account_id=r.account_id) }}">{{ r.name }}</a></td>
+                <td>{{ r.side }}</td>
+                <td class="text-end">{{ r.balance }}</td>
+                <td class="text-end">{{ r.rate }}</td>
+                <td class="text-end">{{ r.nii }}</td>
+              </tr>
+            {% else %}
+              <tr><td colspan="5" class="text-center text-secondary py-4">{{ _('Nenhuma conta com juros configurada.') }}</td></tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th colspan="4" class="text-end">{{ _('Total') }}</th>
+              <th class="text-end">{{ total }}</th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="small text-secondary">{{ _('Dica: marque "Conta remunerada" e defina taxa anual nas contas de empréstimos e depósitos.') }}</div>
+
+  <details class="mt-3">
+    <summary class="text-secondary">{{ _('Como calculamos o NII') }}</summary>
+    <div class="small text-secondary mt-2">
+      <ul>
+        <li>{{ _('Para cada conta remunerada, usamos o saldo atual e a taxa anual (% a.a.).') }}</li>
+        <li>{{ _('Fórmula: NII ≈ saldo × taxa_anual × (dias/360).') }}</li>
+        <li>{{ _('O sinal depende do “side”: ativos (empréstimos) geram NII positivo; passivos (depósitos) negativo.') }}</li>
+        <li>{{ _('Você pode ajustar a taxa por conta para refletir contratos reais.') }}</li>
+      </ul>
+    </div>
+  </details>
+
+{% endblock %}

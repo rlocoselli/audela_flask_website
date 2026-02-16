@@ -1,0 +1,65 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'risk' %}
+
+{% block finance_content %}
+  <div class="row g-3">
+    <div class="col-12 col-lg-6">
+      <div class="card">
+        <div class="card-header fw-semibold">{{ _('Exposição por moeda') }}</div>
+        <div class="card-body">
+          <div id="ccy-chart" style="height: 320px;"></div>
+          <div class="small text-secondary mt-2">{{ _('Sem FX: exposição é soma de saldos por moeda.') }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-6">
+      <div class="card">
+        <div class="card-header fw-semibold">{{ _('Concentração por contraparte (Top 10)') }}</div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm mb-0">
+              <thead>
+                <tr>
+                  <th>{{ _('Contraparte') }}</th>
+                  <th class="text-end">{{ _('Exposição') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for r in res.counterparty %}
+                  <tr>
+                    <td>{{ r.counterparty }}</td>
+                    <td class="text-end">{{ r.exposure }}</td>
+                  </tr>
+                {% else %}
+                  <tr><td colspan="2" class="text-center text-secondary py-4">{{ _('Sem dados suficientes.') }}</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (window.onReady || function(fn){ window.addEventListener('load', fn); })(function(){
+      const data = {{ ccy_chart|tojson }};
+      const dom = document.getElementById('ccy-chart');
+      if (!dom) return;
+      if (!window.echarts) { dom.innerHTML = `<div class="text-secondary small">${(window.t ? window.t("Charts unavailable") : "Charts unavailable")}</div>`; return; }
+      const chart = echarts.init(dom);
+      chart.setOption({
+        tooltip: { trigger: 'item' },
+        series: [{
+          type: 'pie',
+          radius: '70%',
+          data: data,
+          label: { formatter: '{b}: {c}' }
+        }]
+      });
+      setTimeout(() => { try { chart.resize(); } catch(e) {} }, 80);
+      window.addEventListener('resize', () => { try { chart.resize(); } catch(e) {} });
+    });
+  </script>
+{% endblock %}

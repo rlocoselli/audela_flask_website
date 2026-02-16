@@ -39,5 +39,24 @@
   document.addEventListener('DOMContentLoaded', function () {
     var c = document.querySelector('.audela-carousel');
     if (c) initAudelaCarousel(c);
+
+    // Cookie information banner (for essential cookies; hides once acknowledged)
+    try {
+      var banner = document.getElementById('cookie-banner');
+      var btn = document.getElementById('cookie-banner-accept');
+      var key = 'audela_cookie_consent_v1';
+      if (banner && btn) {
+        var existing = localStorage.getItem(key);
+        if (!existing) {
+          banner.style.display = 'block';
+        }
+        btn.addEventListener('click', function(){
+          try { localStorage.setItem(key, 'ack'); } catch(e) {}
+          banner.style.display = 'none';
+        });
+      }
+    } catch (e) {
+      // ignore
+    }
   });
 })();

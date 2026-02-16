@@ -1,0 +1,77 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'accounts' %}
+
+{% block finance_content %}
+  <div class="card">
+    <div class="card-header fw-semibold">{{ _('Nova transação') }}</div>
+    <div class="card-body">
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            <label class="form-label">{{ _('Conta') }}</label>
+            <select class="form-select" name="account_id" required>
+              <option value="">{{ _('Selecione') }}</option>
+              {% for a in accounts %}
+                <option value="{{ a.id }}" {% if selected_account and selected_account.id==a.id %}selected{% endif %}>{{ a.name }} ({{ a.currency }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label">{{ _('Data') }}</label>
+            <input class="form-control" type="date" name="txn_date" value="{{ (txn.txn_date if txn else None) or (request.args.get('date') or '') }}" />
+          </div>
+          <div class="col-6 col-md-3">
+            <label class="form-label">{{ _('Valor') }}</label>
+            <input class="form-control" name="amount" placeholder="ex: 1000 ou -250" required />
+            <div class="form-text">{{ _('Positivo = entrada, negativo = saída') }}</div>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">{{ _('Descrição') }}</label>
+            <input class="form-control" name="description" />
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label">{{ _('Categoria') }}</label>
+            <input class="form-control" name="category" placeholder="sales / payroll / tax" />
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label">{{ _('Contraparte') }}</label>
+            <select class="form-select" name="counterparty_id">
+              <option value="">{{ _('(nenhuma)') }}</option>
+              {% for cp in counterparties %}
+                <option value="{{ cp.id }}">{{ cp.name }}{% if cp.kind %} ({{ cp.kind }}){% endif %}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">{{ _('Ou crie uma nova:') }}</div>
+            <div class="row g-2">
+              <div class="col-8">
+                <input class="form-control mt-1" name="counterparty_name" placeholder="{{ _('Nova contraparte (opcional)') }}" />
+              </div>
+              <div class="col-4">
+                <select class="form-select mt-1" name="counterparty_kind">
+                  {% for k in ['bank','customer','supplier','employee','tax_authority','other'] %}
+                    <option value="{{ k }}">{{ k }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+            <details class="mt-2">
+              <summary class="text-secondary small">{{ _('Texto livre (legado)') }}</summary>
+              <input class="form-control mt-2" name="counterparty" placeholder="{{ _('Use apenas se não quiser cadastrar a contraparte.') }}" />
+            </details>
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label">{{ _('Referência') }}</label>
+            <input class="form-control" name="reference" />
+          </div>
+        </div>
+
+        <div class="mt-4 d-flex gap-2">
+          <button class="btn btn-primary">{{ _('Salvar') }}</button>
+          <a class="btn btn-outline-secondary" href="{{ url_for('finance.dashboard') }}">{{ _('Cancelar') }}</a>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock %}

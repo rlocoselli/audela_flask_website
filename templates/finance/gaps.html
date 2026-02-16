@@ -1,0 +1,68 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'gaps' %}
+
+{% block finance_content %}
+  <div class="card mb-3">
+    <div class="card-header fw-semibold">{{ _('Gaps de taxa / repricing') }} <span class="text-secondary small">· {{ _('As of') }} {{ as_of }}</span></div>
+    <div class="card-body">
+
+      <div class="alert alert-light border small">
+        <i class="bi bi-info-circle me-1"></i>{{ _('Ajuda: veja como os cálculos são feitos em') }} <a href="{{ url_for('finance.help_page') }}">{{ _('Ajuda') }}</a>.
+      </div>
+    
+      <div id="gap-chart" style="height: 320px;"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header fw-semibold">{{ _('Tabela por bucket') }}</div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead>
+            <tr>
+              <th>{{ _('Bucket') }}</th>
+              <th class="text-end">{{ _('Assets') }}</th>
+              <th class="text-end">{{ _('Liabilities') }}</th>
+              <th class="text-end">{{ _('Gap') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in rows %}
+              <tr>
+                <td>{{ r.bucket }}</td>
+                <td class="text-end">{{ r.assets }}</td>
+                <td class="text-end">{{ r.liabilities }}</td>
+                <td class="text-end">{{ r.gap }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ECharts loads after templates; run when DOM is ready.
+    (window.onReady || function(fn){ window.addEventListener('load', fn); })(function(){
+      const data = {{ chart|tojson }};
+      const dom = document.getElementById('gap-chart');
+      if (!dom) return;
+      if (!window.echarts) { dom.innerHTML = `<div class="text-secondary small">${(window.t ? window.t("Charts unavailable") : "Charts unavailable")}</div>`; return; }
+      const chart = echarts.init(dom);
+      chart.setOption({
+        tooltip: { trigger: 'axis' },
+        legend: { data: [window.t('Assets'), window.t('Liabilities'), window.t('Gap')] },
+        xAxis: { type: 'category', data: data.map(d => d.bucket) },
+        yAxis: { type: 'value' },
+        series: [
+          { name: window.t('Assets'), type: 'bar', data: data.map(d => d.assets) },
+          { name: window.t('Liabilities'), type: 'bar', data: data.map(d => d.liabilities) },
+          { name: window.t('Gap'), type: 'line', data: data.map(d => d.gap), smooth: true }
+        ]
+      });
+      setTimeout(() => { try { chart.resize(); } catch(e) {} }, 80);
+      window.addEventListener('resize', () => { try { chart.resize(); } catch(e) {} });
+    });
+  </script>
+{% endblock %}

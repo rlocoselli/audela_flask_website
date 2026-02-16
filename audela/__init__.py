@@ -98,11 +98,13 @@ def create_app() -> Flask:
     from .blueprints.auth import bp as auth_bp
     from .blueprints.portal import bp as portal_bp
     from .blueprints.etl import bp as etl_bp
+    from .blueprints.finance import bp as finance_bp
 
     app.register_blueprint(public_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(portal_bp)
     app.register_blueprint(etl_bp)
+    app.register_blueprint(finance_bp)
     # DEV: ensure core tables exist (use Alembic migrations in production)
     if app.config.get("AUTO_CREATE_DB", False):
         with app.app_context():

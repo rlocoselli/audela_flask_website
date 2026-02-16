@@ -46,8 +46,9 @@
 							<li><a href="{{ url_for('public.metabase') }}">{{ _('BI & Metabase') }}</a></li>
 							</ul>
 						</li>
-							<li><a href="{{ url_for('public.plans') }}">{{ _('Plans BI') }}</a></li>
-							<li><a href="{{ url_for('auth.login') }}">{{ _('Área BI') }}</a></li>
+						<li><a href="{{ url_for('public.plans') }}">{{ _('Plans BI') }}</a></li>
+						<li><a href="{{ url_for('auth.login_finance') }}">{{ _('AUDELA Finance') }}</a></li>
+						<li><a href="{{ url_for('auth.login') }}">{{ _('AUDELA BI') }}</a></li>
 							<li><a href="{{ url_for('public.index') }}#five" class="button primary scrolly">{{ _('Contact') }}</a></li>
 							<li>
 								<a href="#">{{ lang_label(current_lang) }}</a>
@@ -81,10 +82,33 @@
 					<a href="tel:+33764142031">+33 07 64 14 20 31</a>
 				</p>
 
+				<p class="legal-links">
+					<a href="{{ url_for('public.legal_notice') }}">{{ _('footer.notice') }}</a>
+					<span class="sep">·</span>
+					<a href="{{ url_for('public.legal_terms') }}">{{ _('footer.terms') }}</a>
+					<span class="sep">·</span>
+					<a href="{{ url_for('public.legal_privacy') }}">{{ _('footer.privacy') }}</a>
+					<span class="sep">·</span>
+					<a href="{{ url_for('public.legal_retention') }}">{{ _('footer.retention') }}</a>
+					<span class="sep">·</span>
+					<a href="{{ url_for('public.legal_cookies') }}">{{ _('footer.cookies') }}</a>
+				</p>
+
 				<ul class="copyright">
 					<li>&copy; AUDELA. {{ _('Tous droits réservés.') }}</li>
 				</ul>
 			</footer>
+
+			<!-- Cookie information banner (essential cookies only by default) -->
+			<div id="cookie-banner" class="cookie-banner" style="display:none;">
+				<div class="cookie-banner__inner">
+					<div class="cookie-banner__text">{{ _('cookie.banner.text') }}</div>
+					<div class="cookie-banner__actions">
+						<a class="button small" href="{{ url_for('public.legal_cookies') }}">{{ _('cookie.banner.learn_more') }}</a>
+						<button class="button primary small" type="button" id="cookie-banner-accept">{{ _('cookie.banner.accept') }}</button>
+					</div>
+				</div>
+			</div>
 
 		</div>
 

@@ -47,6 +47,36 @@ def plans():
     return render_template("plans.html")
 
 
+# -----------------
+# Legal pages
+# -----------------
+
+
+@bp.route("/legal/terms")
+def legal_terms():
+    return render_template("legal/terms.html")
+
+
+@bp.route("/legal/privacy")
+def legal_privacy():
+    return render_template("legal/privacy.html")
+
+
+@bp.route("/legal/cookies")
+def legal_cookies():
+    return render_template("legal/cookies.html")
+
+
+@bp.route("/legal/retention")
+def legal_retention():
+    return render_template("legal/retention.html")
+
+
+@bp.route("/legal/notice")
+def legal_notice():
+    return render_template("legal/notice.html")
+
+
 @bp.route("/left-sidebar")
 def left_sidebar():
     return render_template("left-sidebar.html")

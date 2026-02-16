@@ -32,3 +32,9 @@ requests==2.32.3
 
 
 PyYAML==6.0.2
+
+pdfplumber==0.11.4
+
+# OCR / image conversion (optional at runtime, system deps required)
+pdf2image==1.17.0
+pytesseract==0.3.10

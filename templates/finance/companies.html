@@ -1,0 +1,83 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'dashboard' %}
+
+{% block finance_content %}
+  <div class="row g-3">
+    <div class="col-12 col-lg-7">
+      <div class="card">
+        <div class="card-header fw-semibold">{{ _('Empresas') }}</div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm mb-0">
+              <thead>
+                <tr>
+                  <th>{{ _('Nome') }}</th>
+                  <th>{{ _('Slug') }}</th>
+                  <th>{{ _('Moeda base') }}</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for c in companies %}
+                  <tr>
+                    <td>{{ c.name }}</td>
+                    <td class="text-secondary">{{ c.slug }}</td>
+                    <td>{{ c.base_currency }}</td>
+                    <td class="text-end">
+                      {% if company and company.id == c.id %}
+                        <span class="badge text-bg-success">{{ _('Selecionada') }}</span>
+                      {% else %}
+                        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('finance.company_select', company_id=c.id) }}">{{ _('Selecionar') }}</a>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% else %}
+                  <tr><td colspan="4" class="text-center text-secondary py-4">{{ _('Nenhuma empresa ainda.') }}</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-5">
+      <div class="card">
+        <div class="card-header fw-semibold">{{ _('Nova empresa') }}</div>
+        <div class="card-body">
+          <form method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <div class="mb-2">
+              <label class="form-label">{{ _('Nome') }}</label>
+              <input class="form-control" name="name" placeholder="Ex: ACME SARL" required />
+            </div>
+            <div class="mb-2">
+              <label class="form-label">{{ _('Slug') }}</label>
+              <input class="form-control" name="slug" placeholder="ex: acme" required />
+              <div class="form-text">{{ _('Usado na organização interna. Sem espaços.') }}</div>
+            </div>
+            <div class="row g-2">
+              <div class="col-6">
+                <label class="form-label">{{ _('Moeda base') }}</label>
+                <select class="form-select" name="base_currency">
+                  {% for ccy in currencies %}
+                    <option value="{{ ccy.code }}" {% if ccy.code == 'EUR' %}selected{% endif %}>{{ ccy.code }}{% if ccy.name %} — {{ ccy.name }}{% endif %}</option>
+                  {% endfor %}
+                </select>
+                <div class="form-text">{{ _('Gerencie moedas em Configurações.') }}</div>
+              </div>
+              <div class="col-6">
+                <label class="form-label">{{ _('País') }}</label>
+                <input class="form-control" name="country" placeholder="FR" />
+              </div>
+            </div>
+            <div class="mt-3">
+              <button class="btn btn-primary">{{ _('Criar') }}</button>
+              <a class="btn btn-outline-secondary" href="{{ url_for('finance.dashboard') }}">{{ _('Voltar') }}</a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

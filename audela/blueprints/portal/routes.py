@@ -4,7 +4,7 @@ from datetime import datetime
 
 import json
 
-from flask import abort, flash, g, jsonify, make_response, redirect, render_template, request, url_for, send_file
+from flask import abort, flash, g, jsonify, make_response, redirect, render_template, request, url_for, send_file, session
 from flask_login import current_user, login_required
 
 from ...extensions import db
@@ -88,6 +88,9 @@ def _audit(event_type: str, payload: dict | None = None) -> None:
 @login_required
 def home():
     _require_tenant()
+    # If the user entered via the dedicated AUDELA Finance login, keep them in Finance.
+    if session.get("app_mode") == "finance":
+        return redirect(url_for("finance.dashboard"))
     # Show main dashboard (if any) and recent dashboards on home
     main = None
     try:
@@ -145,6 +148,9 @@ def sources_new():
         sqlite_path = (parts.get('sqlite_path') or '').strip()
 
         from sqlalchemy.engine import URL
+
+        if ds_type == 'audela_finance':
+            return 'internal://audela_finance'
 
         if ds_type == 'postgres':
             return str(URL.create(
@@ -503,6 +509,9 @@ def sources_edit(source_id: int):
 
         from sqlalchemy.engine import URL
 
+        if ds_type == 'audela_finance':
+            return 'internal://audela_finance'
+
         if ds_type == 'postgres':
             return str(URL.create(
                 'postgresql+psycopg2',
@@ -804,6 +813,9 @@ def api_sources_test_connection():
 
         from sqlalchemy.engine import URL
 
+        if ds_type == "audela_finance":
+            return "internal://audela_finance"
+
         if ds_type == "postgres":
             return str(
                 URL.create(
@@ -897,12 +909,8 @@ def api_sources_test_connection():
     if not parts["password"] and existing_pwd:
         parts["password"] = existing_pwd
         
-    print(parts["password"])
-
     if use_builder == "1" or not url:
         url = _build_url_from_parts(ds_type, parts)
-
-    print(url)
     
     # If URL has redacted password (***), inject the real one from parts
     try:

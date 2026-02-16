@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}{{ _('legal.cookies.title') }} – AUDELA{% endblock %}
+
+{% block content %}
+<section id="main" class="wrapper style1">
+  <div class="container">
+    <header class="major">
+      <h2>{{ _('legal.cookies.title') }}</h2>
+      <p class="muted">{{ _('legal.last_updated', date='2026-02-15') }}</p>
+    </header>
+
+    <div class="legal-content">
+      {{ _('legal.cookies.body_html')|safe }}
+
+      <div class="legal-actions">
+        <button class="button small" type="button" id="reset-cookie-consent">{{ _('cookie.banner.reset') }}</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  (function(){
+    const btn = document.getElementById('reset-cookie-consent');
+    if (!btn) return;
+    btn.addEventListener('click', function(){
+      try {
+        localStorage.removeItem('audela_cookie_consent_v1');
+        alert({{ _('cookie.banner.reset_done')|tojson }});
+      } catch(e) {
+        alert({{ _('cookie.banner.reset_done')|tojson }});
+      }
+    });
+  })();
+</script>
+{% endblock %}

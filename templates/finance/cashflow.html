@@ -1,0 +1,90 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'cashflow' %}
+
+{% block finance_content %}
+  <div class="card mb-3">
+    <div class="card-header fw-semibold">{{ _('Cashflow') }}</div>
+    <div class="card-body">
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-12 col-md-3">
+          <label class="form-label">{{ _('Início') }}</label>
+          <input class="form-control" type="date" name="start" value="{{ start }}" />
+        </div>
+        <div class="col-12 col-md-3">
+          <label class="form-label">{{ _('Fim') }}</label>
+          <input class="form-control" type="date" name="end" value="{{ end }}" />
+        </div>
+        <div class="col-12 col-md-3">
+          <label class="form-label">{{ _('Saldo inicial') }}</label>
+          <input class="form-control" name="starting" value="{{ starting }}" />
+        </div>
+        <div class="col-12 col-md-3">
+          <button class="btn btn-primary w-100">{{ _('Atualizar') }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <div id="cashflow-chart" style="height: 360px;"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header fw-semibold">{{ _('Detalhe diário') }}</div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead>
+            <tr>
+              <th>{{ _('Data') }}</th>
+              <th class="text-end">{{ _('Entradas') }}</th>
+              <th class="text-end">{{ _('Saídas') }}</th>
+              <th class="text-end">{{ _('Net') }}</th>
+              <th class="text-end">{{ _('Saldo') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in series[:60] %}
+              <tr>
+                <td>{{ p.day }}</td>
+                <td class="text-end">{{ p.inflow }}</td>
+                <td class="text-end">{{ p.outflow }}</td>
+                <td class="text-end">{{ p.net }}</td>
+                <td class="text-end">{{ p.balance }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if series|length > 60 %}
+        <div class="p-3 small text-secondary">{{ _('Mostrando primeiros 60 dias. Ajuste o período para ver outros dias.') }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <script>
+    // ECharts is loaded at the end of the page; run when DOM is ready.
+    (window.onReady || function(fn){ window.addEventListener('load', fn); })(function(){
+      const data = {{ chart|tojson }};
+      const dom = document.getElementById('cashflow-chart');
+      if (!dom) return;
+      if (!window.echarts) { dom.innerHTML = `<div class="text-secondary small">${(window.t ? window.t("Charts unavailable") : "Charts unavailable")}</div>`; return; }
+      const chart = echarts.init(dom);
+      chart.setOption({
+        tooltip: { trigger: 'axis' },
+        legend: { data: [window.t('Saldo'), window.t('Entradas'), window.t('Saídas')] },
+        xAxis: { type: 'category', data: data.map(d => d.day) },
+        yAxis: { type: 'value' },
+        series: [
+          { name: window.t('Saldo'), type: 'line', data: data.map(d => d.balance), smooth: true },
+          { name: window.t('Entradas'), type: 'bar', data: data.map(d => d.inflow), stack: 'cf' },
+          { name: window.t('Saídas'), type: 'bar', data: data.map(d => -d.outflow), stack: 'cf' }
+        ]
+      });
+      setTimeout(() => { try { chart.resize(); } catch(e) {} }, 80);
+      window.addEventListener('resize', () => { try { chart.resize(); } catch(e) {} });
+    });
+  </script>
+{% endblock %}

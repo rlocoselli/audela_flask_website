@@ -1,0 +1,81 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'accounts' %}
+
+{% block finance_content %}
+<div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+  <div>
+    <div class="h5 mb-0">{{ _('Reconciliação') }}</div>
+    <div class="text-secondary small">{{ _('Associe transações bancárias a contas contábeis (cria um lançamento simples).') }}</div>
+  </div>
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.settings_gl') }}">
+    <i class="bi bi-gear me-1"></i>{{ _('Configurar contas contábeis') }}
+  </a>
+</div>
+
+<div class="alert alert-info small">
+  <div class="fw-semibold">{{ _('Como é feito') }}</div>
+  <ul class="mb-0">
+    <li>{{ _('Para cada transação, você escolhe uma conta contábil (ou a sugestão da categoria).') }}</li>
+    <li>{{ _('O sistema cria um voucher com duas linhas: Banco (512) ↔ Conta escolhida.') }}</li>
+    <li>{{ _('Você pode depois exportar/ajustar conforme sua contabilidade.') }}</li>
+  </ul>
+</div>
+
+<div class="card">
+  <div class="card-header fw-semibold">{{ _('Transações (90 dias)') }}</div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>{{ _('Data') }}</th>
+            <th>{{ _('Conta') }}</th>
+            <th>{{ _('Descrição') }}</th>
+            <th>{{ _('Valor') }}</th>
+            <th>{{ _('Categoria') }}</th>
+            <th>{{ _('Conciliado') }}</th>
+            <th style="width:260px;">{{ _('Ação') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in txns %}
+            <tr>
+              <td class="text-secondary small">{{ t.txn_date.strftime('%Y-%m-%d') }}</td>
+              <td class="text-secondary small">{{ t.account.name if t.account else '' }}</td>
+              <td>{{ t.description }}</td>
+              <td class="text-end fw-semibold">{{ '%.2f'|format(t.amount) }}</td>
+              <td class="text-secondary small">{{ t.category_ref.name if t.category_ref else (t.category or '') }}</td>
+              <td>
+                {% if t.ledger_voucher_id %}
+                  <span class="badge bg-success">{{ _('Sim') }}</span>
+                {% else %}
+                  <span class="badge bg-secondary">{{ _('Não') }}</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if not t.ledger_voucher_id %}
+                  <form class="d-flex gap-2" method="post" action="{{ url_for('finance.reconcile_create_voucher', txn_id=t.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                    <select class="form-select form-select-sm" name="gl_account_id">
+                      <option value="">{{ _('Conta contábil…') }}</option>
+                      {% for g in gl_accounts %}
+                        <option value="{{ g.id }}"
+                          {% if t.gl_account_id and t.gl_account_id == g.id %}selected{% endif %}
+                          {% if t.category_ref and t.category_ref.default_gl_account_id and t.category_ref.default_gl_account_id == g.id %}selected{% endif %}
+                        >{{ g.code }} – {{ g.name }}</option>
+                      {% endfor %}
+                    </select>
+                    <button class="btn btn-primary btn-sm">{{ _('Conciliar') }}</button>
+                  </form>
+                {% else %}
+                  <span class="text-secondary small">{{ _('Voucher') }} #{{ t.ledger_voucher_id }}</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

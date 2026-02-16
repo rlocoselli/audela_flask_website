@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}{{ _('legal.terms.title') }} – AUDELA{% endblock %}
+
+{% block content %}
+<section id="main" class="wrapper style1">
+  <div class="container">
+    <header class="major">
+      <h2>{{ _('legal.terms.title') }}</h2>
+      <p class="muted">{{ _('legal.last_updated', date='2026-02-15') }}</p>
+    </header>
+
+    <div class="legal-content">
+      {{ _('legal.terms.body_html')|safe }}
+    </div>
+  </div>
+</section>
+{% endblock %}

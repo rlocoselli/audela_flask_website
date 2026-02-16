@@ -39,6 +39,10 @@
       return 'sqlite:///' + sqlitePath;
     }
 
+    if (type === 'audela_finance') {
+      return 'internal://audela_finance';
+    }
+
     const auth = user ? (enc(user) + (pass ? (':' + enc(pass)) : '') + '@') : '';
     const hp = host ? host : '';
     const pp = port ? (':' + port) : '';
@@ -80,6 +84,10 @@
     if (s.toLowerCase().startsWith('sqlite:')) {
       const p = s.replace(/^sqlite:\/*/i, '');
       return { type: 'sqlite', sqlite_path: p ? '/' + p.replace(/^\/*/, '') : '' };
+    }
+
+    if (s.toLowerCase().startsWith('internal://audela_finance')) {
+      return { type: 'audela_finance' };
     }
 
     try {
@@ -181,24 +189,26 @@
       const isSqlite = type === 'sqlite';
       const isSqlserver = type === 'sqlserver';
       const isOracle = type === 'oracle';
+      const isInternal = type === 'audela_finance';
 
-      show(sqliteRow, isSqlite);
+      show(sqliteRow, isSqlite && !isInternal);
 
-      show(hostRow, !isSqlite);
-      show(portRow, !isSqlite);
-      show(dbRow, !isSqlite);
-      show(userRow, !isSqlite);
-      show(passRow, !isSqlite);
+      show(hostRow, !isSqlite && !isInternal);
+      show(portRow, !isSqlite && !isInternal);
+      show(dbRow, !isSqlite && !isInternal);
+      show(userRow, !isSqlite && !isInternal);
+      show(passRow, !isSqlite && !isInternal);
 
-      show(driverRow, isSqlserver);
-      show(serviceRow, isOracle);
-      show(sidRow, isOracle);
+      show(driverRow, isSqlserver && !isInternal);
+      show(serviceRow, isOracle && !isInternal);
+      show(sidRow, isOracle && !isInternal);
 
       // placeholders
       if (type === 'postgres') urlInp.placeholder = 'postgresql+psycopg2://user:pass@host:5432/dbname';
       else if (type === 'mysql') urlInp.placeholder = 'mysql+pymysql://user:pass@host:3306/dbname';
       else if (type === 'sqlserver') urlInp.placeholder = 'mssql+pyodbc://user:pass@host:1433/dbname?driver=ODBC+Driver+18+for+SQL+Server';
       else if (type === 'oracle') urlInp.placeholder = 'oracle+oracledb://user:pass@host:1521/?service_name=ORCLPDB1';
+      else if (type === 'audela_finance') urlInp.placeholder = 'internal://audela_finance';
       else if (type === 'sqlite') urlInp.placeholder = 'sqlite:////abs/path/file.db';
 
       // defaults

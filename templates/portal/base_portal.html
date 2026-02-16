@@ -35,6 +35,20 @@
         return String(s).replace(/\{(\w+)\}/g, function(_, key){ return (key in v) ? v[key] : _; });
       };
 
+      // Run callback when DOM is ready (and still works if called after load).
+      window.onReady = function (fn) {
+        try {
+          if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            setTimeout(fn, 0);
+          } else {
+            document.addEventListener('DOMContentLoaded', fn, { once: true });
+          }
+        } catch (e) {
+          // Last resort
+          try { setTimeout(fn, 0); } catch (__) {}
+        }
+      };
+
       // Theme (Bootstrap 5.3) - persisted in localStorage
       (function(){
         const key = 'audela_theme';

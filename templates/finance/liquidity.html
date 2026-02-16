@@ -1,0 +1,61 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'liquidity' %}
+
+{% block finance_content %}
+  <div class="card mb-3">
+    <div class="card-header d-flex align-items-center justify-content-between">
+      <span class="fw-semibold">{{ _('Liquidez') }}</span>
+      <form method="get" class="d-flex align-items-center gap-2">
+        <span class="text-secondary small">{{ _('Horizonte (dias)') }}</span>
+        <input class="form-control form-control-sm" style="width: 120px" name="days" value="{{ horizon }}" />
+        <button class="btn btn-sm btn-primary">{{ _('Atualizar') }}</button>
+      </form>
+    </div>
+    <div class="card-body">
+
+      <div class="alert alert-light border small">
+        <i class="bi bi-info-circle me-1"></i>{{ _('Ajuda: veja como os cálculos são feitos em') }} <a href="{{ url_for('finance.help_page') }}">{{ _('Ajuda') }}</a>.
+      </div>
+    
+      <div class="row g-3">
+        <div class="col-12 col-md-6">
+          <div class="p-3 border rounded">
+            <div class="text-secondary small mb-1">{{ _('Total fontes') }}</div>
+            <div class="h4 mb-0">{{ res.total_sources }}</div>
+            <div class="small text-secondary">{{ _('Caixa') }}: {{ res.sources_cash }} · {{ _('Linhas disponíveis') }}: {{ res.sources_lines }}</div>
+          </div>
+        </div>
+        <div class="col-12 col-md-6">
+          <div class="p-3 border rounded">
+            <div class="text-secondary small mb-1">{{ _('Saídas esperadas') }}</div>
+            <div class="h4 mb-0">{{ res.uses_short_liab }}</div>
+            <div class="small text-secondary">{{ _('Passivos com vencimento ≤ horizonte') }}</div>
+          </div>
+        </div>
+      </div>
+
+      <hr />
+
+      <div class="row g-3">
+        <div class="col-12 col-md-6">
+          <div class="text-secondary small">{{ _('Liquidez líquida') }}</div>
+          <div class="h4">{{ res.net_liquidity }}</div>
+        </div>
+        <div class="col-12 col-md-6">
+          <div class="text-secondary small">{{ _('Ratio fontes/saídas') }}</div>
+          <div class="h4">
+            {% if res.liquidity_ratio is none %}
+              —
+            {% else %}
+              {{ '%.2f'|format(res.liquidity_ratio) }}x
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-3 small text-secondary">
+        {{ _('Modelo simplificado para PMEs: caixa + linhas de crédito contra passivos de curto prazo.') }}
+      </div>
+    </div>
+  </div>
+{% endblock %}

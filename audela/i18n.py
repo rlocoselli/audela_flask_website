@@ -4021,6 +4021,28 @@ for _lang, _mp in _EXTRA_TRANSLATIONS.items():
     TRANSLATIONS.setdefault(_lang, {}).update(_mp)
 
 
+# Legal pages translations are kept in a separate module.
+try:
+    from .legal_i18n import LEGAL_TRANSLATIONS  # type: ignore
+
+    for _lang, _mp in LEGAL_TRANSLATIONS.items():
+        TRANSLATIONS.setdefault(_lang, {}).update(_mp)
+except Exception:
+    # Safe fallback if the module is removed in a custom deploy.
+    pass
+
+
+# Finance app translations are kept in a separate module.
+try:
+    from .finance_i18n import FINANCE_TRANSLATIONS  # type: ignore
+
+    for _lang, _mp in FINANCE_TRANSLATIONS.items():
+        TRANSLATIONS.setdefault(_lang, {}).update(_mp)
+except Exception:
+    # Safe fallback if the module is removed in a custom deploy.
+    pass
+
+
 def tr(msgid: str, lang: str | None = None, **kwargs: Any) -> str:
     """Translate msgid using the configured dictionary.
 

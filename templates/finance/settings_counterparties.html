@@ -1,0 +1,73 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'settings' %}
+
+{% block finance_content %}
+  <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+    <div>
+      <div class="h5 mb-0">{{ _('Configurações: contrapartes') }}</div>
+      <div class="text-secondary small">{{ _('Diretório de bancos, clientes, fornecedores etc para sua empresa.') }}</div>
+    </div>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.dashboard') }}">{{ _('Voltar') }}</a>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-lg-7">
+      <div class="card">
+        <div class="card-header fw-semibold">{{ _('Contrapartes') }}</div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm mb-0">
+              <thead>
+                <tr>
+                  <th>{{ _('Nome') }}</th>
+                  <th>{{ _('Tipo') }}</th>
+                  <th class="text-end"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for cp in counterparties %}
+                  <tr>
+                    <td>{{ cp.name }}</td>
+                    <td class="text-secondary">{{ cp.kind or '' }}</td>
+                    <td class="text-end">
+                      <form method="post" action="{{ url_for('finance.settings_counterparty_delete', cp_id=cp.id) }}" onsubmit="return confirm('{{ _('Remover esta contraparte?') }}');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                        <button class="btn btn-outline-danger btn-sm">{{ _('Remover') }}</button>
+                      </form>
+                    </td>
+                  </tr>
+                {% else %}
+                  <tr><td colspan="3" class="text-center text-secondary py-4">{{ _('Nenhuma contraparte ainda.') }}</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-5">
+      <div class="card">
+        <div class="card-header fw-semibold">{{ _('Nova contraparte') }}</div>
+        <div class="card-body">
+          <form method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <div class="mb-2">
+              <label class="form-label">{{ _('Nome') }}</label>
+              <input class="form-control" name="name" required />
+            </div>
+            <div class="mb-2">
+              <label class="form-label">{{ _('Tipo') }}</label>
+              <select class="form-select" name="kind">
+                {% for k in ['bank','customer','supplier','employee','tax_authority','other'] %}
+                  <option value="{{ k }}">{{ k }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <button class="btn btn-primary">{{ _('Criar') }}</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

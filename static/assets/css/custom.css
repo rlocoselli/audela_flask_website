@@ -199,6 +199,47 @@
 .audela-carousel .caption p { margin: 0; opacity: 0.92; }
 .audela-carousel .controls { display: flex; justify-content: center; gap: 10px; margin-top: 14px; }
 
+/* --- Legal pages / footer links --- */
+.legal-links{ margin: 0.6rem 0 0; font-size: 0.95em; }
+.legal-links a{ border-bottom: 1px dotted rgba(255,255,255,0.35); }
+.legal-links .sep{ opacity: 0.65; margin: 0 0.35rem; }
+
+.legal-content h3{ margin-top: 1.6rem; }
+.legal-content ul{ margin-bottom: 0.8rem; }
+.legal-content .legal-table{ width: 100%; border-collapse: collapse; margin: 0.75rem 0 0.5rem; }
+.legal-content .legal-table th, .legal-content .legal-table td{
+  border: 1px solid rgba(255,255,255,0.18);
+  padding: 0.55rem 0.65rem;
+  vertical-align: top;
+}
+.legal-content .legal-table th{ background: rgba(255,255,255,0.08); }
+
+/* --- Cookie banner (public site) --- */
+.cookie-banner{
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 9999;
+  background: rgba(10, 37, 64, 0.92);
+  color: #fff;
+  border-top: 1px solid rgba(255,255,255,0.18);
+}
+.cookie-banner__inner{
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0.85rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.cookie-banner__text{ opacity: 0.95; }
+.cookie-banner__actions{ display: inline-flex; align-items: center; gap: 0.6rem; }
+
+@media screen and (max-width: 736px){
+  .cookie-banner__inner{ flex-direction: column; align-items: stretch; }
+  .cookie-banner__actions{ justify-content: flex-end; }
+}
+
 /* ------------------------------------------------------------
    Dark sections (wrapper style1): improve contrast
    The Landed theme's .wrapper.style1 is dark; our mockups should
