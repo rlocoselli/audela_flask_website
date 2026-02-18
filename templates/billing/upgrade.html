@@ -1,0 +1,80 @@
+{% extends "portal/base_portal.html" %}
+
+{% block title %}{{ _('Mise à niveau') }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="mb-4">
+    <h1 class="h3 mb-1">{{ _('Confirmer la mise à niveau') }}</h1>
+    <p class="text-muted mb-0">{{ _('Vous êtes sur le point de passer au plan sélectionné.') }}</p>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ 'danger' if category in ['error','danger'] else ('success' if category=='success' else 'warning' if category=='warning' else 'info') }} alert-dismissible fade show">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body">
+      <h5 class="mb-2">{{ plan.name }}</h5>
+      {% if plan.description %}<p class="text-muted">{{ plan.description }}</p>{% endif %}
+
+      {% set is_free_plan = plan.code == 'free' or ((plan.price_monthly or 0) == 0 and (plan.price_yearly or 0) == 0) %}
+
+      {% if is_free_plan %}
+      <div class="alert alert-info mb-3">
+        <i class="bi bi-info-circle"></i>
+        {{ _('Plan gratuit: aucune carte bancaire requise.') }}
+      </div>
+      {% else %}
+      <div class="row g-3 mb-3">
+        <div class="col-md-6">
+          <div class="p-3 bg-light rounded">
+            <div class="text-muted small">{{ _('Mensuel') }}</div>
+            <div class="h4 mb-0">{{ '%.2f'|format(plan.price_monthly or 0) }} {{ plan.currency or 'EUR' }}</div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="p-3 bg-light rounded">
+            <div class="text-muted small">{{ _('Annuel') }}</div>
+            <div class="h4 mb-0">{{ '%.2f'|format(plan.price_yearly or 0) }} {{ plan.currency or 'EUR' }}</div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <form method="post" action="{{ url_for('billing.checkout') }}" class="d-flex flex-wrap gap-2 align-items-center">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="plan_code" value="{{ plan.code }}">
+        {% if is_free_plan %}
+        <input type="hidden" name="billing_cycle" value="monthly">
+        {% endif %}
+
+        {% if not is_free_plan %}
+        <label for="billing_cycle" class="form-label mb-0">{{ _('Cycle') }}</label>
+        <select id="billing_cycle" name="billing_cycle" class="form-select" style="max-width: 220px;">
+          <option value="monthly">{{ _('Mensuel') }}</option>
+          <option value="yearly">{{ _('Annuel') }}</option>
+        </select>
+        {% endif %}
+
+        <button type="submit" class="btn btn-primary">
+          {% if is_free_plan %}
+          <i class="bi bi-check2-circle"></i> {{ _('Activer le plan gratuit') }}
+          {% else %}
+          <i class="bi bi-credit-card"></i> {{ _('Continuer vers le paiement') }}
+          {% endif %}
+        </button>
+
+        <a href="{{ url_for('billing.plans') }}" class="btn btn-outline-secondary">{{ _('Annuler') }}</a>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

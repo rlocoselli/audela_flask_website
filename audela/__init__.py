@@ -6,7 +6,7 @@ from flask import Flask
 from flask import g, request, session
 
 from .config import DevConfig, ProdConfig
-from .extensions import csrf, db, login_manager, migrate
+from .extensions import csrf, db, login_manager, migrate, mail
 from .models.core import User
 from .i18n import DEFAULT_LANG, SUPPORTED_LANGS, TRANSLATIONS, best_lang_from_accept_language, normalize_lang, tr
 
@@ -50,6 +50,7 @@ def create_app() -> Flask:
     migrate.init_app(app, db)
     login_manager.init_app(app)
     csrf.init_app(app)
+    mail.init_app(app)
 
     login_manager.login_view = "auth.login"
 
@@ -100,6 +101,8 @@ def create_app() -> Flask:
     from .blueprints.etl import bp as etl_bp
     from .blueprints.finance import bp as finance_bp
     from .blueprints.finance.finance_master_data import finance_master_bp
+    from .blueprints.tenant import bp as tenant_bp
+    from .blueprints.billing import bp as billing_bp
 
     app.register_blueprint(public_bp)
     app.register_blueprint(auth_bp)
@@ -107,6 +110,8 @@ def create_app() -> Flask:
     app.register_blueprint(etl_bp)
     app.register_blueprint(finance_bp)
     app.register_blueprint(finance_master_bp)
+    app.register_blueprint(tenant_bp)
+    app.register_blueprint(billing_bp)
 
     # Finance CLI Commands
     from .commands import init_finance_cli

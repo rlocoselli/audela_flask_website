@@ -1,0 +1,166 @@
+{% extends "portal/base_portal.html" %}
+
+{% block title %}{{ _('Utilisateurs') }} – {{ tenant.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-12">
+      <div class="mb-3">
+        <a href="{{ url_for('tenant.dashboard') }}" class="btn btn-outline-secondary btn-sm">
+          <i class="bi bi-arrow-left"></i> {{ _('Retour au dashboard') }}
+        </a>
+      </div>
+
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <h1 class="h3 mb-1">
+            <i class="bi bi-people"></i> {{ _('Utilisateurs') }}
+          </h1>
+          <p class="text-muted mb-0">
+            {{ current_users }} / {{ max_users if max_users > 0 else '∞' }} {{ _('utilisateurs') }}
+          </p>
+        </div>
+        <div>
+          {% if can_add_user %}
+            <a href="{{ url_for('tenant.invite_user') }}" class="btn btn-primary">
+              <i class="bi bi-person-plus"></i> {{ _('Inviter un utilisateur') }}
+            </a>
+          {% else %}
+            <button class="btn btn-secondary" disabled title="{{ _('Limite d\'utilisateurs atteinte') }}">
+              <i class="bi bi-person-plus"></i> {{ _('Inviter un utilisateur') }}
+            </button>
+            <small class="text-danger d-block mt-1">
+              {{ _('Limite atteinte. Passez à un plan supérieur.') }}
+            </small>
+          {% endif %}
+        </div>
+      </div>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ 'danger' if category in ['error','danger'] else ('success' if category=='success' else 'info') }} alert-dismissible fade show">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-hover mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th class="px-4">{{ _('Email') }}</th>
+                  <th>{{ _('Rôles') }}</th>
+                  <th>{{ _('Statut') }}</th>
+                  <th>{{ _('Créé le') }}</th>
+                  <th>{{ _('Dernière connexion') }}</th>
+                  <th class="px-4">{{ _('Actions') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for user in users %}
+                <tr>
+                  <td class="px-4">
+                    <div class="d-flex align-items-center">
+                      <div class="bg-primary bg-opacity-10 rounded-circle p-2 me-2">
+                        <i class="bi bi-person text-primary"></i>
+                      </div>
+                      <div>
+                        <div class="fw-medium">{{ user.email }}</div>
+                        {% if user.id == current_user.id %}
+                          <small class="text-muted">({{ _('Vous') }})</small>
+                        {% endif %}
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    {% for role in user.roles %}
+                      <span class="badge bg-secondary me-1">{{ role }}</span>
+                    {% endfor %}
+                  </td>
+                  <td>
+                    {% if user.status == 'active' %}
+                      <span class="badge bg-success">
+                        <i class="bi bi-check-circle"></i> {{ _('Actif') }}
+                      </span>
+                    {% elif user.status == 'pending_verification' %}
+                      <span class="badge bg-warning">
+                        <i class="bi bi-clock"></i> {{ _('En attente') }}
+                      </span>
+                    {% elif user.status == 'suspended' %}
+                      <span class="badge bg-danger">
+                        <i class="bi bi-x-circle"></i> {{ _('Suspendu') }}
+                      </span>
+                    {% else %}
+                      <span class="badge bg-secondary">{{ user.status }}</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ user.created_at.strftime('%d/%m/%Y') }}</td>
+                  <td>
+                    {% if user.last_login_at %}
+                      {{ user.last_login_at.strftime('%d/%m/%Y %H:%M') }}
+                    {% else %}
+                      <span class="text-muted">{{ _('Jamais') }}</span>
+                    {% endif %}
+                  </td>
+                  <td class="px-4">
+                    {% if user.id != current_user.id %}
+                      <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                          <i class="bi bi-three-dots-vertical"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                          <li>
+                            <a class="dropdown-item" href="#">
+                              <i class="bi bi-pencil"></i> {{ _('Modifier les rôles') }}
+                            </a>
+                          </li>
+                          <li>
+                            <a class="dropdown-item text-danger" href="#" onclick="return confirm('{{ _('Êtes-vous sûr?') }}')">
+                              <i class="bi bi-trash"></i> {{ _('Supprimer') }}
+                            </a>
+                          </li>
+                        </ul>
+                      </div>
+                    {% else %}
+                      <span class="text-muted small">—</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {% if not can_add_user %}
+      <div class="alert alert-warning mt-4">
+        <div class="row align-items-center">
+          <div class="col-md-8">
+            <h6 class="mb-1">
+              <i class="bi bi-exclamation-triangle"></i> {{ _('Limite d\'utilisateurs atteinte') }}
+            </h6>
+            <p class="mb-0 small">
+              {{ _('Vous avez atteint la limite de') }} {{ max_users }} {{ _('utilisateurs pour votre plan actuel.') }}
+              {{ _('Passez à un plan supérieur pour inviter plus de membres à votre équipe.') }}
+            </p>
+          </div>
+          <div class="col-md-4 text-md-end mt-3 mt-md-0">
+            <a href="{{ url_for('billing.plans') }}" class="btn btn-warning">
+              <i class="bi bi-arrow-up-circle"></i> {{ _('Voir les plans') }}
+            </a>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+</div>
+{% endblock %}

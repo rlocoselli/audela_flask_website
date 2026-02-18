@@ -48,6 +48,10 @@ VENV_DIR="$APP_DIR/.venv"
 USER="root"
 PORT="8000"
 
+DB_NAME="${5:-audela}"
+DB_PORT="${6:-5432}"
+DATABASE_URL="${7:-}"
+
 echo "🚀 Deploying Flask app (root-based)"
 echo "📁 $SRC_DIR → $APP_DIR"
 
@@ -90,6 +94,9 @@ APP_HOST=$1
 APP_USER=$2
 APP_PASSWORD=$3
 OPENAI_API_KEY=$4
+DB_NAME=$DB_NAME
+DB_PORT=$DB_PORT
+DATABASE_URL=$DATABASE_URL
 EOF
 chmod 600 "$APP_DIR/.env"
 
@@ -103,6 +110,21 @@ if [ -f "$APP_DIR/requirements.txt" ]; then
   "$VENV_DIR/bin/pip" install -r "$APP_DIR/requirements.txt"
 else
   "$VENV_DIR/bin/pip" install flask gunicorn python-dotenv openai sqlalchemy psycopg2-binary
+fi
+
+# ==========================
+# DATABASE MIGRATIONS
+# ==========================
+echo "🗄️ Running database migrations (flask db upgrade)..."
+set -a
+source "$APP_DIR/.env"
+set +a
+
+if [ -d "$APP_DIR/migrations" ]; then
+  "$VENV_DIR/bin/flask" --app "audela:create_app" db upgrade
+  echo "✅ Database migrations applied"
+else
+  echo "⚠️ migrations folder not found, skipping flask db upgrade"
 fi
 
 # ==========================

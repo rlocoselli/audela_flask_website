@@ -1,0 +1,25 @@
+AUDELA - Votre période d'essai expire bientôt
+
+Bonjour,
+
+⏰ ATTENTION: Il vous reste {{ days_left }} jour{% if days_left > 1 %}s{% endif %} de période d'essai gratuite!
+
+Votre période d'essai se termine le {{ expiry_date.strftime('%d/%m/%Y') }}.
+
+⚠️ ACTION REQUISE
+Pour continuer à utiliser AUDELA, veuillez choisir un plan d'abonnement.
+
+Voir les plans et s'abonner: {{ upgrade_url }}
+
+QU'EST-CE QUE VOUS PERDEZ?
+- Accès aux modules Finance et/ou BI
+- Synchronisation bancaire automatique
+- Rapports et tableaux de bord
+- Collaboration d'équipe
+- Toutes vos données
+
+💡 CONSEIL: Abonnez-vous maintenant pour garantir un accès ininterrompu à votre compte.
+
+---
+© 2024 AUDELA - Plateforme de gestion financière et business intelligence
+Cet email a été envoyé automatiquement, merci de ne pas répondre.

@@ -1,0 +1,145 @@
+{% extends "portal/base_portal.html" %}
+
+{% block title %}{{ _('Gestion Tenant') }} – {{ _('AUDELA') }}{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-10 col-lg-8">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <div class="fw-semibold"><i class="bi bi-building"></i> {{ _('AUDELA Tenant Management') }}</div>
+        <div class="dropdown">
+          <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown">{{ lang_label(current_lang) }}</button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            {% for code, info in supported_langs.items() %}
+              <li><a class="dropdown-item" href="{{ url_for('public.set_language', lang_code=code, next=request.full_path) }}">{{ info.label }}</a></li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ 'danger' if category in ['error','danger'] else ('success' if category=='success' else 'warning' if category=='warning' else 'info') }} alert-dismissible fade show">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <div class="row g-3">
+        <!-- Login Card -->
+        <div class="col-12 col-lg-6">
+          <div class="card shadow-sm border-0 h-100" style="border-radius: 1rem;">
+            <div class="card-body p-4">
+              <h2 class="h5 mb-1"><i class="bi bi-box-arrow-in-right"></i> {{ _('Login') }}</h2>
+              <div class="text-secondary mb-3">{{ _('Accédez à votre compte') }}</div>
+
+              <form method="post" id="loginForm" autocomplete="off">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <input type="hidden" name="action" value="login" />
+
+                <div class="mb-3">
+                  <label class="form-label">{{ _('Tenant') }}</label>
+                  <input type="text" class="form-control" name="tenant_slug" placeholder="acme" required />
+                  <div class="form-text">{{ _('Votre identifiant d\'organisation') }}</div>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label">{{ _('Email') }}</label>
+                  <input type="email" class="form-control" name="email" placeholder="vous@example.com" required />
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label">{{ _('Senha') }}</label>
+                  <input type="password" class="form-control" name="password" required />
+                </div>
+
+                <div class="d-grid gap-2">
+                  <button class="btn btn-primary" type="submit">
+                    <i class="bi bi-box-arrow-in-right"></i> {{ _('Entrar') }}
+                  </button>
+                </div>
+              </form>
+
+              <hr class="my-3" />
+              <div class="text-center small">
+                <a href="{{ url_for('auth.resend_verification') }}">{{ _('Renvoyer email de vérification') }}</a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Signup Card -->
+        <div class="col-12 col-lg-6">
+          <div class="card shadow-sm border-0 h-100" style="border-radius: 1rem; border: 2px solid #0d6efd;">
+            <div class="card-body p-4">
+              <h2 class="h5 mb-1"><i class="bi bi-person-plus"></i> {{ _('Créer un compte') }}</h2>
+              <div class="text-secondary mb-3">{{ _('Commencez votre essai gratuit de 30 jours') }}</div>
+
+              <form method="post" id="signupForm" autocomplete="off">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <input type="hidden" name="action" value="signup" />
+
+                <div class="mb-3">
+                  <label class="form-label">{{ _('Nom de l\'organisation') }}</label>
+                  <input type="text" class="form-control" name="tenant_name" placeholder="ACME Corp" required />
+                  <div class="form-text">{{ _('Un slug sera généré automatiquement') }}</div>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label">{{ _('Email') }}</label>
+                  <input type="email" class="form-control" name="email" placeholder="admin@example.com" required />
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label">{{ _('Senha') }}</label>
+                  <input type="password" class="form-control" name="password" minlength="8" required />
+                  <div class="form-text">{{ _('Minimum 8 caractères') }}</div>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label">{{ _('Confirmer le mot de passe') }}</label>
+                  <input type="password" class="form-control" name="password_confirm" minlength="8" required />
+                </div>
+
+                <div class="alert alert-info small mb-3">
+                  <i class="bi bi-info-circle"></i> {{ _('Essai gratuit de 30 jours - Aucune carte bancaire requise') }}
+                </div>
+
+                <div class="d-grid gap-2">
+                  <button class="btn btn-primary" type="submit">
+                    <i class="bi bi-rocket-takeoff"></i> {{ _('Créer mon compte') }}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="text-center mt-4">
+        <a class="btn btn-outline-secondary" href="{{ url_for('public.index') }}">
+          <i class="bi bi-arrow-left"></i> {{ _('Retour à l\'accueil') }}
+        </a>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// Validate password match on signup
+document.getElementById('signupForm').addEventListener('submit', function(e) {
+  const password = this.querySelector('[name="password"]').value;
+  const confirm = this.querySelector('[name="password_confirm"]').value;
+  
+  if (password !== confirm) {
+    e.preventDefault();
+    alert('{{ _("Les mots de passe ne correspondent pas") }}');
+  }
+});
+</script>
+{% endblock %}

@@ -88,6 +88,9 @@ def _audit(event_type: str, payload: dict | None = None) -> None:
 @login_required
 def home():
     _require_tenant()
+    requested_mode = (request.args.get("app_mode") or "").strip().lower()
+    if requested_mode in {"finance", "bi"}:
+        session["app_mode"] = requested_mode
     # If the user entered via the dedicated AUDELA Finance login, keep them in Finance.
     if session.get("app_mode") == "finance":
         return redirect(url_for("finance.dashboard"))

@@ -1,0 +1,232 @@
+{% extends "portal/base_portal.html" %}
+
+{% block title %}{{ _('Mon abonnement') }} – {{ tenant.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-12 col-lg-10">
+      <div class="mb-3">
+        <a href="{{ url_for('tenant.dashboard') }}" class="btn btn-outline-secondary btn-sm">
+          <i class="bi bi-arrow-left"></i> {{ _('Retour au dashboard') }}
+        </a>
+      </div>
+
+      <h1 class="h3 mb-4">
+        <i class="bi bi-credit-card"></i> {{ _('Mon abonnement') }}
+      </h1>
+
+      {% if subscription %}
+      <!-- Current Subscription -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+          <div class="row align-items-center">
+            <div class="col-md-8">
+              <h5 class="mb-2">{{ stats.plan_name }}</h5>
+              <p class="text-muted mb-2">
+                {% if subscription.is_trial() %}
+                  <span class="badge bg-warning">{{ _('Essai gratuit') }}</span>
+                  {{ _('Expire le') }} {{ subscription.trial_end_date.strftime('%d/%m/%Y') }}
+                  ({{ stats.trial_days_left }} {{ _('jours restants') }})
+                {% elif subscription.status == 'active' %}
+                  <span class="badge bg-success">{{ _('Actif') }}</span>
+                  {% if subscription.billing_cycle == 'monthly' %}
+                    {{ _('Facturation mensuelle') }}
+                  {% else %}
+                    {{ _('Facturation annuelle') }}
+                  {% endif %}
+                {% elif subscription.status == 'suspended' %}
+                  <span class="badge bg-danger">{{ _('Suspendu') }}</span>
+                  {{ _('Problème de paiement') }}
+                {% else %}
+                  <span class="badge bg-secondary">{{ _('Annulé') }}</span>
+                {% endif %}
+              </p>
+              <div>
+                {% if stats.has_finance %}
+                  <span class="badge bg-success"><i class="bi bi-cash-coin"></i> Finance</span>
+                {% endif %}
+                {% if stats.has_bi %}
+                  <span class="badge bg-info"><i class="bi bi-graph-up"></i> BI</span>
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-md-4 text-md-end mt-3 mt-md-0">
+              {% if subscription.is_trial() %}
+                <a href="{{ url_for('billing.plans') }}" class="btn btn-primary">
+                  <i class="bi bi-rocket"></i> {{ _('Passer à la version payante') }}
+                </a>
+              {% else %}
+                <a href="{{ url_for('billing.plans') }}" class="btn btn-outline-primary">
+                  <i class="bi bi-arrow-up-circle"></i> {{ _('Changer de plan') }}
+                </a>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Usage Stats -->
+      <div class="row g-3 mb-4">
+        <div class="col-md-4">
+          <div class="card border-0 shadow-sm">
+            <div class="card-body">
+              <h6 class="text-muted mb-3">
+                <i class="bi bi-people"></i> {{ _('Utilisateurs') }}
+              </h6>
+              <div class="h3 mb-2">
+                {{ stats.usage.users.current }} / {{ stats.usage.users.max if stats.usage.users.max > 0 else '∞' }}
+              </div>
+              <div class="progress" style="height: 8px;">
+                {% set user_percent = (stats.usage.users.current / stats.usage.users.max * 100) if stats.usage.users.max > 0 else 0 %}
+                <div class="progress-bar" style="width: {{ user_percent }}%"></div>
+              </div>
+              {% if stats.usage.users.current >= stats.usage.users.max and stats.usage.users.max > 0 %}
+                <div class="alert alert-warning mt-2 small mb-0">
+                  <i class="bi bi-exclamation-triangle"></i> {{ _('Limite atteinte') }}
+                </div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <div class="card border-0 shadow-sm">
+            <div class="card-body">
+              <h6 class="text-muted mb-3">
+                <i class="bi bi-building"></i> {{ _('Entreprises') }}
+              </h6>
+              <div class="h3 mb-2">
+                {{ stats.usage.companies.current }} / {{ stats.usage.companies.max if stats.usage.companies.max > 0 else '∞' }}
+              </div>
+              <div class="progress" style="height: 8px;">
+                {% set company_percent = (stats.usage.companies.current / stats.usage.companies.max * 100) if stats.usage.companies.max > 0 else 0 %}
+                <div class="progress-bar bg-success" style="width: {{ company_percent }}%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-md-4">
+          <div class="card border-0 shadow-sm">
+            <div class="card-body">
+              <h6 class="text-muted mb-3">
+                <i class="bi bi-arrow-left-right"></i> {{ _('Transactions') }}
+              </h6>
+              <div class="h3 mb-2">
+                {{ stats.usage.transactions.current }} / {{ stats.usage.transactions.max if stats.usage.transactions.max > 0 else '∞' }}
+              </div>
+              <div class="progress" style="height: 8px;">
+                {% set tx_percent = (stats.usage.transactions.current / stats.usage.transactions.max * 100) if stats.usage.transactions.max > 0 else 0 %}
+                <div class="progress-bar bg-warning" style="width: {{ tx_percent }}%"></div>
+              </div>
+              <small class="text-muted">{{ _('Ce mois') }}</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Plan Details -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="mb-3">{{ _('Détails du plan') }}</h5>
+          <div class="row">
+            <div class="col-md-6">
+              <ul class="list-unstyled">
+                <li class="mb-2">
+                  <i class="bi bi-check-circle text-success"></i>
+                  {{ _('Utilisateurs:') }} <strong>{{ stats.usage.users.max if stats.usage.users.max > 0 else _('Illimité') }}</strong>
+                </li>
+                <li class="mb-2">
+                  <i class="bi bi-check-circle text-success"></i>
+                  {{ _('Entreprises:') }} <strong>{{ stats.usage.companies.max if stats.usage.companies.max > 0 else _('Illimité') }}</strong>
+                </li>
+                <li class="mb-2">
+                  <i class="bi bi-check-circle text-success"></i>
+                  {{ _('Transactions/mois:') }} <strong>{{ stats.usage.transactions.max if stats.usage.transactions.max > 0 else _('Illimité') }}</strong>
+                </li>
+              </ul>
+            </div>
+            <div class="col-md-6">
+              <ul class="list-unstyled">
+                <li class="mb-2">
+                  {% if stats.has_finance %}
+                    <i class="bi bi-check-circle text-success"></i>
+                  {% else %}
+                    <i class="bi bi-x-circle text-muted"></i>
+                  {% endif %}
+                  {{ _('Module Finance') }}
+                </li>
+                <li class="mb-2">
+                  {% if stats.has_bi %}
+                    <i class="bi bi-check-circle text-success"></i>
+                  {% else %}
+                    <i class="bi bi-x-circle text-muted"></i>
+                  {% endif %}
+                  {{ _('Module BI') }}
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      {% if subscription.status == 'active' and not subscription.is_trial() %}
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <h5 class="mb-3">{{ _('Actions') }}</h5>
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#cancelModal">
+              <i class="bi bi-x-circle"></i> {{ _('Annuler l\'abonnement') }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cancel Modal -->
+      <div class="modal fade" id="cancelModal" tabindex="-1">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">{{ _('Annuler l\'abonnement') }}</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <p>{{ _('Êtes-vous sûr de vouloir annuler votre abonnement? Vous perdrez l\'accès à tous les services.') }}</p>
+              <form method="post" action="{{ url_for('billing.cancel_subscription') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <input type="hidden" name="reason" value="user_requested" />
+                <div class="d-grid gap-2">
+                  <button type="submit" class="btn btn-danger">
+                    {{ _('Confirmer l\'annulation') }}
+                  </button>
+                  <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+                    {{ _('Non, garder mon abonnement') }}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      {% else %}
+      <!-- No Subscription -->
+      <div class="card border-0 shadow-sm">
+        <div class="card-body text-center py-5">
+          <i class="bi bi-exclamation-circle" style="font-size: 3rem; color: #dc3545;"></i>
+          <h5 class="mt-3">{{ _('Aucun abonnement actif') }}</h5>
+          <p class="text-muted">{{ _('Choisissez un plan pour commencer') }}</p>
+          <a href="{{ url_for('billing.plans') }}" class="btn btn-primary">
+            <i class="bi bi-rocket"></i> {{ _('Voir les plans') }}
+          </a>
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+</div>
+{% endblock %}

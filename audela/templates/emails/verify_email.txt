@@ -1,0 +1,15 @@
+AUDELA - Vérification de votre email
+
+Bonjour {{ user.email }},
+
+Merci de vous être inscrit sur AUDELA. Pour commencer à utiliser votre compte, veuillez vérifier votre adresse email en cliquant sur le lien ci-dessous:
+
+{{ verification_url }}
+
+⏰ IMPORTANT: Ce lien expire dans 24 heures.
+
+Si vous n'avez pas créé de compte sur AUDELA, vous pouvez ignorer cet email.
+
+---
+© 2024 AUDELA - Plateforme de gestion financière et business intelligence
+Cet email a été envoyé automatiquement, merci de ne pas répondre.

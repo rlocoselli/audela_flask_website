@@ -17,7 +17,7 @@ from audela.models import (
     FinanceAccount,
     FinanceCompany,
     FinanceTransaction,
-    FinanceGoCardlessConnection,
+    FinancePowensConnection,
 )
 
 
@@ -206,7 +206,7 @@ class BankConfigurationService:
             return {"status": "error", "message": f"Account {account_id} not found"}
         
         # Vérifier si connexion existe
-        existing = FinanceGoCardlessConnection.query.filter_by(
+        existing = FinancePowensConnection.query.filter_by(
             account_id=account_id
         ).first()
         
@@ -214,7 +214,7 @@ class BankConfigurationService:
             connection = existing
             message_prefix = "Updated"
         else:
-            connection = FinanceGoCardlessConnection(
+            connection = FinancePowensConnection(
                 tenant_id=tenant_id,
                 company_id=company_id,
                 account_id=account_id,
@@ -256,8 +256,8 @@ class BankConfigurationService:
         if not account:
             return {"status": "error", "message": f"Account {account_id} not found"}
         
-        # Récupérer la connexion GoCardless si existe
-        gocardless_conn = FinanceGoCardlessConnection.query.filter_by(
+        # Récupérer la connexion Powens si existe
+        powens_conn = FinancePowensConnection.query.filter_by(
             account_id=account_id
         ).first()
         
@@ -268,19 +268,19 @@ class BankConfigurationService:
             "current_balance": float(account.balance),
             "iban": account.iban,
             "currency": account.currency,
-            "gocardless_configured": gocardless_conn is not None,
+            "powens_configured": powens_conn is not None,
         }
         
-        if gocardless_conn:
-            config["gocardless"] = {
-                "connection_id": gocardless_conn.id,
-                "institution_id": gocardless_conn.institution_id,
-                "iban": gocardless_conn.iban,
-                "sync_enabled": gocardless_conn.sync_enabled,
-                "last_sync": str(gocardless_conn.last_sync_date) if gocardless_conn.last_sync_date else None,
-                "auto_import": gocardless_conn.auto_import_enabled,
-                "auto_categorize": gocardless_conn.auto_categorize,
-                "status": gocardless_conn.status,
+        if powens_conn:
+            config["powens"] = {
+                "connection_id": powens_conn.id,
+                "institution_id": powens_conn.institution_id,
+                "iban": powens_conn.iban,
+                "sync_enabled": powens_conn.sync_enabled,
+                "last_sync": str(powens_conn.last_sync_date) if powens_conn.last_sync_date else None,
+                "auto_import": powens_conn.auto_import_enabled,
+                "auto_categorize": powens_conn.auto_categorize,
+                "status": powens_conn.status,
             }
         
         return {

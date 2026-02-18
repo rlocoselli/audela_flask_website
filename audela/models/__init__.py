@@ -33,6 +33,13 @@ from .bi import (
     FileFolder,
     FileAsset,
 )
+from .subscription import (
+    SubscriptionPlan,
+    TenantSubscription,
+    EmailVerificationToken,
+    UserInvitation,
+    BillingEvent,
+)
 
 __all__ = [
     "Tenant",
@@ -76,5 +83,10 @@ __all__ = [
     "FinanceInvoice",
     "FinanceInvoiceLine",
     "FinanceSetting",
+    "SubscriptionPlan",
+    "TenantSubscription",
+    "EmailVerificationToken",
+    "UserInvitation",
+    "BillingEvent",
 ]
 from .etl_catalog import ETLConnection  # noqa: F401

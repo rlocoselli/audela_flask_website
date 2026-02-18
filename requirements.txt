@@ -5,6 +5,10 @@ gunicorn==22.0.0
 Flask-Login==0.6.3
 Flask-WTF==1.2.1
 
+# Email / billing
+Flask-Mail==0.10.0
+stripe==11.1.1
+
 # DB / migrations
 Flask-SQLAlchemy==3.1.1
 Flask-Migrate==4.0.7

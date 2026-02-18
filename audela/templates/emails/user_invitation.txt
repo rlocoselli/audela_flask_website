@@ -1,0 +1,21 @@
+AUDELA - Invitation à rejoindre {{ invitation.tenant.name }}
+
+Bonjour,
+
+{{ invitation.invited_by.email }} vous invite à rejoindre son organisation sur AUDELA.
+
+Organisation: {{ invitation.tenant.name }}
+Email: {{ invitation.email }}
+{% if invitation.role_codes %}Rôles: {{ invitation.role_codes|join(', ') }}{% endif %}
+
+Pour accepter l'invitation et créer votre compte, cliquez sur le lien ci-dessous:
+
+{{ invitation_url }}
+
+⏰ IMPORTANT: Cette invitation expire dans 7 jours.
+
+Si vous ne souhaitez pas rejoindre cette organisation, vous pouvez ignorer cet email.
+
+---
+© 2024 AUDELA - Plateforme de gestion financière et business intelligence
+Cet email a été envoyé automatiquement, merci de ne pas répondre.

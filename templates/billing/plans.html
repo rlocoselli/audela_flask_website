@@ -1,0 +1,89 @@
+{% extends "portal/base_portal.html" %}
+
+{% block title %}{{ _('Plans') }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="h3 mb-1">{{ _('Choisissez votre plan') }}</h1>
+      <p class="text-muted mb-0">{{ _('Comparez les fonctionnalités et passez à la version adaptée à votre activité.') }}</p>
+    </div>
+    {% if current_user.is_authenticated %}
+    <a href="{{ url_for('tenant.dashboard') }}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left"></i> {{ _('Retour au dashboard') }}
+    </a>
+    {% endif %}
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ 'danger' if category in ['error','danger'] else ('success' if category=='success' else 'warning' if category=='warning' else 'info') }} alert-dismissible fade show">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  {% if selected_product == 'finance' %}
+  <div class="alert alert-info">
+    <i class="bi bi-cash-coin"></i> {{ _('Plans Finance disponibles') }}
+  </div>
+  {% elif selected_product == 'bi' %}
+  <div class="alert alert-info">
+    <i class="bi bi-graph-up"></i> {{ _('Plans BI disponibles') }}
+  </div>
+  {% endif %}
+
+  {% if plans %}
+  <div class="row g-3">
+    {% for plan in plans %}
+    <div class="col-lg-4 col-md-6">
+      <div class="card h-100 border-0 shadow-sm {% if current_plan and current_plan.code == plan.code %}border border-primary{% endif %}">
+        <div class="card-body d-flex flex-column">
+          <div class="d-flex justify-content-between align-items-start mb-2">
+            <h5 class="mb-0">{{ plan.name }}</h5>
+            {% if current_plan and current_plan.code == plan.code %}
+              <span class="badge bg-primary">{{ _('Plan actuel') }}</span>
+            {% endif %}
+          </div>
+
+          {% if plan.description %}
+          <p class="text-muted small mb-3">{{ plan.description }}</p>
+          {% endif %}
+
+          <div class="mb-3">
+            <div class="h4 mb-0">{{ '%.2f'|format(plan.price_monthly or 0) }} {{ plan.currency or 'EUR' }}</div>
+            <small class="text-muted">{{ _('/ mois') }}</small>
+          </div>
+
+          <ul class="list-unstyled small mb-3">
+            <li><i class="bi bi-people me-1"></i> {{ _('Utilisateurs:') }} {{ '∞' if plan.max_users == -1 else plan.max_users }}</li>
+            <li><i class="bi bi-building me-1"></i> {{ _('Entreprises:') }} {{ '∞' if plan.max_companies == -1 else plan.max_companies }}</li>
+            <li><i class="bi bi-arrow-left-right me-1"></i> {{ _('Transactions/mois:') }} {{ '∞' if plan.max_transactions_per_month == -1 else plan.max_transactions_per_month }}</li>
+            <li><i class="bi bi-cash-coin me-1"></i> {{ _('Essai:') }} {{ plan.trial_days }} {{ _('jours') }}</li>
+          </ul>
+
+          <div class="mt-auto">
+            {% if current_user.is_authenticated %}
+              {% if current_plan and current_plan.code == plan.code %}
+                <a href="{{ url_for('billing.subscription') }}" class="btn btn-outline-primary w-100">{{ _('Gérer mon abonnement') }}</a>
+              {% else %}
+                <a href="{{ url_for('billing.upgrade', plan_code=plan.code) }}" class="btn btn-primary w-100">{{ _('Choisir ce plan') }}</a>
+              {% endif %}
+            {% else %}
+              <a href="{{ url_for('tenant.login') }}" class="btn btn-primary w-100">{{ _('Se connecter pour continuer') }}</a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+    <div class="alert alert-info mb-0">{{ _('Aucun plan disponible pour le moment.') }}</div>
+  {% endif %}
+</div>
+{% endblock %}

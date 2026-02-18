@@ -21,6 +21,9 @@ class Tenant(db.Model):
     plan = db.Column(db.String(32), nullable=False, default="free")
 
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    
+    # Relationships
+    subscription = db.relationship("TenantSubscription", back_populates="tenant", uselist=False)
 
 
 class Role(db.Model):
