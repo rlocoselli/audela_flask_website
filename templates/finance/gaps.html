@@ -30,7 +30,14 @@
           <tbody>
             {% for r in rows %}
               <tr>
-                <td>{{ r.bucket }}</td>
+                <td>
+                  {{ r.bucket }}
+                  {% if r.fallback and r.fallback > 0 %}
+                    <span class="badge bg-warning text-dark ms-1" title="{{ _('Inclui contas sem data') }}">
+                      {{ _('Sem data') }}
+                    </span>
+                  {% endif %}
+                </td>
                 <td class="text-end">{{ r.assets }}</td>
                 <td class="text-end">{{ r.liabilities }}</td>
                 <td class="text-end">{{ r.gap }}</td>

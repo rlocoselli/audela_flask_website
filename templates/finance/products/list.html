@@ -1,0 +1,181 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'master_data' %}
+
+{% block title %}{{ _('Produtos Financeiros') }}{% endblock %}
+
+{% block finance_content %}
+<div class="container-fluid">
+    <div class="page-header">
+        <div class="row align-items-center">
+            <div class="col">
+                <h1>{{ _('Produtos Financeiros') }}</h1>
+                <p class="text-muted">{{ _('Gérez vos produits et services') }}</p>
+            </div>
+            <div class="col-auto">
+                <a href="{{ url_for('finance_master.create_product', company_id=company.id) }}" 
+                   class="btn btn-primary">
+                    <i class="fas fa-plus"></i> {{ _('Novo Produto') }}
+                </a>
+            </div>
+        </div>
+    </div>
+
+    {% for category, message in get_flashed_messages(with_categories=True) %}
+        <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    {% endfor %}
+
+    <!-- Barre de recherche -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="GET" class="row g-3">
+                <div class="col-md-6">
+                    <input type="text" name="search" class="form-control" 
+                           placeholder="{{ _('Pesquisar produtos...') }}" 
+                           value="{{ search or '' }}">
+                </div>
+                <div class="col-md-6">
+                    <button type="submit" class="btn btn-outline-primary w-100">
+                        <i class="fas fa-search"></i> {{ _('Procurar') }}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+    <!-- Tableau des produits -->
+    <div class="card">
+        <div class="table-responsive">
+            {% if products.items %}
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 20%">Nom</th>
+                            <th style="width: 15%">Code</th>
+                            <th style="width: 30%">Description</th>
+                            <th style="width: 15%">TVA</th>
+                            <th style="width: 20%">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for product in products.items %}
+                            <tr>
+                                <td>
+                                    <strong>{{ product.name }}</strong>
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ product.code or 'N/A' }}</span>
+                                </td>
+                                <td>
+                                    <small class="text-muted">{{ product.description or '-' }}</small>
+                                </td>
+                                <td>
+                                    {% if product.vat_applies %}
+                                        <span class="badge bg-info">{{ (product.vat_rate * 100) | int }}%</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Exempté</span>
+                                        {% if product.tax_exempt_reason %}
+                                            <small class="text-muted d-block">{{ product.tax_exempt_reason }}</small>
+                                        {% endif %}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('finance_master.edit_product', product_id=product.id) }}" 
+                                       class="btn btn-sm btn-outline-primary" title="{{ _('Editar') }}">
+                                        <i class="fas fa-edit"></i> {{ _('Editar') }}
+                                    </a>
+                                    <form method="POST" 
+                                          action="{{ url_for('finance_master.delete_product', product_id=product.id) }}" 
+                                          style="display: inline-block;" 
+                                          onsubmit="return confirm('{{ _('Êtes-vous sûr?') }}')">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="{{ _('Remover') }}">
+                                            <i class="fas fa-trash"></i> {{ _('Remover') }}
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div class="card-body text-center text-muted">
+                    <i class="fas fa-inbox" style="font-size: 3rem; opacity: 0.3;"></i>
+                    <p class="mt-3">{{ _('Aucun produto trouvé') }}</p>
+                    <a href="{{ url_for('finance_master.create_product', company_id=company.id) }}" 
+                       class="btn btn-primary btn-sm">
+                        {{ _('Créer le primer producto') }}
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    {% if products.pages > 1 %}
+        <nav aria-label="Page navigation" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if products.has_prev %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('finance_master.list_products', page=1, search=search, company_id=company.id) }}">
+                            Première
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('finance_master.list_products', page=products.prev_num, search=search, company_id=company.id) }}">
+                            Précédente
+                        </a>
+                    </li>
+                {% endif %}
+
+                {% for page_num in products.iter_pages() %}
+                    {% if page_num %}
+                        {% if page_num == products.page %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ page_num }}</span>
+                            </li>
+                        {% else %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('finance_master.list_products', page=page_num, search=search, company_id=company.id) }}">
+                                    {{ page_num }}
+                                </a>
+                            </li>
+                        {% endif %}
+                    {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">...</span>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if products.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('finance_master.list_products', page=products.next_num, search=search, company_id=company.id) }}">
+                            Suivante
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('finance_master.list_products', page=products.pages, search=search, company_id=company.id) }}">
+                            Dernière
+                        </a>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+    {% endif %}
+</div>
+
+<style>
+    .page-header {
+        padding: 2rem 0 1rem;
+        margin-bottom: 2rem;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .table-hover tbody tr:hover {
+        background-color: rgba(0, 0, 0, 0.02);
+    }
+</style>
+{% endblock %}

@@ -53,8 +53,10 @@
   <ul class="nav nav-pills flex-wrap gap-1 mb-4">
     <li class="nav-item"><a class="nav-link {% if active=='dashboard' %}active{% endif %}" href="{{ url_for('finance.dashboard') }}">{{ _('Visão geral') }}</a></li>
     <li class="nav-item"><a class="nav-link {% if active=='accounts' %}active{% endif %}" href="{{ url_for('finance.accounts_list') }}">{{ _('Contas') }}</a></li>
+    <li class="nav-item"><a class="nav-link {% if active=='transactions' %}active{% endif %}" href="{{ url_for('finance.transactions_list') }}">{{ _('Transações') }}</a></li>
     <li class="nav-item"><a class="nav-link {% if active=='quick_entry' %}active{% endif %}" href="{{ url_for('finance.quick_entry') }}">{{ _('Entrada rápida') }}</a></li>
     <li class="nav-item"><a class="nav-link {% if active=='reports' %}active{% endif %}" href="{{ url_for('finance.reports_transactions') }}">{{ _('Relatórios') }}</a></li>
+    <li class="nav-item"><a class="nav-link {% if active=='pivot' %}active{% endif %}" href="{{ url_for('finance.pivot_page') }}">{{ _('Pivot') }}</a></li>
     <li class="nav-item"><a class="nav-link {% if active=='invoices' %}active{% endif %}" href="{{ url_for('finance.invoices_list') }}">{{ _('E-faturas') }}</a></li>
     <li class="nav-item"><a class="nav-link {% if active=='alerts' %}active{% endif %}" href="{{ url_for('finance.alerts_page') }}">{{ _('Alertas') }}</a></li>
     <li class="nav-item"><a class="nav-link {% if active=='regulation' %}active{% endif %}" href="{{ url_for('finance.regulation_page') }}">{{ _('Regulação') }}</a></li>

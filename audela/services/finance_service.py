@@ -75,6 +75,32 @@ def compute_cashflow(
     return pts
 
 
+def compute_opening_balance(
+    transactions: Iterable[FinanceTransaction],
+    start: date,
+    as_of: date,
+    current_balance: Decimal,
+) -> Decimal:
+    """Compute opening balance for the start date using current balance and transactions.
+
+    Assumes current_balance reflects the balance as of `as_of` (today).
+    """
+    opening = _d(current_balance)
+    if start <= as_of:
+        net = Decimal("0")
+        for t in transactions:
+            if start <= t.txn_date <= as_of:
+                net += _d(t.amount)
+        return opening - net
+
+    # Start date in the future: project using scheduled transactions before start
+    net = Decimal("0")
+    for t in transactions:
+        if as_of < t.txn_date < start:
+            net += _d(t.amount)
+    return opening + net
+
+
 def compute_nii(accounts: Iterable[FinanceAccount], horizon_days: int = 365) -> dict:
     """Compute a simple Net Interest Income estimate over a horizon.
 
@@ -133,31 +159,52 @@ def compute_interest_rate_gaps(accounts: Iterable[FinanceAccount], as_of: date |
     as_of = as_of or date.today()
     buckets: dict[str, dict[str, Decimal]] = {}
 
-    def add(lbl: str, side: str, amount: Decimal) -> None:
-        buckets.setdefault(lbl, {"assets": Decimal("0"), "liabilities": Decimal("0"), "gap": Decimal("0")})
+    def add(lbl: str, side: str, amount: Decimal, fallback: bool = False) -> None:
+        buckets.setdefault(
+            lbl,
+            {
+                "assets": Decimal("0"),
+                "liabilities": Decimal("0"),
+                "gap": Decimal("0"),
+                "fallback": Decimal("0"),
+            },
+        )
         if side == "asset":
             buckets[lbl]["assets"] += amount
         else:
             buckets[lbl]["liabilities"] += amount
+        if fallback:
+            buckets[lbl]["fallback"] += amount
         buckets[lbl]["gap"] = buckets[lbl]["assets"] - buckets[lbl]["liabilities"]
 
     for a in accounts:
-        # Only accounts with repricing or maturity dates are relevant
+        # Fallback: accounts without dates go to 0-30d bucket
         dt = a.repricing_date or a.maturity_date
-        if not dt:
-            continue
-        days = (dt - as_of).days
-        if days < 0:
+        if dt:
+            days = (dt - as_of).days
+            if days < 0:
+                days = 0
+            fallback = False
+        else:
             days = 0
+            fallback = True
         lbl = _bucket_label(days)
-        add(lbl, (a.side or "asset").lower(), _d(a.balance))
+        add(lbl, (a.side or "asset").lower(), _d(a.balance), fallback=fallback)
 
     ordered = []
     for _, _, lbl in _BUCKETS:
         if lbl in buckets:
             ordered.append({"bucket": lbl, **buckets[lbl]})
         else:
-            ordered.append({"bucket": lbl, "assets": Decimal("0"), "liabilities": Decimal("0"), "gap": Decimal("0")})
+            ordered.append(
+                {
+                    "bucket": lbl,
+                    "assets": Decimal("0"),
+                    "liabilities": Decimal("0"),
+                    "gap": Decimal("0"),
+                    "fallback": Decimal("0"),
+                }
+            )
     return {"rows": ordered}
 
 
@@ -233,6 +280,158 @@ def compute_basic_risk(accounts: Iterable[FinanceAccount]) -> dict:
     )
 
     return {"currency": ccy_rows, "counterparty": cp_rows[:10]}
+
+
+def compute_risk_metrics(accounts: Iterable[FinanceAccount], transactions: Iterable[FinanceTransaction] | None = None) -> dict:
+    """Compute robust SME-friendly liquidity risk metrics: LCR, NSFR, and concentration ratios.
+    
+    LCR (Liquidity Coverage Ratio) = High Quality Liquid Assets / Total Net Cash Outflows (30d)
+    - Target: >= 100%
+    
+    NSFR (Net Stable Funding Ratio) = Available Stable Funding / Required Stable Funding
+    - Target: >= 100%
+    
+    Returns metrics for dashboard display and monitoring.
+    """
+    as_of = date.today()
+    accounts_list = list(accounts)
+    
+    # ===== LCR Calculation =====
+    # HQLA = High Quality Liquid Assets (cash + bank accounts with immediate access)
+    hqla = Decimal("0")
+    
+    # Net Cash Outflows over 30 days
+    net_30d_outflows = Decimal("0")
+    
+    # Liability maturity profile & projected outflows
+    liabilities_0_30d = Decimal("0")
+    liabilities_30_90d = Decimal("0")
+    liabilities_total = Decimal("0")
+    
+    # Asset liquidity profile
+    assets_illiquid = Decimal("0")
+    total_assets = Decimal("0")
+    total_liabilities = Decimal("0")
+    
+    for a in accounts_list:
+        t = (a.account_type or "").lower()
+        side = (a.side or "asset").lower()
+        bal = _d(a.balance)
+        
+        # Track total assets/liabilities for NSFR
+        if side == "asset":
+            total_assets += bal
+        else:
+            total_liabilities += abs(bal)
+        
+        # HQLA: immediate access cash and bank balances
+        if t in {"cash", "bank"} and side == "asset":
+            hqla += bal
+        
+        # Liability maturity bucketing for LCR
+        if side == "liability":
+            dt = a.maturity_date
+            if dt:
+                days_to_maturity = (dt - as_of).days
+                if days_to_maturity <= 30 and days_to_maturity > 0:
+                    liabilities_0_30d += abs(bal)
+                elif days_to_maturity <= 90 and days_to_maturity > 30:
+                    liabilities_30_90d += abs(bal)
+            else:
+                # No maturity date: assume stable liability (longer term)
+                pass
+            liabilities_total += abs(bal)
+        
+        # Illiquid assets (loans, receivables)
+        if t in {"loan", "receivable"} and side == "asset":
+            assets_illiquid += bal
+    
+    # For 30-day horizon: assume liability outflows + some emergency withdrawal allowance
+    # SME approximation: assume 10% of HQLA must be held as buffer for operational needs
+    # and 100% of liabilities maturing in 30d must be paid
+    emergency_buffer = hqla * Decimal("0.10") if hqla > 0 else Decimal("0")
+    net_30d_outflows = liabilities_0_30d + emergency_buffer
+    
+    # LCR = HQLA / Net Outflows
+    lcr = (hqla / net_30d_outflows * 100) if net_30d_outflows > 0 else Decimal("0")
+    lcr_status = "healthy" if lcr >= 100 else ("caution" if lcr >= 75 else "stressed")
+    
+    # ===== NSFR Calculation =====
+    # Available Stable Funding (ASF) = Equity + Stable Liabilities
+    # For SME: assume all equity (net assets) + liabilities > 1 year
+    equity = total_assets - total_liabilities
+    liabilities_stable = liabilities_total - liabilities_0_30d  # longer-term liabilities
+    asf = max(Decimal("0"), equity) + liabilities_stable
+    
+    # Required Stable Funding (RSF) = Illiquid Assets + Committed Outflows
+    # For SME: assume 50% of illiquid assets + 100% of short-term commitments
+    rsf = (assets_illiquid * Decimal("0.50")) + liabilities_0_30d
+    
+    # NSFR = ASF / RSF
+    nsfr = (asf / rsf * 100) if rsf > 0 else Decimal("0")
+    nsfr_status = "healthy" if nsfr >= 100 else ("caution" if nsfr >= 75 else "stressed")
+    
+    # ===== Concentration Ratios =====
+    by_ccy: dict[str, Decimal] = {}
+    by_cp: dict[str, Decimal] = {}
+    
+    for a in accounts_list:
+        ccy = (a.currency or "").upper() or "EUR"
+        by_ccy[ccy] = by_ccy.get(ccy, Decimal("0")) + _d(a.balance)
+        
+        cp = (a.counterparty_ref.name if getattr(a, "counterparty_ref", None) else (a.counterparty or "").strip()) or "(n/a)"
+        by_cp[cp] = by_cp.get(cp, Decimal("0")) + abs(_d(a.balance))
+    
+    # Calculate concentration ratios (% of total assets)
+    ccy_rows = []
+    for k, v in sorted(by_ccy.items(), key=lambda x: abs(x[1]), reverse=True):
+        conc_ratio = (v / total_assets * 100) if total_assets > 0 else Decimal("0")
+        ccy_rows.append({
+            "currency": k,
+            "exposure": v,
+            "concentration": conc_ratio,
+        })
+    
+    cp_rows = []
+    for k, v in sorted(by_cp.items(), key=lambda x: x[1], reverse=True)[:10]:
+        conc_ratio = (v / total_assets * 100) if total_assets > 0 else Decimal("0")
+        cp_rows.append({
+            "counterparty": k,
+            "exposure": v,
+            "concentration": conc_ratio,
+        })
+    
+    # ===== Output Summary =====
+    return {
+        "as_of": as_of,
+        "lcr": {
+            "ratio": lcr,
+            "status": lcr_status,
+            "hqla": hqla,
+            "net_outflows_30d": net_30d_outflows,
+            "target": Decimal("100"),
+        },
+        "nsfr": {
+            "ratio": nsfr,
+            "status": nsfr_status,
+            "asf": asf,
+            "rsf": rsf,
+            "target": Decimal("100"),
+        },
+        "liquidity": {
+            "total_assets": total_assets,
+            "total_liabilities": total_liabilities,
+            "equity": equity,
+            "liabilities_0_30d": liabilities_0_30d,
+            "liabilities_30_90d": liabilities_30_90d,
+            "assets_illiquid": assets_illiquid,
+        },
+        "concentration": {
+            "currency": ccy_rows,
+            "counterparty": cp_rows,
+        },
+    }
+
 
 
 def parse_transactions_csv(text: str) -> list[dict]:

@@ -1,0 +1,203 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'transactions' %}
+
+{% block finance_content %}
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  
+  <!-- Filters Card -->
+  <div class="card mb-3 sticky-top" style="top: 1rem; z-index: 10; box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);">
+    <div class="card-header fw-semibold">{{ _('Filtrar Transações') }}</div>
+    <div class="card-body">
+      <form method="get" class="row g-3">
+        <div class="col-12 col-md-2">
+          <label class="form-label">{{ _('Conta') }}</label>
+          <select class="form-select" name="account_id">
+            <option value="">{{ _('Todas as contas') }}</option>
+            {% for acc in accounts %}
+              <option value="{{ acc.id }}" {% if acc.id|string == account_id|string %}selected{% endif %}>{{ acc.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        
+        <div class="col-12 col-md-2">
+          <label class="form-label">{{ _('Categoria') }}</label>
+          <select class="form-select" name="category_id">
+            <option value="">{{ _('Todas as categorias') }}</option>
+            {% for cat in categories %}
+              <option value="{{ cat.id }}" {% if cat.id|string == category_id|string %}selected{% endif %}>{{ cat.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        
+        <div class="col-12 col-md-2">
+          <label class="form-label">{{ _('Contraparte') }}</label>
+          <select class="form-select" name="counterparty_id">
+            <option value="">{{ _('Todas as contrapartes') }}</option>
+            {% for cp in counterparties %}
+              <option value="{{ cp.id }}" {% if cp.id|string == counterparty_id|string %}selected{% endif %}>{{ cp.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        
+        <div class="col-12 col-md-2">
+          <label class="form-label">{{ _('Tipo de Movimento') }}</label>
+          <select class="form-select" name="type">
+            <option value="">{{ _('Todos os tipos') }}</option>
+            <option value="inflow" {% if txn_type == 'inflow' %}selected{% endif %}>{{ _('Entrada') }}</option>
+            <option value="outflow" {% if txn_type == 'outflow' %}selected{% endif %}>{{ _('Saída') }}</option>
+          </select>
+        </div>
+        
+        <div class="col-12 col-md-2">
+          <label class="form-label">{{ _('Data Inicial') }}</label>
+          <input type="date" class="form-control" name="start_date" value="{{ start_date or '' }}">
+        </div>
+        
+        <div class="col-12 col-md-2">
+          <label class="form-label">{{ _('Data Final') }}</label>
+          <input type="date" class="form-control" name="end_date" value="{{ end_date or '' }}">
+        </div>
+        
+        <div class="col-12 col-md-2">
+          <button type="submit" class="btn btn-primary w-100">{{ _('Aplicar Filtros') }}</button>
+        </div>
+        
+        <div class="col-12 col-md-2">
+          <a href="{{ url_for('finance.transactions_list') }}" class="btn btn-secondary w-100">{{ _('Limpar Filtros') }}</a>
+        </div>
+        
+        <div class="col-12 col-md-2">
+          <label class="form-label">{{ _('Número de Registros') }}</label>
+          <select class="form-select" name="per_page" onchange="this.form.submit()">
+            <option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+            <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+            <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+            <option value="250" {% if per_page == 250 %}selected{% endif %}>250</option>
+          </select>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Summary Card -->
+  <div class="card mb-3">
+    <div class="card-body row g-0">
+      <div class="col-6 col-md-3">
+        <div class="text-secondary small">{{ _('Total de Transações') }}</div>
+        <div class="h5 mb-0 fw-semibold">{{ pagination.total }}</div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="text-secondary small">{{ _('Página') }}</div>
+        <div class="h5 mb-0">{{ pagination.page }} {{ _('de') }} {{ pagination.pages }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transactions Table -->
+  <div class="card">
+    <div class="card-body p-0">
+      {% if pagination.items %}
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead>
+              <tr>
+                <th>{{ _('Data') }}</th>
+                <th>{{ _('Conta') }}</th>
+                <th>{{ _('Descrição') }}</th>
+                <th>{{ _('Categoria') }}</th>
+                <th>{{ _('Contraparte') }}</th>
+                <th class="text-end">{{ _('Valor') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for txn in pagination.items %}
+                <tr>
+                  <td class="small">{{ txn.txn_date.strftime('%d/%m/%Y') }}</td>
+                  <td class="small">{{ txn.account.name if txn.account else '' }}</td>
+                  <td class="small">{{ txn.description or '' }}</td>
+                  <td class="small">
+                    {% if txn.category_ref %}
+                      {{ txn.category_ref.name }}
+                    {% elif txn.category %}
+                      {{ txn.category }}
+                    {% else %}
+                      <span class="text-secondary">—</span>
+                    {% endif %}
+                  </td>
+                  <td class="small">
+                    {% if txn.counterparty_ref %}
+                      {{ txn.counterparty_ref.name }}
+                    {% elif txn.counterparty %}
+                      {{ txn.counterparty }}
+                    {% else %}
+                      <span class="text-secondary">—</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-end small fw-semibold">
+                    {% if (txn.amount or 0) >= 0 %}
+                      <span class="text-success">+{{ "{:,.2f}".format(txn.amount or 0) }}</span>
+                    {% else %}
+                      <span class="text-danger">{{ "{:,.2f}".format(txn.amount or 0) }}</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="card-footer">
+          <nav aria-label="Pagination">
+            <ul class="pagination mb-0">
+              {% if pagination.has_prev %}
+                <li class="page-item">
+                  <a class="page-link" href="{{ url_for('finance.transactions_list', page=1, account_id=account_id or '', category_id=category_id or '', counterparty_id=counterparty_id or '', type=txn_type or '', start_date=start_date or '', end_date=end_date or '', per_page=per_page) }}">{{ _('Primeira') }}</a>
+                </li>
+                <li class="page-item">
+                  <a class="page-link" href="{{ url_for('finance.transactions_list', page=pagination.prev_num, account_id=account_id or '', category_id=category_id or '', counterparty_id=counterparty_id or '', type=txn_type or '', start_date=start_date or '', end_date=end_date or '', per_page=per_page) }}">{{ _('Anterior') }}</a>
+                </li>
+              {% else %}
+                <li class="page-item disabled"><span class="page-link">{{ _('Primeira') }}</span></li>
+                <li class="page-item disabled"><span class="page-link">{{ _('Anterior') }}</span></li>
+              {% endif %}
+
+              {% for page_num in pagination.iter_pages() %}
+                {% if page_num %}
+                  {% if page_num == pagination.page %}
+                    <li class="page-item active"><span class="page-link">{{ page_num }}</span></li>
+                  {% else %}
+                    <li class="page-item">
+                      <a class="page-link" href="{{ url_for('finance.transactions_list', page=page_num, account_id=account_id or '', category_id=category_id or '', counterparty_id=counterparty_id or '', type=txn_type or '', start_date=start_date or '', end_date=end_date or '', per_page=per_page) }}">{{ page_num }}</a>
+                    </li>
+                  {% endif %}
+                {% else %}
+                  <li class="page-item disabled"><span class="page-link">…</span></li>
+                {% endif %}
+              {% endfor %}
+
+              {% if pagination.has_next %}
+                <li class="page-item">
+                  <a class="page-link" href="{{ url_for('finance.transactions_list', page=pagination.next_num, account_id=account_id or '', category_id=category_id or '', counterparty_id=counterparty_id or '', type=txn_type or '', start_date=start_date or '', end_date=end_date or '', per_page=per_page) }}">{{ _('Próxima') }}</a>
+                </li>
+                <li class="page-item">
+                  <a class="page-link" href="{{ url_for('finance.transactions_list', page=pagination.pages, account_id=account_id or '', category_id=category_id or '', counterparty_id=counterparty_id or '', type=txn_type or '', start_date=start_date or '', end_date=end_date or '', per_page=per_page) }}">{{ _('Última') }}</a>
+                </li>
+              {% else %}
+                <li class="page-item disabled"><span class="page-link">{{ _('Próxima') }}</span></li>
+                <li class="page-item disabled"><span class="page-link">{{ _('Última') }}</span></li>
+              {% endif %}
+            </ul>
+          </nav>
+        </div>
+      {% else %}
+        <div class="card-body">
+          <div class="text-center text-secondary py-5">
+            {{ _('Nenhuma transação encontrada') }}
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+{% endblock %}

@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}Éditer Produit{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="page-header mb-4">
+                <a href="{{ url_for('finance_master.list_products', company_id=company.id) }}" class="btn btn-outline-secondary btn-sm">
+                    <i class="fas fa-arrow-left"></i> Retour
+                </a>
+                <h1 class="mt-3">Éditer le produit</h1>
+                <p class="text-muted">{{ product.name }}</p>
+            </div>
+
+            {% for category, message in get_flashed_messages(with_categories=True) %}
+                <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+
+            <form method="POST" class="needs-validation" novalidate>
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Informations Générales</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Nom du produit</label>
+                            <input type="text" class="form-control" id="name" name="name" 
+                                   value="{{ product.name }}" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="code" class="form-label">Code (lecture seule)</label>
+                            <input type="text" class="form-control" value="{{ product.code or 'N/A' }}" disabled>
+                            <small class="form-text text-muted">Le code ne peut pas être modifié</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description</label>
+                            <textarea class="form-control" id="description" name="description" 
+                                      rows="3">{{ product.description or '' }}</textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Configuration TVA</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="vat_applies" name="vat_applies"
+                                       {% if product.vat_applies %}checked{% endif %}>
+                                <label class="form-check-label" for="vat_applies">
+                                    Ce produit est soumis à la TVA
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="vat_config" style="display: {% if product.vat_applies %}block{% else %}none{% endif %};">
+                            <div class="mb-3">
+                                <label for="vat_rate" class="form-label">Taux de TVA (%)</label>
+                                <div class="input-group">
+                                    <input type="number" class="form-control" id="vat_rate" name="vat_rate" 
+                                           value="{{ (product.vat_rate * 100) | int }}" step="0.01" min="0" max="100">
+                                    <span class="input-group-text">%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="exemption_config" style="display: {% if not product.vat_applies %}block{% else %}none{% endif %};">
+                            <div class="mb-3">
+                                <label for="tax_exempt_reason" class="form-label">Raison de l'exonération</label>
+                                <textarea class="form-control" id="tax_exempt_reason" name="tax_exempt_reason" 
+                                          rows="2">{{ product.tax_exempt_reason or '' }}</textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-warning mt-4">
+                    <i class="fas fa-clock"></i>
+                    <strong>Important:</strong> Les modifications n'affecteront que les futures transactions.
+                    Les transactions existantes conserveront leur configuration TVA initiale.
+                </div>
+
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Mettre à jour
+                    </button>
+                    <a href="{{ url_for('finance_master.list_products', company_id=company.id) }}" 
+                       class="btn btn-secondary">
+                        Annuler
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const vatCheckbox = document.getElementById('vat_applies');
+    const vatConfig = document.getElementById('vat_config');
+    const exemptionConfig = document.getElementById('exemption_config');
+
+    function updateVATDisplay() {
+        if (vatCheckbox.checked) {
+            vatConfig.style.display = 'block';
+            exemptionConfig.style.display = 'none';
+        } else {
+            vatConfig.style.display = 'none';
+            exemptionConfig.style.display = 'block';
+        }
+    }
+
+    vatCheckbox.addEventListener('change', updateVATDisplay);
+});
+</script>
+
+<style>
+    .page-header {
+        border-bottom: 1px solid #dee2e6;
+        padding-bottom: 1rem;
+    }
+</style>
+{% endblock %}

@@ -46,6 +46,13 @@
             </tr>
           </thead>
           <tbody>
+            <tr class="table-light">
+              <td>{{ _('Saldo inicial') }}</td>
+              <td class="text-end">-</td>
+              <td class="text-end">-</td>
+              <td class="text-end">-</td>
+              <td class="text-end">{{ starting }}</td>
+            </tr>
             {% for p in series[:60] %}
               <tr>
                 <td>{{ p.day }}</td>

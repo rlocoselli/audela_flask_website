@@ -1,0 +1,180 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'master_data' %}
+
+{% block title %}{{ _('Nova Contraparte') }}{% endblock %}
+
+{% block finance_content %}
+<div class="container">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="page-header mb-4">
+                <a href="{{ url_for('finance_master.list_counterparties', company_id=company.id) }}" class="btn btn-outline-secondary btn-sm">
+                    <i class="fas fa-arrow-left"></i> Retour
+                </a>
+                <h1 class="mt-3">Créer une nouvelle contrepartie</h1>
+            </div>
+
+            {% for category, message in get_flashed_messages(with_categories=True) %}
+                <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+
+            <form method="POST" class="needs-validation" novalidate>
+                <!-- Informations Générales -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Informations Générales</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Nom <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="name" name="name" 
+                                   placeholder="Ex: Entreprise ABC SA" required>
+                            <small class="form-text text-muted">Nom complet de la contrepartie</small>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="tax_id" class="form-label">SIRET / SIREN</label>
+                                    <input type="text" class="form-control" id="tax_id" name="tax_id" 
+                                           placeholder="Ex: 12345678900123">
+                                    <small class="form-text text-muted">Numéro d'identification fiscal</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="country_code" class="form-label">Pays</label>
+                                    <input type="text" class="form-control" id="country_code" name="country_code" 
+                                           placeholder="Ex: FR" maxlength="2">
+                                    <small class="form-text text-muted">Code pays ISO (FR, DE, IT...)</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="address" class="form-label">Adresse</label>
+                            <textarea class="form-control" id="address" name="address" rows="3" 
+                                      placeholder="Adresse complète..."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Informations Bancaires -->
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Informations Bancaires</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="iban" class="form-label">IBAN</label>
+                            <input type="text" class="form-control" id="iban" name="iban" 
+                                   placeholder="Ex: FR1420041010050500013M02606">
+                            <small class="form-text text-muted">
+                                Numéro de compte bancaire international (validation en temps réel)
+                            </small>
+                            <div id="iban-validation" class="mt-2"></div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="bic" class="form-label">BIC / SWIFT</label>
+                            <input type="text" class="form-control" id="bic" name="bic" 
+                                   placeholder="Ex: SOCFRPP">
+                            <small class="form-text text-muted">Code d'identification bancaire</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Coordonnées de Contact -->
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">Coordonnées de Contact</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="email" name="email" 
+                                   placeholder="contact@exemple.com">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="phone" class="form-label">Téléphone</label>
+                            <input type="tel" class="form-control" id="phone" name="phone" 
+                                   placeholder="+33 1 23 45 67 89">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Créer la contrepartie
+                    </button>
+                    <a href="{{ url_for('finance_master.list_counterparties', company_id=company.id) }}" 
+                       class="btn btn-secondary">
+                        Annuler
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ibanInput = document.getElementById('iban');
+    const ibanValidation = document.getElementById('iban-validation');
+
+    // Validation IBAN en temps réel
+    ibanInput.addEventListener('change', async function() {
+        const iban = this.value.trim();
+        if (!iban) {
+            ibanValidation.innerHTML = '';
+            return;
+        }
+
+        try {
+            const response = await fetch('{{ url_for("finance_master.validate_iban_api") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ iban: iban })
+            });
+
+            const data = await response.json();
+            
+            if (data.valid) {
+                ibanValidation.innerHTML = `
+                    <div class="alert alert-success alert-sm mb-0">
+                        <i class="fas fa-check-circle"></i> IBAN valide
+                        <br><small>${data.formatted}</small>
+                    </div>
+                `;
+            } else {
+                ibanValidation.innerHTML = `
+                    <div class="alert alert-danger alert-sm mb-0">
+                        <i class="fas fa-exclamation-circle"></i> ${data.message}
+                    </div>
+                `;
+            }
+        } catch (error) {
+            console.error('Error validating IBAN:', error);
+        }
+    });
+});
+</script>
+
+<style>
+    .page-header {
+        border-bottom: 1px solid #dee2e6;
+        padding-bottom: 1rem;
+    }
+
+    .alert-sm {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+    }
+</style>
+{% endblock %}

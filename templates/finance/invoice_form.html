@@ -1,6 +1,7 @@
 {% extends "finance/base_finance.html" %}
 
 {% block finance_content %}
+  <meta name="csrf-token" content="{{ csrf_token() }}">
   <div class="card shadow-sm">
     <div class="card-body">
       <h5 class="card-title">
@@ -92,19 +93,19 @@
               {% if invoice and invoice.lines %}
                 {% for ln in invoice.lines %}
                   <tr>
-                    <td><input class="form-control" name="line_description" value="{{ ln.description }}" required></td>
+                    <td><input class="form-control line-description" name="line_description" value="{{ ln.description }}" list="productsList" required></td>
                     <td><input class="form-control text-end" name="line_quantity" type="number" step="0.0001" value="{{ ln.quantity }}"></td>
-                    <td><input class="form-control text-end" name="line_unit_price" type="number" step="0.0001" value="{{ ln.unit_price }}"></td>
-                    <td><input class="form-control text-end" name="line_vat_rate" type="number" step="0.01" value="{{ ln.vat_rate }}"></td>
+                    <td><input class="form-control text-end line-price" name="line_unit_price" type="number" step="0.0001" value="{{ ln.unit_price }}"></td>
+                    <td><input class="form-control text-end line-vat" name="line_vat_rate" type="number" step="0.01" value="{{ ln.vat_rate }}"></td>
                     <td class="text-end"><button class="btn btn-sm btn-outline-danger" type="button" onclick="removeRow(this)">×</button></td>
                   </tr>
                 {% endfor %}
               {% else %}
                 <tr>
-                  <td><input class="form-control" name="line_description" placeholder="Service / produit" required></td>
+                  <td><input class="form-control line-description" name="line_description" placeholder="Service / produit" list="productsList" required></td>
                   <td><input class="form-control text-end" name="line_quantity" type="number" step="0.0001" value="1"></td>
-                  <td><input class="form-control text-end" name="line_unit_price" type="number" step="0.0001" value="0"></td>
-                  <td><input class="form-control text-end" name="line_vat_rate" type="number" step="0.01" value="0"></td>
+                  <td><input class="form-control text-end line-price" name="line_unit_price" type="number" step="0.0001" value="0"></td>
+                  <td><input class="form-control text-end line-vat" name="line_vat_rate" type="number" step="0.01" value="0"></td>
                   <td class="text-end"><button class="btn btn-sm btn-outline-danger" type="button" onclick="removeRow(this)">×</button></td>
                 </tr>
               {% endif %}
@@ -119,6 +120,12 @@
           </div>
         </div>
 
+        <datalist id="productsList">
+          {% for p in products %}
+            <option value="{{ p.name }}"></option>
+          {% endfor %}
+        </datalist>
+
         <div class="d-flex gap-2 mt-4">
           <button class="btn btn-primary" type="submit">{{ _('Salvar') }}</button>
           <a class="btn btn-outline-secondary" href="{{ url_for('finance.invoices_list') }}">{{ _('Voltar') }}</a>
@@ -132,10 +139,10 @@
       const tbody = document.querySelector('#linesTable tbody');
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td><input class="form-control" name="line_description" required></td>
+        <td><input class="form-control line-description" name="line_description" list="productsList" required></td>
         <td><input class="form-control text-end" name="line_quantity" type="number" step="0.0001" value="1"></td>
-        <td><input class="form-control text-end" name="line_unit_price" type="number" step="0.0001" value="0"></td>
-        <td><input class="form-control text-end" name="line_vat_rate" type="number" step="0.01" value="0"></td>
+        <td><input class="form-control text-end line-price" name="line_unit_price" type="number" step="0.0001" value="0"></td>
+        <td><input class="form-control text-end line-vat" name="line_vat_rate" type="number" step="0.01" value="0"></td>
         <td class="text-end"><button class="btn btn-sm btn-outline-danger" type="button" onclick="removeRow(this)">×</button></td>
       `;
       tbody.appendChild(tr);
@@ -145,5 +152,46 @@
       const tr = btn.closest('tr');
       if (tr) tr.remove();
     }
+
+    async function applyProductDefaults(input) {
+      const name = (input.value || '').trim();
+      if (!name) return;
+      const row = input.closest('tr');
+      if (!row) return;
+      const vatInput = row.querySelector('.line-vat');
+      const priceInput = row.querySelector('.line-price');
+      const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+      const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
+
+      try {
+        const res = await fetch(`{{ url_for('finance.product_lookup') }}?name=${encodeURIComponent(name)}`,
+          {
+            headers: csrfToken ? { 'X-CSRFToken': csrfToken } : {}
+          }
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.found) return;
+
+        if (vatInput) {
+          vatInput.value = data.vat_rate;
+        }
+        if (priceInput) {
+          const current = parseFloat(priceInput.value || '0');
+          if (!current || current === 0) {
+            priceInput.value = data.unit_price;
+          }
+        }
+      } catch (err) {
+        console.error('Product lookup failed', err);
+      }
+    }
+
+    document.addEventListener('change', (event) => {
+      const target = event.target;
+      if (target && target.classList.contains('line-description')) {
+        applyProductDefaults(target);
+      }
+    });
   </script>
 {% endblock %}

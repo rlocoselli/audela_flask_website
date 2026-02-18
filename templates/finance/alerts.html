@@ -77,6 +77,13 @@
                 </tr>
               </thead>
               <tbody>
+                <tr class="table-light">
+                  <td>{{ _('Saldo inicial') }}</td>
+                  <td class="text-end">-</td>
+                  <td class="text-end">-</td>
+                  <td class="text-end">-</td>
+                  <td class="text-end">{{ '%.2f'|format(starting) }}</td>
+                </tr>
                 {% for r in table %}
                   <tr>
                     <td>{{ r.period }}</td>

@@ -11,6 +11,13 @@ from .finance_ext import (
     FinanceLedgerLine,
     FinanceLiability,
     FinanceRecurringTransaction,
+    FinanceProduct,
+    FinanceDailyBalance,
+    FinanceAdjustment,
+    FinanceAdjustmentLog,
+    FinanceCounterpartyAttribute,
+    FinanceGoCardlessConnection,
+    FinanceGoCardlessSyncLog,
 )
 from .finance_invoices import FinanceInvoice, FinanceInvoiceLine, FinanceSetting
 from .bi import (
@@ -59,6 +66,13 @@ __all__ = [
     "FinanceLedgerLine",
     "FinanceLiability",
     "FinanceRecurringTransaction",
+    "FinanceProduct",
+    "FinanceDailyBalance",
+    "FinanceAdjustment",
+    "FinanceAdjustmentLog",
+    "FinanceCounterpartyAttribute",
+    "FinanceGoCardlessConnection",
+    "FinanceGoCardlessSyncLog",
     "FinanceInvoice",
     "FinanceInvoiceLine",
     "FinanceSetting",

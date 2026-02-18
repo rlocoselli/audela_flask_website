@@ -2,20 +2,171 @@
 {% set active = 'risk' %}
 
 {% block finance_content %}
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  
+  <!-- Liquidity Risk Metrics (LCR & NSFR) -->
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-md-6">
+      <div class="card">
+        <div class="card-header fw-semibold">{{ _('LCR') }} - {{ _('Razão de Cobertura de Liquidez') }}</div>
+        <div class="card-body">
+          <div class="row align-items-center">
+            <div class="col-6">
+              <div class="display-5 text-primary fw-bold">
+                {% if res.lcr.ratio is not none %}
+                  {{ "%.1f"|format(res.lcr.ratio) }}%
+                {% else %}
+                  N/A
+                {% endif %}
+              </div>
+              <div class="small text-secondary">{{ _('Target') }}: 100%</div>
+            </div>
+            <div class="col-6">
+              <div class="alert alert-sm p-2 mb-2 
+                {%- if res.lcr.status == 'healthy' %} alert-success
+                {%- elif res.lcr.status == 'caution' %} alert-warning
+                {%- else %} alert-danger
+                {%- endif %}">
+                {% if res.lcr.status == 'healthy' %}
+                  {{ _('Saudável') }} ✓
+                {% elif res.lcr.status == 'caution' %}
+                  {{ _('Cautela') }} ⚠
+                {% else %}
+                  {{ _('Estressado') }} ✗
+                {% endif %}
+              </div>
+              <div class="small">
+                <strong>{{ _('Ativos de Alta Qualidade Líquida') }}:</strong> {{ "%.2f"|format(res.lcr.hqla) }}<br>
+                <strong>{{ _('Saídas Líquidas 30d') }}:</strong> {{ "%.2f"|format(res.lcr.net_outflows_30d) }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-6">
+      <div class="card">
+        <div class="card-header fw-semibold">{{ _('NSFR') }} - {{ _('Razão de Financiamento Estável Líquido') }}</div>
+        <div class="card-body">
+          <div class="row align-items-center">
+            <div class="col-6">
+              <div class="display-5 text-primary fw-bold">
+                {% if res.nsfr.ratio is not none %}
+                  {{ "%.1f"|format(res.nsfr.ratio) }}%
+                {% else %}
+                  N/A
+                {% endif %}
+              </div>
+              <div class="small text-secondary">{{ _('Target') }}: 100%</div>
+            </div>
+            <div class="col-6">
+              <div class="alert alert-sm p-2 mb-2 
+                {%- if res.nsfr.status == 'healthy' %} alert-success
+                {%- elif res.nsfr.status == 'caution' %} alert-warning
+                {%- else %} alert-danger
+                {%- endif %}">
+                {% if res.nsfr.status == 'healthy' %}
+                  {{ _('Saudável') }} ✓
+                {% elif res.nsfr.status == 'caution' %}
+                  {{ _('Cautela') }} ⚠
+                {% else %}
+                  {{ _('Estressado') }} ✗
+                {% endif %}
+              </div>
+              <div class="small">
+                <strong>{{ _('Financiamento Disponível Estável') }}:</strong> {{ "%.2f"|format(res.nsfr.asf) }}<br>
+                <strong>{{ _('Financiamento Necessário Estável') }}:</strong> {{ "%.2f"|format(res.nsfr.rsf) }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Liquidity Breakdown Table -->
+  <div class="row g-3 mb-3">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header fw-semibold">{{ _('Perfil de Liquidez') }}</div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm mb-0">
+              <tbody>
+                <tr>
+                  <td><strong>{{ _('Ativos Totais') }}</strong></td>
+                  <td class="text-end">{{ "%.2f"|format(res.liquidity.total_assets) }}</td>
+                </tr>
+                <tr>
+                  <td><strong>{{ _('Passivos Totais') }}</strong></td>
+                  <td class="text-end">{{ "%.2f"|format(res.liquidity.total_liabilities) }}</td>
+                </tr>
+                <tr class="table-light">
+                  <td><strong>{{ _('Patrimônio') }}</strong></td>
+                  <td class="text-end fw-semibold">{{ "%.2f"|format(res.liquidity.equity) }}</td>
+                </tr>
+                <tr>
+                  <td><span class="small text-secondary">{{ _('Passivos 0-30d') }}</span></td>
+                  <td class="text-end">{{ "%.2f"|format(res.liquidity.liabilities_0_30d) }}</td>
+                </tr>
+                <tr>
+                  <td><span class="small text-secondary">{{ _('Passivos 30-90d') }}</span></td>
+                  <td class="text-end">{{ "%.2f"|format(res.liquidity.liabilities_30_90d) }}</td>
+                </tr>
+                <tr>
+                  <td><span class="small text-secondary">{{ _('Ativos Ilíquidos') }}</span></td>
+                  <td class="text-end">{{ "%.2f"|format(res.liquidity.assets_illiquid) }}</td>
+                </tr>
+                <tr class="text-secondary small">
+                  <td>{{ _('Data de Avaliação') }}: {{ res.as_of.strftime('%d/%m/%Y') }}</td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Concentration Analysis -->
   <div class="row g-3">
     <div class="col-12 col-lg-6">
       <div class="card">
-        <div class="card-header fw-semibold">{{ _('Exposição por moeda') }}</div>
+        <div class="card-header fw-semibold">{{ _('Concentração por Moeda') }}</div>
         <div class="card-body">
           <div id="ccy-chart" style="height: 320px;"></div>
-          <div class="small text-secondary mt-2">{{ _('Sem FX: exposição é soma de saldos por moeda.') }}</div>
+          <div class="small text-secondary mt-2">{{ _('Exposição por moeda (% do total de ativos).') }}</div>
+          <div class="table-responsive mt-3">
+            <table class="table table-sm mb-0">
+              <thead>
+                <tr>
+                  <th>{{ _('Moeda') }}</th>
+                  <th class="text-end">{{ _('Exposição') }}</th>
+                  <th class="text-end">{{ _('Taxa de Concentração') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for r in res.concentration.currency %}
+                  <tr>
+                    <td>{{ r.currency }}</td>
+                    <td class="text-end">{{ "%.2f"|format(r.exposure) }}</td>
+                    <td class="text-end">{{ "%.1f"|format(r.concentration) }}%</td>
+                  </tr>
+                {% else %}
+                  <tr><td colspan="3" class="text-center text-secondary py-4">{{ _('Sem dados suficientes.') }}</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
 
     <div class="col-12 col-lg-6">
       <div class="card">
-        <div class="card-header fw-semibold">{{ _('Concentração por contraparte (Top 10)') }}</div>
+        <div class="card-header fw-semibold">{{ _('Concentração por Contraparte (Top 10)') }}</div>
         <div class="card-body p-0">
           <div class="table-responsive">
             <table class="table table-sm mb-0">
@@ -23,16 +174,18 @@
                 <tr>
                   <th>{{ _('Contraparte') }}</th>
                   <th class="text-end">{{ _('Exposição') }}</th>
+                  <th class="text-end">{{ _('Taxa de Concentração') }}</th>
                 </tr>
               </thead>
               <tbody>
-                {% for r in res.counterparty %}
+                {% for r in res.concentration.counterparty %}
                   <tr>
                     <td>{{ r.counterparty }}</td>
-                    <td class="text-end">{{ r.exposure }}</td>
+                    <td class="text-end">{{ "%.2f"|format(r.exposure) }}</td>
+                    <td class="text-end">{{ "%.1f"|format(r.concentration) }}%</td>
                   </tr>
                 {% else %}
-                  <tr><td colspan="2" class="text-center text-secondary py-4">{{ _('Sem dados suficientes.') }}</td></tr>
+                  <tr><td colspan="3" class="text-center text-secondary py-4">{{ _('Sem dados suficientes.') }}</td></tr>
                 {% endfor %}
               </tbody>
             </table>
@@ -47,7 +200,11 @@
       const data = {{ ccy_chart|tojson }};
       const dom = document.getElementById('ccy-chart');
       if (!dom) return;
-      if (!window.echarts) { dom.innerHTML = `<div class="text-secondary small">${(window.t ? window.t("Charts unavailable") : "Charts unavailable")}</div>`; return; }
+      if (!window.echarts) { 
+        dom.innerHTML = `<div class="text-secondary small">${(window.t ? window.t("Charts unavailable") : "Charts unavailable")}</div>`; 
+        return; 
+      }
+      
       const chart = echarts.init(dom);
       chart.setOption({
         tooltip: { trigger: 'item' },
@@ -58,8 +215,10 @@
           label: { formatter: '{b}: {c}' }
         }]
       });
+      
       setTimeout(() => { try { chart.resize(); } catch(e) {} }, 80);
       window.addEventListener('resize', () => { try { chart.resize(); } catch(e) {} });
     });
   </script>
 {% endblock %}
+

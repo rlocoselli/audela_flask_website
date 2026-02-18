@@ -92,6 +92,10 @@ class FinanceAccount(db.Model):
 
     counterparty_ref = db.relationship("FinanceCounterparty")
 
+    # Bank identification (IBAN/BIC for this specific account, not company-level)
+    iban = db.Column(db.String(64), nullable=True)
+    bic = db.Column(db.String(32), nullable=True)
+
     # Optional accounting mapping (used for reconciliation)
     gl_account_id = db.Column(db.Integer, db.ForeignKey("finance_gl_accounts.id", ondelete="SET NULL"), nullable=True, index=True)
     notes = db.Column(db.Text, nullable=True)

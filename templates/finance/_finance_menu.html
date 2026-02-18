@@ -1,0 +1,24 @@
+<!-- Finance Master Data Menu - _finance_menu.html -->
+<ul class="nav flex-column">
+    <li class="nav-item">
+        <a class="nav-link d-flex align-items-center {% if 'finance_master.list_products' in request.endpoint %}active{% endif %}" 
+           href="{{ url_for('finance_master.list_products') }}">
+            <i class="fas fa-box-open me-2"></i>
+            <span>{{ _('Produtos') }}</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link d-flex align-items-center {% if 'finance_master.list_counterparties' in request.endpoint %}active{% endif %}" 
+           href="{{ url_for('finance_master.list_counterparties') }}">
+            <i class="fas fa-users me-2"></i>
+            <span>{{ _('Contrapartes') }}</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link d-flex align-items-center {% if 'finance_master.bank_config' in request.endpoint %}active{% endif %}" 
+           href="{{ url_for('finance_master.bank_config') }}">
+            <i class="fas fa-university me-2"></i>
+            <span>{{ _('Configuração Bancária') }}</span>
+        </a>
+    </li>
+</ul>

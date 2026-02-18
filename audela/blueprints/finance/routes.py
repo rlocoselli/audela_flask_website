@@ -8,6 +8,7 @@ from flask import abort, flash, g, redirect, render_template, request, session, 
 from flask_login import current_user, login_required
 from werkzeug.utils import secure_filename
 from sqlalchemy.orm import joinedload
+from sqlalchemy import func
 
 from ...extensions import db
 from ...i18n import DEFAULT_LANG, tr
@@ -25,6 +26,7 @@ from ...models.finance_ext import (
     FinanceLedgerLine,
     FinanceLiability,
     FinanceRecurringTransaction,
+    FinanceProduct,
 )
 from ...security import require_roles
 from ...services.bank_bridge import BridgeClient, BridgeError
@@ -33,7 +35,9 @@ from ...services.openai_statement import parse_bank_statement_pdf_via_openai, Op
 from ...services.openai_quick_entry import parse_quick_entry_text_via_openai, OpenAIQuickEntryError
 from ...services.finance_service import (
     compute_basic_risk,
+    compute_risk_metrics,
     compute_cashflow,
+    compute_opening_balance,
     compute_interest_rate_gaps,
     compute_liquidity,
     compute_nii,
@@ -757,6 +761,89 @@ def transactions_import():
     return redirect(url_for("finance.account_view", account_id=acc.id))
 
 
+@bp.route("/transactions", methods=["GET"])
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def transactions_list():
+    """List transactions with pagination and advanced filters."""
+    company = _get_company()
+    
+    # Get filter parameters
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 50, type=int)
+    per_page = min(per_page, 500)  # Max 500 per page
+    
+    account_id = request.args.get("account_id", type=int)
+    category_id = request.args.get("category_id", type=int)
+    counterparty_id = request.args.get("counterparty_id", type=int)
+    txn_type = request.args.get("type")  # "inflow" or "outflow"
+    start_date = request.args.get("start_date")
+    end_date = request.args.get("end_date")
+    
+    # Build query
+    query = _q_txns(company).options(
+        joinedload(FinanceTransaction.account),
+        joinedload(FinanceTransaction.category_ref),
+        joinedload(FinanceTransaction.counterparty_ref)
+    )
+    
+    # Apply filters
+    if account_id:
+        query = query.filter(FinanceTransaction.account_id == account_id)
+    
+    if category_id:
+        query = query.filter(FinanceTransaction.category_id == category_id)
+    
+    if counterparty_id:
+        query = query.filter(FinanceTransaction.counterparty_id == counterparty_id)
+    
+    if txn_type == "inflow":
+        query = query.filter(FinanceTransaction.amount >= 0)
+    elif txn_type == "outflow":
+        query = query.filter(FinanceTransaction.amount < 0)
+    
+    if start_date:
+        try:
+            sd = datetime.strptime(start_date, "%Y-%m-%d").date()
+            query = query.filter(FinanceTransaction.txn_date >= sd)
+        except Exception:
+            pass
+    
+    if end_date:
+        try:
+            ed = datetime.strptime(end_date, "%Y-%m-%d").date()
+            query = query.filter(FinanceTransaction.txn_date <= ed)
+        except Exception:
+            pass
+    
+    # Order and paginate
+    pagination = query.order_by(FinanceTransaction.txn_date.desc(), FinanceTransaction.id.desc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+    
+    # Get filter options
+    accounts = _q_accounts(company).order_by(FinanceAccount.name).all()
+    categories = FinanceCategory.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).order_by(FinanceCategory.name).all()
+    counterparties = FinanceCounterparty.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).order_by(FinanceCounterparty.name).all()
+    
+    return render_template(
+        "finance/transactions_list.html",
+        tenant=g.tenant,
+        company=company,
+        pagination=pagination,
+        accounts=accounts,
+        categories=categories,
+        counterparties=counterparties,
+        account_id=account_id,
+        category_id=category_id,
+        counterparty_id=counterparty_id,
+        txn_type=txn_type,
+        start_date=start_date,
+        end_date=end_date,
+        per_page=per_page,
+    )
+
+
 # -----------------
 # Help and settings
 # -----------------
@@ -1126,7 +1213,12 @@ def cashflow():
     except Exception:
         end = start + timedelta(days=90)
 
-    starting = Decimal(str(request.args.get("starting") or compute_starting_cash(accounts)))
+    starting_arg = request.args.get("starting")
+    if starting_arg:
+        starting = Decimal(str(starting_arg))
+    else:
+        current_balance = compute_starting_cash(accounts)
+        starting = compute_opening_balance(txns, start=start, as_of=date.today(), current_balance=current_balance)
     series = compute_cashflow(txns, start=start, end=end, starting_balance=starting)
 
     chart = [
@@ -1216,15 +1308,100 @@ def liquidity():
     )
 
 
+@bp.route("/pivot")
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def pivot_page():
+    company = _get_company()
+    return render_template(
+        "finance/pivot.html",
+        tenant=g.tenant,
+        company=company,
+        active="pivot",
+    )
+
+
+@bp.route("/pivot/data")
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def pivot_data():
+    company = _get_company()
+    source = request.args.get('source', 'transactions')
+    rows = []
+    
+    if source == 'invoices':
+        # Get invoice data
+        invoices = FinanceInvoice.query.options(
+            joinedload(FinanceInvoice.counterparty),
+            joinedload(FinanceInvoice.settlement_account)
+        ).filter_by(tenant_id=g.tenant.id, company_id=company.id).all()
+        
+        for inv in invoices:
+            net_amount = float(inv.total_net or 0)
+            tax_amount = float(inv.total_tax or 0)
+            gross_amount = float(inv.total_gross or 0)
+            
+            rows.append({
+                "month": inv.issue_date.strftime("%Y-%m") if inv.issue_date else "",
+                "account": inv.settlement_account.name if inv.settlement_account else "",
+                "category": "",
+                "counterparty": inv.counterparty.name if inv.counterparty else "",
+                "type": "sale" if inv.invoice_type == "sale" else "purchase",
+                "invoice_type": "sale" if inv.invoice_type == "sale" else "purchase",
+                "amount": gross_amount,
+                "inflow": gross_amount if inv.invoice_type == "sale" else 0.0,
+                "outflow": gross_amount if inv.invoice_type == "purchase" else 0.0,
+            })
+    else:
+        # Get transaction data (default)
+        txns = (
+            _q_txns(company)
+            .options(joinedload(FinanceTransaction.account), joinedload(FinanceTransaction.category_ref), joinedload(FinanceTransaction.counterparty_ref))
+            .all()
+        )
+        for t in txns:
+            amount = Decimal(str(t.amount or 0))
+            rows.append({
+                "month": t.txn_date.strftime("%Y-%m"),
+                "account": t.account.name if t.account else "",
+                "category": (t.category_ref.name if t.category_ref else (t.category or "")),
+                "counterparty": (t.counterparty_ref.name if t.counterparty_ref else (t.counterparty or "")),
+                "type": "inflow" if amount >= 0 else "outflow",
+                "invoice_type": "",
+                "amount": float(amount),
+                "inflow": float(amount) if amount >= 0 else 0.0,
+                "outflow": float(-amount) if amount < 0 else 0.0,
+            })
+    
+    return jsonify(rows)
+
+
+
 @bp.route("/risk")
 @login_required
 @require_roles("tenant_admin", "creator", "viewer")
 def risk():
     company = _get_company()
     accounts = _q_accounts(company).all()
-    res = compute_basic_risk(accounts)
+    
+    # Use new robust risk metrics (LCR, NSFR, concentration)
+    res = compute_risk_metrics(accounts)
 
-    ccy_chart = [{"name": r["currency"], "value": float(r["exposure"])} for r in res["currency"]]
+    # Convert all Decimal values to float for Jinja2 template compatibility
+    def convert_decimals(obj):
+        """Recursively convert Decimal values to float."""
+        if isinstance(obj, Decimal):
+            return float(obj)
+        elif isinstance(obj, dict):
+            return {k: convert_decimals(v) for k, v in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return [convert_decimals(item) for item in obj]
+        return obj
+    
+    res = convert_decimals(res)
+    
+    # Prepare chart data for currency exposure
+    ccy_chart = [{"name": r["currency"], "value": r["exposure"]} for r in res["concentration"]["currency"]]
 
     return render_template(
         "finance/risk.html",
@@ -2604,7 +2781,8 @@ def alerts_page():
     liabilities = FinanceLiability.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).all()
     invoices = FinanceInvoice.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).all()
 
-    starting = Decimal(str(compute_starting_cash(accounts)))
+    current_balance = Decimal(str(compute_starting_cash(accounts)))
+    starting = compute_opening_balance(txns, start=start, as_of=date.today(), current_balance=current_balance)
     series = project_cash_balance(
         start=start,
         end=end,
@@ -2637,6 +2815,7 @@ def alerts_page():
         settings=settings,
         alerts=ui_alerts,
         table=table,
+        starting=starting,
         start=start,
         end=end,
     )
@@ -2771,6 +2950,31 @@ def invoices_list():
     )
 
 
+@bp.route("/products/lookup")
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def product_lookup():
+    company = _get_company()
+    name = (request.args.get("name") or "").strip()
+    if not name:
+        return jsonify({"found": False})
+
+    product = (
+        FinanceProduct.query
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+        .filter(func.lower(FinanceProduct.name) == name.lower())
+        .first()
+    )
+    if not product:
+        return jsonify({"found": False})
+
+    return jsonify({
+        "found": True,
+        "vat_rate": float(product.vat_rate or 0),
+        "unit_price": float(product.unit_price or 0),
+    })
+
+
 def _recalc_invoice_totals(inv: FinanceInvoice) -> None:
     totals = compute_totals(inv)
     inv.total_net = totals.net
@@ -2778,7 +2982,37 @@ def _recalc_invoice_totals(inv: FinanceInvoice) -> None:
     inv.total_gross = totals.gross
 
 
-def _parse_lines_from_form() -> list[dict]:
+def _get_or_create_product(company: FinanceCompany, name: str, unit_price: Decimal, vat_rate: Decimal, currency: str) -> FinanceProduct | None:
+    product = (
+        FinanceProduct.query
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+        .filter(func.lower(FinanceProduct.name) == name.lower())
+        .first()
+    )
+    if product:
+        return product
+
+    if not name:
+        return None
+
+    product = FinanceProduct(
+        tenant_id=g.tenant.id,
+        company_id=company.id,
+        name=name,
+        description=name,
+        product_type="service",
+        unit_price=unit_price,
+        currency_code=currency,
+        vat_rate=vat_rate,
+        vat_applies=vat_rate > 0,
+        vat_reverse_charge=False,
+        status="active",
+    )
+    db.session.add(product)
+    return product
+
+
+def _parse_lines_from_form(company: FinanceCompany, currency: str) -> list[dict]:
     descs = request.form.getlist("line_description")
     qtys = request.form.getlist("line_quantity")
     prices = request.form.getlist("line_unit_price")
@@ -2800,6 +3034,13 @@ def _parse_lines_from_form() -> list[dict]:
             vr = Decimal(str(vats[i] if i < len(vats) else "0"))
         except Exception:
             vr = Decimal("0")
+
+        product = _get_or_create_product(company, desc, up, vr, currency)
+        if product and product.vat_rate is not None:
+            try:
+                vr = Decimal(str(product.vat_rate))
+            except Exception:
+                pass
         net = (q * up).quantize(Decimal("0.01"))
         tax = (net * vr / Decimal("100")).quantize(Decimal("0.01"))
         gross = (net + tax).quantize(Decimal("0.01"))
@@ -2822,6 +3063,7 @@ def invoice_new():
     company = _get_company()
     cps = FinanceCounterparty.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).order_by(FinanceCounterparty.name.asc()).all()
     accounts = _q_accounts(company).all()
+    products = FinanceProduct.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).order_by(FinanceProduct.name.asc()).all()
 
     if request.method == "POST":
         invoice_number = (request.form.get("invoice_number") or "").strip()
@@ -2860,7 +3102,7 @@ def invoice_new():
             notes=notes,
         )
 
-        for ln in _parse_lines_from_form():
+        for ln in _parse_lines_from_form(company, currency):
             inv.lines.append(FinanceInvoiceLine(
                 tenant_id=g.tenant.id,
                 company_id=company.id,
@@ -2880,6 +3122,7 @@ def invoice_new():
         invoice=None,
         counterparties=cps,
         accounts=accounts,
+        products=products,
         today=date.today().isoformat(),
     )
 
@@ -2914,6 +3157,7 @@ def invoice_edit(invoice_id: int):
     ).first_or_404()
     cps = FinanceCounterparty.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).order_by(FinanceCounterparty.name.asc()).all()
     accounts = _q_accounts(company).all()
+    products = FinanceProduct.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).order_by(FinanceProduct.name.asc()).all()
 
     if request.method == "POST":
         inv.invoice_number = (request.form.get("invoice_number") or inv.invoice_number).strip()
@@ -2937,7 +3181,7 @@ def invoice_edit(invoice_id: int):
 
         # replace lines
         inv.lines.clear()
-        for ln in _parse_lines_from_form():
+        for ln in _parse_lines_from_form(company, inv.currency):
             inv.lines.append(FinanceInvoiceLine(
                 tenant_id=g.tenant.id,
                 company_id=company.id,
@@ -2956,6 +3200,7 @@ def invoice_edit(invoice_id: int):
         invoice=inv,
         counterparties=cps,
         accounts=accounts,
+        products=products,
         today=date.today().isoformat(),
     )
 

@@ -99,12 +99,23 @@ def create_app() -> Flask:
     from .blueprints.portal import bp as portal_bp
     from .blueprints.etl import bp as etl_bp
     from .blueprints.finance import bp as finance_bp
+    from .blueprints.finance.finance_master_data import finance_master_bp
 
     app.register_blueprint(public_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(portal_bp)
     app.register_blueprint(etl_bp)
     app.register_blueprint(finance_bp)
+    app.register_blueprint(finance_master_bp)
+
+    # Finance CLI Commands
+    from .commands import init_finance_cli
+    init_finance_cli(app)
+
+    # Finance Auto-balance Updates (SQLAlchemy Event Listeners)
+    from .services.bank_configuration_service import initialize_balance_updates
+    with app.app_context():
+        initialize_balance_updates()
     # DEV: ensure core tables exist (use Alembic migrations in production)
     if app.config.get("AUTO_CREATE_DB", False):
         with app.app_context():

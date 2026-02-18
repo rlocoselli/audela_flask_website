@@ -17,6 +17,22 @@
         <ul class="navbar-nav me-auto mb-2 mb-lg-0">
           <li class="nav-item"><a class="nav-link" href="{{ url_for('finance.dashboard') }}">{{ _('Visão geral') }}</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('finance.accounts_list') }}">{{ _('Contas') }}</a></li>
+          <li class="nav-item">
+            <a class="nav-link dropdown-toggle" href="#" id="masterDataDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-database me-1"></i>{{ _('Dados Mestres') }}
+            </a>
+            <ul class="dropdown-menu" aria-labelledby="masterDataDropdown">
+              <li><a class="dropdown-item" href="{{ url_for('finance_master.list_products') }}">
+                <i class="bi bi-box-seam me-2"></i>{{ _('Produtos Financeiros') }}
+              </a></li>
+              <li><a class="dropdown-item" href="{{ url_for('finance_master.list_counterparties') }}">
+                <i class="bi bi-people me-2"></i>{{ _('Contrapartes') }}
+              </a></li>
+              <li><a class="dropdown-item" href="{{ url_for('finance_master.bank_config') }}">
+                <i class="bi bi-bank me-2"></i>{{ _('Configuração Bancária') }}
+              </a></li>
+            </ul>
+          </li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('finance.banks') }}">{{ _('Bancos') }}</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('finance.reconciliation') }}">{{ _('Reconciliação') }}</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('finance.settings_categories') }}">{{ _('Configurações') }}</a></li>

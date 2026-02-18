@@ -1,0 +1,284 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'pivot' %}
+
+{% block finance_content %}
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <div class="card mb-3">
+    <div class="card-header fw-semibold">{{ _('Pivot') }}</div>
+    <div class="card-body">
+      <!-- Source selector -->
+      <div class="row g-3 mb-3">
+        <div class="col-12 col-md-3">
+          <label class="form-label">{{ _('Fonte') }}</label>
+          <select class="form-select" id="pivot-source">
+            <option value="transactions" selected>{{ _('Transações') }}</option>
+            <option value="invoices">{{ _('Faturas') }}</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Dimension selectors -->
+      <div class="row g-3 align-items-end">
+        <div class="col-12 col-md-3">
+          <label class="form-label">{{ _('Linha') }} ({{ _('Selecionar linhas') }})</label>
+          <select class="form-select" id="pivot-row" multiple size="4">
+            <option value="month" selected>{{ _('Mês') }}</option>
+            <option value="account">{{ _('Conta') }}</option>
+            <option value="category">{{ _('Categoria') }}</option>
+            <option value="counterparty">{{ _('Contraparte') }}</option>
+            <option value="type">{{ _('Tipo') }}</option>
+            <option value="invoice_type" style="display:none;">{{ _('Tipo Fatura') }}</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-3">
+          <label class="form-label">{{ _('Coluna') }} ({{ _('Selecionar colunas') }})</label>
+          <select class="form-select" id="pivot-col" multiple size="4">
+            <option value="account">{{ _('Conta') }}</option>
+            <option value="category">{{ _('Categoria') }}</option>
+            <option value="counterparty">{{ _('Contraparte') }}</option>
+            <option value="type">{{ _('Tipo') }}</option>
+            <option value="month">{{ _('Mês') }}</option>
+            <option value="invoice_type" style="display:none;">{{ _('Tipo Fatura') }}</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-3">
+          <label class="form-label">{{ _('Medida') }}</label>
+          <select class="form-select" id="pivot-measure">
+            <option value="amount_sum" selected>{{ _('Somar valores') }}</option>
+            <option value="inflow_sum">{{ _('Somar entradas') }}</option>
+            <option value="outflow_sum">{{ _('Somar saídas') }}</option>
+            <option value="count">{{ _('Contagem') }}</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-3">
+          <button class="btn btn-primary w-100" type="button" id="pivot-generate">{{ _('Gerar') }}</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header fw-semibold">{{ _('Tabela dinâmica') }}</div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm mb-0" id="pivot-table"></table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+      <span class="fw-semibold">{{ _('Gráfico') }}</span>
+      <div class="d-flex flex-wrap gap-2">
+        <select class="form-select form-select-sm" id="pivot-chart-dim">
+          <option value="row" selected>{{ _('Por linha') }}</option>
+          <option value="col">{{ _('Por coluna') }}</option>
+        </select>
+        <select class="form-select form-select-sm" id="pivot-chart-type">
+          <option value="bar" selected>{{ _('Barras') }}</option>
+          <option value="line">{{ _('Linha') }}</option>
+          <option value="pie">{{ _('Pizza') }}</option>
+        </select>
+      </div>
+    </div>
+    <div class="card-body">
+      <div id="pivot-chart" style="height: 340px;"></div>
+    </div>
+  </div>
+
+  <script>
+    const pivotDataUrl = "{{ url_for('finance.pivot_data') }}";
+
+    function formatNumber(value) {
+      if (value === null || value === undefined || Number.isNaN(value)) return "0";
+      return Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function getMeasureValue(rec, measure) {
+      if (measure === 'count') return 1;
+      if (measure === 'inflow_sum') return rec.inflow;
+      if (measure === 'outflow_sum') return rec.outflow;
+      return rec.amount;
+    }
+
+    function buildPivot(records, rowKeys, colKeys, measure) {
+      const rows = new Map();
+      const cols = new Map();
+      const data = new Map();
+
+      records.forEach((rec) => {
+        // Build row key (concatenate multiple dimensions)
+        const rowParts = rowKeys.map(k => rec[k] || '{{ _('Sem dados') }}');
+        const r = rowParts.join(' | ');
+        
+        // Build col key (concatenate multiple dimensions)
+        const colParts = colKeys.map(k => rec[k] || '{{ _('Sem dados') }}');
+        const c = colParts.join(' | ');
+        
+        rows.set(r, true);
+        cols.set(c, true);
+        const key = `${r}||${c}`;
+        const prev = data.get(key) || 0;
+        data.set(key, prev + getMeasureValue(rec, measure));
+      });
+
+      return {
+        rows: Array.from(rows.keys()).sort(),
+        cols: Array.from(cols.keys()).sort(),
+        data,
+      };
+    }
+
+    function renderPivotTable(container, pivot) {
+      const { rows, cols, data } = pivot;
+      if (!rows.length || !cols.length) {
+        container.innerHTML = `<tr><td class="p-3 text-secondary">{{ _('Sem dados') }}</td></tr>`;
+        return;
+      }
+
+      let html = '<thead><tr><th></th>';
+      cols.forEach(c => { html += `<th class="text-end">${c}</th>`; });
+      html += '<th class="text-end">{{ _('Total') }}</th></tr></thead>';
+      html += '<tbody>';
+
+      const colTotals = new Map();
+      cols.forEach(c => colTotals.set(c, 0));
+      let grandTotal = 0;
+
+      rows.forEach(r => {
+        let rowTotal = 0;
+        html += `<tr><td>${r}</td>`;
+        cols.forEach(c => {
+          const key = `${r}||${c}`;
+          const val = data.get(key) || 0;
+          rowTotal += val;
+          colTotals.set(c, colTotals.get(c) + val);
+          html += `<td class="text-end">${formatNumber(val)}</td>`;
+        });
+        grandTotal += rowTotal;
+        html += `<td class="text-end fw-semibold">${formatNumber(rowTotal)}</td></tr>`;
+      });
+
+      html += '<tr class="table-light"><td class="fw-semibold">{{ _('Total') }}</td>';
+      cols.forEach(c => {
+        html += `<td class="text-end fw-semibold">${formatNumber(colTotals.get(c))}</td>`;
+      });
+      html += `<td class="text-end fw-semibold">${formatNumber(grandTotal)}</td></tr>`;
+      html += '</tbody>';
+      container.innerHTML = html;
+    }
+
+    function renderPivotChart(pivot, dimension, chartType) {
+      const dom = document.getElementById('pivot-chart');
+      if (!dom || !window.echarts) return;
+      const chart = echarts.init(dom);
+
+      const labels = dimension === 'row' ? pivot.rows : pivot.cols;
+      const totals = labels.map(label => {
+        if (dimension === 'row') {
+          return pivot.cols.reduce((acc, c) => acc + (pivot.data.get(`${label}||${c}`) || 0), 0);
+        }
+        return pivot.rows.reduce((acc, r) => acc + (pivot.data.get(`${r}||${label}`) || 0), 0);
+      });
+
+      let option;
+      if (chartType === 'pie') {
+        option = {
+          tooltip: { trigger: 'item' },
+          series: [{
+            type: 'pie',
+            radius: '65%',
+            data: labels.map((label, idx) => ({ name: label, value: totals[idx] }))
+          }]
+        };
+      } else {
+        option = {
+          tooltip: { trigger: 'axis' },
+          xAxis: { type: 'category', data: labels },
+          yAxis: { type: 'value' },
+          series: [{ type: chartType, data: totals, smooth: chartType === 'line' }]
+        };
+      }
+
+      chart.setOption(option);
+      setTimeout(() => { try { chart.resize(); } catch (e) {} }, 80);
+      window.addEventListener('resize', () => { try { chart.resize(); } catch (e) {} });
+    }
+
+    async function loadPivotData(source) {
+      const csrfMeta = document.querySelector('meta[name="csrf-token"]');
+      const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
+      const url = new URL(pivotDataUrl, window.location.origin);
+      url.searchParams.set('source', source);
+      const res = await fetch(url, {
+        headers: csrfToken ? { 'X-CSRFToken': csrfToken } : {}
+      });
+      if (!res.ok) throw new Error('Failed to load pivot data');
+      return res.json();
+    }
+
+    function updateDimensionOptions() {
+      const source = document.getElementById('pivot-source').value;
+      const rowSelect = document.getElementById('pivot-row');
+      const colSelect = document.getElementById('pivot-col');
+      const invoiceTypeOption = Array.from(rowSelect.options).find(opt => opt.value === 'invoice_type');
+      
+      if (source === 'invoices' && invoiceTypeOption) {
+        invoiceTypeOption.style.display = '';
+        Array.from(colSelect.options).find(opt => opt.value === 'invoice_type').style.display = '';
+      } else if (invoiceTypeOption) {
+        invoiceTypeOption.style.display = 'none';
+        Array.from(colSelect.options).find(opt => opt.value === 'invoice_type').style.display = 'none';
+      }
+    }
+
+    async function generatePivot() {
+      const source = document.getElementById('pivot-source').value;
+      const rowSelect = document.getElementById('pivot-row');
+      const colSelect = document.getElementById('pivot-col');
+      const measure = document.getElementById('pivot-measure').value;
+      const chartDim = document.getElementById('pivot-chart-dim').value;
+      const chartType = document.getElementById('pivot-chart-type').value;
+
+      // Get selected options from multi-select
+      const rowKeys = Array.from(rowSelect.selectedOptions).map(opt => opt.value);
+      const colKeys = Array.from(colSelect.selectedOptions).map(opt => opt.value);
+
+      if (!rowKeys.length || !colKeys.length) {
+        alert('{{ _('Selecione pelo menos uma linha e uma coluna') }}');
+        return;
+      }
+
+      const data = window.__pivotData || [];
+      const pivot = buildPivot(data, rowKeys, colKeys, measure);
+      renderPivotTable(document.getElementById('pivot-table'), pivot);
+      renderPivotChart(pivot, chartDim, chartType);
+    }
+
+    (window.onReady || function(fn){ window.addEventListener('load', fn); })(async function(){
+      updateDimensionOptions();
+      
+      document.getElementById('pivot-source').addEventListener('change', async function() {
+        updateDimensionOptions();
+        window.__pivotData = await loadPivotData(this.value);
+        generatePivot();
+      });
+
+      document.getElementById('pivot-generate').addEventListener('click', generatePivot);
+      document.getElementById('pivot-row').addEventListener('change', generatePivot);
+      document.getElementById('pivot-col').addEventListener('change', generatePivot);
+      document.getElementById('pivot-measure').addEventListener('change', generatePivot);
+      document.getElementById('pivot-chart-dim').addEventListener('change', () => {
+        generatePivot();
+      });
+      document.getElementById('pivot-chart-type').addEventListener('change', () => {
+        generatePivot();
+      });
+
+      const source = document.getElementById('pivot-source').value;
+      window.__pivotData = await loadPivotData(source);
+      generatePivot();
+    });
+  </script>
+{% endblock %}
+
