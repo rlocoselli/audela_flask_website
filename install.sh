@@ -142,9 +142,9 @@ from audela.extensions import db
 app = create_app()
 with app.app_context():
     with db.engine.begin() as conn:
-    inspector = inspect(conn)
-    if "alembic_version" in inspector.get_table_names():
-      conn.execute(text("DELETE FROM alembic_version"))
+        inspector = inspect(conn)
+        if "alembic_version" in inspector.get_table_names():
+            conn.execute(text("DELETE FROM alembic_version"))
 PY
         then
           if "$VENV_DIR/bin/flask" --app "audela:create_app" db stamp heads \
