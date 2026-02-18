@@ -133,9 +133,33 @@ if [ -d "$APP_DIR/migrations" ]; then
         && "$VENV_DIR/bin/flask" --app "audela:create_app" db upgrade heads; then
         echo "✅ Database migrations applied after recovery"
       else
-        echo "❌ Database migration recovery failed"
-        rm -f "$MIGRATION_LOG"
-        exit 1
+        echo "⚠️ Stamp recovery failed, resetting alembic_version table and retrying"
+        if "$VENV_DIR/bin/python" - <<'PY'
+from sqlalchemy import text, inspect
+from audela import create_app
+from audela.extensions import db
+
+app = create_app()
+with app.app_context():
+    with db.engine.begin() as conn:
+    inspector = inspect(conn)
+    if "alembic_version" in inspector.get_table_names():
+      conn.execute(text("DELETE FROM alembic_version"))
+PY
+        then
+          if "$VENV_DIR/bin/flask" --app "audela:create_app" db stamp heads \
+            && "$VENV_DIR/bin/flask" --app "audela:create_app" db upgrade heads; then
+            echo "✅ Database migrations applied after hard recovery"
+          else
+            echo "❌ Database migration hard recovery failed"
+            rm -f "$MIGRATION_LOG"
+            exit 1
+          fi
+        else
+          echo "❌ Failed to reset alembic_version table"
+          rm -f "$MIGRATION_LOG"
+          exit 1
+        fi
       fi
     else
       echo "❌ Database migration failed"
