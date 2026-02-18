@@ -121,12 +121,27 @@ source "$APP_DIR/.env"
 set +a
 
 if [ -d "$APP_DIR/migrations" ]; then
-  if "$VENV_DIR/bin/flask" --app "audela:create_app" db upgrade heads; then
+  MIGRATION_LOG="$(mktemp)"
+  if "$VENV_DIR/bin/flask" --app "audela:create_app" db upgrade heads 2>&1 | tee "$MIGRATION_LOG"; then
     echo "✅ Database migrations applied"
   else
-    echo "❌ Database migration failed"
-    exit 1
+    if grep -q "Can't locate revision identified by" "$MIGRATION_LOG"; then
+      echo "⚠️ Missing Alembic revision detected; stamping current DB to heads and retrying upgrade"
+      if "$VENV_DIR/bin/flask" --app "audela:create_app" db stamp heads \
+        && "$VENV_DIR/bin/flask" --app "audela:create_app" db upgrade heads; then
+        echo "✅ Database migrations applied after recovery"
+      else
+        echo "❌ Database migration recovery failed"
+        rm -f "$MIGRATION_LOG"
+        exit 1
+      fi
+    else
+      echo "❌ Database migration failed"
+      rm -f "$MIGRATION_LOG"
+      exit 1
+    fi
   fi
+  rm -f "$MIGRATION_LOG"
 else
   echo "⚠️ migrations folder not found, skipping flask db upgrade"
 fi
