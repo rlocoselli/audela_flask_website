@@ -40,7 +40,14 @@ jobs:
 
             echo "🔧 Run install"
             chmod +x install.sh
-            ./install.sh ${{ secrets.HOST }} ${{ secrets.USER }} ${{ secrets.PASSWORD }} ${{ secrets.OPENAI_API_KEY }}
+            ./install.sh \
+              "${{ secrets.HOST }}" \
+              "${{ secrets.USER }}" \
+              "${{ secrets.PASSWORD }}" \
+              "${{ secrets.OPENAI_API_KEY }}" \
+              "${{ secrets.DB_NAME }}" \
+              "${{ secrets.DB_PORT }}" \
+              "${{ secrets.DATABASE_URL }}"
 
             echo "🔄 Restart service"
             systemctl restart audeladedonnees

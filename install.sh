@@ -122,9 +122,11 @@ set +a
 
 if [ -d "$APP_DIR/migrations" ]; then
   MIGRATION_LOG="$(mktemp)"
-  if "$VENV_DIR/bin/flask" --app "audela:create_app" db upgrade heads 2>&1 | tee "$MIGRATION_LOG"; then
+  if "$VENV_DIR/bin/flask" --app "audela:create_app" db upgrade heads >"$MIGRATION_LOG" 2>&1; then
+    cat "$MIGRATION_LOG"
     echo "✅ Database migrations applied"
   else
+    cat "$MIGRATION_LOG"
     if grep -q "Can't locate revision identified by" "$MIGRATION_LOG"; then
       echo "⚠️ Missing Alembic revision detected; stamping current DB to heads and retrying upgrade"
       if "$VENV_DIR/bin/flask" --app "audela:create_app" db stamp heads \
