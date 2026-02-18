@@ -1,0 +1,37 @@
+{% extends "finance/base_finance.html" %}
+
+{% block finance_content %}
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <h5 class="card-title">{{ _('Regulação') }}</h5>
+      <p class="text-secondary">
+        {{ _('Exportes comptables pour conformité: FEC (France) et livre comptable (Italie).') }}
+      </p>
+
+      <form class="row g-2 align-items-end" method="get">
+        <div class="col-md-3">
+          <label class="form-label">{{ _('Début') }}</label>
+          <input class="form-control" type="date" name="start" value="{{ request.args.get('start') or (today[:4] ~ '-01-01') }}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">{{ _('Fin') }}</label>
+          <input class="form-control" type="date" name="end" value="{{ request.args.get('end') or today }}">
+        </div>
+        <div class="col-md-6">
+          <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-outline-primary" href="{{ url_for('finance.regulation_export_fec', start=request.args.get('start') or (today[:4] ~ '-01-01'), end=request.args.get('end') or today) }}">
+              {{ _('Exporter FEC (FR)') }}
+            </a>
+            <a class="btn btn-outline-primary" href="{{ url_for('finance.regulation_export_it_ledger', start=request.args.get('start') or (today[:4] ~ '-01-01'), end=request.args.get('end') or today) }}">
+              {{ _('Exporter livre (IT)') }}
+            </a>
+          </div>
+        </div>
+      </form>
+
+      <div class="alert alert-info mt-3">
+        {{ _('Remarque: ces exports sont une base MVP. Pour une conformité stricte, il faut configurer les journaux, la numérotation et, si nécessaire, valider contre les schémas officiels.') }}
+      </div>
+    </div>
+  </div>
+{% endblock %}

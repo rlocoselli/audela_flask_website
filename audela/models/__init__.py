@@ -9,7 +9,10 @@ from .finance_ext import (
     FinanceGLAccount,
     FinanceLedgerVoucher,
     FinanceLedgerLine,
+    FinanceLiability,
+    FinanceRecurringTransaction,
 )
+from .finance_invoices import FinanceInvoice, FinanceInvoiceLine, FinanceSetting
 from .bi import (
     DataSource,
     Collection,
@@ -54,5 +57,10 @@ __all__ = [
     "FinanceGLAccount",
     "FinanceLedgerVoucher",
     "FinanceLedgerLine",
+    "FinanceLiability",
+    "FinanceRecurringTransaction",
+    "FinanceInvoice",
+    "FinanceInvoiceLine",
+    "FinanceSetting",
 ]
 from .etl_catalog import ETLConnection  # noqa: F401

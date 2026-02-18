@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
+from io import BytesIO
 from decimal import Decimal
 
-from flask import abort, flash, g, redirect, render_template, request, session, url_for, current_app, jsonify
+from flask import abort, flash, g, redirect, render_template, request, session, url_for, current_app, jsonify, send_file
 from flask_login import current_user, login_required
 from werkzeug.utils import secure_filename
+from sqlalchemy.orm import joinedload
 
 from ...extensions import db
 from ...i18n import DEFAULT_LANG, tr
 from ...models.core import Tenant
 from ...models.finance import FinanceAccount, FinanceCompany, FinanceTransaction
 from ...models.finance_ref import FinanceCurrency, FinanceCounterparty, FinanceStatementImport
+from ...models.finance_invoices import FinanceInvoice, FinanceInvoiceLine, FinanceSetting
 from ...models.finance_ext import (
     FinanceBankAccountLink,
     FinanceBankConnection,
@@ -40,6 +43,13 @@ from ...services.finance_service import (
     parse_bank_statement_pdf_local,
     parse_bank_statement_pdf_via_api,
 )
+
+from ...services.einvoice_service import build_invoice_export_zip, compute_totals
+from ...services.finance_projection import project_cash_balance, build_ui_alerts
+from ...services.regulation_exports import export_fec_csv, export_it_ledger_csv
+from ...services.einvoice_service import build_invoice_export_zip, compute_totals
+from ...services.finance_projection import project_cash_balance, build_ui_alerts, compute_starting_cash as proj_starting_cash
+from ...services.regulation_exports import export_fec_csv, export_it_ledger_csv
 from ...tenancy import get_current_tenant_id
 
 from . import bp
@@ -110,6 +120,29 @@ def _get_company() -> FinanceCompany:
     ensure_default_categories(comp)
     ensure_default_gl_accounts(comp)
     return comp
+
+
+def _get_fin_setting(company: FinanceCompany, key: str, default: dict) -> dict:
+    s = FinanceSetting.query.filter_by(
+        tenant_id=g.tenant.id,
+        company_id=company.id,
+        key=key,
+    ).first()
+    return (s.value_json if s and isinstance(s.value_json, dict) else default)
+
+
+def _set_fin_setting(company: FinanceCompany, key: str, value: dict) -> None:
+    s = FinanceSetting.query.filter_by(
+        tenant_id=g.tenant.id,
+        company_id=company.id,
+        key=key,
+    ).first()
+    if not s:
+        s = FinanceSetting(tenant_id=g.tenant.id, company_id=company.id, key=key, value_json=value)
+        db.session.add(s)
+    else:
+        s.value_json = value
+    db.session.commit()
 
 
 def _q_accounts(company: FinanceCompany):
@@ -1910,6 +1943,8 @@ def liability_new():
         start_date = (request.form.get("start_date") or "").strip() or None
         maturity_date = (request.form.get("maturity_date") or "").strip() or None
         freq = (request.form.get("payment_frequency") or "monthly").strip() or "monthly"
+        installment = (request.form.get("installment_amount") or "").strip()
+        next_pay = (request.form.get("next_payment_date") or "").strip() or None
         notes = (request.form.get("notes") or "").strip() or None
 
         if not name:
@@ -1936,6 +1971,8 @@ def liability_new():
             start_date=date.fromisoformat(start_date) if start_date else None,
             maturity_date=date.fromisoformat(maturity_date) if maturity_date else None,
             payment_frequency=freq,
+            installment_amount=_dec(installment),
+            next_payment_date=date.fromisoformat(next_pay) if next_pay else None,
             notes=notes,
         )
         db.session.add(l)
@@ -1960,6 +1997,8 @@ def liability_new():
             "start_date": "",
             "maturity_date": "",
             "payment_frequency": "monthly",
+            "installment_amount": "",
+            "next_payment_date": "",
             "notes": "",
         },
     )
@@ -1982,6 +2021,8 @@ def liability_edit(liability_id: int):
         start_date = (request.form.get("start_date") or "").strip() or None
         maturity_date = (request.form.get("maturity_date") or "").strip() or None
         freq = (request.form.get("payment_frequency") or "monthly").strip() or "monthly"
+        installment = (request.form.get("installment_amount") or "").strip()
+        next_pay = (request.form.get("next_payment_date") or "").strip() or None
         notes = (request.form.get("notes") or "").strip() or None
 
         if not name:
@@ -2005,6 +2046,8 @@ def liability_edit(liability_id: int):
         l.start_date = date.fromisoformat(start_date) if start_date else None
         l.maturity_date = date.fromisoformat(maturity_date) if maturity_date else None
         l.payment_frequency = freq
+        l.installment_amount = _dec(installment)
+        l.next_payment_date = date.fromisoformat(next_pay) if next_pay else None
         l.notes = notes
         db.session.commit()
         flash(_("Financiamento atualizado."), "success")
@@ -2027,6 +2070,8 @@ def liability_edit(liability_id: int):
             "start_date": l.start_date.isoformat() if l.start_date else "",
             "maturity_date": l.maturity_date.isoformat() if l.maturity_date else "",
             "payment_frequency": l.payment_frequency or "monthly",
+            "installment_amount": str(l.installment_amount or ""),
+            "next_payment_date": l.next_payment_date.isoformat() if l.next_payment_date else "",
             "notes": l.notes or "",
         },
     )
@@ -2504,3 +2549,495 @@ def ai_parse_quick_entry():
         "txn_date": parsed.get("txn_date"),
     }
     return jsonify({"ok": True, "parsed": resp})
+
+
+# -----------------
+# Alerts (UI only)
+# -----------------
+
+
+@bp.route("/alerts", methods=["GET", "POST"])
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def alerts_page():
+    company = _get_company()
+    accounts = _q_accounts(company).all()
+
+    defaults = {
+        "granularity": "weekly",
+        "threshold": 1000.0,
+        "horizon_days": 90,
+    }
+    settings = _get_fin_setting(company, "alerts", defaults)
+
+    if request.method == "POST":
+        granularity = (request.form.get("granularity") or settings.get("granularity") or "weekly").strip().lower()
+        if granularity not in ("daily", "weekly", "monthly"):
+            granularity = "weekly"
+        try:
+            threshold = float(request.form.get("threshold") or settings.get("threshold") or 0)
+        except Exception:
+            threshold = float(settings.get("threshold") or 0)
+        try:
+            horizon_days = int(request.form.get("horizon_days") or settings.get("horizon_days") or 90)
+        except Exception:
+            horizon_days = int(settings.get("horizon_days") or 90)
+        horizon_days = max(7, min(horizon_days, 365))
+        settings = {
+            "granularity": granularity,
+            "threshold": threshold,
+            "horizon_days": horizon_days,
+        }
+        _set_fin_setting(company, "alerts", settings)
+        flash(_("Configuração de alertas atualizada."), "success")
+        return redirect(url_for("finance.alerts_page"))
+
+    start = date.today()
+    end = start + timedelta(days=int(settings.get("horizon_days") or 90))
+    txns = (
+        _q_txns(company)
+        .filter(FinanceTransaction.txn_date >= start)
+        .filter(FinanceTransaction.txn_date <= end)
+        .all()
+    )
+    recurring = FinanceRecurringTransaction.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).all()
+    liabilities = FinanceLiability.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).all()
+    invoices = FinanceInvoice.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).all()
+
+    starting = Decimal(str(compute_starting_cash(accounts)))
+    series = project_cash_balance(
+        start=start,
+        end=end,
+        granularity=settings.get("granularity") or "weekly",
+        starting_balance=starting,
+        transactions=txns,
+        recurring=recurring,
+        liabilities=liabilities,
+        invoices=invoices,
+    )
+    ui_alerts = build_ui_alerts(series, low_balance_threshold=Decimal(str(settings.get("threshold") or 0)))
+
+    # simple list for UI
+    table = [
+        {
+            "period": p.period.isoformat(),
+            "inflow": float(p.inflow),
+            "outflow": float(p.outflow),
+            "net": float(p.net),
+            "balance": float(p.balance),
+        }
+        for p in series
+    ]
+
+    return render_template(
+        "finance/alerts.html",
+        tenant=g.tenant,
+        company=company,
+        active="alerts",
+        settings=settings,
+        alerts=ui_alerts,
+        table=table,
+        start=start,
+        end=end,
+    )
+
+
+# -----------------
+# Regulation exports
+# -----------------
+
+
+@bp.route("/regulation")
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def regulation_page():
+    company = _get_company()
+    return render_template(
+        "finance/regulation.html",
+        tenant=g.tenant,
+        company=company,
+        active="regulation",
+        today=date.today().isoformat(),
+    )
+
+
+@bp.route("/regulation/export/fec")
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def regulation_export_fec():
+    company = _get_company()
+    try:
+        start = datetime.strptime(request.args.get("start") or "", "%Y-%m-%d").date()
+    except Exception:
+        start = date(date.today().year, 1, 1)
+    try:
+        end = datetime.strptime(request.args.get("end") or "", "%Y-%m-%d").date()
+    except Exception:
+        end = date.today()
+
+    vouchers = (
+        FinanceLedgerVoucher.query.filter_by(tenant_id=g.tenant.id, company_id=company.id)
+        .filter(FinanceLedgerVoucher.voucher_date >= start)
+        .filter(FinanceLedgerVoucher.voucher_date <= end)
+        .all()
+    )
+    voucher_ids = [v.id for v in vouchers]
+    lines = []
+    if voucher_ids:
+        lines = (
+            FinanceLedgerLine.query.options(joinedload(FinanceLedgerLine.gl_account))
+            .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+            .filter(FinanceLedgerLine.voucher_id.in_(voucher_ids))
+            .all()
+        )
+
+    content = export_fec_csv(vouchers=vouchers, lines=lines, as_of=end)
+    filename = f"FEC_{company.slug}_{start.isoformat()}_{end.isoformat()}.csv"
+    return send_file(
+        BytesIO(content.encode("utf-8")),
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
+@bp.route("/regulation/export/it-ledger")
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def regulation_export_it_ledger():
+    company = _get_company()
+    try:
+        start = datetime.strptime(request.args.get("start") or "", "%Y-%m-%d").date()
+    except Exception:
+        start = date(date.today().year, 1, 1)
+    try:
+        end = datetime.strptime(request.args.get("end") or "", "%Y-%m-%d").date()
+    except Exception:
+        end = date.today()
+
+    vouchers = (
+        FinanceLedgerVoucher.query.filter_by(tenant_id=g.tenant.id, company_id=company.id)
+        .filter(FinanceLedgerVoucher.voucher_date >= start)
+        .filter(FinanceLedgerVoucher.voucher_date <= end)
+        .all()
+    )
+    voucher_ids = [v.id for v in vouchers]
+    lines = []
+    if voucher_ids:
+        lines = (
+            FinanceLedgerLine.query.options(joinedload(FinanceLedgerLine.gl_account))
+            .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+            .filter(FinanceLedgerLine.voucher_id.in_(voucher_ids))
+            .all()
+        )
+
+    content = export_it_ledger_csv(vouchers=vouchers, lines=lines)
+    filename = f"Ledger_IT_{company.slug}_{start.isoformat()}_{end.isoformat()}.csv"
+    return send_file(
+        BytesIO(content.encode("utf-8")),
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
+# -----------------
+# E-invoices (PDF + XML)
+# -----------------
+
+
+@bp.route("/invoices")
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def invoices_list():
+    company = _get_company()
+    invoices = (
+        FinanceInvoice.query.options(joinedload(FinanceInvoice.counterparty))
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+        .order_by(FinanceInvoice.issue_date.desc())
+        .all()
+    )
+    cps = FinanceCounterparty.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).order_by(FinanceCounterparty.name.asc()).all()
+    accounts = _q_accounts(company).all()
+    return render_template(
+        "finance/invoices_list.html",
+        tenant=g.tenant,
+        company=company,
+        active="invoices",
+        invoices=invoices,
+        counterparties=cps,
+        accounts=accounts,
+        today=date.today().isoformat(),
+    )
+
+
+def _recalc_invoice_totals(inv: FinanceInvoice) -> None:
+    totals = compute_totals(inv)
+    inv.total_net = totals.net
+    inv.total_tax = totals.tax
+    inv.total_gross = totals.gross
+
+
+def _parse_lines_from_form() -> list[dict]:
+    descs = request.form.getlist("line_description")
+    qtys = request.form.getlist("line_quantity")
+    prices = request.form.getlist("line_unit_price")
+    vats = request.form.getlist("line_vat_rate")
+    lines: list[dict] = []
+    for i in range(max(len(descs), len(qtys), len(prices), len(vats))):
+        desc = (descs[i] if i < len(descs) else "").strip()
+        if not desc:
+            continue
+        try:
+            q = Decimal(str(qtys[i] if i < len(qtys) else "1"))
+        except Exception:
+            q = Decimal("1")
+        try:
+            up = Decimal(str(prices[i] if i < len(prices) else "0"))
+        except Exception:
+            up = Decimal("0")
+        try:
+            vr = Decimal(str(vats[i] if i < len(vats) else "0"))
+        except Exception:
+            vr = Decimal("0")
+        net = (q * up).quantize(Decimal("0.01"))
+        tax = (net * vr / Decimal("100")).quantize(Decimal("0.01"))
+        gross = (net + tax).quantize(Decimal("0.01"))
+        lines.append({
+            "description": desc,
+            "quantity": q,
+            "unit_price": up,
+            "vat_rate": vr,
+            "net_amount": net,
+            "tax_amount": tax,
+            "gross_amount": gross,
+        })
+    return lines
+
+
+@bp.route("/invoices/new", methods=["GET", "POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def invoice_new():
+    company = _get_company()
+    cps = FinanceCounterparty.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).order_by(FinanceCounterparty.name.asc()).all()
+    accounts = _q_accounts(company).all()
+
+    if request.method == "POST":
+        invoice_number = (request.form.get("invoice_number") or "").strip()
+        invoice_type = (request.form.get("invoice_type") or "sale").strip().lower()
+        currency = (request.form.get("currency") or company.base_currency or "EUR").strip().upper()
+        status = (request.form.get("status") or "draft").strip().lower()
+        try:
+            issue_date = datetime.strptime(request.form.get("issue_date") or "", "%Y-%m-%d").date()
+        except Exception:
+            issue_date = date.today()
+        try:
+            due_date_str = (request.form.get("due_date") or "").strip()
+            due_date = datetime.strptime(due_date_str, "%Y-%m-%d").date() if due_date_str else None
+        except Exception:
+            due_date = None
+
+        cp_id = request.form.get("counterparty_id")
+        settlement_account_id = request.form.get("settlement_account_id")
+        notes = (request.form.get("notes") or "").strip() or None
+
+        if not invoice_number:
+            flash(_("Número da fatura é obrigatório."), "danger")
+            return redirect(url_for("finance.invoice_new"))
+
+        inv = FinanceInvoice(
+            tenant_id=g.tenant.id,
+            company_id=company.id,
+            invoice_number=invoice_number,
+            invoice_type=invoice_type if invoice_type in ("sale", "purchase") else "sale",
+            status=status if status in ("draft", "sent", "paid", "void") else "draft",
+            currency=currency,
+            issue_date=issue_date,
+            due_date=due_date,
+            counterparty_id=int(cp_id) if cp_id else None,
+            settlement_account_id=int(settlement_account_id) if settlement_account_id else None,
+            notes=notes,
+        )
+
+        for ln in _parse_lines_from_form():
+            inv.lines.append(FinanceInvoiceLine(
+                tenant_id=g.tenant.id,
+                company_id=company.id,
+                **ln,
+            ))
+        _recalc_invoice_totals(inv)
+        db.session.add(inv)
+        db.session.commit()
+        flash(_("Fatura criada."), "success")
+        return redirect(url_for("finance.invoice_view", invoice_id=inv.id))
+
+    return render_template(
+        "finance/invoice_form.html",
+        tenant=g.tenant,
+        company=company,
+        active="invoices",
+        invoice=None,
+        counterparties=cps,
+        accounts=accounts,
+        today=date.today().isoformat(),
+    )
+
+
+@bp.route("/invoices/<int:invoice_id>")
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def invoice_view(invoice_id: int):
+    company = _get_company()
+    inv = FinanceInvoice.query.options(joinedload(FinanceInvoice.lines), joinedload(FinanceInvoice.counterparty)).filter_by(
+        id=invoice_id, tenant_id=g.tenant.id, company_id=company.id
+    ).first_or_404()
+    accounts = _q_accounts(company).all()
+    return render_template(
+        "finance/invoice_view.html",
+        tenant=g.tenant,
+        company=company,
+        active="invoices",
+        invoice=inv,
+        accounts=accounts,
+        today=date.today().isoformat(),
+    )
+
+
+@bp.route("/invoices/<int:invoice_id>/edit", methods=["GET", "POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def invoice_edit(invoice_id: int):
+    company = _get_company()
+    inv = FinanceInvoice.query.options(joinedload(FinanceInvoice.lines)).filter_by(
+        id=invoice_id, tenant_id=g.tenant.id, company_id=company.id
+    ).first_or_404()
+    cps = FinanceCounterparty.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).order_by(FinanceCounterparty.name.asc()).all()
+    accounts = _q_accounts(company).all()
+
+    if request.method == "POST":
+        inv.invoice_number = (request.form.get("invoice_number") or inv.invoice_number).strip()
+        inv.invoice_type = (request.form.get("invoice_type") or inv.invoice_type).strip().lower()
+        inv.status = (request.form.get("status") or inv.status).strip().lower()
+        inv.currency = (request.form.get("currency") or inv.currency).strip().upper()
+        try:
+            inv.issue_date = datetime.strptime(request.form.get("issue_date") or "", "%Y-%m-%d").date()
+        except Exception:
+            pass
+        try:
+            due_date_str = (request.form.get("due_date") or "").strip()
+            inv.due_date = datetime.strptime(due_date_str, "%Y-%m-%d").date() if due_date_str else None
+        except Exception:
+            pass
+        cp_id = request.form.get("counterparty_id")
+        inv.counterparty_id = int(cp_id) if cp_id else None
+        settlement_account_id = request.form.get("settlement_account_id")
+        inv.settlement_account_id = int(settlement_account_id) if settlement_account_id else None
+        inv.notes = (request.form.get("notes") or "").strip() or None
+
+        # replace lines
+        inv.lines.clear()
+        for ln in _parse_lines_from_form():
+            inv.lines.append(FinanceInvoiceLine(
+                tenant_id=g.tenant.id,
+                company_id=company.id,
+                **ln,
+            ))
+        _recalc_invoice_totals(inv)
+        db.session.commit()
+        flash(_("Fatura atualizada."), "success")
+        return redirect(url_for("finance.invoice_view", invoice_id=inv.id))
+
+    return render_template(
+        "finance/invoice_form.html",
+        tenant=g.tenant,
+        company=company,
+        active="invoices",
+        invoice=inv,
+        counterparties=cps,
+        accounts=accounts,
+        today=date.today().isoformat(),
+    )
+
+
+@bp.route("/invoices/<int:invoice_id>/delete", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def invoice_delete(invoice_id: int):
+    company = _get_company()
+    inv = FinanceInvoice.query.filter_by(id=invoice_id, tenant_id=g.tenant.id, company_id=company.id).first_or_404()
+    db.session.delete(inv)
+    db.session.commit()
+    flash(_("Fatura removida."), "success")
+    return redirect(url_for("finance.invoices_list"))
+
+
+@bp.route("/invoices/<int:invoice_id>/mark-paid", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def invoice_mark_paid(invoice_id: int):
+    company = _get_company()
+    inv = FinanceInvoice.query.options(joinedload(FinanceInvoice.counterparty)).filter_by(
+        id=invoice_id, tenant_id=g.tenant.id, company_id=company.id
+    ).first_or_404()
+
+    acc_id = request.form.get("account_id") or inv.settlement_account_id
+    if not acc_id:
+        flash(_("Selecione a conta de liquidação."), "danger")
+        return redirect(url_for("finance.invoice_view", invoice_id=inv.id))
+    account = FinanceAccount.query.filter_by(id=int(acc_id), tenant_id=g.tenant.id, company_id=company.id).first()
+    if not account:
+        flash(_("Conta inválida."), "danger")
+        return redirect(url_for("finance.invoice_view", invoice_id=inv.id))
+
+    try:
+        pay_date_str = (request.form.get("payment_date") or "").strip()
+        pay_date = datetime.strptime(pay_date_str, "%Y-%m-%d").date() if pay_date_str else date.today()
+    except Exception:
+        pay_date = date.today()
+
+    amount = Decimal(str(inv.total_gross or 0))
+    if (inv.invoice_type or "sale").lower() == "purchase":
+        amount = -abs(amount)
+    else:
+        amount = abs(amount)
+
+    txn = FinanceTransaction(
+        tenant_id=g.tenant.id,
+        company_id=company.id,
+        account_id=account.id,
+        txn_date=pay_date,
+        amount=amount,
+        description=f"Payment for invoice {inv.invoice_number}",
+        counterparty_id=inv.counterparty_id,
+        reference=inv.invoice_number,
+    )
+    db.session.add(txn)
+    account.balance = (Decimal(str(account.balance or 0)) + amount)
+    inv.status = "paid"
+    inv.settlement_account_id = account.id
+    db.session.commit()
+    flash(_("Fatura marcada como paga e transação criada."), "success")
+    return redirect(url_for("finance.invoice_view", invoice_id=inv.id))
+
+
+@bp.route("/invoices/<int:invoice_id>/export")
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def invoice_export(invoice_id: int):
+    company = _get_company()
+    inv = FinanceInvoice.query.options(joinedload(FinanceInvoice.lines), joinedload(FinanceInvoice.counterparty)).filter_by(
+        id=invoice_id, tenant_id=g.tenant.id, company_id=company.id
+    ).first_or_404()
+    country = (request.args.get("country") or "fr").strip().lower()
+    if country not in ("fr", "it"):
+        country = "fr"
+
+    zip_name, zip_bytes = build_invoice_export_zip(inv=inv, company=company, cp=inv.counterparty, country=country)
+
+    return send_file(
+        BytesIO(zip_bytes),
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=zip_name,
+    )

@@ -1,0 +1,96 @@
+{% extends "finance/base_finance.html" %}
+
+{% block finance_content %}
+  <div class="row g-3">
+    <div class="col-lg-4">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">{{ _('Alertas') }}</h5>
+          <p class="text-secondary small mb-3">
+            {{ _('Configurar granularidade e limite para alertas de caixa projetado (UI).') }}
+          </p>
+
+          <form method="post" action="{{ url_for('finance.alerts_page') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            <div class="mb-3">
+              <label class="form-label">{{ _('Granularidade') }}</label>
+              <select class="form-select" name="granularity">
+                <option value="daily" {% if settings.granularity=='daily' %}selected{% endif %}>{{ _('Diário') }}</option>
+                <option value="weekly" {% if settings.granularity=='weekly' %}selected{% endif %}>{{ _('Semanal') }}</option>
+                <option value="monthly" {% if settings.granularity=='monthly' %}selected{% endif %}>{{ _('Mensal') }}</option>
+              </select>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">{{ _('Seuil bas (monnaie)') }}</label>
+              <input class="form-control" name="threshold" type="number" step="0.01" value="{{ settings.threshold }}">
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">{{ _('Horizonte (dias)') }}</label>
+              <input class="form-control" name="horizon_days" type="number" min="7" max="365" value="{{ settings.horizon_days }}">
+            </div>
+
+            <button class="btn btn-primary" type="submit">{{ _('Salvar') }}</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mt-3">
+        <div class="card-body">
+          <h6 class="card-title">{{ _('Période') }}</h6>
+          <div class="text-secondary small">
+            {{ start }} → {{ end }}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-8">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">{{ _('Alertas atuais') }}</h5>
+
+          {% if alerts and alerts|length > 0 %}
+            {% for a in alerts %}
+              <div class="alert alert-{{ a.level }}">
+                <div class="fw-semibold">{{ a.title }}</div>
+                <div>{{ a.message }}</div>
+              </div>
+            {% endfor %}
+          {% else %}
+            <div class="alert alert-success">
+              {{ _('Nenhum alerta no horizonte atual.') }}
+            </div>
+          {% endif %}
+
+          <div class="table-responsive mt-3">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>{{ _('Período') }}</th>
+                  <th class="text-end">{{ _('Entradas') }}</th>
+                  <th class="text-end">{{ _('Saídas') }}</th>
+                  <th class="text-end">{{ _('Neto') }}</th>
+                  <th class="text-end">{{ _('Saldo') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for r in table %}
+                  <tr>
+                    <td>{{ r.period }}</td>
+                    <td class="text-end">{{ '%.2f'|format(r.inflow) }}</td>
+                    <td class="text-end">{{ '%.2f'|format(r.outflow) }}</td>
+                    <td class="text-end">{{ '%.2f'|format(r.net) }}</td>
+                    <td class="text-end {% if r.balance < 0 %}text-danger fw-semibold{% endif %}">{{ '%.2f'|format(r.balance) }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

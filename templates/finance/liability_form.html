@@ -75,6 +75,16 @@
             </select>
           </div>
 
+          <div class="col-6 col-lg-3">
+            <label class="form-label">{{ _('Parcela (opcional)') }}</label>
+            <input class="form-control" name="installment_amount" value="{{ form.installment_amount or '' }}" placeholder="300" />
+          </div>
+
+          <div class="col-6 col-lg-3">
+            <label class="form-label">{{ _('Próximo pagamento (opcional)') }}</label>
+            <input class="form-control" type="date" name="next_payment_date" value="{{ form.next_payment_date or '' }}" />
+          </div>
+
           <div class="col-12">
             <label class="form-label">{{ _('Notas') }}</label>
             <textarea class="form-control" name="notes" rows="3">{{ form.notes }}</textarea>

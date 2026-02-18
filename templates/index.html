@@ -186,6 +186,7 @@
 				<p>{{ _('Décrivez votre besoin (Data/BI, ERP, LegalTech, IA, Mobile, IoT). Nous vous recontactons rapidement.') }}</p>
 			</header>
 			<form method="post" action="#" class="cta">
+				<input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
 				<div class="row gtr-uniform gtr-50">
 					<div class="col-8 col-12-xsmall"><input type="email" name="email" id="email" placeholder="{{ _('Votre adresse e-mail') }}" /></div>
 					<div class="col-4 col-12-xsmall"><input type="submit" value="{{ _('Être rappelé') }}" class="fit primary" /></div>

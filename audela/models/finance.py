@@ -24,6 +24,24 @@ class FinanceCompany(db.Model):
     base_currency = db.Column(db.String(8), db.ForeignKey("finance_currencies.code"), nullable=False, default="EUR")
     country = db.Column(db.String(80), nullable=True)
 
+    # Legal / invoicing fields (optional)
+    country_code = db.Column(db.String(2), nullable=True, doc="ISO 3166-1 alpha-2")
+    vat_number = db.Column(db.String(64), nullable=True)
+    siret = db.Column(db.String(32), nullable=True)
+    registration_number = db.Column(db.String(64), nullable=True, doc="e.g., RCS / REA / other")
+
+    address_line1 = db.Column(db.String(160), nullable=True)
+    address_line2 = db.Column(db.String(160), nullable=True)
+    postal_code = db.Column(db.String(32), nullable=True)
+    city = db.Column(db.String(80), nullable=True)
+    state = db.Column(db.String(80), nullable=True)
+
+    email = db.Column(db.String(160), nullable=True)
+    phone = db.Column(db.String(80), nullable=True)
+
+    iban = db.Column(db.String(64), nullable=True)
+    bic = db.Column(db.String(32), nullable=True)
+
     base_currency_ref = db.relationship('FinanceCurrency', foreign_keys=[base_currency])
 
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)

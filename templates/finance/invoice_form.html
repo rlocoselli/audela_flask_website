@@ -1,0 +1,149 @@
+{% extends "finance/base_finance.html" %}
+
+{% block finance_content %}
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <h5 class="card-title">
+        {% if invoice %}
+          {{ _('Editar fatura') }}
+        {% else %}
+          {{ _('Nova fatura') }}
+        {% endif %}
+      </h5>
+
+      <form method="post" action="{% if invoice %}{{ url_for('finance.invoice_edit', invoice_id=invoice.id) }}{% else %}{{ url_for('finance.invoice_new') }}{% endif %}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label">{{ _('Número') }}</label>
+            <input class="form-control" name="invoice_number" required value="{{ invoice.invoice_number if invoice else '' }}">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">{{ _('Tipo') }}</label>
+            <select class="form-select" name="invoice_type">
+              <option value="sale" {% if invoice and invoice.invoice_type=='sale' %}selected{% endif %}>{{ _('Venda') }}</option>
+              <option value="purchase" {% if invoice and invoice.invoice_type=='purchase' %}selected{% endif %}>{{ _('Compra') }}</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">{{ _('Status') }}</label>
+            <select class="form-select" name="status">
+              {% set st = invoice.status if invoice else 'draft' %}
+              <option value="draft" {% if st=='draft' %}selected{% endif %}>draft</option>
+              <option value="sent" {% if st=='sent' %}selected{% endif %}>sent</option>
+              <option value="paid" {% if st=='paid' %}selected{% endif %}>paid</option>
+              <option value="void" {% if st=='void' %}selected{% endif %}>void</option>
+            </select>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">{{ _('Data') }}</label>
+            <input class="form-control" type="date" name="issue_date" value="{{ (invoice.issue_date if invoice else today) }}">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">{{ _('Vencimento') }}</label>
+            <input class="form-control" type="date" name="due_date" value="{{ invoice.due_date if invoice and invoice.due_date else '' }}">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">{{ _('Moeda') }}</label>
+            <input class="form-control" name="currency" value="{{ invoice.currency if invoice else company.base_currency }}">
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label">{{ _('Contraparte') }}</label>
+            <select class="form-select" name="counterparty_id">
+              <option value="">—</option>
+              {% for cp in counterparties %}
+                <option value="{{ cp.id }}" {% if invoice and invoice.counterparty_id==cp.id %}selected{% endif %}>{{ cp.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">{{ _('Conta de liquidação') }}</label>
+            <select class="form-select" name="settlement_account_id">
+              <option value="">—</option>
+              {% for acc in accounts %}
+                <option value="{{ acc.id }}" {% if invoice and invoice.settlement_account_id==acc.id %}selected{% endif %}>{{ acc.name }} ({{ acc.currency }})</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <hr class="my-4">
+
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="mb-0">{{ _('Linhas') }}</h6>
+          <button class="btn btn-sm btn-outline-primary" type="button" onclick="addLineRow()">{{ _('Adicionar linha') }}</button>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-sm" id="linesTable">
+            <thead>
+              <tr>
+                <th>{{ _('Descrição') }}</th>
+                <th style="width:110px" class="text-end">{{ _('Qtd') }}</th>
+                <th style="width:140px" class="text-end">{{ _('Preço') }}</th>
+                <th style="width:110px" class="text-end">{{ _('IVA %') }}</th>
+                <th style="width:60px"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% if invoice and invoice.lines %}
+                {% for ln in invoice.lines %}
+                  <tr>
+                    <td><input class="form-control" name="line_description" value="{{ ln.description }}" required></td>
+                    <td><input class="form-control text-end" name="line_quantity" type="number" step="0.0001" value="{{ ln.quantity }}"></td>
+                    <td><input class="form-control text-end" name="line_unit_price" type="number" step="0.0001" value="{{ ln.unit_price }}"></td>
+                    <td><input class="form-control text-end" name="line_vat_rate" type="number" step="0.01" value="{{ ln.vat_rate }}"></td>
+                    <td class="text-end"><button class="btn btn-sm btn-outline-danger" type="button" onclick="removeRow(this)">×</button></td>
+                  </tr>
+                {% endfor %}
+              {% else %}
+                <tr>
+                  <td><input class="form-control" name="line_description" placeholder="Service / produit" required></td>
+                  <td><input class="form-control text-end" name="line_quantity" type="number" step="0.0001" value="1"></td>
+                  <td><input class="form-control text-end" name="line_unit_price" type="number" step="0.0001" value="0"></td>
+                  <td><input class="form-control text-end" name="line_vat_rate" type="number" step="0.01" value="0"></td>
+                  <td class="text-end"><button class="btn btn-sm btn-outline-danger" type="button" onclick="removeRow(this)">×</button></td>
+                </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="row g-3 mt-2">
+          <div class="col-md-12">
+            <label class="form-label">{{ _('Notas') }}</label>
+            <textarea class="form-control" name="notes" rows="3">{{ invoice.notes if invoice else '' }}</textarea>
+          </div>
+        </div>
+
+        <div class="d-flex gap-2 mt-4">
+          <button class="btn btn-primary" type="submit">{{ _('Salvar') }}</button>
+          <a class="btn btn-outline-secondary" href="{{ url_for('finance.invoices_list') }}">{{ _('Voltar') }}</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    function addLineRow() {
+      const tbody = document.querySelector('#linesTable tbody');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><input class="form-control" name="line_description" required></td>
+        <td><input class="form-control text-end" name="line_quantity" type="number" step="0.0001" value="1"></td>
+        <td><input class="form-control text-end" name="line_unit_price" type="number" step="0.0001" value="0"></td>
+        <td><input class="form-control text-end" name="line_vat_rate" type="number" step="0.01" value="0"></td>
+        <td class="text-end"><button class="btn btn-sm btn-outline-danger" type="button" onclick="removeRow(this)">×</button></td>
+      `;
+      tbody.appendChild(tr);
+    }
+
+    function removeRow(btn) {
+      const tr = btn.closest('tr');
+      if (tr) tr.remove();
+    }
+  </script>
+{% endblock %}

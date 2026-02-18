@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from sqlalchemy import UniqueConstraint
+
 from ..extensions import db
 
 
@@ -20,6 +22,7 @@ class FinanceCurrency(db.Model):
     decimals = db.Column(db.Integer, nullable=False, default=2)
 
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class FinanceCounterparty(db.Model):
@@ -34,6 +37,9 @@ class FinanceCounterparty(db.Model):
     """
 
     __tablename__ = "finance_counterparties"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "company_id", "name", name="uq_fin_counterparty_per_company"),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
     tenant_id = db.Column(db.Integer, db.ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -49,7 +55,24 @@ class FinanceCounterparty(db.Model):
 
     default_currency = db.Column(db.String(8), db.ForeignKey("finance_currencies.code"), nullable=True)
 
+    # Legal / invoicing fields (optional)
+    vat_number = db.Column(db.String(64), nullable=True)
+    tax_id = db.Column(db.String(64), nullable=True, doc="Codice Fiscale (IT) or other tax id")
+    address_line1 = db.Column(db.String(160), nullable=True)
+    address_line2 = db.Column(db.String(160), nullable=True)
+    postal_code = db.Column(db.String(32), nullable=True)
+    city = db.Column(db.String(80), nullable=True)
+    state = db.Column(db.String(80), nullable=True)
+    country_code = db.Column(db.String(2), nullable=True, doc="ISO 3166-1 alpha-2")
+    email = db.Column(db.String(160), nullable=True)
+    phone = db.Column(db.String(80), nullable=True)
+
+    # Italy e-invoicing
+    sdi_code = db.Column(db.String(16), nullable=True)
+    pec_email = db.Column(db.String(160), nullable=True)
+
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     tenant = db.relationship("Tenant", backref=db.backref("finance_counterparties", lazy="dynamic"))
     company = db.relationship("FinanceCompany", backref=db.backref("counterparties", lazy="dynamic"))
@@ -71,7 +94,6 @@ class FinanceStatementImport(db.Model):
 
     imported_rows = db.Column(db.Integer, nullable=False, default=0)
     skipped_rows = db.Column(db.Integer, nullable=False, default=0)
-
     payload_json = db.Column(db.JSON, nullable=True)  # optional: provider response / metadata
 
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)

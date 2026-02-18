@@ -178,6 +178,10 @@ class FinanceLiability(db.Model):
     maturity_date = db.Column(db.Date, nullable=True)
     payment_frequency = db.Column(db.String(24), nullable=False, default="monthly")  # monthly|quarterly|yearly|other
 
+    # Cash planning helpers (optional)
+    installment_amount = db.Column(db.Numeric(18, 2), nullable=True)
+    next_payment_date = db.Column(db.Date, nullable=True)
+
     notes = db.Column(db.String(500), nullable=True)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

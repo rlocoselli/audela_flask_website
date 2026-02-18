@@ -55,6 +55,9 @@
     <li class="nav-item"><a class="nav-link {% if active=='accounts' %}active{% endif %}" href="{{ url_for('finance.accounts_list') }}">{{ _('Contas') }}</a></li>
     <li class="nav-item"><a class="nav-link {% if active=='quick_entry' %}active{% endif %}" href="{{ url_for('finance.quick_entry') }}">{{ _('Entrada rápida') }}</a></li>
     <li class="nav-item"><a class="nav-link {% if active=='reports' %}active{% endif %}" href="{{ url_for('finance.reports_transactions') }}">{{ _('Relatórios') }}</a></li>
+    <li class="nav-item"><a class="nav-link {% if active=='invoices' %}active{% endif %}" href="{{ url_for('finance.invoices_list') }}">{{ _('E-faturas') }}</a></li>
+    <li class="nav-item"><a class="nav-link {% if active=='alerts' %}active{% endif %}" href="{{ url_for('finance.alerts_page') }}">{{ _('Alertas') }}</a></li>
+    <li class="nav-item"><a class="nav-link {% if active=='regulation' %}active{% endif %}" href="{{ url_for('finance.regulation_page') }}">{{ _('Regulação') }}</a></li>
     <li class="nav-item"><a class="nav-link {% if active=='liabilities' %}active{% endif %}" href="{{ url_for('finance.liabilities_list') }}">{{ _('Financiamentos') }}</a></li>
     <li class="nav-item"><a class="nav-link {% if active=='recurring' %}active{% endif %}" href="{{ url_for('finance.recurring_list') }}">{{ _('Recorrentes') }}</a></li>
     <li class="nav-item"><a class="nav-link {% if active=='cashflow' %}active{% endif %}" href="{{ url_for('finance.cashflow') }}">{{ _('Cashflow') }}</a></li>

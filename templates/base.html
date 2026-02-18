@@ -9,7 +9,8 @@
 		<title>{% block title %}{{ _('AUDELA – Data, BI, ERP, LegalTech & IA') }}{% endblock %}</title>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-		<link rel="stylesheet" href="{{ url_for('static', filename='assets/css/main.css') }}" />
+				<meta name="csrf-token" content="{{ csrf_token() }}" />
+<link rel="stylesheet" href="{{ url_for('static', filename='assets/css/main.css') }}" />
 		<link rel="stylesheet" href="{{ url_for('static', filename='assets/css/custom.css') }}" />
 		<noscript><link rel="stylesheet" href="{{ url_for('static', filename='assets/css/noscript.css') }}" /></noscript>
 		{% block head_extra %}{% endblock %}
