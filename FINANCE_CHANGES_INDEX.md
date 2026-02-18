@@ -17,7 +17,7 @@ SCOPE: Finance System Enhancements - 6 nouveaux modèles + services
   - `FinanceAdjustment` (53 lignes)
   - `FinanceAdjustmentLog` (32 lignes)
   - `FinanceCounterpartyAttribute` (30 lignes)
-  - `FinanceGoCardlessConnection` + `FinanceGoCardlessSyncLog` (72 lignes)
+  - `FinancePowensConnection` + `FinancePowensSyncLog` (72 lignes)
 
 **Clés SQL:**
 - Table: `finance_products`
@@ -25,8 +25,8 @@ SCOPE: Finance System Enhancements - 6 nouveaux modèles + services
 - Table: `finance_adjustments` + 4 indexes
 - Table: `finance_adjustment_logs` + 2 indexes
 - Table: `finance_counterparty_attributes` + 2 indexes
-- Table: `finance_gocardless_connections` + 3 indexes
-- Table: `finance_gocardless_sync_logs` + 2 indexes
+- Table: `finance_powens_connections` + 3 indexes
+- Table: `finance_powens_sync_logs` + 2 indexes
 
 ### 2. **audela/models/__init__.py** (MODIFIÉ)
 - **Change:** Ajout imports et exports
@@ -92,7 +92,7 @@ from .finance_ext import (
   - `FinanceVATService` - Calcul et application TVA
   - `FinanceAdjustmentService` - Gestion ajustements + audit
   - `FinanceDailyBalanceService` - Soldes quotidiens
-  - `FinanceGoCardlessService` - Intégration bancaire
+  - `FinancePowensService` - Intégration bancaire
 - **Utilisation:** Import et utilisation directe dans les vues/API
 
 ### Exemples
@@ -104,7 +104,7 @@ from .finance_ext import (
   2. Ajustements avec audit
   3. Suivi quotidien des soldes
   4. Attributs flexibles contreparties
-  5. Intégration GoCardless
+  5. Intégration Powens
   6. Application auto de TVA sur facture
 - **Utilisation:** Tests, documentation, templates
 
@@ -154,7 +154,7 @@ audela/services/
       ├── FinanceVATService
       ├── FinanceAdjustmentService
       ├── FinanceDailyBalanceService
-      └── FinanceGoCardlessService
+      └── FinancePowensService
 
 migrations/versions/
   └── 7811fe58d1ac_add_finance_models_daily_balances_.py (NOUVEAU)
@@ -193,8 +193,8 @@ from audela.models import (
     FinanceAdjustment,
     FinanceAdjustmentLog,
     FinanceCounterpartyAttribute,
-    FinanceGoCardlessConnection,
-    FinanceGoCardlessSyncLog,
+    FinancePowensConnection,
+    FinancePowensSyncLog,
 )
 ```
 
@@ -204,7 +204,7 @@ from audela.services.finance_advanced_service import (
     FinanceVATService,
     FinanceAdjustmentService,
     FinanceDailyBalanceService,
-    FinanceGoCardlessService,
+    FinancePowensService,
 )
 
 # Exemple
@@ -231,15 +231,15 @@ flask shell
 - **FinanceAdjustment:** 53 lignes
 - **FinanceAdjustmentLog:** 32 lignes
 - **FinanceCounterpartyAttribute:** 30 lignes
-- **FinanceGoCardlessConnection:** 49 lignes
-- **FinanceGoCardlessSyncLog:** 35 lignes
+- **FinancePowensConnection:** 49 lignes
+- **FinancePowensSyncLog:** 35 lignes
 - **Total:** ~295 lignes de code
 
 ### Services (finance_advanced_service.py)
 - **FinanceVATService:** ~60 lignes
 - **FinanceAdjustmentService:** ~100 lignes
 - **FinanceDailyBalanceService:** ~60 lignes
-- **FinanceGoCardlessService:** ~80 lignes
+- **FinancePowensService:** ~80 lignes
 - **Total:** ~300 lignes de code
 
 ### Documentation
@@ -281,7 +281,7 @@ flask shell
 - ✅ Indexes pour requêtes fréquentes
 - ✅ Cascade DELETE pour intégrité DB
 - ✅ Foreign keys explicites
-- ⚠️ Tokens GoCardless en LargeBinary (à chiffrer - voir FINANCE_NEXT_STEPS.md)
+- ⚠️ Tokens Powens en LargeBinary (à chiffrer - voir FINANCE_NEXT_STEPS.md)
 - ✅ Audit trail complet (IP, user, action)
 
 ### Performance
@@ -317,7 +317,7 @@ flask shell
 - ✅ Documentation
 
 **Phase 2 (À Faire):**
-- Chiffrement tokens GoCardless
+- Chiffrement tokens Powens
 - Webhooks temps-réel
 - Tasks Celery
 - Tests unitaires
@@ -340,9 +340,9 @@ flask shell
 - [FINANCE_EXAMPLES.py](FINANCE_EXAMPLES.py)
 - [audela/services/finance_advanced_service.py](audela/services/finance_advanced_service.py)
 
-**GoCardless/Nordigen:**
-- https://developer.gocardless.com/
-- https://nordigen.com/
+**Powens/Tink:**
+- https://powens.com/
+- https://tink.com/
 
 **SQLAlchemy/Flask-SQLAlchemy:**
 - https://flask-sqlalchemy.palletsprojects.com/
@@ -363,6 +363,6 @@ flask shell
 
 ---
 
-**Créé par:** Claude Haiku 4.5  
+**Créé par:** CRodrigo Locoselli 
 **Date:** 18 février 2026  
 **Status:** ✅ Complété

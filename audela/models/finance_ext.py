@@ -412,28 +412,28 @@ class FinanceCounterpartyAttribute(db.Model):
     counterparty = relationship("FinanceCounterparty", backref=db.backref("attributes", lazy="dynamic"))
 
 
-class FinanceGoCardlessConnection(db.Model):
-    """GoCardless bank integration connection.
+class FinancePowensConnection(db.Model):
+    """Powens bank integration connection.
     
-    Stores connection credentials and settings for GoCardless bank feed integration.
+    Stores connection credentials and settings for Powens bank feed integration.
     Transactions are automatically imported and reconciled.
     """
 
-    __tablename__ = "finance_gocardless_connections"
+    __tablename__ = "finance_powens_connections"
 
     id = db.Column(db.Integer, primary_key=True)
     tenant_id = db.Column(db.Integer, nullable=False, index=True)
     company_id = db.Column(db.Integer, db.ForeignKey("finance_companies.id", ondelete="CASCADE"), nullable=False, index=True)
     account_id = db.Column(db.Integer, db.ForeignKey("finance_accounts.id", ondelete="CASCADE"), nullable=False, index=True)
 
-    # GoCardless API credentials (encrypted in practice)
-    gocardless_access_token = db.Column(db.LargeBinary, nullable=True)  # encrypted
-    gocardless_secret_id = db.Column(db.String(120), nullable=True)
-    institution_id = db.Column(db.String(120), nullable=True)  # GoCardless institution identifier
+    # Powens API credentials (encrypted in practice)
+    powens_access_token = db.Column(db.LargeBinary, nullable=True)  # encrypted
+    powens_secret_id = db.Column(db.String(120), nullable=True)
+    institution_id = db.Column(db.String(120), nullable=True)  # Powens institution identifier
     
     # Account linking info
-    gocardless_account_id = db.Column(db.String(120), nullable=True)  # provider account ID
-    gocardless_account_name = db.Column(db.String(200), nullable=True)
+    powens_account_id = db.Column(db.String(120), nullable=True)  # provider account ID
+    powens_account_name = db.Column(db.String(200), nullable=True)
     iban = db.Column(db.String(64), nullable=True)
     
     # Sync settings
@@ -455,20 +455,20 @@ class FinanceGoCardlessConnection(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     account = relationship("FinanceAccount")
-    syncs = relationship("FinanceGoCardlessSyncLog", back_populates="connection", cascade="all, delete-orphan")
+    syncs = relationship("FinancePowensSyncLog", back_populates="connection", cascade="all, delete-orphan")
 
 
-class FinanceGoCardlessSyncLog(db.Model):
-    """Sync history log for GoCardless connections.
+class FinancePowensSyncLog(db.Model):
+    """Sync history log for Powens connections.
     
     Tracks each sync attempt with status, transactions imported, and any errors.
     """
 
-    __tablename__ = "finance_gocardless_sync_logs"
+    __tablename__ = "finance_powens_sync_logs"
 
     id = db.Column(db.Integer, primary_key=True)
     tenant_id = db.Column(db.Integer, nullable=False, index=True)
-    connection_id = db.Column(db.Integer, db.ForeignKey("finance_gocardless_connections.id", ondelete="CASCADE"), nullable=False, index=True)
+    connection_id = db.Column(db.Integer, db.ForeignKey("finance_powens_connections.id", ondelete="CASCADE"), nullable=False, index=True)
 
     sync_start_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     sync_end_date = db.Column(db.DateTime, nullable=True)
@@ -482,9 +482,9 @@ class FinanceGoCardlessSyncLog(db.Model):
     error_message = db.Column(db.String(500), nullable=True)
     
     # Metadata
-    sync_metadata = db.Column(db.JSON, nullable=True)  # GoCardless response details
+    sync_metadata = db.Column(db.JSON, nullable=True)  # Powens response details
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
-    connection = relationship("FinanceGoCardlessConnection", back_populates="syncs")
+    connection = relationship("FinancePowensConnection", back_populates="syncs")
 

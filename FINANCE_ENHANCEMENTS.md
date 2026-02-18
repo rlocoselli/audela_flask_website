@@ -208,15 +208,15 @@ for attr in supplier.attributes:
 
 ---
 
-## 5. **FinanceGoCardlessConnection** + **FinanceGoCardlessSyncLog** - Intégration GoCardless
+## 5. **FinancePowensConnection** + **FinancePowensSyncLog** - Intégration Powens
 
 ### Description
-Intégration avec GoCardless (Nordigen) pour importer automatiquement les transactions bancaires en temps quasi-réel.
+Intégration avec Powens (Tink) pour importer automatiquement les transactions bancaires en temps quasi-réel.
 
-### FinanceGoCardlessConnection - Champs Principaux
+### FinancePowensConnection - Champs Principaux
 - `account_id` (ForeignKey) - Compte financier lié
-- `institution_id` (String, 120) - ID d'institution GoCardless
-- `gocardless_account_id` (String, 120) - ID du compte chez GoCardless
+- `institution_id` (String, 120) - ID d'institution Powens
+- `powens_account_id` (String, 120) - ID du compte chez Powens
 - `iban` (String, 64) - IBAN
 - `sync_enabled` (Boolean) - Activer la synchronisation
 - `last_sync_date` (DateTime) - Dernière sync
@@ -227,7 +227,7 @@ Intégration avec GoCardless (Nordigen) pour importer automatiquement les transa
 - `auto_categorize` (Boolean) - Appliquer auto les catégories
 - `status` (String, 32) - `active|inactive|disconnected|error`
 
-### FinanceGoCardlessSyncLog - Champs Principaux
+### FinancePowensSyncLog - Champs Principaux
 - `connection_id` (ForeignKey)
 - `sync_start_date` (DateTime) - Début de la sync
 - `sync_end_date` (DateTime) - Fin de la sync
@@ -236,17 +236,17 @@ Intégration avec GoCardless (Nordigen) pour importer automatiquement les transa
 - `transactions_failed` (Integer) - Nombre en erreur
 - `status` (String, 32) - `pending|success|partial|failure`
 - `error_message` (String, 500)
-- `sync_metadata` (JSON) - Réponse GoCardless
+- `sync_metadata` (JSON) - Réponse Powens
 
 ### Cas d'Usage
 ```python
-from audela.models import FinanceGoCardlessConnection, FinanceGoCardlessSyncLog
+from audela.models import FinancePowensConnection, FinancePowensSyncLog
 
-# Configurer une connexion GoCardless
-connection = FinanceGoCardlessConnection.query.create(
+# Configurer une connexion Powens
+connection = FinancePowensConnection.query.create(
     account_id=account.id,
     institution_id="SOCIETE_GENERALE_BNAGFRPP",  # BIC
-    gocardless_account_id="IBAN_EXAMPLE",
+    powens_account_id="IBAN_EXAMPLE",
     iban="FR1420041010050500013M02606",
     sync_enabled=True,
     sync_days_back=90,
@@ -257,7 +257,7 @@ connection = FinanceGoCardlessConnection.query.create(
 )
 
 # Après une synchronisation réussie
-sync_log = FinanceGoCardlessSyncLog.query.create(
+sync_log = FinancePowensSyncLog.query.create(
     connection_id=connection.id,
     sync_start_date=datetime.utcnow(),
     sync_end_date=datetime.utcnow(),
@@ -272,7 +272,7 @@ syncs = connection.syncs.filter_by(status='success').all()
 print(f"Dernière sync réussie: {syncs[0].sync_end_date}")
 
 # Accéder aux derniers logs
-recent_logs = connection.syncs.order_by(FinanceGoCardlessSyncLog.created_at.desc()).limit(10)
+recent_logs = connection.syncs.order_by(FinancePowensSyncLog.created_at.desc()).limit(10)
 ```
 
 ---
@@ -314,7 +314,7 @@ flask db downgrade
 - Pas de modification du schéma existant
 
 ### 5. Intégration Bancaire
-- Connecter comptes via GoCardless API
+- Connecter comptes via Powens API
 - Imports automatiques et quasi-temps réel
 - Création ou enrichissement auto des transactions
 - Application automatique des catégories
@@ -330,11 +330,11 @@ flask db downgrade
 
 ### Performance
 - Indexes sur `(account_id, balance_date)` pour FinanceDailyBalance
-- Indexes sur `(connection_id)` pour les logs GoCardless
+- Indexes sur `(connection_id)` pour les logs Powens
 - Partitionnement possible sur `balance_date` si nécessaire
 
 ### Sécurité
-- `gocardless_access_token` stocké en `LargeBinary` (à chiffrer en production)
+- `powens_access_token` stocké en `LargeBinary` (à chiffrer en production)
 - `ip_address` tracée dans les logs d'ajustement
 - Audit complet de tous les changements d'ajustement
 
@@ -342,7 +342,7 @@ flask db downgrade
 
 ## Prochaines Étapes Recommandées
 
-1. **Service GoCardless** - Implémenter `FinanceGoCardlessService` pour les API calls
+1. **Service Powens** - Implémenter `FinancePowensService` pour les API calls
 2. **Calcul TVA** - Créer logique automatique pour appliquer TVA sur factures
 3. **Reporting** - Ajouter rapports sur les soldes quotidiens et tendances
-4. **Webhooks** - Configurer webhooks GoCardless pour les imports temps-réel
+4. **Webhooks** - Configurer webhooks Powens pour les imports temps-réel

@@ -16,8 +16,8 @@ from .finance_ext import (
     FinanceAdjustment,
     FinanceAdjustmentLog,
     FinanceCounterpartyAttribute,
-    FinanceGoCardlessConnection,
-    FinanceGoCardlessSyncLog,
+    FinancePowensConnection,
+    FinancePowensSyncLog,
 )
 from .finance_invoices import FinanceInvoice, FinanceInvoiceLine, FinanceSetting
 from .bi import (
@@ -71,8 +71,8 @@ __all__ = [
     "FinanceAdjustment",
     "FinanceAdjustmentLog",
     "FinanceCounterpartyAttribute",
-    "FinanceGoCardlessConnection",
-    "FinanceGoCardlessSyncLog",
+    "FinancePowensConnection",
+    "FinancePowensSyncLog",
     "FinanceInvoice",
     "FinanceInvoiceLine",
     "FinanceSetting",

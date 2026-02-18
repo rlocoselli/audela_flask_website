@@ -14,14 +14,14 @@ Tous les modèles, services et documentations ont été créés et testés avec 
 3. **FinanceAdjustment** - Ajustements avec audit
 4. **FinanceAdjustmentLog** - Log d'audit des ajustements
 5. **FinanceCounterpartyAttribute** - Attributs flexibles pour contreparties
-6. **FinanceGoCardlessConnection** - Intégration bancaire GoCardless
-7. **FinanceGoCardlessSyncLog** - Historique des syncs
+6. **FinancePowensConnection** - Intégration bancaire Powens
+7. **FinancePowensSyncLog** - Historique des syncs
 
 ### 4 Services Métier
 - `FinanceVATService` - Calcul et application TVA
 - `FinanceAdjustmentService` - Gestion des ajustements
 - `FinanceDailyBalanceService` - Suivi des soldes
-- `FinanceGoCardlessService` - Intégration bancaire
+- `FinancePowensService` - Intégration bancaire
 
 ### 5 Fichiers de Documentation
 - `FINANCE_ENHANCEMENTS.md` - Guide complet (11 KB)
@@ -85,7 +85,7 @@ cat FINANCE_NEXT_STEPS.md
 ✅ Suivi du solde quotidien avec historique  
 ✅ Ajustements (frais, intérêts) avec audit complet  
 ✅ Attributs flexibles pour contreparties  
-✅ Import bancaire automatique via GoCardless  
+✅ Import bancaire automatique via Powens  
 ✅ Logging d'audit pour traçabilité  
 
 ---
@@ -100,8 +100,8 @@ from audela.models import (
     FinanceAdjustment,
     FinanceAdjustmentLog,
     FinanceCounterpartyAttribute,
-    FinanceGoCardlessConnection,
-    FinanceGoCardlessSyncLog,
+    FinancePowensConnection,
+    FinancePowensSyncLog,
 )
 ```
 
@@ -111,7 +111,7 @@ from audela.services.finance_advanced_service import (
     FinanceVATService,
     FinanceAdjustmentService,
     FinanceDailyBalanceService,
-    FinanceGoCardlessService,
+    FinancePowensService,
 )
 
 # Exemple: Calculer TVA
@@ -138,8 +138,8 @@ logs = FinanceAdjustmentService.get_audit_trail(adj.id)
 
 ### Avant de Déployer en Production
 - [ ] Lire FINANCE_NEXT_STEPS.md (section 1: Chiffrement)
-- [ ] Implémenter le chiffrement des tokens GoCardless
-- [ ] Configurer les webhooks GoCardless
+- [ ] Implémenter le chiffrement des tokens Powens
+- [ ] Configurer les webhooks Powens
 - [ ] Ajouter des tests unitaires
 - [ ] Sauvegarder la base de données
 
@@ -147,7 +147,7 @@ logs = FinanceAdjustmentService.get_audit_trail(adj.id)
 ```env
 # Pour chiffrement (phase 2)
 ENCRYPTION_KEY=<votre_clé_fernet>
-GOCARDLESS_WEBHOOK_SECRET=<votre_secret>
+POWENS_WEBHOOK_SECRET=<votre_secret>
 
 # Pour Celery (phase 2)
 CELERY_BROKER_URL=redis://localhost:6379/0
@@ -194,7 +194,7 @@ Consulter les fichiers de documentation correspondants:
 
 **Phase 2 (TODO)**
 - Chiffrement tokens
-- Webhooks GoCardless
+- Webhooks Powens
 - Tasks Celery
 - Tests unitaires
 
@@ -213,12 +213,12 @@ Vos demandes ont été implémentées:
 - ✅ Enregistrement produits et contreparties
 - ✅ TVA automatique
 - ✅ Attributs pour contreparties (optionnels)
-- ✅ Intégration GoCardless
+- ✅ Intégration Powens
 
 **Prêt pour le déploiement!**
 
 ---
 
-**Créé par:** Claude Haiku 4.5  
+**Créé par:** CRodrigo Locoselli 
 **Date:** 18 février 2026  
 **Status:** ✨ COMPLETED AND VALIDATED ✨

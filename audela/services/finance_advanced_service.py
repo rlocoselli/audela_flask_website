@@ -5,7 +5,7 @@ Services pour gérer:
 1. Application automatique de la TVA sur les factures
 2. Gestion des ajustements et audit
 3. Suivi quotidien des soldes
-4. Intégration GoCardless (stub)
+4. Intégration Powens (stub)
 """
 
 from datetime import date, datetime
@@ -21,8 +21,8 @@ from audela.models import (
     FinanceAdjustmentLog,
     FinanceDailyBalance,
     FinanceTransaction,
-    FinanceGoCardlessConnection,
-    FinanceGoCardlessSyncLog,
+    FinancePowensConnection,
+    FinancePowensSyncLog,
 )
 
 
@@ -270,8 +270,8 @@ class FinanceDailyBalanceService:
         ).order_by(FinanceDailyBalance.balance_date).all()
 
 
-class FinanceGoCardlessService:
-    """Service pour l'intégration GoCardless (stub)."""
+class FinancePowensService:
+    """Service pour l'intégration Powens (stub)."""
 
     @staticmethod
     def create_connection(
@@ -280,13 +280,13 @@ class FinanceGoCardlessService:
         tenant_id: int,
         institution_id: str,
         iban: str,
-    ) -> FinanceGoCardlessConnection:
+    ) -> FinancePowensConnection:
         """
-        Créer une connexion GoCardless.
+        Créer une connexion Powens.
         
-        En production, cela déclencherait le flow OAuth de Nordigen.
+        En production, cela déclencherait le flow OAuth de Tink.
         """
-        connection = FinanceGoCardlessConnection(
+        connection = FinancePowensConnection(
             tenant_id=tenant_id,
             company_id=company_id,
             account_id=account_id,
@@ -306,17 +306,17 @@ class FinanceGoCardlessService:
         return connection
 
     @staticmethod
-    def sync_transactions(connection_id: int) -> FinanceGoCardlessSyncLog:
+    def sync_transactions(connection_id: int) -> FinancePowensSyncLog:
         """
-        Synchroniser les transactions depuis GoCardless.
+        Synchroniser les transactions depuis Powens.
         
-        Stub - en production appelerait l'API Nordigen.
+        Stub - en production appelerait l'API Tink.
         """
-        connection = FinanceGoCardlessConnection.query.get(connection_id)
+        connection = FinancePowensConnection.query.get(connection_id)
         if not connection:
             raise ValueError(f"Connection {connection_id} not found")
         
-        sync_log = FinanceGoCardlessSyncLog(
+        sync_log = FinancePowensSyncLog(
             tenant_id=connection.tenant_id,
             connection_id=connection_id,
             sync_start_date=datetime.utcnow(),
@@ -326,8 +326,8 @@ class FinanceGoCardlessService:
         db.session.add(sync_log)
         db.session.flush()
         
-        # En production: appeler API Nordigen ici
-        # transactions = call_gocardless_api(connection.gocardless_account_id)
+        # En production: appeler API Tink ici
+        # transactions = call_powens_api(connection.powens_account_id)
         
         # Stub: simuler des données
         transactions_imported = 0
@@ -346,11 +346,11 @@ class FinanceGoCardlessService:
         return sync_log
 
     @staticmethod
-    def get_sync_history(connection_id: int, limit: int = 10) -> List[FinanceGoCardlessSyncLog]:
+    def get_sync_history(connection_id: int, limit: int = 10) -> List[FinancePowensSyncLog]:
         """Obtenir l'historique des synchronisations."""
-        return FinanceGoCardlessSyncLog.query.filter_by(
+        return FinancePowensSyncLog.query.filter_by(
             connection_id=connection_id
-        ).order_by(FinanceGoCardlessSyncLog.created_at.desc()).limit(limit).all()
+        ).order_by(FinancePowensSyncLog.created_at.desc()).limit(limit).all()
 
 
 # Exemple d'utilisation
