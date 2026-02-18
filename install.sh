@@ -121,8 +121,12 @@ source "$APP_DIR/.env"
 set +a
 
 if [ -d "$APP_DIR/migrations" ]; then
-  "$VENV_DIR/bin/flask" --app "audela:create_app" db upgrade
-  echo "✅ Database migrations applied"
+  if "$VENV_DIR/bin/flask" --app "audela:create_app" db upgrade heads; then
+    echo "✅ Database migrations applied"
+  else
+    echo "❌ Database migration failed"
+    exit 1
+  fi
 else
   echo "⚠️ migrations folder not found, skipping flask db upgrade"
 fi
