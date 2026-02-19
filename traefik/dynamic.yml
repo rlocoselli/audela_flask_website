@@ -1,0 +1,9 @@
+# TLS certs (bring-your-own). Put the files in ./certs/
+#  - certs/fullchain.pem
+#  - certs/privkey.pem
+# If you prefer Let's Encrypt, use docker-compose.letsencrypt.yml instead.
+
+tls:
+  certificates:
+    - certFile: /certs/fullchain.pem
+      keyFile: /certs/privkey.pem

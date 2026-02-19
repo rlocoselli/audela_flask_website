@@ -1,0 +1,37 @@
+# Usage:
+#   cp .env.example .env
+#   # set APP_HOSTNAME, GRAFANA_HOSTNAME, LETSENCRYPT_EMAIL, secrets...
+#   docker compose -f docker-compose.yml -f docker-compose.letsencrypt.yml up -d
+#
+# This override switches Traefik TLS to Let's Encrypt (HTTP-01 on port 80).
+
+services:
+  traefik:
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entryPoint.to=websecure
+      - --entrypoints.web.http.redirections.entryPoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.metrics.address=:8082
+      - --metrics.prometheus=true
+      - --metrics.prometheus.entryPoint=metrics
+      - --certificatesresolvers.le.acme.email=${LETSENCRYPT_EMAIL}
+      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
+      - --log.level=INFO
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_letsencrypt:/letsencrypt
+
+  audela:
+    labels:
+      - traefik.http.routers.audela.tls.certresolver=le
+
+  grafana:
+    labels:
+      - traefik.http.routers.grafana.tls.certresolver=le
+
+volumes:
+  traefik_letsencrypt:
