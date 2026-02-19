@@ -55,6 +55,7 @@ services:
       - traefik.http.routers.audela.entrypoints=websecure
       - traefik.http.routers.audela.tls=true
       - traefik.http.services.audela.loadbalancer.server.port=8000
+      - traefik.http.routers.grafana.tls.certresolver=le
     networks:
       - web
       - backend
@@ -138,6 +139,7 @@ services:
       - traefik.http.routers.grafana.entrypoints=websecure
       - traefik.http.routers.grafana.tls=true
       - traefik.http.services.grafana.loadbalancer.server.port=3000
+      - traefik.http.routers.grafana.tls.certresolver=le
     networks:
       - web
       - monitoring
