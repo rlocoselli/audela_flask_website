@@ -1,23 +1,17 @@
 FROM python:3.10-slim
 
-# --- System deps ---
-# - libpq-dev: PostgreSQL driver build support
-# - unixodbc-dev + msodbcsql18: optional pyodbc (SQL Server)
-# - poppler-utils + tesseract-ocr: optional PDF/OCR features (pdf2image/pytesseract)
+# Microsoft ODBC Driver 18 for SQL Server (Debian 9-13)
 RUN set -eux; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
-      build-essential gcc g++ \
-      curl ca-certificates gnupg apt-transport-https \
-      libpq-dev \
+      curl ca-certificates \
       unixodbc unixodbc-dev \
-      poppler-utils tesseract-ocr; \
-    # Microsoft ODBC Driver 18 for SQL Server (Debian)
-    mkdir -p /etc/apt/keyrings; \
-    curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /etc/apt/keyrings/microsoft.gpg; \
-    chmod 0644 /etc/apt/keyrings/microsoft.gpg; \
+      libgssapi-krb5-2; \
     . /etc/os-release; \
-    echo "deb [arch=amd64,arm64 signed-by=/etc/apt/keyrings/microsoft.gpg] https://packages.microsoft.com/debian/${VERSION_ID}/prod ${VERSION_CODENAME} main" > /etc/apt/sources.list.d/microsoft-prod.list; \
+    curl -sSL -o /tmp/packages-microsoft-prod.deb \
+      "https://packages.microsoft.com/config/debian/${VERSION_ID}/packages-microsoft-prod.deb"; \
+    dpkg -i /tmp/packages-microsoft-prod.deb; \
+    rm -f /tmp/packages-microsoft-prod.deb; \
     apt-get update; \
     ACCEPT_EULA=Y apt-get install -y --no-install-recommends msodbcsql18; \
     rm -rf /var/lib/apt/lists/*
