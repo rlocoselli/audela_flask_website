@@ -7,22 +7,30 @@ services:
     command:
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
-      - --providers.file.filename=/etc/traefik/dynamic.yml
+
       - --entrypoints.web.address=:80
       - --entrypoints.web.http.redirections.entryPoint.to=websecure
       - --entrypoints.web.http.redirections.entryPoint.scheme=https
       - --entrypoints.websecure.address=:443
+
       - --entrypoints.metrics.address=:8082
       - --metrics.prometheus=true
       - --metrics.prometheus.entryPoint=metrics
+
       - --log.level=INFO
+      - --api.dashboard=true
+
+      # --- Let's Encrypt (ACME HTTP-01) ---
+      - --certificatesresolvers.le.acme.email=${LETSENCRYPT_EMAIL}
+      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.le.acme.httpchallenge=true
+      - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
-      - ./certs:/certs:ro
+      - letsencrypt:/letsencrypt
     networks:
       - web
       - monitoring
@@ -51,11 +59,14 @@ services:
       - audela_instance:/app/instance
     labels:
       - traefik.enable=true
+      - traefik.docker.network=web
+
+      # App + WWW
       - traefik.http.routers.audela.rule=Host(`${APP_HOSTNAME}`) || Host(`${APP_HOSTNAME_WWW}`)
       - traefik.http.routers.audela.entrypoints=websecure
       - traefik.http.routers.audela.tls=true
+      - traefik.http.routers.audela.tls.certresolver=le
       - traefik.http.services.audela.loadbalancer.server.port=8000
-      - traefik.http.routers.grafana.tls.certresolver=le
     networks:
       - web
       - backend
@@ -135,11 +146,12 @@ services:
       - prometheus
     labels:
       - traefik.enable=true
+      - traefik.docker.network=web
       - traefik.http.routers.grafana.rule=Host(`${GRAFANA_HOSTNAME}`)
       - traefik.http.routers.grafana.entrypoints=websecure
       - traefik.http.routers.grafana.tls=true
-      - traefik.http.services.grafana.loadbalancer.server.port=3000
       - traefik.http.routers.grafana.tls.certresolver=le
+      - traefik.http.services.grafana.loadbalancer.server.port=3000
     networks:
       - web
       - monitoring
@@ -200,6 +212,7 @@ volumes:
   prometheus_data:
   grafana_data:
   audela_instance:
+  letsencrypt:
 
 networks:
   web:

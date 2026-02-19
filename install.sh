@@ -171,13 +171,18 @@ run_compose() {
     exit 1
   fi
 
-  echo "🐳 Starting stack: app + db + redis + traefik + prometheus + grafana"
-  docker compose -f docker-compose.yml -f docker-compose.letsencrypt.yml up -d --build
+  echo "🐳 Starting/updating stack (no downtime when possible)"
+  if ! docker compose -f docker-compose.yml -f docker-compose.letsencrypt.yml up -d --build; then
+    echo "⚠️ compose up failed; trying a clean restart (down -> up)"
+    docker compose -f docker-compose.yml -f docker-compose.letsencrypt.yml down || true
+    docker compose -f docker-compose.yml -f docker-compose.letsencrypt.yml up -d --build
+  fi
 
-  echo "✅ Stack started"
+  echo "✅ Stack running"
   docker compose ps
 
-  echo "\n🌍 App:     https://${APP_HOSTNAME}/ (and https://${APP_HOSTNAME_WWW}/)"
+  echo
+  echo "🌍 App:     https://${APP_HOSTNAME}/ (and https://${APP_HOSTNAME_WWW}/)"
   echo "📈 Grafana: https://${GRAFANA_HOSTNAME}/ (admin / password from .env)"
 }
 
