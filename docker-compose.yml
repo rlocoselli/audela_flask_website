@@ -57,7 +57,7 @@ services:
       - audela_instance:/app/instance
     labels:
       - traefik.enable=true
-      - traefik.docker.network=web
+      - traefik.docker.network=audela_web
 
       # HTTP -> HTTPS (needed for clean ACME + redirect)
       - traefik.http.routers.audela-http.rule=Host(`${APP_HOSTNAME}`) || Host(`${APP_HOSTNAME_WWW}`)
@@ -99,7 +99,7 @@ services:
       - prometheus
     labels:
       - traefik.enable=true
-      - traefik.docker.network=web
+      - traefik.docker.network=audela_web
 
       # HTTP -> HTTPS
       - traefik.http.routers.grafana-http.rule=Host(`${GRAFANA_HOSTNAME}`)
@@ -227,8 +227,11 @@ volumes:
 
 networks:
   web:
+    name: audela_web
     driver: bridge
   backend:
+    name: audela_backend
     driver: bridge
   monitoring:
+    name: audela_monitoring
     driver: bridge
