@@ -9,8 +9,6 @@ services:
       - --providers.docker.exposedbydefault=false
 
       - --entrypoints.web.address=:80
-      - --entrypoints.web.http.redirections.entryPoint.to=websecure
-      - --entrypoints.web.http.redirections.entryPoint.scheme=https
       - --entrypoints.websecure.address=:443
 
       - --entrypoints.metrics.address=:8082
@@ -61,7 +59,13 @@ services:
       - traefik.enable=true
       - traefik.docker.network=web
 
-      # App + WWW
+      # HTTP -> HTTPS (needed for clean ACME + redirect)
+      - traefik.http.routers.audela-http.rule=Host(`${APP_HOSTNAME}`) || Host(`${APP_HOSTNAME_WWW}`)
+      - traefik.http.routers.audela-http.entrypoints=web
+      - traefik.http.routers.audela-http.middlewares=redirect-to-https
+      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+
+      # HTTPS
       - traefik.http.routers.audela.rule=Host(`${APP_HOSTNAME}`) || Host(`${APP_HOSTNAME_WWW}`)
       - traefik.http.routers.audela.entrypoints=websecure
       - traefik.http.routers.audela.tls=true
@@ -71,10 +75,46 @@ services:
       - web
       - backend
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/"]
       interval: 30s
       timeout: 5s
-      retries: 5
+      retries: 10
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_DOMAIN: ${GRAFANA_HOSTNAME}
+      GF_SERVER_ROOT_URL: https://${GRAFANA_HOSTNAME}/
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=web
+
+      # HTTP -> HTTPS
+      - traefik.http.routers.grafana-http.rule=Host(`${GRAFANA_HOSTNAME}`)
+      - traefik.http.routers.grafana-http.entrypoints=web
+      - traefik.http.routers.grafana-http.middlewares=redirect-to-https
+
+      # HTTPS
+      - traefik.http.routers.grafana.rule=Host(`${GRAFANA_HOSTNAME}`)
+      - traefik.http.routers.grafana.entrypoints=websecure
+      - traefik.http.routers.grafana.tls=true
+      - traefik.http.routers.grafana.tls.certresolver=le
+      - traefik.http.services.grafana.loadbalancer.server.port=3000
+    networks:
+      - web
+      - monitoring
 
   db:
     image: postgres:16-alpine
@@ -125,35 +165,6 @@ services:
       - redis-exporter
       - traefik
     networks:
-      - monitoring
-
-  grafana:
-    image: grafana/grafana:latest
-    restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
-      GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_SERVER_DOMAIN: ${GRAFANA_HOSTNAME}
-      GF_SERVER_ROOT_URL: https://${GRAFANA_HOSTNAME}/
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
-    depends_on:
-      - prometheus
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=web
-      - traefik.http.routers.grafana.rule=Host(`${GRAFANA_HOSTNAME}`)
-      - traefik.http.routers.grafana.entrypoints=websecure
-      - traefik.http.routers.grafana.tls=true
-      - traefik.http.routers.grafana.tls.certresolver=le
-      - traefik.http.services.grafana.loadbalancer.server.port=3000
-    networks:
-      - web
       - monitoring
 
   node-exporter:
