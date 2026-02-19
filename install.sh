@@ -166,6 +166,14 @@ EOF
 run_compose() {
   cd "${APP_DIR}"
 
+  echo "🔎 Checking ports 80/443..."
+  if ss -ltnp | grep -qE ':80 |:443 '; then
+    echo "❌ Ports still in use:"
+    ss -ltnp | grep -E ':80 |:443 '
+    echo "❌ Aborting deploy (Traefik needs 80/443)."
+    exit 1
+  fi
+
   if [[ ! -f docker-compose.yml ]]; then
     echo "❌ docker-compose.yml not found in ${APP_DIR}. Did you clone/pull the repo?"
     exit 1
