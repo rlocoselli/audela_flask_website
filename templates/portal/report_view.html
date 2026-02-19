@@ -53,9 +53,17 @@
                   {% set color = st.get('color') if st is mapping else '' %}
                   {% set bg = st.get('background') if st is mapping else '' %}
                   {% set align = st.get('align') if st is mapping else '' %}
+                  {% set font_size = st.get('font_size') if st is mapping else '' %}
+                  {% set bold = st.get('bold') if st is mapping else False %}
+                  {% set italic = st.get('italic') if st is mapping else False %}
+                  {% set underline = st.get('underline') if st is mapping else False %}
                   {% set style_inline = ('color:' ~ color ~ ';') if color else '' %}
                   {% set style_inline = style_inline ~ (('background:' ~ bg ~ ';') if bg else '') %}
                   {% set style_inline = style_inline ~ (('text-align:' ~ align ~ ';') if align else '') %}
+                  {% set style_inline = style_inline ~ (('font-size:' ~ font_size ~ 'px;') if font_size else '') %}
+                  {% set style_inline = style_inline ~ ('font-weight:700;' if bold else '') %}
+                  {% set style_inline = style_inline ~ ('font-style:italic;' if italic else '') %}
+                  {% set style_inline = style_inline ~ ('text-decoration:underline;' if underline else '') %}
 
                   {% if btype in ['text','markdown'] %}
                     <div class="border rounded-4 p-3 bg-body" style="{{ style_inline }}">
@@ -75,6 +83,134 @@
                       <div class="text-secondary" {% if color %}style="color: {{ color }};"{% endif %}>
                         {{ blk.value or blk.get('value') }}
                       </div>
+                    </div>
+
+                  {% elif btype == 'data_field' %}
+                    {% set key = blk._key or blk.get('_key') or '' %}
+                    {% set d = blocks_data.get(key) %}
+                    <div class="border rounded-4 p-3 bg-body" style="{{ style_inline }}">
+                      {% if blk.title or blk.get('title') %}
+                        <div class="fw-semibold mb-1">{{ blk.title or blk.get('title') }}</div>
+                      {% endif %}
+                      {% if d and d.error %}
+                        <div class="alert alert-danger py-2 mb-0">{{ d.error }}</div>
+                      {% else %}
+                        <div class="text-secondary" {% if color %}style="color: {{ color }};"{% endif %}>
+                          {{ (d.value if d else '') or '' }}
+                        </div>
+                      {% endif %}
+                    </div>
+
+                  {% elif btype == 'data_rowset' %}
+                    {% set key = blk._key or blk.get('_key') or '' %}
+                    {% set d = blocks_data.get(key) %}
+                    <div class="border rounded-4 p-3 bg-body" style="{{ style_inline }}">
+                      {% if blk.title or blk.get('title') %}
+                        <div class="fw-semibold mb-2">{{ blk.title or blk.get('title') }}</div>
+                      {% endif %}
+                      {% if d and d.error %}
+                        <div class="alert alert-danger py-2 mb-0">{{ d.error }}</div>
+                      {% elif d and d.groups %}
+                        <div class="d-grid gap-3">
+                          {% for g in d.groups %}
+                            <div class="border rounded-3 p-2">
+                              <div class="d-flex align-items-center justify-content-between mb-2">
+                                <div class="fw-semibold">{{ g.label }}</div>
+                                {% if d.group_count %}
+                                  <span class="badge text-bg-light border">{{ g.count }}</span>
+                                {% endif %}
+                              </div>
+                              <div class="table-responsive">
+                                <table class="table table-sm align-middle mb-0">
+                                  <thead>
+                                    <tr>
+                                      {% for c in d.columns %}
+                                        {% set cs = (d.column_styles[loop.index0] if d.column_styles is defined and d.column_styles and loop.index0 < d.column_styles|length else {}) %}
+                                        {% set cstyle = '' %}
+                                        {% if cs %}
+                                          {% set cstyle = (('color:' ~ cs.color ~ ';') if cs.color else '')
+                                            ~ (('background:' ~ cs.background ~ ';') if cs.background else '')
+                                            ~ (('text-align:' ~ cs.align ~ ';') if cs.align else '')
+                                            ~ (('font-size:' ~ cs.font_size ~ 'px;') if cs.font_size else '')
+                                            ~ ('font-weight:700;' if cs.bold else '')
+                                            ~ ('font-style:italic;' if cs.italic else '')
+                                            ~ ('text-decoration:underline;' if cs.underline else '') %}
+                                        {% endif %}
+                                        <th {% if cstyle %}style="{{ cstyle }}"{% endif %}>{{ c }}</th>
+                                      {% endfor %}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {% for r in g.rows %}
+                                      <tr>
+                                        {% for cell in r %}
+                                          {% set cs = (d.column_styles[loop.index0] if d.column_styles is defined and d.column_styles and loop.index0 < d.column_styles|length else {}) %}
+                                          {% set cstyle = '' %}
+                                          {% if cs %}
+                                            {% set cstyle = (('color:' ~ cs.color ~ ';') if cs.color else '')
+                                              ~ (('background:' ~ cs.background ~ ';') if cs.background else '')
+                                              ~ (('text-align:' ~ cs.align ~ ';') if cs.align else '')
+                                              ~ (('font-size:' ~ cs.font_size ~ 'px;') if cs.font_size else '')
+                                              ~ ('font-weight:700;' if cs.bold else '')
+                                              ~ ('font-style:italic;' if cs.italic else '')
+                                              ~ ('text-decoration:underline;' if cs.underline else '') %}
+                                          {% endif %}
+                                          <td {% if cstyle %}style="{{ cstyle }}"{% endif %}>{{ cell }}</td>
+                                        {% endfor %}
+                                      </tr>
+                                    {% endfor %}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          {% endfor %}
+                        </div>
+                      {% elif d and d.rows %}
+                        <div class="table-responsive">
+                          <table class="table table-sm align-middle mb-0">
+                            <thead>
+                              <tr>
+                                {% for c in d.columns %}
+                                  {% set cs = (d.column_styles[loop.index0] if d.column_styles is defined and d.column_styles and loop.index0 < d.column_styles|length else {}) %}
+                                  {% set cstyle = '' %}
+                                  {% if cs %}
+                                    {% set cstyle = (('color:' ~ cs.color ~ ';') if cs.color else '')
+                                      ~ (('background:' ~ cs.background ~ ';') if cs.background else '')
+                                      ~ (('text-align:' ~ cs.align ~ ';') if cs.align else '')
+                                      ~ (('font-size:' ~ cs.font_size ~ 'px;') if cs.font_size else '')
+                                      ~ ('font-weight:700;' if cs.bold else '')
+                                      ~ ('font-style:italic;' if cs.italic else '')
+                                      ~ ('text-decoration:underline;' if cs.underline else '') %}
+                                  {% endif %}
+                                  <th {% if cstyle %}style="{{ cstyle }}"{% endif %}>{{ c }}</th>
+                                {% endfor %}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {% for r in d.rows %}
+                                <tr>
+                                  {% for cell in r %}
+                                    {% set cs = (d.column_styles[loop.index0] if d.column_styles is defined and d.column_styles and loop.index0 < d.column_styles|length else {}) %}
+                                    {% set cstyle = '' %}
+                                    {% if cs %}
+                                      {% set cstyle = (('color:' ~ cs.color ~ ';') if cs.color else '')
+                                        ~ (('background:' ~ cs.background ~ ';') if cs.background else '')
+                                        ~ (('text-align:' ~ cs.align ~ ';') if cs.align else '')
+                                        ~ (('font-size:' ~ cs.font_size ~ 'px;') if cs.font_size else '')
+                                        ~ ('font-weight:700;' if cs.bold else '')
+                                        ~ ('font-style:italic;' if cs.italic else '')
+                                        ~ ('text-decoration:underline;' if cs.underline else '') %}
+                                    {% endif %}
+                                    <td {% if cstyle %}style="{{ cstyle }}"{% endif %}>{{ cell }}</td>
+                                  {% endfor %}
+                                </tr>
+                              {% endfor %}
+                            </tbody>
+                          </table>
+                        </div>
+                      {% else %}
+                        <div class="text-secondary small">{{ _('Sem linhas retornadas.') }}</div>
+                      {% endif %}
                     </div>
 
                   {% elif btype == 'image' %}
@@ -126,6 +262,39 @@
 
                       {% if d and d.error %}
                         <div class="alert alert-danger py-2 mb-0">{{ d.error }}</div>
+                      {% elif d and d.groups %}
+                        <div class="d-grid gap-3">
+                          {% for g in d.groups %}
+                            <div class="border rounded-3 p-2">
+                              <div class="d-flex align-items-center justify-content-between mb-2">
+                                <div class="fw-semibold">{{ g.label }}</div>
+                                {% if d.group_count %}
+                                  <span class="badge text-bg-light border">{{ g.count }}</span>
+                                {% endif %}
+                              </div>
+                              {% if g.rows %}
+                                <div class="table-responsive">
+                                  <table class="table table-sm align-middle mb-0 {% if zebra %}table-striped{% endif %}">
+                                    <thead>
+                                      <tr {% if header_bg %}style="background: {{ header_bg }};"{% endif %}>
+                                        {% for c in d.columns %}<th>{{ c }}</th>{% endfor %}
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {% for r in g.rows %}
+                                        <tr>
+                                          {% for cell in r %}<td>{{ cell }}</td>{% endfor %}
+                                        </tr>
+                                      {% endfor %}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              {% else %}
+                                <div class="text-secondary small">{{ _('Sem linhas neste grupo.') }}</div>
+                              {% endif %}
+                            </div>
+                          {% endfor %}
+                        </div>
                       {% elif d and d.rows %}
                         <div class="table-responsive">
                           <table class="table table-sm align-middle mb-0 {% if zebra %}table-striped{% endif %}">

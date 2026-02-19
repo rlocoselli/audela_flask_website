@@ -82,14 +82,18 @@
   }
 
   function writeStyleToEl (el, styleObj) {
-    if (!styleObj || typeof styleObj !== 'object' || (!styleObj.color && !styleObj.background && !styleObj.align)) {
+    if (!styleObj || typeof styleObj !== 'object' || (!styleObj.color && !styleObj.background && !styleObj.align && !styleObj.font_size && !styleObj.bold && !styleObj.italic && !styleObj.underline)) {
       el.removeAttribute('data-style');
       return;
     }
     el.setAttribute('data-style', JSON.stringify({
       color: styleObj.color || '',
       background: styleObj.background || '',
-      align: styleObj.align || ''
+      align: styleObj.align || '',
+      font_size: styleObj.font_size || '',
+      bold: !!styleObj.bold,
+      italic: !!styleObj.italic,
+      underline: !!styleObj.underline
     }));
   }
 
@@ -109,6 +113,15 @@
 
   function blockSummary (b) {
     const type = (b.type || '').toLowerCase();
+    if (type === 'data_field') {
+      const bind = (b.config && b.config.binding) ? b.config.binding : {};
+      if (bind.source === 'question') {
+        const qlbl = bind.question_name || tf('Pergunta #{id}', { id: bind.question_id || '?' });
+        return `${qlbl}.${bind.field || ''}`;
+      }
+      if (bind.source === 'table') return `${bind.table || ''}.${bind.field || ''}`;
+      return t('Campo de dados');
+    }
     if (type === 'question') {
       const tbl = b.config && b.config.table ? b.config.table : {};
       const dec = (tbl.decimals != null && tbl.decimals !== '') ? `, ${tbl.decimals}d` : '';
@@ -134,6 +147,7 @@
       type === 'text' ? t('Texto')
         : type === 'markdown' ? t('Markdown')
           : type === 'question' ? t('Pergunta')
+            : type === 'data_field' ? t('Campo de dados')
             : type === 'image' ? t('Imagem')
               : type === 'field' ? t('Campo')
                 : type;
@@ -162,6 +176,7 @@
 
     const badgeTxt =
       (type === 'question') ? 'Q'
+        : (type === 'data_field') ? 'DB'
         : (type === 'markdown') ? 'MD'
           : (type === 'image') ? 'IMG'
             : (type === 'field') ? 'F'
@@ -248,7 +263,7 @@
     }
 
     return {
-      version: 4,
+      version: 5,
       page: { size: 'A4', orientation: 'portrait' },
       settings: readSettingsFromDom(),
       bands: {
@@ -298,14 +313,30 @@
       fieldFormat: qs('#rb-edit-field-format', modalEl),
 
       questionGroup: qs('#rb-edit-question-group', modalEl),
-      qTheme: qs('#rb-edit-q-theme', modalEl),
-      qDecimals: qs('#rb-edit-q-decimals', modalEl),
-      qRepeatHeader: qs('#rb-edit-q-repeat-header', modalEl),
-      qZebra: qs('#rb-edit-q-zebra', modalEl),
+      qTheme: qs('#rb-edit-q-theme', modalEl) || qs('#rb-edit-table-theme', modalEl),
+      qDecimals: qs('#rb-edit-q-decimals', modalEl) || qs('#rb-edit-decimals', modalEl),
+      qRepeatHeader: qs('#rb-edit-q-repeat-header', modalEl) || qs('#rb-edit-repeat-header', modalEl),
+      qZebra: qs('#rb-edit-q-zebra', modalEl) || qs('#rb-edit-zebra', modalEl),
+      qGroupBy: qs('#rb-edit-q-group-by', modalEl),
+      qGroupLabel: qs('#rb-edit-q-group-label', modalEl),
+      qGroupCount: qs('#rb-edit-q-group-count', modalEl),
+      qSortBy: qs('#rb-edit-q-sort-by', modalEl),
+      qSortDir: qs('#rb-edit-q-sort-dir', modalEl),
+
+      dataFieldGroup: qs('#rb-edit-data-field-group', modalEl),
+      dataBindingInput: qs('#rb-edit-data-binding', modalEl),
+      dataEmptyInput: qs('#rb-edit-data-empty', modalEl),
+      dataFormatInput: qs('#rb-edit-data-format', modalEl),
+      dataGroupKeyInput: qs('#rb-edit-data-group-key', modalEl),
+      dataGroupLabelInput: qs('#rb-edit-data-group-label', modalEl),
 
       colorInput: qs('#rb-edit-color', modalEl),
       bgInput: qs('#rb-edit-bg', modalEl),
       alignSelect: qs('#rb-edit-align', modalEl),
+      fontSizeInput: qs('#rb-edit-font-size', modalEl),
+      boldInput: qs('#rb-edit-font-bold', modalEl),
+      italicInput: qs('#rb-edit-font-italic', modalEl),
+      underlineInput: qs('#rb-edit-font-underline', modalEl),
 
       saveBtn: qs('#rb-edit-save', modalEl),
 
@@ -313,6 +344,46 @@
       currentBlock: null,
       onSave: null
     };
+
+    const contentInput = _editor.contentInput;
+    if (contentInput) {
+      modalEl.querySelectorAll('[data-rb-wrap], [data-rb-prefix], [data-rb-insert]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          const wrap = btn.getAttribute('data-rb-wrap');
+          const prefix = btn.getAttribute('data-rb-prefix');
+          const insert = btn.getAttribute('data-rb-insert');
+
+          const start = contentInput.selectionStart || 0;
+          const end = contentInput.selectionEnd || 0;
+          const value = String(contentInput.value || '');
+          const selected = value.slice(start, end);
+
+          let next = value;
+          let ns = start;
+          let ne = end;
+          if (wrap) {
+            const token = String(wrap);
+            next = value.slice(0, start) + token + selected + token + value.slice(end);
+            ns = start + token.length;
+            ne = ns + selected.length;
+          } else if (prefix) {
+            const text = selected || t('item');
+            const lines = text.split('\n').map(line => (line ? prefix + line : line)).join('\n');
+            next = value.slice(0, start) + lines + value.slice(end);
+            ns = start;
+            ne = start + lines.length;
+          } else if (insert) {
+            next = value.slice(0, start) + insert + value.slice(end);
+            ns = ne = start + insert.length;
+          }
+
+          contentInput.value = next;
+          contentInput.focus();
+          try { contentInput.setSelectionRange(ns, ne); } catch (err) {}
+        });
+      });
+    }
 
     // Palette interactions
     const palettes = modalEl.querySelectorAll('.rb-color-palette');
@@ -417,6 +488,22 @@
         out.config.table.decimals = (decRaw === '') ? '' : Number(decRaw);
         out.config.table.repeat_header = !!(_editor.qRepeatHeader && _editor.qRepeatHeader.checked);
         out.config.table.zebra = !!(_editor.qZebra && _editor.qZebra.checked);
+        out.config.table.group_by = String((_editor.qGroupBy && _editor.qGroupBy.value) || '').trim();
+        out.config.table.group_label = String((_editor.qGroupLabel && _editor.qGroupLabel.value) || '').trim() || '{group}';
+        out.config.table.group_count = !!(_editor.qGroupCount && _editor.qGroupCount.checked);
+        out.config.table.sort_by = String((_editor.qSortBy && _editor.qSortBy.value) || '').trim();
+        let sdir = String((_editor.qSortDir && _editor.qSortDir.value) || 'asc').trim().toLowerCase();
+        if (!['asc', 'desc'].includes(sdir)) sdir = 'asc';
+        out.config.table.sort_dir = sdir;
+      }
+
+      if (type === 'data_field') {
+        out.config = out.config || {};
+        out.config.binding = (out.config.binding && typeof out.config.binding === 'object') ? out.config.binding : {};
+        out.config.empty_text = String((_editor.dataEmptyInput && _editor.dataEmptyInput.value) || '').trim();
+        out.config.format = String((_editor.dataFormatInput && _editor.dataFormatInput.value) || '').trim();
+        out.config.group_key = !!(_editor.dataGroupKeyInput && _editor.dataGroupKeyInput.checked);
+        out.config.group_label = String((_editor.dataGroupLabelInput && _editor.dataGroupLabelInput.value) || '').trim() || 'Groupe: {group}';
       }
 
       // Style (hex fields stored without leading '#')
@@ -430,8 +517,22 @@
       let align = String(_editor.alignSelect.value || '').trim().toLowerCase();
       if (align && !['left', 'center', 'right'].includes(align)) align = '';
 
-      out.style = { color, background: bg, align };
-      if (!out.style.color && !out.style.background && !out.style.align) delete out.style;
+      let fontSize = String((_editor.fontSizeInput && _editor.fontSizeInput.value) || '').trim();
+      if (fontSize !== '') {
+        const n = Number(fontSize);
+        fontSize = Number.isFinite(n) && n >= 8 && n <= 72 ? String(Math.round(n)) : '';
+      }
+
+      out.style = {
+        color,
+        background: bg,
+        align,
+        font_size: fontSize,
+        bold: !!(_editor.boldInput && _editor.boldInput.checked),
+        italic: !!(_editor.italicInput && _editor.italicInput.checked),
+        underline: !!(_editor.underlineInput && _editor.underlineInput.checked)
+      };
+      if (!out.style.color && !out.style.background && !out.style.align && !out.style.font_size && !out.style.bold && !out.style.italic && !out.style.underline) delete out.style;
 
       // cleanup empty configs
       if (out.config && typeof out.config === 'object') {
@@ -517,17 +618,52 @@
       ed.qDecimals.value = (tbl.decimals === 0) ? '0' : (tbl.decimals != null ? String(tbl.decimals) : '');
       if (ed.qRepeatHeader) ed.qRepeatHeader.checked = (tbl.repeat_header !== false);
       if (ed.qZebra) ed.qZebra.checked = !!tbl.zebra;
+      if (ed.qGroupBy) ed.qGroupBy.value = tbl.group_by || '';
+      if (ed.qGroupLabel) ed.qGroupLabel.value = tbl.group_label || '{group}';
+      if (ed.qGroupCount) ed.qGroupCount.checked = !!tbl.group_count;
+      if (ed.qSortBy) ed.qSortBy.value = tbl.sort_by || '';
+      if (ed.qSortDir) ed.qSortDir.value = (tbl.sort_dir === 'desc') ? 'desc' : 'asc';
     } else {
       ed.questionGroup.classList.add('d-none');
       if (ed.qDecimals) ed.qDecimals.value = '';
       if (ed.qRepeatHeader) ed.qRepeatHeader.checked = true;
       if (ed.qZebra) ed.qZebra.checked = false;
+      if (ed.qGroupBy) ed.qGroupBy.value = '';
+      if (ed.qGroupLabel) ed.qGroupLabel.value = '{group}';
+      if (ed.qGroupCount) ed.qGroupCount.checked = false;
+      if (ed.qSortBy) ed.qSortBy.value = '';
+      if (ed.qSortDir) ed.qSortDir.value = 'asc';
+    }
+
+    if (type === 'data_field') {
+      ed.dataFieldGroup.classList.remove('d-none');
+      const cfg = block.config || {};
+      const bind = (cfg.binding && typeof cfg.binding === 'object') ? cfg.binding : {};
+      const sourceLabel = bind.source === 'question'
+        ? `${bind.question_name || tf('Pergunta #{id}', { id: bind.question_id || '?' })}.${bind.field || ''}`
+        : `${bind.table || ''}.${bind.field || ''}`;
+      if (ed.dataBindingInput) ed.dataBindingInput.value = sourceLabel;
+      if (ed.dataEmptyInput) ed.dataEmptyInput.value = cfg.empty_text || '';
+      if (ed.dataFormatInput) ed.dataFormatInput.value = cfg.format || '';
+      if (ed.dataGroupKeyInput) ed.dataGroupKeyInput.checked = !!cfg.group_key;
+      if (ed.dataGroupLabelInput) ed.dataGroupLabelInput.value = cfg.group_label || 'Groupe: {group}';
+    } else {
+      ed.dataFieldGroup.classList.add('d-none');
+      if (ed.dataBindingInput) ed.dataBindingInput.value = '';
+      if (ed.dataEmptyInput) ed.dataEmptyInput.value = '';
+      if (ed.dataFormatInput) ed.dataFormatInput.value = '';
+      if (ed.dataGroupKeyInput) ed.dataGroupKeyInput.checked = false;
+      if (ed.dataGroupLabelInput) ed.dataGroupLabelInput.value = 'Groupe: {group}';
     }
 
     const st = block.style || {};
     ed.colorInput.value = (st.color || '').replace('#', '');
     ed.bgInput.value = (st.background || '').replace('#', '');
     ed.alignSelect.value = st.align || '';
+    if (ed.fontSizeInput) ed.fontSizeInput.value = st.font_size || '';
+    if (ed.boldInput) ed.boldInput.checked = !!st.bold;
+    if (ed.italicInput) ed.italicInput.checked = !!st.italic;
+    if (ed.underlineInput) ed.underlineInput.checked = !!st.underline;
 
     ed.onSave = (updatedBlock) => {
       const parent = el.parentElement;
@@ -645,6 +781,318 @@
     if (!ok) promptEditor(el);
   }
 
+  function qsa (sel, root) { return Array.from((root || document).querySelectorAll(sel)); }
+
+  function getQuestionDataUrl (qid) {
+    const id = Number(qid || 0);
+    return `/app/api/questions/${id}/data`;
+  }
+
+  function createFieldDragItem (meta) {
+    const el = document.createElement('div');
+    el.className = 'rb-data-field rb-item';
+    el.setAttribute('data-type', 'data_field');
+    el.setAttribute('data-title', String(meta.title || meta.field || t('Campo de dados')));
+    el.setAttribute('data-binding', JSON.stringify(meta.binding || {}));
+    el.setAttribute('data-search-text', String(meta.searchText || '').toLowerCase());
+    el.innerHTML = `
+      <div>
+        <div class="small fw-semibold">${escapeHtml(meta.field || '')}</div>
+        <small>${escapeHtml(meta.sub || '')}</small>
+      </div>
+      <i class="bi bi-grip-vertical text-muted"></i>
+    `;
+    return el;
+  }
+
+  function mountDragSource (container) {
+    if (!container || container._rbSortableMounted || !window.Sortable) return;
+    container._rbSortableMounted = true;
+    Sortable.create(container, {
+      group: { name: 'rb', pull: 'clone', put: false },
+      sort: false,
+      animation: 120
+    });
+  }
+
+  async function initDataExplorer (cfg) {
+    const tablesWrap = qs('#rb-data-tables');
+    const qWrap = qs('#rb-data-questions');
+    const search = qs('#rb-data-search');
+    const tablesCount = qs('#rb-data-tables-count');
+    if (!tablesWrap || !cfg || !cfg.sourceSchemaUrl) return;
+
+    function applyFilter () {
+      const q = String((search && search.value) || '').trim().toLowerCase();
+      if (!q) {
+        qsa('[data-search-text]', tablesWrap).forEach(el => { el.style.display = ''; });
+        if (qWrap) qsa('[data-search-text]', qWrap).forEach(el => { el.style.display = ''; });
+        return;
+      }
+      qsa('[data-search-text]', tablesWrap).forEach(el => {
+        const txt = String(el.getAttribute('data-search-text') || '').toLowerCase();
+        el.style.display = txt.includes(q) ? '' : 'none';
+      });
+      if (qWrap) {
+        qsa('[data-search-text]', qWrap).forEach(el => {
+          const txt = String(el.getAttribute('data-search-text') || '').toLowerCase();
+          const fields = qsa('.rb-data-field[data-search-text]', el);
+          const fieldsHas = fields.some(f => String(f.getAttribute('data-search-text') || '').includes(q));
+          el.style.display = (txt.includes(q) || fieldsHas) ? '' : 'none';
+        });
+      }
+    }
+
+    if (search && !search._rbBound) {
+      search._rbBound = true;
+      search.addEventListener('input', applyFilter);
+    }
+
+    try {
+      const schema = await jsonFetch(cfg.sourceSchemaUrl);
+      const schemas = Array.isArray(schema.schemas) ? schema.schemas : [];
+      tablesWrap.innerHTML = '';
+
+      let totalTables = 0;
+      for (const sch of schemas) {
+        const tables = Array.isArray(sch.tables) ? sch.tables : [];
+        for (const tbl of tables) {
+          totalTables += 1;
+          const tableName = String(tbl.name || '').trim();
+          const columns = Array.isArray(tbl.columns) ? tbl.columns : [];
+
+          const card = document.createElement('div');
+          card.className = 'rb-data-card';
+          card.setAttribute('data-search-text', `${tableName} ${(sch.name || '')}`.toLowerCase());
+
+          const fieldsId = `rb-table-fields-${totalTables}`;
+          card.innerHTML = `
+            <div class="rb-data-head">
+              <div class="small fw-semibold text-truncate" title="${escapeHtml(tableName)}">${escapeHtml(tableName)}</div>
+              <button class="btn btn-sm btn-outline-secondary" type="button" data-rb-toggle="${fieldsId}">${t('Campos')}</button>
+            </div>
+            <div class="rb-data-fields d-none" id="${fieldsId}"></div>
+          `;
+
+          const fieldsBox = qs('#' + fieldsId, card);
+          for (const col of columns) {
+            const colName = String((col && col.name) || '').trim();
+            if (!colName) continue;
+            const colType = String((col && (col.type || col.data_type)) || '').trim();
+            const field = createFieldDragItem({
+              field: colName,
+              sub: `${tableName}${colType ? ` · ${colType}` : ''}`,
+              title: `${tableName}.${colName}`,
+              searchText: `${tableName} ${colName} ${colType}`,
+              binding: {
+                source: 'table',
+                table: tableName,
+                field: colName
+              }
+            });
+            fieldsBox.appendChild(field);
+          }
+
+          const tgl = qs(`[data-rb-toggle="${fieldsId}"]`, card);
+          if (tgl) {
+            tgl.addEventListener('click', () => {
+              fieldsBox.classList.toggle('d-none');
+            });
+          }
+
+          mountDragSource(fieldsBox);
+          tablesWrap.appendChild(card);
+        }
+      }
+
+      if (!totalTables) {
+        tablesWrap.innerHTML = `<div class="text-muted small">${t('Nenhuma tabela encontrada para esta fonte.')}</div>`;
+      }
+      if (tablesCount) tablesCount.textContent = String(totalTables);
+      applyFilter();
+    } catch (e) {
+      tablesWrap.innerHTML = `<div class="text-danger small">${t('Falha ao carregar esquema da fonte.')}</div>`;
+    }
+
+    if (qWrap) {
+      qsa('[data-load-question]', qWrap).forEach(btn => {
+        if (btn._rbBound) return;
+        btn._rbBound = true;
+        btn.addEventListener('click', async () => {
+          const qid = Number(btn.getAttribute('data-load-question') || 0);
+          if (!qid) return;
+          const card = btn.closest('[data-question-card]');
+          const fieldsWrap = qs('#rb-q-fields-' + qid);
+          if (!card || !fieldsWrap) return;
+
+          if (!fieldsWrap.classList.contains('d-none') && fieldsWrap.childElementCount > 0) {
+            fieldsWrap.classList.add('d-none');
+            return;
+          }
+
+          if (!fieldsWrap.childElementCount) {
+            fieldsWrap.innerHTML = `<div class="text-muted small">${t('Carregando campos...')}</div>`;
+            try {
+              const token = window.__RB && window.__RB.csrfToken;
+              const resp = await fetch(getQuestionDataUrl(qid), {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...(token ? { 'X-CSRFToken': token } : {})
+                },
+                body: JSON.stringify({ params: {} })
+              });
+              const payload = await resp.json().catch(() => ({}));
+              if (!resp.ok) throw new Error(payload.error || t('Erro ao carregar campos da pergunta.'));
+
+              const cols = Array.isArray(payload.columns) ? payload.columns : [];
+              fieldsWrap.innerHTML = '';
+              const qName = (card.querySelector('.fw-semibold')?.textContent || tf('Pergunta #{id}', { id: qid })).trim();
+              for (const cname of cols) {
+                const colName = String(cname || '').trim();
+                if (!colName) continue;
+                const item = createFieldDragItem({
+                  field: colName,
+                  sub: qName,
+                  title: `${qName}.${colName}`,
+                  searchText: `${qName} ${colName}`,
+                  binding: {
+                    source: 'question',
+                    question_id: qid,
+                    question_name: qName,
+                    field: colName
+                  }
+                });
+                fieldsWrap.appendChild(item);
+              }
+              if (!cols.length) fieldsWrap.innerHTML = `<div class="text-muted small">${t('Sem colunas retornadas.')}</div>`;
+              mountDragSource(fieldsWrap);
+            } catch (err) {
+              fieldsWrap.innerHTML = `<div class="text-danger small">${escapeHtml(String(err.message || err || 'erro'))}</div>`;
+            }
+          }
+
+          fieldsWrap.classList.remove('d-none');
+          applyFilter();
+        });
+      });
+    }
+  }
+
+  function initFloatingExplorerPanel () {
+    const panel = qs('#rb-floating-explorer');
+    if (!panel) return;
+
+    const head = qs('#rb-floating-explorer-head');
+    const toggleBtn = qs('#rb-floating-explorer-toggle');
+    const collapseBtn = qs('#rb-floating-explorer-collapse');
+    const dockBtn = qs('#rb-floating-explorer-dock');
+    const keyCollapsed = 'rb.explorer.collapsed';
+
+    function setCollapsed (on) {
+      panel.classList.toggle('is-collapsed', !!on);
+      try { localStorage.setItem(keyCollapsed, on ? '1' : '0'); } catch (e) {}
+      if (collapseBtn) {
+        const icon = collapseBtn.querySelector('i');
+        if (icon) {
+          icon.className = on ? 'bi bi-chevron-up' : 'bi bi-chevron-down';
+        }
+      }
+    }
+
+    function toggleVisible () {
+      const hidden = panel.style.display === 'none';
+      panel.style.display = hidden ? '' : 'none';
+    }
+
+    function dockDefault () {
+      panel.style.left = '';
+      panel.style.top = '';
+      panel.style.right = '18px';
+    }
+
+    if (collapseBtn && !collapseBtn._rbBound) {
+      collapseBtn._rbBound = true;
+      collapseBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        setCollapsed(!panel.classList.contains('is-collapsed'));
+      });
+    }
+
+    if (toggleBtn && !toggleBtn._rbBound) {
+      toggleBtn._rbBound = true;
+      toggleBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        toggleVisible();
+      });
+    }
+
+    if (dockBtn && !dockBtn._rbBound) {
+      dockBtn._rbBound = true;
+      dockBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        dockDefault();
+      });
+    }
+
+    try {
+      setCollapsed(localStorage.getItem(keyCollapsed) === '1');
+    } catch (e) {
+      setCollapsed(false);
+    }
+
+    if (!head) return;
+
+    let dragging = false;
+    let startX = 0;
+    let startY = 0;
+    let origLeft = 0;
+    let origTop = 0;
+
+    function onMove (clientX, clientY) {
+      if (!dragging) return;
+      const dx = clientX - startX;
+      const dy = clientY - startY;
+      const w = panel.offsetWidth || 300;
+      const h = panel.offsetHeight || 200;
+      const maxLeft = Math.max(8, window.innerWidth - w - 8);
+      const maxTop = Math.max(8, window.innerHeight - h - 8);
+      let nextLeft = origLeft + dx;
+      let nextTop = origTop + dy;
+      nextLeft = Math.max(8, Math.min(maxLeft, nextLeft));
+      nextTop = Math.max(8, Math.min(maxTop, nextTop));
+      panel.style.left = `${nextLeft}px`;
+      panel.style.top = `${nextTop}px`;
+      panel.style.right = 'auto';
+    }
+
+    function stopDrag () {
+      dragging = false;
+      document.body.classList.remove('user-select-none');
+    }
+
+    if (!head._rbBound) {
+      head._rbBound = true;
+      head.addEventListener('mousedown', (e) => {
+        if (window.matchMedia('(max-width: 991.98px)').matches) return;
+        if (e.button !== 0) return;
+        if (e.target && e.target.closest('button,input,select,textarea,a,label')) return;
+        const rect = panel.getBoundingClientRect();
+        dragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        origLeft = rect.left;
+        origTop = rect.top;
+        document.body.classList.add('user-select-none');
+        e.preventDefault();
+      });
+
+      document.addEventListener('mousemove', (e) => onMove(e.clientX, e.clientY));
+      document.addEventListener('mouseup', stopDrag);
+    }
+  }
+
   async function boot () {
     const cfg = window.__RB;
     if (!cfg || !cfg.apiUrl) return;
@@ -656,6 +1104,8 @@
     const pageFooter = qs('#rb-page-footer');
     const reportFooter = qs('#rb-report-footer');
     const saveBtn = qs('#rb-save');
+
+    initFloatingExplorerPanel();
 
     Sortable.create(palette, {
       group: { name: 'rb', pull: 'clone', put: false },
@@ -686,13 +1136,22 @@
           const block = { type, title, content: '' };
           if (type === 'field') block.config = { kind: 'date', format: 'dd/MM/yyyy' };
           if (type === 'question') block.config = { table: { theme: 'crystal', repeat_header: true, zebra: false, decimals: '' } };
+          if (type === 'data_field') {
+            const bindingRaw = it.getAttribute('data-binding') || '{}';
+            const binding = safeJsonParse(bindingRaw, {}) || {};
+            block.config = {
+              binding,
+              format: '',
+              empty_text: ''
+            };
+          }
 
           const newEl = makeBlockEl(block);
           it.replaceWith(newEl);
           normalizeDropHints();
 
           // open editor immediately for most blocks
-          if (['text', 'markdown', 'image', 'field', 'question'].includes(type)) editBlock(newEl);
+          if (['text', 'markdown', 'image', 'field', 'question', 'data_field'].includes(type)) editBlock(newEl);
         },
         onSort: normalizeDropHints,
         onRemove: normalizeDropHints
@@ -704,6 +1163,8 @@
     Sortable.create(detail, zoneOptions());
     Sortable.create(pageFooter, zoneOptions());
     Sortable.create(reportFooter, zoneOptions());
+
+    await initDataExplorer(cfg);
 
     // Load existing layout
     try {

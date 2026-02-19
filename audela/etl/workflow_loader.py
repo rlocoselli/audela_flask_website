@@ -22,6 +22,10 @@ def normalize_workflow(workflow: Dict[str, Any]) -> Dict[str, Any]:
         s.setdefault("id", str(i + 1))
         s.setdefault("config", {})
 
+    # Optional graph metadata (for branching execution)
+    if "transitions" in workflow and not isinstance(workflow.get("transitions"), dict):
+        raise ValueError("workflow.transitions must be an object")
+
     return workflow
 
 
@@ -61,10 +65,14 @@ def drawflow_to_workflow(drawflow: Dict[str, Any]) -> Dict[str, Any]:
 
     steps = []
     visited: set[str] = set()
-    cur: str | None = start_id
+    transitions: Dict[str, Dict[str, str]] = {}
 
-    # Linear MVP: follow the first connection chain output->next
-    while cur and cur not in visited and cur in nodes:
+    # Traverse reachable graph from start, keeping output-specific transitions
+    stack: list[str] = [start_id] if start_id else []
+    while stack:
+        cur = stack.pop(0)
+        if not cur or cur in visited or cur not in nodes:
+            continue
         visited.add(cur)
         n = nodes[cur]
         ndata = n.get("data") or {}
@@ -72,21 +80,27 @@ def drawflow_to_workflow(drawflow: Dict[str, Any]) -> Dict[str, Any]:
         config = ndata.get("config") or {}
         steps.append({"id": str(cur), "type": stype, "config": config})
 
+        out_map: Dict[str, str] = {}
         outputs = n.get("outputs") or {}
-        conns = []
-        for out in outputs.values():
-            conns.extend(out.get("connections") or [])
-
-        next_id: str | None = None
-        if conns:
+        for out_name, out_obj in outputs.items():
+            conns = out_obj.get("connections") or []
+            if not conns:
+                continue
             nxt = conns[0].get("node")
-            if nxt is not None:
-                next_id = str(nxt)
+            if nxt is None:
+                continue
+            next_id = str(nxt)
+            out_map[str(out_name)] = next_id
+            if next_id not in visited:
+                stack.append(next_id)
 
-        cur = next_id
+        if out_map:
+            transitions[str(cur)] = out_map
 
     return {
         "name": drawflow.get("name", "workflow"),
+        "start_id": str(start_id) if start_id else None,
+        "transitions": transitions,
         "steps": steps,
     }
 

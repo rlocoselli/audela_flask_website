@@ -9,6 +9,7 @@
 (function () {
   function qs (sel) { return document.querySelector(sel); }
   function qsa (sel) { return Array.from(document.querySelectorAll(sel)); }
+  const t = (window.t ? window.t : (s) => s);
 
   function getCsrfToken () {
     return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
@@ -44,7 +45,7 @@
   function setSchemaHtml (container, meta) {
     if (!container) return;
     if (!meta || !meta.schemas) {
-      container.innerHTML = '<em>(sem metadados)</em>';
+      container.innerHTML = `<em>${t('Sem metadados.')}</em>`;
       return;
     }
     let html = '';
@@ -58,7 +59,7 @@
           const ins = `${tq}.${cn}`;
           return `<button type="button" class="btn btn-link p-0" data-ins="${ins}">${cn}</button> <span style="color:#777;">(${String(c.type)})</span>`;
         });
-        html += `<div class="cols">${cols.join('<br/>') || '<em>(sem colunas)</em>'}</div>`;
+        html += `<div class="cols">${cols.join('<br/>') || `<em>${t('Sem colunas.')}</em>`}</div>`;
       }
       html += '</details>';
     }
@@ -116,6 +117,8 @@
     const qbAddFilter = qs('#qb-add-filter');
     const qbFilterList = qs('#qb-filter-list');
     const qbGenerate = qs('#qb-generate');
+    const previewBtn = qs('#sql-preview-btn');
+    const previewBox = qs('#sql-preview-box');
 
     const cm = CodeMirror.fromTextArea(textarea, {
       mode: 'text/x-sql',
@@ -219,7 +222,7 @@ if (schemaEl) {
       schemaEl.innerHTML = '<em>Loading…</em>';
       const resp = await fetch(`/app/api/sources/${sourceId}/schema`, { credentials: 'same-origin' });
       if (!resp.ok) {
-        schemaEl.innerHTML = '<em>(falha ao carregar esquema)</em>';
+        schemaEl.innerHTML = `<em>${t('Falha ao carregar schema.')}</em>`;
         return;
       }
       schemaMeta = await resp.json();
@@ -258,7 +261,7 @@ if (schemaEl) {
           return `<label style="display:inline-flex;align-items:center;gap:.35em;">
             <input type="checkbox" data-col="${String(c)}" ${checked} /> ${String(c)}
           </label>`;
-        }).join('') || '<em>(selecione uma tabela)</em>';
+        }).join('') || `<em>${t('Selecione uma tabela no Query Builder (à direita) ou escreva o SQL manualmente.')}</em>`;
 
         qsa('#qb-columns input[type=checkbox]').forEach(chk => {
           chk.addEventListener('change', () => {
@@ -278,7 +281,7 @@ if (schemaEl) {
       // filter list
       if (qbFilterList) {
         if (!qbState.filters.length) {
-          qbFilterList.innerHTML = '<em>(sem filtros)</em>';
+          qbFilterList.innerHTML = `<em>${t('Sem filtros.')}</em>`;
         } else {
           qbFilterList.innerHTML = qbState.filters.map((f, i) => {
             return `<div style="margin:.2em 0; padding:.35em .5em; border:1px solid #eee; border-radius:8px;">
@@ -408,7 +411,7 @@ if (schemaEl) {
         });
         const payload = await resp.json().catch(() => ({}));
         if (!resp.ok) {
-          if (nlqWarn) nlqWarn.innerHTML = `<span style="color:#b00;">${payload.error || 'Erro'}</span>`;
+          if (nlqWarn) nlqWarn.innerHTML = `<span style="color:#b00;">${payload.error || t('Erro')}</span>`;
           return;
         }
         setEditorSql(payload.sql || '');
@@ -419,14 +422,83 @@ if (schemaEl) {
       });
     }
 
+    if (previewBtn && previewBox) {
+      const renderPreview = (result) => {
+        const cols = Array.isArray(result?.columns) ? result.columns : [];
+        const rows = Array.isArray(result?.rows) ? result.rows : [];
+        if (!cols.length) {
+          previewBox.innerHTML = `<div class="text-muted small">${t('Sem linhas retornadas.')}</div>`;
+          return;
+        }
+        const head = cols.map(c => `<th>${String(c)}</th>`).join('');
+        const body = rows.slice(0, 100).map(r => {
+          const cells = (Array.isArray(r) ? r : []).map(v => `<td>${String(v ?? '')}</td>`).join('');
+          return `<tr>${cells}</tr>`;
+        }).join('');
+        previewBox.innerHTML = `
+          <div class="small text-muted mb-2">${t('Prévia')}: ${rows.length} ${t('Linhas')}</div>
+          <div class="table-responsive" style="max-height:320px; overflow:auto;">
+            <table class="table table-sm table-striped table-bordered align-middle mb-0">
+              <thead><tr>${head}</tr></thead>
+              <tbody>${body}</tbody>
+            </table>
+          </div>
+        `;
+      };
+
+      previewBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        cm.save();
+        const sourceId = Number(sourceSel?.value || 0);
+        const sql = cm.getValue();
+        if (!sourceId) {
+          previewBox.innerHTML = `<div class="alert alert-warning mb-0">${t('Selecione uma fonte.')}</div>`;
+          return;
+        }
+        if (!String(sql || '').trim()) {
+          previewBox.innerHTML = `<div class="alert alert-warning mb-0">${t('Informe um SQL para pré-visualizar.')}</div>`;
+          return;
+        }
+        previewBtn.disabled = true;
+        previewBox.innerHTML = `<div class="text-muted small">${t('Carregando...')}</div>`;
+        try {
+          const parsed = getParamsObject();
+          if (parsed === null) {
+            previewBox.innerHTML = `<div class="alert alert-warning mb-0">${t('Parâmetros JSON inválidos. Corrija antes de executar.')}</div>`;
+            return;
+          }
+          const resp = await fetch('/app/api/questions/preview', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(getCsrfToken() ? { 'X-CSRFToken': getCsrfToken() } : {})
+            },
+            body: JSON.stringify({ source_id: sourceId, sql_text: sql, params: parsed || {} })
+          });
+          const payload = await resp.json().catch(() => ({}));
+          if (!resp.ok) {
+            previewBox.innerHTML = `<div class="alert alert-danger mb-0">${payload.error || t('Erro')}</div>`;
+            return;
+          }
+          renderPreview(payload.result || {});
+        } catch (err) {
+          previewBox.innerHTML = `<div class="alert alert-danger mb-0">${t('Erro ao carregar preview.')}: ${String(err)}</div>`;
+        } finally {
+          previewBtn.disabled = false;
+        }
+      });
+    }
+
     // Validate params JSON on submit
     if (form) {
       form.addEventListener('submit', (e) => {
+        cm.save();
         const parsed = getParamsObject();
         if (parsed === null) {
           e.preventDefault();
-          if (window.uiToast) window.uiToast('Parâmetros JSON inválidos. Corrija antes de executar.', { variant: 'danger' });
-          else alert('Parâmetros JSON inválidos. Corrija antes de executar.');
+          if (window.uiToast) window.uiToast(t('Parâmetros JSON inválidos. Corrija antes de executar.'), { variant: 'danger' });
+          else alert(t('Parâmetros JSON inválidos. Corrija antes de executar.'));
           return;
         }
         // Keep params in sync with SQL placeholders

@@ -35,6 +35,16 @@
               <option value="expense" selected>{{ _('Despesa') }}</option>
             </select>
           </div>
+          <div class="mb-3">
+            <label class="form-label">{{ _('Conta pai (opcional)') }}</label>
+            <select class="form-select" name="parent_gl_id">
+              <option value="">— {{ _('Raiz') }} —</option>
+              {% for gl, depth in gl_flat %}
+                <option value="{{ gl.id }}">{{ ('— ' * depth) ~ gl.code ~ ' · ' ~ gl.name }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">{{ _('Use para criar grupos e subgrupos no plano de contas.') }}</div>
+          </div>
           <button class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>{{ _('Criar') }}</button>
         </form>
       </div>
@@ -43,37 +53,115 @@
 
   <div class="col-12 col-lg-8">
     <div class="card">
-      <div class="card-header fw-semibold">{{ _('Plano de contas') }}</div>
+      <div class="card-header fw-semibold d-flex align-items-center justify-content-between gap-2">
+        <span>{{ _('Plano de contas') }}</span>
+        <span class="text-secondary small">{{ _('Arraste uma conta e solte em outra para criar hierarquia.') }}</span>
+      </div>
       <div class="card-body">
-        <div class="table-responsive">
-          <table class="table table-sm align-middle mb-0">
-            <thead class="table-light">
-              <tr>
-                <th>{{ _('Código') }}</th>
-                <th>{{ _('Nome') }}</th>
-                <th>{{ _('Tipo') }}</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for gl in gl_accounts %}
-                <tr>
-                  <td class="fw-semibold">{{ gl.code }}</td>
-                  <td>{{ gl.name }}</td>
-                  <td class="text-secondary small">{{ gl.kind }}</td>
-                  <td class="text-end">
-                    <form method="post" action="{{ url_for('finance.gl_delete', gl_id=gl.id) }}" onsubmit="return confirm('{{ _('Remover conta?') }}')">
-                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                      <button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
-                    </form>
-                  </td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+        <div id="gl-root-drop" class="border rounded p-2 mb-2 bg-light small text-secondary text-center">
+          {{ _('Solte aqui para mover para o nível raiz') }}
+        </div>
+
+        <div id="gl-tree" class="d-grid gap-1">
+          {% for gl, depth in gl_flat %}
+            {% set is_leaf = gl.id in gl_leaf_ids %}
+            <div class="border rounded p-2 d-flex align-items-center gap-2 gl-node"
+                 draggable="true"
+                 data-gl-id="{{ gl.id }}"
+                 style="margin-left: {{ depth * 24 }}px; cursor: grab;">
+              <span class="text-secondary"><i class="bi bi-grip-vertical"></i></span>
+              <span class="fw-semibold">{{ gl.code }}</span>
+              <span>{{ gl.name }}</span>
+              <span class="badge bg-secondary-subtle text-secondary-emphasis border">{{ gl.kind }}</span>
+              {% if is_leaf %}
+                <span class="badge text-bg-success">{{ _('Postável') }}</span>
+              {% else %}
+                <span class="badge text-bg-warning">{{ _('Grupo') }}</span>
+              {% endif %}
+              <div class="ms-auto">
+                <form method="post" action="{{ url_for('finance.gl_delete', gl_id=gl.id) }}" onsubmit="return confirm('{{ _('Remover conta?') }}')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                  <button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
+                </form>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+
+        <div class="alert alert-info mt-3 mb-0 small">
+          {{ _('Somente contas contábeis de nível mais baixo podem receber transações.') }}
         </div>
       </div>
     </div>
   </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const nodes = Array.from(document.querySelectorAll('.gl-node'));
+  const rootDrop = document.getElementById('gl-root-drop');
+  let draggedId = null;
+
+  const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+  async function moveNode(parentId) {
+    if (!draggedId) return;
+    const res = await fetch('{{ url_for("finance.gl_move") }}', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(csrf ? { 'X-CSRFToken': csrf } : {}),
+      },
+      body: JSON.stringify({ dragged_id: Number(draggedId), parent_id: parentId })
+    });
+    if (!res.ok) {
+      const payload = await res.json().catch(() => ({}));
+      alert(payload.error || 'Move failed');
+      return;
+    }
+    window.location.reload();
+  }
+
+  nodes.forEach((el) => {
+    el.addEventListener('dragstart', () => {
+      draggedId = el.getAttribute('data-gl-id');
+      el.style.opacity = '0.5';
+    });
+    el.addEventListener('dragend', () => {
+      draggedId = null;
+      el.style.opacity = '1';
+    });
+    el.addEventListener('dragover', (ev) => {
+      ev.preventDefault();
+      el.classList.add('border-primary');
+    });
+    el.addEventListener('dragleave', () => {
+      el.classList.remove('border-primary');
+    });
+    el.addEventListener('drop', async (ev) => {
+      ev.preventDefault();
+      el.classList.remove('border-primary');
+      const targetId = Number(el.getAttribute('data-gl-id'));
+      if (!draggedId || Number(draggedId) === targetId) return;
+      await moveNode(targetId);
+    });
+  });
+
+  if (rootDrop) {
+    rootDrop.addEventListener('dragover', (ev) => {
+      ev.preventDefault();
+      rootDrop.classList.add('border-primary');
+    });
+    rootDrop.addEventListener('dragleave', () => {
+      rootDrop.classList.remove('border-primary');
+    });
+    rootDrop.addEventListener('drop', async (ev) => {
+      ev.preventDefault();
+      rootDrop.classList.remove('border-primary');
+      if (!draggedId) return;
+      await moveNode(null);
+    });
+  }
+});
+</script>
 {% endblock %}

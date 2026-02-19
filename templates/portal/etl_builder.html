@@ -50,12 +50,16 @@
             <i class="bi bi-funnel me-2"></i>{{ _('Transform') }}
           </button>
 
+          <button class="btn btn-sm btn-info w-100 mb-2" onclick="addNode('transform.decision.scalar')">
+            <i class="bi bi-signpost-split me-2"></i>{{ _('Decision (Scalar)') }}
+          </button>
+
           <button class="btn btn-sm btn-success w-100 mb-3" onclick="addNode('load.warehouse')">
             <i class="bi bi-database-up me-2"></i>{{ _('Load (Warehouse)') }}
           </button>
 
           <div class="alert alert-info py-2 small mb-0">
-            {{ _('Duplo clique em um nó para editar a configuração. Conecte os nós na ordem Extract → Transform → Load. (MVP: fluxo linear)') }}
+            {{ _('Duplo clique em um nó para editar a configuração. No nó Decision (Scalar): output_1 (bola de cima) = TRUE, output_2 (bola de baixo) = FALSE.') }}
           </div>
         </div>
       </div>
@@ -71,6 +75,11 @@
     <div class="col-12 col-lg-9">
       <div class="card shadow-sm">
         <div class="card-body p-0">
+          <div class="d-flex align-items-center gap-3 px-3 py-2 border-bottom small bg-light">
+            <span class="fw-semibold">{{ _('Légende Decision') }}:</span>
+            <span class="text-success fw-semibold">● output_1 = TRUE (balle du haut)</span>
+            <span class="text-danger fw-semibold">● output_2 = FALSE (balle du bas)</span>
+          </div>
           <div id="drawflow" class="drawflow" style="height:70vh; min-height:520px;"></div>
         </div>
       </div>

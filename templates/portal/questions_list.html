@@ -1,18 +1,18 @@
 {% extends "portal/layout.html" %}
-{% set title = "Perguntas" %}
+{% set title = _('Perguntas') %}
 
 {% block portal_content %}
   <div class="box">
-    <p><a class="button" href="{{ url_for('portal.questions_new') }}">Nova pergunta</a></p>
+    <p><a class="button" href="{{ url_for('portal.questions_new') }}">{{ _('Nova pergunta') }}</a></p>
     {% if not questions %}
-      <p>Nenhuma pergunta criada ainda.</p>
+      <p>{{ _('Nenhuma pergunta criada ainda.') }}</p>
     {% else %}
       <div style="overflow-x:auto;">
         <table class="table"> 
           <thead>
             <tr>
-              <th>Nome</th>
-              <th>Atualizada</th>
+              <th>{{ _('Nome') }}</th>
+              <th>{{ _('Atualizado em') }}</th>
               <th></th>
             </tr>
           </thead>
@@ -22,9 +22,9 @@
                 <td><a href="{{ url_for('portal.questions_view', question_id=q.id) }}">{{ q.name }}</a></td>
                 <td>{{ q.updated_at }}</td>
                 <td>
-                  <form method="post" action="{{ url_for('portal.questions_delete', question_id=q.id) }}" style="display:inline;" onsubmit="return confirm('Excluir pergunta?');">
+                  <form method="post" action="{{ url_for('portal.questions_delete', question_id=q.id) }}" style="display:inline;" onsubmit="return confirm('{{ _('Excluir pergunta?') }}');">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                    <button type="submit" class="button small">Excluir</button>
+                    <button type="submit" class="button small">{{ _('Excluir') }}</button>
                   </form>
                 </td>
               </tr>

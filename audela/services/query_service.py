@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from functools import lru_cache
 import re
 import time
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from ..models.bi import DataSource
@@ -86,6 +87,92 @@ def _apply_tenant_scoping_if_configured(sql: str, tenant_id: int, cfg: dict[str,
     return sql, {"tenant_id": tenant_id}
 
 
+def _leading_sql_keyword(sql: str) -> str:
+    cleaned = _strip_sql_comments(sql).strip().lstrip("(").strip()
+    if not cleaned:
+        return ""
+    return cleaned.split(None, 1)[0].lower()
+
+
+def _is_finance_source(source: DataSource) -> bool:
+    return (source.type or "").strip().lower() == "audela_finance"
+
+
+@lru_cache(maxsize=64)
+def _finance_tenant_tables_by_engine(engine_url: str) -> tuple[str, ...]:
+    """Return finance tables that have a tenant_id column."""
+    from .datasource_service import _engine_for_source
+
+    eng = _engine_for_source(-1, engine_url)
+    insp = inspect(eng)
+
+    table_names: list[str] = []
+    try:
+        if eng.dialect.name == "postgresql":
+            table_names = insp.get_table_names(schema="public")
+        else:
+            table_names = insp.get_table_names()
+    except Exception:
+        table_names = []
+
+    out: list[str] = []
+    for t in table_names:
+        if not str(t).startswith("finance_"):
+            continue
+        try:
+            cols = insp.get_columns(t, schema="public" if eng.dialect.name == "postgresql" else None)
+        except Exception:
+            cols = []
+        names = {str(c.get("name") or "") for c in cols}
+        if "tenant_id" in names:
+            out.append(str(t))
+    return tuple(sorted(out))
+
+
+def _rewrite_from_join_tables(sql: str, table_alias_map: dict[str, str]) -> str:
+    rewritten = sql
+    for table_name in sorted(table_alias_map.keys(), key=len, reverse=True):
+        alias = table_alias_map[table_name]
+        pat = re.compile(
+            rf'(?i)\b(from|join)\s+((?:"?[A-Za-z_][A-Za-z0-9_]*"?\.)?"?{re.escape(table_name)}"?)\b'
+        )
+        rewritten = pat.sub(lambda m: f"{m.group(1)} {alias}", rewritten)
+    return rewritten
+
+
+def _inject_with_prefix(sql: str, ctes_sql: str) -> str:
+    s = (sql or "").strip()
+    low = s.lower()
+    if low.startswith("with recursive "):
+        rest = s[len("with recursive "):].lstrip()
+        return f"WITH RECURSIVE {ctes_sql}, {rest}"
+    if low.startswith("with "):
+        rest = s[len("with "):].lstrip()
+        return f"WITH {ctes_sql}, {rest}"
+    return f"WITH {ctes_sql} {s}"
+
+
+def _auto_scope_finance_sql(sql: str, tenant_id: int, source: DataSource) -> tuple[str, dict[str, Any]]:
+    kw = _leading_sql_keyword(sql)
+    if kw not in ("select", "with"):
+        return sql, {}
+
+    eng = get_engine(source)
+    table_names = list(_finance_tenant_tables_by_engine(str(eng.url)))
+    if not table_names:
+        return sql, {}
+
+    alias_map = {t: f"__scoped_{t}" for t in table_names}
+    rewritten = _rewrite_from_join_tables(sql, alias_map)
+
+    ctes = []
+    for t in table_names:
+        alias = alias_map[t]
+        ctes.append(f'{alias} AS (SELECT * FROM "{t}" WHERE tenant_id = :tenant_id)')
+    scoped_sql = _inject_with_prefix(rewritten, ", ".join(ctes))
+    return scoped_sql, {"tenant_id": tenant_id}
+
+
 def execute_sql(
     source: DataSource,
     sql_text: str,
@@ -134,7 +221,11 @@ def execute_sql(
             tenant_id = None
 
     extra_params: dict[str, Any] = {}
-    if tenant_id is not None:
+    if _is_finance_source(source):
+        if tenant_id is None:
+            raise QueryExecutionError("Fonte Finance exige contexto de tenant.")
+        sql_text, extra_params = _auto_scope_finance_sql(sql_text, tenant_id, source)
+    elif tenant_id is not None:
         sql_text, extra_params = _apply_tenant_scoping_if_configured(sql_text, tenant_id, cfg)
 
     bind_params = {}

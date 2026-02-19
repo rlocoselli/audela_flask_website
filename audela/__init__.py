@@ -146,6 +146,25 @@ def create_app() -> Flask:
                                     "CREATE INDEX IF NOT EXISTS ix_finance_transactions_gl_account_id ON finance_transactions (gl_account_id)"
                                 )
                             )
+
+                        gl_cols = [
+                            row[1]
+                            for row in conn.execute(text("PRAGMA table_info(finance_gl_accounts);"))
+                        ]
+                        if "parent_id" not in gl_cols:
+                            conn.execute(text("ALTER TABLE finance_gl_accounts ADD COLUMN parent_id INTEGER"))
+                            conn.execute(
+                                text(
+                                    "CREATE INDEX IF NOT EXISTS ix_finance_gl_accounts_parent_id ON finance_gl_accounts (parent_id)"
+                                )
+                            )
+                        if "sort_order" not in gl_cols:
+                            conn.execute(text("ALTER TABLE finance_gl_accounts ADD COLUMN sort_order INTEGER DEFAULT 0"))
+                            conn.execute(
+                                text(
+                                    "CREATE INDEX IF NOT EXISTS ix_finance_gl_accounts_sort_order ON finance_gl_accounts (sort_order)"
+                                )
+                            )
             except Exception:
                 # Best effort only; schema issues will surface in logs/errors.
                 pass

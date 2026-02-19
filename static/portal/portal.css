@@ -511,3 +511,30 @@ ul.actions li{ margin:0; }
 
 /* ETL Builder: ensure drawflow connectors are clickable/visible */
 #drawflow { position: relative; width: 100%; }
+
+/* ETL Builder: decision node output meaning (top=true, bottom=false) */
+#drawflow .drawflow-node.transform.decision.scalar .outputs .output {
+  position: relative;
+}
+
+#drawflow .drawflow-node.transform.decision.scalar .outputs .output.output_1::after,
+#drawflow .drawflow-node.transform.decision.scalar .outputs .output:nth-child(1)::after {
+  content: "TRUE";
+  position: absolute;
+  left: 14px;
+  top: -6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--bs-success);
+}
+
+#drawflow .drawflow-node.transform.decision.scalar .outputs .output.output_2::after,
+#drawflow .drawflow-node.transform.decision.scalar .outputs .output:nth-child(2)::after {
+  content: "FALSE";
+  position: absolute;
+  left: 14px;
+  top: -6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--bs-danger);
+}

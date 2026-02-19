@@ -2303,6 +2303,52 @@ def questions_new():
     return render_template("portal/questions_new.html", tenant=g.tenant, sources=sources)
 
 
+@bp.route("/api/questions/preview", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def api_questions_preview():
+    _require_tenant()
+    payload = request.get_json(silent=True) or {}
+
+    try:
+        source_id = int(payload.get("source_id") or 0)
+    except Exception:
+        source_id = 0
+    sql_text = str(payload.get("sql_text") or "").strip()
+    params_payload = payload.get("params") if isinstance(payload.get("params"), dict) else {}
+
+    if not source_id:
+        return jsonify({"error": tr("Selecione uma fonte.", getattr(g, "lang", None))}), 400
+    if not sql_text:
+        return jsonify({"error": tr("Informe um SQL para pré-visualizar.", getattr(g, "lang", None))}), 400
+
+    src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first()
+    if not src:
+        return jsonify({"error": tr("Fonte inválida.", getattr(g, "lang", None))}), 404
+
+    user_params: dict = {}
+    user_params.update(params_payload)
+    user_params["tenant_id"] = g.tenant.id
+
+    try:
+        res = execute_sql(src, sql_text, params=user_params, row_limit=200)
+    except QueryExecutionError as e:
+        return jsonify({"error": str(e)}), 400
+
+    rows = res.get("rows") or []
+    if len(rows) > 200:
+        rows = rows[:200]
+
+    return jsonify({
+        "ok": True,
+        "result": {
+            "columns": res.get("columns") or [],
+            "rows": rows,
+            "row_count": len(rows),
+        },
+    })
+
+
 @bp.route("/questions/<int:question_id>")
 @login_required
 def questions_view(question_id: int):
@@ -2628,6 +2674,102 @@ def report_view(report_id: int):
             return _fmt_number(v, decimals)
         return str(v)
 
+    def _find_col_index(cols: list, name: str) -> int:
+        needle = str(name or "").strip()
+        if not needle:
+            return -1
+        for i, c in enumerate(cols or []):
+            if str(c) == needle:
+                return i
+        low = needle.lower()
+        for i, c in enumerate(cols or []):
+            if str(c).lower() == low:
+                return i
+        return -1
+
+    def _sort_rows(rows: list, idx: int, desc: bool) -> list:
+        if idx < 0:
+            return rows
+
+        def key_fn(r):
+            try:
+                v = r[idx] if isinstance(r, (list, tuple)) and idx < len(r) else None
+            except Exception:
+                v = None
+            if v is None:
+                return (1, "")
+            if isinstance(v, (int, float)):
+                return (0, float(v))
+            s = str(v)
+            try:
+                return (0, float(s))
+            except Exception:
+                return (0, s.lower())
+
+        try:
+            return sorted(rows, key=key_fn, reverse=desc)
+        except Exception:
+            return rows
+
+    def _apply_bound_format(v: object, fmt: str) -> str:
+        f = str(fmt or "").strip()
+        if not f:
+            return _format_cell(v, None, None)
+        try:
+            if f.startswith(".") and f.endswith("f"):
+                return format(float(v), f)
+        except Exception:
+            pass
+        if isinstance(v, (datetime, date)):
+            return _fmt_date(v, f)
+        return str(v if v is not None else "")
+
+    def _safe_ident(name: str) -> str:
+        import re
+        raw = str(name or "").strip()
+        if not raw:
+            raise ValueError("identificador vazio")
+        parts = raw.split(".")
+        for p in parts:
+            if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", p):
+                raise ValueError("identificador inválido")
+        return ".".join(parts)
+
+    def _question_field_value(qid: int, field: str) -> str:
+        q = q_by_id.get(int(qid or 0))
+        if not q:
+            raise ValueError("Pergunta não encontrada")
+        res = execute_sql(src, q.sql_text or "", {"tenant_id": g.tenant.id}, row_limit=1)
+        cols = res.get("columns") or []
+        rows = res.get("rows") or []
+        if not rows:
+            return ""
+        idx = -1
+        for i, c in enumerate(cols):
+            if str(c) == str(field):
+                idx = i
+                break
+        if idx < 0:
+            for i, c in enumerate(cols):
+                if str(c).lower() == str(field).lower():
+                    idx = i
+                    break
+        if idx < 0:
+            raise ValueError("Campo não encontrado na pergunta")
+        row0 = rows[0] if isinstance(rows[0], (list, tuple)) else []
+        return _format_cell(row0[idx] if idx < len(row0) else "", None, None)
+
+    def _table_field_value(table_name: str, field_name: str) -> str:
+        tbl = _safe_ident(table_name)
+        fld = _safe_ident(field_name)
+        sql = f"SELECT {fld} FROM {tbl} LIMIT 1"
+        res = execute_sql(src, sql, {"tenant_id": g.tenant.id}, row_limit=1)
+        rows = res.get("rows") or []
+        if not rows:
+            return ""
+        row0 = rows[0] if isinstance(rows[0], (list, tuple)) else []
+        return _format_cell(row0[0] if row0 else "", None, None)
+
     # Build a render-friendly bands structure and prefetch tables per block
     render_bands: dict[str, list[dict]] = {}
     blocks_data: dict[str, dict] = {}
@@ -2642,11 +2784,155 @@ def report_view(report_id: int):
 
     for band_name in order:
         out_list: list[dict] = []
-        for idx, b in enumerate(bands.get(band_name) or []):
+        source_blocks = bands.get(band_name) or []
+        idx = 0
+        while idx < len(source_blocks):
+            b = source_blocks[idx]
             bb = dict(b) if isinstance(b, dict) else {}
             btype = (bb.get("type") or "").lower()
             key = f"{band_name}:{idx}"
             bb["_key"] = key
+
+            if btype == "data_field" and band_name == "detail":
+                run: list[dict] = []
+                run_bind_key = ""
+                j = idx
+                while j < len(source_blocks):
+                    cb = dict(source_blocks[j]) if isinstance(source_blocks[j], dict) else {}
+                    ctype = (cb.get("type") or "").lower()
+                    if ctype != "data_field":
+                        break
+                    ccfg = cb.get("config") if isinstance(cb.get("config"), dict) else {}
+                    cbind = (ccfg.get("binding") or {}) if isinstance(ccfg.get("binding"), dict) else {}
+                    csrc = (cbind.get("source") or "").strip().lower()
+                    cfield = str(cbind.get("field") or "").strip()
+                    if csrc not in ("question", "table") or not cfield:
+                        break
+                    cbind_key = f"{csrc}:{cbind.get('question_id') if csrc == 'question' else cbind.get('table')}"
+                    if not run_bind_key:
+                        run_bind_key = cbind_key
+                    if cbind_key != run_bind_key:
+                        break
+                    run.append(cb)
+                    j += 1
+
+                if len(run) >= 2:
+                    first_cfg = run[0].get("config") if isinstance(run[0].get("config"), dict) else {}
+                    first_bind = (first_cfg.get("binding") or {}) if isinstance(first_cfg.get("binding"), dict) else {}
+                    source_kind = (first_bind.get("source") or "").strip().lower()
+
+                    try:
+                        dataset_rows = []
+                        if source_kind == "question":
+                            qid = int(first_bind.get("question_id") or 0)
+                            q = q_by_id.get(qid)
+                            if not q:
+                                raise ValueError("Pergunta não encontrada")
+                            res = execute_sql(src, q.sql_text or "", {"tenant_id": g.tenant.id}, row_limit=100)
+                            cols_all = res.get("columns") or []
+                            rows_all = res.get("rows") or []
+                            col_map = {str(c): i for i, c in enumerate(cols_all)}
+                            for rr in rows_all:
+                                row_out: list[str] = []
+                                for rb in run:
+                                    rcfg = rb.get("config") if isinstance(rb.get("config"), dict) else {}
+                                    rbind = (rcfg.get("binding") or {}) if isinstance(rcfg.get("binding"), dict) else {}
+                                    field = str(rbind.get("field") or "").strip()
+                                    fmt = str(rcfg.get("format") or "").strip()
+                                    empty_text = str(rcfg.get("empty_text") or "")
+                                    ridx = col_map.get(field)
+                                    if ridx is None:
+                                        ridx = col_map.get(field.lower())
+                                    val = rr[ridx] if isinstance(rr, (list, tuple)) and ridx is not None and ridx < len(rr) else None
+                                    sval = _apply_bound_format(val, fmt)
+                                    if sval in ("", None):
+                                        sval = empty_text
+                                    row_out.append(str(sval or ""))
+                                dataset_rows.append(row_out)
+
+                        elif source_kind == "table":
+                            table_name = _safe_ident(str(first_bind.get("table") or "").strip())
+                            fields = []
+                            for rb in run:
+                                rcfg = rb.get("config") if isinstance(rb.get("config"), dict) else {}
+                                rbind = (rcfg.get("binding") or {}) if isinstance(rcfg.get("binding"), dict) else {}
+                                fields.append(_safe_ident(str(rbind.get("field") or "").strip()))
+                            sql = f"SELECT {', '.join(fields)} FROM {table_name} LIMIT 100"
+                            res = execute_sql(src, sql, {"tenant_id": g.tenant.id}, row_limit=100)
+                            rows_all = res.get("rows") or []
+                            for rr in rows_all:
+                                row_out: list[str] = []
+                                for cidx, rb in enumerate(run):
+                                    rcfg = rb.get("config") if isinstance(rb.get("config"), dict) else {}
+                                    fmt = str(rcfg.get("format") or "").strip()
+                                    empty_text = str(rcfg.get("empty_text") or "")
+                                    val = rr[cidx] if isinstance(rr, (list, tuple)) and cidx < len(rr) else None
+                                    sval = _apply_bound_format(val, fmt)
+                                    if sval in ("", None):
+                                        sval = empty_text
+                                    row_out.append(str(sval or ""))
+                                dataset_rows.append(row_out)
+
+                        headers = []
+                        column_styles = []
+                        group_idx = -1
+                        group_label_tpl = 'Groupe: {group}'
+                        group_count = False
+                        for ridx, rb in enumerate(run):
+                            rcfg = rb.get("config") if isinstance(rb.get("config"), dict) else {}
+                            if bool(rcfg.get("group_key")) and group_idx < 0:
+                                group_idx = ridx
+                                group_label_tpl = str(rcfg.get("group_label") or 'Groupe: {group}')
+                                group_count = True
+                        for rb in run:
+                            rcfg = rb.get("config") if isinstance(rb.get("config"), dict) else {}
+                            rbind = (rcfg.get("binding") or {}) if isinstance(rcfg.get("binding"), dict) else {}
+                            h = str(rb.get("title") or "").strip() or str(rbind.get("field") or "")
+                            headers.append(h)
+                            rst = rb.get("style") if isinstance(rb.get("style"), dict) else {}
+                            column_styles.append({
+                                "color": str(rst.get("color") or "").strip(),
+                                "background": str(rst.get("background") or "").strip(),
+                                "align": str(rst.get("align") or "").strip().lower(),
+                                "font_size": str(rst.get("font_size") or "").strip(),
+                                "bold": bool(rst.get("bold")),
+                                "italic": bool(rst.get("italic")),
+                                "underline": bool(rst.get("underline")),
+                            })
+
+                        rowset_block = {
+                            "type": "data_rowset",
+                            "title": bb.get("title") or "",
+                            "_key": key,
+                        }
+                        out_list.append(rowset_block)
+                        blocks_data[key] = {
+                            "columns": headers,
+                            "rows": dataset_rows,
+                            "column_styles": column_styles,
+                        }
+                        if group_idx >= 0:
+                            groups_map: dict[str, list[list[str]]] = {}
+                            for rr in dataset_rows:
+                                gval = rr[group_idx] if group_idx < len(rr) else ''
+                                groups_map.setdefault(str(gval), []).append(rr)
+                            groups = []
+                            for gname, grows in groups_map.items():
+                                groups.append({
+                                    "name": gname,
+                                    "label": group_label_tpl.replace('{group}', str(gname)),
+                                    "count": len(grows),
+                                    "rows": grows,
+                                })
+                            blocks_data[key]["groups"] = groups
+                            blocks_data[key]["group_count"] = group_count
+                        idx = j
+                        continue
+                    except Exception as e:
+                        blocks_data[key] = {"columns": [], "rows": [], "error": str(e)}
+                        out_list.append(bb)
+                        idx += 1
+                        continue
 
             if btype == "question":
                 qid = int(bb.get("question_id") or 0)
@@ -2668,9 +2954,40 @@ def report_view(report_id: int):
                         res = execute_sql(src, q.sql_text or "", {"tenant_id": g.tenant.id}, row_limit=25)
                         cols = res.get("columns") or []
                         rows = res.get("rows") or []
+
+                        sort_by = str(tcfg.get("sort_by") or "").strip()
+                        sort_dir = str(tcfg.get("sort_dir") or "asc").strip().lower()
+                        sort_idx = _find_col_index(cols, sort_by)
+                        rows = _sort_rows(rows, sort_idx, sort_dir == "desc")
+
+                        group_by = str(tcfg.get("group_by") or "").strip()
+                        group_label = str(tcfg.get("group_label") or "{group}")
+                        group_count = bool(tcfg.get("group_count"))
+                        group_idx = _find_col_index(cols, group_by)
+
                         # format cells
                         rows_fmt = [[_format_cell(c, decimals, date_fmt) for c in r] for r in rows]
-                        blocks_data[key] = {"columns": cols, "rows": rows_fmt}
+
+                        payload = {"columns": cols, "rows": rows_fmt}
+                        if group_idx >= 0:
+                            groups_map: dict[str, list[list[str]]] = {}
+                            for rr, rf in zip(rows, rows_fmt):
+                                gv = rr[group_idx] if isinstance(rr, (list, tuple)) and group_idx < len(rr) else ""
+                                gs = _format_cell(gv, None, date_fmt)
+                                groups_map.setdefault(gs, []).append(rf)
+
+                            groups = []
+                            for gname, grows in groups_map.items():
+                                label = group_label.replace("{group}", str(gname or ""))
+                                groups.append({
+                                    "name": gname,
+                                    "label": label,
+                                    "count": len(grows),
+                                    "rows": grows,
+                                })
+                            payload["groups"] = groups
+                            payload["group_count"] = group_count
+                        blocks_data[key] = payload
                     except Exception as e:
                         blocks_data[key] = {"columns": [], "rows": [], "error": str(e)}
 
@@ -2682,7 +2999,31 @@ def report_view(report_id: int):
                 val = _fmt_date(now, fmt)
                 bb["value"] = val
 
+            elif btype == "data_field":
+                cfg = bb.get("config") if isinstance(bb.get("config"), dict) else {}
+                bind = (cfg.get("binding") or {}) if isinstance(cfg.get("binding"), dict) else {}
+                source_kind = (bind.get("source") or "").strip().lower()
+                try:
+                    if source_kind == "question":
+                        qid = int(bind.get("question_id") or 0)
+                        field = str(bind.get("field") or "").strip()
+                        value = _question_field_value(qid, field)
+                    elif source_kind == "table":
+                        table_name = str(bind.get("table") or "").strip()
+                        field = str(bind.get("field") or "").strip()
+                        value = _table_field_value(table_name, field)
+                    else:
+                        value = ""
+
+                    if value in (None, ""):
+                        value = str(cfg.get("empty_text") or "")
+                    bb["value"] = value
+                    blocks_data[key] = {"value": value}
+                except Exception as e:
+                    blocks_data[key] = {"value": "", "error": str(e)}
+
             out_list.append(bb)
+            idx += 1
         render_bands[band_name] = out_list
 
     return render_template(
@@ -3248,6 +3589,54 @@ def api_ai_chat():
 
     ai = analyze_with_ai(data_bundle, message, history=history, lang=getattr(g, "lang", None))
     return jsonify(ai)
+
+
+@bp.route("/api/help/chat", methods=["POST"])
+@login_required
+def api_help_chat():
+    _require_tenant()
+    payload = request.get_json(silent=True) or {}
+    message = (payload.get("message") or "").strip()
+    if not message:
+        return jsonify({"ok": False, "error": _("Mensagem vazia.")}), 400
+
+    text = message.lower()
+    if any(k in text for k in ["sql", "query", "consulta", "requête", "abfrage"]):
+        reply = _(
+            "No Editor SQL você pode escrever, testar e salvar consultas. Use autocomplete com Ctrl+Space e execute com Ctrl+Enter."
+        )
+    elif any(k in text for k in ["pergunta", "question", "pregunta", "domanda", "frage"]):
+        reply = _(
+            "Perguntas são consultas salvas. Você pode adicionar filtros e reutilizar em dashboards e relatórios."
+        )
+    elif any(k in text for k in ["dashboard", "painel", "tableau", "cruscotto"]):
+        reply = _(
+            "Dashboards reúnem cards de perguntas. Você pode ajustar layout, visualizações e definir um dashboard principal."
+        )
+    elif any(k in text for k in ["relatório", "report", "rapport", "informe", "bericht"]):
+        reply = _(
+            "Relatórios permitem montar páginas com blocos de texto, imagem e perguntas com exportação em PDF."
+        )
+    elif any(k in text for k in ["fonte", "source", "fuente", "quelle"]):
+        reply = _(
+            "Fontes conectam bancos e APIs. Cadastre a conexão e introspecte schema para usar no editor e no builder."
+        )
+    elif any(k in text for k in ["etl", "pipeline", "workflow", "fluxo"]):
+        reply = _(
+            "No ETL Builder você encadeia Extract, Transform e Load, incluindo decisões e ramificações true/false."
+        )
+    else:
+        reply = _(
+            "Posso ajudar com Fontes, SQL, Perguntas, Dashboards, Relatórios e ETL."
+        )
+
+    suggestions = [
+        _("Como criar uma fonte de dados?"),
+        _("Como escrever SQL no editor?"),
+        _("Como salvar uma pergunta?"),
+        _("Como montar um dashboard?"),
+    ]
+    return jsonify({"ok": True, "reply": reply, "suggestions": suggestions})
 
 @bp.get("/etls")
 def etls_list():

@@ -28,8 +28,17 @@ function _jsonPretty(obj) {
 
 function _defaultConfig(type) {
   if (type === "extract.http") return { api_source_id: "", path: "", method: "GET", headers: {}, params: {}, timeout: 30 };
-  if (type === "extract.sql") return { query: "", db_source_id: "" };
+  if (type === "extract.sql") return { query: "", db_source_id: "", result_mode: "rows", strict_scalar: true, scalar_key: "last_scalar" };
   if (type === "transform.mapping") return { fields: {} };
+  if (type === "transform.decision.scalar") return {
+    source: "last_scalar",
+    scalar_key: "",
+    operator: "eq",
+    value: "",
+    on_true: "continue",
+    on_false: "stop",
+    message: "Scalar decision"
+  };
   if (type === "load.warehouse") return {
     table: "", schema: "public", mode: "append",
     create_table_if_missing: true, add_columns_if_missing: true,
@@ -38,15 +47,45 @@ function _defaultConfig(type) {
   return {};
 }
 
+function _nodeHtml(type) {
+  if (type === "transform.decision.scalar") {
+    return `<div>
+      <strong>${type}</strong>
+      <div style="font-size:11px;color:#666">Double-click to configure</div>
+      <div style="font-size:10px;color:#1f2937;margin-top:4px;display:flex;justify-content:space-between;gap:8px;">
+        <span><b>↑ output_1</b> = TRUE</span>
+        <span><b>↓ output_2</b> = FALSE</span>
+      </div>
+    </div>`;
+  }
+  return `<div>
+      <strong>${type}</strong>
+      <div style="font-size:11px;color:#666">Double-click to configure</div>
+   </div>`;
+}
+
+function _normalizeDecisionNodeOutputs(drawflowPayload) {
+  if (!drawflowPayload || !drawflowPayload.drawflow || !drawflowPayload.drawflow.Home || !drawflowPayload.drawflow.Home.data) {
+    return drawflowPayload;
+  }
+  const nodes = drawflowPayload.drawflow.Home.data;
+  Object.values(nodes).forEach((n) => {
+    if (!n || n.name !== "transform.decision.scalar") return;
+    n.outputs = n.outputs || {};
+    if (!n.outputs.output_1) n.outputs.output_1 = { connections: [] };
+    if (!n.outputs.output_2) n.outputs.output_2 = { connections: [] };
+    n.html = _nodeHtml("transform.decision.scalar");
+  });
+  return drawflowPayload;
+}
+
 function addNode(type) {
   const cfg = _defaultConfig(type);
+  const outputs = (type === "transform.decision.scalar") ? 2 : 1;
   const nodeId = editor.addNode(
-    type, 1, 1, 100, 100, type,
+    type, 1, outputs, 100, 100, type,
     { type: type, config: cfg },
-    `<div>
-        <strong>${type}</strong>
-        <div style="font-size:11px;color:#666">Double-click to configure</div>
-     </div>`
+    _nodeHtml(type)
   );
   console.log("Node added:", nodeId);
 }
@@ -106,7 +145,7 @@ function loadSelectedWorkflow() {
       setWorkflowName(res.name);
       if (res.kind === "drawflow") {
         editor.clear();
-        editor.import(res.data);
+        editor.import(_normalizeDecisionNodeOutputs(res.data));
       } else {
         const el = document.getElementById("etlPreview");
         if (el) el.textContent = _jsonPretty(res.data);
@@ -878,6 +917,26 @@ function openNodeConfig(nodeId) {
             <label class="form-label">SQL</label>
             <textarea class="form-control" id="cfg_query" rows="9" placeholder="${t("SELECT ...")}">${cfg.query || ""}</textarea>
           </div>
+
+          <div class="row g-2 mt-1">
+            <div class="col-md-4">
+              <label class="form-label">${t("Result mode")}</label>
+              <select class="form-select" id="cfg_result_mode">
+                <option value="rows" ${((cfg.result_mode || "rows") === "rows") ? "selected" : ""}>rows</option>
+                <option value="scalar" ${((cfg.result_mode || "rows") === "scalar") ? "selected" : ""}>scalar (1x1)</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">${t("Scalar key (meta)")}</label>
+              <input class="form-control" id="cfg_scalar_key" value="${cfg.scalar_key || "last_scalar"}" placeholder="last_scalar">
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="cfg_strict_scalar" ${cfg.strict_scalar !== false ? "checked" : ""}>
+                <label class="form-check-label" for="cfg_strict_scalar">${t("Strict scalar (exactly 1 row/1 col)")}</label>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="col-md-4">
@@ -896,6 +955,63 @@ function openNodeConfig(nodeId) {
       <div class="mb-3">
         <label class="form-label">Fields mapping (JSON)</label>
         <textarea class="form-control" id="cfg_fields" rows="10" placeholder='{"city":"$.name","temp":"$.main.temp"}'>${_jsonPretty(cfg.fields || {})}</textarea>
+      </div>
+    `;
+  } else if (type === "transform.decision.scalar") {
+    html += `
+      <div class="row g-2">
+        <div class="col-md-4">
+          <label class="form-label d-flex align-items-center gap-1">
+            <span>${t("Scalar source")}</span>
+            <i class="bi bi-question-circle text-muted" title="last_scalar = prend la dernière valeur scalaire produite. meta_key = prend une valeur nommée dans meta.scalars (utiliser Scalar key)."></i>
+          </label>
+          <select class="form-select" id="cfg_dec_source">
+            <option value="last_scalar" ${((cfg.source || "last_scalar") === "last_scalar") ? "selected" : ""}>last_scalar</option>
+            <option value="meta_key" ${((cfg.source || "") === "meta_key") ? "selected" : ""}>meta key</option>
+          </select>
+          <div class="form-text">${t("last_scalar: dernière extraction scalar. meta_key: clé précise dans le dictionnaire scalars.")}</div>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label d-flex align-items-center gap-1">
+            <span>${t("Scalar key")}</span>
+            <i class="bi bi-question-circle text-muted" title="Utilisé uniquement si Scalar source = meta_key. Exemple: total_rows, avg_amount."></i>
+          </label>
+          <input class="form-control" id="cfg_dec_scalar_key" value="${cfg.scalar_key || ""}" placeholder="my_scalar">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">${t("Operator")}</label>
+          <select class="form-select" id="cfg_dec_operator">
+            ${[
+              ["eq", "eq (=)"], ["ne", "ne (!=)"], ["gt", "gt (>)"], ["gte", "gte (>=)"],
+              ["lt", "lt (<)"], ["lte", "lte (<=)"], ["contains", "contains"], ["in", "in"],
+              ["not_in", "not_in"], ["empty", "empty"], ["not_empty", "not_empty"],
+              ["true", "true"], ["false", "false"]
+            ].map(x => `<option value="${x[0]}" ${((cfg.operator || "eq") === x[0]) ? "selected" : ""}>${x[1]}</option>`).join("")}
+          </select>
+        </div>
+      </div>
+      <div class="row g-2 mt-1">
+        <div class="col-md-6">
+          <label class="form-label">${t("Compare value")}</label>
+          <input class="form-control" id="cfg_dec_value" value="${(cfg.value ?? "")}" placeholder='10 ou [1,2,3]'>
+          <div class="form-text">${t("JSON support: [1,2], true, 10.5")}</div>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">${t("On true")}</label>
+          <select class="form-select" id="cfg_dec_on_true">
+            ${["continue", "stop", "error"].map(v => `<option value="${v}" ${((cfg.on_true || "continue") === v) ? "selected" : ""}>${v}</option>`).join("")}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">${t("On false")}</label>
+          <select class="form-select" id="cfg_dec_on_false">
+            ${["continue", "stop", "error"].map(v => `<option value="${v}" ${((cfg.on_false || "stop") === v) ? "selected" : ""}>${v}</option>`).join("")}
+          </select>
+        </div>
+      </div>
+      <div class="mt-2">
+        <label class="form-label">${t("Message")}</label>
+        <input class="form-control" id="cfg_dec_message" value="${cfg.message || "Scalar decision"}">
       </div>
     `;
   } else if (type === "load.warehouse") {
@@ -974,10 +1090,21 @@ function saveNodeConfig() {
     const sel = document.getElementById("cfg_db_source");
     cfg.db_source_id = sel ? sel.value : "";
     cfg.query = document.getElementById("cfg_query").value;
+    cfg.result_mode = (document.getElementById("cfg_result_mode")?.value || "rows").trim();
+    cfg.scalar_key = (document.getElementById("cfg_scalar_key")?.value || "last_scalar").trim();
+    cfg.strict_scalar = !!document.getElementById("cfg_strict_scalar")?.checked;
   } else if (type === "transform.mapping") {
     const fields = _safeJsonParse(document.getElementById("cfg_fields").value, {});
     if (fields === null) return alert("Fields JSON invalid");
     cfg.fields = fields;
+  } else if (type === "transform.decision.scalar") {
+    cfg.source = (document.getElementById("cfg_dec_source")?.value || "last_scalar").trim();
+    cfg.scalar_key = (document.getElementById("cfg_dec_scalar_key")?.value || "").trim();
+    cfg.operator = (document.getElementById("cfg_dec_operator")?.value || "eq").trim();
+    cfg.value = (document.getElementById("cfg_dec_value")?.value || "").trim();
+    cfg.on_true = (document.getElementById("cfg_dec_on_true")?.value || "continue").trim();
+    cfg.on_false = (document.getElementById("cfg_dec_on_false")?.value || "stop").trim();
+    cfg.message = (document.getElementById("cfg_dec_message")?.value || "Scalar decision").trim();
   } else if (type === "load.warehouse") {
     const sel = document.getElementById("cfg_wh_source");
     cfg.warehouse_source_id = sel ? sel.value : "";
@@ -1010,7 +1137,7 @@ function initEtlBuilder() {
         setWorkflowName(res.name);
         if (res.kind === "drawflow") {
           editor.clear();
-          editor.import(res.data);
+          editor.import(_normalizeDecisionNodeOutputs(res.data));
         }
       })
       .catch(err => console.error(err));

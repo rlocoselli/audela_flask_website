@@ -16,6 +16,62 @@
     .rb-color-palette .rb-swatch { cursor: pointer; }
     .rb-color-palette .rb-swatch { padding:0; }
     .rb-color-palette .rb-swatch:not(.btn) { border:none; }
+    .rb-data-card { border:1px solid var(--bs-border-color); border-radius: .65rem; background: var(--bs-body-bg); }
+    .rb-data-head { display:flex; align-items:center; justify-content:space-between; gap:.5rem; padding:.45rem .6rem; border-bottom:1px solid var(--bs-border-color); }
+    .rb-data-fields { display:grid; gap:.35rem; padding:.6rem; max-height: 230px; overflow:auto; }
+    .rb-data-field { cursor: grab; user-select:none; border:1px solid var(--bs-border-color); border-radius:.55rem; padding:.35rem .5rem; background: #fff; display:flex; align-items:center; justify-content:space-between; gap:.5rem; }
+    .rb-data-field small { color: var(--bs-secondary-color); }
+    .rb-data-search { border-radius: .6rem; }
+    .rb-rich-toolbar .btn { min-width: 34px; }
+    #rb-detail.rb-dropzone {
+      display: grid !important;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: .5rem;
+    }
+    #rb-detail .rb-drop-hint { grid-column: 1 / -1; }
+    #rb-detail .rb-block-instance[data-type="data_field"] { grid-column: auto; }
+    #rb-detail .rb-block-instance:not([data-type="data_field"]) { grid-column: 1 / -1; }
+    @media (max-width: 991.98px) {
+      #rb-detail.rb-dropzone { grid-template-columns: 1fr; }
+      #rb-detail .rb-block-instance[data-type="data_field"] { grid-column: 1 / -1; }
+    }
+    .rb-floating-explorer {
+      position: fixed;
+      top: 110px;
+      right: 18px;
+      width: min(380px, calc(100vw - 24px));
+      max-height: calc(100vh - 130px);
+      z-index: 1040;
+      box-shadow: var(--bs-box-shadow-sm);
+      display: flex;
+      flex-direction: column;
+    }
+    .rb-floating-explorer .rb-floating-head {
+      cursor: move;
+      user-select: none;
+      border-bottom: 1px solid var(--bs-border-color);
+      padding: .55rem .7rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .5rem;
+    }
+    .rb-floating-explorer .rb-floating-body {
+      overflow: auto;
+      padding: .65rem;
+    }
+    .rb-floating-explorer.is-collapsed .rb-floating-body { display: none; }
+    @media (max-width: 991.98px) {
+      .rb-floating-explorer {
+        right: 8px;
+        left: 8px;
+        width: auto;
+        top: auto;
+        bottom: 8px;
+        max-height: 55vh;
+      }
+      .rb-floating-explorer .rb-floating-head { cursor: default; }
+    }
   </style>
 {% endblock %}
 
@@ -27,6 +83,7 @@
   </div>
   <div class="d-flex gap-2">
     <a class="btn btn-outline-secondary" href="{{ url_for('portal.reports_list') }}"><i class="bi bi-arrow-left me-1"></i>{{ _('Voltar') }}</a>
+    <button class="btn btn-outline-secondary" type="button" id="rb-floating-explorer-toggle"><i class="bi bi-layout-sidebar-inset-reverse me-1"></i>{{ _('Data Explorer') }}</button>
     <a class="btn btn-outline-secondary" target="_blank" href="{{ url_for('portal.report_view', report_id=report.id) }}">
       <i class="bi bi-eye me-1"></i>{{ _('Visualizar') }}
     </a>
@@ -126,8 +183,6 @@
       </div>
       <div class="form-text">{{ _('Isso cria um bloco “Imagem” no detalhe do relatório.') }}</div>
 
-      <hr>
-
       <div class="fw-semibold mb-2">{{ _('Dica') }}</div>
       <div class="text-muted small">
         {{ _('Bandas tipo Crystal/DevExpress: Report Header (1ª página), Page Header (todas), Detail, Page Footer (todas), Report Footer (última). Clique no bloco para editar.') }}
@@ -224,6 +279,50 @@
   </div>
 </div>
 
+<div id="rb-floating-explorer" class="rb-panel rb-floating-explorer" aria-label="{{ _('Data Explorer') }}">
+  <div id="rb-floating-explorer-head" class="rb-floating-head">
+    <div class="fw-semibold d-flex align-items-center gap-2">
+      <i class="bi bi-diagram-3"></i>
+      <span>{{ _('Data Explorer') }}</span>
+    </div>
+    <div class="d-flex align-items-center gap-1">
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="rb-floating-explorer-dock" title="{{ _('Reencaixar') }}"><i class="bi bi-bounding-box"></i></button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="rb-floating-explorer-collapse" title="{{ _('Minimizar') }}"><i class="bi bi-chevron-down"></i></button>
+    </div>
+  </div>
+  <div class="rb-floating-body">
+    <input id="rb-data-search" class="form-control rb-data-search mb-2" placeholder="{{ _('Filtrar tabelas, campos e perguntas...') }}" />
+
+    <div class="rb-data-card mb-2">
+      <div class="rb-data-head">
+        <div class="fw-semibold small mb-0">{{ _('Tabelas e campos') }}</div>
+        <span class="badge text-bg-light border" id="rb-data-tables-count">0</span>
+      </div>
+      <div id="rb-data-tables" class="p-2 d-grid gap-2">
+        <div class="text-muted small">{{ _('Carregando metadados...') }}</div>
+      </div>
+    </div>
+
+    <div class="rb-data-card mb-2">
+      <div class="rb-data-head">
+        <div class="fw-semibold small mb-0">{{ _('Perguntas e campos') }}</div>
+        <span class="badge text-bg-light border" id="rb-data-questions-count">{{ questions|length }}</span>
+      </div>
+      <div id="rb-data-questions" class="p-2 d-grid gap-2">
+        {% for q in questions %}
+          <div class="rb-data-card" data-question-card data-search-text="{{ (q.name ~ ' ' ~ q.id)|lower }}">
+            <div class="rb-data-head">
+              <div class="small fw-semibold text-truncate" title="{{ q.name }}">{{ q.name }}</div>
+              <button class="btn btn-sm btn-outline-secondary" type="button" data-load-question="{{ q.id }}">{{ _('Campos') }}</button>
+            </div>
+            <div class="rb-data-fields d-none" id="rb-q-fields-{{ q.id }}"></div>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
 
 <!-- Block editor modal -->
 <div class="modal fade" id="rb-edit-modal" tabindex="-1" aria-hidden="true">
@@ -244,6 +343,13 @@
 
           <div class="mb-3" id="rb-edit-text-group">
             <label class="form-label" id="rb-edit-content-label" for="rb-edit-content">{{ _('Texto') }}</label>
+            <div class="d-flex flex-wrap gap-1 mb-2 rb-rich-toolbar">
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-rb-wrap="**" title="{{ _('Negrito') }}"><i class="bi bi-type-bold"></i></button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-rb-wrap="_" title="{{ _('Itálico') }}"><i class="bi bi-type-italic"></i></button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-rb-wrap="~~" title="{{ _('Riscado') }}"><i class="bi bi-type-strikethrough"></i></button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-rb-prefix="- " title="{{ _('Lista') }}"><i class="bi bi-list-ul"></i></button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-rb-insert="\n---\n" title="{{ _('Separador') }}"><i class="bi bi-hr"></i></button>
+            </div>
             <textarea class="form-control" id="rb-edit-content" rows="8"></textarea>
           </div>
 
@@ -306,29 +412,93 @@
           <div class="d-none" id="rb-edit-question-group">
             <div class="row g-3">
               <div class="col-md-6">
-                <label class="form-label" for="rb-edit-table-theme">{{ _('Tema da tabela') }}</label>
-                <select class="form-select" id="rb-edit-table-theme">
+                <label class="form-label" for="rb-edit-q-theme">{{ _('Tema da tabela') }}</label>
+                <select class="form-select" id="rb-edit-q-theme">
                   <option value="crystal">Crystal</option>
                   <option value="devexpress">DevExpress</option>
                   <option value="minimal">Minimal</option>
                 </select>
               </div>
               <div class="col-md-3">
-                <label class="form-label" for="rb-edit-decimals">{{ _('Decimais') }}</label>
-                <input type="number" class="form-control" id="rb-edit-decimals" min="0" max="10" step="1" placeholder="2" />
+                <label class="form-label" for="rb-edit-q-decimals">{{ _('Decimais') }}</label>
+                <input type="number" class="form-control" id="rb-edit-q-decimals" min="0" max="10" step="1" placeholder="2" />
               </div>
               <div class="col-md-3">
                 <label class="form-label">{{ _('PDF') }}</label>
                 <div class="form-check">
-                  <input class="form-check-input" type="checkbox" id="rb-edit-repeat-header" />
-                  <label class="form-check-label" for="rb-edit-repeat-header">{{ _('Repetir header') }}</label>
+                  <input class="form-check-input" type="checkbox" id="rb-edit-q-repeat-header" />
+                  <label class="form-check-label" for="rb-edit-q-repeat-header">{{ _('Repetir header') }}</label>
                 </div>
               </div>
               <div class="col-md-6">
                 <div class="form-check">
-                  <input class="form-check-input" type="checkbox" id="rb-edit-zebra" />
-                  <label class="form-check-label" for="rb-edit-zebra">{{ _('Zebra (linhas alternadas)') }}</label>
+                  <input class="form-check-input" type="checkbox" id="rb-edit-q-zebra" />
+                  <label class="form-check-label" for="rb-edit-q-zebra">{{ _('Zebra (linhas alternadas)') }}</label>
                 </div>
+              </div>
+
+              <div class="col-12">
+                <div class="fw-semibold small text-muted text-uppercase">{{ _('Grouping') }}</div>
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label" for="rb-edit-q-group-by">{{ _('Agrupar por coluna') }}</label>
+                <input class="form-control" id="rb-edit-q-group-by" placeholder="{{ _('Ex.: country') }}" />
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="rb-edit-q-group-label">{{ _('Formato do cabeçalho do grupo') }}</label>
+                <input class="form-control" id="rb-edit-q-group-label" placeholder="{{ _('{group}') }}" />
+                <div class="form-text">{{ _('Use {group}. Ex.: Região: {group}') }}</div>
+              </div>
+              <div class="col-md-6">
+                <div class="form-check mt-2">
+                  <input class="form-check-input" type="checkbox" id="rb-edit-q-group-count" />
+                  <label class="form-check-label" for="rb-edit-q-group-count">{{ _('Mostrar contagem por grupo') }}</label>
+                </div>
+              </div>
+
+              <div class="col-12">
+                <div class="fw-semibold small text-muted text-uppercase">{{ _('Sorting') }}</div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="rb-edit-q-sort-by">{{ _('Ordenar por coluna') }}</label>
+                <input class="form-control" id="rb-edit-q-sort-by" placeholder="{{ _('Ex.: total_amount') }}" />
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="rb-edit-q-sort-dir">{{ _('Direção') }}</label>
+                <select class="form-select" id="rb-edit-q-sort-dir">
+                  <option value="asc">{{ _('Ascendente') }}</option>
+                  <option value="desc">{{ _('Descendente') }}</option>
+                </select>
+              </div>
+            </div>
+            <hr>
+          </div>
+
+          <div class="d-none" id="rb-edit-data-field-group">
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="form-label" for="rb-edit-data-binding">{{ _('Origem') }}</label>
+                <input class="form-control" id="rb-edit-data-binding" readonly />
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="rb-edit-data-empty">{{ _('Texto quando vazio') }}</label>
+                <input class="form-control" id="rb-edit-data-empty" placeholder="{{ _('(vazio)') }}" />
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="rb-edit-data-format">{{ _('Formato (opcional)') }}</label>
+                <input class="form-control" id="rb-edit-data-format" placeholder="{{ _('Ex.: .2f, dd/MM/yyyy') }}" />
+              </div>
+              <div class="col-md-6">
+                <div class="form-check mt-2">
+                  <input class="form-check-input" type="checkbox" id="rb-edit-data-group-key" />
+                  <label class="form-check-label" for="rb-edit-data-group-key">{{ _('Utiliser ce champ comme clé de groupe') }}</label>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label" for="rb-edit-data-group-label">{{ _('Libellé du groupe') }}</label>
+                <input class="form-control" id="rb-edit-data-group-label" placeholder="{{ _('Groupe: {group}') }}" />
+                <div class="form-text">{{ _('Utilisez {group}.') }}</div>
               </div>
             </div>
             <hr>
@@ -383,6 +553,27 @@
               <option value="right">{{ _('Direita') }}</option>
             </select>
           </div>
+
+          <div class="row g-3 mt-0">
+            <div class="col-md-4">
+              <label class="form-label" for="rb-edit-font-size">{{ _('Tamanho da fonte (px)') }}</label>
+              <input type="number" min="8" max="72" step="1" class="form-control" id="rb-edit-font-size" placeholder="14" />
+            </div>
+            <div class="col-md-8 d-flex align-items-end gap-3 pb-1">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="rb-edit-font-bold" />
+                <label class="form-check-label" for="rb-edit-font-bold">{{ _('Negrito') }}</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="rb-edit-font-italic" />
+                <label class="form-check-label" for="rb-edit-font-italic">{{ _('Itálico') }}</label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="rb-edit-font-underline" />
+                <label class="form-check-label" for="rb-edit-font-underline">{{ _('Sublinhado') }}</label>
+              </div>
+            </div>
+          </div>
         </form>
       </div>
 
@@ -398,8 +589,10 @@
 <script>
   window.__RB = {
     reportId: {{ report.id }},
+    sourceId: {{ source.id }},
     apiUrl: "{{ url_for('portal.api_report_get', report_id=report.id) }}",
     saveUrl: "{{ url_for('portal.api_report_save', report_id=report.id) }}",
+    sourceSchemaUrl: "{{ url_for('portal.api_source_schema', source_id=source.id) }}",
     csrfToken: "{{ csrf_token() }}",
   };
 </script>

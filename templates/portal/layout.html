@@ -118,6 +118,33 @@
   </div>
 </div>
 
+<div id="biHelpChat" class="position-fixed bottom-0 end-0 p-3" style="z-index:1080;">
+  <button
+    id="biHelpChatToggle"
+    class="btn btn-primary rounded-circle"
+    style="width:48px;height:48px;"
+    type="button"
+    aria-label="{{ _('Abrir ajuda BI') }}"
+    title="{{ _('Abrir ajuda BI') }}"
+  >
+    <i class="bi bi-chat-dots"></i>
+  </button>
+
+  <div id="biHelpChatPanel" class="card mt-2 d-none" style="width: 340px; max-width: calc(100vw - 2rem);">
+    <div class="card-header d-flex align-items-center justify-content-between py-2">
+      <span class="fw-semibold">{{ _('Assistente BI') }}</span>
+      <button id="biHelpChatClose" class="btn btn-sm btn-outline-secondary" type="button" aria-label="{{ _('Fechar') }}">×</button>
+    </div>
+    <div id="biHelpChatMessages" class="card-body" style="height: 300px; overflow:auto;"></div>
+    <div class="card-footer">
+      <div class="input-group input-group-sm">
+        <input id="biHelpChatInput" type="text" class="form-control" placeholder="{{ _('Digite sua dúvida BI...') }}" />
+        <button id="biHelpChatSend" class="btn btn-primary" type="button">{{ _('Enviar') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Mobile offcanvas nav -->
 <div class="offcanvas offcanvas-start" tabindex="-1" id="mobileNav">
   <div class="offcanvas-header">
@@ -149,4 +176,105 @@
   {% block body_scripts %}
     {{ super() }}
     <script src="{{ url_for('static', filename='portal/theme_switcher.js') }}"></script>
+    <script>
+      window.onReady(function(){
+        const toggle = document.getElementById('biHelpChatToggle');
+        const panel = document.getElementById('biHelpChatPanel');
+        const closeBtn = document.getElementById('biHelpChatClose');
+        const input = document.getElementById('biHelpChatInput');
+        const sendBtn = document.getElementById('biHelpChatSend');
+        const messages = document.getElementById('biHelpChatMessages');
+        if (!toggle || !panel || !closeBtn || !input || !sendBtn || !messages) return;
+
+        function addMsg(text, who){
+          const wrap = document.createElement('div');
+          wrap.className = 'mb-2 d-flex ' + (who === 'user' ? 'justify-content-end' : 'justify-content-start');
+          const b = document.createElement('div');
+          b.className = (who === 'user' ? 'bg-primary text-white' : 'bg-body-tertiary') + ' rounded px-2 py-1 small';
+          b.style.maxWidth = '85%';
+          b.textContent = text;
+          wrap.appendChild(b);
+          messages.appendChild(wrap);
+          messages.scrollTop = messages.scrollHeight;
+        }
+
+        function addSuggestions(items){
+          if (!Array.isArray(items) || !items.length) return;
+          const row = document.createElement('div');
+          row.className = 'd-flex flex-wrap gap-1 mb-2';
+          items.slice(0, 4).forEach(function(s){
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-outline-secondary btn-sm';
+            btn.textContent = s;
+            btn.addEventListener('click', function(){
+              input.value = s;
+              send();
+            });
+            row.appendChild(btn);
+          });
+          messages.appendChild(row);
+          messages.scrollTop = messages.scrollHeight;
+        }
+
+        async function send(){
+          const msg = (input.value || '').trim();
+          if (!msg) return;
+          addMsg(msg, 'user');
+          input.value = '';
+          sendBtn.disabled = true;
+          try {
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            const res = await fetch('{{ url_for("portal.api_help_chat") }}', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(csrf ? {'X-CSRFToken': csrf} : {})
+              },
+              body: JSON.stringify({ message: msg })
+            });
+            const data = await res.json();
+            if (!res.ok || !data.ok) addMsg(data.error || window.t('Erro ao carregar.'), 'bot');
+            else {
+              addMsg(data.reply || window.t('Sem resposta.'), 'bot');
+              addSuggestions(data.suggestions || []);
+            }
+          } catch (e) {
+            addMsg(window.t('Erro ao carregar.'), 'bot');
+          } finally {
+            sendBtn.disabled = false;
+            input.focus();
+          }
+        }
+
+        let seeded = false;
+        function openPanel(){
+          panel.classList.remove('d-none');
+          if (!seeded) {
+            addMsg(window.t('Olá! Posso ajudar com Fontes, SQL, Perguntas, Dashboards, Relatórios e ETL.'), 'bot');
+            addSuggestions([
+              window.t('Como criar uma fonte de dados?'),
+              window.t('Como escrever SQL no editor?'),
+              window.t('Como salvar uma pergunta?'),
+              window.t('Como montar um dashboard?')
+            ]);
+            seeded = true;
+          }
+          input.focus();
+        }
+
+        toggle.addEventListener('click', function(){
+          if (panel.classList.contains('d-none')) openPanel();
+          else panel.classList.add('d-none');
+        });
+        closeBtn.addEventListener('click', function(){ panel.classList.add('d-none'); });
+        sendBtn.addEventListener('click', send);
+        input.addEventListener('keydown', function(e){
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            send();
+          }
+        });
+      });
+    </script>
   {% endblock %}

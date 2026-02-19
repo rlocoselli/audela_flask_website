@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List
+import json
 import requests
 from sqlalchemy import text
 
@@ -99,6 +100,10 @@ def extract_sql(config: Dict[str, Any], ctx, app=None):
     if not query:
         raise ValueError("extract.sql requires config.query")
 
+    result_mode = str(config.get("result_mode") or "rows").strip().lower()
+    strict_scalar = bool(config.get("strict_scalar", True))
+    scalar_key = str(config.get("scalar_key") or "last_scalar").strip()
+
     # If a saved DB source is selected, use it. Workspace sources are executed via DuckDB.
     db_source_id = config.get("db_source_id") or config.get("source_id")
     if db_source_id:
@@ -120,9 +125,152 @@ def extract_sql(config: Dict[str, Any], ctx, app=None):
         from audela.extensions import db
         engine = db.engine
 
+    if result_mode == "scalar":
+        with engine.begin() as conn:
+            res = conn.execute(text(query))
+            cols = list(res.keys())
+            rows = res.fetchmany(2)
+
+        if strict_scalar:
+            if len(cols) != 1:
+                raise ValueError("extract.sql scalar exige exatamente 1 coluna.")
+            if len(rows) != 1:
+                raise ValueError("extract.sql scalar exige exatamente 1 linha.")
+
+        scalar_val = None
+        if rows:
+            r0 = rows[0]
+            scalar_val = r0[0] if isinstance(r0, (list, tuple)) else (list(r0)[0] if r0 is not None else None)
+
+        ctx.meta["last_scalar"] = scalar_val
+        scalars = ctx.meta.get("scalars") if isinstance(ctx.meta.get("scalars"), dict) else {}
+        if scalar_key:
+            scalars[scalar_key] = scalar_val
+        ctx.meta["scalars"] = scalars
+        return [{"scalar": scalar_val}]
+
     with engine.begin() as conn:
         rows = conn.execute(text(query)).mappings().all()
     return [dict(r) for r in rows]
+
+
+def _to_num(v: Any):
+    try:
+        if isinstance(v, bool):
+            return None
+        if isinstance(v, (int, float)):
+            return float(v)
+        return float(str(v).strip())
+    except Exception:
+        return None
+
+
+def _to_bool(v: Any) -> bool:
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, (int, float)):
+        return v != 0
+    s = str(v or "").strip().lower()
+    return s in ("1", "true", "yes", "y", "on")
+
+
+def _parse_comp_value(raw: Any) -> Any:
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return ""
+    try:
+        return json.loads(s)
+    except Exception:
+        return s
+
+
+@register("transform.decision.scalar")
+def transform_decision_scalar(config: Dict[str, Any], ctx, app=None):
+    source = str(config.get("source") or "last_scalar").strip().lower()
+    scalar_key = str(config.get("scalar_key") or "").strip()
+    op = str(config.get("operator") or "eq").strip().lower()
+    compare = _parse_comp_value(config.get("value"))
+    on_true = str(config.get("on_true") or "continue").strip().lower()
+    on_false = str(config.get("on_false") or "stop").strip().lower()
+    message = str(config.get("message") or "").strip() or "Decision scalar"
+
+    if source == "meta_key" and scalar_key:
+        scalars = ctx.meta.get("scalars") if isinstance(ctx.meta.get("scalars"), dict) else {}
+        scalar = scalars.get(scalar_key)
+    else:
+        scalar = ctx.meta.get("last_scalar")
+
+    def _cmp(a: Any, b: Any) -> bool:
+        if op in ("empty", "is_empty"):
+            return a in (None, "", [], {})
+        if op in ("not_empty", "is_not_empty"):
+            return a not in (None, "", [], {})
+        if op in ("true", "is_true"):
+            return _to_bool(a)
+        if op in ("false", "is_false"):
+            return not _to_bool(a)
+
+        an = _to_num(a)
+        bn = _to_num(b)
+        if an is not None and bn is not None:
+            if op in ("eq", "="):
+                return an == bn
+            if op in ("ne", "!="):
+                return an != bn
+            if op in ("gt", ">"):
+                return an > bn
+            if op in ("gte", ">="):
+                return an >= bn
+            if op in ("lt", "<"):
+                return an < bn
+            if op in ("lte", "<="):
+                return an <= bn
+
+        a_s = "" if a is None else str(a)
+        b_s = "" if b is None else str(b)
+        if op in ("eq", "="):
+            return a_s == b_s
+        if op in ("ne", "!="):
+            return a_s != b_s
+        if op in ("contains",):
+            return b_s in a_s
+        if op in ("in",):
+            if isinstance(b, (list, tuple, set)):
+                return a in b
+            return a_s in [x.strip() for x in b_s.split(",") if x.strip()]
+        if op in ("not_in",):
+            if isinstance(b, (list, tuple, set)):
+                return a not in b
+            return a_s not in [x.strip() for x in b_s.split(",") if x.strip()]
+        return a_s == b_s
+
+    passed = _cmp(scalar, compare)
+    action = on_true if passed else on_false
+
+    ctx.meta["last_decision"] = {
+        "scalar": scalar,
+        "operator": op,
+        "value": compare,
+        "passed": passed,
+        "action": action,
+        "message": message,
+    }
+
+    cur_step_id = str(ctx.meta.get("_current_step_id") or "").strip()
+    if cur_step_id:
+        route_map = ctx.meta.get("_step_route") if isinstance(ctx.meta.get("_step_route"), dict) else {}
+        route_map[cur_step_id] = "output_1" if passed else "output_2"
+        ctx.meta["_step_route"] = route_map
+
+    if action == "error":
+        raise ValueError(f"{message}: decision {'true' if passed else 'false'}")
+    if action == "stop":
+        ctx.meta["_stop_workflow"] = True
+        ctx.meta["_stop_reason"] = f"{message}: decision {'true' if passed else 'false'}"
+
+    return ctx.data
 
 
 @register("transform.mapping")

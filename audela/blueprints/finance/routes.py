@@ -258,14 +258,87 @@ def ensure_default_gl_accounts(company: FinanceCompany) -> None:
     existing = FinanceGLAccount.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).count()
     if existing > 0:
         return
-    for code, name, typ in _DEF_GL:
-        db.session.add(FinanceGLAccount(tenant_id=g.tenant.id, company_id=company.id, code=code, name=name, kind=typ))
+    for idx, (code, name, typ) in enumerate(_DEF_GL, start=1):
+        db.session.add(
+            FinanceGLAccount(
+                tenant_id=g.tenant.id,
+                company_id=company.id,
+                code=code,
+                name=name,
+                kind=typ,
+                parent_id=None,
+                sort_order=idx,
+            )
+        )
     db.session.commit()
 
 
 def get_gl_accounts(company: FinanceCompany):
     ensure_default_gl_accounts(company)
-    return FinanceGLAccount.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).order_by(FinanceGLAccount.code.asc()).all()
+    return (
+        FinanceGLAccount.query
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+        .order_by(FinanceGLAccount.sort_order.asc(), FinanceGLAccount.code.asc(), FinanceGLAccount.id.asc())
+        .all()
+    )
+
+
+def _gl_children_map(gl_accounts: list[FinanceGLAccount]) -> dict[int | None, list[FinanceGLAccount]]:
+    by_parent: dict[int | None, list[FinanceGLAccount]] = {}
+    for gl in gl_accounts:
+        by_parent.setdefault(gl.parent_id, []).append(gl)
+    for key in by_parent:
+        by_parent[key].sort(key=lambda x: (int(x.sort_order or 0), str(x.code or ""), int(x.id or 0)))
+    return by_parent
+
+
+def _flatten_gl_accounts(gl_accounts: list[FinanceGLAccount]) -> list[tuple[FinanceGLAccount, int]]:
+    by_parent = _gl_children_map(gl_accounts)
+    out: list[tuple[FinanceGLAccount, int]] = []
+
+    def walk(parent_id: int | None, depth: int) -> None:
+        for node in by_parent.get(parent_id, []):
+            out.append((node, depth))
+            walk(node.id, depth + 1)
+
+    walk(None, 0)
+    return out
+
+
+def _leaf_gl_ids(gl_accounts: list[FinanceGLAccount]) -> set[int]:
+    parent_ids = {int(gl.parent_id) for gl in gl_accounts if gl.parent_id is not None}
+    return {int(gl.id) for gl in gl_accounts if int(gl.id) not in parent_ids}
+
+
+def get_postable_gl_accounts(company: FinanceCompany) -> list[FinanceGLAccount]:
+    all_gl = get_gl_accounts(company)
+    leaves = _leaf_gl_ids(all_gl)
+    flattened = _flatten_gl_accounts(all_gl)
+    return [gl for gl, _depth in flattened if gl.id in leaves]
+
+
+def _is_leaf_gl_account(gl_id: int | None, company: FinanceCompany) -> bool:
+    if not gl_id:
+        return False
+    cnt = (
+        FinanceGLAccount.query
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id, parent_id=int(gl_id))
+        .count()
+    )
+    return cnt == 0
+
+
+def _is_descendant_gl_account(candidate_parent_id: int, node_id: int, company: FinanceCompany) -> bool:
+    cur = FinanceGLAccount.query.filter_by(id=candidate_parent_id, tenant_id=g.tenant.id, company_id=company.id).first()
+    seen: set[int] = set()
+    while cur is not None and cur.id not in seen:
+        if int(cur.id) == int(node_id):
+            return True
+        seen.add(int(cur.id))
+        if cur.parent_id is None:
+            break
+        cur = FinanceGLAccount.query.filter_by(id=cur.parent_id, tenant_id=g.tenant.id, company_id=company.id).first()
+    return False
 
 
 def apply_category_rules(company: FinanceCompany, *, description: str, counterparty_id: int | None, amount: float) -> int | None:
@@ -444,6 +517,9 @@ def account_new():
             ).first()
             if not ok_gl:
                 flash(_("Conta contábil inválida."), "error")
+                return redirect(url_for("finance.account_new"))
+            if not _is_leaf_gl_account(ok_gl.id, company):
+                flash(_("Somente contas contábeis de nível mais baixo podem receber transações."), "error")
                 return redirect(url_for("finance.account_new"))
 
         cp_obj = None
@@ -855,6 +931,62 @@ def transactions_list():
 def help_page():
     company = _get_company()
     return render_template("finance/help.html", tenant=g.tenant, company=company)
+
+
+@bp.route("/help/chat", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def help_chat():
+    _get_company()
+    data = request.get_json(silent=True) or {}
+    message = (data.get("message") or "").strip()
+    if not message:
+        return jsonify({"ok": False, "error": _("Mensagem vazia.")}), 400
+
+    text = message.lower()
+    help_url = url_for("finance.help_page")
+
+    if any(k in text for k in ["cashflow", "caixa", "tresor", "trésor", "tesorer", "treasury"]):
+        reply = _(
+            "Cashflow: entradas são positivas, saídas negativas. Você pode filtrar por conta, categoria e período na lista de transações."
+        )
+    elif any(k in text for k in ["liquidez", "liquidity", "liquidit", "liquidit", "liquidità"]):
+        reply = _(
+            "Liquidez: a visão estima caixa disponível por horizonte de tempo com base em contas, passivos e vencimentos informados."
+        )
+    elif any(k in text for k in ["gap", "gaps"]):
+        reply = _(
+            "GAP: mostra entradas menos saídas por bucket de tempo e também o acumulado para analisar pressão de liquidez."
+        )
+    elif any(k in text for k in ["nii", "juros", "interest", "intérêt", "interes", "interesse"]):
+        reply = _(
+            "NII: estima receita de juros menos custo de juros usando saldo, annual_rate e período."
+        )
+    elif any(k in text for k in ["recon", "reconc", "reconcil", "conciliation"]):
+        reply = _(
+            "Reconciliação: importe o extrato bancário, faça o match com transações e revise divergências antes de concluir."
+        )
+    elif any(k in text for k in ["plano", "conta", "chart of accounts", "coa", "gl", "ledger"]):
+        reply = _(
+            "Plano de contas: use a hierarquia por arrastar e soltar. Apenas contas de nível mais baixo aceitam lançamentos."
+        )
+    elif any(k in text for k in ["fatura", "invoice", "facture", "fattura", "factura"]):
+        reply = _(
+            "E-faturas: crie a fatura, valide os campos obrigatórios e exporte conforme o formato suportado."
+        )
+    else:
+        reply = _(
+            "Posso ajudar com Cashflow, Liquidez, GAP, NII, Reconciliação, Plano de contas e E-faturas."
+        )
+
+    reply = f"{reply} {_('Veja também a página de ajuda completa')}: {help_url}"
+    suggestions = [
+        _("Como funciona o cashflow?"),
+        _("Como interpretar a liquidez?"),
+        _("Como fazer reconciliação bancária?"),
+        _("Onde configuro o plano de contas?"),
+    ]
+    return jsonify({"ok": True, "reply": reply, "suggestions": suggestions})
 
 
 @bp.route("/settings/currencies", methods=["GET", "POST"])
@@ -1429,6 +1561,9 @@ def settings_categories():
         kind = (request.form.get("kind") or "expense").strip()
         default_gl = request.form.get("default_gl_account_id") or None
         default_gl_id = int(default_gl) if default_gl and default_gl.isdigit() else None
+        if default_gl_id and not _is_leaf_gl_account(default_gl_id, company):
+            flash(_("Somente contas contábeis de nível mais baixo podem receber transações."), "error")
+            return redirect(url_for("finance.settings_categories"))
         if not name:
             flash(_("Nome é obrigatório."), "error")
             return redirect(url_for("finance.settings_categories"))
@@ -1452,7 +1587,7 @@ def settings_categories():
         .order_by(FinanceCategoryRule.priority.asc())
         .all()
     )
-    gl_accounts = get_gl_accounts(company)
+    gl_accounts = get_postable_gl_accounts(company)
     counterparties = get_counterparties(company)
 
     return render_template(
@@ -1534,21 +1669,95 @@ def settings_gl():
         code = (request.form.get("code") or "").strip()
         name = (request.form.get("name") or "").strip()
         kind = (request.form.get("kind") or "expense").strip()
+        parent_raw = request.form.get("parent_gl_id") or ""
+        parent_id = int(parent_raw) if parent_raw.isdigit() else None
         if not code or not name:
             flash(_("Preencha todos os campos."), "error")
             return redirect(url_for("finance.settings_gl"))
-        db.session.add(FinanceGLAccount(tenant_id=g.tenant.id, company_id=company.id, code=code, name=name, kind=kind))
+        if parent_id:
+            parent = FinanceGLAccount.query.filter_by(id=parent_id, tenant_id=g.tenant.id, company_id=company.id).first()
+            if not parent:
+                flash(_("Conta contábil inválida."), "error")
+                return redirect(url_for("finance.settings_gl"))
+        else:
+            parent = None
+
+        max_sort = (
+            db.session.query(func.max(FinanceGLAccount.sort_order))
+            .filter_by(tenant_id=g.tenant.id, company_id=company.id, parent_id=(parent.id if parent else None))
+            .scalar()
+        )
+        db.session.add(
+            FinanceGLAccount(
+                tenant_id=g.tenant.id,
+                company_id=company.id,
+                code=code,
+                name=name,
+                kind=kind,
+                parent_id=(parent.id if parent else None),
+                sort_order=int(max_sort or 0) + 1,
+            )
+        )
         db.session.commit()
         flash(_("Conta contábil criada."), "success")
         return redirect(url_for("finance.settings_gl"))
 
     gl_accounts = get_gl_accounts(company)
+    gl_flat = _flatten_gl_accounts(gl_accounts)
+    gl_leaf_ids = _leaf_gl_ids(gl_accounts)
     return render_template(
         "finance/settings_gl.html",
         tenant=g.tenant,
         company=company,
         gl_accounts=gl_accounts,
+        gl_flat=gl_flat,
+        gl_leaf_ids=gl_leaf_ids,
     )
+
+
+@bp.route("/settings/gl/move", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def gl_move():
+    company = _get_company()
+    payload = request.get_json(silent=True) or {}
+
+    try:
+        dragged_id = int(payload.get("dragged_id") or 0)
+    except Exception:
+        dragged_id = 0
+
+    parent_raw = payload.get("parent_id")
+    try:
+        parent_id = int(parent_raw) if parent_raw not in (None, "", 0, "0") else None
+    except Exception:
+        parent_id = None
+
+    if not dragged_id:
+        return jsonify({"error": _("Conta contábil inválida.")}), 400
+
+    node = FinanceGLAccount.query.filter_by(id=dragged_id, tenant_id=g.tenant.id, company_id=company.id).first()
+    if not node:
+        return jsonify({"error": _("Conta contábil inválida.")}), 404
+
+    parent = None
+    if parent_id is not None:
+        parent = FinanceGLAccount.query.filter_by(id=parent_id, tenant_id=g.tenant.id, company_id=company.id).first()
+        if not parent:
+            return jsonify({"error": _("Conta contábil inválida.")}), 404
+        if int(parent.id) == int(node.id) or _is_descendant_gl_account(int(parent.id), int(node.id), company):
+            return jsonify({"error": _("Hierarquia inválida.")}), 400
+
+    max_sort = (
+        db.session.query(func.max(FinanceGLAccount.sort_order))
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id, parent_id=(parent.id if parent else None))
+        .scalar()
+    )
+    node.parent_id = parent.id if parent else None
+    node.sort_order = int(max_sort or 0) + 1
+    db.session.commit()
+
+    return jsonify({"ok": True})
 
 
 @bp.route("/settings/gl/<int:gl_id>/delete", methods=["POST"])
@@ -1771,6 +1980,8 @@ def banks_sync(conn_id: int):
                 cat_id = apply_category_rules(company, description=desc, counterparty_id=cp_obj.id if cp_obj else None, amount=amount)
                 cat_obj = FinanceCategory.query.filter_by(id=cat_id, tenant_id=g.tenant.id, company_id=company.id).first() if cat_id else None
                 gl_account_id = cat_obj.default_gl_account_id if cat_obj and cat_obj.default_gl_account_id else None
+                if gl_account_id and not _is_leaf_gl_account(gl_account_id, company):
+                    gl_account_id = None
 
                 db.session.add(
                     FinanceTransaction(
@@ -1821,7 +2032,7 @@ def reconciliation():
         .all()
     )
 
-    gl_accounts = get_gl_accounts(company)
+    gl_accounts = get_postable_gl_accounts(company)
     categories = get_categories(company)
 
     return render_template(
@@ -1837,10 +2048,18 @@ def reconciliation():
 def _get_bank_gl(company: FinanceCompany) -> FinanceGLAccount | None:
     # Prefer explicit bank GL code 512 if present
     gl = FinanceGLAccount.query.filter_by(tenant_id=g.tenant.id, company_id=company.id, code="512").first()
-    if gl:
+    if gl and _is_leaf_gl_account(gl.id, company):
         return gl
     # fallback: first asset account
-    return FinanceGLAccount.query.filter_by(tenant_id=g.tenant.id, company_id=company.id, kind="asset").first()
+    for candidate in (
+        FinanceGLAccount.query
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id, kind="asset")
+        .order_by(FinanceGLAccount.sort_order.asc(), FinanceGLAccount.code.asc())
+        .all()
+    ):
+        if _is_leaf_gl_account(candidate.id, company):
+            return candidate
+    return None
 
 
 @bp.route("/reconciliation/<int:txn_id>/create_voucher", methods=["POST"])
@@ -1868,6 +2087,10 @@ def reconcile_create_voucher(txn_id: int):
 
     if not gl_account:
         flash(_("Selecione uma conta contábil."), "error")
+        return redirect(url_for("finance.reconciliation"))
+
+    if not _is_leaf_gl_account(gl_account.id, company):
+        flash(_("Somente contas contábeis de nível mais baixo podem receber transações."), "error")
         return redirect(url_for("finance.reconciliation"))
 
     bank_gl = _get_bank_gl(company)
@@ -2664,7 +2887,8 @@ def quick_entry():
 
         # If category has a default GL mapping, set it.
         if cat and cat.default_gl_account_id:
-            txn.gl_account_id = cat.default_gl_account_id
+            if _is_leaf_gl_account(cat.default_gl_account_id, company):
+                txn.gl_account_id = cat.default_gl_account_id
 
         db.session.add(txn)
         db.session.commit()

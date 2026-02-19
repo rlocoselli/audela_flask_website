@@ -65,6 +65,7 @@ def report_to_pdf_bytes(
         row_limit=min(10, row_limit),
         col_limit=col_limit,
         lang=lang,
+        band_name="page_header",
         for_page_band=True,
     )
     page_footer_flows = _blocks_to_flowables(
@@ -77,6 +78,7 @@ def report_to_pdf_bytes(
         row_limit=min(10, row_limit),
         col_limit=col_limit,
         lang=lang,
+        band_name="page_footer",
         for_page_band=True,
     )
 
@@ -115,6 +117,7 @@ def report_to_pdf_bytes(
             row_limit=row_limit,
             col_limit=col_limit,
             lang=lang,
+            band_name="report_header",
         )
     )
 
@@ -129,6 +132,7 @@ def report_to_pdf_bytes(
             row_limit=row_limit,
             col_limit=col_limit,
             lang=lang,
+            band_name="detail",
         )
     )
 
@@ -143,6 +147,7 @@ def report_to_pdf_bytes(
             row_limit=row_limit,
             col_limit=col_limit,
             lang=lang,
+            band_name="report_footer",
         )
     )
 
@@ -204,9 +209,12 @@ def _blocks_to_flowables(
     row_limit: int,
     col_limit: int,
     lang: str | None,
+    band_name: str = "",
     for_page_band: bool = False,
 ) -> list[Any]:
     out: list[Any] = []
+    if band_name == "detail":
+        blocks = _coalesce_detail_data_rowsets(blocks)
 
     for b in blocks or []:
         btype = (b.get("type") or "").lower()
@@ -224,7 +232,8 @@ def _blocks_to_flowables(
 
             if content:
                 pstyle = _styled_paragraph_style(styles["BodyText"], bstyle)
-                out.append(Paragraph(_escape(_markdown_to_text(content)).replace("\n", "<br/>"), pstyle))
+                txt = _escape(_markdown_to_text(content)).replace("\n", "<br/>")
+                out.append(Paragraph(_apply_text_markup(txt, bstyle), pstyle))
                 out.append(Spacer(1, 8))
             continue
 
@@ -240,7 +249,124 @@ def _blocks_to_flowables(
                 out.append(Spacer(1, 3))
 
             pstyle = _styled_paragraph_style(styles["BodyText"], bstyle)
-            out.append(Paragraph(_escape(text), pstyle))
+            out.append(Paragraph(_apply_text_markup(_escape(text), bstyle), pstyle))
+            out.append(Spacer(1, 8))
+            continue
+
+        if btype == "data_field":
+            ttl = (b.get("title") or "").strip()
+            if ttl:
+                out.append(Paragraph(_escape(ttl), styles["Heading3"]))
+                out.append(Spacer(1, 3))
+
+            cfg = b.get("config") if isinstance(b.get("config"), dict) else {}
+            bind = (cfg.get("binding") or {}) if isinstance(cfg.get("binding"), dict) else {}
+
+            try:
+                value = _resolve_data_binding_value(bind, source, tenant_id, questions_by_id)
+            except Exception:
+                value = ""
+
+            value = _apply_bound_format(value, cfg.get("format"))
+            if value in (None, ""):
+                value = str(cfg.get("empty_text") or "")
+
+            pstyle = _styled_paragraph_style(styles["BodyText"], bstyle)
+            out.append(Paragraph(_apply_text_markup(_escape(str(value or "")), bstyle), pstyle))
+            out.append(Spacer(1, 8))
+            continue
+
+        if btype == "data_rowset":
+            ttl = (b.get("title") or "").strip()
+            if ttl:
+                out.append(Paragraph(_escape(ttl), styles["Heading3"]))
+                out.append(Spacer(1, 3))
+
+            cfg = b.get("config") if isinstance(b.get("config"), dict) else {}
+            bind = (cfg.get("binding") or {}) if isinstance(cfg.get("binding"), dict) else {}
+            cols_meta = b.get("columns_meta") if isinstance(b.get("columns_meta"), list) else []
+            headers = [str(c.get("title") or c.get("field") or "") for c in cols_meta]
+            col_styles = [c.get("style") if isinstance(c.get("style"), dict) else {} for c in cols_meta]
+
+            rows_rendered: list[list[str]] = []
+            group_idx = -1
+            group_label_tpl = 'Groupe: {group}'
+            group_count = False
+            for cidx, cm in enumerate(cols_meta):
+                if bool(cm.get("group_key")) and group_idx < 0:
+                    group_idx = cidx
+                    group_label_tpl = str(cm.get("group_label") or 'Groupe: {group}')
+                    group_count = True
+            try:
+                src_kind = (bind.get("source") or "").strip().lower()
+                if src_kind == "question":
+                    qid = int(bind.get("question_id") or 0)
+                    q = questions_by_id.get(qid)
+                    if not q:
+                        raise ValueError("Pergunta não encontrada")
+                    res = execute_sql(source, q.sql_text or "", {"tenant_id": tenant_id}, row_limit=max(20, row_limit))
+                    src_cols = res.get("columns") or []
+                    src_rows = res.get("rows") or []
+                    idx_map = [_find_col_index(src_cols, str(cm.get("field") or "")) for cm in cols_meta]
+                    for rr in src_rows:
+                        out_row: list[str] = []
+                        for k, cm in enumerate(cols_meta):
+                            ridx = idx_map[k]
+                            v = rr[ridx] if ridx >= 0 and isinstance(rr, (list, tuple)) and ridx < len(rr) else None
+                            s = _apply_bound_format(v, str(cm.get("format") or ""))
+                            if s in ("", None):
+                                s = str(cm.get("empty_text") or "")
+                            out_row.append(str(s or ""))
+                        rows_rendered.append(out_row)
+                elif src_kind == "table":
+                    table_name = _safe_ident(str(bind.get("table") or ""))
+                    fields = [_safe_ident(str(cm.get("field") or "")) for cm in cols_meta]
+                    sql = f"SELECT {', '.join(fields)} FROM {table_name} LIMIT {max(20, row_limit)}"
+                    res = execute_sql(source, sql, {"tenant_id": tenant_id}, row_limit=max(20, row_limit))
+                    src_rows = res.get("rows") or []
+                    for rr in src_rows:
+                        out_row = []
+                        for cidx, cm in enumerate(cols_meta):
+                            v = rr[cidx] if isinstance(rr, (list, tuple)) and cidx < len(rr) else None
+                            s = _apply_bound_format(v, str(cm.get("format") or ""))
+                            if s in ("", None):
+                                s = str(cm.get("empty_text") or "")
+                            out_row.append(str(s or ""))
+                        rows_rendered.append(out_row)
+            except Exception as e:
+                out.append(Paragraph(_escape(tr("Erro ao renderizar registros: {error}", lang).format(error=str(e))), styles["BodyText"]))
+                out.append(Spacer(1, 8))
+                continue
+
+            if rows_rendered:
+                if group_idx >= 0:
+                    groups: dict[str, list[list[str]]] = {}
+                    for rr in rows_rendered:
+                        gval = rr[group_idx] if group_idx < len(rr) else ''
+                        groups.setdefault(str(gval), []).append(rr)
+
+                    for gname, grows in groups.items():
+                        gtitle = group_label_tpl.replace('{group}', str(gname))
+                        if group_count:
+                            gtitle = f"{gtitle} ({len(grows)})"
+                        out.append(Paragraph(_escape(gtitle), styles["Heading4"]))
+                        out.append(Spacer(1, 3))
+                        data = [headers] + grows
+                        tbl = _safe_table(data, repeat_rows=1)
+                        tbl.setStyle(_table_style({"theme": "minimal", "zebra": True, "repeat_header": True}))
+                        _apply_zebra_to_table(tbl, enabled=True)
+                        _apply_column_styles_to_table(tbl, col_styles)
+                        out.append(tbl)
+                        out.append(Spacer(1, 6))
+                else:
+                    data = [headers] + rows_rendered
+                    tbl = _safe_table(data, repeat_rows=1)
+                    tbl.setStyle(_table_style({"theme": "minimal", "zebra": True, "repeat_header": True}))
+                    _apply_zebra_to_table(tbl, enabled=True)
+                    _apply_column_styles_to_table(tbl, col_styles)
+                    out.append(tbl)
+            else:
+                out.append(Paragraph(_escape(tr("Sem linhas retornadas.", lang)), styles["BodyText"]))
             out.append(Spacer(1, 8))
             continue
 
@@ -264,7 +390,7 @@ def _blocks_to_flowables(
 
             if caption:
                 cap_style = _styled_paragraph_style(styles["BodyText"], bstyle)
-                out.append(Paragraph(_escape(caption), cap_style))
+                out.append(Paragraph(_apply_text_markup(_escape(caption), bstyle), cap_style))
                 out.append(Spacer(1, 8))
             continue
 
@@ -290,12 +416,44 @@ def _blocks_to_flowables(
                 cols = (res.get("columns") or [])[:col_limit]
                 rows = [r[:col_limit] for r in (res.get("rows") or [])]
 
-                data = [cols] + [[_format_cell(c, decimals=decimals) for c in r] for r in rows]
+                sort_by = str(table_cfg.get("sort_by") or "").strip()
+                sort_dir = str(table_cfg.get("sort_dir") or "asc").strip().lower()
+                sort_idx = _find_col_index(cols, sort_by)
+                rows = _sort_rows(rows, sort_idx, sort_dir == "desc")
+
+                group_by = str(table_cfg.get("group_by") or "").strip()
+                group_label = str(table_cfg.get("group_label") or "{group}")
+                group_count = bool(table_cfg.get("group_count"))
+                group_idx = _find_col_index(cols, group_by)
 
                 repeat = bool(table_cfg.get("repeat_header", True))
-                tbl = Table(data, repeatRows=1 if repeat else 0)
-                tbl.setStyle(_table_style(table_cfg))
-                out.append(tbl)
+
+                if group_idx >= 0:
+                    groups: dict[str, list[list[Any]]] = {}
+                    for rr in rows:
+                        gv = rr[group_idx] if group_idx < len(rr) else ""
+                        gs = _format_cell(gv, decimals=None)
+                        groups.setdefault(gs, []).append(rr)
+
+                    for gname, grows in groups.items():
+                        gtitle = group_label.replace("{group}", str(gname or ""))
+                        if group_count:
+                            gtitle = f"{gtitle} ({len(grows)})"
+                        out.append(Paragraph(_escape(gtitle), styles["Heading4"]))
+                        out.append(Spacer(1, 3))
+
+                        data = [cols] + [[_format_cell(c, decimals=decimals) for c in r] for r in grows]
+                        tbl = _safe_table(data, repeat_rows=1 if repeat else 0)
+                        tbl.setStyle(_table_style(table_cfg))
+                        _apply_zebra_to_table(tbl, enabled=bool(table_cfg.get("zebra", True)))
+                        out.append(tbl)
+                        out.append(Spacer(1, 6))
+                else:
+                    data = [cols] + [[_format_cell(c, decimals=decimals) for c in r] for r in rows]
+                    tbl = _safe_table(data, repeat_rows=1 if repeat else 0)
+                    tbl.setStyle(_table_style(table_cfg))
+                    _apply_zebra_to_table(tbl, enabled=bool(table_cfg.get("zebra", True)))
+                    out.append(tbl)
             except Exception as e:
                 out.append(
                     Paragraph(
@@ -317,7 +475,6 @@ def _blocks_to_flowables(
 
 def _table_style(table_cfg: dict[str, Any]) -> TableStyle:
     theme = (table_cfg.get("theme") or "crystal").strip().lower()
-    zebra = bool(table_cfg.get("zebra", True))
 
     header_bg = (table_cfg.get("header_bg") or "").strip() or (
         "#e9f2ff" if theme == "devexpress" else "#f2f2f2" if theme == "crystal" else "#ffffff"
@@ -342,12 +499,6 @@ def _table_style(table_cfg: dict[str, Any]) -> TableStyle:
             ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor(grid)),
         ]
 
-    if zebra:
-        # alternate background for data rows (skip header)
-        for r in range(1, 500):
-            if r % 2 == 0:
-                st.append(("BACKGROUND", (0, r), (-1, r), colors.HexColor("#fafafa")))
-
     return TableStyle(st)
 
 
@@ -371,7 +522,27 @@ def _styled_paragraph_style(base: ParagraphStyle, style_dict: dict[str, Any]) ->
     if align in ("left", "center", "right"):
         p.alignment = {"left": 0, "center": 1, "right": 2}[align]
 
+    font_size = style_dict.get("font_size")
+    try:
+        if font_size not in (None, ""):
+            fs = max(8, min(72, int(font_size)))
+            p.fontSize = fs
+            p.leading = max(10, int(fs * 1.25))
+    except Exception:
+        pass
+
     return p
+
+
+def _apply_text_markup(text: str, style_dict: dict[str, Any]) -> str:
+    out = text or ""
+    if style_dict.get("underline"):
+        out = f"<u>{out}</u>"
+    if style_dict.get("italic"):
+        out = f"<i>{out}</i>"
+    if style_dict.get("bold"):
+        out = f"<b>{out}</b>"
+    return out
 
 
 # -----------------------------
@@ -536,6 +707,294 @@ def _download_image(url: str, *, max_bytes: int = 2_000_000) -> bytes:
         if len(data) > max_bytes:
             raise ValueError("image too large")
         return data
+
+
+def _safe_ident(name: str) -> str:
+    raw = str(name or "").strip()
+    if not raw:
+        raise ValueError("empty identifier")
+    parts = raw.split(".")
+    for p in parts:
+        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", p):
+            raise ValueError("invalid identifier")
+    return ".".join(parts)
+
+
+def _find_col_index(cols: list[Any], name: str) -> int:
+    needle = str(name or "").strip()
+    if not needle:
+        return -1
+    for i, c in enumerate(cols or []):
+        if str(c) == needle:
+            return i
+    low = needle.lower()
+    for i, c in enumerate(cols or []):
+        if str(c).lower() == low:
+            return i
+    return -1
+
+
+def _sort_rows(rows: list[list[Any]], idx: int, desc: bool) -> list[list[Any]]:
+    if idx < 0:
+        return rows
+
+    def key_fn(r: list[Any]):
+        v = r[idx] if isinstance(r, (list, tuple)) and idx < len(r) else None
+        if v is None:
+            return (1, "")
+        if isinstance(v, (int, float)):
+            return (0, float(v))
+        s = str(v)
+        try:
+            return (0, float(s))
+        except Exception:
+            return (0, s.lower())
+
+    try:
+        return sorted(rows, key=key_fn, reverse=desc)
+    except Exception:
+        return rows
+
+
+def _coalesce_detail_data_rowsets(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    i = 0
+    while i < len(blocks or []):
+        b = dict(blocks[i]) if isinstance(blocks[i], dict) else {}
+        btype = (b.get("type") or "").lower()
+        if btype != "data_field":
+            out.append(b)
+            i += 1
+            continue
+
+        cfg0 = b.get("config") if isinstance(b.get("config"), dict) else {}
+        bind0 = (cfg0.get("binding") or {}) if isinstance(cfg0.get("binding"), dict) else {}
+        src0 = (bind0.get("source") or "").strip().lower()
+        fld0 = str(bind0.get("field") or "").strip()
+        if src0 not in ("question", "table") or not fld0:
+            out.append(b)
+            i += 1
+            continue
+
+        base_key = f"{src0}:{bind0.get('question_id') if src0 == 'question' else bind0.get('table')}"
+        run: list[dict[str, Any]] = [b]
+        j = i + 1
+        while j < len(blocks or []):
+            nb = dict(blocks[j]) if isinstance(blocks[j], dict) else {}
+            ntype = (nb.get("type") or "").lower()
+            if ntype != "data_field":
+                break
+            ncfg = nb.get("config") if isinstance(nb.get("config"), dict) else {}
+            nbind = (ncfg.get("binding") or {}) if isinstance(ncfg.get("binding"), dict) else {}
+            nsrc = (nbind.get("source") or "").strip().lower()
+            nfield = str(nbind.get("field") or "").strip()
+            if nsrc not in ("question", "table") or not nfield:
+                break
+            nkey = f"{nsrc}:{nbind.get('question_id') if nsrc == 'question' else nbind.get('table')}"
+            if nkey != base_key:
+                break
+            run.append(nb)
+            j += 1
+
+        if len(run) >= 2:
+            cols_meta = []
+            for rb in run:
+                rcfg = rb.get("config") if isinstance(rb.get("config"), dict) else {}
+                rbind = (rcfg.get("binding") or {}) if isinstance(rcfg.get("binding"), dict) else {}
+                rst = rb.get("style") if isinstance(rb.get("style"), dict) else {}
+                cols_meta.append({
+                    "title": str(rb.get("title") or "").strip() or str(rbind.get("field") or ""),
+                    "field": str(rbind.get("field") or "").strip(),
+                    "format": str(rcfg.get("format") or "").strip(),
+                    "empty_text": str(rcfg.get("empty_text") or ""),
+                    "group_key": bool(rcfg.get("group_key")),
+                    "group_label": str(rcfg.get("group_label") or "Groupe: {group}"),
+                    "style": {
+                        "color": str(rst.get("color") or "").strip(),
+                        "background": str(rst.get("background") or "").strip(),
+                        "align": str(rst.get("align") or "").strip().lower(),
+                        "font_size": str(rst.get("font_size") or "").strip(),
+                        "bold": bool(rst.get("bold")),
+                        "italic": bool(rst.get("italic")),
+                        "underline": bool(rst.get("underline")),
+                    },
+                })
+            rowset = {
+                "type": "data_rowset",
+                "title": str(run[0].get("title") or "").strip(),
+                "config": {
+                    "binding": {
+                        "source": src0,
+                        "question_id": bind0.get("question_id"),
+                        "table": bind0.get("table"),
+                    }
+                },
+                "columns_meta": cols_meta,
+            }
+            out.append(rowset)
+            i = j
+            continue
+
+        out.append(b)
+        i += 1
+
+    return out
+
+
+def _font_name_from_style(style: dict[str, Any]) -> str:
+    bold = bool(style.get("bold"))
+    italic = bool(style.get("italic"))
+    if bold and italic:
+        return "Helvetica-BoldOblique"
+    if bold:
+        return "Helvetica-Bold"
+    if italic:
+        return "Helvetica-Oblique"
+    return "Helvetica"
+
+
+def _apply_column_styles_to_table(tbl: Table, col_styles: list[dict[str, Any]]) -> None:
+    cmds: list[tuple] = []
+    for cidx, st in enumerate(col_styles or []):
+        if not isinstance(st, dict):
+            continue
+
+        align = str(st.get("align") or "").strip().upper()
+        if align in ("LEFT", "CENTER", "RIGHT"):
+            cmds.append(("ALIGN", (cidx, 0), (cidx, -1), align))
+
+        font_name = _font_name_from_style(st)
+        cmds.append(("FONTNAME", (cidx, 0), (cidx, -1), font_name))
+
+        fsz = st.get("font_size")
+        try:
+            if fsz not in (None, ""):
+                fs = max(7, min(30, int(fsz)))
+                cmds.append(("FONTSIZE", (cidx, 0), (cidx, -1), fs))
+        except Exception:
+            pass
+
+        color = str(st.get("color") or "").strip()
+        if color:
+            try:
+                cmds.append(("TEXTCOLOR", (cidx, 0), (cidx, -1), colors.HexColor(color)))
+            except Exception:
+                pass
+
+        bg = str(st.get("background") or "").strip()
+        if bg:
+            try:
+                cmds.append(("BACKGROUND", (cidx, 1), (cidx, -1), colors.HexColor(bg)))
+            except Exception:
+                pass
+
+        if bool(st.get("underline")):
+            cmds.append(("LINEBELOW", (cidx, 1), (cidx, -1), 0.25, colors.HexColor("#777777")))
+
+    if cmds:
+        tbl.setStyle(TableStyle(cmds))
+
+
+def _normalize_table_data(data: list[Any]) -> list[list[Any]]:
+    rows_in = data if isinstance(data, list) else []
+    rows: list[list[Any]] = []
+    for r in rows_in:
+        if isinstance(r, (list, tuple)):
+            rows.append(list(r))
+        else:
+            rows.append([r])
+
+    if not rows:
+        return [[""]]
+
+    max_cols = max((len(r) for r in rows), default=0)
+    if max_cols <= 0:
+        return [[""]]
+
+    norm: list[list[Any]] = []
+    for r in rows:
+        rr = list(r)
+        if len(rr) < max_cols:
+            rr.extend([""] * (max_cols - len(rr)))
+        elif len(rr) > max_cols:
+            rr = rr[:max_cols]
+        norm.append(rr)
+    return norm
+
+
+def _safe_table(data: list[Any], *, repeat_rows: int = 0) -> Table:
+    safe_data = _normalize_table_data(data)
+    rr = max(0, min(int(repeat_rows or 0), len(safe_data) - 1))
+    return Table(safe_data, repeatRows=rr)
+
+
+def _apply_zebra_to_table(tbl: Table, *, enabled: bool) -> None:
+    if not enabled:
+        return
+    nrows = int(getattr(tbl, "_nrows", 0) or 0)
+    if nrows <= 2:
+        return
+    cmds: list[tuple] = []
+    for r in range(1, nrows):
+        if r % 2 == 0:
+            cmds.append(("BACKGROUND", (0, r), (-1, r), colors.HexColor("#fafafa")))
+    if cmds:
+        tbl.setStyle(TableStyle(cmds))
+
+
+def _resolve_data_binding_value(bind: dict[str, Any], source: Any, tenant_id: int, questions_by_id: dict[int, Any]) -> str:
+    source_kind = (bind.get("source") or "").strip().lower()
+    if source_kind == "question":
+        qid = int(bind.get("question_id") or 0)
+        field = str(bind.get("field") or "").strip()
+        q = questions_by_id.get(qid)
+        if not q:
+            return ""
+        res = execute_sql(source, q.sql_text or "", {"tenant_id": tenant_id}, row_limit=1)
+        cols = res.get("columns") or []
+        rows = res.get("rows") or []
+        if not rows:
+            return ""
+        idx = -1
+        for i, c in enumerate(cols):
+            if str(c) == field:
+                idx = i
+                break
+        if idx < 0:
+            for i, c in enumerate(cols):
+                if str(c).lower() == field.lower():
+                    idx = i
+                    break
+        if idx < 0:
+            return ""
+        row0 = rows[0] if isinstance(rows[0], (list, tuple)) else []
+        return _format_cell(row0[idx] if idx < len(row0) else "", decimals=None)
+
+    if source_kind == "table":
+        table_name = _safe_ident(bind.get("table") or "")
+        field_name = _safe_ident(bind.get("field") or "")
+        sql = f"SELECT {field_name} FROM {table_name} LIMIT 1"
+        res = execute_sql(source, sql, {"tenant_id": tenant_id}, row_limit=1)
+        rows = res.get("rows") or []
+        if not rows:
+            return ""
+        row0 = rows[0] if isinstance(rows[0], (list, tuple)) else []
+        return _format_cell(row0[0] if row0 else "", decimals=None)
+
+    return ""
+
+
+def _apply_bound_format(value: Any, fmt: Any) -> str:
+    raw = "" if value is None else str(value)
+    f = str(fmt or "").strip()
+    if not f:
+        return raw
+    if f.startswith(".") and len(f) >= 3 and f.endswith("f"):
+        try:
+            return format(float(raw), f)
+        except Exception:
+            return raw
+    return raw
 
 
 def _markdown_to_text(md: str) -> str:

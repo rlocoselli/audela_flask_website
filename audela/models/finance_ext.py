@@ -102,6 +102,8 @@ class FinanceGLAccount(db.Model):
     code = db.Column(db.String(32), nullable=False, index=True)
     name = db.Column(db.String(160), nullable=False)
     kind = db.Column(db.String(24), nullable=False, default="expense")  # asset|liability|equity|income|expense
+    parent_id = db.Column(db.Integer, db.ForeignKey("finance_gl_accounts.id", ondelete="SET NULL"), nullable=True, index=True)
+    sort_order = db.Column(db.Integer, nullable=False, default=0, index=True)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
