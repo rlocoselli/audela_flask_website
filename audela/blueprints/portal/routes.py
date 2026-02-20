@@ -380,36 +380,98 @@ def api_sources_new():
     Headers can be provided as JSON (optional).
     """
     _require_tenant()
+    form = {
+        "name": "",
+        "base_url": "",
+        "headers_json": "",
+        "enable_auth_flow": False,
+        "auth_url": "",
+        "auth_method": "POST",
+        "auth_headers_json": "",
+        "auth_body_json": "",
+        "token_json_path": "access_token",
+        "token_header_name": "Authorization",
+        "token_prefix": "Bearer",
+    }
+
     if request.method == "POST":
-        name = request.form.get("name", "").strip()
-        base_url = request.form.get("base_url", "").strip()
-        headers_raw = (request.form.get("headers_json", "") or "").strip()
+        import json
+
+        form = {
+            "name": request.form.get("name", "").strip(),
+            "base_url": request.form.get("base_url", "").strip(),
+            "headers_json": (request.form.get("headers_json", "") or "").strip(),
+            "enable_auth_flow": str(request.form.get("enable_auth_flow") or "").strip().lower() in ("1", "true", "on", "yes"),
+            "auth_url": request.form.get("auth_url", "").strip(),
+            "auth_method": (request.form.get("auth_method", "POST") or "POST").strip().upper(),
+            "auth_headers_json": (request.form.get("auth_headers_json", "") or "").strip(),
+            "auth_body_json": (request.form.get("auth_body_json", "") or "").strip(),
+            "token_json_path": request.form.get("token_json_path", "access_token").strip(),
+            "token_header_name": request.form.get("token_header_name", "Authorization").strip(),
+            "token_prefix": request.form.get("token_prefix", "Bearer").strip(),
+        }
+        name = form["name"]
+        base_url = form["base_url"]
+        headers_raw = form["headers_json"]
 
         if not name or not base_url:
             flash(tr("Preencha nome e URL base.", getattr(g, "lang", None)), "error")
-            return render_template("portal/api_sources_new.html", tenant=g.tenant)
+            return render_template("portal/api_sources_new.html", tenant=g.tenant, form=form)
 
         headers = None
         if headers_raw:
-            import json
-
             try:
                 headers = json.loads(headers_raw)
                 if not isinstance(headers, dict):
                     raise ValueError("headers_json must be a JSON object")
             except Exception as e:
                 flash(tr("JSON inválido em cabeçalhos: {error}", getattr(g, "lang", None), error=str(e)), "error")
-                return render_template(
-                    "portal/api_sources_new.html",
-                    tenant=g.tenant,
-                    form={"name": name, "base_url": base_url, "headers_json": headers_raw},
-                )
+                return render_template("portal/api_sources_new.html", tenant=g.tenant, form=form)
+
+        auth_flow: dict = {"enabled": False}
+        if form["enable_auth_flow"]:
+            auth_method = form["auth_method"] if form["auth_method"] in ("GET", "POST", "PUT", "PATCH") else "POST"
+            if not form["auth_url"]:
+                flash(tr("Informe a URL de autenticação para o fluxo de token.", getattr(g, "lang", None)), "error")
+                return render_template("portal/api_sources_new.html", tenant=g.tenant, form=form)
+
+            auth_headers = {}
+            if form["auth_headers_json"]:
+                try:
+                    auth_headers = json.loads(form["auth_headers_json"])
+                    if not isinstance(auth_headers, dict):
+                        raise ValueError("auth_headers_json must be a JSON object")
+                except Exception as e:
+                    flash(tr("JSON inválido em cabeçalhos de auth: {error}", getattr(g, "lang", None), error=str(e)), "error")
+                    return render_template("portal/api_sources_new.html", tenant=g.tenant, form=form)
+
+            auth_body = {}
+            if form["auth_body_json"]:
+                try:
+                    auth_body = json.loads(form["auth_body_json"])
+                    if not isinstance(auth_body, dict):
+                        raise ValueError("auth_body_json must be a JSON object")
+                except Exception as e:
+                    flash(tr("JSON inválido em body de auth: {error}", getattr(g, "lang", None), error=str(e)), "error")
+                    return render_template("portal/api_sources_new.html", tenant=g.tenant, form=form)
+
+            auth_flow = {
+                "enabled": True,
+                "url": form["auth_url"],
+                "method": auth_method,
+                "headers": auth_headers,
+                "body": auth_body,
+                "token_json_path": form["token_json_path"] or "access_token",
+                "token_header_name": form["token_header_name"] or "Authorization",
+                "token_prefix": form["token_prefix"] or "Bearer",
+            }
 
         from ...services.crypto import encrypt_json
 
         config = {
             "base_url": base_url,
             "headers": headers or {},
+            "auth_flow": auth_flow,
         }
 
         ds = DataSource(
@@ -431,7 +493,184 @@ def api_sources_new():
         flash(tr("Fonte API criada.", getattr(g, "lang", None)), "success")
         return redirect(url_for("portal.api_sources_list"))
 
-    return render_template("portal/api_sources_new.html", tenant=g.tenant)
+    return render_template("portal/api_sources_new.html", tenant=g.tenant, form=form)
+
+
+@bp.get("/sources/api/<int:source_id>/preview")
+@login_required
+@require_roles("tenant_admin", "creator")
+def api_sources_preview(source_id: int):
+    _require_tenant()
+    src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id, type="api").first_or_404()
+    cfg = decrypt_config(src) or {}
+    return render_template("portal/api_sources_preview.html", tenant=g.tenant, source=src, config=cfg)
+
+
+@bp.post("/api/sources/api/<int:source_id>/preview_call")
+@login_required
+@require_roles("tenant_admin", "creator")
+def api_sources_preview_call(source_id: int):
+    _require_tenant()
+    src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id, type="api").first_or_404()
+    cfg = decrypt_config(src) or {}
+    payload = request.get_json(silent=True) or {}
+
+    import json
+    import time
+    import requests
+
+    def _parse_obj(v, name: str):
+        if v in (None, ""):
+            return {}
+        if isinstance(v, dict):
+            return v
+        if isinstance(v, str):
+            vv = v.strip()
+            if not vv:
+                return {}
+            try:
+                obj = json.loads(vv)
+                if not isinstance(obj, dict):
+                    raise ValueError("not object")
+                return obj
+            except Exception:
+                raise ValueError(f"{name} inválido (JSON esperado)")
+        raise ValueError(f"{name} inválido")
+
+    def _extract_path(data, path: str):
+        cur = data
+        for part in [p for p in str(path or "").split(".") if p]:
+            if isinstance(cur, dict) and part in cur:
+                cur = cur[part]
+            else:
+                return None
+        return cur
+
+    try:
+        method = str(payload.get("method") or "GET").strip().upper()
+        if method not in ("GET", "POST", "PUT", "PATCH", "DELETE"):
+            return jsonify({"ok": False, "error": tr("Método HTTP inválido.", getattr(g, "lang", None))}), 400
+
+        url = str(payload.get("url") or cfg.get("base_url") or src.base_url or "").strip()
+        if not url:
+            return jsonify({"ok": False, "error": tr("URL é obrigatória.", getattr(g, "lang", None))}), 400
+
+        base_headers = cfg.get("headers") if isinstance(cfg.get("headers"), dict) else {}
+        req_headers = {}
+        req_headers.update(base_headers)
+        req_headers.update(_parse_obj(payload.get("headers"), "headers"))
+        req_params = _parse_obj(payload.get("params"), "params")
+        req_body = _parse_obj(payload.get("body"), "body")
+        timeout_s = int(payload.get("timeout") or 30)
+        timeout_s = max(3, min(timeout_s, 120))
+
+        use_auth_flow = bool(payload.get("use_auth_flow"))
+        auth_debug = None
+        if use_auth_flow:
+            auth_cfg_in = payload.get("auth_flow") if isinstance(payload.get("auth_flow"), dict) else {}
+            auth_cfg_base = cfg.get("auth_flow") if isinstance(cfg.get("auth_flow"), dict) else {}
+            auth_cfg = {**auth_cfg_base, **auth_cfg_in}
+            auth_url = str(auth_cfg.get("url") or "").strip()
+            auth_method = str(auth_cfg.get("method") or "POST").strip().upper()
+            auth_headers = _parse_obj(auth_cfg.get("headers"), "auth headers")
+            auth_body = _parse_obj(auth_cfg.get("body"), "auth body")
+            token_path = str(auth_cfg.get("token_json_path") or "access_token").strip()
+            token_header = str(auth_cfg.get("token_header_name") or "Authorization").strip() or "Authorization"
+            token_prefix = str(auth_cfg.get("token_prefix") or "Bearer").strip() or "Bearer"
+
+            if not auth_url:
+                return jsonify({"ok": False, "error": tr("Fluxo de auth ativo sem URL de autenticação.", getattr(g, "lang", None))}), 400
+            if auth_method not in ("GET", "POST", "PUT", "PATCH"):
+                auth_method = "POST"
+
+            auth_started = time.perf_counter()
+            auth_resp = requests.request(
+                method=auth_method,
+                url=auth_url,
+                headers=auth_headers,
+                params=(auth_body if auth_method == "GET" else None),
+                json=(auth_body if auth_method != "GET" else None),
+                timeout=timeout_s,
+            )
+            auth_elapsed = int((time.perf_counter() - auth_started) * 1000)
+            auth_text = auth_resp.text or ""
+            try:
+                auth_json = auth_resp.json()
+            except Exception:
+                auth_json = None
+            if auth_resp.status_code >= 400:
+                return jsonify({
+                    "ok": False,
+                    "error": tr("Falha na autenticação prévia ({code}).", getattr(g, "lang", None), code=auth_resp.status_code),
+                    "auth": {
+                        "status_code": auth_resp.status_code,
+                        "elapsed_ms": auth_elapsed,
+                        "headers": dict(auth_resp.headers or {}),
+                        "body": auth_json if auth_json is not None else auth_text[:20000],
+                    },
+                }), 400
+
+            token_val = _extract_path(auth_json if isinstance(auth_json, dict) else {}, token_path)
+            if token_val in (None, ""):
+                return jsonify({
+                    "ok": False,
+                    "error": tr("Token não encontrado no JSON de autenticação.", getattr(g, "lang", None)),
+                    "auth": {
+                        "status_code": auth_resp.status_code,
+                        "elapsed_ms": auth_elapsed,
+                    },
+                }), 400
+
+            req_headers[token_header] = f"{token_prefix} {token_val}".strip()
+            auth_debug = {
+                "status_code": auth_resp.status_code,
+                "elapsed_ms": auth_elapsed,
+                "token_header": token_header,
+                "token_prefix": token_prefix,
+                "token_json_path": token_path,
+            }
+
+        started = time.perf_counter()
+        resp = requests.request(
+            method=method,
+            url=url,
+            headers=req_headers,
+            params=req_params,
+            json=(req_body if method in ("POST", "PUT", "PATCH") else None),
+            timeout=timeout_s,
+        )
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+
+        txt = resp.text or ""
+        try:
+            body = resp.json()
+        except Exception:
+            body = txt[:20000]
+
+        return jsonify({
+            "ok": True,
+            "request": {
+                "method": method,
+                "url": url,
+                "headers": req_headers,
+                "params": req_params,
+                "body": req_body,
+                "timeout": timeout_s,
+            },
+            "auth": auth_debug,
+            "response": {
+                "status_code": resp.status_code,
+                "elapsed_ms": elapsed_ms,
+                "headers": dict(resp.headers or {}),
+                "body": body,
+            },
+        })
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    except requests.RequestException as e:
+        return jsonify({"ok": False, "error": tr("Erro de rede/API: {error}", getattr(g, "lang", None), error=str(e))}), 502
+    except Exception as e:
+        return jsonify({"ok": False, "error": tr("Erro ao executar preview: {error}", getattr(g, "lang", None), error=str(e))}), 500
 
 
 @bp.route("/sources/<int:source_id>/delete", methods=["POST"])
@@ -2627,6 +2866,7 @@ def report_view(report_id: int):
         }
 
     from datetime import datetime, date
+    import re
 
     def _fmt_date(dt: object, fmt: str) -> str:
         fmt = (fmt or "dd/MM/yyyy").strip()
@@ -2674,6 +2914,60 @@ def report_view(report_id: int):
             return _fmt_number(v, decimals)
         return str(v)
 
+    def _to_float(v: object) -> float | None:
+        try:
+            if v is None:
+                return None
+            if isinstance(v, bool):
+                return float(int(v))
+            if isinstance(v, (int, float)):
+                return float(v)
+            s = str(v).strip()
+            if not s:
+                return None
+            s = s.replace(" ", "")
+            if "," in s and "." not in s:
+                s = s.replace(",", ".")
+            elif "," in s and "." in s:
+                s = s.replace(",", "")
+            return float(s)
+        except Exception:
+            return None
+
+    def _group_metric(rows: list, cols: list, mode: str, sum_field: str) -> float | int | None:
+        m = str(mode or "").strip().lower()
+        if m == "count":
+            return len(rows or [])
+        if m != "sum":
+            return None
+        idx = _find_col_index(cols, sum_field)
+        if idx < 0:
+            return None
+        total = 0.0
+        used = False
+        for r in rows or []:
+            if not isinstance(r, (list, tuple)) or idx >= len(r):
+                continue
+            num = _to_float(r[idx])
+            if num is None:
+                continue
+            total += num
+            used = True
+        if not used:
+            return None
+        return total
+
+    def _format_group_metric(v: float | int | None, mode: str, decimals: int | None, date_fmt: str | None) -> str:
+        if v is None:
+            return ""
+        m = str(mode or "").strip().lower()
+        if m == "count":
+            try:
+                return str(int(v))
+            except Exception:
+                return str(v)
+        return _format_cell(v, decimals, date_fmt)
+
     def _find_col_index(cols: list, name: str) -> int:
         needle = str(name or "").strip()
         if not needle:
@@ -2710,6 +3004,43 @@ def report_view(report_id: int):
             return sorted(rows, key=key_fn, reverse=desc)
         except Exception:
             return rows
+
+    def _apply_filter_rows(rows: list, cols: list, field: str, op: str, value: str) -> list:
+        idx = _find_col_index(cols, field)
+        if idx < 0:
+            return rows
+        oper = str(op or "").strip().lower()
+        needle = str(value or "")
+        if oper not in ("eq", "contains", "gt", "gte", "lt", "lte"):
+            return rows
+
+        def _num(v: object) -> float | None:
+            return _to_float(v)
+
+        out = []
+        for r in rows or []:
+            rv = r[idx] if isinstance(r, (list, tuple)) and idx < len(r) else None
+            ok = False
+            if oper == "eq":
+                ok = str(rv or "").strip().lower() == needle.strip().lower()
+            elif oper == "contains":
+                ok = needle.strip().lower() in str(rv or "").lower()
+            else:
+                a = _num(rv)
+                b = _num(needle)
+                if a is None or b is None:
+                    ok = False
+                elif oper == "gt":
+                    ok = a > b
+                elif oper == "gte":
+                    ok = a >= b
+                elif oper == "lt":
+                    ok = a < b
+                elif oper == "lte":
+                    ok = a <= b
+            if ok:
+                out.append(r)
+        return out
 
     def _apply_bound_format(v: object, fmt: str) -> str:
         f = str(fmt or "").strip()
@@ -2770,6 +3101,108 @@ def report_view(report_id: int):
         row0 = rows[0] if isinstance(rows[0], (list, tuple)) else []
         return _format_cell(row0[0] if row0 else "", None, None)
 
+    _q_cache: dict[int, tuple[list, list]] = {}
+    _tbl_cache: dict[str, tuple[list, list]] = {}
+
+    def _question_result(qid: int) -> tuple[list, list]:
+        q = q_by_id.get(int(qid or 0))
+        if not q:
+            return [], []
+        qqid = int(q.id)
+        if qqid in _q_cache:
+            return _q_cache[qqid]
+        try:
+            res = execute_sql(src, q.sql_text or "", {"tenant_id": g.tenant.id}, row_limit=1000)
+            cols = res.get("columns") or []
+            rows = res.get("rows") or []
+            _q_cache[qqid] = (cols, rows)
+            return cols, rows
+        except Exception:
+            return [], []
+
+    def _table_result(table_name: str) -> tuple[list, list]:
+        t = str(table_name or "").strip()
+        if not t:
+            return [], []
+        if t in _tbl_cache:
+            return _tbl_cache[t]
+        try:
+            sql = f"SELECT * FROM {_safe_ident(t)} LIMIT 1000"
+            res = execute_sql(src, sql, {"tenant_id": g.tenant.id}, row_limit=1000)
+            cols = res.get("columns") or []
+            rows = res.get("rows") or []
+            _tbl_cache[t] = (cols, rows)
+            return cols, rows
+        except Exception:
+            return [], []
+
+    _ph_re = re.compile(r"\{\{\s*([^{}]+?)\s*\}\}")
+
+    def _resolve_ref(expr: str) -> tuple[list, list, str | None]:
+        s = str(expr or "").strip()
+        m = re.match(r"^question[:.]\s*(\d+)(?:\.([A-Za-z_][A-Za-z0-9_]*))?$", s, flags=re.I)
+        if m:
+            qid = int(m.group(1))
+            fld = m.group(2)
+            cols, rows = _question_result(qid)
+            return cols, rows, fld
+        m = re.match(r"^table[:.]\s*([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?)(?:\.([A-Za-z_][A-Za-z0-9_]*))?$", s, flags=re.I)
+        if m:
+            tbl = m.group(1)
+            fld = m.group(2)
+            cols, rows = _table_result(tbl)
+            return cols, rows, fld
+        return [], [], None
+
+    def _resolve_placeholder_text(text: str) -> str:
+        raw = str(text or "")
+
+        def repl(m):
+            key = str(m.group(1) or "").strip()
+            low = key.lower()
+            if low == "date":
+                return _fmt_date(datetime.now(), "dd/MM/yyyy")
+            if low == "datetime":
+                return _fmt_date(datetime.now(), "dd/MM/yyyy HH:mm")
+
+            fm = re.match(r"^(sum|avg|count)\((.+)\)$", key, flags=re.I)
+            if fm:
+                fn = fm.group(1).lower()
+                ref = fm.group(2).strip()
+                cols, rows, fld = _resolve_ref(ref)
+                if not rows:
+                    return ""
+                if fn == "count":
+                    return str(len(rows))
+                idx = _find_col_index(cols, fld or "")
+                if idx < 0:
+                    return ""
+                nums = []
+                for r in rows:
+                    if not isinstance(r, (list, tuple)) or idx >= len(r):
+                        continue
+                    n = _to_float(r[idx])
+                    if n is not None:
+                        nums.append(n)
+                if not nums:
+                    return ""
+                if fn == "sum":
+                    return _format_cell(sum(nums), 2, None)
+                if fn == "avg":
+                    return _format_cell(sum(nums) / len(nums), 2, None)
+                return ""
+
+            cols, rows, fld = _resolve_ref(key)
+            if rows and fld:
+                idx = _find_col_index(cols, fld)
+                if idx >= 0:
+                    r0 = rows[0] if isinstance(rows[0], (list, tuple)) else []
+                    if isinstance(r0, (list, tuple)) and idx < len(r0):
+                        return _format_cell(r0[idx], None, None)
+            return m.group(0)
+
+        return _ph_re.sub(repl, raw)
+
     # Build a render-friendly bands structure and prefetch tables per block
     render_bands: dict[str, list[dict]] = {}
     blocks_data: dict[str, dict] = {}
@@ -2823,6 +3256,13 @@ def report_view(report_id: int):
 
                     try:
                         dataset_rows = []
+                        table_style_cfg = (first_cfg.get("table") if isinstance(first_cfg.get("table"), dict) else {})
+                        table_style_cfg = {
+                            "theme": str(table_style_cfg.get("theme") or "crystal").strip().lower() or "crystal",
+                            "zebra": bool(table_style_cfg.get("zebra")),
+                            "repeat_header": bool(table_style_cfg.get("repeat_header", True)),
+                            "header_bg": str(table_style_cfg.get("header_bg") or "").strip(),
+                        }
                         if source_kind == "question":
                             qid = int(first_bind.get("question_id") or 0)
                             q = q_by_id.get(qid)
@@ -2900,9 +3340,16 @@ def report_view(report_id: int):
                                 "underline": bool(rst.get("underline")),
                             })
 
+                        rowset_title = str(bb.get("title") or "").strip()
+                        if headers and rowset_title and rowset_title.strip().lower() == str(headers[0]).strip().lower():
+                            rowset_title = ""
+
                         rowset_block = {
                             "type": "data_rowset",
-                            "title": bb.get("title") or "",
+                            "title": rowset_title,
+                            "config": {
+                                "table": table_style_cfg,
+                            },
                             "_key": key,
                         }
                         out_list.append(rowset_block)
@@ -2955,6 +3402,12 @@ def report_view(report_id: int):
                         cols = res.get("columns") or []
                         rows = res.get("rows") or []
 
+                        filter_field = str(tcfg.get("filter_field") or "").strip()
+                        filter_op = str(tcfg.get("filter_op") or "").strip().lower()
+                        filter_value = str(tcfg.get("filter_value") or "").strip()
+                        if filter_field and filter_op:
+                            rows = _apply_filter_rows(rows, cols, filter_field, filter_op, filter_value)
+
                         sort_by = str(tcfg.get("sort_by") or "").strip()
                         sort_dir = str(tcfg.get("sort_dir") or "asc").strip().lower()
                         sort_idx = _find_col_index(cols, sort_by)
@@ -2963,30 +3416,56 @@ def report_view(report_id: int):
                         group_by = str(tcfg.get("group_by") or "").strip()
                         group_label = str(tcfg.get("group_label") or "{group}")
                         group_count = bool(tcfg.get("group_count"))
+                        group_subtotal_mode = str(tcfg.get("group_subtotal_mode") or "").strip().lower()
+                        if group_subtotal_mode not in ("count", "sum"):
+                            group_subtotal_mode = ""
+                        group_subtotal_field = str(tcfg.get("group_subtotal_field") or "").strip()
+                        group_subtotal_label = str(tcfg.get("group_subtotal_label") or "").strip() or "Sous-total"
+                        grand_total = bool(tcfg.get("grand_total"))
+                        grand_total_label = str(tcfg.get("grand_total_label") or "").strip() or "Grand total"
+                        footer_item_count = bool(tcfg.get("footer_item_count"))
+                        footer_item_count_label = str(tcfg.get("footer_item_count_label") or "").strip() or "Items"
                         group_idx = _find_col_index(cols, group_by)
 
                         # format cells
                         rows_fmt = [[_format_cell(c, decimals, date_fmt) for c in r] for r in rows]
 
                         payload = {"columns": cols, "rows": rows_fmt}
+                        if footer_item_count:
+                            payload["footer_item_count"] = f"{footer_item_count_label}: {len(rows)}"
                         if group_idx >= 0:
-                            groups_map: dict[str, list[list[str]]] = {}
+                            groups_map: dict[str, dict[str, list]] = {}
                             for rr, rf in zip(rows, rows_fmt):
                                 gv = rr[group_idx] if isinstance(rr, (list, tuple)) and group_idx < len(rr) else ""
                                 gs = _format_cell(gv, None, date_fmt)
-                                groups_map.setdefault(gs, []).append(rf)
+                                bucket = groups_map.setdefault(gs, {"raw": [], "fmt": []})
+                                bucket["raw"].append(rr)
+                                bucket["fmt"].append(rf)
 
                             groups = []
-                            for gname, grows in groups_map.items():
+                            for gname, group_data in groups_map.items():
+                                grows_raw = group_data.get("raw") or []
+                                grows_fmt = group_data.get("fmt") or []
                                 label = group_label.replace("{group}", str(gname or ""))
-                                groups.append({
+                                grp_payload = {
                                     "name": gname,
                                     "label": label,
-                                    "count": len(grows),
-                                    "rows": grows,
-                                })
+                                    "count": len(grows_fmt),
+                                    "rows": grows_fmt,
+                                }
+                                if group_subtotal_mode:
+                                    subtotal_value = _group_metric(grows_raw, cols, group_subtotal_mode, group_subtotal_field)
+                                    subtotal_text = _format_group_metric(subtotal_value, group_subtotal_mode, decimals, date_fmt)
+                                    if subtotal_text != "":
+                                        grp_payload["subtotal"] = f"{group_subtotal_label}: {subtotal_text}"
+                                groups.append(grp_payload)
                             payload["groups"] = groups
                             payload["group_count"] = group_count
+                        if grand_total and group_subtotal_mode:
+                            grand_value = _group_metric(rows, cols, group_subtotal_mode, group_subtotal_field)
+                            grand_text = _format_group_metric(grand_value, group_subtotal_mode, decimals, date_fmt)
+                            if grand_text != "":
+                                payload["grand_total"] = f"{grand_total_label}: {grand_text}"
                         blocks_data[key] = payload
                     except Exception as e:
                         blocks_data[key] = {"columns": [], "rows": [], "error": str(e)}
@@ -2998,6 +3477,15 @@ def report_view(report_id: int):
                 now = datetime.now()
                 val = _fmt_date(now, fmt)
                 bb["value"] = val
+
+            elif btype in ("text", "markdown"):
+                raw_content = bb.get("content") if bb.get("content") is not None else bb.get("text")
+                if raw_content is not None:
+                    resolved = _resolve_placeholder_text(str(raw_content))
+                    bb["content"] = resolved
+                    bb["text"] = resolved
+                if bb.get("title"):
+                    bb["title"] = _resolve_placeholder_text(str(bb.get("title") or ""))
 
             elif btype == "data_field":
                 cfg = bb.get("config") if isinstance(bb.get("config"), dict) else {}

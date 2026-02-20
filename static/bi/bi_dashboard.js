@@ -1,6 +1,69 @@
 /* global GridStack, echarts */
 
 (function () {
+  let _biModal = null;
+
+  function ensureModal () {
+    if (_biModal) return _biModal;
+    const host = document.createElement('div');
+    host.innerHTML = `
+      <div class="modal fade" id="biUiModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="biUiModalTitle">Information</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="biUiModalBody"></div>
+            <div class="modal-footer" id="biUiModalFooter"></div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(host.firstElementChild);
+    const el = document.getElementById('biUiModal');
+    _biModal = {
+      el,
+      title: document.getElementById('biUiModalTitle'),
+      body: document.getElementById('biUiModalBody'),
+      footer: document.getElementById('biUiModalFooter'),
+      bs: new bootstrap.Modal(el)
+    };
+    return _biModal;
+  }
+
+  function uiAlert (message, title) {
+    const m = ensureModal();
+    m.title.textContent = title || 'Information';
+    m.body.textContent = String(message || '');
+    m.footer.innerHTML = `<button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>`;
+    m.bs.show();
+  }
+
+  function uiConfirm (message, title) {
+    const m = ensureModal();
+    m.title.textContent = title || 'Confirmation';
+    m.body.textContent = String(message || '');
+    m.footer.innerHTML = `
+      <button type="button" class="btn btn-outline-secondary" data-ui-no>${window.t ? window.t('Cancelar') : 'Cancel'}</button>
+      <button type="button" class="btn btn-primary" data-ui-yes>${window.t ? window.t('Confirmer') : 'Confirm'}</button>
+    `;
+    return new Promise(resolve => {
+      const yes = m.footer.querySelector('[data-ui-yes]');
+      const no = m.footer.querySelector('[data-ui-no]');
+      let settled = false;
+      const done = (v) => {
+        if (settled) return;
+        settled = true;
+        resolve(v);
+      };
+      yes?.addEventListener('click', () => { m.bs.hide(); done(true); }, { once: true });
+      no?.addEventListener('click', () => { m.bs.hide(); done(false); }, { once: true });
+      m.el.addEventListener('hidden.bs.modal', () => done(false), { once: true });
+      m.bs.show();
+    });
+  }
+
   function getCsrfToken () {
     return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
   }
@@ -167,11 +230,11 @@ function boot () {
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok) {
           if (window.uiToast) window.uiToast((data && data.error) ? data.error : window.t('Falha ao salvar layout.'), { variant: 'danger' });
-          else alert((data && data.error) ? data.error : window.t('Falha ao salvar layout.'));
+          else uiAlert((data && data.error) ? data.error : window.t('Falha ao salvar layout.'), window.t('Erreur'));
           return;
         }
         if (window.uiToast) window.uiToast(window.t('Layout salvo.'), { variant: 'success' });
-        else alert(window.t('Layout salvo.'));
+        else uiAlert(window.t('Layout salvo.'), window.t('Succès'));
         setEditMode(false);
       });
     }
@@ -197,16 +260,16 @@ if (qSearch) qSearch.addEventListener('input', filterQuestions);
 if (createBtn) {
   createBtn.addEventListener('click', async () => {
     const qid = Number(qSel?.value || 0);
-    if (!qid) { if (window.uiToast) window.uiToast(window.t('Selecione uma pergunta.'), { variant: 'danger' }); else alert(window.t('Selecione uma pergunta.')); return; }
+    if (!qid) { if (window.uiToast) window.uiToast(window.t('Selecione uma pergunta.'), { variant: 'danger' }); else uiAlert(window.t('Selecione uma pergunta.'), window.t('Validation')); return; }
     let params = {};
     if (paramsEl && paramsEl.value.trim()) {
-      try { params = JSON.parse(paramsEl.value); } catch (e) { if (window.uiToast) window.uiToast(window.t('Parâmetros JSON inválidos.'), { variant: 'danger' }); else alert(window.t('Parâmetros JSON inválidos.')); return; }
+      try { params = JSON.parse(paramsEl.value); } catch (e) { if (window.uiToast) window.uiToast(window.t('Parâmetros JSON inválidos.'), { variant: 'danger' }); else uiAlert(window.t('Parâmetros JSON inválidos.'), window.t('Validation')); return; }
     }
     const vizType = typeSel?.value || 'table';
     try {
       await apiAddCard(dashboardId, qid, params, vizType);
     } catch (e) {
-      if (window.uiToast) window.uiToast(String(e.message || e), { variant: 'danger' }); else alert(String(e.message || e));
+      if (window.uiToast) window.uiToast(String(e.message || e), { variant: 'danger' }); else uiAlert(String(e.message || e), window.t('Erreur'));
     }
   });
 }
@@ -218,12 +281,13 @@ document.querySelectorAll('[data-card-remove="1"]').forEach(btn => {
     const item = btn.closest('.grid-stack-item');
     const cardId = Number(item?.getAttribute('data-card-id') || 0);
     if (!cardId) return;
-    if (!confirm(window.t('Remover card?'))) return;
+    const ok = await uiConfirm(window.t('Remover card?'), window.t('Confirmação'));
+    if (!ok) return;
     try {
       await apiDeleteCard(dashboardId, cardId);
       if (item) grid.removeWidget(item);
     } catch (err) {
-      if (window.uiToast) window.uiToast(String(err.message || err), { variant: 'danger' }); else alert(String(err.message || err));
+      if (window.uiToast) window.uiToast(String(err.message || err), { variant: 'danger' }); else uiAlert(String(err.message || err), window.t('Erreur'));
     }
   });
 });

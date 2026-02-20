@@ -1,5 +1,43 @@
 /* global BI */
 (function () {
+  let _biModal = null;
+
+  function ensureModal () {
+    if (_biModal) return _biModal;
+    const host = document.createElement('div');
+    host.innerHTML = `
+      <div class="modal fade" id="biExploreModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="biExploreModalTitle">Information</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="biExploreModalBody"></div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(host.firstElementChild);
+    const el = document.getElementById('biExploreModal');
+    _biModal = {
+      title: document.getElementById('biExploreModalTitle'),
+      body: document.getElementById('biExploreModalBody'),
+      bs: new bootstrap.Modal(el)
+    };
+    return _biModal;
+  }
+
+  function uiAlert (message, title) {
+    const m = ensureModal();
+    m.title.textContent = title || 'Information';
+    m.body.textContent = String(message || '');
+    m.bs.show();
+  }
+
   function getCsrfToken () {
     return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
   }
@@ -205,7 +243,7 @@
       const params = parseParams();
       if (params === null) {
         if (window.uiToast) window.uiToast(window.t('Parâmetros JSON inválidos.'), { variant: 'danger' });
-        else alert(window.t('Parâmetros JSON inválidos.'));
+        else uiAlert(window.t('Parâmetros JSON inválidos.'), window.t('Validation'));
         return;
       }
       setStatus(window.t('Carregando...'));
@@ -242,7 +280,7 @@
       } catch (e) {
         setStatus(window.t('Erro'));
         if (window.uiToast) window.uiToast(String(e.message || e), { variant: 'danger' });
-        else alert(String(e.message || e));
+        else uiAlert(String(e.message || e), window.t('Erreur'));
       }
     }
 
@@ -317,10 +355,10 @@
       try {
         await saveViz(qid, cfgFromUi());
         if (window.uiToast) window.uiToast(window.t('Visualização salva.'), { variant: 'success' });
-        else alert(window.t('Visualização salva.'));
+        else uiAlert(window.t('Visualização salva.'), window.t('Succès'));
       } catch (e) {
         if (window.uiToast) window.uiToast(String(e.message || e), { variant: 'danger' });
-        else alert(String(e.message || e));
+        else uiAlert(String(e.message || e), window.t('Erreur'));
       }
     });
 
@@ -331,10 +369,10 @@
       try {
         await addToDashboard(did, qid, cfgFromUi());
         if (window.uiToast) window.uiToast(window.t('Card adicionado ao dashboard.'), { variant: 'success' });
-        else alert(window.t('Card adicionado ao dashboard.'));
+        else uiAlert(window.t('Card adicionado ao dashboard.'), window.t('Succès'));
       } catch (e) {
         if (window.uiToast) window.uiToast(String(e.message || e), { variant: 'danger' });
-        else alert(String(e.message || e));
+        else uiAlert(String(e.message || e), window.t('Erreur'));
       }
     });
 

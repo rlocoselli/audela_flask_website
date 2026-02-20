@@ -185,7 +185,7 @@
 
       <div class="fw-semibold mb-2">{{ _('Dica') }}</div>
       <div class="text-muted small">
-        {{ _('Bandas tipo Crystal/DevExpress: Report Header (1ª página), Page Header (todas), Detail, Page Footer (todas), Report Footer (última). Clique no bloco para editar.') }}
+        {{ _('Bandas de relatório: Report Header (1ª página), Page Header (todas), Detail, Page Footer (todas), Report Footer (última). Clique no bloco para editar.') }}
       </div>
     </div>
 
@@ -193,6 +193,25 @@
 
     <div class="rb-panel p-3 mb-4" id="rb-settings-panel">
       <div class="fw-semibold mb-2">{{ _('Configurações') }}</div>
+      <div class="mb-3">
+        <label class="form-label">{{ _('Templates de document') }}</label>
+        <div class="btn-group w-100" role="group" aria-label="Document templates">
+          <button type="button" class="btn btn-outline-secondary" data-rb-doc-template="invoice">{{ _('Facture') }}</button>
+          <button type="button" class="btn btn-outline-secondary" data-rb-doc-template="letter">{{ _('Lettre') }}</button>
+          <button type="button" class="btn btn-outline-secondary" data-rb-doc-template="quote">{{ _('Devis') }}</button>
+        </div>
+        <div class="form-text">{{ _('Préremplit le rapport avec une structure type. Vous pouvez ensuite personnaliser les champs.') }}</div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">{{ _('Template de estilo do relatório') }}</label>
+        <div class="btn-group w-100" role="group" aria-label="Report style templates">
+          <button type="button" class="btn btn-outline-secondary" data-rb-style-template="crystal">{{ _('Classique') }}</button>
+          <button type="button" class="btn btn-outline-secondary" data-rb-style-template="professional">{{ _('Professionnel') }}</button>
+          <button type="button" class="btn btn-outline-secondary" data-rb-style-template="minimal">{{ _('Minimaliste') }}</button>
+        </div>
+        <div class="form-text">{{ _('Aplica o estilo em todas as tabelas de Pergunta com um clique.') }}</div>
+      </div>
       <div class="form-check mb-2">
         <input class="form-check-input" type="checkbox" id="rb-setting-page-number" checked />
         <label class="form-check-label" for="rb-setting-page-number">{{ _('Numeração de páginas no PDF') }}</label>
@@ -351,6 +370,26 @@
               <button type="button" class="btn btn-sm btn-outline-secondary" data-rb-insert="\n---\n" title="{{ _('Separador') }}"><i class="bi bi-hr"></i></button>
             </div>
             <textarea class="form-control" id="rb-edit-content" rows="8"></textarea>
+            <div class="row g-2 mt-1">
+              <div class="col-md-9">
+                <input class="form-control" id="rb-edit-placeholder-input" list="rb-edit-placeholder-list" placeholder="{{ _('Insérer un placeholder (ex: {{question:12.amount}} ou {{sum(question:12.amount)}})') }}" />
+                <datalist id="rb-edit-placeholder-list"></datalist>
+              </div>
+              <div class="col-md-3 d-grid">
+                <button type="button" class="btn btn-outline-secondary" id="rb-edit-insert-placeholder">{{ _('Insérer placeholder') }}</button>
+              </div>
+              <div class="col-12">
+                <div class="form-text">{{ _('Formules supportées: {{sum(question:ID.champ)}}, {{avg(question:ID.champ)}}, {{count(question:ID)}} et équivalents table.') }}</div>
+                <div class="d-flex flex-wrap gap-2 mt-1">
+                  <span class="small text-muted">{{ _('Exemples :') }}</span>
+                  <button type="button" class="btn btn-sm btn-outline-secondary" data-rb-insert-placeholder-example="{{ '{{date}}' }}">{{ '{{date}}' }}</button>
+                  <button type="button" class="btn btn-sm btn-outline-secondary" data-rb-insert-placeholder-example="{{ '{{question:12.amount}}' }}">{{ '{{question:12.amount}}' }}</button>
+                  <button type="button" class="btn btn-sm btn-outline-secondary" data-rb-insert-placeholder-example="{{ '{{sum(question:12.amount)}}' }}">{{ '{{sum(question:12.amount)}}' }}</button>
+                  <button type="button" class="btn btn-sm btn-outline-secondary" data-rb-insert-placeholder-example="{{ '{{count(question:12)}}' }}">{{ '{{count(question:12)}}' }}</button>
+                  <button type="button" class="btn btn-sm btn-outline-secondary" data-rb-insert-placeholder-example="{{ '{{table:finance_invoices.total}}' }}">{{ '{{table:finance_invoices.total}}' }}</button>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="d-none" id="rb-edit-image-group">
@@ -414,9 +453,9 @@
               <div class="col-md-6">
                 <label class="form-label" for="rb-edit-q-theme">{{ _('Tema da tabela') }}</label>
                 <select class="form-select" id="rb-edit-q-theme">
-                  <option value="crystal">Crystal</option>
-                  <option value="devexpress">DevExpress</option>
-                  <option value="minimal">Minimal</option>
+                  <option value="crystal">{{ _('Standard') }}</option>
+                  <option value="professional">{{ _('Pro') }}</option>
+                  <option value="minimal">{{ _('Léger') }}</option>
                 </select>
               </div>
               <div class="col-md-3">
@@ -455,6 +494,78 @@
                   <input class="form-check-input" type="checkbox" id="rb-edit-q-group-count" />
                   <label class="form-check-label" for="rb-edit-q-group-count">{{ _('Mostrar contagem por grupo') }}</label>
                 </div>
+              </div>
+
+              <div class="col-12">
+                <div class="fw-semibold small text-muted text-uppercase">{{ _('Subtotais e totais') }}</div>
+              </div>
+
+              <div class="col-md-4">
+                <label class="form-label" for="rb-edit-q-subtotal-mode">{{ _('Modo de subtotal') }}</label>
+                <select class="form-select" id="rb-edit-q-subtotal-mode">
+                  <option value="">{{ _('Sem') }}</option>
+                  <option value="count">{{ _('Count (linhas)') }}</option>
+                  <option value="sum">{{ _('Soma de campo') }}</option>
+                </select>
+              </div>
+
+              <div class="col-md-4">
+                <label class="form-label" for="rb-edit-q-subtotal-field">{{ _('Campo para soma') }}</label>
+                <input class="form-control" id="rb-edit-q-subtotal-field" placeholder="{{ _('Ex.: amount') }}" />
+                <div class="form-text">{{ _('Obrigatório somente quando modo = Soma de campo.') }}</div>
+              </div>
+
+              <div class="col-md-4">
+                <label class="form-label" for="rb-edit-q-subtotal-label">{{ _('Rótulo do subtotal') }}</label>
+                <input class="form-control" id="rb-edit-q-subtotal-label" placeholder="{{ _('Sous-total') }}" />
+              </div>
+
+              <div class="col-md-6">
+                <div class="form-check mt-2">
+                  <input class="form-check-input" type="checkbox" id="rb-edit-q-grand-total" />
+                  <label class="form-check-label" for="rb-edit-q-grand-total">{{ _('Mostrar grand total (pied de rapport)') }}</label>
+                </div>
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label" for="rb-edit-q-grand-total-label">{{ _('Rótulo do grand total') }}</label>
+                <input class="form-control" id="rb-edit-q-grand-total-label" placeholder="{{ _('Grand total') }}" />
+              </div>
+
+              <div class="col-md-6">
+                <div class="form-check mt-2">
+                  <input class="form-check-input" type="checkbox" id="rb-edit-q-footer-count" />
+                  <label class="form-check-label" for="rb-edit-q-footer-count">{{ _('Mostrar count items (pied de page)') }}</label>
+                </div>
+              </div>
+
+              <div class="col-md-6">
+                <label class="form-label" for="rb-edit-q-footer-count-label">{{ _('Rótulo do count items') }}</label>
+                <input class="form-control" id="rb-edit-q-footer-count-label" placeholder="{{ _('Items') }}" />
+              </div>
+
+              <div class="col-12">
+                <div class="fw-semibold small text-muted text-uppercase">{{ _('Filtres de données') }}</div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label" for="rb-edit-q-filter-field">{{ _('Champ à filtrer') }}</label>
+                <input class="form-control" id="rb-edit-q-filter-field" placeholder="{{ _('Ex.: invoice_id') }}" />
+              </div>
+              <div class="col-md-4">
+                <label class="form-label" for="rb-edit-q-filter-op">{{ _('Opérateur') }}</label>
+                <select class="form-select" id="rb-edit-q-filter-op">
+                  <option value="">{{ _('Sans filtre') }}</option>
+                  <option value="eq">=</option>
+                  <option value="contains">{{ _('contient') }}</option>
+                  <option value="gt">&gt;</option>
+                  <option value="gte">&gt;=</option>
+                  <option value="lt">&lt;</option>
+                  <option value="lte">&lt;=</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label" for="rb-edit-q-filter-value">{{ _('Valeur') }}</label>
+                <input class="form-control" id="rb-edit-q-filter-value" placeholder="{{ _('Ex.: INV-2026-001') }}" />
               </div>
 
               <div class="col-12">

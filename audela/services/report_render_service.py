@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """Render Report Builder layouts (HTML viewer handled by template) and PDF export.
 
-This module implements a Crystal/DevExpress-like *band* model:
+This module implements a Crystal/Professional-like *band* model:
 - report_header (first page only)
 - page_header (every page)
 - detail (main flow)
@@ -216,6 +216,135 @@ def _blocks_to_flowables(
     if band_name == "detail":
         blocks = _coalesce_detail_data_rowsets(blocks)
 
+    q_cache: dict[int, tuple[list[Any], list[list[Any]]]] = {}
+    t_cache: dict[str, tuple[list[Any], list[list[Any]]]] = {}
+
+    def _question_result(qid: int) -> tuple[list[Any], list[list[Any]]]:
+        qqid = int(qid or 0)
+        if qqid in q_cache:
+            return q_cache[qqid]
+        q = questions_by_id.get(qqid)
+        if not q:
+            return [], []
+        try:
+            res = execute_sql(source, q.sql_text or "", {"tenant_id": tenant_id}, row_limit=1000)
+            cols = res.get("columns") or []
+            rows = res.get("rows") or []
+            q_cache[qqid] = (cols, rows)
+            return cols, rows
+        except Exception:
+            return [], []
+
+    def _table_result(table_name: str) -> tuple[list[Any], list[list[Any]]]:
+        tname = str(table_name or "").strip()
+        if not tname:
+            return [], []
+        if tname in t_cache:
+            return t_cache[tname]
+        try:
+            sql = f"SELECT * FROM {_safe_ident(tname)} LIMIT 1000"
+            res = execute_sql(source, sql, {"tenant_id": tenant_id}, row_limit=1000)
+            cols = res.get("columns") or []
+            rows = res.get("rows") or []
+            t_cache[tname] = (cols, rows)
+            return cols, rows
+        except Exception:
+            return [], []
+
+    def _resolve_ref(expr: str) -> tuple[list[Any], list[list[Any]], str | None]:
+        s = str(expr or "").strip()
+        m = re.match(r"^question[:.]\s*(\d+)(?:\.([A-Za-z_][A-Za-z0-9_]*))?$", s, flags=re.I)
+        if m:
+            cols, rows = _question_result(int(m.group(1)))
+            return cols, rows, m.group(2)
+        m = re.match(r"^table[:.]\s*([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?)(?:\.([A-Za-z_][A-Za-z0-9_]*))?$", s, flags=re.I)
+        if m:
+            cols, rows = _table_result(m.group(1))
+            return cols, rows, m.group(2)
+        return [], [], None
+
+    def _resolve_placeholders_text(text: str) -> str:
+        raw = str(text or "")
+
+        def repl(mm):
+            key = str(mm.group(1) or "").strip()
+            low = key.lower()
+            if low == "date":
+                return _format_date(date.today(), "dd/MM/yyyy")
+            if low == "datetime":
+                return _format_date(datetime.now(), "dd/MM/yyyy HH:mm")
+
+            fm = re.match(r"^(sum|avg|count)\((.+)\)$", key, flags=re.I)
+            if fm:
+                fn = fm.group(1).lower()
+                ref = fm.group(2).strip()
+                cols, rows, fld = _resolve_ref(ref)
+                if not rows:
+                    return ""
+                if fn == "count":
+                    return str(len(rows))
+                idx = _find_col_index(cols, fld or "")
+                if idx < 0:
+                    return ""
+                nums: list[float] = []
+                for r in rows:
+                    if not isinstance(r, (list, tuple)) or idx >= len(r):
+                        continue
+                    n = _to_float(r[idx])
+                    if n is not None:
+                        nums.append(n)
+                if not nums:
+                    return ""
+                if fn == "sum":
+                    return _format_cell(sum(nums), decimals=2)
+                if fn == "avg":
+                    return _format_cell(sum(nums) / len(nums), decimals=2)
+                return ""
+
+            cols, rows, fld = _resolve_ref(key)
+            if rows and fld:
+                idx = _find_col_index(cols, fld)
+                if idx >= 0:
+                    r0 = rows[0] if isinstance(rows[0], (list, tuple)) else []
+                    if isinstance(r0, (list, tuple)) and idx < len(r0):
+                        return _format_cell(r0[idx], decimals=None)
+            return mm.group(0)
+
+        return re.sub(r"\{\{\s*([^{}]+?)\s*\}\}", repl, raw)
+
+    def _apply_filter_rows(rows: list[list[Any]], cols: list[Any], field: str, op: str, value: str) -> list[list[Any]]:
+        idx = _find_col_index(cols, field)
+        if idx < 0:
+            return rows
+        oper = str(op or "").strip().lower()
+        needle = str(value or "")
+        if oper not in ("eq", "contains", "gt", "gte", "lt", "lte"):
+            return rows
+
+        out_rows: list[list[Any]] = []
+        for r in rows or []:
+            rv = r[idx] if isinstance(r, (list, tuple)) and idx < len(r) else None
+            ok = False
+            if oper == "eq":
+                ok = str(rv or "").strip().lower() == needle.strip().lower()
+            elif oper == "contains":
+                ok = needle.strip().lower() in str(rv or "").lower()
+            else:
+                a = _to_float(rv)
+                b = _to_float(needle)
+                if a is not None and b is not None:
+                    if oper == "gt":
+                        ok = a > b
+                    elif oper == "gte":
+                        ok = a >= b
+                    elif oper == "lt":
+                        ok = a < b
+                    elif oper == "lte":
+                        ok = a <= b
+            if ok:
+                out_rows.append(r)
+        return out_rows
+
     for b in blocks or []:
         btype = (b.get("type") or "").lower()
         bstyle = b.get("style") if isinstance(b.get("style"), dict) else {}
@@ -227,12 +356,12 @@ def _blocks_to_flowables(
         if btype in ("text", "markdown"):
             ttl = (b.get("title") or "").strip()
             if ttl:
-                out.append(Paragraph(_escape(ttl), styles["Heading3"]))
+                out.append(Paragraph(_escape(_resolve_placeholders_text(ttl)), styles["Heading3"]))
                 out.append(Spacer(1, 3))
 
             if content:
                 pstyle = _styled_paragraph_style(styles["BodyText"], bstyle)
-                txt = _escape(_markdown_to_text(content)).replace("\n", "<br/>")
+                txt = _escape(_markdown_to_text(_resolve_placeholders_text(content))).replace("\n", "<br/>")
                 out.append(Paragraph(_apply_text_markup(txt, bstyle), pstyle))
                 out.append(Spacer(1, 8))
             continue
@@ -283,6 +412,7 @@ def _blocks_to_flowables(
                 out.append(Spacer(1, 3))
 
             cfg = b.get("config") if isinstance(b.get("config"), dict) else {}
+            table_cfg = (cfg.get("table") if isinstance(cfg.get("table"), dict) else {})
             bind = (cfg.get("binding") or {}) if isinstance(cfg.get("binding"), dict) else {}
             cols_meta = b.get("columns_meta") if isinstance(b.get("columns_meta"), list) else []
             headers = [str(c.get("title") or c.get("field") or "") for c in cols_meta]
@@ -339,6 +469,7 @@ def _blocks_to_flowables(
                 continue
 
             if rows_rendered:
+                repeat = bool(table_cfg.get("repeat_header", True))
                 if group_idx >= 0:
                     groups: dict[str, list[list[str]]] = {}
                     for rr in rows_rendered:
@@ -352,17 +483,17 @@ def _blocks_to_flowables(
                         out.append(Paragraph(_escape(gtitle), styles["Heading4"]))
                         out.append(Spacer(1, 3))
                         data = [headers] + grows
-                        tbl = _safe_table(data, repeat_rows=1)
-                        tbl.setStyle(_table_style({"theme": "minimal", "zebra": True, "repeat_header": True}))
-                        _apply_zebra_to_table(tbl, enabled=True)
+                        tbl = _safe_table(data, repeat_rows=1 if repeat else 0)
+                        tbl.setStyle(_table_style(table_cfg))
+                        _apply_zebra_to_table(tbl, enabled=bool(table_cfg.get("zebra", False)))
                         _apply_column_styles_to_table(tbl, col_styles)
                         out.append(tbl)
                         out.append(Spacer(1, 6))
                 else:
                     data = [headers] + rows_rendered
-                    tbl = _safe_table(data, repeat_rows=1)
-                    tbl.setStyle(_table_style({"theme": "minimal", "zebra": True, "repeat_header": True}))
-                    _apply_zebra_to_table(tbl, enabled=True)
+                    tbl = _safe_table(data, repeat_rows=1 if repeat else 0)
+                    tbl.setStyle(_table_style(table_cfg))
+                    _apply_zebra_to_table(tbl, enabled=bool(table_cfg.get("zebra", False)))
                     _apply_column_styles_to_table(tbl, col_styles)
                     out.append(tbl)
             else:
@@ -416,6 +547,12 @@ def _blocks_to_flowables(
                 cols = (res.get("columns") or [])[:col_limit]
                 rows = [r[:col_limit] for r in (res.get("rows") or [])]
 
+                filter_field = str(table_cfg.get("filter_field") or "").strip()
+                filter_op = str(table_cfg.get("filter_op") or "").strip().lower()
+                filter_value = str(table_cfg.get("filter_value") or "").strip()
+                if filter_field and filter_op:
+                    rows = _apply_filter_rows(rows, cols, filter_field, filter_op, filter_value)
+
                 sort_by = str(table_cfg.get("sort_by") or "").strip()
                 sort_dir = str(table_cfg.get("sort_dir") or "asc").strip().lower()
                 sort_idx = _find_col_index(cols, sort_by)
@@ -424,6 +561,15 @@ def _blocks_to_flowables(
                 group_by = str(table_cfg.get("group_by") or "").strip()
                 group_label = str(table_cfg.get("group_label") or "{group}")
                 group_count = bool(table_cfg.get("group_count"))
+                group_subtotal_mode = str(table_cfg.get("group_subtotal_mode") or "").strip().lower()
+                if group_subtotal_mode not in ("count", "sum"):
+                    group_subtotal_mode = ""
+                group_subtotal_field = str(table_cfg.get("group_subtotal_field") or "").strip()
+                group_subtotal_label = str(table_cfg.get("group_subtotal_label") or "").strip() or "Sous-total"
+                grand_total = bool(table_cfg.get("grand_total"))
+                grand_total_label = str(table_cfg.get("grand_total_label") or "").strip() or "Grand total"
+                footer_item_count = bool(table_cfg.get("footer_item_count"))
+                footer_item_count_label = str(table_cfg.get("footer_item_count_label") or "").strip() or "Items"
                 group_idx = _find_col_index(cols, group_by)
 
                 repeat = bool(table_cfg.get("repeat_header", True))
@@ -447,13 +593,35 @@ def _blocks_to_flowables(
                         tbl.setStyle(_table_style(table_cfg))
                         _apply_zebra_to_table(tbl, enabled=bool(table_cfg.get("zebra", True)))
                         out.append(tbl)
+                        if group_subtotal_mode:
+                            subtotal_value = _group_metric(grows, cols, group_subtotal_mode, group_subtotal_field)
+                            subtotal_text = _format_group_metric(subtotal_value, group_subtotal_mode, decimals)
+                            if subtotal_text:
+                                out.append(Spacer(1, 2))
+                                out.append(Paragraph(_escape(f"{group_subtotal_label}: {subtotal_text}"), styles["BodyText"]))
                         out.append(Spacer(1, 6))
+                    if grand_total and group_subtotal_mode:
+                        grand_value = _group_metric(rows, cols, group_subtotal_mode, group_subtotal_field)
+                        grand_text = _format_group_metric(grand_value, group_subtotal_mode, decimals)
+                        if grand_text:
+                            out.append(Paragraph(_escape(f"{grand_total_label}: {grand_text}"), styles["Heading4"]))
+                            out.append(Spacer(1, 4))
                 else:
                     data = [cols] + [[_format_cell(c, decimals=decimals) for c in r] for r in rows]
                     tbl = _safe_table(data, repeat_rows=1 if repeat else 0)
                     tbl.setStyle(_table_style(table_cfg))
                     _apply_zebra_to_table(tbl, enabled=bool(table_cfg.get("zebra", True)))
                     out.append(tbl)
+                    if grand_total and group_subtotal_mode:
+                        grand_value = _group_metric(rows, cols, group_subtotal_mode, group_subtotal_field)
+                        grand_text = _format_group_metric(grand_value, group_subtotal_mode, decimals)
+                        if grand_text:
+                            out.append(Spacer(1, 2))
+                            out.append(Paragraph(_escape(f"{grand_total_label}: {grand_text}"), styles["Heading4"]))
+
+                if footer_item_count:
+                    out.append(Spacer(1, 2))
+                    out.append(Paragraph(_escape(f"{footer_item_count_label}: {len(rows)}"), styles["BodyText"]))
             except Exception as e:
                 out.append(
                     Paragraph(
@@ -477,10 +645,10 @@ def _table_style(table_cfg: dict[str, Any]) -> TableStyle:
     theme = (table_cfg.get("theme") or "crystal").strip().lower()
 
     header_bg = (table_cfg.get("header_bg") or "").strip() or (
-        "#e9f2ff" if theme == "devexpress" else "#f2f2f2" if theme == "crystal" else "#ffffff"
+        "#e9f2ff" if theme == "professional" else "#f2f2f2" if theme == "crystal" else "#ffffff"
     )
     grid = (table_cfg.get("grid") or "").strip() or (
-        "#b7c7d6" if theme == "devexpress" else "#cccccc" if theme == "crystal" else "#dddddd"
+        "#b7c7d6" if theme == "professional" else "#cccccc" if theme == "crystal" else "#dddddd"
     )
 
     st = [
@@ -756,6 +924,63 @@ def _sort_rows(rows: list[list[Any]], idx: int, desc: bool) -> list[list[Any]]:
         return rows
 
 
+def _to_float(v: Any) -> float | None:
+    try:
+        if v is None:
+            return None
+        if isinstance(v, bool):
+            return float(int(v))
+        if isinstance(v, (int, float)):
+            return float(v)
+        s = str(v).strip()
+        if not s:
+            return None
+        s = s.replace(" ", "")
+        if "," in s and "." not in s:
+            s = s.replace(",", ".")
+        elif "," in s and "." in s:
+            s = s.replace(",", "")
+        return float(s)
+    except Exception:
+        return None
+
+
+def _group_metric(rows: list[list[Any]], cols: list[Any], mode: str, sum_field: str) -> float | int | None:
+    m = str(mode or "").strip().lower()
+    if m == "count":
+        return len(rows or [])
+    if m != "sum":
+        return None
+    idx = _find_col_index(cols, sum_field)
+    if idx < 0:
+        return None
+    total = 0.0
+    used = False
+    for r in rows or []:
+        if not isinstance(r, (list, tuple)) or idx >= len(r):
+            continue
+        num = _to_float(r[idx])
+        if num is None:
+            continue
+        total += num
+        used = True
+    if not used:
+        return None
+    return total
+
+
+def _format_group_metric(value: float | int | None, mode: str, decimals: int | None) -> str:
+    if value is None:
+        return ""
+    m = str(mode or "").strip().lower()
+    if m == "count":
+        try:
+            return str(int(value))
+        except Exception:
+            return str(value)
+    return _format_cell(value, decimals=decimals)
+
+
 def _coalesce_detail_data_rowsets(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     i = 0
@@ -798,6 +1023,14 @@ def _coalesce_detail_data_rowsets(blocks: list[dict[str, Any]]) -> list[dict[str
 
         if len(run) >= 2:
             cols_meta = []
+            first_cfg = run[0].get("config") if isinstance(run[0].get("config"), dict) else {}
+            rowset_table_cfg = (first_cfg.get("table") if isinstance(first_cfg.get("table"), dict) else {})
+            rowset_table_cfg = {
+                "theme": str(rowset_table_cfg.get("theme") or "crystal").strip().lower() or "crystal",
+                "zebra": bool(rowset_table_cfg.get("zebra")),
+                "repeat_header": bool(rowset_table_cfg.get("repeat_header", True)),
+                "header_bg": str(rowset_table_cfg.get("header_bg") or "").strip(),
+            }
             for rb in run:
                 rcfg = rb.get("config") if isinstance(rb.get("config"), dict) else {}
                 rbind = (rcfg.get("binding") or {}) if isinstance(rcfg.get("binding"), dict) else {}
@@ -819,15 +1052,19 @@ def _coalesce_detail_data_rowsets(blocks: list[dict[str, Any]]) -> list[dict[str
                         "underline": bool(rst.get("underline")),
                     },
                 })
+            rowset_title = str(run[0].get("title") or "").strip()
+            if cols_meta and rowset_title and rowset_title.lower() == str(cols_meta[0].get("title") or "").strip().lower():
+                rowset_title = ""
             rowset = {
                 "type": "data_rowset",
-                "title": str(run[0].get("title") or "").strip(),
+                "title": rowset_title,
                 "config": {
                     "binding": {
                         "source": src0,
                         "question_id": bind0.get("question_id"),
                         "table": bind0.get("table"),
-                    }
+                    },
+                    "table": rowset_table_cfg,
                 },
                 "columns_meta": cols_meta,
             }

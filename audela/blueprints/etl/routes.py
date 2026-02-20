@@ -10,7 +10,8 @@ import requests
 
 from flask import Blueprint, current_app, jsonify, render_template, request, g, Response, stream_with_context
 
-from audela.etl.engine import ETLEngine
+from audela.etl.engine import ETLEngine, ETLContext
+from audela.etl.registry import REGISTRY
 from audela.etl.workflow_loader import normalize_workflow
 from audela.extensions import csrf, db
 
@@ -369,3 +370,30 @@ def run_workflow_stream():
             yield _json.dumps({"event": "error", "error": done["error"] or "unknown"}, ensure_ascii=False) + "\n"
 
     return Response(stream_with_context(gen()), mimetype="application/x-ndjson")
+
+
+@bp.post("/api/notify/test")
+@csrf.exempt
+def test_notify_integration():
+    payload = request.get_json(force=True, silent=False) or {}
+    cfg = payload.get("config") if isinstance(payload.get("config"), dict) else payload
+    sample_rows = payload.get("sample_rows") if isinstance(payload.get("sample_rows"), list) else []
+
+    import audela.etl  # noqa: F401
+    handler = REGISTRY.get("notify.integration")
+    if handler is None:
+        return jsonify({"ok": False, "error": "notify.integration handler not found"}), 500
+
+    ctx = ETLContext(data=sample_rows, meta={
+        "workflow": {"name": str(payload.get("workflow") or "test_workflow")},
+        "last_scalar": payload.get("last_scalar"),
+        "tables": payload.get("tables") if isinstance(payload.get("tables"), dict) else {"staging": "staging.sample_table"},
+    })
+
+    try:
+        handler(cfg, ctx, app=current_app)
+        notifications = ctx.meta.get("notifications") if isinstance(ctx.meta.get("notifications"), list) else []
+        latest = notifications[-1] if notifications else {"ok": True, "message": "sent"}
+        return jsonify({"ok": bool(latest.get("ok", True)), "result": latest, "notifications": notifications})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 400

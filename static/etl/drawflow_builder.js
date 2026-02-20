@@ -7,12 +7,58 @@ let _configModal = null;
 let _dbSources = [];
 let _apiSources = [];
 let _workflows = [];
+let _uiModal = null;
+let _advancedEditors = {
+  python: null,
+  cleaning: null,
+  notifyMessage: null,
+};
 
 function _getBootstrapModal() {
   const el = document.getElementById("nodeConfigModal");
   if (!el) return null;
   if (!_configModal) _configModal = new bootstrap.Modal(el);
   return _configModal;
+}
+
+function _getUiModal() {
+  if (_uiModal) return _uiModal;
+  const host = document.createElement("div");
+  host.innerHTML = `
+    <div class="modal fade" id="etlUiModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="etlUiModalTitle">Information</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body" id="etlUiModalBody"></div>
+          <div class="modal-footer" id="etlUiModalFooter">
+            <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(host.firstElementChild);
+  const el = document.getElementById("etlUiModal");
+  _uiModal = {
+    el,
+    title: document.getElementById("etlUiModalTitle"),
+    body: document.getElementById("etlUiModalBody"),
+    footer: document.getElementById("etlUiModalFooter"),
+    bs: new bootstrap.Modal(el),
+  };
+  return _uiModal;
+}
+
+function _showMessageModal(message, title) {
+  const m = _getUiModal();
+  if (!m) return;
+  m.title.textContent = title || "Information";
+  m.body.textContent = String(message || "");
+  m.footer.innerHTML = `<button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>`;
+  m.bs.show();
 }
 
 function _safeJsonParse(val, fallback) {
@@ -26,10 +72,502 @@ function _jsonPretty(obj) {
   try { return JSON.stringify(obj, null, 2); } catch(e) { return String(obj); }
 }
 
+function _escapeHtml(v) {
+  return String(v ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function _destroyAdvancedEditors() {
+  try {
+    if (_advancedEditors.python && typeof _advancedEditors.python.toTextArea === "function") {
+      _advancedEditors.python.toTextArea();
+    }
+  } catch (e) {}
+  try {
+    if (_advancedEditors.cleaning && typeof _advancedEditors.cleaning.toTextArea === "function") {
+      _advancedEditors.cleaning.toTextArea();
+    }
+  } catch (e) {}
+  try {
+    if (_advancedEditors.notifyMessage && typeof _advancedEditors.notifyMessage.toTextArea === "function") {
+      _advancedEditors.notifyMessage.toTextArea();
+    }
+  } catch (e) {}
+  _advancedEditors = { python: null, cleaning: null, notifyMessage: null };
+}
+
+function _makeSimpleHintProvider(words) {
+  return function(cm) {
+    const cur = cm.getCursor();
+    const token = cm.getTokenAt(cur);
+    const from = CodeMirror.Pos(cur.line, token.start);
+    const to = CodeMirror.Pos(cur.line, token.end);
+    const raw = String(token.string || "");
+    const q = raw.replace(/[^a-zA-Z0-9_:.{}]/g, "").toLowerCase();
+    const list = (words || []).filter(w => !q || String(w).toLowerCase().includes(q));
+    return { list, from, to };
+  };
+}
+
+function _setupAdvancedEditors(type) {
+  if (typeof CodeMirror === "undefined") return;
+
+  if (type === "transform.python_advanced") {
+    const ta = document.getElementById("cfg_py_code");
+    if (!ta) return;
+    const words = [
+      "data", "rows", "meta", "ctx", "result", "table('staging')",
+      "{{table:staging}}", "for", "if", "else", "return", "len", "sum",
+      "sorted", "enumerate", "datetime", "json", "re"
+    ];
+    const cm = CodeMirror.fromTextArea(ta, {
+      mode: "python",
+      lineNumbers: true,
+      matchBrackets: true,
+      indentUnit: 4,
+      extraKeys: {
+        "Ctrl-Space": "autocomplete",
+        "Cmd-Space": "autocomplete",
+      },
+      hintOptions: {
+        hint: _makeSimpleHintProvider(words),
+        completeSingle: false,
+      }
+    });
+    cm.setSize("100%", 340);
+    cm.on("inputRead", function(editor, change) {
+      if (!change || change.origin === "setValue") return;
+      const ch = (change.text && change.text[0]) ? change.text[0] : "";
+      if (!/[A-Za-z_{.:]/.test(ch)) return;
+      try { editor.showHint(); } catch (e) {}
+    });
+    _advancedEditors.python = cm;
+    return;
+  }
+
+  if (type === "transform.cleaning_rules") {
+    const ta = document.getElementById("cfg_clean_rules");
+    if (!ta) return;
+    const words = [
+      '"type": "trim"', '"type": "normalize_nulls"', '"type": "case"',
+      '"type": "regex_replace"', '"type": "cast"', '"type": "fillna"',
+      '"type": "parse_date"', '"type": "clip"', '"fields": []',
+      '"field": ""', '"mode": "lower"', '"pattern": ""', '"repl": ""',
+      '"to": "int"', '"value": null', '"formats": ["%Y-%m-%d"]',
+      '"output": "%Y-%m-%d"', '"min": 0', '"max": 100'
+    ];
+    const cm = CodeMirror.fromTextArea(ta, {
+      mode: { name: "javascript", json: true },
+      lineNumbers: true,
+      matchBrackets: true,
+      autoCloseBrackets: true,
+      extraKeys: {
+        "Ctrl-Space": "autocomplete",
+        "Cmd-Space": "autocomplete",
+      },
+      hintOptions: {
+        hint: _makeSimpleHintProvider(words),
+        completeSingle: false,
+      }
+    });
+    cm.setSize("100%", 260);
+    cm.on("inputRead", function(editor, change) {
+      if (!change || change.origin === "setValue") return;
+      const ch = (change.text && change.text[0]) ? change.text[0] : "";
+      if (!/[A-Za-z_"{]/.test(ch)) return;
+      try { editor.showHint(); } catch (e) {}
+    });
+    _advancedEditors.cleaning = cm;
+    return;
+  }
+
+  if (type === "notify.integration") {
+    const ta = document.getElementById("cfg_notify_message");
+    if (!ta) return;
+    const words = [
+      "{{workflow}}",
+      "{{rows_count}}",
+      "{{table:staging}}",
+      "{{table:warehouse}}",
+      "{{meta:last_scalar}}",
+      "{{meta:last_cleaning}}",
+      "{{meta:stop_reason}}",
+      "ETL finished successfully",
+      "ETL warning",
+      "Please check logs"
+    ];
+    const cm = CodeMirror.fromTextArea(ta, {
+      mode: "text/plain",
+      lineNumbers: false,
+      lineWrapping: true,
+      extraKeys: {
+        "Ctrl-Space": "autocomplete",
+        "Cmd-Space": "autocomplete",
+      },
+      hintOptions: {
+        hint: _makeSimpleHintProvider(words),
+        completeSingle: false,
+      }
+    });
+    cm.setSize("100%", 130);
+    cm.on("inputRead", function(editor, change) {
+      if (!change || change.origin === "setValue") return;
+      const ch = (change.text && change.text[0]) ? change.text[0] : "";
+      if (!/[A-Za-z_{:]/.test(ch)) return;
+      try { editor.showHint(); } catch (e) {}
+    });
+    _advancedEditors.notifyMessage = cm;
+  }
+}
+
+function _pythonAdvancedExampleSnippet(name) {
+  const key = String(name || "").trim().toLowerCase();
+  if (key === "normalize") {
+    return `# Normalize current rows and keep selected columns
+result = []
+for row in (data or []):
+    result.append({
+        "id": row.get("id"),
+        "email": str(row.get("email") or "").strip().lower(),
+        "amount": float(row.get("amount") or 0),
+    })`;
+  }
+  if (key === "aggregate") {
+    return `# Aggregate current rows by category
+agg = {}
+for row in (data or []):
+    k = row.get("category") or "unknown"
+    agg[k] = agg.get(k, 0) + float(row.get("amount") or 0)
+
+result = [{"category": k, "total": v} for k, v in agg.items()]`;
+  }
+  if (key === "tabledata") {
+    return `# Read rows from meta.table_data (another step can write there)
+rows_from_staging = (meta.get("table_data") or {}).get("staging", [])
+
+# Merge with current data
+merged = list(data or []) + list(rows_from_staging or [])
+result = merged`;
+  }
+  if (key === "placeholder") {
+    return `# Resolve SQL table name from placeholder and save meta info
+table_name = {{table:staging}}
+meta["debug_sql"] = f"SELECT count(*) AS c FROM {table_name}"
+
+# Keep pipeline payload unchanged
+result = data`;
+  }
+  return "result = data";
+}
+
+function _pythonToolSnippet(name) {
+  const key = String(name || "").trim().toLowerCase();
+  if (key === "debug_sql") {
+    return `table_name = {{table:staging}}
+meta["debug_sql"] = f"SELECT * FROM {table_name} LIMIT 20"`;
+  }
+  if (key === "debug_meta") {
+    return `meta["debug_meta_keys"] = sorted(list((meta or {}).keys()))`;
+  }
+  if (key === "read_table_data") {
+    return `rows_from_table = (meta.get("table_data") or {}).get("staging", [])`;
+  }
+  if (key === "write_table_data") {
+    return `tables = meta.get("table_data") or {}
+tables["cleaned"] = list(data or [])
+meta["table_data"] = tables`;
+  }
+  if (key === "safe_numeric") {
+    return `for row in (data or []):
+    row["amount"] = float(row.get("amount") or 0)`;
+  }
+  if (key === "filter_rows") {
+    return `result = [r for r in (data or []) if float(r.get("amount") or 0) > 0]`;
+  }
+  if (key === "keep_result") {
+    return "result = data";
+  }
+  return "";
+}
+
+function _insertInPythonEditor(snippet) {
+  const txt = String(snippet || "");
+  if (!txt) return;
+  if (_advancedEditors.python) {
+    const cm = _advancedEditors.python;
+    cm.focus();
+    const cur = cm.getCursor();
+    const line = cm.getLine(cur.line) || "";
+    const prefix = (line.trim() ? "\n" : "");
+    cm.replaceSelection(prefix + txt + "\n");
+    return;
+  }
+  const ta = document.getElementById("cfg_py_code");
+  if (!ta) return;
+  const start = ta.selectionStart || 0;
+  const end = ta.selectionEnd || 0;
+  const before = ta.value.slice(0, start);
+  const after = ta.value.slice(end);
+  ta.value = before + txt + "\n" + after;
+}
+
+function _makeToolboxDraggable(box) {
+  if (!box) return;
+  const handle = box.querySelector("[data-py-toolbox-handle]");
+  if (!handle) return;
+  let dragging = false;
+  let startX = 0;
+  let startY = 0;
+  let baseLeft = 0;
+  let baseTop = 0;
+
+  const onMove = (ev) => {
+    if (!dragging) return;
+    const x = ev.clientX || 0;
+    const y = ev.clientY || 0;
+    const dx = x - startX;
+    const dy = y - startY;
+    box.style.left = `${Math.max(8, baseLeft + dx)}px`;
+    box.style.top = `${Math.max(56, baseTop + dy)}px`;
+    box.style.right = "auto";
+  };
+  const onUp = () => {
+    dragging = false;
+    document.removeEventListener("mousemove", onMove);
+    document.removeEventListener("mouseup", onUp);
+  };
+
+  handle.addEventListener("mousedown", (ev) => {
+    ev.preventDefault();
+    dragging = true;
+    const rect = box.getBoundingClientRect();
+    startX = ev.clientX || 0;
+    startY = ev.clientY || 0;
+    baseLeft = rect.left;
+    baseTop = rect.top;
+    box.style.position = "fixed";
+    box.style.left = `${rect.left}px`;
+    box.style.top = `${rect.top}px`;
+    box.style.right = "auto";
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  });
+}
+
+function _bindPythonAdvancedToolbox() {
+  const box = document.getElementById("cfg_py_toolbox");
+  if (!box) return;
+
+  _makeToolboxDraggable(box);
+
+  box.addEventListener("click", (ev) => {
+    const btn = ev.target.closest("[data-py-tool]");
+    if (!btn) return;
+    const snippet = _pythonToolSnippet(btn.getAttribute("data-py-tool") || "");
+    _insertInPythonEditor(snippet);
+  });
+
+  box.querySelectorAll("[data-py-tool]").forEach((el) => {
+    el.setAttribute("draggable", "true");
+    el.addEventListener("dragstart", (ev) => {
+      const snippet = _pythonToolSnippet(el.getAttribute("data-py-tool") || "");
+      ev.dataTransfer?.setData("text/plain", snippet);
+      ev.dataTransfer.effectAllowed = "copy";
+    });
+  });
+
+  if (_advancedEditors.python) {
+    const wrap = _advancedEditors.python.getWrapperElement();
+    wrap.addEventListener("dragover", (ev) => {
+      ev.preventDefault();
+      ev.dataTransfer.dropEffect = "copy";
+    });
+    wrap.addEventListener("drop", (ev) => {
+      ev.preventDefault();
+      const snippet = ev.dataTransfer?.getData("text/plain") || "";
+      _insertInPythonEditor(snippet);
+    });
+  }
+}
+
+function _bindPythonAdvancedExamples() {
+  const wrap = document.getElementById("cfg_py_examples");
+  if (!wrap) return;
+  wrap.addEventListener("click", (ev) => {
+    const btn = ev.target.closest("[data-py-example]");
+    if (!btn) return;
+    const name = btn.getAttribute("data-py-example") || "";
+    const code = _pythonAdvancedExampleSnippet(name);
+    if (_advancedEditors.python) {
+      _advancedEditors.python.setValue(code);
+      _advancedEditors.python.focus();
+    } else {
+      const ta = document.getElementById("cfg_py_code");
+      if (ta) ta.value = code;
+    }
+  });
+}
+
+function _notifyToolSnippet(name) {
+  const key = String(name || "").trim().toLowerCase();
+  if (key === "rows_count") return "Rows count: {{rows_count}}";
+  if (key === "workflow") return "Workflow: {{workflow}}";
+  if (key === "table_staging") return "Staging table: {{table:staging}}";
+  if (key === "table_warehouse") return "Warehouse table: {{table:warehouse}}";
+  if (key === "last_scalar") return "Last scalar: {{meta:last_scalar}}";
+  if (key === "debug_sql") return "Debug SQL: {{meta:debug_sql}}";
+  if (key === "status_ok") return "✅ ETL finished successfully.";
+  if (key === "status_warn") return "⚠️ ETL finished with warnings.";
+  if (key === "status_fail") return "❌ ETL failed. Please check execution logs.";
+  return "";
+}
+
+function _insertInNotifyMessageEditor(snippet) {
+  const txt = String(snippet || "");
+  if (!txt) return;
+  if (_advancedEditors.notifyMessage) {
+    const cm = _advancedEditors.notifyMessage;
+    cm.focus();
+    const cur = cm.getCursor();
+    const line = cm.getLine(cur.line) || "";
+    const prefix = (line.trim() ? "\n" : "");
+    cm.replaceSelection(prefix + txt + "\n");
+    return;
+  }
+  const ta = document.getElementById("cfg_notify_message");
+  if (!ta) return;
+  const start = ta.selectionStart || 0;
+  const end = ta.selectionEnd || 0;
+  const before = ta.value.slice(0, start);
+  const after = ta.value.slice(end);
+  ta.value = before + txt + "\n" + after;
+}
+
+function _bindNotifyMessageToolbox() {
+  const box = document.getElementById("cfg_notify_toolbox");
+  if (!box) return;
+
+  _makeToolboxDraggable(box);
+
+  box.addEventListener("click", (ev) => {
+    const btn = ev.target.closest("[data-notify-tool]");
+    if (!btn) return;
+    const snippet = _notifyToolSnippet(btn.getAttribute("data-notify-tool") || "");
+    _insertInNotifyMessageEditor(snippet);
+  });
+
+  box.querySelectorAll("[data-notify-tool]").forEach((el) => {
+    el.setAttribute("draggable", "true");
+    el.addEventListener("dragstart", (ev) => {
+      const snippet = _notifyToolSnippet(el.getAttribute("data-notify-tool") || "");
+      ev.dataTransfer?.setData("text/plain", snippet);
+      ev.dataTransfer.effectAllowed = "copy";
+    });
+  });
+
+  if (_advancedEditors.notifyMessage) {
+    const wrap = _advancedEditors.notifyMessage.getWrapperElement();
+    wrap.addEventListener("dragover", (ev) => {
+      ev.preventDefault();
+      ev.dataTransfer.dropEffect = "copy";
+    });
+    wrap.addEventListener("drop", (ev) => {
+      ev.preventDefault();
+      const snippet = ev.dataTransfer?.getData("text/plain") || "";
+      _insertInNotifyMessageEditor(snippet);
+    });
+  }
+}
+
+function _collectNotifyConfigFromForm() {
+  const cfg = {};
+  cfg.integration = (document.getElementById("cfg_notify_integration")?.value || "email").trim();
+  cfg.enabled = !!document.getElementById("cfg_notify_enabled")?.checked;
+  cfg.fail_on_error = !!document.getElementById("cfg_notify_fail")?.checked;
+  cfg.subject = (document.getElementById("cfg_notify_subject")?.value || "ETL {{workflow}} done").trim();
+  cfg.message = (document.getElementById("cfg_notify_message")?.value || "Rows: {{rows_count}}").trim();
+  cfg.timeout = parseInt(document.getElementById("cfg_notify_timeout")?.value || "15", 10);
+  cfg.to = (document.getElementById("cfg_notify_to")?.value || "").trim();
+  cfg.sender = (document.getElementById("cfg_notify_sender")?.value || "").trim();
+  cfg.as_html = !!document.getElementById("cfg_notify_html")?.checked;
+  cfg.webhook_url = (document.getElementById("cfg_notify_webhook")?.value || "").trim();
+
+  const headers = _safeJsonParse(document.getElementById("cfg_notify_headers")?.value || "{}", {});
+  const payload = _safeJsonParse(document.getElementById("cfg_notify_payload")?.value || "{}", {});
+  if (headers === null || typeof headers !== "object" || Array.isArray(headers)) {
+    _showMessageModal("Headers JSON invalid (object expected)", "Validation");
+    return null;
+  }
+  if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
+    _showMessageModal("Payload JSON invalid (object expected)", "Validation");
+    return null;
+  }
+  cfg.headers = headers;
+  cfg.payload = payload;
+  return cfg;
+}
+
+function _bindNotifyTestButton() {
+  const btn = document.getElementById("cfg_notify_test");
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    if (_advancedEditors.notifyMessage) {
+      try { _advancedEditors.notifyMessage.save(); } catch (e) {}
+    }
+    const cfg = _collectNotifyConfigFromForm();
+    if (!cfg) return;
+
+    btn.disabled = true;
+    const old = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Sending...';
+    try {
+      const data = await _fetchJson("/etl/api/notify/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          config: cfg,
+          workflow: getWorkflowName(),
+          sample_rows: [{ id: 1, status: "ok" }, { id: 2, status: "warning" }],
+          last_scalar: 42,
+          tables: { staging: "staging.sample_table", warehouse: "public.fact_sales" }
+        })
+      });
+      if (data && data.ok) {
+        _showMessageModal("Test notification sent successfully.", "Success");
+      } else {
+        _showMessageModal((data && (data.error || data.result?.error)) || "Notification test failed.", "Error");
+      }
+    } catch (e) {
+      _showMessageModal(String(e.message || e), "Error");
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = old;
+    }
+  });
+}
+
 function _defaultConfig(type) {
   if (type === "extract.http") return { api_source_id: "", path: "", method: "GET", headers: {}, params: {}, timeout: 30 };
   if (type === "extract.sql") return { query: "", db_source_id: "", result_mode: "rows", strict_scalar: true, scalar_key: "last_scalar" };
   if (type === "transform.mapping") return { fields: {} };
+  if (type === "transform.cleaning_rules") return {
+    presets: ["basic_text"],
+    rules: [
+      { type: "trim" },
+      { type: "normalize_nulls" }
+    ],
+    deduplicate: { enabled: false, fields: [], keep: "first" }
+  };
+  if (type === "transform.python_advanced") return {
+    input_mode: "current",
+    input_table_key: "",
+    output_table_key: "",
+    code: "# data: list[dict] (or any structure from previous step)\n# meta: workflow metadata dict\n# Use table('staging') or {{table:staging}} in strings\nresult = data"
+  };
   if (type === "transform.decision.scalar") return {
     source: "last_scalar",
     scalar_key: "",
@@ -43,6 +581,31 @@ function _defaultConfig(type) {
     table: "", schema: "public", mode: "append",
     create_table_if_missing: true, add_columns_if_missing: true,
     warehouse_source_id: ""
+  };
+  if (type === "load.staging_table") return {
+    table: "dataset",
+    table_prefix: "stg_",
+    schema: "staging",
+    run_suffix: true,
+    mode: "append",
+    create_table_if_missing: true,
+    add_columns_if_missing: true,
+    warehouse_source_id: "",
+    table_key: "staging"
+  };
+  if (type === "notify.integration") return {
+    integration: "email",
+    enabled: true,
+    fail_on_error: false,
+    to: "",
+    sender: "",
+    as_html: false,
+    webhook_url: "",
+    headers: {},
+    payload: {},
+    subject: "ETL {{workflow}} done",
+    message: "Rows: {{rows_count}}\nTable: {{table:staging}}",
+    timeout: 15
   };
   return {};
 }
@@ -149,10 +712,10 @@ function loadSelectedWorkflow() {
       } else {
         const el = document.getElementById("etlPreview");
         if (el) el.textContent = _jsonPretty(res.data);
-        alert("Loaded workflow definition (preview). For now, graphs load from Drawflow format.");
+        _showMessageModal("Loaded workflow definition (preview). For now, graphs load from Drawflow format.", "Workflow loaded");
       }
     })
-    .catch(err => alert("Load error: " + err.message));
+    .catch(err => _showMessageModal("Load error: " + err.message, "Error"));
 }
 
 // ---------------- Sources lists & tests ----------------
@@ -196,27 +759,27 @@ function refreshApiSources() {
 function testSelectedDbSource() {
   const sel = document.getElementById("dbSourceSelect");
   const id = sel ? sel.value : "";
-  if (!id) return alert("Select a DB source");
+  if (!id) return _showMessageModal("Select a DB source", "Validation");
   _fetchJson(`/etl/api/sources/db/${encodeURIComponent(id)}/test`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })
     .then(res => {
       const el = document.getElementById("etlPreview");
       if (el) el.textContent = _jsonPretty(res);
-      alert(res.ok ? "DB source OK" : "DB source failed");
+      _showMessageModal(res.ok ? "DB source OK" : "DB source failed", "Source test");
     })
-    .catch(err => alert("Test error: " + err.message));
+    .catch(err => _showMessageModal("Test error: " + err.message, "Error"));
 }
 
 function testSelectedApiSource() {
   const sel = document.getElementById("apiSourceSelect");
   const id = sel ? sel.value : "";
-  if (!id) return alert("Select an API source");
+  if (!id) return _showMessageModal("Select an API source", "Validation");
   _fetchJson(`/etl/api/sources/api/${encodeURIComponent(id)}/test`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })
     .then(res => {
       const el = document.getElementById("etlPreview");
       if (el) el.textContent = _jsonPretty(res);
-      alert(res.ok ? "API source OK" : "API source failed");
+      _showMessageModal(res.ok ? "API source OK" : "API source failed", "Source test");
     })
-    .catch(err => alert("Test error: " + err.message));
+    .catch(err => _showMessageModal("Test error: " + err.message, "Error"));
 }
 
 function _dbOptionsHtml(selectedId) {
@@ -680,10 +1243,10 @@ function saveWorkflow() {
     refreshWorkflows();
     const el = document.getElementById("etlPreview");
     if (el) el.textContent = _jsonPretty(data);
-    if (data.warning) alert("Saved graph. Warning: " + data.warning);
-    else alert("Workflow saved successfully!");
+    if (data.warning) _showMessageModal("Saved graph. Warning: " + data.warning, "Saved with warning");
+    else _showMessageModal("Workflow saved successfully!", "Saved");
   })
-  .catch(err => alert("Error saving workflow: " + err.message));
+  .catch(err => _showMessageModal("Error saving workflow: " + err.message, "Error"));
 }
 
 function previewWorkflow() {
@@ -699,7 +1262,7 @@ function previewWorkflow() {
     const el = document.getElementById("etlPreview");
     if (el) el.textContent = _jsonPretty(data.previews || data);
   })
-  .catch(err => alert("Error previewing workflow: " + err.message));
+  .catch(err => _showMessageModal("Error previewing workflow: " + err.message, "Error"));
 }
 
 function _setActiveStep(stepId) {
@@ -761,7 +1324,7 @@ async function runWorkflow() {
       } else if (msg.event === "error") {
         _setActiveStep(null);
         if (elPreview) elPreview.textContent = "Error: " + msg.error;
-        alert("Run error: " + msg.error);
+        _showMessageModal("Run error: " + msg.error, "Execution error");
       }
     }
   }
@@ -794,6 +1357,7 @@ function openNodeConfig(nodeId) {
   const cfg = (node.data && node.data.config) ? node.data.config : _defaultConfig(type);
 
   _destroyExtractSqlUi();
+  _destroyAdvancedEditors();
 
   const titleEl = document.getElementById("nodeConfigTitle");
   const idEl = document.getElementById("cfgNodeId");
@@ -957,6 +1521,93 @@ function openNodeConfig(nodeId) {
         <textarea class="form-control" id="cfg_fields" rows="10" placeholder='{"city":"$.name","temp":"$.main.temp"}'>${_jsonPretty(cfg.fields || {})}</textarea>
       </div>
     `;
+  } else if (type === "transform.cleaning_rules") {
+    html += `
+      <div class="mb-3">
+        <label class="form-label">Presets (JSON array)</label>
+        <input class="form-control" id="cfg_clean_presets" value='${_escapeHtml(_jsonPretty(cfg.presets || []))}' placeholder='["basic_text","email_standardization"]'>
+        <div class="form-text">Available: basic_text, email_standardization, phone_digits, dates_iso</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Rules (JSON array)</label>
+        <textarea class="form-control" id="cfg_clean_rules" rows="10" placeholder='[{"type":"trim"},{"type":"normalize_nulls"}]'>${_jsonPretty(cfg.rules || [])}</textarea>
+        <div class="form-text">Rule types: trim, normalize_nulls, case, regex_replace, cast, fillna, parse_date, clip</div>
+      </div>
+      <div class="border rounded-2 p-2">
+        <div class="fw-semibold mb-2">Deduplicate</div>
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" id="cfg_clean_dedup_enabled" ${cfg.deduplicate && cfg.deduplicate.enabled ? "checked" : ""}>
+          <label class="form-check-label" for="cfg_clean_dedup_enabled">Enable deduplication</label>
+        </div>
+        <div class="row g-2">
+          <div class="col-md-8">
+            <label class="form-label">Fields (comma separated)</label>
+            <input class="form-control" id="cfg_clean_dedup_fields" value="${(cfg.deduplicate && Array.isArray(cfg.deduplicate.fields)) ? cfg.deduplicate.fields.join(',') : ''}" placeholder="id,email">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Keep</label>
+            <select class="form-select" id="cfg_clean_dedup_keep">
+              <option value="first" ${(!cfg.deduplicate || (cfg.deduplicate.keep || "first") === "first") ? "selected" : ""}>first</option>
+              <option value="last" ${(cfg.deduplicate && (cfg.deduplicate.keep || "first") === "last") ? "selected" : ""}>last</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    `;
+  } else if (type === "transform.python_advanced") {
+    html += `
+      <div class="row g-2">
+        <div class="col-md-4">
+          <label class="form-label">Input mode</label>
+          <select class="form-select" id="cfg_py_input_mode">
+            <option value="current" ${((cfg.input_mode || "current") === "current") ? "selected" : ""}>current</option>
+            <option value="table" ${((cfg.input_mode || "current") === "table") ? "selected" : ""}>table_data key</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Input table key</label>
+          <input class="form-control" id="cfg_py_input_table_key" value="${_escapeHtml(cfg.input_table_key || "")}" placeholder="staging">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Output table key</label>
+          <input class="form-control" id="cfg_py_output_table_key" value="${_escapeHtml(cfg.output_table_key || "")}" placeholder="cleaned">
+        </div>
+      </div>
+      <div class="mt-3">
+        <label class="form-label">Python code</label>
+        <div id="cfg_py_editor_wrap" class="position-relative">
+          <textarea class="form-control" id="cfg_py_code" rows="14" placeholder="result = data">${_escapeHtml(cfg.code || "result = data")}</textarea>
+          <div id="cfg_py_toolbox" class="card shadow-sm" style="position:absolute; right:8px; top:36px; width:250px; z-index:8;">
+            <div class="card-header py-1 px-2 small fw-semibold d-flex align-items-center justify-content-between" data-py-toolbox-handle style="cursor:move;">
+              <span>🧰 Python tools</span>
+              <span class="text-muted">drag</span>
+            </div>
+            <div class="card-body p-2">
+              <div class="small text-muted mb-2">Drag and drop into editor or click to insert.</div>
+              <div class="d-flex flex-wrap gap-1">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-py-tool="debug_sql">debug_sql</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-py-tool="debug_meta">debug_meta</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-py-tool="read_table_data">read table_data</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-py-tool="write_table_data">write table_data</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-py-tool="safe_numeric">safe numeric</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-py-tool="filter_rows">filter rows</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-py-tool="keep_result">result=data</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="form-text">Available vars: data, rows, meta, ctx, table(name). Placeholder in code string: {{table:staging}}</div>
+      </div>
+      <div class="mt-3" id="cfg_py_examples">
+        <div class="small fw-semibold mb-2">Examples</div>
+        <div class="d-flex flex-wrap gap-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-py-example="normalize">Normalize rows</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-py-example="aggregate">Aggregate values</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-py-example="tabledata">Get table_data</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-py-example="placeholder">Use table placeholder</button>
+        </div>
+      </div>
+    `;
   } else if (type === "transform.decision.scalar") {
     html += `
       <div class="row g-2">
@@ -1049,6 +1700,159 @@ function openNodeConfig(nodeId) {
         <label class="form-check-label" for="cfg_addcols">Add missing columns</label>
       </div>
     `;
+  } else if (type === "load.staging_table") {
+    html += `
+      <div class="mb-3">
+        <label class="form-label">Warehouse (DB Source)</label>
+        <select class="form-select" id="cfg_stg_source">
+          ${_dbOptionsHtml(cfg.warehouse_source_id)}
+        </select>
+      </div>
+      <div class="row g-2">
+        <div class="col-md-6">
+          <label class="form-label">Schema</label>
+          <input class="form-control" id="cfg_stg_schema" value="${cfg.schema || "staging"}">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Base table name</label>
+          <input class="form-control" id="cfg_stg_table" value="${cfg.table || "dataset"}" placeholder="orders_raw">
+        </div>
+      </div>
+      <div class="row g-2 mt-2">
+        <div class="col-md-4">
+          <label class="form-label">Prefix</label>
+          <input class="form-control" id="cfg_stg_prefix" value="${cfg.table_prefix || "stg_"}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Mode</label>
+          <select class="form-select" id="cfg_stg_mode">
+            <option value="append" ${((cfg.mode||"append")==="append")?"selected":""}>append</option>
+            <option value="replace" ${((cfg.mode||"append")==="replace")?"selected":""}>replace</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Table key (meta.tables)</label>
+          <input class="form-control" id="cfg_stg_key" value="${cfg.table_key || "staging"}" placeholder="staging">
+        </div>
+      </div>
+      <div class="form-check mt-3">
+        <input class="form-check-input" type="checkbox" id="cfg_stg_suffix" ${cfg.run_suffix !== false ? "checked" : ""}>
+        <label class="form-check-label" for="cfg_stg_suffix">Append timestamp suffix</label>
+      </div>
+      <div class="form-check mt-2">
+        <input class="form-check-input" type="checkbox" id="cfg_stg_create" ${cfg.create_table_if_missing !== false ? "checked" : ""}>
+        <label class="form-check-label" for="cfg_stg_create">Create table if missing</label>
+      </div>
+      <div class="form-check mt-2">
+        <input class="form-check-input" type="checkbox" id="cfg_stg_addcols" ${cfg.add_columns_if_missing !== false ? "checked" : ""}>
+        <label class="form-check-label" for="cfg_stg_addcols">Add missing columns</label>
+      </div>
+    `;
+  } else if (type === "notify.integration") {
+    html += `
+      <div class="row g-2">
+        <div class="col-md-4">
+          <label class="form-label">Integration</label>
+          <select class="form-select" id="cfg_notify_integration">
+            <option value="email" ${((cfg.integration || "email") === "email") ? "selected" : ""}>email (SMTP Audela)</option>
+            <option value="teams" ${((cfg.integration || "") === "teams") ? "selected" : ""}>teams (webhook)</option>
+            <option value="slack" ${((cfg.integration || "") === "slack") ? "selected" : ""}>slack (webhook)</option>
+          </select>
+        </div>
+        <div class="col-md-4 d-flex align-items-end">
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" id="cfg_notify_enabled" ${cfg.enabled !== false ? "checked" : ""}>
+            <label class="form-check-label" for="cfg_notify_enabled">Enabled</label>
+          </div>
+        </div>
+        <div class="col-md-4 d-flex align-items-end">
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" id="cfg_notify_fail" ${cfg.fail_on_error ? "checked" : ""}>
+            <label class="form-check-label" for="cfg_notify_fail">Fail workflow on error</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-2 mt-2">
+        <div class="col-md-6">
+          <label class="form-label">Subject</label>
+          <input class="form-control" id="cfg_notify_subject" value="${_escapeHtml(cfg.subject || "ETL {{workflow}} done")}">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Timeout</label>
+          <input class="form-control" id="cfg_notify_timeout" type="number" min="1" value="${Number(cfg.timeout || 15)}">
+        </div>
+      </div>
+
+      <div class="mt-2">
+        <label class="form-label">Message</label>
+        <div id="cfg_notify_editor_wrap" class="position-relative">
+          <textarea class="form-control" id="cfg_notify_message" rows="4">${_escapeHtml(cfg.message || "Rows: {{rows_count}}")}</textarea>
+          <div id="cfg_notify_toolbox" class="card shadow-sm" style="position:absolute; right:8px; top:8px; width:260px; z-index:8;">
+            <div class="card-header py-1 px-2 small fw-semibold d-flex align-items-center justify-content-between" data-py-toolbox-handle style="cursor:move;">
+              <span>🔔 Message tools</span>
+              <span class="text-muted">drag</span>
+            </div>
+            <div class="card-body p-2">
+              <div class="small text-muted mb-2">Autocomplete + drag/drop snippets</div>
+              <div class="d-flex flex-wrap gap-1">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-notify-tool="workflow">workflow</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-notify-tool="rows_count">rows_count</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-notify-tool="table_staging">table:staging</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-notify-tool="table_warehouse">table:warehouse</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-notify-tool="last_scalar">meta:last_scalar</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-notify-tool="debug_sql">debug_sql</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-notify-tool="status_ok">status ok</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-notify-tool="status_warn">status warn</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-notify-tool="status_fail">status fail</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="form-text">Placeholders: {{workflow}}, {{rows_count}}, {{table:staging}}, {{meta:last_scalar}}, {{meta:debug_sql}}</div>
+      </div>
+
+      <div id="cfg_notify_email_box" class="border rounded-2 p-2 mt-3">
+        <div class="fw-semibold mb-2">Email (SMTP)</div>
+        <div class="row g-2">
+          <div class="col-md-8">
+            <label class="form-label">Recipients (comma separated)</label>
+            <input class="form-control" id="cfg_notify_to" value="${_escapeHtml(cfg.to || "")}" placeholder="ops@company.com,data@company.com">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Sender (optional)</label>
+            <input class="form-control" id="cfg_notify_sender" value="${_escapeHtml(cfg.sender || "")}" placeholder="noreply@audela.com">
+          </div>
+        </div>
+        <div class="form-check mt-2">
+          <input class="form-check-input" type="checkbox" id="cfg_notify_html" ${cfg.as_html ? "checked" : ""}>
+          <label class="form-check-label" for="cfg_notify_html">Send body as HTML</label>
+        </div>
+      </div>
+
+      <div id="cfg_notify_webhook_box" class="border rounded-2 p-2 mt-3">
+        <div class="fw-semibold mb-2">Webhook (Teams / Slack)</div>
+        <div class="mb-2">
+          <label class="form-label">Webhook URL</label>
+          <input class="form-control" id="cfg_notify_webhook" value="${_escapeHtml(cfg.webhook_url || "")}" placeholder="https://...">
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Headers (JSON, optional)</label>
+          <textarea class="form-control" id="cfg_notify_headers" rows="3">${_jsonPretty(cfg.headers || {})}</textarea>
+        </div>
+        <div class="mb-0">
+          <label class="form-label">Payload override (JSON, optional)</label>
+          <textarea class="form-control" id="cfg_notify_payload" rows="4">${_jsonPretty(cfg.payload || {})}</textarea>
+          <div class="form-text">If empty, default payload is generated from Subject + Message.</div>
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-end mt-3">
+        <button type="button" class="btn btn-outline-primary btn-sm" id="cfg_notify_test">
+          <i class="bi bi-send-check me-1"></i>Send test notification
+        </button>
+      </div>
+    `;
   } else {
     html += `<div class="alert alert-warning">No config UI for type: ${type}</div>`;
   }
@@ -1057,6 +1861,29 @@ function openNodeConfig(nodeId) {
 
   if (type === "extract.sql") {
     _initExtractSqlUi();
+  } else if (type === "transform.python_advanced" || type === "transform.cleaning_rules" || type === "notify.integration") {
+    _setupAdvancedEditors(type);
+    if (type === "transform.python_advanced") {
+      _bindPythonAdvancedExamples();
+      _bindPythonAdvancedToolbox();
+    }
+    if (type === "notify.integration") {
+      _bindNotifyMessageToolbox();
+      _bindNotifyTestButton();
+    }
+  }
+
+  if (type === "notify.integration") {
+    const integrationEl = document.getElementById("cfg_notify_integration");
+    const emailBox = document.getElementById("cfg_notify_email_box");
+    const webhookBox = document.getElementById("cfg_notify_webhook_box");
+    const refreshNotifyMode = () => {
+      const mode = (integrationEl?.value || "email").trim();
+      if (emailBox) emailBox.style.display = (mode === "email") ? "" : "none";
+      if (webhookBox) webhookBox.style.display = (mode === "teams" || mode === "slack") ? "" : "none";
+    };
+    integrationEl?.addEventListener("change", refreshNotifyMode);
+    refreshNotifyMode();
   }
 
   const modal = _getBootstrapModal();
@@ -1072,6 +1899,15 @@ function saveNodeConfig() {
   if (type === "extract.sql" && _extractSqlUi && _extractSqlUi.cm) {
     try { _extractSqlUi.cm.save(); } catch (e) {}
   }
+  if (type === "transform.python_advanced" && _advancedEditors.python) {
+    try { _advancedEditors.python.save(); } catch (e) {}
+  }
+  if (type === "transform.cleaning_rules" && _advancedEditors.cleaning) {
+    try { _advancedEditors.cleaning.save(); } catch (e) {}
+  }
+  if (type === "notify.integration" && _advancedEditors.notifyMessage) {
+    try { _advancedEditors.notifyMessage.save(); } catch (e) {}
+  }
   let cfg = {};
 
   if (type === "extract.http") {
@@ -1082,8 +1918,8 @@ function saveNodeConfig() {
     cfg.timeout = parseInt(document.getElementById("cfg_timeout").value || "30", 10);
     const headers = _safeJsonParse(document.getElementById("cfg_headers").value, {});
     const params = _safeJsonParse(document.getElementById("cfg_params").value, {});
-    if (headers === null) return alert("Headers JSON invalid");
-    if (params === null) return alert("Params JSON invalid");
+    if (headers === null) return _showMessageModal("Headers JSON invalid", "Validation");
+    if (params === null) return _showMessageModal("Params JSON invalid", "Validation");
     cfg.headers = headers;
     cfg.params = params;
   } else if (type === "extract.sql") {
@@ -1095,8 +1931,29 @@ function saveNodeConfig() {
     cfg.strict_scalar = !!document.getElementById("cfg_strict_scalar")?.checked;
   } else if (type === "transform.mapping") {
     const fields = _safeJsonParse(document.getElementById("cfg_fields").value, {});
-    if (fields === null) return alert("Fields JSON invalid");
+    if (fields === null) return _showMessageModal("Fields JSON invalid", "Validation");
     cfg.fields = fields;
+  } else if (type === "transform.cleaning_rules") {
+    const presets = _safeJsonParse(document.getElementById("cfg_clean_presets").value, []);
+    const rules = _safeJsonParse(document.getElementById("cfg_clean_rules").value, []);
+    if (presets === null || !Array.isArray(presets)) return _showMessageModal("Presets JSON invalid (array expected)", "Validation");
+    if (rules === null || !Array.isArray(rules)) return _showMessageModal("Rules JSON invalid (array expected)", "Validation");
+    const dedupEnabled = !!document.getElementById("cfg_clean_dedup_enabled")?.checked;
+    const dedupFieldsRaw = document.getElementById("cfg_clean_dedup_fields")?.value || "";
+    const dedupFields = dedupFieldsRaw.split(",").map(s => s.trim()).filter(Boolean);
+    const dedupKeep = (document.getElementById("cfg_clean_dedup_keep")?.value || "first").trim();
+    cfg.presets = presets;
+    cfg.rules = rules;
+    cfg.deduplicate = {
+      enabled: dedupEnabled,
+      fields: dedupFields,
+      keep: dedupKeep || "first"
+    };
+  } else if (type === "transform.python_advanced") {
+    cfg.input_mode = (document.getElementById("cfg_py_input_mode")?.value || "current").trim();
+    cfg.input_table_key = (document.getElementById("cfg_py_input_table_key")?.value || "").trim();
+    cfg.output_table_key = (document.getElementById("cfg_py_output_table_key")?.value || "").trim();
+    cfg.code = document.getElementById("cfg_py_code")?.value || "result = data";
   } else if (type === "transform.decision.scalar") {
     cfg.source = (document.getElementById("cfg_dec_source")?.value || "last_scalar").trim();
     cfg.scalar_key = (document.getElementById("cfg_dec_scalar_key")?.value || "").trim();
@@ -1113,6 +1970,21 @@ function saveNodeConfig() {
     cfg.mode = document.getElementById("cfg_mode").value.trim() || "append";
     cfg.create_table_if_missing = document.getElementById("cfg_create").checked;
     cfg.add_columns_if_missing = document.getElementById("cfg_addcols").checked;
+  } else if (type === "load.staging_table") {
+    const sel = document.getElementById("cfg_stg_source");
+    cfg.warehouse_source_id = sel ? sel.value : "";
+    cfg.schema = document.getElementById("cfg_stg_schema")?.value?.trim() || "staging";
+    cfg.table = document.getElementById("cfg_stg_table")?.value?.trim() || "dataset";
+    cfg.table_prefix = document.getElementById("cfg_stg_prefix")?.value?.trim() || "stg_";
+    cfg.mode = document.getElementById("cfg_stg_mode")?.value?.trim() || "append";
+    cfg.table_key = document.getElementById("cfg_stg_key")?.value?.trim() || "staging";
+    cfg.run_suffix = !!document.getElementById("cfg_stg_suffix")?.checked;
+    cfg.create_table_if_missing = !!document.getElementById("cfg_stg_create")?.checked;
+    cfg.add_columns_if_missing = !!document.getElementById("cfg_stg_addcols")?.checked;
+  } else if (type === "notify.integration") {
+    const notifyCfg = _collectNotifyConfigFromForm();
+    if (!notifyCfg) return;
+    cfg = notifyCfg;
   }
 
   node.data = node.data || {};

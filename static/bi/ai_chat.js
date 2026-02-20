@@ -1,6 +1,44 @@
 /* global echarts */
 
 (function () {
+  let _biModal = null;
+
+  function ensureModal () {
+    if (_biModal) return _biModal;
+    const host = document.createElement('div');
+    host.innerHTML = `
+      <div class="modal fade" id="aiChatModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="aiChatModalTitle">Information</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="aiChatModalBody"></div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(host.firstElementChild);
+    const el = document.getElementById('aiChatModal');
+    _biModal = {
+      title: document.getElementById('aiChatModalTitle'),
+      body: document.getElementById('aiChatModalBody'),
+      bs: new bootstrap.Modal(el)
+    };
+    return _biModal;
+  }
+
+  function uiAlert (message, title) {
+    const m = ensureModal();
+    m.title.textContent = title || 'Information';
+    m.body.textContent = String(message || '');
+    m.bs.show();
+  }
+
   function qs (sel) { return document.querySelector(sel); }
   function el (tag, cls) { const e = document.createElement(tag); if (cls) e.className = cls; return e; }
 
@@ -104,7 +142,7 @@
       const msg = (input.value || '').trim();
       if (!qid) {
         if (window.uiToast) window.uiToast(window.t('Selecione uma pergunta'), { variant: 'danger' });
-        else alert(window.t('Selecione uma pergunta'));
+        else uiAlert(window.t('Selecione uma pergunta'), window.t('Validation'));
         return;
       }
       if (!msg) return;
@@ -112,7 +150,7 @@
       const params = parseJsonSafe(paramsEl ? paramsEl.value : '');
       if (params === null) {
         if (window.uiToast) window.uiToast('Parâmetros JSON inválidos.', { variant: 'danger' });
-        else alert('Parâmetros JSON inválidos.');
+        else uiAlert('Parâmetros JSON inválidos.', window.t('Validation'));
         return;
       }
 

@@ -124,6 +124,10 @@ class ETLEngine:
                 "last_scalar": ctx.meta.get("last_scalar"),
                 "scalars": ctx.meta.get("scalars") if isinstance(ctx.meta.get("scalars"), dict) else {},
                 "last_decision": ctx.meta.get("last_decision"),
+                "tables": ctx.meta.get("tables") if isinstance(ctx.meta.get("tables"), dict) else {},
+                "last_cleaning": ctx.meta.get("last_cleaning") if isinstance(ctx.meta.get("last_cleaning"), dict) else {},
+                "staging_runs": ctx.meta.get("staging_runs") if isinstance(ctx.meta.get("staging_runs"), list) else [],
+                "notifications": ctx.meta.get("notifications") if isinstance(ctx.meta.get("notifications"), list) else [],
             },
             "steps": [r.__dict__ for r in results],
         }
@@ -240,6 +244,10 @@ class ETLEngine:
                 "last_scalar": ctx.meta.get("last_scalar"),
                 "scalars": ctx.meta.get("scalars") if isinstance(ctx.meta.get("scalars"), dict) else {},
                 "last_decision": ctx.meta.get("last_decision"),
+                "tables": ctx.meta.get("tables") if isinstance(ctx.meta.get("tables"), dict) else {},
+                "last_cleaning": ctx.meta.get("last_cleaning") if isinstance(ctx.meta.get("last_cleaning"), dict) else {},
+                "staging_runs": ctx.meta.get("staging_runs") if isinstance(ctx.meta.get("staging_runs"), list) else [],
+                "notifications": ctx.meta.get("notifications") if isinstance(ctx.meta.get("notifications"), list) else [],
             },
             "previews": previews,
         }

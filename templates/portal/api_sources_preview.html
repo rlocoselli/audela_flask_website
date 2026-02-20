@@ -1,0 +1,216 @@
+{% extends "portal/layout.html" %}
+
+{% block portal_content %}
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+      <h2 class="h4 mb-0">{{ _('Aperçu API') }} · {{ source.name }}</h2>
+      <div class="text-muted small">{{ _('Mode Postman: configurez la requête, lancez et inspectez la réponse.') }}</div>
+    </div>
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-secondary" href="{{ url_for('portal.api_sources_list') }}">{{ _('Voltar') }}</a>
+    </div>
+  </div>
+
+  {% set cfg = config or {} %}
+  {% set headers = cfg.get('headers') if cfg.get('headers') is mapping else {} %}
+  {% set auth = cfg.get('auth_flow') if cfg.get('auth_flow') is mapping else {} %}
+
+  <div class="row g-3">
+    <div class="col-12 col-xl-5">
+      <div class="card shadow-sm">
+        <div class="card-header fw-semibold">{{ _('Requête') }}</div>
+        <div class="card-body row g-3">
+          <div class="col-12 col-md-4">
+            <label class="form-label">{{ _('Méthode') }}</label>
+            <select class="form-select" id="api-preview-method">
+              <option>GET</option>
+              <option>POST</option>
+              <option>PUT</option>
+              <option>PATCH</option>
+              <option>DELETE</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-8">
+            <label class="form-label">URL</label>
+            <input class="form-control" id="api-preview-url" value="{{ (cfg.get('base_url') or source.base_url or '') }}" />
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">{{ _('Headers (JSON)') }}</label>
+            <textarea class="form-control font-monospace" id="api-preview-headers" rows="5">{{ headers|tojson(indent=2) }}</textarea>
+          </div>
+
+          <div class="col-12 col-md-6">
+            <label class="form-label">{{ _('Params (JSON)') }}</label>
+            <textarea class="form-control font-monospace" id="api-preview-params" rows="5">{}</textarea>
+          </div>
+
+          <div class="col-12 col-md-6">
+            <label class="form-label">{{ _('Body (JSON)') }}</label>
+            <textarea class="form-control font-monospace" id="api-preview-body" rows="5">{}</textarea>
+          </div>
+
+          <div class="col-12 col-md-4">
+            <label class="form-label">{{ _('Timeout (s)') }}</label>
+            <input type="number" class="form-control" id="api-preview-timeout" value="30" min="3" max="120" />
+          </div>
+
+          <div class="col-12 col-md-8 d-flex align-items-end">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="api-preview-use-auth" {% if auth.get('enabled') %}checked{% endif %}>
+              <label class="form-check-label" for="api-preview-use-auth">{{ _('Pré-auth bearer token avant requête') }}</label>
+            </div>
+          </div>
+
+          <div class="col-12"><hr class="my-1"></div>
+          <div class="col-12"><div class="fw-semibold small text-muted text-uppercase">{{ _('Flux auth token') }}</div></div>
+
+          <div class="col-12 col-md-8">
+            <label class="form-label">{{ _('URL auth') }}</label>
+            <input class="form-control" id="api-auth-url" value="{{ (auth.get('url') or '') }}" />
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label">{{ _('Méthode auth') }}</label>
+            {% set am = (auth.get('method') or 'POST')|upper %}
+            <select class="form-select" id="api-auth-method">
+              <option value="POST" {% if am == 'POST' %}selected{% endif %}>POST</option>
+              <option value="GET" {% if am == 'GET' %}selected{% endif %}>GET</option>
+              <option value="PUT" {% if am == 'PUT' %}selected{% endif %}>PUT</option>
+              <option value="PATCH" {% if am == 'PATCH' %}selected{% endif %}>PATCH</option>
+            </select>
+          </div>
+
+          <div class="col-12 col-md-6">
+            <label class="form-label">{{ _('Headers auth (JSON)') }}</label>
+            <textarea class="form-control font-monospace" id="api-auth-headers" rows="4">{{ (auth.get('headers') or {})|tojson(indent=2) }}</textarea>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">{{ _('Body auth (JSON)') }}</label>
+            <textarea class="form-control font-monospace" id="api-auth-body" rows="4">{{ (auth.get('body') or {})|tojson(indent=2) }}</textarea>
+          </div>
+
+          <div class="col-12 col-md-4">
+            <label class="form-label">{{ _('Chemin token JSON') }}</label>
+            <input class="form-control" id="api-auth-token-path" value="{{ auth.get('token_json_path') or 'access_token' }}" />
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label">{{ _('Header token') }}</label>
+            <input class="form-control" id="api-auth-token-header" value="{{ auth.get('token_header_name') or 'Authorization' }}" />
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label">{{ _('Préfixe token') }}</label>
+            <input class="form-control" id="api-auth-token-prefix" value="{{ auth.get('token_prefix') or 'Bearer' }}" />
+          </div>
+
+          <div class="col-12 d-grid">
+            <button type="button" class="btn btn-primary" id="api-preview-send">{{ _('Envoyer') }}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-xl-7">
+      <div class="card shadow-sm h-100">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span class="fw-semibold">{{ _('Réponse') }}</span>
+          <span class="small text-muted" id="api-preview-meta">-</span>
+        </div>
+        <div class="card-body">
+          <div id="api-preview-error" class="alert alert-danger d-none"></div>
+          <div class="mb-2 small"><strong>Status:</strong> <span id="api-preview-status">-</span></div>
+          <div class="mb-2 small"><strong>{{ _('Auth') }}:</strong> <span id="api-preview-auth">-</span></div>
+          <div class="mb-2">
+            <label class="form-label small">Headers</label>
+            <pre id="api-preview-response-headers" class="p-2 bg-light border rounded small" style="max-height: 180px; overflow:auto;">{}</pre>
+          </div>
+          <div>
+            <label class="form-label small">Body</label>
+            <pre id="api-preview-response-body" class="p-2 bg-light border rounded small" style="min-height: 260px; max-height: 520px; overflow:auto;">{}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const endpoint = "{{ url_for('portal.api_sources_preview_call', source_id=source.id) }}";
+      const csrf = "{{ csrf_token() }}";
+      const byId = (id) => document.getElementById(id);
+      const j = (v) => {
+        const s = String(v || '').trim();
+        if (!s) return {};
+        return JSON.parse(s);
+      };
+
+      byId('api-preview-send')?.addEventListener('click', async () => {
+        const errBox = byId('api-preview-error');
+        errBox.classList.add('d-none');
+        errBox.textContent = '';
+
+        const payload = {
+          method: byId('api-preview-method').value,
+          url: byId('api-preview-url').value,
+          headers: byId('api-preview-headers').value,
+          params: byId('api-preview-params').value,
+          body: byId('api-preview-body').value,
+          timeout: Number(byId('api-preview-timeout').value || 30),
+          use_auth_flow: !!byId('api-preview-use-auth').checked,
+          auth_flow: {
+            url: byId('api-auth-url').value,
+            method: byId('api-auth-method').value,
+            headers: byId('api-auth-headers').value,
+            body: byId('api-auth-body').value,
+            token_json_path: byId('api-auth-token-path').value,
+            token_header_name: byId('api-auth-token-header').value,
+            token_prefix: byId('api-auth-token-prefix').value,
+          }
+        };
+
+        try {
+          j(payload.headers); j(payload.params); j(payload.body);
+          j(payload.auth_flow.headers); j(payload.auth_flow.body);
+        } catch (e) {
+          errBox.textContent = "{{ _('JSON inválido em um dos campos.') }}";
+          errBox.classList.remove('d-none');
+          return;
+        }
+
+        byId('api-preview-meta').textContent = '...';
+        byId('api-preview-status').textContent = '-';
+        byId('api-preview-auth').textContent = '-';
+
+        try {
+          const resp = await fetch(endpoint, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': csrf,
+            },
+            body: JSON.stringify(payload),
+          });
+          const data = await resp.json().catch(() => ({}));
+          if (!resp.ok || !data.ok) {
+            errBox.textContent = data.error || '{{ _('Erro ao executar chamada API.') }}';
+            errBox.classList.remove('d-none');
+          }
+
+          const rs = (data.response || {});
+          byId('api-preview-status').textContent = rs.status_code || '-';
+          byId('api-preview-meta').textContent = (rs.elapsed_ms != null ? `${rs.elapsed_ms} ms` : '-');
+          if (data.auth) {
+            byId('api-preview-auth').textContent = `OK (${data.auth.status_code || '-'})`;
+          } else {
+            byId('api-preview-auth').textContent = byId('api-preview-use-auth').checked ? 'n/a' : '{{ _('désactivé') }}';
+          }
+          byId('api-preview-response-headers').textContent = JSON.stringify(rs.headers || {}, null, 2);
+          byId('api-preview-response-body').textContent = (typeof rs.body === 'string') ? rs.body : JSON.stringify(rs.body || {}, null, 2);
+        } catch (e) {
+          errBox.textContent = String(e?.message || e || 'error');
+          errBox.classList.remove('d-none');
+        }
+      });
+    })();
+  </script>
+{% endblock %}

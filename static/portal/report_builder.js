@@ -19,6 +19,115 @@
   }));
 
   function qs (sel, root) { return (root || document).querySelector(sel); }
+  let _rbUiModal = null;
+
+  function _ensureUiModal () {
+    if (_rbUiModal) return _rbUiModal;
+    const host = document.createElement('div');
+    host.innerHTML = `
+      <div class="modal fade" id="rbUiModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="rbUiModalTitle">${escapeHtml(t('Confirmação'))}</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="rbUiModalBody"></div>
+            <div class="modal-footer" id="rbUiModalFooter"></div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(host.firstElementChild);
+    const el = qs('#rbUiModal');
+    _rbUiModal = {
+      el,
+      title: qs('#rbUiModalTitle'),
+      body: qs('#rbUiModalBody'),
+      footer: qs('#rbUiModalFooter'),
+      bs: new bootstrap.Modal(el)
+    };
+    return _rbUiModal;
+  }
+
+  function rbAlert (message, opts) {
+    const o = opts || {};
+    const modal = _ensureUiModal();
+    modal.title.textContent = String(o.title || t('Information'));
+    modal.body.textContent = String(message || '');
+    modal.footer.innerHTML = `<button type="button" class="btn btn-primary" data-bs-dismiss="modal">${escapeHtml(t('OK'))}</button>`;
+    modal.bs.show();
+  }
+
+  function rbConfirm (message, opts) {
+    const o = opts || {};
+    const modal = _ensureUiModal();
+    modal.title.textContent = String(o.title || t('Confirmação'));
+    modal.body.textContent = String(message || '');
+    modal.footer.innerHTML = `
+      <button type="button" class="btn btn-outline-secondary" data-rb-no>${escapeHtml(t('Cancelar'))}</button>
+      <button type="button" class="btn btn-primary" data-rb-yes>${escapeHtml(t('Continuer'))}</button>
+    `;
+
+    return new Promise(resolve => {
+      const yes = modal.footer.querySelector('[data-rb-yes]');
+      const no = modal.footer.querySelector('[data-rb-no]');
+      const done = (v) => {
+        try { yes && yes.removeEventListener('click', onYes); } catch (e) {}
+        try { no && no.removeEventListener('click', onNo); } catch (e) {}
+        try { modal.el.removeEventListener('hidden.bs.modal', onHidden); } catch (e) {}
+        resolve(v);
+      };
+      const onYes = () => { modal.bs.hide(); done(true); };
+      const onNo = () => { modal.bs.hide(); done(false); };
+      const onHidden = () => done(false);
+
+      yes && yes.addEventListener('click', onYes);
+      no && no.addEventListener('click', onNo);
+      modal.el.addEventListener('hidden.bs.modal', onHidden, { once: true });
+      modal.bs.show();
+    });
+  }
+
+  const _placeholderTokens = new Set(['{{date}}', '{{datetime}}']);
+
+  function _registerPlaceholderToken (token) {
+    const s = String(token || '').trim();
+    if (!s) return;
+    _placeholderTokens.add(s);
+    _refreshPlaceholderDatalist();
+  }
+
+  function _registerBindingPlaceholders (binding) {
+    const b = (binding && typeof binding === 'object') ? binding : {};
+    const source = String(b.source || '').trim().toLowerCase();
+    const field = String(b.field || '').trim();
+    if (!field) return;
+    if (source === 'question') {
+      const qid = Number(b.question_id || 0);
+      if (!qid) return;
+      _registerPlaceholderToken(`{{question:${qid}.${field}}}`);
+      _registerPlaceholderToken(`{{sum(question:${qid}.${field})}}`);
+      _registerPlaceholderToken(`{{avg(question:${qid}.${field})}}`);
+      _registerPlaceholderToken(`{{count(question:${qid})}}`);
+      return;
+    }
+    if (source === 'table') {
+      const table = String(b.table || '').trim();
+      if (!table) return;
+      _registerPlaceholderToken(`{{table:${table}.${field}}}`);
+      _registerPlaceholderToken(`{{sum(table:${table}.${field})}}`);
+      _registerPlaceholderToken(`{{avg(table:${table}.${field})}}`);
+      _registerPlaceholderToken(`{{count(table:${table})}}`);
+    }
+  }
+
+  function _refreshPlaceholderDatalist () {
+    const list = qs('#rb-edit-placeholder-list');
+    if (!list) return;
+    const tokens = Array.from(_placeholderTokens).sort((a, b) => a.localeCompare(b));
+    list.innerHTML = tokens.map(v => `<option value="${escapeHtml(v)}"></option>`).join('');
+  }
 
   function jsonFetch (url, opts) {
     opts = opts || {};
@@ -299,6 +408,8 @@
       textGroup: qs('#rb-edit-text-group', modalEl),
       contentLabel: qs('#rb-edit-content-label', modalEl),
       contentInput: qs('#rb-edit-content', modalEl),
+      placeholderInput: qs('#rb-edit-placeholder-input', modalEl),
+      insertPlaceholderBtn: qs('#rb-edit-insert-placeholder', modalEl),
 
       imageGroup: qs('#rb-edit-image-group', modalEl),
       imageUrl: qs('#rb-edit-image-url', modalEl),
@@ -320,6 +431,16 @@
       qGroupBy: qs('#rb-edit-q-group-by', modalEl),
       qGroupLabel: qs('#rb-edit-q-group-label', modalEl),
       qGroupCount: qs('#rb-edit-q-group-count', modalEl),
+      qSubtotalMode: qs('#rb-edit-q-subtotal-mode', modalEl),
+      qSubtotalField: qs('#rb-edit-q-subtotal-field', modalEl),
+      qSubtotalLabel: qs('#rb-edit-q-subtotal-label', modalEl),
+      qGrandTotal: qs('#rb-edit-q-grand-total', modalEl),
+      qGrandTotalLabel: qs('#rb-edit-q-grand-total-label', modalEl),
+      qFooterCount: qs('#rb-edit-q-footer-count', modalEl),
+      qFooterCountLabel: qs('#rb-edit-q-footer-count-label', modalEl),
+      qFilterField: qs('#rb-edit-q-filter-field', modalEl),
+      qFilterOp: qs('#rb-edit-q-filter-op', modalEl),
+      qFilterValue: qs('#rb-edit-q-filter-value', modalEl),
       qSortBy: qs('#rb-edit-q-sort-by', modalEl),
       qSortDir: qs('#rb-edit-q-sort-dir', modalEl),
 
@@ -384,6 +505,41 @@
         });
       });
     }
+
+    if (_editor.insertPlaceholderBtn && _editor.placeholderInput && _editor.contentInput) {
+      _editor.insertPlaceholderBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const tok = String(_editor.placeholderInput.value || '').trim();
+        if (!tok) return;
+        const start = _editor.contentInput.selectionStart || 0;
+        const end = _editor.contentInput.selectionEnd || 0;
+        const value = String(_editor.contentInput.value || '');
+        _editor.contentInput.value = value.slice(0, start) + tok + value.slice(end);
+        const pos = start + tok.length;
+        _editor.contentInput.focus();
+        try { _editor.contentInput.setSelectionRange(pos, pos); } catch (err) {}
+      });
+    }
+
+    modalEl.querySelectorAll('[data-rb-insert-placeholder-example]').forEach(btn => {
+      if (btn._rbBoundExample) return;
+      btn._rbBoundExample = true;
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (!_editor.contentInput) return;
+        const tok = String(btn.getAttribute('data-rb-insert-placeholder-example') || '').trim();
+        if (!tok) return;
+        const start = _editor.contentInput.selectionStart || 0;
+        const end = _editor.contentInput.selectionEnd || 0;
+        const value = String(_editor.contentInput.value || '');
+        _editor.contentInput.value = value.slice(0, start) + tok + value.slice(end);
+        const pos = start + tok.length;
+        _editor.contentInput.focus();
+        try { _editor.contentInput.setSelectionRange(pos, pos); } catch (err) {}
+        if (_editor.placeholderInput) _editor.placeholderInput.value = tok;
+      });
+    });
+    _refreshPlaceholderDatalist();
 
     // Palette interactions
     const palettes = modalEl.querySelectorAll('.rb-color-palette');
@@ -491,6 +647,20 @@
         out.config.table.group_by = String((_editor.qGroupBy && _editor.qGroupBy.value) || '').trim();
         out.config.table.group_label = String((_editor.qGroupLabel && _editor.qGroupLabel.value) || '').trim() || '{group}';
         out.config.table.group_count = !!(_editor.qGroupCount && _editor.qGroupCount.checked);
+        {
+          let subtotalMode = String((_editor.qSubtotalMode && _editor.qSubtotalMode.value) || '').trim().toLowerCase();
+          if (!['count', 'sum'].includes(subtotalMode)) subtotalMode = '';
+          out.config.table.group_subtotal_mode = subtotalMode;
+        }
+        out.config.table.group_subtotal_field = String((_editor.qSubtotalField && _editor.qSubtotalField.value) || '').trim();
+        out.config.table.group_subtotal_label = String((_editor.qSubtotalLabel && _editor.qSubtotalLabel.value) || '').trim() || 'Sous-total';
+        out.config.table.grand_total = !!(_editor.qGrandTotal && _editor.qGrandTotal.checked);
+        out.config.table.grand_total_label = String((_editor.qGrandTotalLabel && _editor.qGrandTotalLabel.value) || '').trim() || 'Grand total';
+        out.config.table.footer_item_count = !!(_editor.qFooterCount && _editor.qFooterCount.checked);
+        out.config.table.footer_item_count_label = String((_editor.qFooterCountLabel && _editor.qFooterCountLabel.value) || '').trim() || 'Items';
+        out.config.table.filter_field = String((_editor.qFilterField && _editor.qFilterField.value) || '').trim();
+        out.config.table.filter_op = String((_editor.qFilterOp && _editor.qFilterOp.value) || '').trim().toLowerCase();
+        out.config.table.filter_value = String((_editor.qFilterValue && _editor.qFilterValue.value) || '').trim();
         out.config.table.sort_by = String((_editor.qSortBy && _editor.qSortBy.value) || '').trim();
         let sdir = String((_editor.qSortDir && _editor.qSortDir.value) || 'asc').trim().toLowerCase();
         if (!['asc', 'desc'].includes(sdir)) sdir = 'asc';
@@ -621,6 +791,19 @@
       if (ed.qGroupBy) ed.qGroupBy.value = tbl.group_by || '';
       if (ed.qGroupLabel) ed.qGroupLabel.value = tbl.group_label || '{group}';
       if (ed.qGroupCount) ed.qGroupCount.checked = !!tbl.group_count;
+      if (ed.qSubtotalMode) {
+        const mode = String(tbl.group_subtotal_mode || '').toLowerCase();
+        ed.qSubtotalMode.value = ['count', 'sum'].includes(mode) ? mode : '';
+      }
+      if (ed.qSubtotalField) ed.qSubtotalField.value = tbl.group_subtotal_field || '';
+      if (ed.qSubtotalLabel) ed.qSubtotalLabel.value = tbl.group_subtotal_label || 'Sous-total';
+      if (ed.qGrandTotal) ed.qGrandTotal.checked = !!tbl.grand_total;
+      if (ed.qGrandTotalLabel) ed.qGrandTotalLabel.value = tbl.grand_total_label || 'Grand total';
+      if (ed.qFooterCount) ed.qFooterCount.checked = !!tbl.footer_item_count;
+      if (ed.qFooterCountLabel) ed.qFooterCountLabel.value = tbl.footer_item_count_label || 'Items';
+      if (ed.qFilterField) ed.qFilterField.value = tbl.filter_field || '';
+      if (ed.qFilterOp) ed.qFilterOp.value = tbl.filter_op || '';
+      if (ed.qFilterValue) ed.qFilterValue.value = tbl.filter_value || '';
       if (ed.qSortBy) ed.qSortBy.value = tbl.sort_by || '';
       if (ed.qSortDir) ed.qSortDir.value = (tbl.sort_dir === 'desc') ? 'desc' : 'asc';
     } else {
@@ -631,6 +814,16 @@
       if (ed.qGroupBy) ed.qGroupBy.value = '';
       if (ed.qGroupLabel) ed.qGroupLabel.value = '{group}';
       if (ed.qGroupCount) ed.qGroupCount.checked = false;
+      if (ed.qSubtotalMode) ed.qSubtotalMode.value = '';
+      if (ed.qSubtotalField) ed.qSubtotalField.value = '';
+      if (ed.qSubtotalLabel) ed.qSubtotalLabel.value = 'Sous-total';
+      if (ed.qGrandTotal) ed.qGrandTotal.checked = false;
+      if (ed.qGrandTotalLabel) ed.qGrandTotalLabel.value = 'Grand total';
+      if (ed.qFooterCount) ed.qFooterCount.checked = false;
+      if (ed.qFooterCountLabel) ed.qFooterCountLabel.value = 'Items';
+      if (ed.qFilterField) ed.qFilterField.value = '';
+      if (ed.qFilterOp) ed.qFilterOp.value = '';
+      if (ed.qFilterValue) ed.qFilterValue.value = '';
       if (ed.qSortBy) ed.qSortBy.value = '';
       if (ed.qSortDir) ed.qSortDir.value = 'asc';
     }
@@ -860,6 +1053,7 @@
           totalTables += 1;
           const tableName = String(tbl.name || '').trim();
           const columns = Array.isArray(tbl.columns) ? tbl.columns : [];
+          const seenCols = new Set();
 
           const card = document.createElement('div');
           card.className = 'rb-data-card';
@@ -878,6 +1072,11 @@
           for (const col of columns) {
             const colName = String((col && col.name) || '').trim();
             if (!colName) continue;
+            {
+              const key = colName.toLowerCase();
+              if (seenCols.has(key)) continue;
+              seenCols.add(key);
+            }
             const colType = String((col && (col.type || col.data_type)) || '').trim();
             const field = createFieldDragItem({
               field: colName,
@@ -890,6 +1089,7 @@
                 field: colName
               }
             });
+            _registerBindingPlaceholders({ source: 'table', table: tableName, field: colName });
             fieldsBox.appendChild(field);
           }
 
@@ -949,9 +1149,15 @@
               const cols = Array.isArray(payload.columns) ? payload.columns : [];
               fieldsWrap.innerHTML = '';
               const qName = (card.querySelector('.fw-semibold')?.textContent || tf('Pergunta #{id}', { id: qid })).trim();
+              const seen = new Set();
               for (const cname of cols) {
                 const colName = String(cname || '').trim();
                 if (!colName) continue;
+                {
+                  const key = colName.toLowerCase();
+                  if (seen.has(key)) continue;
+                  seen.add(key);
+                }
                 const item = createFieldDragItem({
                   field: colName,
                   sub: qName,
@@ -964,6 +1170,7 @@
                     field: colName
                   }
                 });
+                _registerBindingPlaceholders({ source: 'question', question_id: qid, field: colName });
                 fieldsWrap.appendChild(item);
               }
               if (!cols.length) fieldsWrap.innerHTML = `<div class="text-muted small">${t('Sem colunas retornadas.')}</div>`;
@@ -1093,6 +1300,264 @@
     }
   }
 
+  function tableStyleTemplateConfig (templateName) {
+    const name = String(templateName || '').trim().toLowerCase();
+    if (name === 'professional') {
+      return { theme: 'professional', zebra: true, repeat_header: true };
+    }
+    if (name === 'minimal') {
+      return { theme: 'minimal', zebra: true, repeat_header: true };
+    }
+    return { theme: 'crystal', zebra: false, repeat_header: true };
+  }
+
+  function currentTableStyleTemplate () {
+    try {
+      const stored = localStorage.getItem('rb.style.template');
+      const n = String(stored || 'crystal').toLowerCase();
+      if (['crystal', 'professional', 'minimal'].includes(n)) return n;
+    } catch (e) {}
+    return 'crystal';
+  }
+
+  function setCurrentTableStyleTemplate (templateName) {
+    const n = String(templateName || '').toLowerCase();
+    const safe = ['crystal', 'professional', 'minimal'].includes(n) ? n : 'crystal';
+    try { localStorage.setItem('rb.style.template', safe); } catch (e) {}
+    qsa('[data-rb-style-template]').forEach(btn => {
+      const on = (btn.getAttribute('data-rb-style-template') || '').toLowerCase() === safe;
+      btn.classList.toggle('btn-primary', on);
+      btn.classList.toggle('btn-outline-secondary', !on);
+    });
+    return safe;
+  }
+
+  function applyTemplateToQuestionBlock (el, templateName) {
+    if (!el) return false;
+    const dtype = String(el.getAttribute('data-type') || '').toLowerCase();
+    const hasQuestionId = String(el.getAttribute('data-question-id') || '').trim() !== '';
+    const isQuestionBlock = ['question', 'table', 'question_table'].includes(dtype) || hasQuestionId;
+    const isDataFieldBlock = dtype === 'data_field';
+    if (!isQuestionBlock && !isDataFieldBlock) return false;
+    const b = readBlockFromEl(el);
+    if (!b.question_id && hasQuestionId) {
+      const qid = Number(el.getAttribute('data-question-id') || 0);
+      if (qid) b.question_id = qid;
+    }
+    if (isQuestionBlock && (!b.type || !['question', 'table', 'question_table'].includes(String(b.type).toLowerCase()))) {
+      b.type = 'question';
+      el.setAttribute('data-type', 'question');
+    }
+    b.config = (b.config && typeof b.config === 'object') ? b.config : {};
+    b.config.table = (b.config.table && typeof b.config.table === 'object') ? b.config.table : {};
+    Object.assign(b.config.table, tableStyleTemplateConfig(templateName));
+    writeConfigToEl(el, b.config);
+    return true;
+  }
+
+  function applyTemplateToAllQuestions (templateName) {
+    let changed = 0;
+    const all = new Set();
+    for (const zoneId of ZONES) {
+      const zone = qs('#' + zoneId);
+      if (!zone) continue;
+      qsa('.rb-block-instance', zone).forEach(el => all.add(el));
+      qsa('[data-question-id]', zone).forEach(el => all.add(el));
+      qsa('[data-type="question"], [data-type="table"], [data-type="question_table"]', zone).forEach(el => all.add(el));
+    }
+    all.forEach(el => {
+      if (applyTemplateToQuestionBlock(el, templateName)) changed += 1;
+    });
+    return changed;
+  }
+
+  function bindStyleTemplateButtons () {
+    const startTemplate = setCurrentTableStyleTemplate(currentTableStyleTemplate());
+    qsa('[data-rb-style-template]').forEach(btn => {
+      if (btn._rbBound) return;
+      btn._rbBound = true;
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const tpl = setCurrentTableStyleTemplate(btn.getAttribute('data-rb-style-template') || startTemplate);
+        const changed = applyTemplateToAllQuestions(tpl);
+        if (window.uiToast) {
+          if (changed > 0) {
+            window.uiToast(tf('Template appliqué à {n} bloc(s) de tableau.', { n: changed }), { variant: 'success' });
+          } else {
+            window.uiToast(t('Aucun bloc de tableau trouvé dans le rapport.'), { variant: 'warning' });
+          }
+        }
+      });
+    });
+  }
+
+  function buildDocumentTemplate (templateName) {
+    const name = String(templateName || '').trim().toLowerCase();
+
+    if (name === 'invoice') {
+      return {
+        report_header: [
+          {
+            type: 'text',
+            title: t('FACTURE'),
+            content: t('Entreprise\nAdresse\nTéléphone • Email')
+          },
+          {
+            type: 'markdown',
+            title: t('Informations facture'),
+            content: t('**N° facture :** INV-2026-001\n**Date :** {{date}}\n**Échéance :** {{due_date}}\n**Client :** {{client_name}}\n**Adresse client :** {{client_address}}')
+          }
+        ],
+        page_header: [],
+        detail: [
+          {
+            type: 'markdown',
+            title: t('Lignes de facturation'),
+            content: t('| Description | Qté | PU | Total |\n|---|---:|---:|---:|\n| Service A | 1 | 1000 | 1000 |\n| Service B | 2 | 250 | 500 |')
+          },
+          {
+            type: 'markdown',
+            title: t('Totaux'),
+            content: t('**Sous-total :** {{subtotal}}\n**TVA :** {{tax}}\n**Total TTC :** {{grand_total}}')
+          }
+        ],
+        page_footer: [
+          {
+            type: 'text',
+            title: t('Conditions de paiement'),
+            content: t('Paiement à 30 jours. Merci pour votre confiance.')
+          }
+        ],
+        report_footer: []
+      };
+    }
+
+    if (name === 'letter') {
+      return {
+        report_header: [
+          {
+            type: 'text',
+            title: t('En-tête'),
+            content: t('Entreprise\nAdresse\nTéléphone • Email')
+          }
+        ],
+        page_header: [],
+        detail: [
+          {
+            type: 'markdown',
+            title: t('Objet'),
+            content: t('**Objet :** {{subject}}')
+          },
+          {
+            type: 'markdown',
+            title: t('Corps de lettre'),
+            content: t('Madame, Monsieur,\n\n{{body}}\n\nCordialement,\n{{signatory_name}}\n{{signatory_role}}')
+          }
+        ],
+        page_footer: [],
+        report_footer: [
+          {
+            type: 'field',
+            title: t('Date'),
+            config: { kind: 'date', format: 'dd/MM/yyyy' }
+          }
+        ]
+      };
+    }
+
+    if (name === 'quote') {
+      return {
+        report_header: [
+          {
+            type: 'text',
+            title: t('DEVIS'),
+            content: t('Entreprise\nAdresse\nTéléphone • Email')
+          },
+          {
+            type: 'markdown',
+            title: t('Informations devis'),
+            content: t('**N° devis :** QUO-2026-001\n**Date :** {{date}}\n**Valide jusqu’au :** {{valid_until}}\n**Client :** {{client_name}}')
+          }
+        ],
+        page_header: [],
+        detail: [
+          {
+            type: 'markdown',
+            title: t('Prestations proposées'),
+            content: t('| Description | Qté | PU | Total |\n|---|---:|---:|---:|\n| Prestation A | 1 | 800 | 800 |\n| Prestation B | 1 | 450 | 450 |')
+          },
+          {
+            type: 'markdown',
+            title: t('Montant estimé'),
+            content: t('**Total estimé :** {{grand_total}}\n\n{{terms}}')
+          }
+        ],
+        page_footer: [],
+        report_footer: []
+      };
+    }
+
+    return null;
+  }
+
+  function countBlocksInZones () {
+    let count = 0;
+    for (const zoneId of ZONES) {
+      const zone = qs('#' + zoneId);
+      if (!zone) continue;
+      count += qsa('.rb-block-instance', zone).length;
+    }
+    return count;
+  }
+
+  function applyDocumentTemplate (templateName) {
+    const tpl = buildDocumentTemplate(templateName);
+    if (!tpl) return false;
+
+    const zoneMap = {
+      report_header: qs('#rb-report-header'),
+      page_header: qs('#rb-page-header'),
+      detail: qs('#rb-detail'),
+      page_footer: qs('#rb-page-footer'),
+      report_footer: qs('#rb-report-footer')
+    };
+
+    for (const band of Object.keys(zoneMap)) {
+      const zone = zoneMap[band];
+      if (!zone) continue;
+      zone.innerHTML = `<div class="rb-drop-hint">${t('Arraste aqui...')}</div>`;
+      const blocks = Array.isArray(tpl[band]) ? tpl[band] : [];
+      for (const b of blocks) {
+        zone.appendChild(makeBlockEl(b));
+      }
+    }
+    normalizeDropHints();
+    return true;
+  }
+
+  function bindDocumentTemplateButtons () {
+    qsa('[data-rb-doc-template]').forEach(btn => {
+      if (btn._rbBoundDocTpl) return;
+      btn._rbBoundDocTpl = true;
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const name = btn.getAttribute('data-rb-doc-template') || '';
+        const existing = countBlocksInZones();
+        if (existing > 0) {
+          const ok = await rbConfirm(t('Ce template remplacera la mise en page actuelle. Continuer ?'), {
+            title: t('Appliquer le template')
+          });
+          if (!ok) return;
+        }
+        const applied = applyDocumentTemplate(name);
+        if (window.uiToast) {
+          if (applied) window.uiToast(t('Template de document chargé.'), { variant: 'success' });
+          else window.uiToast(t('Impossible de charger ce template.'), { variant: 'danger' });
+        }
+      });
+    });
+  }
+
   async function boot () {
     const cfg = window.__RB;
     if (!cfg || !cfg.apiUrl) return;
@@ -1135,7 +1600,14 @@
 
           const block = { type, title, content: '' };
           if (type === 'field') block.config = { kind: 'date', format: 'dd/MM/yyyy' };
-          if (type === 'question') block.config = { table: { theme: 'crystal', repeat_header: true, zebra: false, decimals: '' } };
+          if (type === 'question') {
+            block.config = {
+              table: {
+                ...tableStyleTemplateConfig(currentTableStyleTemplate()),
+                decimals: ''
+              }
+            };
+          }
           if (type === 'data_field') {
             const bindingRaw = it.getAttribute('data-binding') || '{}';
             const binding = safeJsonParse(bindingRaw, {}) || {};
@@ -1165,6 +1637,8 @@
     Sortable.create(reportFooter, zoneOptions());
 
     await initDataExplorer(cfg);
+    bindDocumentTemplateButtons();
+    bindStyleTemplateButtons();
 
     // Load existing layout
     try {
@@ -1220,6 +1694,9 @@
           const bb = { ...b };
           if (bb.text != null && bb.content == null) bb.content = bb.text;
           if (bb.image_url != null && bb.url == null) bb.url = bb.image_url;
+          if (bb.type === 'data_field' && bb.config && bb.config.binding) {
+            _registerBindingPlaceholders(bb.config.binding);
+          }
           dz.appendChild(makeBlockEl(bb));
         }
       }
@@ -1242,7 +1719,12 @@
           type: 'question',
           title: label,
           question_id: qid,
-          config: { table: { theme: 'crystal', repeat_header: true, zebra: false, decimals: '' } }
+          config: {
+            table: {
+              ...tableStyleTemplateConfig(currentTableStyleTemplate()),
+              decimals: ''
+            }
+          }
         }));
         normalizeDropHints();
       });
@@ -1299,7 +1781,7 @@
         } catch (err) {
           const msg = err?.error || t('Falha ao salvar');
           if (window.uiToast) window.uiToast(msg, { variant: 'danger' });
-          else alert(msg);
+          else rbAlert(msg, { title: t('Erreur') });
         } finally {
           saveBtn.disabled = false;
         }

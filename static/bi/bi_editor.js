@@ -7,6 +7,44 @@
 // - Natural language -> SQL integration (/app/api/nlq)
 
 (function () {
+  let _biModal = null;
+
+  function ensureModal () {
+    if (_biModal) return _biModal;
+    const host = document.createElement('div');
+    host.innerHTML = `
+      <div class="modal fade" id="biEditorModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="biEditorModalTitle">Information</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="biEditorModalBody"></div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(host.firstElementChild);
+    const el = document.getElementById('biEditorModal');
+    _biModal = {
+      title: document.getElementById('biEditorModalTitle'),
+      body: document.getElementById('biEditorModalBody'),
+      bs: new bootstrap.Modal(el)
+    };
+    return _biModal;
+  }
+
+  function uiAlert (message, title) {
+    const m = ensureModal();
+    m.title.textContent = title || 'Information';
+    m.body.textContent = String(message || '');
+    m.bs.show();
+  }
+
   function qs (sel) { return document.querySelector(sel); }
   function qsa (sel) { return Array.from(document.querySelectorAll(sel)); }
   const t = (window.t ? window.t : (s) => s);
@@ -498,7 +536,7 @@ if (schemaEl) {
         if (parsed === null) {
           e.preventDefault();
           if (window.uiToast) window.uiToast(t('Parâmetros JSON inválidos. Corrija antes de executar.'), { variant: 'danger' });
-          else alert(t('Parâmetros JSON inválidos. Corrija antes de executar.'));
+          else uiAlert(t('Parâmetros JSON inválidos. Corrija antes de executar.'), t('Validation'));
           return;
         }
         // Keep params in sync with SQL placeholders

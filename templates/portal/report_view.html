@@ -104,6 +104,10 @@
                   {% elif btype == 'data_rowset' %}
                     {% set key = blk._key or blk.get('_key') or '' %}
                     {% set d = blocks_data.get(key) %}
+                    {% set cfg = blk.config if blk.config is mapping else (blk.get('config') if blk.get('config') is mapping else {}) %}
+                    {% set tcfg = cfg.get('table') if cfg.get('table') is mapping else {} %}
+                    {% set zebra = (tcfg.get('zebra') or False) %}
+                    {% set header_bg = (tcfg.get('header_bg') or '') %}
                     <div class="border rounded-4 p-3 bg-body" style="{{ style_inline }}">
                       {% if blk.title or blk.get('title') %}
                         <div class="fw-semibold mb-2">{{ blk.title or blk.get('title') }}</div>
@@ -121,9 +125,9 @@
                                 {% endif %}
                               </div>
                               <div class="table-responsive">
-                                <table class="table table-sm align-middle mb-0">
+                                <table class="table table-sm align-middle mb-0 {% if zebra %}table-striped{% endif %}">
                                   <thead>
-                                    <tr>
+                                    <tr {% if header_bg %}style="background: {{ header_bg }};"{% endif %}>
                                       {% for c in d.columns %}
                                         {% set cs = (d.column_styles[loop.index0] if d.column_styles is defined and d.column_styles and loop.index0 < d.column_styles|length else {}) %}
                                         {% set cstyle = '' %}
@@ -167,9 +171,9 @@
                         </div>
                       {% elif d and d.rows %}
                         <div class="table-responsive">
-                          <table class="table table-sm align-middle mb-0">
+                          <table class="table table-sm align-middle mb-0 {% if zebra %}table-striped{% endif %}">
                             <thead>
-                              <tr>
+                              <tr {% if header_bg %}style="background: {{ header_bg }};"{% endif %}>
                                 {% for c in d.columns %}
                                   {% set cs = (d.column_styles[loop.index0] if d.column_styles is defined and d.column_styles and loop.index0 < d.column_styles|length else {}) %}
                                   {% set cstyle = '' %}
@@ -247,6 +251,7 @@
                     {% set cfg = blk.config if blk.config is mapping else (blk.get('config') if blk.get('config') is mapping else {}) %}
                     {% set tcfg = cfg.get('table') if cfg.get('table') is mapping else {} %}
                     {% set theme = (tcfg.get('theme') or 'crystal') %}
+                    {% set theme_label = _('Standard') if theme == 'crystal' else (_('Pro') if theme == 'professional' else (_('Léger') if theme == 'minimal' else theme)) %}
                     {% set zebra = (tcfg.get('zebra') or False) %}
                     {% set header_bg = (tcfg.get('header_bg') or '') %}
 
@@ -257,7 +262,7 @@
                     <div class="border rounded-4 p-3 bg-body">
                       <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
                         <div class="fw-semibold"><i class="bi bi-ui-checks me-1"></i>{{ q.name if q else ('Pergunta #' ~ qid) }}</div>
-                        <span class="badge text-bg-light border">{{ theme }}</span>
+                        <span class="badge text-bg-light border">{{ theme_label }}</span>
                       </div>
 
                       {% if d and d.error %}
@@ -289,12 +294,21 @@
                                     </tbody>
                                   </table>
                                 </div>
+                                {% if g.subtotal %}
+                                  <div class="small fw-semibold text-end mt-2">{{ g.subtotal }}</div>
+                                {% endif %}
                               {% else %}
                                 <div class="text-secondary small">{{ _('Sem linhas neste grupo.') }}</div>
                               {% endif %}
                             </div>
                           {% endfor %}
                         </div>
+                        {% if d.grand_total %}
+                          <div class="small fw-bold text-end mt-2">{{ d.grand_total }}</div>
+                        {% endif %}
+                        {% if d.footer_item_count %}
+                          <div class="small text-end mt-1">{{ d.footer_item_count }}</div>
+                        {% endif %}
                       {% elif d and d.rows %}
                         <div class="table-responsive">
                           <table class="table table-sm align-middle mb-0 {% if zebra %}table-striped{% endif %}">
@@ -312,6 +326,12 @@
                             </tbody>
                           </table>
                         </div>
+                        {% if d.grand_total %}
+                          <div class="small fw-bold text-end mt-2">{{ d.grand_total }}</div>
+                        {% endif %}
+                        {% if d.footer_item_count %}
+                          <div class="small text-end mt-1">{{ d.footer_item_count }}</div>
+                        {% endif %}
                       {% else %}
                         <div class="text-secondary small">{{ _('Sem linhas retornadas.') }}</div>
                       {% endif %}

@@ -2686,7 +2686,7 @@ _EXTRA_TRANSLATIONS = {'de': {'A extensão determina o tipo (csv/xlsx/parquet).'
         'Aurora': 'Aurora',
         'Ações': 'Aktionen',
         'Baixar': 'Herunterladen',
-        'Bandas tipo Crystal/DevExpress: Report Header (1ª página), Page Header (todas), Detail, Page Footer (todas), Report Footer (última). Clique no bloco para editar.': 'Crystal/DevExpress-Bänder: '
+        'Bandas de relatório: Report Header (1ª página), Page Header (todas), Detail, Page Footer (todas), Report Footer (última). Clique no bloco para editar.': 'Berichtsbänder: '
                                                                                                                                                                              'Berichtskopf '
                                                                                                                                                                              '(1. '
                                                                                                                                                                              'Seite), '
@@ -2955,7 +2955,7 @@ _EXTRA_TRANSLATIONS = {'de': {'A extensão determina o tipo (csv/xlsx/parquet).'
         'Aurora': 'Aurora',
         'Ações': 'Actions',
         'Baixar': 'Download',
-        'Bandas tipo Crystal/DevExpress: Report Header (1ª página), Page Header (todas), Detail, Page Footer (todas), Report Footer (última). Clique no bloco para editar.': 'Crystal/DevExpress-style '
+        'Bandas de relatório: Report Header (1ª página), Page Header (todas), Detail, Page Footer (todas), Report Footer (última). Clique no bloco para editar.': 'Report bands: '
                                                                                                                                                                              'bands: '
                                                                                                                                                                              'Report '
                                                                                                                                                                              'Header '
@@ -3213,9 +3213,9 @@ _EXTRA_TRANSLATIONS = {'de': {'A extensão determina o tipo (csv/xlsx/parquet).'
         'Aurora': 'Aurora',
         'Ações': 'Acciones',
         'Baixar': 'Descargar',
-        'Bandas tipo Crystal/DevExpress: Report Header (1ª página), Page Header (todas), Detail, Page Footer (todas), Report Footer (última). Clique no bloco para editar.': 'Bandas '
+        'Bandas de relatório: Report Header (1ª página), Page Header (todas), Detail, Page Footer (todas), Report Footer (última). Clique no bloco para editar.': 'Bandas '
                                                                                                                                                                              'estilo '
-                                                                                                                                                                             'Crystal/DevExpress: '
+                                                                                             'de informe: '
                                                                                                                                                                              'Encabezado '
                                                                                                                                                                              'del '
                                                                                                                                                                              'informe '
@@ -3489,9 +3489,9 @@ _EXTRA_TRANSLATIONS = {'de': {'A extensão determina o tipo (csv/xlsx/parquet).'
         'Aurora': 'Aurora',
         'Ações': 'Actions',
         'Baixar': 'Télécharger',
-        'Bandas tipo Crystal/DevExpress: Report Header (1ª página), Page Header (todas), Detail, Page Footer (todas), Report Footer (última). Clique no bloco para editar.': 'Bandes '
+        'Bandas de relatório: Report Header (1ª página), Page Header (todas), Detail, Page Footer (todas), Report Footer (última). Clique no bloco para editar.': 'Bandes '
                                                                                                                                                                              'type '
-                                                                                                                                                                             'Crystal/DevExpress '
+                                                                                             'de rapport '
                                                                                                                                                                              ': '
                                                                                                                                                                              'En-tête '
                                                                                                                                                                              'de '
@@ -3768,9 +3768,9 @@ _EXTRA_TRANSLATIONS = {'de': {'A extensão determina o tipo (csv/xlsx/parquet).'
         'Aurora': 'Aurora',
         'Ações': 'Azioni',
         'Baixar': 'Scarica',
-        'Bandas tipo Crystal/DevExpress: Report Header (1ª página), Page Header (todas), Detail, Page Footer (todas), Report Footer (última). Clique no bloco para editar.': 'Bande '
+        'Bandas de relatório: Report Header (1ª página), Page Header (todas), Detail, Page Footer (todas), Report Footer (última). Clique no bloco para editar.': 'Bande '
                                                                                                                                                                              'stile '
-                                                                                                                                                                             'Crystal/DevExpress: '
+                                                                                             'di report: '
                                                                                                                                                                              'Intestazione '
                                                                                                                                                                              'report '
                                                                                                                                                                              '(1ª '

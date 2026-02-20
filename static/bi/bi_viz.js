@@ -8,6 +8,44 @@
 window.BI = window.BI || {};
 
 (function () {
+  let _biModal = null;
+
+  function ensureModal () {
+    if (_biModal) return _biModal;
+    const host = document.createElement('div');
+    host.innerHTML = `
+      <div class="modal fade" id="biVizModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="biVizModalTitle">Information</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="biVizModalBody"></div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(host.firstElementChild);
+    const el = document.getElementById('biVizModal');
+    _biModal = {
+      title: document.getElementById('biVizModalTitle'),
+      body: document.getElementById('biVizModalBody'),
+      bs: new bootstrap.Modal(el)
+    };
+    return _biModal;
+  }
+
+  function uiAlert (message, title) {
+    const m = ensureModal();
+    m.title.textContent = title || 'Information';
+    m.body.textContent = String(message || '');
+    m.bs.show();
+  }
+
   function safeJsonParse(elId, fallback) {
     const el = document.getElementById(elId);
     if (!el) return fallback;
@@ -195,7 +233,7 @@ window.BI = window.BI || {};
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
       if (window.uiToast) window.uiToast(err.error || 'Falha ao exportar PDF', { variant: 'danger' });
-      else alert(err.error || 'Falha ao exportar PDF');
+      else uiAlert(err.error || 'Falha ao exportar PDF', 'Erreur');
       return;
     }
     const blob = await resp.blob();
@@ -228,7 +266,7 @@ window.BI = window.BI || {};
     if (!resp.ok) {
       const err = await resp.json().catch(() => ({}));
       if (window.uiToast) window.uiToast(err.error || 'Falha ao exportar XLSX', { variant: 'danger' });
-      else alert(err.error || 'Falha ao exportar XLSX');
+      else uiAlert(err.error || 'Falha ao exportar XLSX', 'Erreur');
       return;
     }
     const blob = await resp.blob();

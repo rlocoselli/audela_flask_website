@@ -80,6 +80,15 @@ class Config:
     OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "")
     OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL", "")
 
+    # SMTP / Email (used by Flask-Mail and ETL notifications)
+    MAIL_SERVER = os.environ.get("MAIL_SERVER", "")
+    MAIL_PORT = int(os.environ.get("MAIL_PORT", "587"))
+    MAIL_USE_TLS = os.environ.get("MAIL_USE_TLS", "true").lower() == "true"
+    MAIL_USE_SSL = os.environ.get("MAIL_USE_SSL", "false").lower() == "true"
+    MAIL_USERNAME = os.environ.get("MAIL_USERNAME", "")
+    MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD", "")
+    MAIL_DEFAULT_SENDER = os.environ.get("MAIL_DEFAULT_SENDER", "noreply@audela.com")
+
 
 class DevConfig(Config):
     DEBUG = True

@@ -8,18 +8,60 @@
       <form method="post" class="row g-3">
         <div class="col-12 col-lg-6">
           <label class="form-label">{{ _('Nome') }}</label>
-          <input class="form-control" name="name" required placeholder="{{ _('Ex.: API Vendas') }}">
+          <input class="form-control" name="name" value="{{ (form.name if form else '') }}" required placeholder="{{ _('Ex.: API Vendas') }}">
         </div>
 
         <div class="col-12 col-lg-6">
           <label class="form-label">{{ _('URL base') }}</label>
-          <input class="form-control" name="base_url" required placeholder="https://api.exemplo.com">
+          <input class="form-control" name="base_url" value="{{ (form.base_url if form else '') }}" required placeholder="https://api.exemplo.com">
         </div>
 
         <div class="col-12">
           <label class="form-label">{{ _('Cabeçalhos (JSON)') }}</label>
-          <textarea class="form-control" name="headers_json" rows="4" placeholder='{ "Authorization": "Bearer ..." }'></textarea>
+          <textarea class="form-control" name="headers_json" rows="4" placeholder='{ "Accept": "application/json" }'>{{ (form.headers_json if form else '') }}</textarea>
           <div class="form-text">{{ _('Opcional. Exemplo: Authorization, Accept, X-API-Key, etc.') }}</div>
+        </div>
+
+        <div class="col-12"><hr class="my-1"></div>
+        <div class="col-12">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="enable_auth_flow" name="enable_auth_flow" {% if form and form.enable_auth_flow %}checked{% endif %}>
+            <label class="form-check-label" for="enable_auth_flow">{{ _('Ativar fluxo de autenticação (obter bearer token antes da API)') }}</label>
+          </div>
+        </div>
+        <div class="col-12 col-lg-8">
+          <label class="form-label">{{ _('URL autenticação (token endpoint)') }}</label>
+          <input class="form-control" name="auth_url" value="{{ (form.auth_url if form else '') }}" placeholder="https://api.exemplo.com/oauth/token">
+        </div>
+        <div class="col-12 col-lg-4">
+          <label class="form-label">{{ _('Método auth') }}</label>
+          <select class="form-select" name="auth_method">
+            {% set _am = (form.auth_method if form else 'POST') %}
+            <option value="POST" {% if _am == 'POST' %}selected{% endif %}>POST</option>
+            <option value="GET" {% if _am == 'GET' %}selected{% endif %}>GET</option>
+            <option value="PUT" {% if _am == 'PUT' %}selected{% endif %}>PUT</option>
+            <option value="PATCH" {% if _am == 'PATCH' %}selected{% endif %}>PATCH</option>
+          </select>
+        </div>
+        <div class="col-12 col-lg-6">
+          <label class="form-label">{{ _('Headers auth (JSON)') }}</label>
+          <textarea class="form-control" name="auth_headers_json" rows="4" placeholder='{ "Content-Type": "application/json" }'>{{ (form.auth_headers_json if form else '') }}</textarea>
+        </div>
+        <div class="col-12 col-lg-6">
+          <label class="form-label">{{ _('Body auth (JSON)') }}</label>
+          <textarea class="form-control" name="auth_body_json" rows="4" placeholder='{ "client_id": "...", "client_secret": "..." }'>{{ (form.auth_body_json if form else '') }}</textarea>
+        </div>
+        <div class="col-12 col-lg-4">
+          <label class="form-label">{{ _('Caminho JSON do token') }}</label>
+          <input class="form-control" name="token_json_path" value="{{ (form.token_json_path if form else 'access_token') }}" placeholder="access_token">
+        </div>
+        <div class="col-12 col-lg-4">
+          <label class="form-label">{{ _('Header para token') }}</label>
+          <input class="form-control" name="token_header_name" value="{{ (form.token_header_name if form else 'Authorization') }}" placeholder="Authorization">
+        </div>
+        <div class="col-12 col-lg-4">
+          <label class="form-label">{{ _('Prefixo token') }}</label>
+          <input class="form-control" name="token_prefix" value="{{ (form.token_prefix if form else 'Bearer') }}" placeholder="Bearer">
         </div>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
 
