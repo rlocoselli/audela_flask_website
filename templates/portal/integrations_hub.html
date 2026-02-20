@@ -1,0 +1,251 @@
+{% extends "portal/layout.html" %}
+
+{% block portal_content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h2 class="h4 mb-0">{{ _('Intégrations') }}</h2>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-header fw-semibold">{{ _('Créateur d’API (basé sur des questions)') }}</div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('portal.integrations_endpoint_create') }}" class="row g-3">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+          <div class="col-12">
+            <label class="form-label">1) {{ _('Quelle question voulez-vous exposer ?') }}</label>
+            <select name="question_id" class="form-select" required>
+              <option value="">--</option>
+              {% for q in questions %}
+                <option value="{{ q.id }}">#{{ q.id }} · {{ q.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">2) {{ _('Nom fonctionnel de l’API') }}</label>
+            <input class="form-control" name="title" placeholder="{{ _('Ex.: Ventes mensuelles') }}" required>
+          </div>
+
+          <div class="col-12 col-lg-6">
+            <label class="form-label">3) {{ _('Slug endpoint') }}</label>
+            <input class="form-control" name="slug" placeholder="ventes-mensuelles" required>
+            <div class="form-text">{{ _('URL finale: /app/api/integrations/q/<slug>') }}</div>
+          </div>
+
+          <div class="col-12 col-lg-3">
+            <label class="form-label">4) {{ _('Méthode') }}</label>
+            <select class="form-select" name="method">
+              <option value="POST">POST</option>
+              <option value="GET">GET</option>
+              <option value="ANY">ANY</option>
+            </select>
+          </div>
+
+          <div class="col-12 col-lg-3">
+            <label class="form-label">5) {{ _('Limite de lignes') }}</label>
+            <input class="form-control" name="row_limit" type="number" min="1" max="10000" value="1000">
+          </div>
+
+          <div class="col-12 d-flex gap-2">
+            <button class="btn btn-primary" type="submit">{{ _('Créer endpoint') }}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-xl-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-header fw-semibold">{{ _('Application keys (header X-App-Key)') }}</div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('portal.integrations_app_key_create') }}" class="row g-2 mb-3">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <div class="col-8">
+            <input class="form-control" name="label" placeholder="{{ _('Nom de la clé (ex: CRM Prod)') }}" required>
+          </div>
+          <div class="col-4 d-grid">
+            <button class="btn btn-outline-primary" type="submit">{{ _('Créer clé') }}</button>
+          </div>
+        </form>
+
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th>{{ _('Nom') }}</th>
+                <th>{{ _('Statut') }}</th>
+                <th>{{ _('Dernière utilisation') }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% if not app_keys %}
+                <tr><td colspan="4" class="text-secondary">{{ _('Aucune clé créée.') }}</td></tr>
+              {% else %}
+                {% for k in app_keys %}
+                  <tr>
+                    <td>{{ k.label or 'Default' }}</td>
+                    <td>
+                      {% if k.active %}
+                        <span class="badge text-bg-success">{{ _('Activa') }}</span>
+                      {% else %}
+                        <span class="badge text-bg-secondary">{{ _('Inactiva') }}</span>
+                      {% endif %}
+                    </td>
+                    <td class="small text-secondary">{{ k.last_used_at or '-' }}</td>
+                    <td class="text-end">
+                      <div class="d-flex justify-content-end gap-1">
+                        <form method="post" action="{{ url_for('portal.integrations_app_key_toggle', key_id=k.id) }}">
+                          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                          <button class="btn btn-sm btn-outline-secondary" type="submit">{{ _('Ativar/Desativar') }}</button>
+                        </form>
+                        <form method="post" action="{{ url_for('portal.integrations_app_key_delete', key_id=k.id) }}" onsubmit="return confirm('{{ _('Supprimer cette clé ?') }}');">
+                          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                          <button class="btn btn-sm btn-outline-danger" type="submit">{{ _('Supprimer') }}</button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <div class="card shadow-sm">
+      <div class="card-header fw-semibold">{{ _('Endpoints publiés') }}</div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th>{{ _('Endpoint') }}</th>
+                <th>{{ _('Question') }}</th>
+                <th>{{ _('Méthode') }}</th>
+                <th>{{ _('Limite') }}</th>
+                <th>{{ _('Statut') }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% if not endpoints %}
+                <tr><td colspan="6" class="text-secondary">{{ _('Aucun endpoint API pour le moment.') }}</td></tr>
+              {% else %}
+                {% for e in endpoints %}
+                  <tr>
+                    <td>
+                      <div class="fw-semibold">/app/api/integrations/q/{{ e.slug }}</div>
+                      <div class="small text-secondary">{{ e.title }}</div>
+                    </td>
+                    <td>{{ e.question_name }}</td>
+                    <td>{{ e.method or 'POST' }}</td>
+                    <td>{{ e.row_limit or 1000 }}</td>
+                    <td>
+                      {% if e.enabled %}
+                        <span class="badge text-bg-success">{{ _('Actif') }}</span>
+                      {% else %}
+                        <span class="badge text-bg-secondary">{{ _('Inactif') }}</span>
+                      {% endif %}
+                    </td>
+                    <td class="text-end">
+                      <div class="d-flex justify-content-end gap-1">
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-outline-primary js-int-test"
+                          data-endpoint-id="{{ e.id }}"
+                          data-endpoint-slug="{{ e.slug }}"
+                        >{{ _('Tester API') }}</button>
+                        <form method="post" action="{{ url_for('portal.integrations_endpoint_toggle', endpoint_id=e.id) }}">
+                          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                          <button class="btn btn-sm btn-outline-secondary" type="submit">{{ _('Ativar/Desativar') }}</button>
+                        </form>
+                        <form method="post" action="{{ url_for('portal.integrations_endpoint_delete', endpoint_id=e.id) }}" onsubmit="return confirm('{{ _('Supprimer cet endpoint API ?') }}');">
+                          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                          <button class="btn btn-sm btn-outline-danger" type="submit">{{ _('Supprimer') }}</button>
+                        </form>
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="mt-3">
+          <label class="form-label">{{ _('Paramètres de test (JSON optionnel)') }}</label>
+          <textarea id="int-test-params" class="form-control" rows="3" placeholder='{"date_start":"2026-01-01"}'></textarea>
+          <div class="form-text">{{ _('Ces paramètres seront envoyés comme params au endpoint.') }}</div>
+        </div>
+
+        <div class="mt-2">
+          <div class="fw-semibold small mb-1">{{ _('Résultat test API') }}</div>
+          <pre id="int-test-result" class="border rounded p-2 small bg-body-tertiary" style="max-height:260px;overflow:auto;">-</pre>
+        </div>
+
+        <div class="alert alert-secondary mb-0 mt-2 small" role="alert">
+          <div class="fw-semibold mb-1">{{ _('Usage') }}</div>
+          <div>{{ _('Header requis: X-App-Key: <votre_clé>') }}</div>
+          <div>{{ _('Body JSON (POST): {"params": {"date_start": "2026-01-01"}}') }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script>
+    window.onReady(function(){
+      const csrf = "{{ csrf_token() }}";
+      const paramsEl = document.getElementById('int-test-params');
+      const resultEl = document.getElementById('int-test-result');
+      const buttons = Array.from(document.querySelectorAll('.js-int-test'));
+      if (!buttons.length || !resultEl) return;
+
+      async function runTest(endpointId, endpointSlug){
+        let params = {};
+        const raw = String(paramsEl?.value || '').trim();
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) params = parsed;
+            else throw new Error('JSON must be an object');
+          } catch (e) {
+            resultEl.textContent = 'Invalid JSON params: ' + (e && e.message ? e.message : e);
+            return;
+          }
+        }
+
+        resultEl.textContent = 'Testing /app/api/integrations/q/' + endpointSlug + ' ...';
+        try {
+          const res = await fetch("{{ url_for('portal.integrations_endpoint_test') }}", {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': csrf
+            },
+            body: JSON.stringify({ endpoint_id: endpointId, params })
+          });
+          const data = await res.json();
+          resultEl.textContent = JSON.stringify(data, null, 2);
+        } catch (e) {
+          resultEl.textContent = 'Network error: ' + (e && e.message ? e.message : e);
+        }
+      }
+
+      buttons.forEach(function(btn){
+        btn.addEventListener('click', function(){
+          runTest(btn.getAttribute('data-endpoint-id'), btn.getAttribute('data-endpoint-slug'));
+        });
+      });
+    });
+  </script>
+{% endblock %}

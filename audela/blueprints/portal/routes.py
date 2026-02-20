@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 from datetime import datetime
+import hashlib
+import secrets
+import re
 
 import json
+import copy
 
 from flask import abort, flash, g, jsonify, make_response, redirect, render_template, request, url_for, send_file, session
 from flask_login import current_user, login_required
+from sqlalchemy.orm.attributes import flag_modified
 
-from ...extensions import db
+from ...extensions import db, csrf
 from ...models.bi import (
     AuditEvent,
     Dashboard,
@@ -82,6 +87,73 @@ def _audit(event_type: str, payload: dict | None = None) -> None:
         payload_json=payload or {},
     )
     db.session.add(evt)
+
+
+def _integration_state_for_tenant(tenant: Tenant) -> dict:
+    settings = tenant.settings_json if isinstance(tenant.settings_json, dict) else {}
+    integrations = settings.get("integrations") if isinstance(settings.get("integrations"), dict) else {}
+    api_creator = integrations.get("api_creator") if isinstance(integrations.get("api_creator"), dict) else {}
+    app_keys = api_creator.get("app_keys") if isinstance(api_creator.get("app_keys"), list) else []
+    endpoints = api_creator.get("question_endpoints") if isinstance(api_creator.get("question_endpoints"), list) else []
+    return {
+        "settings": settings,
+        "integrations": integrations,
+        "api_creator": api_creator,
+        "app_keys": app_keys,
+        "question_endpoints": endpoints,
+    }
+
+
+def _persist_integration_state(tenant: Tenant, state: dict) -> None:
+    settings = state.get("settings") or {}
+    integrations = state.get("integrations") or {}
+    api_creator = state.get("api_creator") or {}
+    api_creator["app_keys"] = state.get("app_keys") or []
+    api_creator["question_endpoints"] = state.get("question_endpoints") or []
+    integrations["api_creator"] = api_creator
+    settings["integrations"] = integrations
+    tenant.settings_json = copy.deepcopy(settings)
+    flag_modified(tenant, "settings_json")
+
+
+def _hash_app_key(raw_key: str) -> str:
+    return hashlib.sha256((raw_key or "").encode("utf-8")).hexdigest()
+
+
+def _new_key_id() -> str:
+    return secrets.token_hex(6)
+
+
+def _new_endpoint_id() -> str:
+    return secrets.token_hex(6)
+
+
+def _safe_slug(name: str) -> str:
+    out = re.sub(r"[^a-z0-9]+", "-", (name or "").strip().lower())
+    return out.strip("-")[:80]
+
+
+def _resolve_tenant_by_app_key(raw_key: str) -> tuple[Tenant | None, dict | None]:
+    parts = (raw_key or "").split(".")
+    if len(parts) != 4 or parts[0] != "ak":
+        return None, None
+    tenant_part, key_id = parts[1], parts[2]
+    if not tenant_part.isdigit() or not key_id:
+        return None, None
+    tenant = Tenant.query.get(int(tenant_part))
+    if not tenant:
+        return None, None
+    state = _integration_state_for_tenant(tenant)
+    hashed = _hash_app_key(raw_key)
+    for key in state.get("app_keys", []):
+        if str(key.get("id") or "") != key_id:
+            continue
+        if not bool(key.get("active", True)):
+            return None, None
+        if str(key.get("key_hash") or "") != hashed:
+            return None, None
+        return tenant, key
+    return None, None
 
 
 @bp.route("/")
@@ -673,6 +745,339 @@ def api_sources_preview_call(source_id: int):
         return jsonify({"ok": False, "error": tr("Erro ao executar preview: {error}", getattr(g, "lang", None), error=str(e))}), 500
 
 
+@bp.route("/integrations")
+@login_required
+@require_roles("tenant_admin", "creator")
+def integrations_hub():
+    _require_tenant()
+    state = _integration_state_for_tenant(g.tenant)
+    questions = Question.query.filter_by(tenant_id=g.tenant.id).order_by(Question.name.asc()).all()
+    q_by_id = {q.id: q for q in questions}
+
+    endpoints = []
+    for e in state.get("question_endpoints", []):
+        qid = int(e.get("question_id") or 0)
+        q = q_by_id.get(qid)
+        endpoints.append(
+            {
+                **e,
+                "question_name": q.name if q else tr("Pergunta removida", getattr(g, "lang", None)),
+            }
+        )
+
+    return render_template(
+        "portal/integrations_hub.html",
+        tenant=g.tenant,
+        questions=questions,
+        app_keys=state.get("app_keys", []),
+        endpoints=endpoints,
+    )
+
+
+@bp.post("/integrations/app-keys/create")
+@login_required
+@require_roles("tenant_admin")
+def integrations_app_key_create():
+    _require_tenant()
+    label = (request.form.get("label") or "").strip() or "Default"
+    state = _integration_state_for_tenant(g.tenant)
+    key_id = _new_key_id()
+    secret = secrets.token_urlsafe(24)
+    raw_key = f"ak.{g.tenant.id}.{key_id}.{secret}"
+    now_iso = datetime.utcnow().isoformat()
+    state["app_keys"].append(
+        {
+            "id": key_id,
+            "label": label[:80],
+            "key_hash": _hash_app_key(raw_key),
+            "active": True,
+            "created_at": now_iso,
+            "last_used_at": None,
+            "last_used_ip": None,
+        }
+    )
+    _persist_integration_state(g.tenant, state)
+    _audit("bi.integration.app_key.created", {"key_id": key_id, "label": label[:80]})
+    db.session.commit()
+    flash(tr("Application key criada. Copie agora: {key}", getattr(g, "lang", None), key=raw_key), "success")
+    return redirect(url_for("portal.integrations_hub"))
+
+
+@bp.post("/integrations/app-keys/<string:key_id>/toggle")
+@login_required
+@require_roles("tenant_admin")
+def integrations_app_key_toggle(key_id: str):
+    _require_tenant()
+    state = _integration_state_for_tenant(g.tenant)
+    found = None
+    for k in state.get("app_keys", []):
+        if str(k.get("id") or "") == key_id:
+            found = k
+            break
+    if not found:
+        flash(tr("Chave não encontrada.", getattr(g, "lang", None)), "error")
+        return redirect(url_for("portal.integrations_hub"))
+
+    found["active"] = not bool(found.get("active", True))
+    _persist_integration_state(g.tenant, state)
+    _audit("bi.integration.app_key.toggled", {"key_id": key_id, "active": bool(found.get("active"))})
+    db.session.commit()
+    flash(tr("Status da chave atualizado.", getattr(g, "lang", None)), "success")
+    return redirect(url_for("portal.integrations_hub"))
+
+
+@bp.post("/integrations/app-keys/<string:key_id>/delete")
+@login_required
+@require_roles("tenant_admin")
+def integrations_app_key_delete(key_id: str):
+    _require_tenant()
+    state = _integration_state_for_tenant(g.tenant)
+    before = len(state.get("app_keys", []))
+    state["app_keys"] = [k for k in state.get("app_keys", []) if str(k.get("id") or "") != key_id]
+    if len(state["app_keys"]) == before:
+        flash(tr("Chave não encontrada.", getattr(g, "lang", None)), "error")
+        return redirect(url_for("portal.integrations_hub"))
+    _persist_integration_state(g.tenant, state)
+    _audit("bi.integration.app_key.deleted", {"key_id": key_id})
+    db.session.commit()
+    flash(tr("Chave removida.", getattr(g, "lang", None)), "success")
+    return redirect(url_for("portal.integrations_hub"))
+
+
+@bp.post("/integrations/endpoints/create")
+@login_required
+@require_roles("tenant_admin", "creator")
+def integrations_endpoint_create():
+    _require_tenant()
+    try:
+        question_id = int(request.form.get("question_id") or 0)
+    except Exception:
+        question_id = 0
+    title = (request.form.get("title") or "").strip()
+    slug_in = (request.form.get("slug") or "").strip()
+    method = (request.form.get("method") or "POST").strip().upper()
+    row_limit_raw = request.form.get("row_limit") or "1000"
+
+    q = Question.query.filter_by(id=question_id, tenant_id=g.tenant.id).first()
+    if not q:
+        flash(tr("Pergunta inválida.", getattr(g, "lang", None)), "error")
+        return redirect(url_for("portal.integrations_hub"))
+
+    if method not in ("GET", "POST", "ANY"):
+        method = "POST"
+
+    try:
+        row_limit = max(1, min(int(row_limit_raw), 10000))
+    except Exception:
+        row_limit = 1000
+
+    slug = _safe_slug(slug_in or title or q.name)
+    if not slug:
+        flash(tr("Slug inválido.", getattr(g, "lang", None)), "error")
+        return redirect(url_for("portal.integrations_hub"))
+
+    state = _integration_state_for_tenant(g.tenant)
+    if any(str(e.get("slug") or "") == slug for e in state.get("question_endpoints", [])):
+        flash(tr("Slug já existe. Escolha outro.", getattr(g, "lang", None)), "error")
+        return redirect(url_for("portal.integrations_hub"))
+
+    endpoint_id = _new_endpoint_id()
+    state["question_endpoints"].append(
+        {
+            "id": endpoint_id,
+            "title": (title or q.name)[:120],
+            "slug": slug,
+            "question_id": q.id,
+            "method": method,
+            "row_limit": row_limit,
+            "enabled": True,
+            "created_at": datetime.utcnow().isoformat(),
+        }
+    )
+    _persist_integration_state(g.tenant, state)
+    _audit("bi.integration.endpoint.created", {"endpoint_id": endpoint_id, "slug": slug, "question_id": q.id})
+    db.session.commit()
+    flash(tr("Endpoint de integração criado.", getattr(g, "lang", None)), "success")
+    return redirect(url_for("portal.integrations_hub"))
+
+
+@bp.post("/integrations/endpoints/<string:endpoint_id>/toggle")
+@login_required
+@require_roles("tenant_admin", "creator")
+def integrations_endpoint_toggle(endpoint_id: str):
+    _require_tenant()
+    state = _integration_state_for_tenant(g.tenant)
+    found = None
+    for e in state.get("question_endpoints", []):
+        if str(e.get("id") or "") == endpoint_id:
+            found = e
+            break
+    if not found:
+        flash(tr("Endpoint não encontrado.", getattr(g, "lang", None)), "error")
+        return redirect(url_for("portal.integrations_hub"))
+    found["enabled"] = not bool(found.get("enabled", True))
+    _persist_integration_state(g.tenant, state)
+    _audit("bi.integration.endpoint.toggled", {"endpoint_id": endpoint_id, "enabled": bool(found.get("enabled"))})
+    db.session.commit()
+    flash(tr("Status do endpoint atualizado.", getattr(g, "lang", None)), "success")
+    return redirect(url_for("portal.integrations_hub"))
+
+
+@bp.post("/integrations/endpoints/<string:endpoint_id>/delete")
+@login_required
+@require_roles("tenant_admin", "creator")
+def integrations_endpoint_delete(endpoint_id: str):
+    _require_tenant()
+    state = _integration_state_for_tenant(g.tenant)
+    before = len(state.get("question_endpoints", []))
+    state["question_endpoints"] = [
+        e for e in state.get("question_endpoints", []) if str(e.get("id") or "") != endpoint_id
+    ]
+    if len(state["question_endpoints"]) == before:
+        flash(tr("Endpoint não encontrado.", getattr(g, "lang", None)), "error")
+        return redirect(url_for("portal.integrations_hub"))
+
+    _persist_integration_state(g.tenant, state)
+    _audit("bi.integration.endpoint.deleted", {"endpoint_id": endpoint_id})
+    db.session.commit()
+    flash(tr("Endpoint removido.", getattr(g, "lang", None)), "success")
+    return redirect(url_for("portal.integrations_hub"))
+
+
+@bp.post("/integrations/endpoints/test")
+@login_required
+@require_roles("tenant_admin", "creator")
+def integrations_endpoint_test():
+    _require_tenant()
+    payload = request.get_json(silent=True) or {}
+
+    try:
+        endpoint_id = str(payload.get("endpoint_id") or "").strip()
+        if not endpoint_id:
+            return jsonify({"ok": False, "error": tr("Endpoint inválido.", getattr(g, "lang", None))}), 400
+
+        params_in = payload.get("params") if isinstance(payload.get("params"), dict) else {}
+        state = _integration_state_for_tenant(g.tenant)
+        endpoint = None
+        for e in state.get("question_endpoints", []):
+            if str(e.get("id") or "") == endpoint_id:
+                endpoint = e
+                break
+        if not endpoint:
+            return jsonify({"ok": False, "error": tr("Endpoint não encontrado.", getattr(g, "lang", None))}), 404
+        if not bool(endpoint.get("enabled", True)):
+            return jsonify({"ok": False, "error": tr("Endpoint inativo.", getattr(g, "lang", None))}), 400
+
+        question_id = int(endpoint.get("question_id") or 0)
+        q = Question.query.filter_by(id=question_id, tenant_id=g.tenant.id).first()
+        if not q:
+            return jsonify({"ok": False, "error": tr("Pergunta inválida.", getattr(g, "lang", None))}), 404
+
+        src = DataSource.query.filter_by(id=q.source_id, tenant_id=g.tenant.id).first()
+        if not src:
+            return jsonify({"ok": False, "error": tr("Fonte inválida.", getattr(g, "lang", None))}), 404
+
+        params = {}
+        params.update(params_in)
+        params["tenant_id"] = g.tenant.id
+        row_limit = max(1, min(int(endpoint.get("row_limit") or 1000), 10000))
+
+        res = execute_sql(src, q.sql_text or "", params=params, row_limit=row_limit)
+        rows = res.get("rows") or []
+        return jsonify(
+            {
+                "ok": True,
+                "endpoint": {"id": endpoint_id, "slug": endpoint.get("slug"), "title": endpoint.get("title")},
+                "result": {
+                    "columns": res.get("columns") or [],
+                    "rows": rows,
+                    "row_count": len(rows),
+                },
+            }
+        )
+    except QueryExecutionError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"ok": False, "error": tr("Erro no teste: {error}", getattr(g, "lang", None), error=str(e))}), 500
+
+
+@csrf.exempt
+@bp.route("/api/integrations/q/<string:slug>", methods=["GET", "POST"])
+def integrations_question_api(slug: str):
+    raw_key = (request.headers.get("X-App-Key") or request.headers.get("X-API-Key") or "").strip()
+    if not raw_key:
+        return jsonify({"ok": False, "error": "missing app key"}), 401
+
+    tenant, key_rec = _resolve_tenant_by_app_key(raw_key)
+    if not tenant or not key_rec:
+        return jsonify({"ok": False, "error": "invalid app key"}), 401
+
+    state = _integration_state_for_tenant(tenant)
+    endpoint = None
+    for item in state.get("question_endpoints", []):
+        if str(item.get("slug") or "") == slug:
+            endpoint = item
+            break
+    if not endpoint or not bool(endpoint.get("enabled", True)):
+        return jsonify({"ok": False, "error": "endpoint not found"}), 404
+
+    allowed_method = str(endpoint.get("method") or "POST").upper()
+    if allowed_method in ("GET", "POST") and request.method != allowed_method:
+        return jsonify({"ok": False, "error": "method not allowed"}), 405
+
+    try:
+        question_id = int(endpoint.get("question_id") or 0)
+    except Exception:
+        question_id = 0
+    q = Question.query.filter_by(id=question_id, tenant_id=tenant.id).first()
+    if not q:
+        return jsonify({"ok": False, "error": "question not found"}), 404
+    src = DataSource.query.filter_by(id=q.source_id, tenant_id=tenant.id).first()
+    if not src:
+        return jsonify({"ok": False, "error": "source not found"}), 404
+
+    params = {}
+    payload = request.get_json(silent=True) if request.method == "POST" else None
+    if isinstance(payload, dict):
+        p = payload.get("params")
+        if isinstance(p, dict):
+            params.update(p)
+        else:
+            params.update({k: v for k, v in payload.items() if k != "params"})
+    for k, v in request.args.items():
+        params[k] = v
+    params["tenant_id"] = tenant.id
+
+    try:
+        row_limit = max(1, min(int(endpoint.get("row_limit") or 1000), 10000))
+    except Exception:
+        row_limit = 1000
+
+    try:
+        res = execute_sql(src, q.sql_text or "", params=params, row_limit=row_limit)
+    except QueryExecutionError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+
+    key_rec["last_used_at"] = datetime.utcnow().isoformat()
+    key_rec["last_used_ip"] = (request.headers.get("X-Forwarded-For") or request.remote_addr or "")[:120]
+    _persist_integration_state(tenant, state)
+    db.session.commit()
+
+    rows = res.get("rows") or []
+    return jsonify(
+        {
+            "ok": True,
+            "tenant": {"id": tenant.id, "slug": tenant.slug},
+            "endpoint": {"slug": slug, "title": endpoint.get("title"), "question_id": q.id},
+            "result": {
+                "columns": res.get("columns") or [],
+                "rows": rows,
+                "row_count": len(rows),
+            },
+        }
+    )
+
+
 @bp.route("/sources/<int:source_id>/delete", methods=["POST"])
 @login_required
 @require_roles("tenant_admin")
@@ -1260,18 +1665,45 @@ def api_source_diagram(source_id: int):
     tables = []
     for s in meta.get("schemas", []):
         for t in s.get("tables", []):
-            tables.append({"name": t.get("name"), "columns": [c.get("name") for c in t.get("columns", [])]})
+            table_name = t.get("name")
+            schema_name = s.get("name")
+            raw_columns = t.get("columns", []) or []
+            columns = []
+            for c in raw_columns:
+                if isinstance(c, dict):
+                    columns.append(
+                        {
+                            "name": c.get("name"),
+                            "type": c.get("type"),
+                            "nullable": c.get("nullable"),
+                            "primary_key": c.get("primary_key") or c.get("pk"),
+                            "default": c.get("default"),
+                        }
+                    )
+                else:
+                    columns.append({"name": str(c)})
+
+            tables.append(
+                {
+                    "name": table_name,
+                    "schema": schema_name,
+                    "full_name": f"{schema_name}.{table_name}" if schema_name else table_name,
+                    "columns": columns,
+                    "column_count": len(columns),
+                }
+            )
 
     # Infer relations via simple foreign-key naming heuristics (col ending with _id)
     name_index = {t["name"]: t for t in tables}
     relations = []
     for t in tables:
         for col in t.get("columns", []):
-            if not isinstance(col, str):
+            col_name = col if isinstance(col, str) else (col or {}).get("name")
+            if not isinstance(col_name, str):
                 continue
-            if not col.endswith("_id"):
+            if not col_name.endswith("_id"):
                 continue
-            base = col[:-3]
+            base = col_name[:-3]
             target = None
             # direct match
             if base in name_index:
@@ -1288,7 +1720,7 @@ def api_source_diagram(source_id: int):
                         target = tn
                         break
             if target:
-                relations.append({"from": f"{t['name']}.{col}", "to": f"{target}.id"})
+                relations.append({"from": f"{t['name']}.{col_name}", "to": f"{target}.id"})
 
     return jsonify({"tables": tables, "relations": relations})
 
