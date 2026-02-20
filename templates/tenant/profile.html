@@ -1,0 +1,116 @@
+{% extends "portal/base_portal.html" %}
+
+{% block title %}{{ _('Mon profil') }} – {{ tenant.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="row justify-content-center">
+    <div class="col-12 col-lg-9">
+      <div class="mb-3 d-flex gap-2">
+        <a href="{{ url_for('tenant.dashboard') }}" class="btn btn-outline-secondary btn-sm">
+          <i class="bi bi-arrow-left"></i> {{ _('Retour au dashboard') }}
+        </a>
+      </div>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ 'danger' if category in ['error','danger'] else ('success' if category=='success' else 'info') }} alert-dismissible fade show">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <div class="card border-0 shadow-sm">
+        <div class="card-body p-4">
+          <h1 class="h4 mb-1"><i class="bi bi-person-circle"></i> {{ _('Mon profil') }}</h1>
+          <p class="text-muted mb-4">{{ _('Personnalisez votre profil: nom, avatar/photo et bio.') }}</p>
+
+          <form method="post" enctype="multipart/form-data" class="row g-3">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+            {% if is_admin %}
+            <div class="col-12"><hr class="my-1"></div>
+            <div class="col-12">
+              <h2 class="h6 mb-1"><i class="bi bi-building"></i> {{ _('Profil du tenant') }}</h2>
+              <p class="text-secondary small mb-0">{{ _('Vous pouvez définir un nickname et un logo personnalisé pour votre organisation.') }}</p>
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label">{{ _('Nickname tenant') }}</label>
+              <input class="form-control" name="tenant_nickname" maxlength="80" value="{{ branding.nickname or '' }}" placeholder="{{ _('Ex: ACME Studio') }}">
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label">{{ _('Logo tenant (URL)') }}</label>
+              <input class="form-control" type="url" name="tenant_logo_url" value="{{ branding.logo_url or '' }}" placeholder="https://...">
+            </div>
+
+            <div class="col-12">
+              <label class="form-label">{{ _('Ou téléverser un logo') }}</label>
+              <input class="form-control" type="file" name="tenant_logo_file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml">
+            </div>
+            {% endif %}
+
+            <div class="col-12 col-md-6">
+              <label class="form-label">{{ _('Nom affiché') }}</label>
+              <input class="form-control" name="display_name" maxlength="80" value="{{ profile.display_name or '' }}" placeholder="{{ _('Ex: Marie Dupont') }}">
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label">{{ _('Email') }}</label>
+              <input class="form-control" value="{{ current_user.email }}" disabled>
+            </div>
+
+            <div class="col-12">
+              <label class="form-label">{{ _('Bio') }}</label>
+              <textarea class="form-control" rows="4" maxlength="500" name="bio" placeholder="{{ _('Quelques mots à propos de vous...') }}">{{ profile.bio or '' }}</textarea>
+            </div>
+
+            <div class="col-12">
+              <label class="form-label d-block">{{ _('Type de visuel') }}</label>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="avatar_mode" id="pm-avatar" value="avatar" {% if profile.avatar_mode != 'photo' %}checked{% endif %}>
+                <label class="form-check-label" for="pm-avatar">{{ _('Avatar') }}</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="avatar_mode" id="pm-photo" value="photo" {% if profile.avatar_mode == 'photo' %}checked{% endif %}>
+                <label class="form-check-label" for="pm-photo">{{ _('Photo') }}</label>
+              </div>
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label">{{ _('Choisir un avatar') }}</label>
+              <select class="form-select" name="avatar_icon">
+                {% for icon in avatar_choices %}
+                  <option value="{{ icon }}" {% if (profile.avatar_icon or 'person-circle') == icon %}selected{% endif %}>{{ icon }}</option>
+                {% endfor %}
+              </select>
+              <div class="form-text">{{ _('Utilisé si mode Avatar.') }}</div>
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label">{{ _('URL photo') }}</label>
+              <input class="form-control" type="url" name="photo_url" value="{{ profile.photo_url or '' }}" placeholder="https://...">
+              <div class="form-text">{{ _('Optionnel. Utilisé si mode Photo.') }}</div>
+            </div>
+
+            <div class="col-12">
+              <label class="form-label">{{ _('Ou téléverser une photo') }}</label>
+              <input class="form-control" type="file" name="photo_file" accept="image/png,image/jpeg,image/webp,image/gif">
+            </div>
+
+            <div class="col-12">
+              <button class="btn btn-primary" type="submit">
+                <i class="bi bi-save"></i> {{ _('Enregistrer') }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

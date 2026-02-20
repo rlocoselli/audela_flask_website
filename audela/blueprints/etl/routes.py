@@ -14,8 +14,40 @@ from audela.etl.engine import ETLEngine, ETLContext
 from audela.etl.registry import REGISTRY
 from audela.etl.workflow_loader import normalize_workflow
 from audela.extensions import csrf, db
+from audela.services.subscription_service import SubscriptionService
 
 bp = Blueprint("etl", __name__, url_prefix="/etl")
+
+
+def _etl_quota_check(required: int = 1) -> tuple[bool, str | None]:
+    tenant = getattr(g, "tenant", None)
+    if not tenant or not getattr(tenant, "subscription", None):
+        return True, None
+
+    can_add, current_count, max_limit = SubscriptionService.check_limit(tenant.id, "transactions")
+    if int(max_limit) == -1:
+        return True, None
+
+    remaining = max(0, int(max_limit) - int(current_count))
+    if bool(can_add) and remaining >= int(required):
+        return True, None
+
+    return False, f"transaction quota exceeded ({current_count}/{max_limit})"
+
+
+def _etl_quota_consume(amount: int = 1) -> None:
+    tenant = getattr(g, "tenant", None)
+    if not tenant or not getattr(tenant, "subscription", None):
+        return
+
+    sub = tenant.subscription
+    if not sub or not sub.is_active() or not sub.plan:
+        return
+    if int(sub.plan.max_transactions_per_month) == -1:
+        return
+
+    current = int(sub.transactions_this_month or 0)
+    sub.transactions_this_month = max(0, current + int(amount))
 
 def _workflows_dir() -> str:
     # Store under instance/etl_workflows/<tenant_slug>
@@ -50,6 +82,10 @@ def list_workflows():
 @bp.post("/api/workflows")
 @csrf.exempt
 def save_workflow():
+    allowed, reason = _etl_quota_check(1)
+    if not allowed:
+        return jsonify({"ok": False, "error": reason or "quota exceeded"}), 403
+
     payload = request.get_json(force=True, silent=False)
 
     # Name can be provided explicitly from UI
@@ -84,6 +120,9 @@ def save_workflow():
             yaml_ok = True
         except Exception:
             yaml_ok = False
+
+    _etl_quota_consume(1)
+    db.session.commit()
 
     return jsonify({
         "ok": True,

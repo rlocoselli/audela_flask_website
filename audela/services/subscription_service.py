@@ -356,6 +356,10 @@ class SubscriptionService:
         subscription = TenantSubscription.query.filter_by(tenant_id=tenant_id).first()
         if not subscription or not subscription.is_active():
             return False, 0, 0
+
+        # Keep counters synchronized with real data to avoid stale zero values.
+        SubscriptionService.sync_usage_counters(tenant_id)
+        db.session.refresh(subscription)
         
         plan = subscription.plan
         
@@ -378,6 +382,53 @@ class SubscriptionService:
             return can_add, current, max_limit
         
         return False, 0, 0
+
+    @staticmethod
+    def sync_usage_counters(tenant_id: int) -> tuple[int, int, int]:
+        """Synchronize stored usage counters with real data.
+
+        Returns:
+            (users_count, companies_count, transactions_this_month)
+        """
+        from audela.models.finance import FinanceCompany, FinanceTransaction
+
+        subscription = TenantSubscription.query.filter_by(tenant_id=tenant_id).first()
+        if not subscription:
+            return 0, 0, 0
+
+        users_count = User.query.filter_by(tenant_id=tenant_id).count()
+        companies_count = FinanceCompany.query.filter_by(tenant_id=tenant_id).count()
+
+        now = datetime.utcnow().date()
+        month_start = now.replace(day=1)
+        if month_start.month == 12:
+            next_month = month_start.replace(year=month_start.year + 1, month=1, day=1)
+        else:
+            next_month = month_start.replace(month=month_start.month + 1, day=1)
+
+        tx_month = (
+            FinanceTransaction.query
+            .filter(FinanceTransaction.tenant_id == tenant_id)
+            .filter(FinanceTransaction.txn_date >= month_start)
+            .filter(FinanceTransaction.txn_date < next_month)
+            .count()
+        )
+
+        changed = False
+        if int(subscription.current_users_count or 0) != int(users_count):
+            subscription.current_users_count = int(users_count)
+            changed = True
+        if int(subscription.current_companies_count or 0) != int(companies_count):
+            subscription.current_companies_count = int(companies_count)
+            changed = True
+        if int(subscription.transactions_this_month or 0) != int(tx_month):
+            subscription.transactions_this_month = int(tx_month)
+            changed = True
+
+        if changed:
+            db.session.commit()
+
+        return int(users_count), int(companies_count), int(tx_month)
     
     @staticmethod
     def increment_usage(tenant_id: int, usage_type: str, amount: int = 1):

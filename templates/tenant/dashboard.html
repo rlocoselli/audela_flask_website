@@ -6,15 +6,43 @@
 <div class="container-fluid py-4">
   <div class="row mb-4">
     <div class="col">
-      <h1 class="h3 mb-1">
-        <i class="bi bi-building"></i> {{ tenant.name }}
+      <h1 class="h3 mb-1 d-flex align-items-center gap-2">
+        {% if branding.logo_url %}
+          <img src="{{ branding.logo_url }}" alt="tenant-logo" style="width:34px;height:34px;object-fit:cover;border-radius:.4rem;">
+        {% else %}
+          <i class="bi bi-building"></i>
+        {% endif %}
+        <span>{{ branding.nickname or tenant.name }}</span>
       </h1>
       <p class="text-muted">{{ _('Gérez votre compte, utilisateurs et abonnements') }}</p>
     </div>
-    <div class="col-auto">
+    <div class="col-auto d-flex gap-2">
+      <a href="{{ url_for('tenant.profile') }}" class="btn btn-outline-primary">
+        <i class="bi bi-person-circle"></i> {{ _('Mon profil') }}
+      </a>
       <a href="{{ url_for('tenant.logout') }}" class="btn btn-outline-secondary">
         <i class="bi bi-box-arrow-right"></i> {{ _('Déconnexion') }}
       </a>
+    </div>
+  </div>
+
+  <div class="row mb-3">
+    <div class="col">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body d-flex align-items-center gap-3">
+          {% if profile.avatar_mode == 'photo' and profile.photo_url %}
+            <img src="{{ profile.photo_url }}" alt="profile" style="width:52px;height:52px;object-fit:cover;border-radius:50%;">
+          {% else %}
+            <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center" style="width:52px;height:52px;">
+              <i class="bi bi-{{ profile.avatar_icon or 'person-circle' }} text-primary" style="font-size:1.4rem;"></i>
+            </div>
+          {% endif %}
+          <div>
+            <div class="fw-semibold">{{ profile.display_name or current_user.email }}</div>
+            {% if profile.bio %}<div class="small text-secondary">{{ profile.bio }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -169,6 +197,11 @@
                   <div class="mb-3">
                     <strong>{{ _('Organisation:') }}</strong> {{ tenant.name }}
                   </div>
+                  {% if branding.nickname %}
+                  <div class="mb-3">
+                    <strong>{{ _('Nickname:') }}</strong> {{ branding.nickname }}
+                  </div>
+                  {% endif %}
                   <div class="mb-3">
                     <strong>{{ _('Slug:') }}</strong> <code>{{ tenant.slug }}</code>
                   </div>

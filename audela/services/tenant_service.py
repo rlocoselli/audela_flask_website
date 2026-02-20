@@ -312,12 +312,28 @@ class TenantService:
             return dict_to_obj({})
         
         subscription = tenant.subscription
+        users_count = User.query.filter_by(tenant_id=tenant_id).count()
+        companies_count = FinanceCompany.query.filter_by(tenant_id=tenant_id).count()
+
+        now = datetime.utcnow().date()
+        month_start = now.replace(day=1)
+        if month_start.month == 12:
+            next_month = month_start.replace(year=month_start.year + 1, month=1, day=1)
+        else:
+            next_month = month_start.replace(month=month_start.month + 1, day=1)
+        tx_month_count = (
+            FinanceTransaction.query
+            .filter(FinanceTransaction.tenant_id == tenant_id)
+            .filter(FinanceTransaction.txn_date >= month_start)
+            .filter(FinanceTransaction.txn_date < next_month)
+            .count()
+        )
         
         # Base stats
         stats = {
             "tenant_name": tenant.name,
             "tenant_slug": tenant.slug,
-            "users_count": User.query.filter_by(tenant_id=tenant_id).count(),
+            "users_count": users_count,
             "created_at": tenant.created_at,
             "plan_name": "No Plan",
             "plan_code": None,
@@ -328,13 +344,17 @@ class TenantService:
             "has_bi": False,
             "usage": {
                 "users": {"current": 0, "max": 0},
-                "companies": {"current": 0, "max": 0},
-                "transactions": {"current": 0, "max": 0}
+                "companies": {"current": companies_count, "max": 0},
+                "transactions": {"current": tx_month_count, "max": 0}
             }
         }
         
         # Override with actual subscription data if available
         if subscription:
+            # Keep stored counters aligned with real data.
+            SubscriptionService.sync_usage_counters(tenant_id)
+            db.session.refresh(subscription)
+
             stats.update({
                 "plan_name": subscription.plan.name,
                 "plan_code": subscription.plan.code,
@@ -345,15 +365,15 @@ class TenantService:
                 "has_bi": subscription.plan.has_bi,
                 "usage": {
                     "users": {
-                        "current": subscription.current_users_count,
+                        "current": users_count,
                         "max": subscription.plan.max_users
                     },
                     "companies": {
-                        "current": subscription.current_companies_count,
+                        "current": companies_count,
                         "max": subscription.plan.max_companies
                     },
                     "transactions": {
-                        "current": subscription.transactions_this_month,
+                        "current": tx_month_count,
                         "max": subscription.plan.max_transactions_per_month
                     }
                 }

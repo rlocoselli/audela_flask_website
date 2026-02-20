@@ -54,6 +54,7 @@ from ...services.regulation_exports import export_fec_csv, export_it_ledger_csv
 from ...services.einvoice_service import build_invoice_export_zip, compute_totals
 from ...services.finance_projection import project_cash_balance, build_ui_alerts, compute_starting_cash as proj_starting_cash
 from ...services.regulation_exports import export_fec_csv, export_it_ledger_csv
+from ...services.subscription_service import SubscriptionService
 from ...tenancy import get_current_tenant_id
 
 from . import bp
@@ -68,6 +69,23 @@ def _require_tenant() -> None:
         abort(401)
     if not getattr(g, "tenant", None) or current_user.tenant_id != g.tenant.id:
         abort(403)
+
+
+@bp.app_context_processor
+def _finance_layout_context():
+    tenant = getattr(g, "tenant", None)
+    if not tenant or not getattr(tenant, "subscription", None):
+        return {"transaction_usage": None}
+
+    _, current_count, max_limit = SubscriptionService.check_limit(tenant.id, "transactions")
+    return {
+        "transaction_usage": {
+            "current": int(current_count),
+            "max": int(max_limit),
+            "max_label": "∞" if int(max_limit) == -1 else str(int(max_limit)),
+            "is_unlimited": int(max_limit) == -1,
+        }
+    }
 
 
 @bp.before_app_request
@@ -124,6 +142,32 @@ def _get_company() -> FinanceCompany:
     ensure_default_categories(comp)
     ensure_default_gl_accounts(comp)
     return comp
+
+
+def _transaction_quota_info() -> tuple[bool, int, int, int]:
+    """Return transaction quota status for current tenant.
+
+    Returns:
+        (allowed_now, remaining_slots, current_count, max_limit)
+    """
+    can_add, current_count, max_limit = SubscriptionService.check_limit(g.tenant.id, "transactions")
+    if max_limit == -1:
+        return True, 10**9, current_count, max_limit
+    remaining = max(0, int(max_limit) - int(current_count))
+    return bool(can_add), remaining, int(current_count), int(max_limit)
+
+
+def _ensure_transaction_quota(required: int = 1) -> bool:
+    allowed, remaining, current_count, max_limit = _transaction_quota_info()
+    if allowed and remaining >= int(required):
+        return True
+    if max_limit == -1:
+        return True
+    flash(
+        _("Limite de transações do plano atingida ({current}/{max}).", current=current_count, max=max_limit),
+        "error",
+    )
+    return False
 
 
 def _get_fin_setting(company: FinanceCompany, key: str, default: dict) -> dict:
@@ -731,6 +775,9 @@ def transaction_new():
             flash(_("Dados inválidos."), "error")
             return redirect(url_for("finance.transaction_new", account_id=account_id))
 
+        if not _ensure_transaction_quota(1):
+            return redirect(url_for("finance.account_view", account_id=acc.id))
+
         t = FinanceTransaction(
             tenant_id=g.tenant.id,
             company_id=company.id,
@@ -800,11 +847,16 @@ def transactions_import():
         flash(_("Nenhuma linha válida encontrada."), "error")
         return redirect(url_for("finance.account_view", account_id=acc.id))
 
+    allowed, remaining, current_count, max_limit = _transaction_quota_info()
+    if not allowed or remaining <= 0:
+        flash(_("Limite de transações do plano atingida ({current}/{max}).", current=current_count, max=max_limit), "error")
+        return redirect(url_for("finance.account_view", account_id=acc.id))
+
     # Map counterparty names to directory entries (auto-create when needed)
     existing = { (cp.name or "").strip().lower(): cp for cp in get_counterparties(company) if (cp.name or "").strip() }
 
     n = 0
-    for r in rows:
+    for r in rows[:remaining]:
         cp_name = (r.get("counterparty") or "").strip()
         cp_obj = None
         if cp_name:
@@ -834,6 +886,8 @@ def transactions_import():
 
     db.session.commit()
     flash(_("Importação concluída: {n} linhas.", n=n), "success")
+    if len(rows) > remaining:
+        flash(_("Importação limitada pelo plano: {n} linhas não importadas.", n=(len(rows) - remaining)), "warning")
     return redirect(url_for("finance.account_view", account_id=acc.id))
 
 
@@ -1233,7 +1287,14 @@ def statement_import(account_id: int):
 
         created = 0
         skipped = 0
+        allowed, remaining, current_count, max_limit = _transaction_quota_info()
+        if not allowed or remaining <= 0:
+            flash(_("Limite de transações do plano atingida ({current}/{max}).", current=current_count, max=max_limit), "error")
+            return redirect(url_for("finance.account_view", account_id=acc.id))
+
         for r in rows:
+            if created >= remaining:
+                break
             sig = (r["txn_date"], str(r["amount"]), (r.get("description") or "").strip(), (r.get("reference") or "").strip())
             if sig in existing_sigs:
                 skipped += 1
@@ -1308,6 +1369,8 @@ def statement_import(account_id: int):
         db.session.commit()
 
         flash(_("Importação concluída: {n} linhas.", n=created), "success")
+        if created >= remaining and (len(rows) - skipped) > created:
+            flash(_("Importação limitada pelo plano de transações."), "warning")
         if skipped:
             flash(_("Linhas ignoradas (duplicadas): {n}.", n=skipped), "info")
         return redirect(url_for("finance.account_view", account_id=acc.id))
@@ -1885,6 +1948,11 @@ def banks_sync(conn_id: int):
         return redirect(url_for("finance.banks"))
 
     try:
+        allowed, remaining, current_count, max_limit = _transaction_quota_info()
+        if not allowed or remaining <= 0:
+            flash(_("Limite de transações do plano atingida ({current}/{max}).", current=current_count, max=max_limit), "error")
+            return redirect(url_for("finance.banks"))
+
         bearer, _exp = bridge.get_user_token(external_user_id=conn.external_user_id)
         accounts = bridge.list_accounts(bearer=bearer, item_id=conn.item_id)
 
@@ -1948,6 +2016,8 @@ def banks_sync(conn_id: int):
             # Sync transactions for this account
             txns = bridge.list_transactions(bearer=bearer, account_id=provider_account_id, date_from=date_from)
             for t in txns:
+                if created_txns >= remaining:
+                    break
                 d = t.get("date") or t.get("booking_date") or t.get("value_date")
                 if not d:
                     continue
@@ -2003,9 +2073,14 @@ def banks_sync(conn_id: int):
                 created_txns += 1
                 existing_sigs.add(sig)
 
+            if created_txns >= remaining:
+                break
+
         conn.last_sync_at = datetime.utcnow()
         db.session.commit()
         flash(_("Sincronização concluída: {a} contas, {t} transações.", a=created_accounts, t=created_txns), "success")
+        if created_txns >= remaining:
+            flash(_("Sincronização limitada pelo plano de transações."), "warning")
     except BridgeError as e:
         flash(_("Falha na sincronização: {err}", err=str(e)[:180]), "error")
 
@@ -2763,11 +2838,19 @@ def recurring_generate():
         .order_by(FinanceRecurringTransaction.next_run_date.asc())
         .all()
     )
-
     created = 0
+    allowed, remaining, current_count, max_limit = _transaction_quota_info()
+    if not allowed or remaining <= 0:
+        flash(_("Limite de transações do plano atingida ({current}/{max}).", current=current_count, max=max_limit), "error")
+        return redirect(url_for("finance.recurring_list"))
+
     for r in items:
+        if created >= remaining:
+            break
         next_d = r.next_run_date
         while next_d and next_d <= target:
+            if created >= remaining:
+                break
             if r.end_date and next_d > r.end_date:
                 break
 
@@ -2793,12 +2876,13 @@ def recurring_generate():
 
             next_d = _next_date(next_d, r.frequency)
 
-        # update next_run_date to the first date after target
         if next_d and next_d != r.next_run_date:
             r.next_run_date = next_d
 
     db.session.commit()
     flash(_(f"{created} transações geradas."), "success")
+    if created >= remaining:
+        flash(_("Geração limitada pelo plano de transações."), "warning")
     return redirect(url_for("finance.recurring_list"))
 
 
@@ -2868,6 +2952,9 @@ def quick_entry():
                 txn_date = date.fromisoformat(d_raw)
             except Exception:
                 pass
+
+        if not _ensure_transaction_quota(1):
+            return redirect(url_for("finance.quick_entry"))
 
         cat = _find_or_create_category(company, category_name, direction=direction)
         cp = _find_or_create_counterparty(company, cp_name)
@@ -3470,6 +3557,9 @@ def invoice_mark_paid(invoice_id: int):
         amount = -abs(amount)
     else:
         amount = abs(amount)
+
+    if not _ensure_transaction_quota(1):
+        return redirect(url_for("finance.invoice_view", invoice_id=inv.id))
 
     txn = FinanceTransaction(
         tenant_id=g.tenant.id,

@@ -1,6 +1,49 @@
 {% extends "portal/layout.html" %}
 {% set title = report.name %}
 
+{% block head_extra %}
+  {{ super() }}
+  <style>
+    .rp-floating-filters {
+      position: fixed;
+      top: 110px;
+      right: 18px;
+      width: min(420px, calc(100vw - 24px));
+      max-height: calc(100vh - 130px);
+      z-index: 1040;
+      box-shadow: var(--bs-box-shadow-sm);
+      border: 1px solid var(--bs-border-color);
+      border-radius: .75rem;
+      background: var(--bs-body-bg);
+      display: flex;
+      flex-direction: column;
+    }
+    .rp-floating-filters .rp-floating-head {
+      cursor: move;
+      user-select: none;
+      border-bottom: 1px solid var(--bs-border-color);
+      padding: .55rem .7rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .5rem;
+    }
+    .rp-floating-filters .rp-floating-body { overflow: auto; padding: .7rem; }
+    .rp-floating-filters.is-collapsed .rp-floating-body { display: none; }
+    @media (max-width: 991.98px) {
+      .rp-floating-filters {
+        right: 8px;
+        left: 8px;
+        width: auto;
+        top: auto;
+        bottom: 8px;
+        max-height: 60vh;
+      }
+      .rp-floating-filters .rp-floating-head { cursor: default; }
+    }
+  </style>
+{% endblock %}
+
 {% block portal_content %}
 <div class="container-fluid px-0">
 
@@ -10,6 +53,9 @@
       <div class="text-secondary small"><i class="bi bi-database me-1"></i>{{ source.name }} ({{ source.type }})</div>
     </div>
     <div class="d-flex gap-2 flex-wrap">
+      <button class="btn btn-outline-secondary btn-sm" id="rp-floating-filters-toggle" type="button">
+        <i class="bi bi-funnel me-1"></i> {{ _('Filtres flottants') }}
+      </button>
       <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.report_builder', report_id=report.id) }}">
         <i class="bi bi-pencil"></i> {{ _('Editar') }}
       </a>
@@ -349,5 +395,250 @@
     </div>
   </div>
 
+  <div id="rp-floating-filters" class="rp-floating-filters" aria-label="{{ _('Filtres flottants') }}">
+    <div id="rp-floating-filters-head" class="rp-floating-head">
+      <div class="fw-semibold d-flex align-items-center gap-2">
+        <i class="bi bi-funnel"></i>
+        <span>{{ _('Filtres') }}</span>
+      </div>
+      <div class="d-flex align-items-center gap-1">
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="rp-floating-filters-dock" title="{{ _('Reencaixar') }}"><i class="bi bi-bounding-box"></i></button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="rp-floating-filters-collapse" title="{{ _('Minimizar') }}"><i class="bi bi-chevron-down"></i></button>
+      </div>
+    </div>
+    <div class="rp-floating-body">
+      <div class="row g-2 align-items-end">
+        <div class="col-12">
+          <label class="form-label mb-1">{{ _('Champ') }}</label>
+          <select id="rp-filter-field" class="form-select form-select-sm"></select>
+        </div>
+        <div class="col-6">
+          <label class="form-label mb-1">{{ _('Opérateur') }}</label>
+          <select id="rp-filter-op" class="form-select form-select-sm">
+            <option value="eq">=</option>
+            <option value="contains">contains</option>
+            <option value="gt">&gt;</option>
+            <option value="lt">&lt;</option>
+          </select>
+        </div>
+        <div class="col-6">
+          <label class="form-label mb-1">{{ _('Valeur') }}</label>
+          <input id="rp-filter-value" class="form-control form-control-sm" type="text" placeholder="value" />
+        </div>
+        <div class="col-12 d-flex flex-wrap gap-2">
+          <button class="btn btn-outline-primary btn-sm" id="rp-add-filter">{{ _('Adicionar filtro') }}</button>
+          <button class="btn btn-outline-secondary btn-sm" id="rp-clear-filters">{{ _('Limpar filtros') }}</button>
+        </div>
+      </div>
+      <div id="rp-filter-summary" class="mt-2"><em>(sem filtros)</em></div>
+    </div>
+  </div>
+
 </div>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script>
+    window.onReady(function(){
+      const panel = document.getElementById('rp-floating-filters');
+      if (!panel) return;
+
+      const state = { filters: [] };
+      const keyCollapsed = 'rp.filters.collapsed';
+      const toggleBtn = document.getElementById('rp-floating-filters-toggle');
+      const collapseBtn = document.getElementById('rp-floating-filters-collapse');
+      const dockBtn = document.getElementById('rp-floating-filters-dock');
+      const head = document.getElementById('rp-floating-filters-head');
+      const fieldEl = document.getElementById('rp-filter-field');
+      const opEl = document.getElementById('rp-filter-op');
+      const valueEl = document.getElementById('rp-filter-value');
+      const addBtn = document.getElementById('rp-add-filter');
+      const clearBtn = document.getElementById('rp-clear-filters');
+      const summary = document.getElementById('rp-filter-summary');
+
+      function setCollapsed(on){
+        panel.classList.toggle('is-collapsed', !!on);
+        try { localStorage.setItem(keyCollapsed, on ? '1' : '0'); } catch (e) {}
+        const icon = collapseBtn ? collapseBtn.querySelector('i') : null;
+        if (icon) icon.className = on ? 'bi bi-chevron-up' : 'bi bi-chevron-down';
+      }
+
+      function dockDefault(){
+        panel.style.left = '';
+        panel.style.top = '';
+        panel.style.right = '18px';
+      }
+
+      function toNum(v){
+        const n = Number(String(v).replace(',', '.'));
+        return Number.isFinite(n) ? n : null;
+      }
+
+      function matchValue(cell, op, val){
+        const a = String(cell == null ? '' : cell).toLowerCase();
+        const b = String(val == null ? '' : val).toLowerCase();
+        if (op === 'contains') return a.indexOf(b) !== -1;
+        if (op === 'eq') return a === b;
+        if (op === 'gt' || op === 'lt') {
+          const an = toNum(a);
+          const bn = toNum(b);
+          if (an == null || bn == null) return false;
+          return op === 'gt' ? an > bn : an < bn;
+        }
+        return true;
+      }
+
+      function buildFields(){
+        const names = new Set();
+        document.querySelectorAll('table thead th').forEach(function(th){
+          const name = (th.textContent || '').trim();
+          if (name) names.add(name);
+        });
+        if (!fieldEl) return;
+        fieldEl.innerHTML = '<option value="">--</option>' + Array.from(names).map(function(name){
+          return '<option value="' + name.replace(/"/g, '&quot;') + '">' + name + '</option>';
+        }).join('');
+      }
+
+      function renderSummary(){
+        if (!summary) return;
+        if (!state.filters.length) {
+          summary.innerHTML = '<em>(sem filtros)</em>';
+          return;
+        }
+        summary.innerHTML = state.filters.map(function(f, idx){
+          return '<span style="display:inline-block;margin:0 .4em .4em 0;padding:.2em .5em;border:1px solid #ddd;border-radius:6px;">'
+            + f.field + ' ' + f.op + ' ' + String(f.value)
+            + ' <a href="#" data-rm="' + idx + '" style="margin-left:.5em;">×</a></span>';
+        }).join('');
+        summary.querySelectorAll('a[data-rm]').forEach(function(a){
+          a.addEventListener('click', function(e){
+            e.preventDefault();
+            const idx = Number(a.getAttribute('data-rm') || -1);
+            if (idx < 0) return;
+            state.filters.splice(idx, 1);
+            renderSummary();
+            applyFilters();
+          });
+        });
+      }
+
+      function applyFilters(){
+        const fs = state.filters || [];
+        document.querySelectorAll('table').forEach(function(table){
+          const headers = Array.from(table.querySelectorAll('thead th')).map(function(th){
+            return (th.textContent || '').trim().toLowerCase();
+          });
+          const rows = table.querySelectorAll('tbody tr');
+          rows.forEach(function(tr){
+            let ok = true;
+            for (const f of fs) {
+              const idx = headers.indexOf(String(f.field || '').trim().toLowerCase());
+              if (idx < 0) continue;
+              const td = tr.children[idx];
+              const cell = td ? td.textContent : '';
+              if (!matchValue(cell, f.op, f.value)) {
+                ok = false;
+                break;
+              }
+            }
+            tr.style.display = ok ? '' : 'none';
+          });
+        });
+      }
+
+      if (toggleBtn) {
+        toggleBtn.addEventListener('click', function(e){
+          e.preventDefault();
+          panel.style.display = panel.style.display === 'none' ? '' : 'none';
+        });
+      }
+      if (collapseBtn) {
+        collapseBtn.addEventListener('click', function(e){
+          e.preventDefault();
+          setCollapsed(!panel.classList.contains('is-collapsed'));
+        });
+      }
+      if (dockBtn) {
+        dockBtn.addEventListener('click', function(e){
+          e.preventDefault();
+          dockDefault();
+        });
+      }
+
+      if (addBtn) {
+        addBtn.addEventListener('click', function(e){
+          e.preventDefault();
+          const field = fieldEl ? fieldEl.value : '';
+          const op = opEl ? opEl.value : 'eq';
+          const value = valueEl ? valueEl.value : '';
+          if (!field || String(value).trim() === '') return;
+          state.filters.push({ field: field, op: op, value: value });
+          renderSummary();
+          applyFilters();
+        });
+      }
+      if (clearBtn) {
+        clearBtn.addEventListener('click', function(e){
+          e.preventDefault();
+          state.filters = [];
+          renderSummary();
+          applyFilters();
+        });
+      }
+
+      try { setCollapsed(localStorage.getItem(keyCollapsed) === '1'); } catch (e) { setCollapsed(false); }
+
+      if (head) {
+        let dragging = false;
+        let startX = 0;
+        let startY = 0;
+        let origLeft = 0;
+        let origTop = 0;
+
+        function onMove(clientX, clientY){
+          if (!dragging) return;
+          const dx = clientX - startX;
+          const dy = clientY - startY;
+          const w = panel.offsetWidth || 320;
+          const h = panel.offsetHeight || 180;
+          const maxLeft = Math.max(8, window.innerWidth - w - 8);
+          const maxTop = Math.max(8, window.innerHeight - h - 8);
+          let nextLeft = origLeft + dx;
+          let nextTop = origTop + dy;
+          nextLeft = Math.max(8, Math.min(maxLeft, nextLeft));
+          nextTop = Math.max(8, Math.min(maxTop, nextTop));
+          panel.style.left = nextLeft + 'px';
+          panel.style.top = nextTop + 'px';
+          panel.style.right = 'auto';
+        }
+
+        function stopDrag(){
+          dragging = false;
+          document.body.classList.remove('user-select-none');
+        }
+
+        head.addEventListener('mousedown', function(e){
+          if (window.matchMedia('(max-width: 991.98px)').matches) return;
+          if (e.button !== 0) return;
+          if (e.target && e.target.closest('button,input,select,textarea,a,label')) return;
+          const rect = panel.getBoundingClientRect();
+          dragging = true;
+          startX = e.clientX;
+          startY = e.clientY;
+          origLeft = rect.left;
+          origTop = rect.top;
+          document.body.classList.add('user-select-none');
+          e.preventDefault();
+        });
+        document.addEventListener('mousemove', function(e){ onMove(e.clientX, e.clientY); });
+        document.addEventListener('mouseup', stopDrag);
+      }
+
+      buildFields();
+      renderSummary();
+      applyFilters();
+    });
+  </script>
 {% endblock %}

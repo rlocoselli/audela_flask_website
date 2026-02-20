@@ -15,6 +15,10 @@ from flask import (
 )
 from flask_login import login_user, logout_user, login_required, current_user
 from datetime import datetime
+from sqlalchemy.orm.attributes import flag_modified
+from werkzeug.utils import secure_filename
+import os
+import uuid
 
 from ...extensions import db
 from ...models import Tenant, User, Role
@@ -25,6 +29,105 @@ from ...services.subscription_service import SubscriptionService
 from ...tenancy import CurrentTenant, set_current_tenant, clear_current_tenant
 from ...i18n import tr
 from . import bp
+
+
+AVATAR_CHOICES = [
+    "person-circle",
+    "emoji-smile",
+    "stars",
+    "briefcase",
+    "bar-chart",
+    "rocket",
+    "lightning",
+    "palette",
+]
+
+
+def _tenant_user_profiles(tenant: Tenant) -> dict:
+    settings = tenant.settings_json if isinstance(tenant.settings_json, dict) else {}
+    raw = settings.get("user_profiles") if isinstance(settings.get("user_profiles"), dict) else {}
+    return raw
+
+
+def _tenant_user_profile(tenant: Tenant, user_id: int) -> dict:
+    profiles = _tenant_user_profiles(tenant)
+    p = profiles.get(str(int(user_id))) if isinstance(profiles, dict) else None
+    if not isinstance(p, dict):
+        p = {}
+    return {
+        "display_name": str(p.get("display_name") or "").strip(),
+        "bio": str(p.get("bio") or "").strip(),
+        "avatar_mode": str(p.get("avatar_mode") or "avatar").strip().lower() or "avatar",
+        "avatar_icon": str(p.get("avatar_icon") or "person-circle").strip() or "person-circle",
+        "photo_url": str(p.get("photo_url") or "").strip(),
+        "updated_at": p.get("updated_at"),
+    }
+
+
+def _save_tenant_user_profile(tenant: Tenant, user_id: int, profile: dict) -> None:
+    settings = tenant.settings_json if isinstance(tenant.settings_json, dict) else {}
+    profiles = settings.get("user_profiles") if isinstance(settings.get("user_profiles"), dict) else {}
+    profiles[str(int(user_id))] = profile
+    settings["user_profiles"] = profiles
+    tenant.settings_json = settings
+    flag_modified(tenant, "settings_json")
+
+
+def _save_profile_photo_upload(tenant_id: int, user_id: int, file_storage) -> str | None:
+    if not file_storage or not getattr(file_storage, "filename", None):
+        return None
+    filename = secure_filename(file_storage.filename or "")
+    if not filename:
+        return None
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if ext not in {"png", "jpg", "jpeg", "webp", "gif"}:
+        raise ValueError("Image format non supporté")
+
+    rel_dir = os.path.join("uploads", "avatars", f"tenant_{int(tenant_id)}")
+    abs_dir = os.path.join(current_app.static_folder, rel_dir)
+    os.makedirs(abs_dir, exist_ok=True)
+    new_name = f"u{int(user_id)}_{uuid.uuid4().hex}.{ext}"
+    abs_path = os.path.join(abs_dir, new_name)
+    file_storage.save(abs_path)
+    rel_path = os.path.join(rel_dir, new_name).replace("\\", "/")
+    return "/static/" + rel_path
+
+
+def _tenant_branding(tenant: Tenant) -> dict:
+    settings = tenant.settings_json if isinstance(tenant.settings_json, dict) else {}
+    branding = settings.get("branding") if isinstance(settings.get("branding"), dict) else {}
+    return {
+        "nickname": str(branding.get("nickname") or "").strip(),
+        "logo_url": str(branding.get("logo_url") or "").strip(),
+        "updated_at": branding.get("updated_at"),
+    }
+
+
+def _save_tenant_branding(tenant: Tenant, branding: dict) -> None:
+    settings = tenant.settings_json if isinstance(tenant.settings_json, dict) else {}
+    settings["branding"] = branding
+    tenant.settings_json = settings
+    flag_modified(tenant, "settings_json")
+
+
+def _save_tenant_logo_upload(tenant_id: int, file_storage) -> str | None:
+    if not file_storage or not getattr(file_storage, "filename", None):
+        return None
+    filename = secure_filename(file_storage.filename or "")
+    if not filename:
+        return None
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if ext not in {"png", "jpg", "jpeg", "webp", "gif", "svg"}:
+        raise ValueError("Format de logo non supporté")
+
+    rel_dir = os.path.join("uploads", "tenant_logos", f"tenant_{int(tenant_id)}")
+    abs_dir = os.path.join(current_app.static_folder, rel_dir)
+    os.makedirs(abs_dir, exist_ok=True)
+    new_name = f"logo_{uuid.uuid4().hex}.{ext}"
+    abs_path = os.path.join(abs_dir, new_name)
+    file_storage.save(abs_path)
+    rel_path = os.path.join(rel_dir, new_name).replace("\\", "/")
+    return "/static/" + rel_path
 
 
 @bp.route("/")
@@ -179,6 +282,8 @@ def dashboard():
     
     # Check permissions
     is_admin = current_user.has_role("tenant_admin")
+    profile = _tenant_user_profile(tenant, current_user.id)
+    branding = _tenant_branding(tenant)
     
     return render_template(
         "tenant/dashboard.html",
@@ -186,7 +291,112 @@ def dashboard():
         subscription=tenant.subscription,
         stats=stats,
         users=users,
-        is_admin=is_admin
+        is_admin=is_admin,
+        profile=profile,
+        branding=branding,
+    )
+
+
+@bp.route("/profile", methods=["GET", "POST"])
+@login_required
+def profile():
+    tenant = Tenant.query.get(current_user.tenant_id)
+    if not tenant:
+        flash("Tenant not found", "error")
+        return redirect(url_for("tenant.login"))
+
+    profile_data = _tenant_user_profile(tenant, current_user.id)
+    branding = _tenant_branding(tenant)
+    is_admin = current_user.has_role("tenant_admin")
+
+    if request.method == "POST":
+        display_name = (request.form.get("display_name") or "").strip()
+        bio = (request.form.get("bio") or "").strip()
+        avatar_mode = (request.form.get("avatar_mode") or "avatar").strip().lower()
+        avatar_icon = (request.form.get("avatar_icon") or "person-circle").strip()
+        photo_url = (request.form.get("photo_url") or "").strip()
+
+        if avatar_mode not in ("avatar", "photo"):
+            avatar_mode = "avatar"
+        if avatar_icon not in AVATAR_CHOICES:
+            avatar_icon = "person-circle"
+        if len(display_name) > 80:
+            display_name = display_name[:80]
+        if len(bio) > 500:
+            bio = bio[:500]
+
+        try:
+            uploaded = _save_profile_photo_upload(tenant.id, current_user.id, request.files.get("photo_file"))
+            if uploaded:
+                photo_url = uploaded
+                avatar_mode = "photo"
+        except ValueError as e:
+            flash(str(e), "error")
+            return render_template(
+                "tenant/profile.html",
+                tenant=tenant,
+                profile={
+                    **profile_data,
+                    "display_name": display_name,
+                    "bio": bio,
+                    "avatar_mode": avatar_mode,
+                    "avatar_icon": avatar_icon,
+                    "photo_url": photo_url,
+                },
+                avatar_choices=AVATAR_CHOICES,
+            )
+
+        profile_data = {
+            "display_name": display_name,
+            "bio": bio,
+            "avatar_mode": avatar_mode,
+            "avatar_icon": avatar_icon,
+            "photo_url": photo_url,
+            "updated_at": datetime.utcnow().isoformat(),
+        }
+        _save_tenant_user_profile(tenant, current_user.id, profile_data)
+
+        if is_admin:
+            tenant_nickname = (request.form.get("tenant_nickname") or "").strip()
+            tenant_logo_url = (request.form.get("tenant_logo_url") or "").strip()
+            if len(tenant_nickname) > 80:
+                tenant_nickname = tenant_nickname[:80]
+            try:
+                uploaded_logo = _save_tenant_logo_upload(tenant.id, request.files.get("tenant_logo_file"))
+                if uploaded_logo:
+                    tenant_logo_url = uploaded_logo
+            except ValueError as e:
+                flash(str(e), "error")
+                return render_template(
+                    "tenant/profile.html",
+                    tenant=tenant,
+                    profile=profile_data,
+                    avatar_choices=AVATAR_CHOICES,
+                    is_admin=is_admin,
+                    branding={
+                        "nickname": tenant_nickname,
+                        "logo_url": tenant_logo_url,
+                    },
+                )
+
+            branding = {
+                "nickname": tenant_nickname,
+                "logo_url": tenant_logo_url,
+                "updated_at": datetime.utcnow().isoformat(),
+            }
+            _save_tenant_branding(tenant, branding)
+
+        db.session.commit()
+        flash(tr("Profil mis à jour.", getattr(g, "lang", None)), "success")
+        return redirect(url_for("tenant.profile"))
+
+    return render_template(
+        "tenant/profile.html",
+        tenant=tenant,
+        profile=profile_data,
+        avatar_choices=AVATAR_CHOICES,
+        is_admin=is_admin,
+        branding=branding,
     )
 
 

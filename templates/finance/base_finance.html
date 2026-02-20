@@ -11,6 +11,12 @@
     </div>
 
     <div class="d-flex align-items-center gap-2">
+      {% if transaction_usage %}
+        <span class="badge text-bg-light border">
+          {{ _('Transações do mês') }}: {{ transaction_usage.current }}/{{ transaction_usage.max_label }}
+        </span>
+      {% endif %}
+
       <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.accounts_list') }}">
         <i class="bi bi-journal-text me-1"></i>{{ _('Contas') }}
       </a>

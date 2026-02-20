@@ -40,6 +40,17 @@
         </ul>
 
         <div class="d-flex align-items-center gap-2">
+          <a class="btn btn-outline-primary btn-sm" href="{{ url_for('tenant.dashboard') }}">
+            <i class="bi bi-arrow-left-circle me-1"></i>
+            <span class="d-none d-md-inline">{{ _('Retour au dashboard tenant') }}</span>
+          </a>
+
+          {% if transaction_usage %}
+            <span class="badge text-bg-light border">
+              {{ _('Transações') }}: {{ transaction_usage.current }}/{{ transaction_usage.max_label }}
+            </span>
+          {% endif %}
+
           <button class="btn btn-outline-secondary btn-sm" type="button" onclick="window.__toggleTheme()" title="{{ _('Tema') }}">
             <i class="bi bi-moon-stars"></i>
           </button>

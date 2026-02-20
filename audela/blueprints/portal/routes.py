@@ -43,6 +43,7 @@ from ...services.file_storage_service import (
     store_stream,
 )
 from ...services.file_introspect_service import introspect_file_schema
+from ...services.subscription_service import SubscriptionService
 from ...tenancy import get_current_tenant_id
 
 from ...i18n import tr, DEFAULT_LANG
@@ -75,6 +76,59 @@ def _require_tenant() -> None:
         abort(401)
     if not g.tenant or current_user.tenant_id != g.tenant.id:
         abort(403)
+
+
+@bp.app_context_processor
+def _portal_layout_context():
+    tenant = getattr(g, "tenant", None)
+    if not tenant or not getattr(tenant, "subscription", None):
+        return {"transaction_usage": None}
+
+    _, current_count, max_limit = SubscriptionService.check_limit(tenant.id, "transactions")
+    return {
+        "transaction_usage": {
+            "current": int(current_count),
+            "max": int(max_limit),
+            "max_label": "∞" if int(max_limit) == -1 else str(int(max_limit)),
+            "is_unlimited": int(max_limit) == -1,
+        }
+    }
+
+
+def _bi_quota_check(required: int = 1) -> bool:
+    tenant = getattr(g, "tenant", None)
+    if not tenant or not getattr(tenant, "subscription", None):
+        return True
+
+    can_add, current_count, max_limit = SubscriptionService.check_limit(tenant.id, "transactions")
+    if int(max_limit) == -1:
+        return True
+
+    remaining = max(0, int(max_limit) - int(current_count))
+    if bool(can_add) and remaining >= int(required):
+        return True
+
+    flash(
+        tr("Limite de transações do plano atingida ({current}/{max}).", getattr(g, "lang", None), current=current_count, max=max_limit),
+        "error",
+    )
+    return False
+
+
+def _bi_quota_consume(amount: int = 1) -> None:
+    tenant = getattr(g, "tenant", None)
+    if not tenant or not getattr(tenant, "subscription", None):
+        return
+
+    sub = tenant.subscription
+    if not sub or not sub.is_active() or not sub.plan:
+        return
+
+    if int(sub.plan.max_transactions_per_month) == -1:
+        return
+
+    current = int(sub.transactions_this_month or 0)
+    sub.transactions_this_month = max(0, current + int(amount))
 
 
 def _audit(event_type: str, payload: dict | None = None) -> None:
@@ -350,6 +404,9 @@ def sources_new():
         form['policy_json'] = json.dumps(default_policy, indent=2, ensure_ascii=False)
 
     if request.method == 'POST':
+        if not _bi_quota_check(1):
+            return render_template('portal/sources_new.html', tenant=g.tenant, form=form)
+
         name = form['name']
         ds_type = form['type']
         default_schema = form['default_schema'] or None
@@ -419,6 +476,7 @@ def sources_new():
             policy_json=policy_obj,
         )
         db.session.add(ds)
+        _bi_quota_consume(1)
         _audit('bi.datasource.created', {'id': None, 'name': name, 'type': ds_type})
         db.session.commit()
 
@@ -467,6 +525,9 @@ def api_sources_new():
     }
 
     if request.method == "POST":
+        if not _bi_quota_check(1):
+            return render_template("portal/api_sources_new.html", tenant=g.tenant, form=form)
+
         import json
 
         form = {
@@ -559,6 +620,7 @@ def api_sources_new():
             },
         )
         db.session.add(ds)
+        _bi_quota_consume(1)
         _audit("bi.datasource.created", {"id": None, "name": name, "type": "api"})
         db.session.commit()
 
@@ -2944,6 +3006,9 @@ def questions_new():
     _require_tenant()
     sources = DataSource.query.filter_by(tenant_id=g.tenant.id).order_by(DataSource.name.asc()).all()
     if request.method == "POST":
+        if not _bi_quota_check(1):
+            return render_template("portal/questions_new.html", tenant=g.tenant, sources=sources)
+
         name = request.form.get("name", "").strip()
         source_id = int(request.form.get("source_id") or 0)
         sql_text = request.form.get("sql_text", "")
@@ -2966,6 +3031,7 @@ def questions_new():
         )
         db.session.add(q)
         db.session.flush()
+        _bi_quota_consume(1)
         _audit("bi.question.created", {"id": q.id, "name": q.name, "source_id": src.id})
         db.session.commit()
         flash(tr("Pergunta criada.", getattr(g, "lang", None)), "success")
@@ -3217,6 +3283,9 @@ def reports_new():
     _require_tenant()
     sources = DataSource.query.filter_by(tenant_id=g.tenant.id).order_by(DataSource.name.asc()).all()
     if request.method == "POST":
+        if not _bi_quota_check(1):
+            return render_template("portal/reports_new.html", tenant=g.tenant, sources=sources)
+
         name = (request.form.get("name") or "").strip()
         source_id = int(request.form.get("source_id") or 0)
         if not name or not source_id:
@@ -3250,6 +3319,7 @@ def reports_new():
             },
         )
         db.session.add(rep)
+        _bi_quota_consume(1)
         db.session.commit()
         flash(tr("Relatório criado.", getattr(g, "lang", None)), "success")
         return redirect(url_for("portal.report_builder", report_id=rep.id))
@@ -4060,6 +4130,9 @@ def dashboards_new():
     _require_tenant()
     questions = Question.query.filter_by(tenant_id=g.tenant.id).order_by(Question.name.asc()).all()
     if request.method == "POST":
+        if not _bi_quota_check(1):
+            return render_template("portal/dashboards_new.html", tenant=g.tenant, questions=questions)
+
         name = request.form.get("name", "").strip()
         selected = request.form.getlist("question_ids")
         if not name:
@@ -4091,6 +4164,7 @@ def dashboards_new():
             db.session.add(card)
 
         _audit("bi.dashboard.created", {"id": dash.id, "name": dash.name, "cards": len(selected)})
+        _bi_quota_consume(1)
         db.session.commit()
         flash(tr("Dashboard criado.", getattr(g, "lang", None)), "success")
         return redirect(url_for("portal.dashboard_view", dashboard_id=dash.id))
