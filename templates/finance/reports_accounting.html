@@ -1,0 +1,72 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'reports' %}
+
+{% block finance_content %}
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+        <h5 class="mb-0">{{ _('Rapport comptable (Chart of Accounts)') }}</h5>
+        <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.reports_transactions') }}">{{ _('Relatórios') }}</a>
+      </div>
+      <p class="text-secondary small mb-3">{{ _('Valeurs par compte comptable: solde d’ouverture, débits, crédits et solde de clôture sur la période.') }}</p>
+
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-12 col-md-3">
+          <label class="form-label">{{ _('Début') }}</label>
+          <input class="form-control" type="date" name="start" value="{{ start.isoformat() }}">
+        </div>
+        <div class="col-12 col-md-3">
+          <label class="form-label">{{ _('Fin') }}</label>
+          <input class="form-control" type="date" name="end" value="{{ end.isoformat() }}">
+        </div>
+        <div class="col-12 col-md-3">
+          <button class="btn btn-primary w-100" type="submit">{{ _('Filtrer') }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead>
+            <tr>
+              <th>{{ _('Code') }}</th>
+              <th>{{ _('Compte') }}</th>
+              <th>{{ _('Type') }}</th>
+              <th class="text-end">{{ _('Ouverture') }}</th>
+              <th class="text-end">{{ _('Débit') }}</th>
+              <th class="text-end">{{ _('Crédit') }}</th>
+              <th class="text-end">{{ _('Clôture') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in rows %}
+              <tr>
+                <td>{{ r.code }}</td>
+                <td>{{ r.name }}</td>
+                <td><span class="badge text-bg-light border">{{ r.kind }}</span></td>
+                <td class="text-end">{{ '%.2f'|format(r.opening or 0) }}</td>
+                <td class="text-end">{{ '%.2f'|format(r.debit or 0) }}</td>
+                <td class="text-end">{{ '%.2f'|format(r.credit or 0) }}</td>
+                <td class="text-end fw-semibold">{{ '%.2f'|format(r.closing or 0) }}</td>
+              </tr>
+            {% else %}
+              <tr><td colspan="7" class="text-center text-secondary py-4">{{ _('Aucune donnée comptable sur la période.') }}</td></tr>
+            {% endfor %}
+          </tbody>
+          <tfoot>
+            <tr class="table-light">
+              <th colspan="3" class="text-end">{{ _('Total') }}</th>
+              <th class="text-end">{{ '%.2f'|format(totals.opening or 0) }}</th>
+              <th class="text-end">{{ '%.2f'|format(totals.debit or 0) }}</th>
+              <th class="text-end">{{ '%.2f'|format(totals.credit or 0) }}</th>
+              <th class="text-end">{{ '%.2f'|format(totals.closing or 0) }}</th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+{% endblock %}

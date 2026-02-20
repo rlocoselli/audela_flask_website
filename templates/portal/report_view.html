@@ -134,7 +134,9 @@
                   {% elif btype == 'data_field' %}
                     {% set key = blk._key or blk.get('_key') or '' %}
                     {% set d = blocks_data.get(key) %}
-                    <div class="border rounded-4 p-3 bg-body" style="{{ style_inline }}">
+                    {% set field_name = (blk.title or blk.get('title') or key or 'value') %}
+                    {% set field_value = ((d.value if d else '') or '') %}
+                    <div class="border rounded-4 p-3 bg-body" style="{{ style_inline }}" data-rp-field="{{ field_name }}" data-rp-value="{{ field_value }}">
                       {% if blk.title or blk.get('title') %}
                         <div class="fw-semibold mb-1">{{ blk.title or blk.get('title') }}</div>
                       {% endif %}
@@ -444,6 +446,8 @@
       const panel = document.getElementById('rp-floating-filters');
       if (!panel) return;
 
+      const reportId = {{ report.id }};
+      const filtersStorageKey = 'rp.filters.' + reportId;
       const state = { filters: [] };
       const keyCollapsed = 'rp.filters.collapsed';
       const toggleBtn = document.getElementById('rp-floating-filters-toggle');
@@ -456,6 +460,18 @@
       const addBtn = document.getElementById('rp-add-filter');
       const clearBtn = document.getElementById('rp-clear-filters');
       const summary = document.getElementById('rp-filter-summary');
+
+      try {
+        const rawFilters = localStorage.getItem(filtersStorageKey);
+        const parsedFilters = rawFilters ? JSON.parse(rawFilters) : null;
+        if (parsedFilters && Array.isArray(parsedFilters.filters)) {
+          state.filters = parsedFilters.filters;
+        }
+      } catch (e) {}
+
+      function persistFilters(){
+        try { localStorage.setItem(filtersStorageKey, JSON.stringify({ filters: state.filters || [] })); } catch (e) {}
+      }
 
       function setCollapsed(on){
         panel.classList.toggle('is-collapsed', !!on);
@@ -495,10 +511,18 @@
           const name = (th.textContent || '').trim();
           if (name) names.add(name);
         });
+        document.querySelectorAll('[data-rp-field]').forEach(function(el){
+          const name = (el.getAttribute('data-rp-field') || '').trim();
+          if (name) names.add(name);
+        });
         if (!fieldEl) return;
-        fieldEl.innerHTML = '<option value="">--</option>' + Array.from(names).map(function(name){
+        const options = Array.from(names).map(function(name){
           return '<option value="' + name.replace(/"/g, '&quot;') + '">' + name + '</option>';
         }).join('');
+        fieldEl.innerHTML = '<option value="">--</option>' + options;
+        if (!options) {
+          fieldEl.innerHTML = '<option value="">(aucun champ)</option>';
+        }
       }
 
       function renderSummary(){
@@ -518,6 +542,7 @@
             const idx = Number(a.getAttribute('data-rm') || -1);
             if (idx < 0) return;
             state.filters.splice(idx, 1);
+            persistFilters();
             renderSummary();
             applyFilters();
           });
@@ -526,6 +551,22 @@
 
       function applyFilters(){
         const fs = state.filters || [];
+
+        document.querySelectorAll('[data-rp-field]').forEach(function(el){
+          const fname = String(el.getAttribute('data-rp-field') || '').trim().toLowerCase();
+          const fval = String(el.getAttribute('data-rp-value') || '');
+          let ok = true;
+          for (const f of fs) {
+            const target = String(f.field || '').trim().toLowerCase();
+            if (!target || target !== fname) continue;
+            if (!matchValue(fval, f.op, f.value)) {
+              ok = false;
+              break;
+            }
+          }
+          el.style.display = ok ? '' : 'none';
+        });
+
         document.querySelectorAll('table').forEach(function(table){
           const headers = Array.from(table.querySelectorAll('thead th')).map(function(th){
             return (th.textContent || '').trim().toLowerCase();
@@ -545,6 +586,7 @@
             }
             tr.style.display = ok ? '' : 'none';
           });
+          if (typeof table._rpRender === 'function') table._rpRender();
         });
       }
 
@@ -575,6 +617,7 @@
           const value = valueEl ? valueEl.value : '';
           if (!field || String(value).trim() === '') return;
           state.filters.push({ field: field, op: op, value: value });
+          persistFilters();
           renderSummary();
           applyFilters();
         });
@@ -583,9 +626,153 @@
         clearBtn.addEventListener('click', function(e){
           e.preventDefault();
           state.filters = [];
+          persistFilters();
           renderSummary();
           applyFilters();
         });
+      }
+
+      function enhanceTable(table, idx){
+        const headers = Array.from(table.querySelectorAll('thead th'));
+        if (!headers.length) return;
+
+        const allRows = Array.from(table.querySelectorAll('tbody tr'));
+        let sortIndex = -1;
+        let sortDir = 'asc';
+        let page = 1;
+        let pageSize = 25;
+        const allowed = [10, 25, 50, 100, -1];
+        const stateKey = 'rp.table.' + reportId + '.' + idx;
+
+        try {
+          const raw = localStorage.getItem(stateKey);
+          const saved = raw ? JSON.parse(raw) : null;
+          if (saved && typeof saved === 'object') {
+            if (Number.isInteger(saved.sortIndex)) sortIndex = saved.sortIndex;
+            if (saved.sortDir === 'asc' || saved.sortDir === 'desc') sortDir = saved.sortDir;
+            if (Number.isInteger(saved.page) && saved.page > 0) page = saved.page;
+            if (allowed.includes(Number(saved.pageSize))) pageSize = Number(saved.pageSize);
+          }
+        } catch (e) {}
+
+        function persist(){
+          try { localStorage.setItem(stateKey, JSON.stringify({ sortIndex, sortDir, page, pageSize })); } catch (e) {}
+        }
+
+        function parseNum(v){
+          const n = Number(String(v == null ? '' : v).replace(',', '.'));
+          return Number.isFinite(n) ? n : null;
+        }
+
+        function cmp(a, b){
+          const an = parseNum(a);
+          const bn = parseNum(b);
+          if (an != null && bn != null) return an - bn;
+          return String(a == null ? '' : a).localeCompare(String(b == null ? '' : b), undefined, { numeric: true, sensitivity: 'base' });
+        }
+
+        const wrap = table.closest('.table-responsive') || table.parentElement;
+        const toolbar = document.createElement('div');
+        toolbar.className = 'd-flex align-items-center justify-content-between flex-wrap gap-2 mb-2';
+        wrap.insertBefore(toolbar, table);
+
+        const pager = document.createElement('div');
+        pager.className = 'd-flex align-items-center justify-content-between flex-wrap gap-2 mt-2';
+        wrap.appendChild(pager);
+
+        function render(){
+          let rows = allRows.slice();
+          const fs = state.filters || [];
+          if (fs.length) {
+            rows = rows.filter(function(tr){
+              const rowCells = Array.from(tr.children);
+              for (const f of fs) {
+                const hidx = headers.findIndex(th => (th.textContent || '').trim().toLowerCase() === String(f.field || '').trim().toLowerCase());
+                if (hidx < 0) continue;
+                const cell = rowCells[hidx] ? rowCells[hidx].textContent : '';
+                if (!matchValue(cell, f.op, f.value)) return false;
+              }
+              return true;
+            });
+          }
+
+          if (sortIndex >= 0 && sortIndex < headers.length) {
+            rows.sort((ra, rb) => {
+              const va = ra.children[sortIndex] ? ra.children[sortIndex].textContent : '';
+              const vb = rb.children[sortIndex] ? rb.children[sortIndex].textContent : '';
+              return cmp(va, vb);
+            });
+            if (sortDir === 'desc') rows.reverse();
+          }
+
+          const total = rows.length;
+          const totalPages = pageSize === -1 ? 1 : Math.max(1, Math.ceil(total / pageSize));
+          if (page > totalPages) page = totalPages;
+          if (page < 1) page = 1;
+          const start = pageSize === -1 ? 0 : (page - 1) * pageSize;
+          const end = pageSize === -1 ? total : Math.min(total, start + pageSize);
+          const pageRows = rows.slice(start, end);
+
+          headers.forEach((th, hidx) => {
+            let icon = '';
+            if (sortIndex === hidx) icon = sortDir === 'asc' ? ' ▲' : ' ▼';
+            th.style.cursor = 'pointer';
+            const base = (th.getAttribute('data-rp-base') || th.textContent || '').replace(/[\u25B2\u25BC]\s*$/, '').trim();
+            th.setAttribute('data-rp-base', base);
+            th.textContent = base + icon;
+            if (!th._rpBound) {
+              th._rpBound = true;
+              th.addEventListener('click', function(){
+                if (sortIndex === hidx) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+                else { sortIndex = hidx; sortDir = 'asc'; }
+                page = 1;
+                persist();
+                render();
+              });
+            }
+          });
+
+          const tbody = table.querySelector('tbody');
+          if (!tbody) return;
+          tbody.innerHTML = '';
+          pageRows.forEach(r => tbody.appendChild(r));
+
+          toolbar.innerHTML =
+            '<div class="small text-secondary">' + total + ' lignes</div>' +
+            '<div class="d-flex align-items-center gap-2"><label class="small text-secondary mb-0">Taille de page</label>' +
+            '<select class="form-select form-select-sm" data-rp-pagesize style="width:auto;">' +
+            allowed.map(function(ps){
+              const lbl = ps === -1 ? 'Tout' : String(ps);
+              return '<option value="' + ps + '"' + (ps === pageSize ? ' selected' : '') + '>' + lbl + '</option>';
+            }).join('') +
+            '</select></div>';
+
+          pager.innerHTML =
+            '<div class="small text-secondary">' + (total === 0 ? '0' : (start + 1)) + '-' + end + ' / ' + total + '</div>' +
+            '<div class="btn-group btn-group-sm" role="group">' +
+            '<button type="button" class="btn btn-outline-secondary" data-rp-page="prev"' + (page <= 1 ? ' disabled' : '') + '>Précédent</button>' +
+            '<button type="button" class="btn btn-outline-secondary" disabled>' + page + '/' + totalPages + '</button>' +
+            '<button type="button" class="btn btn-outline-secondary" data-rp-page="next"' + (page >= totalPages ? ' disabled' : '') + '>Suivant</button>' +
+            '</div>';
+
+          const pageSizeSel = toolbar.querySelector('[data-rp-pagesize]');
+          if (pageSizeSel) {
+            pageSizeSel.addEventListener('change', function(){
+              const v = Number(pageSizeSel.value);
+              pageSize = allowed.includes(v) ? v : 25;
+              page = 1;
+              persist();
+              render();
+            });
+          }
+          const prev = pager.querySelector('button[data-rp-page="prev"]');
+          const next = pager.querySelector('button[data-rp-page="next"]');
+          if (prev) prev.addEventListener('click', function(){ page = Math.max(1, page - 1); persist(); render(); });
+          if (next) next.addEventListener('click', function(){ page = Math.min(totalPages, page + 1); persist(); render(); });
+        }
+
+        table._rpRender = render;
+        render();
       }
 
       try { setCollapsed(localStorage.getItem(keyCollapsed) === '1'); } catch (e) { setCollapsed(false); }
@@ -638,7 +825,9 @@
 
       buildFields();
       renderSummary();
+      document.querySelectorAll('table').forEach(function(tbl, i){ enhanceTable(tbl, i); });
       applyFilters();
+      document.querySelectorAll('table').forEach(function(tbl){ if (typeof tbl._rpRender === 'function') tbl._rpRender(); });
     });
   </script>
 {% endblock %}

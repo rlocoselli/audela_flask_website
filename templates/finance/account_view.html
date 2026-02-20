@@ -103,8 +103,10 @@
                     <td class="text-secondary">{{ (t.counterparty_ref.name if t.counterparty_ref else (t.counterparty or '')) }}</td>
                     <td class="text-end">{{ t.amount }}</td>
                     <td class="text-end">
-                      <form method="post" action="{{ url_for('finance.transaction_delete', txn_id=t.id) }}" onsubmit="return confirm('{{ _('Remover esta transação?') }}');">
+                      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('finance.transaction_edit', txn_id=t.id, next=request.full_path) }}">{{ _('Editar') }}</a>
+                      <form method="post" class="d-inline" action="{{ url_for('finance.transaction_delete', txn_id=t.id) }}" onsubmit="return confirm('{{ _('Remover esta transação?') }}');">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                        <input type="hidden" name="next" value="{{ request.full_path }}" />
                         <button class="btn btn-sm btn-outline-danger">{{ _('Remover') }}</button>
                       </form>
                     </td>

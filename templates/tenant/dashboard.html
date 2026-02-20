@@ -17,6 +17,11 @@
       <p class="text-muted">{{ _('Gérez votre compte, utilisateurs et abonnements') }}</p>
     </div>
     <div class="col-auto d-flex gap-2">
+      {% if is_admin %}
+      <a href="{{ url_for('tenant.prospects_agenda') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-calendar-week"></i> {{ _('Agenda RDV') }}
+      </a>
+      {% endif %}
       <a href="{{ url_for('tenant.profile') }}" class="btn btn-outline-primary">
         <i class="bi bi-person-circle"></i> {{ _('Mon profil') }}
       </a>
@@ -217,12 +222,15 @@
                   <div class="mb-3">
                     <strong>{{ _('Modules:') }}</strong>
                     {% if stats.has_finance %}
-                      <span class="badge bg-success">Finance</span>
+                      <span class="badge bg-success">{{ _('Finance') }}</span>
                     {% endif %}
                     {% if stats.has_bi %}
-                      <span class="badge bg-info">BI</span>
+                      <span class="badge bg-info">{{ _('BI') }}</span>
                     {% endif %}
-                    {% if not stats.has_finance and not stats.has_bi %}
+                    {% if stats.has_project %}
+                      <span class="badge bg-primary">{{ _('Projet') }}</span>
+                    {% endif %}
+                    {% if not stats.has_finance and not stats.has_bi and not stats.has_project %}
                       <span class="text-muted">{{ _('Aucun module actif') }}</span>
                     {% endif %}
                   </div>
@@ -303,13 +311,25 @@
               </h5>
               <p class="text-muted">{{ _('Gestion financière complète avec LCR, NSFR et synchronisation bancaire') }}</p>
               {% if stats.has_finance %}
+              {% if module_access.finance %}
               <a href="{{ url_for('finance.dashboard') }}" class="btn btn-primary w-100">
                 <i class="bi bi-box-arrow-up-right"></i> {{ _('Accéder à Finance') }}
               </a>
+              {% else %}
+              <button class="btn btn-outline-secondary w-100" disabled>
+                <i class="bi bi-lock"></i> {{ _('Accès Finance désactivé') }}
+              </button>
+              {% endif %}
               {% elif stats.plan_code == 'free' %}
+              {% if module_access.finance %}
               <a href="{{ url_for('finance.dashboard') }}" class="btn btn-primary w-100">
                 <i class="bi bi-box-arrow-up-right"></i> {{ _('Découvrir Finance') }}
               </a>
+              {% else %}
+              <button class="btn btn-outline-secondary w-100" disabled>
+                <i class="bi bi-lock"></i> {{ _('Accès Finance désactivé') }}
+              </button>
+              {% endif %}
               {% else %}
               <a href="{{ url_for('billing.plans', product='finance') }}" class="btn btn-outline-primary w-100">
                 <i class="bi bi-rocket"></i> {{ _('Activer Finance') }}
@@ -329,13 +349,25 @@
               </h5>
               <p class="text-muted">{{ _('Business Intelligence et tableaux de bord') }}</p>
               {% if stats.has_bi %}
+              {% if module_access.bi %}
               <a href="{{ url_for('portal.home', app_mode='bi') }}" class="btn btn-primary w-100">
                 <i class="bi bi-box-arrow-up-right"></i> {{ _('Accéder à BI') }}
               </a>
+              {% else %}
+              <button class="btn btn-outline-secondary w-100" disabled>
+                <i class="bi bi-lock"></i> {{ _('Accès BI désactivé') }}
+              </button>
+              {% endif %}
               {% elif stats.plan_code == 'free' %}
+              {% if module_access.bi %}
               <a href="{{ url_for('portal.home', app_mode='bi') }}" class="btn btn-primary w-100">
                 <i class="bi bi-box-arrow-up-right"></i> {{ _('Découvrir BI') }}
               </a>
+              {% else %}
+              <button class="btn btn-outline-secondary w-100" disabled>
+                <i class="bi bi-lock"></i> {{ _('Accès BI désactivé') }}
+              </button>
+              {% endif %}
               {% else %}
               <a href="{{ url_for('billing.plans', product='bi') }}" class="btn btn-outline-primary w-100">
                 <i class="bi bi-rocket"></i> {{ _('Activer BI') }}
@@ -346,13 +378,39 @@
         </div>
         {% endif %}
 
-        {% if not stats.has_finance and not stats.has_bi and stats.plan_code != 'free' %}
+        {% if stats.has_project or stats.plan_code == 'free' %}
+        <div class="col-md-6">
+          <div class="card border-0 shadow-sm">
+            <div class="card-body">
+              <h5 class="mb-3">
+                <i class="bi bi-kanban"></i> {{ _('AUDELA Project') }}
+              </h5>
+              <p class="text-muted">{{ _('Gestion de projet avec Kanban, Gantt, livrables et cérémonies Scrum/Agile') }}</p>
+              {% if stats.has_project %}
+              <a href="{{ url_for('project.dashboard') }}" class="btn btn-primary w-100">
+                <i class="bi bi-box-arrow-up-right"></i> {{ _('Accéder à Projet') }}
+              </a>
+              {% elif stats.plan_code == 'free' %}
+              <a href="{{ url_for('project.dashboard') }}" class="btn btn-primary w-100">
+                <i class="bi bi-box-arrow-up-right"></i> {{ _('Découvrir Projet') }}
+              </a>
+              {% else %}
+              <a href="{{ url_for('billing.plans', product='project') }}" class="btn btn-outline-primary w-100">
+                <i class="bi bi-rocket"></i> {{ _('Activer Projet') }}
+              </a>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
+        {% if not stats.has_finance and not stats.has_bi and not stats.has_project and stats.plan_code != 'free' %}
         <div class="col-12">
           <div class="card border-0 shadow-sm">
             <div class="card-body text-center py-5">
               <i class="bi bi-box-seam" style="font-size: 3rem; opacity: 0.3;"></i>
               <h5 class="mt-3">{{ _('Aucun produit actif') }}</h5>
-              <p class="text-muted">{{ _('Abonnez-vous à Finance ou BI pour commencer') }}</p>
+              <p class="text-muted">{{ _('Abonnez-vous à Finance, BI ou Projet pour commencer') }}</p>
               <a href="{{ url_for('billing.plans') }}" class="btn btn-primary">
                 <i class="bi bi-rocket"></i> {{ _('Voir les plans') }}
               </a>

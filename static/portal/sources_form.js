@@ -42,6 +42,9 @@
     if (type === 'audela_finance') {
       return 'internal://audela_finance';
     }
+    if (type === 'audela_project') {
+      return 'internal://audela_project';
+    }
 
     const auth = user ? (enc(user) + (pass ? (':' + enc(pass)) : '') + '@') : '';
     const hp = host ? host : '';
@@ -88,6 +91,9 @@
 
     if (s.toLowerCase().startsWith('internal://audela_finance')) {
       return { type: 'audela_finance' };
+    }
+    if (s.toLowerCase().startsWith('internal://audela_project')) {
+      return { type: 'audela_project' };
     }
 
     try {
@@ -189,7 +195,7 @@
       const isSqlite = type === 'sqlite';
       const isSqlserver = type === 'sqlserver';
       const isOracle = type === 'oracle';
-      const isInternal = type === 'audela_finance';
+      const isInternal = type === 'audela_finance' || type === 'audela_project';
 
       show(sqliteRow, isSqlite && !isInternal);
 
@@ -209,6 +215,7 @@
       else if (type === 'sqlserver') urlInp.placeholder = 'mssql+pyodbc://user:pass@host:1433/dbname?driver=ODBC+Driver+18+for+SQL+Server';
       else if (type === 'oracle') urlInp.placeholder = 'oracle+oracledb://user:pass@host:1521/?service_name=ORCLPDB1';
       else if (type === 'audela_finance') urlInp.placeholder = 'internal://audela_finance';
+      else if (type === 'audela_project') urlInp.placeholder = 'internal://audela_project';
       else if (type === 'sqlite') urlInp.placeholder = 'sqlite:////abs/path/file.db';
 
       // defaults

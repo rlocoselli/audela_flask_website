@@ -43,14 +43,13 @@
 							<ul>
 								<li><a href="{{ url_for('public.projects_mobile') }}">{{ _('Mobile') }}</a></li>
 								<li><a href="{{ url_for('public.projects_iot') }}">{{ _('IoT & Neuro') }}</a></li>
+								<li><a href="{{ url_for('public.projects_management') }}">{{ _('Gestion de projet') }}</a></li>
 							<li><a href="{{ url_for('public.belegal') }}">{{ _('BeLegal (LegalTech)') }}</a></li>
 							<li><a href="{{ url_for('public.metabase') }}">{{ _('BI & Metabase') }}</a></li>
 							</ul>
 						</li>
-						<li><a href="{{ url_for('public.plans') }}">{{ _('Plans BI') }}</a></li>
+						<li><a href="{{ url_for('public.plans') }}">{{ _('Plans BI & Projet') }}</a></li>
 						<li><a href="{{ url_for('tenant.login') }}" class="button primary">{{ _('Gestion Tenant') }}</a></li>
-						<li><a href="{{ url_for('auth.login') }}">{{ _('AUDELA BI') }}</a></li>
-						<li><a href="{{ url_for('auth.login_finance') }}">{{ _('AUDELA Finance') }}</a></li>
 							<li><a href="{{ url_for('public.index') }}#five" class="button scrolly">{{ _('Contact') }}</a></li>
 							<li>
 								<a href="#">{{ lang_label(current_lang) }}</a>

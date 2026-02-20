@@ -165,6 +165,7 @@ function boot () {
     hydrateGridItems();
 
     const dashboardId = Number(gridEl.getAttribute('data-dashboard-id') || 0);
+    window.BI_DASHBOARD_FILTERS_KEY = dashboardId ? `bi.dashboard.${dashboardId}.filters` : 'bi.dashboard.filters';
 
     const grid = GridStack.init({
       float: true,

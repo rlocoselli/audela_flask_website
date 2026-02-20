@@ -1,77 +1,67 @@
 {% extends "base.html" %}
 
-{% block title %}AUDELA – Plans BI{% endblock %}
+{% block title %}AUDELA – Plans{% endblock %}
 
 {% block content %}
-	<section id="main" class="wrapper style1">
-		<div class="container">
-			<header class="major">
-				<h2>Plans BI</h2>
-				<p>Deux offres simples : démarrer vite (Standard) ou piloter à l’échelle (Gaulois). Les fonctionnalités ci-dessous sont proposées à titre indicatif et peuvent être adaptées à votre contexte.</p>
-			</header>
+<section id="main" class="wrapper style1">
+  <div class="container">
+    <header class="major">
+      <h2>{{ _('Plans d’abonnement') }}</h2>
+      <p>{{ _('Cette page reflète exactement les offres disponibles à l’abonnement.') }}</p>
+    </header>
 
-			<div class="audela-plans">
-				<div class="plan">
-					<div class="plan-top">
-						<h3>Standard</h3>
-						<div class="price">9,99 <span>€ / mois</span></div>
-						<p class="muted">Idéal pour un projet BI ou une équipe qui démarre.</p>
-					</div>
-					<ul class="features">
-						<li>Jusqu’à <strong>3 dashboards</strong> et <strong>20 cartes</strong></li>
-						<li><strong>1 source de données</strong> (Postgres, MySQL, API via ETL…)</li>
-						<li>Actualisation <strong>quotidienne</strong> (ou planifiée)</li>
-						<li>Exports <strong>CSV/PDF</strong> et partage par lien</li>
-						<li>1 rapport e-mail <strong>hebdomadaire</strong></li>
-						<li>Support <strong>best effort</strong></li>
-					</ul>
-					<div class="plan-cta">
-						<a href="{{ url_for('public.index') }}#five" class="button primary">Choisir Standard</a>
-						<a href="{{ url_for('public.metabase') }}" class="button">Voir les écrans</a>
-					</div>
-				</div>
+    {% if selected_product == 'finance' %}
+      <div class="box" style="margin-bottom:1rem;">
+        <strong>{{ _('Filtre actif : Finance') }}</strong>
+      </div>
+    {% elif selected_product == 'bi' %}
+      <div class="box" style="margin-bottom:1rem;">
+        <strong>{{ _('Filtre actif : BI') }}</strong>
+      </div>
+    {% elif selected_product == 'project' %}
+      <div class="box" style="margin-bottom:1rem;">
+        <strong>{{ _('Filtre actif : Projet') }}</strong>
+      </div>
+    {% endif %}
 
-				<div class="plan featured">
-					<div class="plan-top">
-						<h3>Gaulois</h3>
-						<div class="price">29,99 <span>€ / mois</span></div>
-						<p class="muted">Pour industrialiser : multi-sources, alertes, sécurité fine, cadence plus rapide.</p>
-					</div>
-					<ul class="features">
-						<li><strong>Dashboards illimités</strong> et catalogue de métriques</li>
-						<li>Jusqu’à <strong>5 sources</strong> (ERP/CRM/Finance + APIs)</li>
-						<li>Actualisation <strong>horaire</strong> (ou à la demande)</li>
-						<li><strong>Alertes</strong> (seuils/anomalies) + notifications e-mail</li>
-						<li><strong>Sécurité avancée</strong> : groupes, RBAC, (si besoin) sécurité ligne par ligne</li>
-						<li><strong>Embarqué</strong> (embed) dans vos apps & pages</li>
-						<li>Support <strong>prioritaire</strong> + revue mensuelle KPI</li>
-					</ul>
-					<div class="plan-cta">
-						<a href="{{ url_for('public.index') }}#five" class="button primary">Choisir Gaulois</a>
-						<a href="{{ url_for('public.metabase') }}" class="button">Voir les écrans</a>
-					</div>
-				</div>
-			</div>
+    {% if plans %}
+      <div class="row gtr-150">
+        {% for plan in plans %}
+          <div class="col-4 col-12-medium">
+            <section class="box">
+              <h3>{{ plan.name }}</h3>
+              {% if plan.description %}
+                <p>{{ plan.description }}</p>
+              {% endif %}
 
-			<section class="box">
-				<h3>Ce qui est inclus (dans les deux plans)</h3>
-				<div class="row gtr-200">
-					<div class="col-6 col-12-medium">
-						<ul class="alt">
-							<li><strong>Design “à la française”</strong> : lisibilité, formats FR (€, dates), sobriété.</li>
-							<li><strong>Modélisation</strong> : définitions KPI, conventions, documentation.</li>
-							<li><strong>Qualité</strong> : contrôles de cohérence et suivi des erreurs.</li>
-						</ul>
-					</div>
-					<div class="col-6 col-12-medium">
-						<ul class="alt">
-							<li><strong>Onboarding</strong> : atelier de cadrage + accès initial.</li>
-							<li><strong>Transfert</strong> : guide d’usage, bonnes pratiques, autonomie.</li>
-							<li><strong>Évolutif</strong> : options sur-mesure (SSO, SLA, multi-tenant…).</li>
-						</ul>
-					</div>
-				</div>
-			</section>
-		</div>
-	</section>
+              <p><strong>{{ '%.2f'|format(plan.price_monthly or 0) }} {{ plan.currency or 'EUR' }} / {{ _('mois') }}</strong></p>
+
+              <ul class="alt">
+                <li>{{ _('Utilisateurs') }}: {{ '∞' if plan.max_users == -1 else plan.max_users }}</li>
+                <li>{{ _('Entreprises') }}: {{ '∞' if plan.max_companies == -1 else plan.max_companies }}</li>
+                <li>{{ _('Transactions/mois') }}: {{ '∞' if plan.max_transactions_per_month == -1 else plan.max_transactions_per_month }}</li>
+                <li>{{ _('Support premium') }}: {{ _('Oui') if (plan.features_json and plan.features_json.get('premium_support')) else _('Non') }}</li>
+                <li>{{ _('Essai') }}: {{ plan.trial_days }} {{ _('jours') }}</li>
+              </ul>
+
+              {% if current_user.is_authenticated %}
+                {% if current_plan and current_plan.code == plan.code %}
+                  <a href="{{ url_for('billing.subscription') }}" class="button">{{ _('Gérer mon abonnement') }}</a>
+                {% else %}
+                  <a href="{{ url_for('billing.upgrade', plan_code=plan.code) }}" class="button primary">{{ _('Choisir ce plan') }}</a>
+                {% endif %}
+              {% else %}
+                <a href="{{ url_for('tenant.login') }}" class="button primary">{{ _('Se connecter pour continuer') }}</a>
+              {% endif %}
+            </section>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <section class="box">
+        <p class="mb-0">{{ _('Aucun plan disponible pour le moment.') }}</p>
+      </section>
+    {% endif %}
+  </div>
+</section>
 {% endblock %}

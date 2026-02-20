@@ -13,10 +13,15 @@
 
     <nav class="nav flex-column gap-1">
       <a class="nav-link" href="{{ url_for('portal.home') }}"><i class="bi bi-house me-2"></i>{{ _('Home') }}</a>
+      {% if module_access.finance %}
       <a class="nav-link" href="{{ url_for('finance.dashboard') }}"><i class="bi bi-cash-coin me-2"></i>{{ _('Finanças') }}</a>
+      {% endif %}
       <a class="nav-link" href="{{ url_for('portal.sources_list') }}"><i class="bi bi-database me-2"></i>{{ _('Fontes') }}</a>
       <a class="nav-link" href="{{ url_for('portal.api_sources_list') }}"><i class="bi bi-plug me-2"></i>{{ _('Fontes API') }}</a>
       <a class="nav-link" href="{{ url_for('portal.integrations_hub') }}"><i class="bi bi-link-45deg me-2"></i>{{ _('Intégrations') }}</a>
+      {% if current_user.has_role('tenant_admin') %}
+      <a class="nav-link" href="{{ url_for('tenant.prospects_agenda') }}"><i class="bi bi-calendar-week me-2"></i>{{ _('Agenda RDV') }}</a>
+      {% endif %}
       <a class="nav-link" href="{{ url_for('portal.etls_list') }}"><i class="bi bi-diagram-3 me-2"></i>{{ _('ETL') }}</a>
       <a class="nav-link" href="{{ url_for('portal.sources_diagram') }}"><i class="bi bi-diagram-3 me-2"></i>{{ _('Source Diagram') }}</a>
       <a class="nav-link" href="{{ url_for('portal.sql_editor') }}"><i class="bi bi-braces me-2"></i>{{ _('Editor SQL') }}</a>
@@ -166,9 +171,14 @@
   <div class="offcanvas-body">
     <div class="nav flex-column gap-1">
       <a class="nav-link" href="{{ url_for('portal.home') }}">{{ _('Home') }}</a>
+      {% if module_access.finance %}
       <a class="nav-link" href="{{ url_for('finance.dashboard') }}">{{ _('Finanças') }}</a>
+      {% endif %}
       <a class="nav-link" href="{{ url_for('portal.sources_list') }}">{{ _('Fontes') }}</a>
       <a class="nav-link" href="{{ url_for('portal.integrations_hub') }}">{{ _('Intégrations') }}</a>
+      {% if current_user.has_role('tenant_admin') %}
+      <a class="nav-link" href="{{ url_for('tenant.prospects_agenda') }}">{{ _('Agenda RDV') }}</a>
+      {% endif %}
       <a class="nav-link" href="{{ url_for('portal.sql_editor') }}">{{ _('Editor SQL') }}</a>
       <a class="nav-link" href="{{ url_for('portal.excel_ai') }}">{{ _('Excel IA') }}</a>
       <a class="nav-link" href="{{ url_for('portal.questions_list') }}">{{ _('Perguntas') }}</a>
@@ -191,6 +201,43 @@
     <script src="{{ url_for('static', filename='portal/theme_switcher.js') }}"></script>
     <script>
       window.onReady(function(){
+        function normText(el){
+          const t = (el.getAttribute('data-bi-tip') || el.getAttribute('data-tip') || el.getAttribute('title') || el.getAttribute('aria-label') || el.textContent || '').trim();
+          return t.replace(/\s+/g, ' ').trim();
+        }
+
+        function initBiTooltips(root){
+          const container = root || document;
+          const tipSelectors = [
+            '.sidebar .nav-link',
+            '.topbar .btn',
+            '.topbar .dropdown-item',
+            '.nav-pills .nav-link',
+            '.card .text-secondary',
+            '.form-label',
+            'th',
+            '.badge'
+          ].join(',');
+
+          container.querySelectorAll(tipSelectors).forEach(function(el){
+            if (el.hasAttribute('data-bs-toggle') || el.classList.contains('disabled')) return;
+            const tip = normText(el);
+            if (!tip || tip.length > 160) return;
+            el.setAttribute('data-bs-toggle', 'tooltip');
+            el.setAttribute('data-bs-placement', 'bottom');
+            el.setAttribute('data-bs-title', tip);
+          });
+
+          if (window.bootstrap && window.bootstrap.Tooltip) {
+            container.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function(el){
+              window.bootstrap.Tooltip.getOrCreateInstance(el);
+            });
+          }
+        }
+
+        window.__initBiTooltips = initBiTooltips;
+        initBiTooltips(document);
+
         const toggle = document.getElementById('biHelpChatToggle');
         const panel = document.getElementById('biHelpChatPanel');
         const closeBtn = document.getElementById('biHelpChatClose');

@@ -1,0 +1,116 @@
+{% extends "portal/base_portal.html" %}
+
+{% block title %}{{ _('Agenda RDV') }} – {{ tenant.name if tenant else 'AUDELA' }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h1 class="h3 mb-1">{{ _('Agenda des rendez-vous') }}</h1>
+      <p class="text-muted mb-0">{{ _('Prospects ayant demandé une démonstration téléphonique') }}</p>
+    </div>
+    <a href="{{ url_for('tenant.dashboard') }}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left"></i> {{ _('Retour au dashboard') }}
+    </a>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ 'danger' if category in ['error','danger'] else ('success' if category=='success' else 'warning' if category=='warning' else 'info') }} alert-dismissible fade show">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label">{{ _('Du') }}</label>
+          <input type="date" class="form-control" name="from" value="{{ filters.from }}" />
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">{{ _('Au') }}</label>
+          <input type="date" class="form-control" name="to" value="{{ filters.to }}" />
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">{{ _('Statut') }}</label>
+          <select class="form-select" name="status">
+            <option value="">{{ _('Tous') }}</option>
+            <option value="new" {% if filters.status=='new' %}selected{% endif %}>{{ _('Nouveau') }}</option>
+            <option value="confirmed" {% if filters.status=='confirmed' %}selected{% endif %}>{{ _('Confirmé') }}</option>
+            <option value="done" {% if filters.status=='done' %}selected{% endif %}>{{ _('Terminé') }}</option>
+            <option value="cancelled" {% if filters.status=='cancelled' %}selected{% endif %}>{{ _('Annulé') }}</option>
+          </select>
+        </div>
+        <div class="col-md-3 d-flex gap-2">
+          <button type="submit" class="btn btn-primary">{{ _('Filtrer') }}</button>
+          <a href="{{ url_for('tenant.prospects_agenda') }}" class="btn btn-outline-secondary">{{ _('Réinitialiser') }}</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>{{ _('Date RDV') }}</th>
+              <th>{{ _('Horaire') }}</th>
+              <th>{{ _('Prospect') }}</th>
+              <th>{{ _('Contact') }}</th>
+              <th>{{ _('Solution') }}</th>
+              <th>{{ _('Message') }}</th>
+              <th>{{ _('Statut') }}</th>
+              <th>{{ _('Créé le') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in prospects %}
+            <tr>
+              <td>{{ p.rdv_date.strftime('%d/%m/%Y') if p.rdv_date else '-' }}</td>
+              <td>{{ p.rdv_time.strftime('%H:%M') if p.rdv_time else '-' }} {% if p.timezone %}<span class="text-muted">({{ p.timezone }})</span>{% endif %}</td>
+              <td>
+                <div class="fw-semibold">{{ p.full_name }}</div>
+                {% if p.company %}<div class="small text-muted">{{ p.company }}</div>{% endif %}
+              </td>
+              <td>
+                <div>{{ p.email }}</div>
+                {% if p.phone %}<div class="small text-muted">{{ p.phone }}</div>{% endif %}
+              </td>
+              <td>{{ p.solution_interest or '-' }}</td>
+              <td class="small" style="max-width: 320px; white-space: pre-wrap;">{{ p.message or '-' }}</td>
+              <td>
+                <span class="badge bg-secondary">
+                  {% if p.status == 'new' %}
+                    {{ _('Nouveau') }}
+                  {% elif p.status == 'confirmed' %}
+                    {{ _('Confirmé') }}
+                  {% elif p.status == 'done' %}
+                    {{ _('Terminé') }}
+                  {% elif p.status == 'cancelled' %}
+                    {{ _('Annulé') }}
+                  {% else %}
+                    {{ p.status }}
+                  {% endif %}
+                </span>
+              </td>
+              <td>{{ p.created_at.strftime('%d/%m/%Y %H:%M') if p.created_at else '-' }}</td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="8" class="text-center text-muted py-4">{{ _('Aucun rendez-vous trouvé.') }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

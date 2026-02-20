@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}{{ _('AUDELA Project – Kanban, Gantt & Agile') }}{% endblock %}
+
+{% block content %}
+<section id="main" class="wrapper style1">
+  <div class="container">
+    <header class="major">
+      <h2>{{ _('AUDELA Project') }}</h2>
+      <p>{{ _('Un produit simple de gestion de projet: Kanban, Gantt visuel, arbre des livrables, et rituels Scrum/Agile.') }}</p>
+    </header>
+
+    <div class="box">
+      <h3>{{ _('Fonctionnalités clés') }}</h3>
+      <div class="row gtr-200">
+        <div class="col-6 col-12-medium">
+          <ul class="alt">
+            <li>{{ _('Kanban ultra-simple (Backlog, En cours, Bloqué, Terminé)') }}</li>
+            <li>{{ _('Graph Gantt basique pour visualiser les dates') }}</li>
+            <li>{{ _('Arbre des items à livrer (Epic > Feature > Task)') }}</li>
+          </ul>
+        </div>
+        <div class="col-6 col-12-medium">
+          <ul class="alt">
+            <li>{{ _('Cérémonies Scrum/Agile (planning, daily, review, retro)') }}</li>
+            <li>{{ _('Suivi des responsables et priorités') }}</li>
+            <li>{{ _('Interface orientée exécution rapide') }}</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="row gtr-150">
+      <div class="col-6 col-12-medium">
+        <section class="box">
+          <h3>{{ _('Plan Projet Start') }}</h3>
+          <p><strong>4,99€ / mois</strong></p>
+          <ul class="alt">
+            <li>{{ _('Jusqu’à 3 projets actifs') }}</li>
+            <li>{{ _('Kanban + Gantt + livrables') }}</li>
+            <li>{{ _('Cérémonies Scrum de base') }}</li>
+          </ul>
+          <a href="{{ url_for('public.index') }}#five" class="button primary">{{ _('Demander une démo') }}</a>
+        </section>
+      </div>
+      <div class="col-6 col-12-medium">
+        <section class="box">
+          <h3>{{ _('Plan Projet Team') }}</h3>
+          <p><strong>12,99€ / mois</strong></p>
+          <ul class="alt">
+            <li>{{ _('Projets illimités') }}</li>
+            <li>{{ _('Vue multi-équipes + backlog de release') }}</li>
+            <li>{{ _('Agenda cérémonies + export') }}</li>
+          </ul>
+          <a href="{{ url_for('public.index') }}#five" class="button primary">{{ _('Demander une démo') }}</a>
+        </section>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

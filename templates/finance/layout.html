@@ -135,7 +135,7 @@
   <script>
     window.onReady(function(){
       function normText(el){
-        const t = (el.getAttribute('data-finance-tip') || el.getAttribute('title') || el.getAttribute('aria-label') || el.textContent || '').trim();
+        const t = (el.getAttribute('data-finance-tip') || el.getAttribute('data-tip') || el.getAttribute('title') || el.getAttribute('aria-label') || el.textContent || '').trim();
         return t.replace(/\s+/g, ' ').trim();
       }
 
@@ -144,13 +144,17 @@
         '.navbar .nav-link',
         '.nav-pills .nav-link',
         '.dropdown-item',
-        '.btn'
+        '.btn',
+        '.card .text-secondary',
+        '.form-label',
+        'th',
+        '.badge'
       ].join(',');
 
       document.querySelectorAll(tipSelectors).forEach(function(el){
         if (el.hasAttribute('data-bs-toggle') || el.classList.contains('disabled')) return;
         const tip = normText(el);
-        if (!tip) return;
+        if (!tip || tip.length > 160) return;
         el.setAttribute('data-bs-toggle', 'tooltip');
         el.setAttribute('data-bs-placement', 'bottom');
         el.setAttribute('data-bs-title', tip);

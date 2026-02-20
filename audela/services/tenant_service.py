@@ -342,6 +342,7 @@ class TenantService:
             "trial_days_left": None,
             "has_finance": False,
             "has_bi": False,
+            "has_project": False,
             "usage": {
                 "users": {"current": 0, "max": 0},
                 "companies": {"current": companies_count, "max": 0},
@@ -363,6 +364,7 @@ class TenantService:
                 "trial_days_left": subscription.days_left_in_trial(),
                 "has_finance": subscription.plan.has_finance,
                 "has_bi": subscription.plan.has_bi,
+                "has_project": bool((subscription.plan.features_json or {}).get("has_project", False)) if isinstance(subscription.plan.features_json, dict) else False,
                 "usage": {
                     "users": {
                         "current": users_count,

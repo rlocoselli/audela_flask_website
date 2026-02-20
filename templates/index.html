@@ -181,15 +181,63 @@
 	<!-- Five -->
 	<section id="five" class="wrapper style2 special fade">
 		<div class="container">
+			{% with messages = get_flashed_messages(with_categories=true) %}
+			  {% if messages %}
+			    <div class="mb-3 text-start" style="max-width:920px;margin:0 auto;">
+			      {% for category, message in messages %}
+			        <div class="alert alert-{{ 'danger' if category in ['error', 'danger'] else ('success' if category == 'success' else 'info') }} mb-2" role="alert">
+			          {{ message }}
+			        </div>
+			      {% endfor %}
+			    </div>
+			  {% endif %}
+			{% endwith %}
+
 			<header>
 				<h2>{{ _('Parlons de votre projet') }}</h2>
-				<p>{{ _('Décrivez votre besoin (Data/BI, ERP, LegalTech, IA, Mobile, IoT). Nous vous recontactons rapidement.') }}</p>
+				<p>{{ _('Réservez un rendez-vous téléphonique de démonstration. Notre équipe vous rappelle au créneau choisi.') }}</p>
 			</header>
-			<form method="post" action="#" class="cta">
+			<form method="post" action="{{ url_for('public.request_demo') }}" class="cta">
 				<input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-				<div class="row gtr-uniform gtr-50">
-					<div class="col-8 col-12-xsmall"><input type="email" name="email" id="email" placeholder="{{ _('Votre adresse e-mail') }}" /></div>
-					<div class="col-4 col-12-xsmall"><input type="submit" value="{{ _('Être rappelé') }}" class="fit primary" /></div>
+				<div class="row gtr-uniform gtr-50" style="text-align:left;">
+					<div class="col-6 col-12-small">
+						<input type="text" name="full_name" placeholder="{{ _('Nom complet') }}" required />
+					</div>
+					<div class="col-6 col-12-small">
+						<input type="email" name="email" placeholder="{{ _('Adresse e-mail') }}" required />
+					</div>
+					<div class="col-6 col-12-small">
+						<input type="text" name="phone" placeholder="{{ _('Téléphone') }}" />
+					</div>
+					<div class="col-6 col-12-small">
+						<input type="text" name="company" placeholder="{{ _('Entreprise') }}" />
+					</div>
+					<div class="col-4 col-12-small">
+						<input type="date" name="rdv_date" required />
+					</div>
+					<div class="col-4 col-12-small">
+						<input type="time" name="rdv_time" required />
+					</div>
+					<div class="col-4 col-12-small">
+						<input type="text" name="timezone" value="Europe/Paris" placeholder="Time zone" />
+					</div>
+					<div class="col-12">
+						<select name="solution_interest">
+							<option value="">{{ _('Solution souhaitée') }}</option>
+							<option value="bi">BI / Data</option>
+							<option value="finance">Finance</option>
+							<option value="erp">ERP</option>
+							<option value="legaltech">LegalTech</option>
+							<option value="ai">IA</option>
+							<option value="other">{{ _('Autre') }}</option>
+						</select>
+					</div>
+					<div class="col-12">
+						<textarea name="message" placeholder="{{ _('Message (contexte, besoin, questions)') }}" rows="4"></textarea>
+					</div>
+					<div class="col-12">
+						<input type="submit" value="{{ _('Demander une démo téléphonique') }}" class="fit primary" />
+					</div>
 				</div>
 			</form>
 		</div>

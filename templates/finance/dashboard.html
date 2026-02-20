@@ -6,7 +6,7 @@
     <div class="col-12 col-md-6 col-lg-3">
       <div class="card h-100">
         <div class="card-body">
-          <div class="text-secondary small mb-1">{{ _('Caixa (aprox.)') }}</div>
+          <div class="text-secondary small mb-1" data-tip="{{ _('Estimation rapide de trésorerie disponible sur la base des soldes actuels.') }}">{{ _('Caixa (aprox.)') }}</div>
           <div class="h4 mb-0">{{ kpis.cash }}</div>
         </div>
       </div>
@@ -14,7 +14,7 @@
     <div class="col-12 col-md-6 col-lg-3">
       <div class="card h-100">
         <div class="card-body">
-          <div class="text-secondary small mb-1">{{ _('NII estimado (12m)') }}</div>
+          <div class="text-secondary small mb-1" data-tip="{{ _('Marge nette d’intérêt estimée sur 12 mois (produits d’intérêts moins coûts d’intérêts).') }}">{{ _('NII estimado (12m)') }}</div>
           <div class="h4 mb-0">{{ kpis.nii_12m }}</div>
         </div>
       </div>
@@ -22,7 +22,7 @@
     <div class="col-12 col-md-6 col-lg-3">
       <div class="card h-100">
         <div class="card-body">
-          <div class="text-secondary small mb-1">{{ _('Liquidez (30d)') }}</div>
+          <div class="text-secondary small mb-1" data-tip="{{ _('Ratio de liquidité projeté sur 30 jours. Au-dessus de 1 = couverture des sorties court terme.') }}">{{ _('Liquidez (30d)') }}</div>
           <div class="h4 mb-0">
             {% if kpis.liq_ratio is none %}
               —
@@ -36,8 +36,100 @@
     <div class="col-12 col-md-6 col-lg-3">
       <div class="card h-100">
         <div class="card-body">
-          <div class="text-secondary small mb-1">{{ _('Liquidez líquida (30d)') }}</div>
+          <div class="text-secondary small mb-1" data-tip="{{ _('Liquidité nette à 30 jours: entrées prévues moins sorties prévues.') }}">{{ _('Liquidez líquida (30d)') }}</div>
           <div class="h4 mb-0">{{ kpis.net_liq }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-md-6 col-lg-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="text-secondary small mb-1" data-tip="{{ _('Debt/Assets = Endettement total / Total actifs. Mesure la part des actifs financée par la dette.') }}">{{ _('Debt/Assets') }}</div>
+          <div class="h4 mb-0">
+            {% if kpis.debt_to_assets_ratio is none %}
+              —
+            {% else %}
+              {{ '%.2f'|format(kpis.debt_to_assets_ratio) }}x
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="text-secondary small mb-1" data-tip="{{ _('Debt/Equity = Endettement total / Capitaux propres. Évalue l’effet de levier financier par rapport aux fonds propres.') }}">{{ _('Debt/Equity') }}</div>
+          <div class="h4 mb-0">
+            {% if kpis.debt_to_equity_ratio is none %}
+              —
+            {% else %}
+              {{ '%.2f'|format(kpis.debt_to_equity_ratio) }}x
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="text-secondary small mb-1" data-tip="{{ _('Debt/Capital = Endettement total / (Endettement + Capitaux propres). Plus le ratio est élevé, plus la structure est dépendante de la dette.') }}">{{ _('Debt/Capital') }}</div>
+          <div class="h4 mb-0">
+            {% if kpis.debt_to_capital_ratio is none %}
+              —
+            {% else %}
+              {{ '%.1f'|format((kpis.debt_to_capital_ratio or 0) * 100) }}%
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="text-secondary small mb-1" data-tip="{{ _('Net Debt/EBITDA = (Endettement total - Trésorerie) / EBITDA. Mesure le nombre d’années d’EBITDA nécessaires pour rembourser la dette nette.') }}">{{ _('Net Debt/EBITDA') }}</div>
+          <div class="h4 mb-0">
+            {% if kpis.net_debt_to_ebitda is none %}
+              —
+            {% else %}
+              {{ '%.2f'|format(kpis.net_debt_to_ebitda) }}x
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="text-secondary small mb-1" data-tip="{{ _('EBITDA proxy 12 mois: flux opérationnels entrants moins flux opérationnels sortants (hors catégories financières/taxes).') }}">{{ _('EBITDA (12m, proxy)') }}</div>
+          <div class="h4 mb-0">{{ '%.2f'|format(kpis.ebitda_12m or 0) }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="text-secondary small mb-1" data-tip="{{ _('Endettement total: encours du registre de dettes (ou comptes passifs si registre vide).') }}">{{ _('Endettement total') }}</div>
+          <div class="h4 mb-0">{{ '%.2f'|format(kpis.debt_total or 0) }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-lg-4">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="text-secondary small mb-1" data-tip="{{ _('Leverage ratio = Endettement total / EBITDA. Indisponible si EBITDA <= 0.') }}">{{ _('Leverage ratio (Debt/EBITDA)') }}</div>
+          <div class="h4 mb-0">
+            {% if kpis.leverage_ratio is none %}
+              —
+            {% else %}
+              {{ '%.2f'|format(kpis.leverage_ratio) }}x
+            {% endif %}
+          </div>
         </div>
       </div>
     </div>
@@ -48,7 +140,7 @@
       <div class="card">
         <div class="card-header d-flex align-items-center justify-content-between">
           <span class="fw-semibold">{{ _('Contas') }}</span>
-          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('finance.account_new') }}">
+          <a class="btn btn-sm btn-outline-primary" data-tip="{{ _('Créer un nouveau compte financier (banque, caisse, client, fournisseur, etc.).') }}" href="{{ url_for('finance.account_new') }}">
             <i class="bi bi-plus-lg me-1"></i>{{ _('Adicionar conta') }}
           </a>
         </div>
@@ -61,7 +153,7 @@
                   <th>{{ _('Tipo') }}</th>
                   <th>{{ _('Side') }}</th>
                   <th>{{ _('Moeda') }}</th>
-                  <th class="text-end">{{ _('Saldo') }}</th>
+                  <th class="text-end" data-tip="{{ _('Solde courant du compte dans sa devise de référence.') }}">{{ _('Saldo') }}</th>
                 </tr>
               </thead>
               <tbody>

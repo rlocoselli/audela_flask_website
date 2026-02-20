@@ -55,7 +55,7 @@ from ...services.einvoice_service import build_invoice_export_zip, compute_total
 from ...services.finance_projection import project_cash_balance, build_ui_alerts, compute_starting_cash as proj_starting_cash
 from ...services.regulation_exports import export_fec_csv, export_it_ledger_csv
 from ...services.subscription_service import SubscriptionService
-from ...tenancy import get_current_tenant_id
+from ...tenancy import get_current_tenant_id, get_user_module_access
 
 from . import bp
 
@@ -74,11 +74,13 @@ def _require_tenant() -> None:
 @bp.app_context_processor
 def _finance_layout_context():
     tenant = getattr(g, "tenant", None)
+    module_access = get_user_module_access(tenant, getattr(current_user, "id", None))
     if not tenant or not getattr(tenant, "subscription", None):
-        return {"transaction_usage": None}
+        return {"transaction_usage": None, "module_access": module_access}
 
     _, current_count, max_limit = SubscriptionService.check_limit(tenant.id, "transactions")
     return {
+        "module_access": module_access,
         "transaction_usage": {
             "current": int(current_count),
             "max": int(max_limit),
@@ -99,6 +101,18 @@ def _load_tenant_into_g() -> None:
             tenant = Tenant.query.get(tenant_id)
             if tenant:
                 g.tenant = tenant
+
+    if (
+        request.endpoint
+        and request.endpoint.startswith("finance.")
+        and current_user.is_authenticated
+        and getattr(g, "tenant", None)
+        and current_user.tenant_id == g.tenant.id
+    ):
+        access = get_user_module_access(g.tenant, current_user.id)
+        if not access.get("finance", True):
+            flash(_("Acesso Finance desativado para seu usuário."), "warning")
+            return redirect(url_for("tenant.dashboard"))
 
 
 def _get_company() -> FinanceCompany:
@@ -418,10 +432,73 @@ def apply_category_rules(company: FinanceCompany, *, description: str, counterpa
 def dashboard():
     company = _get_company()
     accounts = _q_accounts(company).order_by(FinanceAccount.name.asc()).all()
+    txns_12m = (
+        _q_txns(company)
+        .filter(FinanceTransaction.txn_date >= (date.today() - timedelta(days=365)))
+        .all()
+    )
+    liabilities = FinanceLiability.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).all()
 
     cash = compute_starting_cash(accounts)
     nii = compute_nii(accounts, horizon_days=365)
     liquidity = compute_liquidity(accounts, horizon_days=30)
+
+    def _n(v) -> float:
+        try:
+            return float(v or 0)
+        except Exception:
+            return 0.0
+
+    operating_exclusion_tokens = {
+        "loan", "emprunt", "prêt", "juros", "interest", "tax", "impot", "tva", "amort", "depreci"
+    }
+    op_inflows = 0.0
+    op_outflows = 0.0
+    for t in txns_12m:
+        category_text = (getattr(t, "category", None) or "").lower()
+        if any(tok in category_text for tok in operating_exclusion_tokens):
+            continue
+        amt = _n(getattr(t, "amount", 0))
+        if amt >= 0:
+            op_inflows += amt
+        else:
+            op_outflows += abs(amt)
+    ebitda_12m = op_inflows - op_outflows
+
+    debt_from_liabilities = sum(
+        _n(li.outstanding_amount if li.outstanding_amount is not None else li.principal_amount)
+        for li in liabilities
+    )
+    debt_from_accounts = sum(
+        abs(_n(a.balance))
+        for a in accounts
+        if (a.side or "").lower() == "liability" and (a.account_type or "").lower() in {"loan", "credit_line", "payable"}
+    )
+    debt_total = debt_from_liabilities if debt_from_liabilities > 0 else debt_from_accounts
+    leverage_ratio = (debt_total / ebitda_12m) if ebitda_12m > 0 else None
+
+    assets_total = sum(
+        abs(_n(a.balance))
+        for a in accounts
+        if (a.side or "").lower() == "asset"
+    )
+    liabilities_total = sum(
+        abs(_n(a.balance))
+        for a in accounts
+        if (a.side or "").lower() == "liability"
+    )
+    equity_total = sum(
+        abs(_n(a.balance))
+        for a in accounts
+        if (a.side or "").lower() == "equity"
+    )
+
+    debt_to_assets_ratio = (debt_total / assets_total) if assets_total > 0 else None
+    debt_to_equity_ratio = (debt_total / equity_total) if equity_total > 0 else None
+    debt_to_capital_ratio = (debt_total / (debt_total + equity_total)) if (debt_total + equity_total) > 0 else None
+
+    net_debt = max(0.0, debt_total - max(0.0, _n(cash)))
+    net_debt_to_ebitda = (net_debt / ebitda_12m) if ebitda_12m > 0 else None
 
     # Small, friendly KPIs
     kpis = {
@@ -429,6 +506,17 @@ def dashboard():
         "nii_12m": nii["nii_total"],
         "liq_ratio": liquidity["liquidity_ratio"],
         "net_liq": liquidity["net_liquidity"],
+        "ebitda_12m": ebitda_12m,
+        "debt_total": debt_total,
+        "leverage_ratio": leverage_ratio,
+        "debt_to_assets_ratio": debt_to_assets_ratio,
+        "debt_to_equity_ratio": debt_to_equity_ratio,
+        "debt_to_capital_ratio": debt_to_capital_ratio,
+        "net_debt": net_debt,
+        "net_debt_to_ebitda": net_debt_to_ebitda,
+        "assets_total": assets_total,
+        "liabilities_total": liabilities_total,
+        "equity_total": equity_total,
     }
 
     return render_template(
@@ -814,10 +902,79 @@ def transaction_delete(txn_id: int):
     company = _get_company()
     txn = FinanceTransaction.query.filter_by(id=txn_id, tenant_id=g.tenant.id, company_id=company.id).first_or_404()
     account_id = txn.account_id
+    next_url = (request.form.get("next") or "").strip()
     db.session.delete(txn)
     db.session.commit()
     flash(_("Transação removida."), "success")
+    if next_url.startswith("/") and not next_url.startswith("//"):
+        return redirect(next_url)
     return redirect(url_for("finance.account_view", account_id=account_id))
+
+
+@bp.route("/transactions/<int:txn_id>/edit", methods=["GET", "POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def transaction_edit(txn_id: int):
+    company = _get_company()
+    txn = FinanceTransaction.query.filter_by(id=txn_id, tenant_id=g.tenant.id, company_id=company.id).first_or_404()
+
+    if request.method == "POST":
+        account_id = int(request.form.get("account_id") or 0)
+        acc = FinanceAccount.query.filter_by(id=account_id, tenant_id=g.tenant.id, company_id=company.id).first()
+        if not account_id or not acc:
+            flash(_("Selecione uma conta."), "error")
+            return redirect(url_for("finance.transaction_edit", txn_id=txn.id))
+
+        txn_date = (request.form.get("txn_date") or "").strip() or date.today().isoformat()
+        amount = (request.form.get("amount") or "0").strip().replace(",", ".")
+        description = (request.form.get("description") or "").strip() or None
+        category = (request.form.get("category") or "").strip() or None
+        counterparty_id = int(request.form.get("counterparty_id") or 0)
+        counterparty_name = (request.form.get("counterparty_name") or "").strip()
+        counterparty_kind = (request.form.get("counterparty_kind") or "other").strip()
+        reference = (request.form.get("reference") or "").strip() or None
+
+        cp_obj = None
+        if counterparty_id:
+            cp_obj = FinanceCounterparty.query.filter_by(id=counterparty_id, tenant_id=g.tenant.id).first()
+        if not cp_obj and counterparty_name:
+            cp_obj = FinanceCounterparty(tenant_id=g.tenant.id, company_id=company.id, name=counterparty_name, kind=counterparty_kind)
+            db.session.add(cp_obj)
+            db.session.flush()
+
+        try:
+            d = datetime.strptime(txn_date, "%Y-%m-%d").date()
+            amt = Decimal(amount)
+        except Exception:
+            flash(_("Dados inválidos."), "error")
+            return redirect(url_for("finance.transaction_edit", txn_id=txn.id))
+
+        txn.account_id = acc.id
+        txn.txn_date = d
+        txn.amount = amt
+        txn.description = description
+        txn.category = category
+        txn.counterparty_id = (cp_obj.id if cp_obj else None)
+        txn.counterparty = None
+        txn.reference = reference
+        db.session.commit()
+        flash(_("Transação atualizada."), "success")
+
+        next_url = (request.form.get("next") or "").strip()
+        if next_url.startswith("/") and not next_url.startswith("//"):
+            return redirect(next_url)
+        return redirect(url_for("finance.transactions_list"))
+
+    accounts = _q_accounts(company).order_by(FinanceAccount.name.asc()).all()
+    return render_template(
+        "finance/transaction_form.html",
+        tenant=g.tenant,
+        company=company,
+        accounts=accounts,
+        selected_account=FinanceAccount.query.filter_by(id=txn.account_id, tenant_id=g.tenant.id, company_id=company.id).first(),
+        txn=txn,
+        counterparties=get_counterparties(company),
+    )
 
 
 @bp.route("/transactions/import", methods=["POST"])
@@ -2323,6 +2480,100 @@ def reports_transactions():
         by_category=_top_map(by_cat),
         by_counterparty=_top_map(by_cp),
         latest=latest_rows,
+    )
+
+
+@bp.route("/reports/accounting")
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def reports_accounting():
+    company = _get_company()
+
+    today = date.today()
+    try:
+        start = datetime.strptime((request.args.get("start") or f"{today.year}-01-01"), "%Y-%m-%d").date()
+    except Exception:
+        start = date(today.year, 1, 1)
+    try:
+        end = datetime.strptime((request.args.get("end") or today.isoformat()), "%Y-%m-%d").date()
+    except Exception:
+        end = today
+
+    gl_accounts = (
+        FinanceGLAccount.query
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+        .order_by(FinanceGLAccount.code.asc(), FinanceGLAccount.name.asc())
+        .all()
+    )
+
+    opening_rows = (
+        db.session.query(
+            FinanceLedgerLine.gl_account_id,
+            func.coalesce(func.sum(FinanceLedgerLine.debit), 0),
+            func.coalesce(func.sum(FinanceLedgerLine.credit), 0),
+        )
+        .join(FinanceLedgerVoucher, FinanceLedgerVoucher.id == FinanceLedgerLine.voucher_id)
+        .filter(FinanceLedgerLine.tenant_id == g.tenant.id)
+        .filter(FinanceLedgerLine.company_id == company.id)
+        .filter(FinanceLedgerVoucher.voucher_date < start)
+        .group_by(FinanceLedgerLine.gl_account_id)
+        .all()
+    )
+    period_rows = (
+        db.session.query(
+            FinanceLedgerLine.gl_account_id,
+            func.coalesce(func.sum(FinanceLedgerLine.debit), 0),
+            func.coalesce(func.sum(FinanceLedgerLine.credit), 0),
+        )
+        .join(FinanceLedgerVoucher, FinanceLedgerVoucher.id == FinanceLedgerLine.voucher_id)
+        .filter(FinanceLedgerLine.tenant_id == g.tenant.id)
+        .filter(FinanceLedgerLine.company_id == company.id)
+        .filter(FinanceLedgerVoucher.voucher_date >= start)
+        .filter(FinanceLedgerVoucher.voucher_date <= end)
+        .group_by(FinanceLedgerLine.gl_account_id)
+        .all()
+    )
+
+    opening_map = {int(gl_id): (Decimal(str(deb or 0)) - Decimal(str(cred or 0))) for gl_id, deb, cred in opening_rows}
+    period_map = {int(gl_id): (Decimal(str(deb or 0)), Decimal(str(cred or 0))) for gl_id, deb, cred in period_rows}
+
+    rows = []
+    total_opening = Decimal("0")
+    total_debit = Decimal("0")
+    total_credit = Decimal("0")
+    total_closing = Decimal("0")
+    for gl in gl_accounts:
+        opening = opening_map.get(int(gl.id), Decimal("0"))
+        p_debit, p_credit = period_map.get(int(gl.id), (Decimal("0"), Decimal("0")))
+        signed_closing = opening + p_debit - p_credit
+        natural_closing = signed_closing if (gl.kind or "").lower() in {"asset", "expense"} else -signed_closing
+        rows.append({
+            "code": gl.code,
+            "name": gl.name,
+            "kind": gl.kind,
+            "opening": opening,
+            "debit": p_debit,
+            "credit": p_credit,
+            "closing": natural_closing,
+        })
+        total_opening += opening
+        total_debit += p_debit
+        total_credit += p_credit
+        total_closing += natural_closing
+
+    return render_template(
+        "finance/reports_accounting.html",
+        tenant=g.tenant,
+        company=company,
+        start=start,
+        end=end,
+        rows=rows,
+        totals={
+            "opening": total_opening,
+            "debit": total_debit,
+            "credit": total_credit,
+            "closing": total_closing,
+        },
     )
 
 

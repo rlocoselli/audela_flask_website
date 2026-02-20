@@ -1,0 +1,1815 @@
+{% extends "project/layout.html" %}
+{% set title = _('Gestion de projet') %}
+
+{% block project_page %}
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="h4 mb-1">{{ _('Projets') }}</h1>
+    <div class="text-secondary small">{{ _('Kanban, Gantt, livrables et cérémonies Scrum/Agile') }}</div>
+  </div>
+  <div class="d-flex align-items-center gap-2 flex-wrap">
+    <select class="form-select form-select-sm" id="pm-project-select" style="min-width:220px;"></select>
+    <button class="btn btn-sm btn-outline-primary" id="pm-new-project-btn" data-tip="{{ _('Créer un nouveau projet avec son responsable et sa description.') }}">{{ _('Nouveau projet') }}</button>
+    <span id="pm-save-status" class="small text-secondary">{{ _('Chargement...') }}</span>
+    <button class="btn btn-sm btn-primary" id="pm-save-now" data-tip="{{ _('Enregistrer immédiatement toutes les modifications du projet.') }}">{{ _('Sauvegarder') }}</button>
+  </div>
+</div>
+
+<datalist id="pm-managers-datalist"></datalist>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-8">
+    <div class="card border-0 shadow-sm h-100" id="pm-section-kanban">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h5 class="mb-0">{{ _('Kanban') }}</h5>
+          <button class="btn btn-sm btn-primary" id="pm-add-card" data-tip="{{ _('Ajouter une tâche Kanban dans l\'arriéré ou les colonnes de suivi.') }}">{{ _('Créer une tâche') }}</button>
+        </div>
+        <div class="row g-2" id="pm-kanban">
+          <div class="col-md-3"><div class="border rounded p-2" data-col="backlog"><div class="fw-semibold small mb-2">{{ _('Arriéré') }}</div><div class="d-grid gap-2 pm-col-body"></div></div></div>
+          <div class="col-md-3"><div class="border rounded p-2" data-col="todo"><div class="fw-semibold small mb-2">{{ _('À faire') }}</div><div class="d-grid gap-2 pm-col-body"></div></div></div>
+          <div class="col-md-3"><div class="border rounded p-2" data-col="doing"><div class="fw-semibold small mb-2">{{ _('En cours') }}</div><div class="d-grid gap-2 pm-col-body"></div></div></div>
+          <div class="col-md-3"><div class="border rounded p-2" data-col="done"><div class="fw-semibold small mb-2">{{ _('Terminé') }}</div><div class="d-grid gap-2 pm-col-body"></div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm mb-3" id="pm-section-ceremonies">
+      <div class="card-body">
+        <h5 class="mb-2">{{ _('Cérémonies Scrum') }}</h5>
+        <ul class="list-group list-group-flush" id="pm-ceremonies"></ul>
+        <button class="btn btn-sm btn-outline-primary mt-2" id="pm-add-ceremony">{{ _('Ajouter cérémonie') }}</button>
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-3" id="pm-section-deliverables">
+      <div class="card-body">
+        <h5 class="mb-2">{{ _('Arbre des livrables') }}</h5>
+        <div id="pm-deliverables" class="small"></div>
+        <button class="btn btn-sm btn-outline-primary mt-2" id="pm-add-deliverable">{{ _('Ajouter item') }}</button>
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm" id="pm-section-managers">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h5 class="mb-0">{{ _('Registre responsables') }}</h5>
+          <button class="btn btn-sm btn-outline-primary" id="pm-add-manager">{{ _('Ajouter') }}</button>
+        </div>
+        <div id="pm-managers" class="small"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3" id="pm-section-governance">
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <h5 class="mb-2">{{ _('Cadrage & référentiel') }}</h5>
+        <div class="row g-2">
+          <div class="col-12">
+            <label class="form-label small mb-1">{{ _('Objectifs') }}</label>
+            <textarea class="form-control form-control-sm" id="pm-charter-objectives" rows="2"></textarea>
+          </div>
+          <div class="col-12">
+            <label class="form-label small mb-1">{{ _('Périmètre') }}</label>
+            <textarea class="form-control form-control-sm" id="pm-charter-scope" rows="2"></textarea>
+          </div>
+          <div class="col-12">
+            <label class="form-label small mb-1">{{ _('Livrables') }}</label>
+            <textarea class="form-control form-control-sm" id="pm-charter-deliverables" rows="2"></textarea>
+          </div>
+          <div class="col-12">
+            <label class="form-label small mb-1">{{ _('Jalons') }}</label>
+            <textarea class="form-control form-control-sm" id="pm-charter-milestones" rows="2"></textarea>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small mb-1">{{ _('Baseline planning') }}</label>
+            <input class="form-control form-control-sm" id="pm-baseline-planning" placeholder="{{ _('v1.0') }}" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small mb-1">{{ _('Budget de référence') }}</label>
+            <input type="number" min="0" step="0.01" class="form-control form-control-sm" id="pm-baseline-budget" />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small mb-1">{{ _('Périmètre de référence') }}</label>
+            <input class="form-control form-control-sm" id="pm-baseline-scope" placeholder="{{ _('MVP') }}" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm h-100" id="pm-section-stakeholders">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h5 class="mb-0">{{ _('Parties prenantes') }}</h5>
+          <button class="btn btn-sm btn-outline-primary" id="pm-add-stakeholder">{{ _('Ajouter') }}</button>
+        </div>
+        <div id="pm-stakeholders" class="small"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3" id="pm-section-risks">
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h5 class="mb-0">{{ _('Registre risques') }}</h5>
+          <button class="btn btn-sm btn-outline-primary" id="pm-add-risk">{{ _('Ajouter') }}</button>
+        </div>
+        <div id="pm-risks" class="small"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h5 class="mb-0">{{ _('Incidents / problèmes') }}</h5>
+          <button class="btn btn-sm btn-outline-primary" id="pm-add-issue">{{ _('Ajouter') }}</button>
+        </div>
+        <div id="pm-issues" class="small"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h5 class="mb-0">{{ _('Registre décisions') }}</h5>
+          <button class="btn btn-sm btn-outline-primary" id="pm-add-decision">{{ _('Ajouter') }}</button>
+        </div>
+        <div id="pm-decisions" class="small"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3" id="pm-section-change">
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h5 class="mb-0">{{ _('Gestion des changements') }}</h5>
+          <button class="btn btn-sm btn-outline-primary" id="pm-add-change">{{ _('Ajouter') }}</button>
+        </div>
+        <div id="pm-changes" class="small"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h5 class="mb-0">{{ _('Documentation') }}</h5>
+          <button class="btn btn-sm btn-outline-primary" id="pm-add-document">{{ _('Ajouter') }}</button>
+        </div>
+        <div id="pm-documents" class="small"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h5 class="mb-0">{{ _('Comptes-rendus & actions') }}</h5>
+          <button class="btn btn-sm btn-outline-primary" id="pm-add-meeting">{{ _('Ajouter') }}</button>
+        </div>
+        <div id="pm-meetings" class="small"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3" id="pm-section-reporting">
+  <div class="col-lg-8">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <h5 class="mb-2">{{ _('Tableau de bord & reporting') }}</h5>
+        <div id="pm-reporting" class="small"></div>
+        <hr class="my-3">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h6 class="mb-0">{{ _('Versionnement projet & baseline') }}</h6>
+          <button class="btn btn-sm btn-outline-primary" id="pm-add-version">{{ _('Créer version') }}</button>
+        </div>
+        <div id="pm-versions" class="small"></div>
+        <div class="row g-2 mt-2">
+          <div class="col-md-4">
+            <label class="form-label form-label-sm small mb-1">{{ _('Version A') }}</label>
+            <select id="pm-version-a" class="form-select form-select-sm"></select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label form-label-sm small mb-1">{{ _('Version B') }}</label>
+            <select id="pm-version-b" class="form-select form-select-sm"></select>
+          </div>
+          <div class="col-md-4 d-flex align-items-end">
+            <button class="btn btn-sm btn-outline-secondary w-100" id="pm-compare-versions">{{ _('Comparer A vs B') }}</button>
+          </div>
+        </div>
+        <div id="pm-version-compare" class="small mt-2"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4" id="pm-section-security">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <h5 class="mb-2">{{ _('Sécurité & administration') }}</h5>
+        <div class="mb-2">
+          <label class="form-label small mb-1">{{ _('Droits') }}</label>
+          <select id="pm-security-rights" class="form-select form-select-sm">
+            <option value="rw">{{ _('Lecture/écriture') }}</option>
+            <option value="rwa">{{ _('Lecture/écriture/approbation') }}</option>
+            <option value="r">{{ _('Lecture seule') }}</option>
+          </select>
+        </div>
+        <div class="mb-2">
+          <label class="form-label small mb-1">{{ _('Templates / champs personnalisés') }}</label>
+          <textarea id="pm-security-templates" class="form-control form-control-sm" rows="2"></textarea>
+        </div>
+        <div>
+          <label class="form-label small mb-1">{{ _('Intégrations') }}</label>
+          <textarea id="pm-security-integrations" class="form-control form-control-sm" rows="2" placeholder="{{ _('Email, calendrier, Jira, Git, ERP...') }}"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm" id="pm-section-gantt">
+  <div class="card-body">
+    <div class="d-flex align-items-center justify-content-between mb-2">
+      <h5 class="mb-0">{{ _('Diagramme de Gantt (simple)') }}</h5>
+      <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-outline-secondary" id="pm-gantt-maximize" type="button">
+          <i class="bi bi-arrows-fullscreen me-1"></i>{{ _('Maximiser') }}
+        </button>
+        <button class="btn btn-sm btn-outline-primary" id="pm-add-gantt">{{ _('Ajouter tâche') }}</button>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle" id="pm-gantt-table">
+        <thead>
+          <tr>
+            <th style="width:60px;">#</th>
+            <th>{{ _('Tâche') }}</th>
+            <th>{{ _('Responsable') }}</th>
+            <th>{{ _('Prédecesseur') }}</th>
+            <th>{{ _('Début') }}</th>
+            <th>{{ _('Fin') }}</th>
+            <th>{{ _('Durée (j)') }}</th>
+            <th>{{ _('Critique') }}</th>
+            <th>{{ _('Heures (calc)') }}</th>
+            <th>{{ _('Tarif/h (resp.)') }}</th>
+            <th>{{ _('Coût (calc)') }}</th>
+            <th>{{ _('Timeline') }}</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div id="pm-finance-summary" class="mt-3"></div>
+  </div>
+</div>
+
+<style>
+  .pm-gantt-fullscreen {
+    position: fixed !important;
+    inset: 1rem;
+    z-index: 1085;
+    margin: 0 !important;
+  }
+  .pm-gantt-fullscreen .card-body {
+    height: calc(100vh - 2rem);
+    display: flex;
+    flex-direction: column;
+  }
+  .pm-gantt-fullscreen .table-responsive {
+    flex: 1;
+    overflow: auto;
+  }
+</style>
+
+<div class="modal fade" id="projectModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content" id="projectForm">
+      <div class="modal-header">
+        <h5 class="modal-title">{{ _('Créer un projet') }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2">
+          <label class="form-label">{{ _('Nom du projet') }}</label>
+          <input class="form-control" name="name" required maxlength="120">
+        </div>
+        <div class="mb-2">
+          <label class="form-label">{{ _('Responsable') }}</label>
+          <input class="form-control" name="owner" maxlength="120" list="pm-managers-datalist">
+        </div>
+        <div>
+          <label class="form-label">{{ _('Description') }}</label>
+          <textarea class="form-control" name="description" rows="3"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">{{ _('Annuler') }}</button>
+        <button class="btn btn-primary" type="submit">{{ _('Créer') }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal fade" id="todoModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content" id="todoForm">
+      <div class="modal-header">
+        <h5 class="modal-title">{{ _('Créer une tâche') }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" name="todo_id">
+        <div class="mb-2">
+          <label class="form-label">{{ _('Titre') }}</label>
+          <input class="form-control" name="title" required maxlength="160">
+        </div>
+        <div class="mb-2">
+          <label class="form-label">{{ _('Projet') }}</label>
+          <select class="form-select" name="project_id"></select>
+        </div>
+        <div class="row g-2">
+          <div class="col-md-6">
+            <label class="form-label">{{ _('Responsable') }}</label>
+            <input class="form-control" name="owner" maxlength="120" list="pm-managers-datalist">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">{{ _('Priorité') }}</label>
+            <select class="form-select" name="priority">
+              <option value="low">{{ _('Faible') }}</option>
+              <option value="medium" selected>{{ _('Moyenne') }}</option>
+              <option value="high">{{ _('Élevée') }}</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">{{ _('Colonne') }}</label>
+            <select class="form-select" name="col">
+              <option value="backlog">{{ _('Arriéré') }}</option>
+              <option value="todo">{{ _('À faire') }}</option>
+              <option value="doing">{{ _('En cours') }}</option>
+              <option value="done">{{ _('Terminé') }}</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">{{ _('Échéance') }}</label>
+            <input type="date" class="form-control" name="due_date">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <button class="btn btn-outline-danger d-none" id="todoDeleteBtn" type="button">{{ _('Supprimer') }}</button>
+        <div class="ms-auto d-flex gap-2">
+          <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">{{ _('Annuler') }}</button>
+          <button class="btn btn-primary" type="submit">{{ _('Enregistrer') }}</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal fade" id="simpleModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content" id="simpleForm">
+      <div class="modal-header">
+        <h5 class="modal-title" id="simpleModalTitle">{{ _('Ajouter') }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="simpleModalBody"></div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">{{ _('Annuler') }}</button>
+        <button class="btn btn-primary" type="submit">{{ _('Enregistrer') }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script>
+    window.onReady(function(){
+      const API_GET = '{{ url_for("project.workspace_get") }}';
+      const API_SAVE = '{{ url_for("project.workspace_save") }}';
+      const FALLBACK_KEY = 'audela.pm.mini.v3';
+      const state = {
+        projects: [], selected_project_id: null, cards: [], ceremonies: [], deliverables: [], gantt: [], managers: [],
+        project_meta: {}, stakeholders: [], risks: [], issues: [], decisions: [], changes: [], documents: [], meetings: [], audit_log: [], project_versions: [], security: {}
+      };
+      const statusEl = document.getElementById('pm-save-status');
+      const projectSelect = document.getElementById('pm-project-select');
+      const ganttCard = document.getElementById('pm-gantt-table')?.closest('.card');
+      const ganttMaxBtn = document.getElementById('pm-gantt-maximize');
+      let draggedCardId = null;
+      let ganttIsMaximized = false;
+
+      function uid(){ return Math.random().toString(36).slice(2, 10); }
+      function csrfToken(){ return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''; }
+      function setStatus(text, klass){ if (statusEl) { statusEl.className = 'small ' + (klass || 'text-secondary'); statusEl.textContent = text || ''; } }
+      function fallbackSave(){ try { localStorage.setItem(FALLBACK_KEY, JSON.stringify(state)); } catch (e) {} }
+      function fallbackLoad(){ try { const raw = localStorage.getItem(FALLBACK_KEY); if (!raw) return; Object.assign(state, JSON.parse(raw) || {}); } catch (e) {} }
+      function asArray(v){ return Array.isArray(v) ? v : []; }
+      function dt(v){ const d = new Date(v); return Number.isNaN(+d) ? null : d; }
+      function fmtDate(v){ const d = dt(v); return d ? d.toISOString().slice(0,10) : ''; }
+      function num(v){ const n = Number(v); return Number.isFinite(n) ? n : 0; }
+      function money(v){ return num(v).toFixed(2); }
+      function daysBetween(a,b){ return Math.max(1, Math.round((b-a)/(1000*60*60*24))+1); }
+      function addDays(base, n){ const d = new Date(base); d.setDate(d.getDate() + Number(n || 0)); return d; }
+
+      function sanitize(){
+        state.projects = asArray(state.projects);
+        state.cards = asArray(state.cards);
+        state.ceremonies = asArray(state.ceremonies);
+        state.deliverables = asArray(state.deliverables);
+        state.gantt = asArray(state.gantt);
+        state.managers = asArray(state.managers);
+        state.stakeholders = asArray(state.stakeholders);
+        state.risks = asArray(state.risks);
+        state.issues = asArray(state.issues);
+        state.decisions = asArray(state.decisions);
+        state.changes = asArray(state.changes);
+        state.documents = asArray(state.documents);
+        state.meetings = asArray(state.meetings);
+        state.audit_log = asArray(state.audit_log);
+        state.project_versions = asArray(state.project_versions);
+        state.project_meta = (state.project_meta && typeof state.project_meta === 'object') ? state.project_meta : {};
+        state.security = (state.security && typeof state.security === 'object') ? state.security : {};
+      }
+
+      function forCurrentProject(list){ return (list || []).filter(function(x){ return x.project_id === state.selected_project_id; }); }
+      function currentRights(){ return (state.security && state.security.rights) || 'rw'; }
+      function canWrite(){ return currentRights() !== 'r'; }
+      function canApprove(){ return currentRights() === 'rwa'; }
+      function metaForProject(){
+        const key = state.selected_project_id || '__none__';
+        if (!state.project_meta[key] || typeof state.project_meta[key] !== 'object') {
+          state.project_meta[key] = {
+            charter: { objectives: '', scope: '', deliverables: '', milestones: '' },
+            baseline: { planning: '', budget: 0, scope: '' },
+            budget: { initial: 0, revised: 0, engaged: 0 }
+          };
+        }
+        return state.project_meta[key];
+      }
+      function addAudit(action, payload){
+        state.audit_log.push({ id: uid(), at: new Date().toISOString(), action: action, payload: payload || {}, project_id: state.selected_project_id });
+        if (state.audit_log.length > 4000) state.audit_log = state.audit_log.slice(-4000);
+      }
+
+      function normalizeManagerName(name){ return (name || '').toString().trim(); }
+      function managerLabel(manager){ return normalizeManagerName(manager && manager.name); }
+      function managerByName(name){
+        const nm = normalizeManagerName(name).toLowerCase();
+        if (!nm) return null;
+        return state.managers.find(function(m){ return managerLabel(m).toLowerCase() === nm; }) || null;
+      }
+      function managerRate(name){
+        const m = managerByName(name);
+        return Math.max(0, num(m && m.hourly_rate));
+      }
+      function managerHoursPerDay(name){
+        const m = managerByName(name);
+        return Math.max(0, num((m && m.hours_per_day) || 8));
+      }
+      function taskComputedHours(task){
+        const days = Math.max(0, num(task && task.duration_days));
+        return days * managerHoursPerDay(task && task.owner);
+      }
+      function taskComputedCost(task){
+        return taskComputedHours(task) * managerRate(task && task.owner);
+      }
+      function predecessorIds(task){
+        const ids = [];
+        if (task && task.predecessor_id) ids.push(String(task.predecessor_id));
+        if (Array.isArray(task && task.dependencies)) {
+          task.dependencies.forEach(function(d){ if (d && d.task_id) ids.push(String(d.task_id)); });
+        }
+        return Array.from(new Set(ids));
+      }
+      function criticalPathIds(tasks){
+        const rows = Array.isArray(tasks) ? tasks : [];
+        if (!rows.length) return new Set();
+        const map = new Map();
+        rows.forEach(function(t){ map.set(String(t.id), t); });
+        const best = new Map();
+        const prev = new Map();
+
+        function solve(id, visiting){
+          if (best.has(id)) return best.get(id);
+          if (visiting.has(id)) return 0;
+          visiting.add(id);
+          const task = map.get(id);
+          const dur = Math.max(1, num(task && task.duration_days));
+          let maxPred = 0;
+          let maxPredId = null;
+          predecessorIds(task).forEach(function(pid){
+            if (!map.has(pid)) return;
+            const val = solve(pid, visiting);
+            if (val > maxPred) { maxPred = val; maxPredId = pid; }
+          });
+          visiting.delete(id);
+          const total = maxPred + dur;
+          best.set(id, total);
+          prev.set(id, maxPredId);
+          return total;
+        }
+
+        let endId = null;
+        let endVal = -1;
+        rows.forEach(function(t){
+          const id = String(t.id);
+          const v = solve(id, new Set());
+          if (v > endVal) { endVal = v; endId = id; }
+        });
+
+        const out = new Set();
+        let cursor = endId;
+        while (cursor) {
+          if (out.has(cursor)) break;
+          out.add(cursor);
+          cursor = prev.get(cursor) || null;
+        }
+        return out;
+      }
+      function managerOptionsHtml(extraName){
+        const names = state.managers.map(function(m){ return managerLabel(m); }).filter(Boolean);
+        if (extraName) names.push(normalizeManagerName(extraName));
+        const unique = Array.from(new Set(names));
+        return unique.sort().map(function(name){
+          return '<option value="' + name.replace(/"/g, '&quot;') + '"></option>';
+        }).join('');
+      }
+      function renderManagersDatalist(){
+        const dl = document.getElementById('pm-managers-datalist');
+        if (!dl) return;
+        dl.innerHTML = managerOptionsHtml('');
+      }
+      function upsertManager(name, patch){
+        const nm = normalizeManagerName(name);
+        if (!nm) return;
+        const found = state.managers.find(function(m){ return managerLabel(m).toLowerCase() === nm.toLowerCase(); });
+        if (found) {
+          if (patch && typeof patch === 'object') Object.assign(found, patch);
+          found.name = found.name || nm;
+          found.hourly_rate = Math.max(0, num(found.hourly_rate));
+          found.hours_per_day = Math.max(0, num((found.hours_per_day) || 8));
+          return;
+        }
+        const item = Object.assign({ id: uid(), name: nm, email: '', role: '', hourly_rate: 0, hours_per_day: 8 }, patch || {});
+        item.hourly_rate = Math.max(0, num(item.hourly_rate));
+        item.hours_per_day = Math.max(0, num((item.hours_per_day) || 8));
+        state.managers.push(item);
+      }
+      function normalizeManagersFromState(){
+        const rows = [];
+        state.managers.forEach(function(m){
+          const name = normalizeManagerName(m && m.name);
+          if (!name) return;
+          rows.push({
+            id: (m && m.id) || uid(),
+            name: name,
+            email: (m && m.email ? String(m.email) : ''),
+            role: (m && m.role ? String(m.role) : ''),
+            hourly_rate: Math.max(0, num(m && m.hourly_rate)),
+            hours_per_day: Math.max(0, num((m && m.hours_per_day) || 8)),
+          });
+        });
+        state.projects.forEach(function(p){ upsertManager(p.owner); });
+        state.cards.forEach(function(c){ upsertManager(c.owner); });
+        state.gantt.forEach(function(g){ upsertManager(g.owner); });
+        const dedup = [];
+        const seen = new Set();
+        rows.concat(state.managers).forEach(function(m){
+          const key = managerLabel(m).toLowerCase();
+          if (!key || seen.has(key)) return;
+          seen.add(key);
+          dedup.push({
+            id: m.id || uid(),
+            name: managerLabel(m),
+            email: m.email || '',
+            role: m.role || '',
+            hourly_rate: Math.max(0, num(m.hourly_rate)),
+            hours_per_day: Math.max(0, num((m.hours_per_day) || 8)),
+          });
+        });
+        state.managers = dedup;
+      }
+
+      async function saveNow(){
+        setStatus('{{ _('Sauvegarde...') }}', 'text-secondary');
+        try {
+          const res = await fetch(API_SAVE, {
+            method: 'POST',
+            headers: { 'Content-Type':'application/json', ...(csrfToken() ? {'X-CSRFToken': csrfToken()} : {}) },
+            body: JSON.stringify({ state: state })
+          });
+          const data = await res.json();
+          if (!res.ok || !data.ok) throw new Error('save failed');
+          fallbackSave();
+          setStatus('{{ _('Sauvegardé') }}', 'text-success');
+        } catch (e) {
+          fallbackSave();
+          setStatus('{{ _('Sauvegarde locale uniquement') }}', 'text-warning');
+        }
+      }
+
+      let saveTimer = null;
+      function scheduleSave(){
+        fallbackSave();
+        if (saveTimer) clearTimeout(saveTimer);
+        setStatus('{{ _('Modifications non sauvegardées') }}', 'text-warning');
+        saveTimer = setTimeout(saveNow, 700);
+      }
+
+      async function load(){
+        try {
+          const res = await fetch(API_GET);
+          const data = await res.json();
+          if (!res.ok || !data.ok) throw new Error('load failed');
+          Object.assign(state, data.state || {});
+          sanitize();
+          setStatus('{{ _('Chargé depuis la base') }}', 'text-secondary');
+        } catch (e) {
+          fallbackLoad();
+          sanitize();
+          setStatus('{{ _('Chargé en local (hors ligne)') }}', 'text-warning');
+        }
+      }
+
+      function currentProjectCards(){ return state.cards.filter(c => c.project_id === state.selected_project_id); }
+      function currentProjectGantt(){ return state.gantt.filter(g => g.project_id === state.selected_project_id); }
+
+      function ensureDefaults(){
+        if (!state.projects.length) {
+          const id = uid();
+          state.projects = [{ id, name:'Projet MVP', owner:'PM', description:'' }];
+          state.selected_project_id = id;
+        }
+        if (!state.selected_project_id || !state.projects.some(p => p.id === state.selected_project_id)) {
+          state.selected_project_id = state.projects[0].id;
+        }
+
+        state.cards = state.cards.map(function(c){ return Object.assign({}, c, { project_id: c.project_id || state.selected_project_id }); });
+        state.gantt = state.gantt.map(function(g){
+          const deps = Array.isArray(g.dependencies)
+            ? g.dependencies
+            : (g.predecessor_id ? [{ task_id: g.predecessor_id, type: 'FS' }] : []);
+          const predecessor = g.predecessor_id || (deps[0] && deps[0].task_id) || null;
+          const item = Object.assign({}, g, {
+            project_id: g.project_id || state.selected_project_id,
+            dependencies: deps,
+            predecessor_id: predecessor,
+            duration_days: Math.max(1, Number(g.duration_days || 1)),
+            start: g.start || '',
+            end: g.end || '',
+            owner: (g.owner || '').toString(),
+          });
+          delete item.hours_spent;
+          delete item.hourly_rate;
+          return item;
+        });
+
+        normalizeManagersFromState();
+
+        if (!state.cards.length) {
+          state.cards = [
+            { id: uid(), project_id: state.selected_project_id, title: '{{ _('Lancement du projet') }}', owner: 'PO', priority:'medium', due_date:'', col:'todo' },
+            { id: uid(), project_id: state.selected_project_id, title: '{{ _('Structuration du backlog MVP') }}', owner: 'PM', priority:'high', due_date:'', col:'doing' }
+          ];
+        }
+        if (!state.ceremonies.length) state.ceremonies = [{ id: uid(), type:'planning', when:'Lundi 09:30' }, { id: uid(), type:'daily', when:'Chaque jour 10:00' }];
+        if (!state.deliverables.length) state.deliverables = [{ id: uid(), label:'Epic: Portail client', done:false }];
+        if (!state.gantt.length) {
+          state.gantt = [{ id: uid(), project_id: state.selected_project_id, task:'{{ _('Construction MVP') }}', owner:'PM', dependencies:[], predecessor_id:null, start:'2026-02-25', end:'2026-03-05', duration_days:9 }];
+        }
+        metaForProject();
+        if (!state.security || typeof state.security !== 'object') state.security = {};
+        if (!state.security.rights) state.security.rights = 'rw';
+        if (!state.security.templates) state.security.templates = '';
+        if (!state.security.integrations) state.security.integrations = '';
+        if (!Array.isArray(state.project_versions)) state.project_versions = [];
+      }
+
+      function projectVersionsForCurrent(){
+        return state.project_versions.filter(function(v){ return v.project_id === state.selected_project_id; });
+      }
+
+      function currentPlanningWindow(tasks){
+        const starts = tasks.map(function(t){ return dt(t.start); }).filter(Boolean);
+        const ends = tasks.map(function(t){ return dt(t.end); }).filter(Boolean);
+        if (!starts.length || !ends.length) return '';
+        return fmtDate(new Date(Math.min.apply(null, starts))) + ' → ' + fmtDate(new Date(Math.max.apply(null, ends)));
+      }
+
+      function createProjectVersion(){
+        const meta = metaForProject();
+        const tasks = currentProjectGantt();
+        const totalTasks = tasks.length;
+        const doneTasks = currentProjectCards().filter(function(c){ return c.col === 'done'; }).length;
+        const actualCost = tasks.reduce(function(acc, t){ return acc + taskComputedCost(t); }, 0);
+        const revised = Math.max(0, num((meta.budget && (meta.budget.revised || meta.budget.initial)) || 0));
+        const baselineBudget = Math.max(0, num(meta.baseline && meta.baseline.budget));
+        const versionNo = projectVersionsForCurrent().length + 1;
+        const item = {
+          id: uid(),
+          project_id: state.selected_project_id,
+          label: 'v' + versionNo,
+          created_at: new Date().toISOString(),
+          snapshot: {
+            baseline: {
+              planning: (meta.baseline && meta.baseline.planning) || '',
+              budget: baselineBudget,
+              scope: (meta.baseline && meta.baseline.scope) || '',
+            },
+            current: {
+              planning_window: currentPlanningWindow(tasks),
+              budget_revised: revised,
+              budget_actual: actualCost,
+              scope: (meta.charter && meta.charter.scope) || '',
+              total_tasks: totalTasks,
+              done_tasks: doneTasks,
+            }
+          }
+        };
+        state.project_versions.push(item);
+        addAudit('project.version.created', { label: item.label });
+      }
+
+      function renderProjectVersions(){
+        const el = document.getElementById('pm-versions');
+        if (!el) return;
+        const rows = projectVersionsForCurrent().slice().sort(function(a, b){
+          return String(b.created_at || '').localeCompare(String(a.created_at || ''));
+        });
+        if (!rows.length) {
+          el.innerHTML = '<div class="text-secondary">{{ _('Aucune version pour ce projet.') }}</div>';
+          return;
+        }
+
+        const body = rows.map(function(v){
+          const b = (v.snapshot && v.snapshot.baseline) || {};
+          const c = (v.snapshot && v.snapshot.current) || {};
+          const deltaRev = num(c.budget_revised) - num(b.budget);
+          const deltaActual = num(c.budget_actual) - num(b.budget);
+          const scopeChange = String(c.scope || '') !== String(b.scope || '');
+          const signRev = deltaRev > 0 ? '+' : '';
+          const signAct = deltaActual > 0 ? '+' : '';
+          return '<tr>' +
+            '<td>' + (v.label || '-') + '</td>' +
+            '<td class="small text-secondary">' + ((v.created_at || '').replace('T',' ').slice(0,16) || '-') + '</td>' +
+            '<td class="text-end">' + money(b.budget) + '</td>' +
+            '<td class="text-end">' + money(c.budget_revised) + '</td>' +
+            '<td class="text-end">' + money(c.budget_actual) + '</td>' +
+            '<td class="text-end">' + signRev + money(deltaRev) + '</td>' +
+            '<td class="text-end">' + signAct + money(deltaActual) + '</td>' +
+            '<td>' + (scopeChange ? '<span class="badge bg-warning text-dark">{{ _('Périmètre modifié') }}</span>' : '<span class="badge bg-success">{{ _('Périmètre stable') }}</span>') + '</td>' +
+            '<td class="small">' + ((b.planning || '-') + ' / ' + (c.planning_window || '-')) + '</td>' +
+          '</tr>';
+        }).join('');
+
+        el.innerHTML =
+          '<div class="table-responsive"><table class="table table-sm align-middle mb-0">' +
+            '<thead><tr>' +
+              '<th>{{ _('Version') }}</th>' +
+              '<th>{{ _('Date') }}</th>' +
+              '<th class="text-end">{{ _('Baseline budget') }}</th>' +
+              '<th class="text-end">{{ _('Budget révisé') }}</th>' +
+              '<th class="text-end">{{ _('Coût réel') }}</th>' +
+              '<th class="text-end">Δ {{ _('Budget révisé') }}</th>' +
+              '<th class="text-end">Δ {{ _('Coût réel') }}</th>' +
+              '<th>{{ _('Périmètre') }}</th>' +
+              '<th>{{ _('Planning baseline / réel') }}</th>' +
+            '</tr></thead>' +
+            '<tbody>' + body + '</tbody>' +
+          '</table></div>';
+
+        const selA = document.getElementById('pm-version-a');
+        const selB = document.getElementById('pm-version-b');
+        if (selA && selB) {
+          const opts = rows.map(function(v){
+            const txt = (v.label || '-') + ' · ' + ((v.created_at || '').replace('T',' ').slice(0,16) || '-');
+            return '<option value="' + String(v.id) + '">' + txt + '</option>';
+          }).join('');
+          selA.innerHTML = opts;
+          selB.innerHTML = opts;
+          if (rows[0]) selA.value = String(rows[0].id);
+          if (rows[1]) selB.value = String(rows[1].id);
+          else if (rows[0]) selB.value = String(rows[0].id);
+        }
+
+        renderVersionComparison();
+      }
+
+      function versionById(id){
+        return projectVersionsForCurrent().find(function(v){ return String(v.id) === String(id); }) || null;
+      }
+
+      function renderVersionComparison(){
+        const out = document.getElementById('pm-version-compare');
+        const selA = document.getElementById('pm-version-a');
+        const selB = document.getElementById('pm-version-b');
+        if (!out || !selA || !selB) return;
+
+        const a = versionById(selA.value);
+        const b = versionById(selB.value);
+        if (!a || !b) {
+          out.innerHTML = '<div class="text-secondary">{{ _('Sélectionnez deux versions à comparer.') }}</div>';
+          return;
+        }
+
+        const ab = (a.snapshot && a.snapshot.baseline) || {};
+        const ac = (a.snapshot && a.snapshot.current) || {};
+        const bb = (b.snapshot && b.snapshot.baseline) || {};
+        const bc = (b.snapshot && b.snapshot.current) || {};
+
+        const aRev = num(ac.budget_revised);
+        const bRev = num(bc.budget_revised);
+        const aAct = num(ac.budget_actual);
+        const bAct = num(bc.budget_actual);
+        const aTasks = num(ac.total_tasks);
+        const bTasks = num(bc.total_tasks);
+        const aDone = num(ac.done_tasks);
+        const bDone = num(bc.done_tasks);
+        const aProgress = aTasks > 0 ? (aDone / aTasks) : 0;
+        const bProgress = bTasks > 0 ? (bDone / bTasks) : 0;
+
+        function delta(from, to){ return num(to) - num(from); }
+        function deltaTxt(from, to){ const d = delta(from, to); return (d > 0 ? '+' : '') + money(d); }
+        function pct(x){ return (Math.max(0, Math.min(1, num(x))) * 100).toFixed(1) + '%'; }
+
+        const scopeChanged = String((ac.scope || '').trim()) !== String((bc.scope || '').trim());
+        const baselineBudgetChanged = num(ab.budget) !== num(bb.budget);
+
+        out.innerHTML =
+          '<div class="border rounded p-2">' +
+            '<div class="fw-semibold mb-2">{{ _('Comparaison') }}: ' + (a.label || 'A') + ' → ' + (b.label || 'B') + '</div>' +
+            '<div class="row g-2">' +
+              '<div class="col-md-3"><div class="small text-secondary">{{ _('Budget révisé') }}</div><div class="fw-semibold">' + money(aRev) + ' → ' + money(bRev) + ' <span class="text-secondary">(' + deltaTxt(aRev, bRev) + ')</span></div></div>' +
+              '<div class="col-md-3"><div class="small text-secondary">{{ _('Coût réel') }}</div><div class="fw-semibold">' + money(aAct) + ' → ' + money(bAct) + ' <span class="text-secondary">(' + deltaTxt(aAct, bAct) + ')</span></div></div>' +
+              '<div class="col-md-3"><div class="small text-secondary">{{ _('Avancement') }}</div><div class="fw-semibold">' + pct(aProgress) + ' → ' + pct(bProgress) + '</div></div>' +
+              '<div class="col-md-3"><div class="small text-secondary">{{ _('Tâches (Done/Total)') }}</div><div class="fw-semibold">' + aDone + '/' + aTasks + ' → ' + bDone + '/' + bTasks + '</div></div>' +
+            '</div>' +
+            '<div class="mt-2 d-flex flex-wrap gap-2">' +
+              (scopeChanged ? '<span class="badge bg-warning text-dark">{{ _('Périmètre modifié entre A et B') }}</span>' : '<span class="badge bg-success">{{ _('Périmètre stable entre A et B') }}</span>') +
+              (baselineBudgetChanged ? '<span class="badge bg-warning text-dark">{{ _('Baseline budget modifié') }}</span>' : '<span class="badge bg-success">{{ _('Baseline budget stable') }}</span>') +
+              '<span class="badge text-bg-light border">{{ _('Planning') }}: ' + ((ac.planning_window || '-') + ' → ' + (bc.planning_window || '-')) + '</span>' +
+            '</div>' +
+          '</div>';
+      }
+
+      function priorityBadge(priority){
+        if (priority === 'high') return 'danger';
+        if (priority === 'low') return 'secondary';
+        return 'warning';
+      }
+
+      function renderProjectSelect(){
+        projectSelect.innerHTML = '';
+        state.projects.forEach(function(p){
+          const opt = document.createElement('option');
+          opt.value = p.id;
+          opt.textContent = p.name;
+          if (p.id === state.selected_project_id) opt.selected = true;
+          projectSelect.appendChild(opt);
+        });
+      }
+
+      function renderKanban(){
+        const cards = currentProjectCards();
+        document.querySelectorAll('#pm-kanban [data-col]').forEach(function(col){
+          const key = col.getAttribute('data-col');
+          const body = col.querySelector('.pm-col-body');
+          body.innerHTML = '';
+          cards.filter(c => c.col === key).forEach(function(c){
+            const item = document.createElement('div');
+            item.className = 'text-start border rounded p-2 bg-body-tertiary';
+            item.style.cursor = 'grab';
+            item.draggable = true;
+            item.dataset.cardId = c.id;
+            item.innerHTML = '<div class="fw-semibold small mb-1">' + c.title + '</div>' +
+              '<div class="small text-secondary">' + (c.owner || '-') + '</div>' +
+              '<div class="d-flex gap-1 mt-1"><span class="badge text-bg-' + priorityBadge(c.priority) + '">' + (c.priority || 'medium') + '</span>' +
+              (c.due_date ? '<span class="badge text-bg-light border">' + c.due_date + '</span>' : '') + '</div>';
+            item.addEventListener('dragstart', function(e){
+              draggedCardId = c.id;
+              try { e.dataTransfer.setData('text/plain', c.id); } catch (__) {}
+              item.style.opacity = '0.6';
+            });
+            item.addEventListener('dragend', function(){ item.style.opacity = '1'; });
+            item.addEventListener('click', function(){ openTodoModal(c); });
+            body.appendChild(item);
+          });
+        });
+      }
+
+      function renderManagers(){
+        const el = document.getElementById('pm-managers');
+        if (!el) return;
+        if (!state.managers.length) {
+          el.innerHTML = '<span class="text-secondary">{{ _('Aucun responsable enregistré') }}</span>';
+          renderManagersDatalist();
+          return;
+        }
+        const rows = state.managers.slice().sort(function(a, b){ return managerLabel(a).localeCompare(managerLabel(b)); });
+        el.innerHTML = '<div class="list-group list-group-flush">' + rows.map(function(m){
+          const relatedTasks = currentProjectGantt().filter(function(t){ return normalizeManagerName(t.owner).toLowerCase() === managerLabel(m).toLowerCase(); });
+          const calcHours = relatedTasks.reduce(function(acc, t){ return acc + taskComputedHours(t); }, 0);
+          const calcAmount = calcHours * Math.max(0, num(m.hourly_rate));
+          return '<div class="list-group-item px-0 d-flex justify-content-between align-items-start">' +
+            '<div><div class="fw-semibold">' + managerLabel(m) + '</div>' +
+            '<div class="text-secondary small">' + ((m.role || '-') + ' · ' + (m.email || '-')) + '</div>' +
+            '<div class="small mt-1">' +
+              '{{ _('Heures') }}: <strong>' + calcHours.toFixed(2) + '</strong> · ' +
+              '{{ _('Tarif/h') }}: <strong>' + money(m.hourly_rate) + '</strong> · ' +
+              '{{ _('Total') }}: <strong>' + money(calcAmount) + '</strong>' +
+            '</div></div>' +
+            '<div class="d-flex align-items-center gap-1">' +
+              '<input type="number" min="0" step="0.01" class="form-control form-control-sm" style="width:96px;" data-manager-rate="' + m.id + '" value="' + Math.max(0, num(m.hourly_rate)) + '" title="{{ _('Tarif/h') }}">' +
+              '<input type="number" min="0" step="0.25" class="form-control form-control-sm" style="width:88px;" data-manager-hpd="' + m.id + '" value="' + Math.max(0, num(m.hours_per_day || 8)) + '" title="{{ _('Heures/jour') }}">' +
+              '<button class="btn btn-sm btn-outline-danger" data-manager-id="' + m.id + '">×</button>' +
+            '</div>' +
+          '</div>';
+        }).join('') + '</div>';
+        el.querySelectorAll('[data-manager-rate]').forEach(function(input){
+          input.addEventListener('change', function(){
+            const id = input.getAttribute('data-manager-rate');
+            const row = state.managers.find(function(m){ return m.id === id; });
+            if (!row) return;
+            row.hourly_rate = Math.max(0, num(input.value));
+            renderAll();
+            scheduleSave();
+          });
+        });
+        el.querySelectorAll('[data-manager-hpd]').forEach(function(input){
+          input.addEventListener('change', function(){
+            const id = input.getAttribute('data-manager-hpd');
+            const row = state.managers.find(function(m){ return m.id === id; });
+            if (!row) return;
+            row.hours_per_day = Math.max(0, num(input.value));
+            renderAll();
+            scheduleSave();
+          });
+        });
+        el.querySelectorAll('[data-manager-id]').forEach(function(btn){
+          btn.addEventListener('click', function(){
+            const id = btn.getAttribute('data-manager-id');
+            const current = state.managers.find(function(m){ return m.id === id; });
+            if (!current) return;
+            state.managers = state.managers.filter(function(m){ return m.id !== id; });
+            state.cards.forEach(function(c){ if ((c.owner || '').trim() === current.name) c.owner = ''; });
+            state.gantt.forEach(function(g){ if ((g.owner || '').trim() === current.name) g.owner = ''; });
+            state.projects.forEach(function(p){ if ((p.owner || '').trim() === current.name) p.owner = ''; });
+            renderAll();
+            scheduleSave();
+          });
+        });
+        renderManagersDatalist();
+      }
+
+      function renderStakeholders(){
+        const el = document.getElementById('pm-stakeholders');
+        if (!el) return;
+        const rows = forCurrentProject(state.stakeholders);
+        if (!rows.length) { el.innerHTML = '<span class="text-secondary">{{ _('Aucune partie prenante') }}</span>'; return; }
+        el.innerHTML = '<div class="list-group list-group-flush">' + rows.map(function(r){
+          return '<div class="list-group-item px-0 d-flex justify-content-between align-items-start"><div><div class="fw-semibold">' + (r.name || '-') + '</div><div class="small text-secondary">' + (r.role || '-') + ' · ' + (r.contact || '-') + '</div></div><button class="btn btn-sm btn-outline-danger" data-stakeholder-id="' + r.id + '">×</button></div>';
+        }).join('') + '</div>';
+        el.querySelectorAll('[data-stakeholder-id]').forEach(function(btn){
+          btn.addEventListener('click', function(){
+            const id = btn.getAttribute('data-stakeholder-id');
+            state.stakeholders = state.stakeholders.filter(function(x){ return x.id !== id; });
+            addAudit('stakeholder.deleted', { id: id });
+            renderStakeholders();
+            scheduleSave();
+          });
+        });
+      }
+
+      function renderSimpleRegistry(targetId, items, idAttr, subtitleFn, emptyText){
+        const el = document.getElementById(targetId);
+        if (!el) return;
+        const rows = forCurrentProject(items);
+        if (!rows.length) { el.innerHTML = '<span class="text-secondary">' + emptyText + '</span>'; return; }
+        el.innerHTML = '<div class="list-group list-group-flush">' + rows.map(function(r){
+          return '<div class="list-group-item px-0 d-flex justify-content-between align-items-start"><div><div class="fw-semibold">' + (r.title || '-') + '</div><div class="small text-secondary">' + subtitleFn(r) + '</div></div><button class="btn btn-sm btn-outline-danger" data-del="' + r.id + '">×</button></div>';
+        }).join('') + '</div>';
+        el.querySelectorAll('[data-del]').forEach(function(btn){
+          btn.addEventListener('click', function(){
+            const id = btn.getAttribute('data-del');
+            for (let i = items.length - 1; i >= 0; i--) {
+              if (String(items[i].id) === String(id)) items.splice(i, 1);
+            }
+            addAudit(idAttr + '.deleted', { id: id });
+            renderGovernance();
+            scheduleSave();
+          });
+        });
+      }
+
+      function renderChangesRegistry(){
+        const el = document.getElementById('pm-changes');
+        if (!el) return;
+        const rows = forCurrentProject(state.changes);
+        if (!rows.length) {
+          el.innerHTML = '<span class="text-secondary">{{ _('Aucun changement') }}</span>';
+          return;
+        }
+        const statusOptions = ['draft', 'review', 'approved', 'rejected'];
+        el.innerHTML = '<div class="list-group list-group-flush">' + rows.map(function(r){
+          const st = (r.status || 'draft').toLowerCase();
+          return '<div class="list-group-item px-0">' +
+            '<div class="d-flex justify-content-between align-items-start gap-2">' +
+              '<div><div class="fw-semibold">' + (r.title || '-') + '</div><div class="small text-secondary">' + (r.impact || '-') + ' · v' + (r.version || 1) + '</div></div>' +
+              '<button class="btn btn-sm btn-outline-danger" data-change-del="' + r.id + '">×</button>' +
+            '</div>' +
+            '<div class="d-flex align-items-center gap-2 mt-2">' +
+              '<select class="form-select form-select-sm" data-change-status="' + r.id + '" style="max-width:150px;">' +
+                statusOptions.map(function(s){ return '<option value="' + s + '"' + (s === st ? ' selected' : '') + '>' + s + '</option>'; }).join('') +
+              '</select>' +
+              '<button class="btn btn-sm btn-outline-success" data-change-approve="' + r.id + '">{{ _('Approuver') }}</button>' +
+              '<button class="btn btn-sm btn-outline-warning" data-change-reject="' + r.id + '">{{ _('Rejeter') }}</button>' +
+            '</div>' +
+          '</div>';
+        }).join('') + '</div>';
+
+        el.querySelectorAll('[data-change-del]').forEach(function(btn){
+          btn.addEventListener('click', function(){
+            if (!canWrite()) return;
+            const id = btn.getAttribute('data-change-del');
+            state.changes = state.changes.filter(function(x){ return String(x.id) !== String(id); });
+            addAudit('change.deleted', { id: id });
+            renderChangesRegistry();
+            scheduleSave();
+          });
+        });
+
+        el.querySelectorAll('[data-change-status]').forEach(function(sel){
+          sel.addEventListener('change', function(){
+            const id = sel.getAttribute('data-change-status');
+            const row = state.changes.find(function(x){ return String(x.id) === String(id); });
+            if (!row) return;
+            const next = (sel.value || 'draft').toLowerCase();
+            const approvalState = (next === 'approved' || next === 'rejected');
+            if (!canWrite() || (approvalState && !canApprove())) {
+              sel.value = row.status || 'draft';
+              return;
+            }
+            row.status = next;
+            if (next === 'approved' || next === 'rejected') row.approved_at = new Date().toISOString();
+            addAudit('change.status', { id: id, status: next });
+            renderGovernance();
+            scheduleSave();
+          });
+        });
+
+        el.querySelectorAll('[data-change-approve]').forEach(function(btn){
+          btn.addEventListener('click', function(){
+            if (!canApprove()) return;
+            const id = btn.getAttribute('data-change-approve');
+            const row = state.changes.find(function(x){ return String(x.id) === String(id); });
+            if (!row) return;
+            row.status = 'approved';
+            row.approved_at = new Date().toISOString();
+            row.version = Math.max(1, Number(row.version || 1)) + 1;
+            addAudit('change.approved', { id: id, version: row.version });
+            renderGovernance();
+            scheduleSave();
+          });
+        });
+
+        el.querySelectorAll('[data-change-reject]').forEach(function(btn){
+          btn.addEventListener('click', function(){
+            if (!canApprove()) return;
+            const id = btn.getAttribute('data-change-reject');
+            const row = state.changes.find(function(x){ return String(x.id) === String(id); });
+            if (!row) return;
+            row.status = 'rejected';
+            row.approved_at = new Date().toISOString();
+            addAudit('change.rejected', { id: id });
+            renderGovernance();
+            scheduleSave();
+          });
+        });
+      }
+
+      function renderGovernance(){
+        const meta = metaForProject();
+        document.getElementById('pm-charter-objectives').value = (meta.charter && meta.charter.objectives) || '';
+        document.getElementById('pm-charter-scope').value = (meta.charter && meta.charter.scope) || '';
+        document.getElementById('pm-charter-deliverables').value = (meta.charter && meta.charter.deliverables) || '';
+        document.getElementById('pm-charter-milestones').value = (meta.charter && meta.charter.milestones) || '';
+        document.getElementById('pm-baseline-planning').value = (meta.baseline && meta.baseline.planning) || '';
+        document.getElementById('pm-baseline-budget').value = Math.max(0, num(meta.baseline && meta.baseline.budget));
+        document.getElementById('pm-baseline-scope').value = (meta.baseline && meta.baseline.scope) || '';
+
+        renderStakeholders();
+        renderSimpleRegistry('pm-risks', state.risks, 'risk', function(r){ return (r.probability || '-') + ' · ' + (r.impact || '-') + ' · ' + (r.owner || '-'); }, '{{ _('Aucun risque') }}');
+        renderSimpleRegistry('pm-issues', state.issues, 'issue', function(r){ return (r.priority || '-') + ' · ' + (r.owner || '-') + ' · ' + (r.status || '-'); }, '{{ _('Aucun incident') }}');
+        renderSimpleRegistry('pm-decisions', state.decisions, 'decision', function(r){ return (r.by || '-') + ' · ' + (r.date || '-'); }, '{{ _('Aucune décision') }}');
+        renderChangesRegistry();
+        renderSimpleRegistry('pm-documents', state.documents, 'document', function(r){ return (r.kind || '-') + ' · ' + (r.url || '-'); }, '{{ _('Aucun document') }}');
+        renderSimpleRegistry('pm-meetings', state.meetings, 'meeting', function(r){ return (r.date || '-') + ' · ' + (r.actions || '-'); }, '{{ _('Aucun compte-rendu') }}');
+
+        document.getElementById('pm-security-rights').value = state.security.rights || 'rw';
+        document.getElementById('pm-security-templates').value = state.security.templates || '';
+        document.getElementById('pm-security-integrations').value = state.security.integrations || '';
+
+        const tasks = currentProjectGantt();
+        const totalTasks = tasks.length;
+        const doneTasks = currentProjectCards().filter(function(c){ return c.col === 'done'; }).length;
+        const blocked = currentProjectCards().filter(function(c){ return (c.col || '') === 'doing' && (c.priority || '') === 'high'; }).length;
+        const actualCost = tasks.reduce(function(acc, t){ return acc + taskComputedCost(t); }, 0);
+        const metaBudget = (meta.budget || { initial: 0, revised: 0, engaged: 0 });
+        const revised = Math.max(0, num(metaBudget.revised || metaBudget.initial));
+        const remaining = Math.max(0, revised - actualCost);
+        const eac = actualCost + remaining;
+
+        const progressRatio = totalTasks ? Math.max(0, Math.min(1, doneTasks / totalTasks)) : 0;
+        const ev = revised * progressRatio;
+        let pvRatio = progressRatio;
+        const starts = tasks.map(function(t){ return dt(t.start); }).filter(Boolean);
+        const ends = tasks.map(function(t){ return dt(t.end); }).filter(Boolean);
+        if (starts.length && ends.length) {
+          const planStart = new Date(Math.min.apply(null, starts));
+          const planEnd = new Date(Math.max.apply(null, ends));
+          const now = new Date();
+          const totalMs = Math.max(1, planEnd - planStart);
+          const elapsedMs = Math.max(0, Math.min(totalMs, now - planStart));
+          pvRatio = Math.max(0, Math.min(1, elapsedMs / totalMs));
+        }
+        const pv = revised * pvRatio;
+        const ac = actualCost;
+        const spi = pv > 0 ? (ev / pv) : 1;
+        const cpi = ac > 0 ? (ev / ac) : 1;
+
+        const report = document.getElementById('pm-reporting');
+        if (report) {
+          const infoIcon = '<i class="bi bi-info-circle ms-1" data-bs-toggle="tooltip" data-bs-placement="top"';
+          const pvLabel = 'PV ' + infoIcon + ' title="{{ _('Planned Value: valeur planifiée à date selon le budget révisé et le temps écoulé du planning.') }}"></i>';
+          const evLabel = 'EV ' + infoIcon + ' title="{{ _('Earned Value: valeur acquise selon l\'avancement réel (tâches terminées).') }}"></i>';
+          const acLabel = 'AC ' + infoIcon + ' title="{{ _('Actual Cost: coût réel consommé calculé depuis les responsables et charges.') }}"></i>';
+          const spiLabel = 'SPI ' + infoIcon + ' title="{{ _('Schedule Performance Index = EV / PV. > 1 en avance, = 1 conforme, < 1 en retard.') }}"></i>';
+          const cpiLabel = 'CPI ' + infoIcon + ' title="{{ _('Cost Performance Index = EV / AC. > 1 meilleure efficacité coût, < 1 dépassement.') }}"></i>';
+
+          report.innerHTML =
+            '<div class="row g-2">' +
+              '<div class="col-md-3"><div class="border rounded p-2"><div class="text-secondary small">{{ _('Avancement') }}</div><div class="fw-semibold">' + (totalTasks ? Math.round((doneTasks / totalTasks) * 100) : 0) + '%</div></div></div>' +
+              '<div class="col-md-3"><div class="border rounded p-2"><div class="text-secondary small">{{ _('Retards/Bloquants') }}</div><div class="fw-semibold">' + blocked + '</div></div></div>' +
+              '<div class="col-md-3"><div class="border rounded p-2"><div class="text-secondary small">{{ _('Consommé') }}</div><div class="fw-semibold">' + money(actualCost) + '</div></div></div>' +
+              '<div class="col-md-3"><div class="border rounded p-2"><div class="text-secondary small">EAC</div><div class="fw-semibold">' + money(eac) + '</div></div></div>' +
+            '</div>' +
+            '<div class="row g-2 mt-1">' +
+              '<div class="col-md-2"><div class="border rounded p-2"><div class="text-secondary small">' + pvLabel + '</div><div class="fw-semibold">' + money(pv) + '</div></div></div>' +
+              '<div class="col-md-2"><div class="border rounded p-2"><div class="text-secondary small">' + evLabel + '</div><div class="fw-semibold">' + money(ev) + '</div></div></div>' +
+              '<div class="col-md-2"><div class="border rounded p-2"><div class="text-secondary small">' + acLabel + '</div><div class="fw-semibold">' + money(ac) + '</div></div></div>' +
+              '<div class="col-md-3"><div class="border rounded p-2"><div class="text-secondary small">' + spiLabel + '</div><div class="fw-semibold">' + spi.toFixed(2) + '</div></div></div>' +
+              '<div class="col-md-3"><div class="border rounded p-2"><div class="text-secondary small">' + cpiLabel + '</div><div class="fw-semibold">' + cpi.toFixed(2) + '</div></div></div>' +
+            '</div>' +
+            '<div class="small text-secondary mt-2">{{ _('Rapports périodiques') }}: {{ _('export via sauvegarde et vue BI des sources project_* / audela_project.') }}</div>';
+
+          if (window.bootstrap && window.bootstrap.Tooltip) {
+            report.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function(el){
+              window.bootstrap.Tooltip.getOrCreateInstance(el);
+            });
+          }
+        }
+
+        applyPermissionsUI();
+      }
+
+      function applyPermissionsUI(){
+        const writable = canWrite();
+        const approvable = canApprove();
+        [
+          'pm-new-project-btn','pm-add-card','pm-add-ceremony','pm-add-deliverable','pm-add-manager','pm-add-gantt',
+          'pm-add-stakeholder','pm-add-risk','pm-add-issue','pm-add-decision','pm-add-change','pm-add-document','pm-add-meeting'
+        ].forEach(function(id){
+          const el = document.getElementById(id);
+          if (el) el.disabled = !writable;
+        });
+        document.querySelectorAll('#pm-section-governance textarea, #pm-section-governance input, #pm-section-governance select').forEach(function(el){
+          if (el.id === 'pm-security-rights' || el.id === 'pm-security-templates' || el.id === 'pm-security-integrations') return;
+          el.disabled = !writable;
+        });
+        const rights = document.getElementById('pm-security-rights');
+        const templates = document.getElementById('pm-security-templates');
+        const integrations = document.getElementById('pm-security-integrations');
+        if (rights) rights.disabled = !approvable;
+        if (templates) templates.disabled = !approvable;
+        if (integrations) integrations.disabled = !approvable;
+        document.querySelectorAll('[data-change-approve],[data-change-reject]').forEach(function(btn){ btn.disabled = !approvable; });
+      }
+
+      function initKanbanDropzones(){
+        document.querySelectorAll('#pm-kanban [data-col] .pm-col-body').forEach(function(body){
+          body.addEventListener('dragover', function(e){
+            e.preventDefault();
+            body.classList.add('border', 'border-primary');
+          });
+          body.addEventListener('dragleave', function(){ body.classList.remove('border-primary'); });
+          body.addEventListener('drop', function(e){
+            e.preventDefault();
+            body.classList.remove('border-primary');
+            const wrap = body.closest('[data-col]');
+            const targetCol = wrap ? wrap.getAttribute('data-col') : null;
+            const droppedId = draggedCardId || (function(){ try { return e.dataTransfer.getData('text/plain'); } catch (__) { return null; } })();
+            if (!targetCol || !droppedId) return;
+            const card = state.cards.find(function(x){ return x.id === droppedId; });
+            if (!card || card.project_id !== state.selected_project_id) return;
+            card.col = targetCol;
+            draggedCardId = null;
+            renderKanban();
+            scheduleSave();
+          });
+        });
+      }
+
+      function renderCeremonies(){
+        const el = document.getElementById('pm-ceremonies');
+        el.innerHTML = '';
+        state.ceremonies.forEach(function(c){
+          const li = document.createElement('li');
+          li.className = 'list-group-item d-flex justify-content-between align-items-center';
+          li.innerHTML = '<span><strong>' + c.type + '</strong> · ' + c.when + '</span><button class="btn btn-sm btn-outline-danger">×</button>';
+          li.querySelector('button').addEventListener('click', function(){
+            state.ceremonies = state.ceremonies.filter(x => x.id !== c.id);
+            renderCeremonies();
+            scheduleSave();
+          });
+          el.appendChild(li);
+        });
+      }
+
+      function renderDeliverables(){
+        const el = document.getElementById('pm-deliverables');
+        el.innerHTML = '';
+        if (!state.deliverables.length) { el.innerHTML = '<span class="text-secondary">Aucun item</span>'; return; }
+        const ul = document.createElement('ul');
+        ul.className = 'mb-0';
+        state.deliverables.forEach(function(d){
+          const li = document.createElement('li');
+          li.innerHTML = '<label><input type="checkbox" ' + (d.done ? 'checked' : '') + '> ' + d.label + '</label>';
+          li.querySelector('input').addEventListener('change', function(e){ d.done = !!e.target.checked; scheduleSave(); });
+          ul.appendChild(li);
+        });
+        el.appendChild(ul);
+      }
+
+      function recalcTask(task){
+        const s = dt(task.start);
+        const e = dt(task.end);
+        if (s && e) {
+          task.duration_days = Math.max(1, daysBetween(s, e));
+        } else if (s && task.duration_days) {
+          task.end = fmtDate(addDays(s, Number(task.duration_days) - 1));
+        }
+      }
+
+      function applyPredecessor(task){
+        if (!task.predecessor_id) return;
+        const pred = currentProjectGantt().find(function(x){ return x.id === task.predecessor_id; });
+        if (!pred) return;
+        const predEnd = dt(pred.end);
+        if (!predEnd) return;
+        const duration = Math.max(1, Number(task.duration_days || 1));
+        const start = addDays(predEnd, 1);
+        task.start = fmtDate(start);
+        task.end = fmtDate(addDays(start, duration - 1));
+      }
+
+      function renderGantt(){
+        const tbody = document.querySelector('#pm-gantt-table tbody');
+        tbody.innerHTML = '';
+        const tasks = currentProjectGantt();
+        if (!tasks.length) return;
+        const criticalIds = criticalPathIds(tasks);
+
+        tasks.forEach(function(t){ recalcTask(t); });
+        const allStart = tasks.map(g => dt(g.start)).filter(Boolean);
+        const allEnd = tasks.map(g => dt(g.end)).filter(Boolean);
+        if (!allStart.length || !allEnd.length) return;
+        const min = new Date(Math.min.apply(null, allStart));
+        const max = new Date(Math.max.apply(null, allEnd));
+        const total = daysBetween(min, max);
+
+        tasks.forEach(function(g, rowIndex){
+          const s = dt(g.start), e = dt(g.end); if (!s || !e) return;
+          const left = Math.max(0, ((daysBetween(min, s)-1) / total) * 100);
+          const width = Math.max(2, (daysBetween(s, e) / total) * 100);
+
+          const predecessorOptions = ['<option value="">-</option>'].concat(
+            tasks.filter(function(x){ return x.id !== g.id; }).map(function(x, idx){
+              const selected = x.id === g.predecessor_id ? ' selected' : '';
+              return '<option value="' + x.id + '"' + selected + '>' + (idx + 1) + ' - ' + (x.task || 'Task') + (x.owner ? ' (' + x.owner + ')' : '') + '</option>';
+            })
+          ).join('');
+
+          const hours = taskComputedHours(g);
+          const rate = managerRate(g.owner);
+          const lineCost = taskComputedCost(g);
+          const isCritical = criticalIds.has(String(g.id));
+
+          const tr = document.createElement('tr');
+          tr.innerHTML =
+            '<td class="text-secondary">' + (rowIndex + 1) + '</td>' +
+            '<td><input class="form-control form-control-sm" data-field="task" data-id="' + g.id + '" value="' + (g.task || '') + '"></td>' +
+            '<td><input class="form-control form-control-sm" list="pm-managers-datalist" data-field="owner" data-id="' + g.id + '" value="' + (g.owner || '') + '"></td>' +
+            '<td><select class="form-select form-select-sm" data-field="predecessor_id" data-id="' + g.id + '">' + predecessorOptions + '</select></td>' +
+            '<td><input type="date" class="form-control form-control-sm" data-field="start" data-id="' + g.id + '" value="' + fmtDate(g.start) + '"></td>' +
+            '<td><input type="date" class="form-control form-control-sm" data-field="end" data-id="' + g.id + '" value="' + fmtDate(g.end) + '"></td>' +
+            '<td><input type="number" min="1" class="form-control form-control-sm" data-field="duration_days" data-id="' + g.id + '" value="' + Math.max(1, Number(g.duration_days || daysBetween(s, e))) + '"></td>' +
+            '<td><span class="badge ' + (isCritical ? 'text-bg-danger' : 'text-bg-light border') + '">' + (isCritical ? '{{ _('Oui') }}' : '{{ _('Non') }}') + '</span></td>' +
+            '<td><span class="badge text-bg-light border">' + hours.toFixed(2) + '</span></td>' +
+            '<td><span class="badge text-bg-light border">' + money(rate) + '</span></td>' +
+            '<td><span class="badge text-bg-light border">' + money(lineCost) + '</span></td>' +
+            '<td><div style="position:relative;height:16px;background:var(--bs-light);border-radius:8px;overflow:hidden;"><div style="position:absolute;left:' + left + '%;width:' + width + '%;top:0;bottom:0;background:' + (isCritical ? 'var(--bs-danger)' : 'var(--bs-primary)') + ';"></div></div></td>';
+          tbody.appendChild(tr);
+        });
+
+        tbody.querySelectorAll('input[data-id],select[data-id]').forEach(function(el){
+          el.addEventListener('change', function(){
+            const id = el.getAttribute('data-id');
+            const field = el.getAttribute('data-field');
+            const task = state.gantt.find(function(x){ return x.id === id; });
+            if (!task) return;
+
+            if (field === 'duration_days') task[field] = Math.max(1, Number(el.value || 1));
+            else task[field] = el.value || '';
+
+            if (field === 'owner') upsertManager(task.owner);
+
+            if (field === 'predecessor_id') {
+              task.predecessor_id = task.predecessor_id || null;
+              task.dependencies = task.predecessor_id ? [{ task_id: task.predecessor_id, type: 'FS' }] : [];
+              applyPredecessor(task);
+            } else if (field === 'start') {
+              const s = dt(task.start);
+              const duration = Math.max(1, Number(task.duration_days || 1));
+              if (s) task.end = fmtDate(addDays(s, duration - 1));
+            } else if (field === 'duration_days') {
+              const s = dt(task.start);
+              const duration = Math.max(1, Number(task.duration_days || 1));
+              if (s) task.end = fmtDate(addDays(s, duration - 1));
+            } else if (field === 'end') {
+              recalcTask(task);
+            }
+
+            renderGantt();
+            renderManagers();
+            scheduleSave();
+          });
+        });
+      }
+
+      function renderFinanceSummary(){
+        const el = document.getElementById('pm-finance-summary');
+        if (!el) return;
+        const tasks = currentProjectGantt();
+        if (!tasks.length) {
+          el.innerHTML = '<div class="text-secondary small">{{ _('Aucune donnée financière pour ce projet.') }}</div>';
+          return;
+        }
+
+        const byOwner = {};
+        let totalHours = 0;
+        let totalAmount = 0;
+
+        tasks.forEach(function(t){
+          const owner = (t.owner || '{{ _('Non assigné') }}').toString().trim() || '{{ _('Non assigné') }}';
+          const hours = taskComputedHours(t);
+          const rate = managerRate(t.owner);
+          const amount = hours * rate;
+          totalHours += hours;
+          totalAmount += amount;
+          if (!byOwner[owner]) byOwner[owner] = { hours: 0, amount: 0 };
+          byOwner[owner].hours += hours;
+          byOwner[owner].amount += amount;
+        });
+
+        const ownerRows = Object.keys(byOwner).sort().map(function(owner){
+          return '<tr><td>' + owner + '</td><td class="text-end">' + byOwner[owner].hours.toFixed(2) + '</td><td class="text-end">' + money(byOwner[owner].amount) + '</td></tr>';
+        }).join('');
+
+        const avgRate = totalHours > 0 ? (totalAmount / totalHours) : 0;
+        el.innerHTML =
+          '<div class="row g-2 mb-2">' +
+            '<div class="col-md-4"><div class="border rounded p-2"><div class="small text-secondary">{{ _('Total heures') }}</div><div class="fw-semibold">' + totalHours.toFixed(2) + '</div></div></div>' +
+            '<div class="col-md-4"><div class="border rounded p-2"><div class="small text-secondary">{{ _('Coût total') }}</div><div class="fw-semibold">' + money(totalAmount) + '</div></div></div>' +
+            '<div class="col-md-4"><div class="border rounded p-2"><div class="small text-secondary">{{ _('TJM horaire moyen') }}</div><div class="fw-semibold">' + money(avgRate) + '</div></div></div>' +
+          '</div>' +
+          '<div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>{{ _('Responsable') }}</th><th class="text-end">{{ _('Heures') }}</th><th class="text-end">{{ _('Montant') }}</th></tr></thead><tbody>' + ownerRows + '</tbody></table></div>';
+      }
+
+      function renderAll(){
+        renderProjectSelect();
+        renderKanban();
+        renderCeremonies();
+        renderDeliverables();
+        renderManagers();
+        renderGovernance();
+        renderProjectVersions();
+        renderGantt();
+        renderFinanceSummary();
+      }
+
+      const projectModal = window.bootstrap.Modal.getOrCreateInstance(document.getElementById('projectModal'));
+      const todoModal = window.bootstrap.Modal.getOrCreateInstance(document.getElementById('todoModal'));
+      const simpleModal = window.bootstrap.Modal.getOrCreateInstance(document.getElementById('simpleModal'));
+
+      document.getElementById('pm-new-project-btn').addEventListener('click', function(){
+        document.getElementById('projectForm').reset();
+        projectModal.show();
+      });
+
+      document.getElementById('projectForm').addEventListener('submit', function(e){
+        e.preventDefault();
+        if (!canWrite()) return;
+        const fd = new FormData(e.target);
+        const id = uid();
+        state.projects.push({
+          id,
+          name: (fd.get('name') || '').toString().trim(),
+          owner: (fd.get('owner') || '').toString().trim(),
+          description: (fd.get('description') || '').toString().trim(),
+        });
+        upsertManager(fd.get('owner'));
+        state.selected_project_id = id;
+        projectModal.hide();
+        renderAll();
+        scheduleSave();
+      });
+
+      function fillTodoProjectSelect(sel, current){
+        sel.innerHTML = '';
+        state.projects.forEach(function(p){
+          const o = document.createElement('option');
+          o.value = p.id;
+          o.textContent = p.name;
+          if (p.id === current) o.selected = true;
+          sel.appendChild(o);
+        });
+      }
+
+      function openTodoModal(card){
+        const form = document.getElementById('todoForm');
+        form.reset();
+        fillTodoProjectSelect(form.querySelector('[name="project_id"]'), card ? card.project_id : state.selected_project_id);
+        document.getElementById('todoDeleteBtn').classList.toggle('d-none', !card);
+        form.querySelector('[name="todo_id"]').value = card ? card.id : '';
+        form.querySelector('[name="title"]').value = card ? (card.title || '') : '';
+        form.querySelector('[name="owner"]').value = card ? (card.owner || '') : '';
+        form.querySelector('[name="priority"]').value = card ? (card.priority || 'medium') : 'medium';
+        form.querySelector('[name="col"]').value = card ? (card.col || 'backlog') : 'backlog';
+        form.querySelector('[name="due_date"]').value = card ? (card.due_date || '') : '';
+        todoModal.show();
+      }
+
+      document.getElementById('pm-add-card').addEventListener('click', function(){ openTodoModal(null); });
+
+      document.getElementById('todoForm').addEventListener('submit', function(e){
+        e.preventDefault();
+        if (!canWrite()) return;
+        const fd = new FormData(e.target);
+        const id = (fd.get('todo_id') || '').toString();
+        const payload = {
+          id: id || uid(),
+          project_id: (fd.get('project_id') || state.selected_project_id).toString(),
+          title: (fd.get('title') || '').toString().trim(),
+          owner: (fd.get('owner') || '').toString().trim(),
+          priority: (fd.get('priority') || 'medium').toString(),
+          col: (fd.get('col') || 'backlog').toString(),
+          due_date: (fd.get('due_date') || '').toString(),
+        };
+        if (!payload.title) return;
+        upsertManager(payload.owner);
+        const idx = state.cards.findIndex(c => c.id === payload.id);
+        if (idx >= 0) state.cards[idx] = payload;
+        else state.cards.push(payload);
+        todoModal.hide();
+        renderKanban();
+        scheduleSave();
+      });
+
+      document.getElementById('todoDeleteBtn').addEventListener('click', function(){
+        if (!canWrite()) return;
+        const id = document.querySelector('#todoForm [name="todo_id"]').value;
+        if (!id) return;
+        state.cards = state.cards.filter(c => c.id !== id);
+        todoModal.hide();
+        renderKanban();
+        scheduleSave();
+      });
+
+      document.getElementById('pm-add-ceremony').addEventListener('click', function(){
+        document.getElementById('simpleModalTitle').textContent = '{{ _('Ajouter cérémonie') }}';
+        document.getElementById('simpleModalBody').innerHTML = '<div class="mb-2"><label class="form-label">{{ _('Type') }}</label><input class="form-control" name="type" required></div><div><label class="form-label">{{ _('Quand') }}</label><input class="form-control" name="when" placeholder="{{ _('2026-03-01 10:00') }}" required></div>';
+        document.getElementById('simpleForm').dataset.kind = 'ceremony';
+        simpleModal.show();
+      });
+
+      document.getElementById('pm-add-deliverable').addEventListener('click', function(){
+        document.getElementById('simpleModalTitle').textContent = '{{ _('Ajouter item') }}';
+        document.getElementById('simpleModalBody').innerHTML = '<div><label class="form-label">{{ _('Item') }}</label><input class="form-control" name="label" required></div>';
+        document.getElementById('simpleForm').dataset.kind = 'deliverable';
+        simpleModal.show();
+      });
+
+      document.getElementById('pm-add-manager').addEventListener('click', function(){
+        document.getElementById('simpleModalTitle').textContent = '{{ _('Ajouter responsable') }}';
+        document.getElementById('simpleModalBody').innerHTML =
+          '<div class="mb-2"><label class="form-label">{{ _('Nom') }}</label><input class="form-control" name="name" required maxlength="120"></div>' +
+          '<div class="mb-2"><label class="form-label">{{ _('Email') }}</label><input type="email" class="form-control" name="email" maxlength="160"></div>' +
+          '<div class="mb-2"><label class="form-label">{{ _('Rôle') }}</label><input class="form-control" name="role" maxlength="120"></div>' +
+          '<div class="row g-2"><div class="col"><label class="form-label">{{ _('Tarif/h') }}</label><input type="number" min="0" step="0.01" class="form-control" name="hourly_rate" value="0"></div><div class="col"><label class="form-label">{{ _('Heures/jour') }}</label><input type="number" min="0" step="0.25" class="form-control" name="hours_per_day" value="8"></div></div>';
+        document.getElementById('simpleForm').dataset.kind = 'manager';
+        simpleModal.show();
+      });
+
+      document.getElementById('pm-add-stakeholder').addEventListener('click', function(){
+        document.getElementById('simpleModalTitle').textContent = '{{ _('Ajouter partie prenante') }}';
+        document.getElementById('simpleModalBody').innerHTML =
+          '<div class="mb-2"><label class="form-label">{{ _('Nom') }}</label><input class="form-control" name="name" required></div>' +
+          '<div class="mb-2"><label class="form-label">{{ _('Rôle') }}</label><input class="form-control" name="role" placeholder="{{ _('sponsor / chef de projet / équipe') }}"></div>' +
+          '<div><label class="form-label">{{ _('Contact') }}</label><input class="form-control" name="contact"></div>';
+        document.getElementById('simpleForm').dataset.kind = 'stakeholder';
+        simpleModal.show();
+      });
+
+      document.getElementById('pm-add-risk').addEventListener('click', function(){
+        document.getElementById('simpleModalTitle').textContent = '{{ _('Ajouter risque') }}';
+        document.getElementById('simpleModalBody').innerHTML =
+          '<div class="mb-2"><label class="form-label">{{ _('Risque') }}</label><input class="form-control" name="title" required></div>' +
+          '<div class="row g-2 mb-2"><div class="col"><label class="form-label">{{ _('Probabilité') }}</label><input class="form-control" name="probability" placeholder="{{ _('Faible/Moyenne/Élevée') }}"></div><div class="col"><label class="form-label">{{ _('Impact') }}</label><input class="form-control" name="impact" placeholder="{{ _('Faible/Moyen/Élevé') }}"></div></div>' +
+          '<div class="mb-2"><label class="form-label">{{ _('Mitigation') }}</label><input class="form-control" name="mitigation"></div>' +
+          '<div><label class="form-label">{{ _('Responsable') }}</label><input class="form-control" name="owner" list="pm-managers-datalist"></div>';
+        document.getElementById('simpleForm').dataset.kind = 'risk';
+        simpleModal.show();
+      });
+
+      document.getElementById('pm-add-issue').addEventListener('click', function(){
+        document.getElementById('simpleModalTitle').textContent = '{{ _('Ajouter incident') }}';
+        document.getElementById('simpleModalBody').innerHTML =
+          '<div class="mb-2"><label class="form-label">{{ _('Incident') }}</label><input class="form-control" name="title" required></div>' +
+          '<div class="row g-2 mb-2"><div class="col"><label class="form-label">{{ _('Priorité') }}</label><input class="form-control" name="priority" placeholder="{{ _('P1/P2/P3') }}"></div><div class="col"><label class="form-label">{{ _('Statut') }}</label><input class="form-control" name="status" placeholder="{{ _('ouvert/en-cours/fermé') }}"></div></div>' +
+          '<div><label class="form-label">{{ _('Responsable') }}</label><input class="form-control" name="owner" list="pm-managers-datalist"></div>';
+        document.getElementById('simpleForm').dataset.kind = 'issue';
+        simpleModal.show();
+      });
+
+      document.getElementById('pm-add-decision').addEventListener('click', function(){
+        document.getElementById('simpleModalTitle').textContent = '{{ _('Ajouter décision') }}';
+        document.getElementById('simpleModalBody').innerHTML =
+          '<div class="mb-2"><label class="form-label">{{ _('Décision') }}</label><input class="form-control" name="title" required></div>' +
+          '<div class="row g-2"><div class="col"><label class="form-label">{{ _('Décideur') }}</label><input class="form-control" name="by"></div><div class="col"><label class="form-label">{{ _('Date') }}</label><input type="date" class="form-control" name="date"></div></div>';
+        document.getElementById('simpleForm').dataset.kind = 'decision';
+        simpleModal.show();
+      });
+
+      document.getElementById('pm-add-change').addEventListener('click', function(){
+        document.getElementById('simpleModalTitle').textContent = '{{ _('Demande de changement') }}';
+        document.getElementById('simpleModalBody').innerHTML =
+          '<div class="mb-2"><label class="form-label">{{ _('Changement') }}</label><input class="form-control" name="title" required></div>' +
+          '<div class="mb-2"><label class="form-label">{{ _('Impact') }}</label><input class="form-control" name="impact" placeholder="{{ _('périmètre/budget/planning') }}"></div>' +
+          '<div><label class="form-label">{{ _('Workflow') }}</label><input class="form-control" name="status" placeholder="{{ _('brouillon/revue/approuvé/rejeté') }}"></div>';
+        document.getElementById('simpleForm').dataset.kind = 'change';
+        simpleModal.show();
+      });
+
+      document.getElementById('pm-add-document').addEventListener('click', function(){
+        document.getElementById('simpleModalTitle').textContent = '{{ _('Ajouter document') }}';
+        document.getElementById('simpleModalBody').innerHTML =
+          '<div class="mb-2"><label class="form-label">{{ _('Titre') }}</label><input class="form-control" name="title" required></div>' +
+          '<div class="mb-2"><label class="form-label">{{ _('Type') }}</label><input class="form-control" name="kind" placeholder="{{ _('spec / CR / contrat') }}"></div>' +
+          '<div><label class="form-label">{{ _('Lien') }}</label><input class="form-control" name="url" placeholder="{{ _('https://...') }}"></div>';
+        document.getElementById('simpleForm').dataset.kind = 'document';
+        simpleModal.show();
+      });
+
+      document.getElementById('pm-add-meeting').addEventListener('click', function(){
+        document.getElementById('simpleModalTitle').textContent = '{{ _('Ajouter compte-rendu') }}';
+        document.getElementById('simpleModalBody').innerHTML =
+          '<div class="mb-2"><label class="form-label">{{ _('Réunion') }}</label><input class="form-control" name="title" required></div>' +
+          '<div class="mb-2"><label class="form-label">{{ _('Date') }}</label><input type="date" class="form-control" name="date"></div>' +
+          '<div><label class="form-label">{{ _('Actions') }}</label><textarea class="form-control" rows="2" name="actions"></textarea></div>';
+        document.getElementById('simpleForm').dataset.kind = 'meeting';
+        simpleModal.show();
+      });
+
+      document.getElementById('pm-add-gantt').addEventListener('click', function(){
+        const ganttTasks = currentProjectGantt();
+        const predecessorSelect = ['<option value="">-</option>'].concat(ganttTasks.map(function(t, idx){
+          return '<option value="' + t.id + '">' + (idx + 1) + ' - ' + (t.task || '{{ _('Tâche') }}') + '</option>';
+        })).join('');
+        document.getElementById('simpleModalTitle').textContent = '{{ _('Ajouter tâche') }}';
+        document.getElementById('simpleModalBody').innerHTML =
+          '<div class="mb-2"><label class="form-label">{{ _('Tâche') }}</label><input class="form-control" name="task" required></div>' +
+          '<div class="mb-2"><label class="form-label">{{ _('Responsable') }}</label><input class="form-control" name="owner" list="pm-managers-datalist"></div>' +
+          '<div class="row g-2 mb-2"><div class="col"><label class="form-label">{{ _('Début') }}</label><input type="date" class="form-control" name="start" required></div><div class="col"><label class="form-label">{{ _('Durée (j)') }}</label><input type="number" min="1" class="form-control" name="duration_days" value="1" required></div></div>' +
+          '<div><label class="form-label">{{ _('Prédecesseur') }}</label><select class="form-select" name="predecessor_id">' + predecessorSelect + '</select></div>';
+        document.getElementById('simpleForm').dataset.kind = 'gantt';
+        simpleModal.show();
+      });
+
+      document.getElementById('simpleForm').addEventListener('submit', function(e){
+        e.preventDefault();
+        if (!canWrite()) return;
+        const fd = new FormData(e.target);
+        const kind = e.target.dataset.kind;
+        if (kind === 'ceremony') {
+          state.ceremonies.push({ id: uid(), type: (fd.get('type') || '').toString(), when: (fd.get('when') || '').toString() });
+          renderCeremonies();
+        } else if (kind === 'deliverable') {
+          state.deliverables.push({ id: uid(), label: (fd.get('label') || '').toString(), done: false });
+          renderDeliverables();
+        } else if (kind === 'manager') {
+          const name = normalizeManagerName(fd.get('name'));
+          if (name) {
+            upsertManager(name, {
+              email: (fd.get('email') || '').toString().trim(),
+              role: (fd.get('role') || '').toString().trim(),
+              hourly_rate: Math.max(0, num(fd.get('hourly_rate') || 0)),
+              hours_per_day: Math.max(0, num(fd.get('hours_per_day') || 8)),
+            });
+            renderManagers();
+            addAudit('manager.created', { name: name });
+          }
+        } else if (kind === 'stakeholder') {
+          const name = (fd.get('name') || '').toString().trim();
+          if (name) {
+            state.stakeholders.push({ id: uid(), project_id: state.selected_project_id, name: name, role: (fd.get('role') || '').toString().trim(), contact: (fd.get('contact') || '').toString().trim() });
+            addAudit('stakeholder.created', { name: name });
+            renderStakeholders();
+          }
+        } else if (kind === 'risk') {
+          const title = (fd.get('title') || '').toString().trim();
+          if (title) {
+            const owner = (fd.get('owner') || '').toString().trim();
+            upsertManager(owner);
+            state.risks.push({ id: uid(), project_id: state.selected_project_id, title: title, probability: (fd.get('probability') || '').toString().trim(), impact: (fd.get('impact') || '').toString().trim(), mitigation: (fd.get('mitigation') || '').toString().trim(), owner: owner });
+            addAudit('risk.created', { title: title });
+            renderGovernance();
+          }
+        } else if (kind === 'issue') {
+          const title = (fd.get('title') || '').toString().trim();
+          if (title) {
+            const owner = (fd.get('owner') || '').toString().trim();
+            upsertManager(owner);
+            state.issues.push({ id: uid(), project_id: state.selected_project_id, title: title, priority: (fd.get('priority') || '').toString().trim(), status: (fd.get('status') || '').toString().trim(), owner: owner });
+            addAudit('issue.created', { title: title });
+            renderGovernance();
+          }
+        } else if (kind === 'decision') {
+          const title = (fd.get('title') || '').toString().trim();
+          if (title) {
+            state.decisions.push({ id: uid(), project_id: state.selected_project_id, title: title, by: (fd.get('by') || '').toString().trim(), date: (fd.get('date') || '').toString().trim() });
+            addAudit('decision.created', { title: title });
+            renderGovernance();
+          }
+        } else if (kind === 'change') {
+          const title = (fd.get('title') || '').toString().trim();
+          if (title) {
+            state.changes.push({ id: uid(), project_id: state.selected_project_id, title: title, impact: (fd.get('impact') || '').toString().trim(), status: ((fd.get('status') || '').toString().trim() || 'draft'), version: 1, approved_at: null });
+            addAudit('change.created', { title: title });
+            renderGovernance();
+          }
+        } else if (kind === 'document') {
+          const title = (fd.get('title') || '').toString().trim();
+          if (title) {
+            state.documents.push({ id: uid(), project_id: state.selected_project_id, title: title, kind: (fd.get('kind') || '').toString().trim(), url: (fd.get('url') || '').toString().trim() });
+            addAudit('document.created', { title: title });
+            renderGovernance();
+          }
+        } else if (kind === 'meeting') {
+          const title = (fd.get('title') || '').toString().trim();
+          if (title) {
+            state.meetings.push({ id: uid(), project_id: state.selected_project_id, title: title, date: (fd.get('date') || '').toString().trim(), actions: (fd.get('actions') || '').toString().trim() });
+            addAudit('meeting.created', { title: title });
+            renderGovernance();
+          }
+        } else if (kind === 'gantt') {
+          const start = (fd.get('start') || '').toString();
+          const duration = Math.max(1, Number(fd.get('duration_days') || 1));
+          const startDate = dt(start);
+          const end = startDate ? fmtDate(addDays(startDate, duration - 1)) : start;
+          const row = {
+            id: uid(),
+            project_id: state.selected_project_id,
+            task: (fd.get('task') || '').toString(),
+            owner: (fd.get('owner') || '').toString(),
+            predecessor_id: ((fd.get('predecessor_id') || '').toString() || null),
+            dependencies: [],
+            start,
+            end,
+            duration_days: duration,
+          };
+          row.dependencies = row.predecessor_id ? [{ task_id: row.predecessor_id, type: 'FS' }] : [];
+          upsertManager(row.owner);
+          applyPredecessor(row);
+          state.gantt.push(row);
+          addAudit('task.created', { task: row.task });
+          renderGantt();
+          renderManagers();
+          renderFinanceSummary();
+        }
+        simpleModal.hide();
+        scheduleSave();
+      });
+
+      projectSelect.addEventListener('change', function(){
+        state.selected_project_id = projectSelect.value;
+        renderKanban();
+        renderGantt();
+        renderGovernance();
+        renderFinanceSummary();
+        if (canWrite()) scheduleSave();
+      });
+
+      ['pm-charter-objectives','pm-charter-scope','pm-charter-deliverables','pm-charter-milestones','pm-baseline-planning','pm-baseline-budget','pm-baseline-scope'].forEach(function(id){
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('change', function(){
+          if (!canWrite()) return;
+          const meta = metaForProject();
+          meta.charter.objectives = document.getElementById('pm-charter-objectives').value || '';
+          meta.charter.scope = document.getElementById('pm-charter-scope').value || '';
+          meta.charter.deliverables = document.getElementById('pm-charter-deliverables').value || '';
+          meta.charter.milestones = document.getElementById('pm-charter-milestones').value || '';
+          meta.baseline.planning = document.getElementById('pm-baseline-planning').value || '';
+          meta.baseline.budget = Math.max(0, num(document.getElementById('pm-baseline-budget').value));
+          meta.baseline.scope = document.getElementById('pm-baseline-scope').value || '';
+          meta.budget.initial = meta.baseline.budget;
+          if (!meta.budget.revised) meta.budget.revised = meta.baseline.budget;
+          addAudit('charter.updated');
+          renderGovernance();
+          scheduleSave();
+        });
+      });
+
+      ['pm-security-rights','pm-security-templates','pm-security-integrations'].forEach(function(id){
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('change', function(){
+          if (!canApprove()) return;
+          state.security.rights = document.getElementById('pm-security-rights').value || 'rw';
+          state.security.templates = document.getElementById('pm-security-templates').value || '';
+          state.security.integrations = document.getElementById('pm-security-integrations').value || '';
+          addAudit('security.updated');
+          scheduleSave();
+        });
+      });
+
+      document.getElementById('pm-save-now').addEventListener('click', saveNow);
+      document.getElementById('pm-add-version').addEventListener('click', function(){
+        if (!canWrite()) return;
+        createProjectVersion();
+        renderProjectVersions();
+        scheduleSave();
+      });
+      document.getElementById('pm-compare-versions').addEventListener('click', function(){
+        renderVersionComparison();
+      });
+      document.getElementById('pm-version-a').addEventListener('change', renderVersionComparison);
+      document.getElementById('pm-version-b').addEventListener('change', renderVersionComparison);
+
+      function setGanttMaximized(maximized){
+          'pm-add-stakeholder','pm-add-risk','pm-add-issue','pm-add-decision','pm-add-change','pm-add-document','pm-add-meeting','pm-add-version'
+        ganttIsMaximized = !!maximized;
+        ganttCard.classList.toggle('pm-gantt-fullscreen', ganttIsMaximized);
+        document.body.style.overflow = ganttIsMaximized ? 'hidden' : '';
+        ganttMaxBtn.innerHTML = ganttIsMaximized
+          ? '<i class="bi bi-fullscreen-exit me-1"></i>{{ _('Restaurer') }}'
+          : '<i class="bi bi-arrows-fullscreen me-1"></i>{{ _('Maximiser') }}';
+      }
+
+      ganttMaxBtn?.addEventListener('click', function(){
+        setGanttMaximized(!ganttIsMaximized);
+      });
+
+      document.addEventListener('keydown', function(e){
+        if (e.key === 'Escape' && ganttIsMaximized) {
+          setGanttMaximized(false);
+        }
+      });
+
+      (async function init(){
+        await load();
+        ensureDefaults();
+        initKanbanDropzones();
+        renderAll();
+        await saveNow();
+      })();
+    });
+  </script>
+{% endblock %}

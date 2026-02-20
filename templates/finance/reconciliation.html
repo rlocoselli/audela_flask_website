@@ -7,7 +7,7 @@
     <div class="h5 mb-0">{{ _('Reconciliação') }}</div>
     <div class="text-secondary small">{{ _('Associe transações bancárias a contas contábeis (cria um lançamento simples).') }}</div>
   </div>
-  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.settings_gl') }}">
+  <a class="btn btn-outline-secondary btn-sm" data-tip="{{ _('Configurer le plan comptable pour améliorer les suggestions de rapprochement.') }}" href="{{ url_for('finance.settings_gl') }}">
     <i class="bi bi-gear me-1"></i>{{ _('Configurar contas contábeis') }}
   </a>
 </div>
@@ -22,7 +22,7 @@
 </div>
 
 <div class="card">
-  <div class="card-header fw-semibold">{{ _('Transações (90 dias)') }}</div>
+  <div class="card-header fw-semibold" data-tip="{{ _('Liste des transactions récentes à rapprocher avec la comptabilité.') }}">{{ _('Transações (90 dias)') }}</div>
   <div class="card-body">
     <div class="table-responsive">
       <table class="table table-sm align-middle mb-0">
@@ -32,8 +32,8 @@
             <th>{{ _('Conta') }}</th>
             <th>{{ _('Descrição') }}</th>
             <th>{{ _('Valor') }}</th>
-            <th>{{ _('Categoria') }}</th>
-            <th>{{ _('Conciliado') }}</th>
+            <th data-tip="{{ _('Catégorie métier utilisée pour pré-suggérer la contrepartie comptable.') }}">{{ _('Categoria') }}</th>
+            <th data-tip="{{ _('Indique si un voucher comptable a déjà été généré pour cette transaction.') }}">{{ _('Conciliado') }}</th>
             <th style="width:260px;">{{ _('Ação') }}</th>
           </tr>
         </thead>
@@ -56,7 +56,7 @@
                 {% if not t.ledger_voucher_id %}
                   <form class="d-flex gap-2" method="post" action="{{ url_for('finance.reconcile_create_voucher', txn_id=t.id) }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                    <select class="form-select form-select-sm" name="gl_account_id">
+                    <select class="form-select form-select-sm" name="gl_account_id" data-tip="{{ _('Choisir la contrepartie comptable du mouvement bancaire.') }}">
                       <option value="">{{ _('Conta contábil…') }}</option>
                       {% for g in gl_accounts %}
                         <option value="{{ g.id }}"
@@ -65,7 +65,7 @@
                         >{{ g.code }} – {{ g.name }}</option>
                       {% endfor %}
                     </select>
-                    <button class="btn btn-primary btn-sm">{{ _('Conciliar') }}</button>
+                    <button class="btn btn-primary btn-sm" data-tip="{{ _('Créer un voucher comptable simple banque ↔ compte sélectionné.') }}">{{ _('Conciliar') }}</button>
                   </form>
                 {% else %}
                   <span class="text-secondary small">{{ _('Voucher') }} #{{ t.ledger_voucher_id }}</span>

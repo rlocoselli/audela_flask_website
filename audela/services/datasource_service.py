@@ -69,6 +69,8 @@ def build_url_from_conn(ds_type: str, conn: dict[str, Any]) -> str:
 
     if ds_type == "audela_finance":
         return "internal://audela_finance"
+    if ds_type == "audela_project":
+        return "internal://audela_project"
 
     if ds_type == "sqlite":
         if sqlite_path.startswith("sqlite:"):
@@ -148,7 +150,7 @@ def _engine_for_source(source_id: int, url: str) -> Engine:
 
 
 def get_engine(source: DataSource) -> Engine:
-    if (source.type or '').lower() in ('workspace','audela_finance'):
+    if (source.type or '').lower() in ('workspace', 'audela_finance', 'audela_project'):
         from ..extensions import db
         return db.engine
 

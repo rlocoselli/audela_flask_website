@@ -30,10 +30,16 @@ def plans():
     plans = SubscriptionService.get_available_plans(include_internal=False)
     selected_product = (request.args.get("product") or "").strip().lower()
 
+    def _has_project(plan: SubscriptionPlan) -> bool:
+        features = plan.features_json if isinstance(plan.features_json, dict) else {}
+        return bool(features.get("has_project", False))
+
     if selected_product == "finance":
         plans = [plan for plan in plans if plan.has_finance]
     elif selected_product == "bi":
         plans = [plan for plan in plans if plan.has_bi]
+    elif selected_product == "project":
+        plans = [plan for plan in plans if _has_project(plan)]
     else:
         selected_product = None
     

@@ -44,6 +44,36 @@ def clear_current_tenant() -> None:
     session.pop("tenant_slug", None)
 
 
+def get_user_module_access(tenant, user_id: int | None) -> dict:
+        """Return simple UAM module access flags for a user.
+
+        Stored in tenant.settings_json under:
+            {
+                "uam": {
+                    "module_access": {
+                        "<user_id>": {"finance": true/false, "bi": true/false}
+                    }
+                }
+            }
+
+        Defaults to full access when missing.
+        """
+        if not tenant or user_id is None:
+                return {"finance": True, "bi": True}
+
+        settings = tenant.settings_json if isinstance(getattr(tenant, "settings_json", None), dict) else {}
+        uam = settings.get("uam") if isinstance(settings.get("uam"), dict) else {}
+        module_access = uam.get("module_access") if isinstance(uam.get("module_access"), dict) else {}
+        row = module_access.get(str(int(user_id))) if isinstance(module_access, dict) else None
+        if not isinstance(row, dict):
+                row = {}
+
+        return {
+                "finance": bool(row.get("finance", True)),
+                "bi": bool(row.get("bi", True)),
+        }
+
+
 def require_tenant(func):
     """
     Decorator to ensure a tenant context exists for the current user.

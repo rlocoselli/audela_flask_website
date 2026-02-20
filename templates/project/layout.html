@@ -1,0 +1,237 @@
+{% extends "portal/base_portal.html" %}
+
+{% block title %}{% if title %}{{ title }} – {% endif %}{{ _('AUDELA Projet') }}{% endblock %}
+
+{% block content %}
+<nav class="navbar navbar-expand-lg border-bottom bg-body sticky-top">
+  <div class="container-fluid">
+    <a class="navbar-brand fw-semibold" href="{{ url_for('project.dashboard') }}">
+      <i class="bi bi-kanban me-1"></i>{{ _('AUDELA Projet') }}
+    </a>
+
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#projectTopNav" aria-controls="projectTopNav" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse" id="projectTopNav">
+      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}">{{ _('Tableau Projet') }}</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-kanban">{{ _('Kanban') }}</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-gantt">{{ _('Gantt') }}</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-managers">{{ _('Responsables') }}</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-governance">{{ _('Cadrage PMO') }}</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-risks">{{ _('Risques/Issues') }}</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-change">{{ _('Changements') }}</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-reporting">{{ _('Reporting') }}</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-deliverables">{{ _('Livrables') }}</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-ceremonies">{{ _('Cérémonies') }}</a></li>
+      </ul>
+
+      <div class="d-flex align-items-center gap-2">
+        <a class="btn btn-outline-primary btn-sm" href="{{ url_for('tenant.dashboard') }}">
+          <i class="bi bi-arrow-left-circle me-1"></i>
+          <span class="d-none d-md-inline">{{ _('Retour au dashboard tenant') }}</span>
+        </a>
+
+        <button class="btn btn-outline-secondary btn-sm" type="button" onclick="window.__toggleTheme()" title="{{ _('Thème') }}">
+          <i class="bi bi-moon-stars"></i>
+        </button>
+
+        <div class="dropdown">
+          <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown">{{ lang_label(current_lang) }}</button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            {% for code, info in supported_langs.items() %}
+              <li><a class="dropdown-item" href="{{ url_for('public.set_language', lang_code=code, next=request.full_path) }}">{{ info.label }}</a></li>
+            {% endfor %}
+          </ul>
+        </div>
+
+        <a class="btn btn-outline-danger btn-sm" href="{{ url_for('auth.logout') }}">
+          <i class="bi bi-box-arrow-right"></i>
+          <span class="ms-1 d-none d-md-inline">{{ _('Se déconnecter') }}</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<div class="container-fluid pt-3">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ 'danger' if category in ['error', 'danger'] else ('success' if category in ['success'] else 'secondary') }}" role="alert">
+          {{ message }}
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+</div>
+
+<div class="container-fluid pb-4">
+  {% block project_page %}{% endblock %}
+</div>
+
+<div id="projectHelpChat" class="position-fixed bottom-0 end-0 p-3" style="z-index:1080;">
+  <button
+    id="projectHelpChatToggle"
+    class="btn btn-primary rounded-circle"
+    style="width:48px;height:48px;"
+    type="button"
+    aria-label="{{ _('Ouvrir l\'aide Projet') }}"
+    title="{{ _('Ouvrir l\'aide Projet') }}"
+  >
+    <i class="bi bi-chat-dots"></i>
+  </button>
+
+  <div id="projectHelpChatPanel" class="card mt-2 d-none" style="width: 340px; max-width: calc(100vw - 2rem);">
+    <div class="card-header d-flex align-items-center justify-content-between py-2">
+      <span class="fw-semibold">{{ _('Assistant Projet') }}</span>
+      <button id="projectHelpChatClose" class="btn btn-sm btn-outline-secondary" type="button" aria-label="{{ _('Fermer') }}">×</button>
+    </div>
+    <div id="projectHelpChatMessages" class="card-body" style="height: 300px; overflow:auto;"></div>
+    <div class="card-footer">
+      <div class="input-group input-group-sm">
+        <input id="projectHelpChatInput" type="text" class="form-control" placeholder="{{ _('Posez votre question Projet...') }}" />
+        <button id="projectHelpChatSend" class="btn btn-primary" type="button">{{ _('Envoyer') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script>
+    window.onReady(function(){
+      function normText(el){
+        const t = (el.getAttribute('data-project-tip') || el.getAttribute('data-tip') || el.getAttribute('title') || el.getAttribute('aria-label') || el.textContent || '').trim();
+        return t.replace(/\s+/g, ' ').trim();
+      }
+
+      const tipSelectors = [
+        '.navbar .navbar-brand',
+        '.navbar .nav-link',
+        '.dropdown-item',
+        '.btn',
+        '.card .text-secondary',
+        '.form-label',
+        'th',
+        '.badge'
+      ].join(',');
+
+      document.querySelectorAll(tipSelectors).forEach(function(el){
+        if (el.hasAttribute('data-bs-toggle') || el.classList.contains('disabled')) return;
+        const tip = normText(el);
+        if (!tip || tip.length > 160) return;
+        el.setAttribute('data-bs-toggle', 'tooltip');
+        el.setAttribute('data-bs-placement', 'bottom');
+        el.setAttribute('data-bs-title', tip);
+      });
+
+      if (window.bootstrap && window.bootstrap.Tooltip) {
+        document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function(el){
+          window.bootstrap.Tooltip.getOrCreateInstance(el);
+        });
+      }
+
+      const toggle = document.getElementById('projectHelpChatToggle');
+      const panel = document.getElementById('projectHelpChatPanel');
+      const closeBtn = document.getElementById('projectHelpChatClose');
+      const input = document.getElementById('projectHelpChatInput');
+      const sendBtn = document.getElementById('projectHelpChatSend');
+      const messages = document.getElementById('projectHelpChatMessages');
+      if (!toggle || !panel || !closeBtn || !input || !sendBtn || !messages) return;
+
+      function addMsg(text, who){
+        const wrap = document.createElement('div');
+        wrap.className = 'mb-2 d-flex ' + (who === 'user' ? 'justify-content-end' : 'justify-content-start');
+        const b = document.createElement('div');
+        b.className = (who === 'user' ? 'bg-primary text-white' : 'bg-body-tertiary') + ' rounded px-2 py-1 small';
+        b.style.maxWidth = '85%';
+        b.textContent = text;
+        wrap.appendChild(b);
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+      }
+
+      function addSuggestions(items){
+        if (!Array.isArray(items) || !items.length) return;
+        const row = document.createElement('div');
+        row.className = 'd-flex flex-wrap gap-1 mb-2';
+        items.slice(0, 4).forEach(function(s){
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'btn btn-outline-secondary btn-sm';
+          btn.textContent = s;
+          btn.addEventListener('click', function(){
+            input.value = s;
+            send();
+          });
+          row.appendChild(btn);
+        });
+        messages.appendChild(row);
+        messages.scrollTop = messages.scrollHeight;
+      }
+
+      async function send(){
+        const msg = (input.value || '').trim();
+        if (!msg) return;
+        addMsg(msg, 'user');
+        input.value = '';
+        sendBtn.disabled = true;
+        try {
+          const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+          const res = await fetch('{{ url_for("project.help_chat") }}', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(csrf ? {'X-CSRFToken': csrf} : {})
+            },
+            body: JSON.stringify({ message: msg })
+          });
+          const data = await res.json();
+          if (!res.ok || !data.ok) {
+            addMsg(data.error || window.t('Erreur de chargement.'), 'bot');
+          } else {
+            addMsg(data.reply || window.t('Sans réponse.'), 'bot');
+            addSuggestions(data.suggestions || []);
+          }
+        } catch (e) {
+          addMsg(window.t('Erreur de chargement.'), 'bot');
+        } finally {
+          sendBtn.disabled = false;
+          input.focus();
+        }
+      }
+
+      let seeded = false;
+      function openPanel(){
+        panel.classList.remove('d-none');
+        if (!seeded) {
+          addMsg(window.t('Bonjour ! Je peux aider sur Kanban, Gantt, responsables, budget, risques/incidents, changements et reporting SPI/CPI.'), 'bot');
+          addSuggestions([
+            window.t('Comment ajouter une tâche Gantt ?'),
+            window.t('Comment fonctionne SPI/CPI ?'),
+            window.t('Comment approuver un changement ?'),
+            window.t('Comment gérer les responsables ?')
+          ]);
+          seeded = true;
+        }
+        input.focus();
+      }
+
+      toggle.addEventListener('click', function(){
+        if (panel.classList.contains('d-none')) openPanel();
+        else panel.classList.add('d-none');
+      });
+      closeBtn.addEventListener('click', function(){ panel.classList.add('d-none'); });
+      sendBtn.addEventListener('click', send);
+      input.addEventListener('keydown', function(e){
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          send();
+        }
+      });
+    });
+  </script>
+{% endblock %}

@@ -60,6 +60,8 @@
                   <th class="px-4">{{ _('Email') }}</th>
                   <th>{{ _('Rôles') }}</th>
                   <th>{{ _('Statut') }}</th>
+                  <th>{{ _('Finance') }}</th>
+                  <th>{{ _('BI') }}</th>
                   <th>{{ _('Créé le') }}</th>
                   <th>{{ _('Dernière connexion') }}</th>
                   <th class="px-4">{{ _('Actions') }}</th>
@@ -67,6 +69,7 @@
               </thead>
               <tbody>
                 {% for user in users %}
+                {% set uam = user_module_access.get(user.id, {'finance': True, 'bi': True}) %}
                 <tr>
                   <td class="px-4">
                     <div class="d-flex align-items-center">
@@ -103,6 +106,20 @@
                       <span class="badge bg-secondary">{{ user.status }}</span>
                     {% endif %}
                   </td>
+                  <td>
+                    {% if uam.finance %}
+                      <span class="badge bg-success">{{ _('Oui') }}</span>
+                    {% else %}
+                      <span class="badge bg-secondary">{{ _('Non') }}</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if uam.bi %}
+                      <span class="badge bg-success">{{ _('Oui') }}</span>
+                    {% else %}
+                      <span class="badge bg-secondary">{{ _('Non') }}</span>
+                    {% endif %}
+                  </td>
                   <td>{{ user.created_at.strftime('%d/%m/%Y') }}</td>
                   <td>
                     {% if user.last_login_at %}
@@ -112,27 +129,21 @@
                     {% endif %}
                   </td>
                   <td class="px-4">
-                    {% if user.id != current_user.id %}
-                      <div class="dropdown">
-                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
-                          <i class="bi bi-three-dots-vertical"></i>
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                          <li>
-                            <a class="dropdown-item" href="#">
-                              <i class="bi bi-pencil"></i> {{ _('Modifier les rôles') }}
-                            </a>
-                          </li>
-                          <li>
-                            <a class="dropdown-item text-danger" href="#" onclick="return confirm('{{ _('Êtes-vous sûr?') }}')">
-                              <i class="bi bi-trash"></i> {{ _('Supprimer') }}
-                            </a>
-                          </li>
-                        </ul>
+                    <form method="post" action="{{ url_for('tenant.users_update_module_access', user_id=user.id) }}" class="d-flex align-items-center gap-2 flex-wrap">
+                      <div class="form-check form-switch m-0">
+                        <input class="form-check-input" type="checkbox" name="finance_access" value="1" id="finance-{{ user.id }}" {% if uam.finance %}checked{% endif %} {% if user.id == current_user.id %}disabled{% endif %}>
+                        <label class="form-check-label small" for="finance-{{ user.id }}">{{ _('Finance') }}</label>
                       </div>
-                    {% else %}
-                      <span class="text-muted small">—</span>
-                    {% endif %}
+                      <div class="form-check form-switch m-0">
+                        <input class="form-check-input" type="checkbox" name="bi_access" value="1" id="bi-{{ user.id }}" {% if uam.bi %}checked{% endif %} {% if user.id == current_user.id %}disabled{% endif %}>
+                        <label class="form-check-label small" for="bi-{{ user.id }}">{{ _('BI') }}</label>
+                      </div>
+                      {% if user.id != current_user.id %}
+                        <button class="btn btn-sm btn-outline-primary" type="submit">{{ _('Enregistrer') }}</button>
+                      {% else %}
+                        <span class="text-muted small">{{ _('Vous') }}</span>
+                      {% endif %}
+                    </form>
                   </td>
                 </tr>
                 {% endfor %}

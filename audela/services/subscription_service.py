@@ -46,7 +46,10 @@ class SubscriptionService:
                 "has_bi": False,
                 "max_users": 3,
                 "max_companies": 3,
-                "max_transactions_per_month": 1000,
+                "max_transactions_per_month": -1,
+                "features_json": {
+                    "premium_support": False,
+                },
                 "display_order": 2,
             },
             "finance_pro": {
@@ -59,7 +62,10 @@ class SubscriptionService:
                 "has_bi": False,
                 "max_users": 10,
                 "max_companies": 10,
-                "max_transactions_per_month": 5000,
+                "max_transactions_per_month": -1,
+                "features_json": {
+                    "premium_support": False,
+                },
                 "display_order": 3,
             },
             "bi_starter": {
@@ -72,7 +78,10 @@ class SubscriptionService:
                 "has_bi": True,
                 "max_users": 3,
                 "max_companies": 5,
-                "max_transactions_per_month": 1000,
+                "max_transactions_per_month": -1,
+                "features_json": {
+                    "premium_support": False,
+                },
                 "display_order": 4,
             },
             "bi_pro": {
@@ -85,8 +94,45 @@ class SubscriptionService:
                 "has_bi": True,
                 "max_users": 10,
                 "max_companies": 20,
-                "max_transactions_per_month": 10000,
+                "max_transactions_per_month": -1,
+                "features_json": {
+                    "premium_support": False,
+                },
                 "display_order": 5,
+            },
+            "project_start": {
+                "name": "Project Start",
+                "description": "Gestion de projet simple (Kanban, Gantt, livrables)",
+                "price_monthly": "4.99",
+                "price_yearly": "49.90",
+                "trial_days": 30,
+                "has_finance": False,
+                "has_bi": False,
+                "max_users": 3,
+                "max_companies": 3,
+                "max_transactions_per_month": -1,
+                "features_json": {
+                    "premium_support": False,
+                    "has_project": True,
+                },
+                "display_order": 6,
+            },
+            "project_team": {
+                "name": "Project Team",
+                "description": "Gestion de projet multi-équipes avec cérémonies Scrum",
+                "price_monthly": "12.99",
+                "price_yearly": "129.90",
+                "trial_days": 30,
+                "has_finance": False,
+                "has_bi": False,
+                "max_users": 10,
+                "max_companies": 10,
+                "max_transactions_per_month": -1,
+                "features_json": {
+                    "premium_support": False,
+                    "has_project": True,
+                },
+                "display_order": 7,
             },
             "enterprise": {
                 "name": "Enterprise",
@@ -99,7 +145,11 @@ class SubscriptionService:
                 "max_users": -1,
                 "max_companies": -1,
                 "max_transactions_per_month": -1,
-                "display_order": 6,
+                "features_json": {
+                    "premium_support": True,
+                    "has_project": True,
+                },
+                "display_order": 8,
             },
         }
 
@@ -109,9 +159,7 @@ class SubscriptionService:
         defaults = SubscriptionService._default_plan_definitions()
         existing_codes = {code for (code,) in db.session.query(SubscriptionPlan.code).all()}
         missing_codes = [code for code in defaults.keys() if code not in existing_codes]
-
-        if not missing_codes:
-            return
+        changed_codes: list[str] = []
 
         for code in missing_codes:
             data = defaults[code]
@@ -134,15 +182,59 @@ class SubscriptionService:
                     is_active=True,
                     is_public=True,
                     display_order=data["display_order"],
-                    features_json={},
+                    features_json=data.get("features_json") or {},
                 )
             )
 
-        db.session.commit()
-        current_app.logger.warning(
-            "Auto-seeded missing subscription plans at runtime: %s",
-            ", ".join(missing_codes)
-        )
+        # Normalize key limits/features for existing plans to keep policy consistent.
+        for code, data in defaults.items():
+            plan = SubscriptionPlan.query.filter_by(code=code).first()
+            if not plan:
+                continue
+
+            changed = False
+            desired_tx = int(data["max_transactions_per_month"])
+            if int(plan.max_transactions_per_month or 0) != desired_tx:
+                plan.max_transactions_per_month = desired_tx
+                changed = True
+
+            if code == "enterprise":
+                if int(plan.max_users or 0) != -1:
+                    plan.max_users = -1
+                    changed = True
+                if int(plan.max_companies or 0) != -1:
+                    plan.max_companies = -1
+                    changed = True
+
+            features = plan.features_json if isinstance(plan.features_json, dict) else {}
+            desired_features = data.get("features_json") or {}
+            for feature_key, feature_value in desired_features.items():
+                if features.get(feature_key) != feature_value:
+                    features[feature_key] = feature_value
+                    plan.features_json = features
+                    changed = True
+
+            if "premium_support" not in features:
+                features["premium_support"] = False
+                plan.features_json = features
+                changed = True
+
+            if changed:
+                changed_codes.append(code)
+
+        if missing_codes or changed_codes:
+            db.session.commit()
+
+        if missing_codes:
+            current_app.logger.warning(
+                "Auto-seeded missing subscription plans at runtime: %s",
+                ", ".join(missing_codes)
+            )
+        if changed_codes:
+            current_app.logger.info(
+                "Normalized subscription plan policy at runtime: %s",
+                ", ".join(sorted(set(changed_codes)))
+            )
     
     @staticmethod
     def create_trial_subscription(tenant: Tenant, plan_code: str = "free") -> TenantSubscription:
@@ -338,6 +430,12 @@ class SubscriptionService:
             return plan.has_finance
         elif feature == "bi":
             return plan.has_bi
+        elif feature == "project":
+            features = plan.features_json if isinstance(plan.features_json, dict) else {}
+            return bool(features.get("has_project", False))
+        elif feature == "premium_support":
+            features = plan.features_json if isinstance(plan.features_json, dict) else {}
+            return bool(features.get("premium_support", False))
         
         return False
     
@@ -376,7 +474,11 @@ class SubscriptionService:
             return can_add, current, max_limit
         
         elif limit_type == "transactions":
-            max_limit = plan.max_transactions_per_month
+            # Business rule: all paid plans have unlimited transactions.
+            if str(getattr(plan, "code", "")) != "free" and float(plan.price_monthly or 0) > 0:
+                max_limit = -1
+            else:
+                max_limit = plan.max_transactions_per_month
             current = subscription.transactions_this_month
             can_add = max_limit == -1 or current < max_limit
             return can_add, current, max_limit

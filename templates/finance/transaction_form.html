@@ -3,10 +3,13 @@
 
 {% block finance_content %}
   <div class="card">
-    <div class="card-header fw-semibold">{{ _('Nova transação') }}</div>
+    <div class="card-header fw-semibold">{{ _('Editar transação') if txn else _('Nova transação') }}</div>
     <div class="card-body">
       <form method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        {% if request.args.get('next') %}
+          <input type="hidden" name="next" value="{{ request.args.get('next') }}" />
+        {% endif %}
         <div class="row g-3">
           <div class="col-12 col-md-6">
             <label class="form-label">{{ _('Conta') }}</label>
@@ -23,24 +26,24 @@
           </div>
           <div class="col-6 col-md-3">
             <label class="form-label">{{ _('Valor') }}</label>
-            <input class="form-control" name="amount" placeholder="ex: 1000 ou -250" required />
+            <input class="form-control" name="amount" value="{{ txn.amount if txn else '' }}" placeholder="ex: 1000 ou -250" required />
             <div class="form-text">{{ _('Positivo = entrada, negativo = saída') }}</div>
           </div>
 
           <div class="col-12">
             <label class="form-label">{{ _('Descrição') }}</label>
-            <input class="form-control" name="description" />
+            <input class="form-control" name="description" value="{{ txn.description if txn else '' }}" />
           </div>
           <div class="col-12 col-md-4">
             <label class="form-label">{{ _('Categoria') }}</label>
-            <input class="form-control" name="category" placeholder="sales / payroll / tax" />
+            <input class="form-control" name="category" value="{{ txn.category if txn else '' }}" placeholder="sales / payroll / tax" />
           </div>
           <div class="col-12 col-md-4">
             <label class="form-label">{{ _('Contraparte') }}</label>
             <select class="form-select" name="counterparty_id">
               <option value="">{{ _('(nenhuma)') }}</option>
               {% for cp in counterparties %}
-                <option value="{{ cp.id }}">{{ cp.name }}{% if cp.kind %} ({{ cp.kind }}){% endif %}</option>
+                <option value="{{ cp.id }}" {% if txn and txn.counterparty_id == cp.id %}selected{% endif %}>{{ cp.name }}{% if cp.kind %} ({{ cp.kind }}){% endif %}</option>
               {% endfor %}
             </select>
             <div class="form-text">{{ _('Ou crie uma nova:') }}</div>
@@ -63,13 +66,13 @@
           </div>
           <div class="col-12 col-md-4">
             <label class="form-label">{{ _('Referência') }}</label>
-            <input class="form-control" name="reference" />
+            <input class="form-control" name="reference" value="{{ txn.reference if txn else '' }}" />
           </div>
         </div>
 
         <div class="mt-4 d-flex gap-2">
-          <button class="btn btn-primary">{{ _('Salvar') }}</button>
-          <a class="btn btn-outline-secondary" href="{{ url_for('finance.dashboard') }}">{{ _('Cancelar') }}</a>
+          <button class="btn btn-primary">{{ _('Mettre à jour') if txn else _('Salvar') }}</button>
+          <a class="btn btn-outline-secondary" href="{{ request.args.get('next') or url_for('finance.dashboard') }}">{{ _('Cancelar') }}</a>
         </div>
       </form>
     </div>

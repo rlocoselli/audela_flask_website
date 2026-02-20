@@ -40,7 +40,7 @@
   <!-- HEADER -->
   <div class="card shadow-sm mb-4">
     <div class="card-body">
-      <h4 class="mb-1">{{ _('Editor SQL') }}</h4>
+      <h4 class="mb-1" data-tip="{{ _('Éditeur pour exécuter des requêtes ad hoc sur les sources autorisées.') }}">{{ _('Editor SQL') }}</h4>
       <p class="text-muted mb-0">
         {{ _('Execute consultas ad-hoc, com autocomplete, Query Builder e linguagem humana.') }}
       </p>
@@ -62,7 +62,7 @@
 
             <!-- Fonte -->
             <div class="mb-3">
-              <label class="form-label">{{ _('Fonte de dados') }}</label>
+              <label class="form-label" data-tip="{{ _('Choisir la source de données qui servira au schéma, autocomplete et exécution SQL.') }}">{{ _('Fonte de dados') }}</label>
               <select name="source_id" id="source_id" class="form-select" required>
                 <option value="">--</option>
                 {% for s in sources %}
@@ -75,13 +75,13 @@
 
             <!-- NLQ -->
             <div class="mb-4">
-              <label class="form-label">{{ _('Linguagem humana') }}</label>
+              <label class="form-label" data-tip="{{ _('Saisir une demande métier en langage naturel pour générer une première requête SQL.') }}">{{ _('Linguagem humana') }}</label>
               <div class="d-flex gap-2 flex-wrap">
                 <input
                   type="text"
                   id="nlq-text"
                   class="form-control"
-                  placeholder="ex: total vendas por mês"
+                  placeholder="{{ _('ex: total vendas por mês') }}"
                 >
                 <button
                   type="button"
@@ -107,14 +107,14 @@
                 <div class="row g-3">
 
                   <div class="col-md-6">
-                    <label class="form-label">{{ _('Tabela') }}</label>
+                    <label class="form-label" data-tip="{{ _('Table principale de la requête SELECT.') }}">{{ _('Tabela') }}</label>
                     <select id="qb-table" class="form-select">
                       <option value="">--</option>
                     </select>
                   </div>
 
                   <div class="col-md-6">
-                    <label class="form-label">{{ _('Limite') }}</label>
+                    <label class="form-label" data-tip="{{ _('Nombre maximal de lignes retournées pour limiter le coût d’exécution.') }}">{{ _('Limite') }}</label>
                     <input
                       id="qb-limit"
                       type="number"
@@ -126,12 +126,12 @@
                   </div>
 
                   <div class="col-12">
-                    <label class="form-label">{{ _('Colunas') }}</label>
+                    <label class="form-label" data-tip="{{ _('Colonnes à inclure dans la projection SELECT.') }}">{{ _('Colunas') }}</label>
                     <div id="qb-columns" class="d-flex flex-wrap gap-2"></div>
                   </div>
 
                   <div class="col-12">
-                    <label class="form-label">{{ _('Filtros') }}</label>
+                    <label class="form-label" data-tip="{{ _('Ajouter des conditions WHERE pour restreindre le résultat.') }}">{{ _('Filtros') }}</label>
                     <div class="d-flex gap-2 flex-wrap">
                       <select id="qb-filter-field" class="form-select" style="min-width:180px;"></select>
                       <select id="qb-filter-op" class="form-select" style="min-width:120px;">
@@ -144,13 +144,14 @@
                       <input
                         id="qb-filter-value"
                         class="form-control"
-                        placeholder="value"
+                        placeholder="{{ _('valeur') }}"
                         style="min-width:180px;"
                       >
                       <button
                         type="button"
                         class="btn btn-sm btn-outline-secondary"
                         id="qb-add-filter"
+                        data-tip="{{ _('Ajouter le filtre courant à la requête du Query Builder.') }}"
                       >
                         {{ _('Adicionar filtro') }}
                       </button>
@@ -163,6 +164,7 @@
                       type="button"
                       class="btn btn-primary"
                       id="qb-generate"
+                      data-tip="{{ _('Générer la requête SQL complète et l’insérer dans l’éditeur.') }}"
                     >
                       {{ _('Gerar SQL no editor') }}
                     </button>
@@ -180,13 +182,13 @@
                 id="sql_text"
                 class="form-control"
                 rows="8"
-                placeholder="SELECT ..."
+                placeholder="{{ _('SELECT ...') }}"
               ></textarea>
             </div>
 
             <!-- PARAMS -->
             <div class="mb-4">
-              <label class="form-label">{{ _('Parâmetros (JSON)') }}</label>
+              <label class="form-label" data-tip="{{ _('Paramètres nommés injectés au moment de l’exécution, au format JSON.') }}">{{ _('Parâmetros (JSON)') }}</label>
               <textarea
                 name="params_json"
                 id="params_json"
@@ -199,7 +201,7 @@
             </div>
 
             <div class="text-end">
-              <button type="submit" class="btn btn-primary">
+              <button type="submit" class="btn btn-primary" data-tip="{{ _('Exécuter la requête SQL sur la source sélectionnée et afficher le résultat.') }}">
                 ▶ {{ _('Executar') }}
               </button>
             </div>
@@ -231,10 +233,10 @@
             <div id="ad-hoc-viz" style="min-height:420px;"></div>
 
             <div class="d-flex align-items-center gap-3 mt-3">
-              <a href="#" class="btn btn-outline-secondary" id="adhoc-export-pdf">
+              <a href="#" class="btn btn-outline-secondary" id="adhoc-export-pdf" data-tip="{{ _('Exporter la visualisation actuelle au format PDF.') }}">
                 {{ _('Exportar PDF') }}
               </a>
-              <a href="#" class="btn btn-outline-secondary" id="adhoc-export-xlsx">
+              <a href="#" class="btn btn-outline-secondary" id="adhoc-export-xlsx" data-tip="{{ _('Exporter le résultat tabulaire au format XLSX.') }}">
                 {{ _('Exportar XLSX') }}
               </a>
               <span class="text-muted">
@@ -260,7 +262,7 @@
     <div class="col-lg-4">
       <div class="card shadow-sm">
         <div class="card-body">
-          <h6 class="mb-2">{{ _('Estrutura') }}</h6>
+          <h6 class="mb-2" data-tip="{{ _('Schéma source utilisé pour autocomplete et construction assistée des requêtes.') }}">{{ _('Estrutura') }}</h6>
           <p class="text-muted small">
             {{ _('Escolha uma fonte para ver tabelas e colunas (autocomplete).') }}
           </p>

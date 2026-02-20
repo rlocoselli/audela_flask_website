@@ -98,6 +98,10 @@ def _is_finance_source(source: DataSource) -> bool:
     return (source.type or "").strip().lower() == "audela_finance"
 
 
+def _is_project_source(source: DataSource) -> bool:
+    return (source.type or "").strip().lower() == "audela_project"
+
+
 @lru_cache(maxsize=64)
 def _finance_tenant_tables_by_engine(engine_url: str) -> tuple[str, ...]:
     """Return finance tables that have a tenant_id column."""
@@ -173,6 +177,58 @@ def _auto_scope_finance_sql(sql: str, tenant_id: int, source: DataSource) -> tup
     return scoped_sql, {"tenant_id": tenant_id}
 
 
+@lru_cache(maxsize=64)
+def _project_tenant_tables_by_engine(engine_url: str) -> tuple[str, ...]:
+    """Return project tables that have a tenant_id column."""
+    from .datasource_service import _engine_for_source
+
+    eng = _engine_for_source(-2, engine_url)
+    insp = inspect(eng)
+
+    table_names: list[str] = []
+    try:
+        if eng.dialect.name == "postgresql":
+            table_names = insp.get_table_names(schema="public")
+        else:
+            table_names = insp.get_table_names()
+    except Exception:
+        table_names = []
+
+    out: list[str] = []
+    for t in table_names:
+        if not str(t).startswith("project_"):
+            continue
+        try:
+            cols = insp.get_columns(t, schema="public" if eng.dialect.name == "postgresql" else None)
+        except Exception:
+            cols = []
+        names = {str(c.get("name") or "") for c in cols}
+        if "tenant_id" in names:
+            out.append(str(t))
+    return tuple(sorted(out))
+
+
+def _auto_scope_project_sql(sql: str, tenant_id: int, source: DataSource) -> tuple[str, dict[str, Any]]:
+    kw = _leading_sql_keyword(sql)
+    if kw not in ("select", "with"):
+        return sql, {}
+
+    eng = get_engine(source)
+    table_names = list(_project_tenant_tables_by_engine(str(eng.url)))
+    if not table_names:
+        return sql, {}
+
+    alias_map = {t: f"__scoped_{t}" for t in table_names}
+    rewritten = _rewrite_from_join_tables(sql, alias_map)
+
+    ctes = []
+    for t in table_names:
+        alias = alias_map[t]
+        ctes.append(f'{alias} AS (SELECT * FROM "{t}" WHERE tenant_id = :tenant_id)')
+    scoped_sql = _inject_with_prefix(rewritten, ", ".join(ctes))
+    return scoped_sql, {"tenant_id": tenant_id}
+
+
 def execute_sql(
     source: DataSource,
     sql_text: str,
@@ -225,6 +281,10 @@ def execute_sql(
         if tenant_id is None:
             raise QueryExecutionError("Fonte Finance exige contexto de tenant.")
         sql_text, extra_params = _auto_scope_finance_sql(sql_text, tenant_id, source)
+    elif _is_project_source(source):
+        if tenant_id is None:
+            raise QueryExecutionError("Fonte Project exige contexto de tenant.")
+        sql_text, extra_params = _auto_scope_project_sql(sql_text, tenant_id, source)
     elif tenant_id is not None:
         sql_text, extra_params = _apply_tenant_scoping_if_configured(sql_text, tenant_id, cfg)
 

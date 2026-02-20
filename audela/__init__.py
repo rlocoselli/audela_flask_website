@@ -100,6 +100,7 @@ def create_app() -> Flask:
     from .blueprints.portal import bp as portal_bp
     from .blueprints.etl import bp as etl_bp
     from .blueprints.finance import bp as finance_bp
+    from .blueprints.project import bp as project_bp
     from .blueprints.finance.finance_master_data import finance_master_bp
     from .blueprints.tenant import bp as tenant_bp
     from .blueprints.billing import bp as billing_bp
@@ -109,6 +110,7 @@ def create_app() -> Flask:
     app.register_blueprint(portal_bp)
     app.register_blueprint(etl_bp)
     app.register_blueprint(finance_bp)
+    app.register_blueprint(project_bp)
     app.register_blueprint(finance_master_bp)
     app.register_blueprint(tenant_bp)
     app.register_blueprint(billing_bp)

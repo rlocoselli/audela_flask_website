@@ -24,9 +24,10 @@ from ...extensions import db
 from ...models import Tenant, User, Role
 from ...models.subscription import TenantSubscription
 from ...models.bi import AuditEvent
+from ...models.prospect import Prospect
 from ...services.tenant_service import TenantService
 from ...services.subscription_service import SubscriptionService
-from ...tenancy import CurrentTenant, set_current_tenant, clear_current_tenant
+from ...tenancy import CurrentTenant, set_current_tenant, clear_current_tenant, get_user_module_access
 from ...i18n import tr
 from . import bp
 
@@ -106,6 +107,21 @@ def _tenant_branding(tenant: Tenant) -> dict:
 def _save_tenant_branding(tenant: Tenant, branding: dict) -> None:
     settings = tenant.settings_json if isinstance(tenant.settings_json, dict) else {}
     settings["branding"] = branding
+    tenant.settings_json = settings
+    flag_modified(tenant, "settings_json")
+
+
+def _save_tenant_user_module_access(tenant: Tenant, user_id: int, module_access: dict) -> None:
+    settings = tenant.settings_json if isinstance(tenant.settings_json, dict) else {}
+    uam = settings.get("uam") if isinstance(settings.get("uam"), dict) else {}
+    rows = uam.get("module_access") if isinstance(uam.get("module_access"), dict) else {}
+    rows[str(int(user_id))] = {
+        "finance": bool(module_access.get("finance", True)),
+        "bi": bool(module_access.get("bi", True)),
+        "updated_at": datetime.utcnow().isoformat(),
+    }
+    uam["module_access"] = rows
+    settings["uam"] = uam
     tenant.settings_json = settings
     flag_modified(tenant, "settings_json")
 
@@ -271,7 +287,7 @@ def dashboard():
     """Tenant management dashboard."""
     tenant = Tenant.query.get(current_user.tenant_id)
     if not tenant:
-        flash("Tenant not found", "error")
+        flash(tr("Tenant not found", getattr(g, "lang", None)), "error")
         return redirect(url_for("tenant.login"))
     
     # Get tenant stats
@@ -284,6 +300,7 @@ def dashboard():
     is_admin = current_user.has_role("tenant_admin")
     profile = _tenant_user_profile(tenant, current_user.id)
     branding = _tenant_branding(tenant)
+    module_access = get_user_module_access(tenant, current_user.id)
     
     return render_template(
         "tenant/dashboard.html",
@@ -294,6 +311,7 @@ def dashboard():
         is_admin=is_admin,
         profile=profile,
         branding=branding,
+        module_access=module_access,
     )
 
 
@@ -302,7 +320,7 @@ def dashboard():
 def profile():
     tenant = Tenant.query.get(current_user.tenant_id)
     if not tenant:
-        flash("Tenant not found", "error")
+        flash(tr("Tenant not found", getattr(g, "lang", None)), "error")
         return redirect(url_for("tenant.login"))
 
     profile_data = _tenant_user_profile(tenant, current_user.id)
@@ -331,7 +349,7 @@ def profile():
                 photo_url = uploaded
                 avatar_mode = "photo"
         except ValueError as e:
-            flash(str(e), "error")
+            flash(tr(str(e), getattr(g, "lang", None)), "error")
             return render_template(
                 "tenant/profile.html",
                 tenant=tenant,
@@ -366,7 +384,7 @@ def profile():
                 if uploaded_logo:
                     tenant_logo_url = uploaded_logo
             except ValueError as e:
-                flash(str(e), "error")
+                flash(tr(str(e), getattr(g, "lang", None)), "error")
                 return render_template(
                     "tenant/profile.html",
                     tenant=tenant,
@@ -405,11 +423,17 @@ def profile():
 def users():
     """User management page."""
     if not current_user.has_role("tenant_admin"):
-        flash("Admin access required", "error")
+        flash(tr("Admin access required", getattr(g, "lang", None)), "error")
         return redirect(url_for("tenant.dashboard"))
     
     tenant = Tenant.query.get(current_user.tenant_id)
     users = TenantService.list_users(current_user.tenant_id)
+    user_module_access = {}
+    for u in users:
+        uid = u.get("id") if isinstance(u, dict) else getattr(u, "id", None)
+        if uid is None:
+            continue
+        user_module_access[int(uid)] = get_user_module_access(tenant, int(uid))
     
     # Check if can add more users
     can_add, current_count, max_limit = SubscriptionService.check_limit(
@@ -422,7 +446,78 @@ def users():
         users=users,
         can_add_user=can_add,
         current_users=current_count,
-        max_users=max_limit
+        max_users=max_limit,
+        user_module_access=user_module_access,
+    )
+
+
+@bp.route("/users/<int:user_id>/module-access", methods=["POST"])
+@login_required
+def users_update_module_access(user_id: int):
+    if not current_user.has_role("tenant_admin"):
+        flash(tr("Admin access required", getattr(g, "lang", None)), "error")
+        return redirect(url_for("tenant.dashboard"))
+
+    tenant = Tenant.query.get(current_user.tenant_id)
+    if not tenant:
+        flash(tr("Tenant not found", getattr(g, "lang", None)), "error")
+        return redirect(url_for("tenant.dashboard"))
+
+    user = User.query.filter_by(id=user_id, tenant_id=tenant.id).first()
+    if not user:
+        flash(tr("User not found", getattr(g, "lang", None)), "error")
+        return redirect(url_for("tenant.users"))
+
+    finance_enabled = str(request.form.get("finance_access") or "").lower() in ("1", "true", "on", "yes")
+    bi_enabled = str(request.form.get("bi_access") or "").lower() in ("1", "true", "on", "yes")
+
+    _save_tenant_user_module_access(
+        tenant,
+        user.id,
+        {
+            "finance": finance_enabled,
+            "bi": bi_enabled,
+        },
+    )
+    db.session.commit()
+    flash(tr("Accès modules mis à jour", getattr(g, "lang", None)), "success")
+    return redirect(url_for("tenant.users"))
+
+
+@bp.route("/prospects")
+@login_required
+def prospects_agenda():
+    """Simple rendez-vous agenda for demo requests."""
+    if not current_user.has_role("tenant_admin"):
+        flash(tr("Admin access required", getattr(g, "lang", None)), "error")
+        return redirect(url_for("tenant.dashboard"))
+
+    date_from_raw = (request.args.get("from") or "").strip()
+    date_to_raw = (request.args.get("to") or "").strip()
+    status = (request.args.get("status") or "").strip().lower()
+
+    q = Prospect.query
+    if date_from_raw:
+        try:
+            date_from = datetime.strptime(date_from_raw, "%Y-%m-%d").date()
+            q = q.filter(Prospect.rdv_date >= date_from)
+        except ValueError:
+            flash(tr("Date de début invalide", getattr(g, "lang", None)), "warning")
+    if date_to_raw:
+        try:
+            date_to = datetime.strptime(date_to_raw, "%Y-%m-%d").date()
+            q = q.filter(Prospect.rdv_date <= date_to)
+        except ValueError:
+            flash(tr("Date de fin invalide", getattr(g, "lang", None)), "warning")
+    if status in {"new", "confirmed", "done", "cancelled"}:
+        q = q.filter(Prospect.status == status)
+
+    prospects = q.order_by(Prospect.rdv_date.asc(), Prospect.rdv_time.asc(), Prospect.created_at.desc()).all()
+    return render_template(
+        "tenant/prospects_agenda.html",
+        tenant=Tenant.query.get(current_user.tenant_id),
+        prospects=prospects,
+        filters={"from": date_from_raw, "to": date_to_raw, "status": status},
     )
 
 
@@ -431,7 +526,7 @@ def users():
 def invite_user():
     """Invite a new user."""
     if not current_user.has_role("tenant_admin"):
-        flash("Admin access required", "error")
+        flash(tr("Admin access required", getattr(g, "lang", None)), "error")
         return redirect(url_for("tenant.dashboard"))
     
     if request.method == "POST":
@@ -439,7 +534,7 @@ def invite_user():
         roles = request.form.getlist("roles")
         
         if not email:
-            flash("Email is required", "error")
+            flash(tr("Email is required", getattr(g, "lang", None)), "error")
             return render_template("tenant/invite.html")
         
         if not roles:
@@ -453,11 +548,11 @@ def invite_user():
                 invited_by_user_id=current_user.id
             )
             
-            flash(f"Invitation sent to {email}", "success")
+            flash(tr("Invitation sent to {email}", getattr(g, "lang", None), email=email), "success")
             return redirect(url_for("tenant.users"))
         
         except ValueError as e:
-            flash(str(e), "error")
+            flash(tr(str(e), getattr(g, "lang", None)), "error")
             return render_template("tenant/invite.html")
     
     # Get available roles
@@ -472,7 +567,7 @@ def subscription():
     """View subscription details."""
     tenant = Tenant.query.get(current_user.tenant_id)
     if not tenant:
-        flash("Tenant not found", "error")
+        flash(tr("Tenant not found", getattr(g, "lang", None)), "error")
         return redirect(url_for("tenant.dashboard"))
     
     stats = TenantService.get_tenant_stats(current_user.tenant_id)
@@ -491,7 +586,7 @@ def products():
     """Access subscribed products."""
     tenant = Tenant.query.get(current_user.tenant_id)
     if not tenant or not tenant.subscription:
-        flash("No active subscription", "warning")
+        flash(tr("No active subscription", getattr(g, "lang", None)), "warning")
         return redirect(url_for("billing.plans"))
     
     subscription = tenant.subscription
@@ -499,9 +594,10 @@ def products():
     # Check access to products
     has_finance = SubscriptionService.check_feature_access(current_user.tenant_id, "finance")
     has_bi = SubscriptionService.check_feature_access(current_user.tenant_id, "bi")
+    has_project = SubscriptionService.check_feature_access(current_user.tenant_id, "project")
     
-    if not has_finance and not has_bi:
-        flash("No products available. Please upgrade your subscription.", "warning")
+    if not has_finance and not has_bi and not has_project:
+        flash(tr("No products available. Please upgrade your subscription.", getattr(g, "lang", None)), "warning")
         return redirect(url_for("billing.plans"))
     
     return render_template(
@@ -509,7 +605,8 @@ def products():
         tenant=tenant,
         subscription=subscription,
         has_finance=has_finance,
-        has_bi=has_bi
+        has_bi=has_bi,
+        has_project=has_project,
     )
 
 

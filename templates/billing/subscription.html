@@ -57,6 +57,7 @@
         <li>{{ _('Utilisateurs') }}: {{ stats.usage.users.current }} / {{ '∞' if stats.usage.users.max == -1 else stats.usage.users.max }}</li>
         <li>{{ _('Entreprises') }}: {{ stats.usage.companies.current }} / {{ '∞' if stats.usage.companies.max == -1 else stats.usage.companies.max }}</li>
         <li>{{ _('Transactions') }}: {{ stats.usage.transactions.current }} / {{ '∞' if stats.usage.transactions.max == -1 else stats.usage.transactions.max }}</li>
+        <li>{{ _('Support premium') }}: {{ _('Oui') if (subscription.plan and subscription.plan.features_json and subscription.plan.features_json.get('premium_support')) else _('Non') }}</li>
       </ul>
     </div>
   </div>

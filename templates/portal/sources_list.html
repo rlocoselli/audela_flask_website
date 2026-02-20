@@ -1,34 +1,34 @@
 {% extends "portal/layout.html" %}
-{% set title = "Fontes" %}
+{% set title = _('Sources') %}
 
 {% block portal_content %}
 <div class="container-fluid px-0">
 
   <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
     <div>
-      <h1 class="h4 mb-0">Fontes</h1>
-      <div class="text-muted small">Conexões de banco de dados e workspaces.</div>
+      <h1 class="h4 mb-0" data-tip="{{ _('Gestion centralisée des connexions de données utilisées par BI.') }}">{{ _('Sources') }}</h1>
+      <div class="text-muted small" data-tip="{{ _('Ajoutez des sources SQL/API et rattachez-les à des workspaces d\'analyse.') }}">{{ _('Connexions de base de données et workspaces.') }}</div>
     </div>
     <div class="d-flex gap-2">
-      <a class="btn btn-primary btn-sm" href="{{ url_for('portal.sources_new') }}"><i class="bi bi-plus-lg"></i> Nova fonte</a>
-      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.workspaces_new') }}">Novo workspace</a>
-      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.workspaces_list') }}">Workspaces</a>
+      <a class="btn btn-primary btn-sm" data-tip="{{ _('Créer une nouvelle connexion à une base, API ou source interne.') }}" href="{{ url_for('portal.sources_new') }}"><i class="bi bi-plus-lg"></i> {{ _('Nouvelle source') }}</a>
+      <a class="btn btn-outline-secondary btn-sm" data-tip="{{ _('Créer un workspace pour organiser sources, questions et dashboards.') }}" href="{{ url_for('portal.workspaces_new') }}">{{ _('Nouveau workspace') }}</a>
+      <a class="btn btn-outline-secondary btn-sm" data-tip="{{ _('Voir et administrer les workspaces existants.') }}" href="{{ url_for('portal.workspaces_list') }}">{{ _('Workspaces') }}</a>
     </div>
   </div>
 
   <div class="card shadow-sm border-0 rounded-4">
     <div class="card-body">
       {% if not sources %}
-        <div class="text-muted">Nenhuma fonte cadastrada ainda.</div>
+        <div class="text-muted">{{ _('Aucune source enregistrée pour le moment.') }}</div>
       {% else %}
         <div class="table-responsive">
           <table class="table table-sm align-middle mb-0">
             <thead>
               <tr>
-                <th>Nome</th>
-                <th>Tipo</th>
-                <th>Criada em</th>
-                <th class="text-end">Ações</th>
+                <th>{{ _('Nom') }}</th>
+                <th data-tip="{{ _('Type technique de connecteur (postgres, mysql, sqlite, api, etc.).') }}">{{ _('Type') }}</th>
+                <th>{{ _('Créée le') }}</th>
+                <th class="text-end" data-tip="{{ _('Actions disponibles: modifier, introspecter le schéma ou supprimer.') }}">{{ _('Actions') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -41,8 +41,8 @@
                   <td class="text-muted small">{{ s.created_at }}</td>
                   <td class="text-end">
                     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.sources_edit', source_id=s.id) }}"><i class="bi bi-pencil"></i></a>
-                    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.sources_introspect', source_id=s.id) }}">Introspectar</a>
-                    <form method="post" action="{{ url_for('portal.sources_delete', source_id=s.id) }}" class="d-inline" onsubmit="return confirm('Remover fonte?');">
+                    <a class="btn btn-outline-secondary btn-sm" data-tip="{{ _('Scanner tables/colonnes de la source pour alimenter l\'éditeur SQL et le builder.') }}" href="{{ url_for('portal.sources_introspect', source_id=s.id) }}">{{ _('Introspecter') }}</a>
+                    <form method="post" action="{{ url_for('portal.sources_delete', source_id=s.id) }}" class="d-inline" onsubmit="return confirm('{{ _('Supprimer la source ?') }}');">
                       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
                       <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
                     </form>

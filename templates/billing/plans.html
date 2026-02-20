@@ -35,6 +35,10 @@
   <div class="alert alert-info">
     <i class="bi bi-graph-up"></i> {{ _('Plans BI disponibles') }}
   </div>
+  {% elif selected_product == 'project' %}
+  <div class="alert alert-info">
+    <i class="bi bi-kanban"></i> {{ _('Plans Projet disponibles') }}
+  </div>
   {% endif %}
 
   {% if plans %}
@@ -63,6 +67,7 @@
             <li><i class="bi bi-people me-1"></i> {{ _('Utilisateurs:') }} {{ '∞' if plan.max_users == -1 else plan.max_users }}</li>
             <li><i class="bi bi-building me-1"></i> {{ _('Entreprises:') }} {{ '∞' if plan.max_companies == -1 else plan.max_companies }}</li>
             <li><i class="bi bi-arrow-left-right me-1"></i> {{ _('Transactions/mois:') }} {{ '∞' if plan.max_transactions_per_month == -1 else plan.max_transactions_per_month }}</li>
+            <li><i class="bi bi-headset me-1"></i> {{ _('Support premium:') }} {{ _('Oui') if (plan.features_json and plan.features_json.get('premium_support')) else _('Non') }}</li>
             <li><i class="bi bi-cash-coin me-1"></i> {{ _('Essai:') }} {{ plan.trial_days }} {{ _('jours') }}</li>
           </ul>
 

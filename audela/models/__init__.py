@@ -40,6 +40,8 @@ from .subscription import (
     UserInvitation,
     BillingEvent,
 )
+from .prospect import Prospect
+from .project_management import ProjectWorkspace
 
 __all__ = [
     "Tenant",
@@ -88,5 +90,7 @@ __all__ = [
     "EmailVerificationToken",
     "UserInvitation",
     "BillingEvent",
+    "Prospect",
+    "ProjectWorkspace",
 ]
 from .etl_catalog import ETLConnection  # noqa: F401

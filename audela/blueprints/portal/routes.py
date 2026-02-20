@@ -26,6 +26,7 @@ from ...models.bi import (
 )
 from ...models.core import Tenant
 from ...models.core import User, Role
+from ...models.project_management import ProjectWorkspace
 from ...security import require_roles
 from ...services.query_service import QueryExecutionError, execute_sql
 from ...services.datasource_service import decrypt_config, introspect_source
@@ -44,7 +45,7 @@ from ...services.file_storage_service import (
 )
 from ...services.file_introspect_service import introspect_file_schema
 from ...services.subscription_service import SubscriptionService
-from ...tenancy import get_current_tenant_id
+from ...tenancy import get_current_tenant_id, get_user_module_access
 
 from ...i18n import tr, DEFAULT_LANG
 
@@ -70,6 +71,24 @@ def load_tenant_into_g() -> None:
         if tenant:
             g.tenant = tenant
 
+    if (
+        request.endpoint
+        and request.endpoint.startswith("portal.")
+        and current_user.is_authenticated
+        and g.tenant
+        and current_user.tenant_id == g.tenant.id
+    ):
+        if request.endpoint in {
+            "portal.projects_hub",
+            "portal.project_workspace_get",
+            "portal.project_workspace_save",
+        }:
+            return None
+        access = get_user_module_access(g.tenant, current_user.id)
+        if not access.get("bi", True):
+            flash(tr("Acesso BI desativado para seu usuário.", getattr(g, "lang", None)), "warning")
+            return redirect(url_for("tenant.dashboard"))
+
 
 def _require_tenant() -> None:
     if not current_user.is_authenticated:
@@ -81,11 +100,13 @@ def _require_tenant() -> None:
 @bp.app_context_processor
 def _portal_layout_context():
     tenant = getattr(g, "tenant", None)
+    module_access = get_user_module_access(tenant, getattr(current_user, "id", None))
     if not tenant or not getattr(tenant, "subscription", None):
-        return {"transaction_usage": None}
+        return {"transaction_usage": None, "module_access": module_access}
 
     _, current_count, max_limit = SubscriptionService.check_limit(tenant.id, "transactions")
     return {
+        "module_access": module_access,
         "transaction_usage": {
             "current": int(current_count),
             "max": int(max_limit),
@@ -187,6 +208,24 @@ def _safe_slug(name: str) -> str:
     return out.strip("-")[:80]
 
 
+def _sanitize_project_workspace_state(payload: dict | None) -> dict:
+    payload = payload or {}
+    state = payload if isinstance(payload, dict) else {}
+
+    def _list(name: str, max_items: int = 300):
+        items = state.get(name)
+        if not isinstance(items, list):
+            return []
+        return items[:max_items]
+
+    return {
+        "cards": _list("cards", 500),
+        "ceremonies": _list("ceremonies", 200),
+        "deliverables": _list("deliverables", 500),
+        "gantt": _list("gantt", 500),
+    }
+
+
 def _resolve_tenant_by_app_key(raw_key: str) -> tuple[Tenant | None, dict | None]:
     parts = (raw_key or "").split(".")
     if len(parts) != 4 or parts[0] != "ak":
@@ -280,6 +319,8 @@ def sources_new():
 
         if ds_type == 'audela_finance':
             return 'internal://audela_finance'
+        if ds_type == 'audela_project':
+            return 'internal://audela_project'
 
         if ds_type == 'postgres':
             return str(URL.create(
@@ -1220,6 +1261,8 @@ def sources_edit(source_id: int):
 
         if ds_type == 'audela_finance':
             return 'internal://audela_finance'
+        if ds_type == 'audela_project':
+            return 'internal://audela_project'
 
         if ds_type == 'postgres':
             return str(URL.create(
@@ -1524,6 +1567,8 @@ def api_sources_test_connection():
 
         if ds_type == "audela_finance":
             return "internal://audela_finance"
+        if ds_type == "audela_project":
+            return "internal://audela_project"
 
         if ds_type == "postgres":
             return str(
@@ -1631,6 +1676,9 @@ def api_sources_test_connection():
 
     if not url:
         return jsonify({"ok": False, "error": tr("Informe uma URL de conexão.", getattr(g, "lang", None))}), 400
+
+    if ds_type in ("audela_finance", "audela_project"):
+        return jsonify({"ok": True, "message": tr("Conexão interna OK.", getattr(g, "lang", None))})
 
     # Try connecting (no persistence)
     try:
@@ -4636,3 +4684,21 @@ def api_help_chat():
 def etls_list():
     # List saved ETL workflows for the current tenant
     return render_template("portal/etls_list.html", title="ETLs")
+
+
+@bp.route("/projects")
+@login_required
+def projects_hub():
+    return redirect(url_for("project.dashboard"))
+
+
+@bp.route("/api/projects/workspace", methods=["GET"])
+@login_required
+def project_workspace_get():
+    return redirect(url_for("project.workspace_get"))
+
+
+@bp.route("/api/projects/workspace", methods=["POST"])
+@login_required
+def project_workspace_save():
+    return redirect(url_for("project.workspace_save"), code=307)

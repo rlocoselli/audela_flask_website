@@ -103,18 +103,167 @@ window.BI = window.BI || {};
 
   function renderTable(container, data) {
     const cols = data.columns || [];
-    const rows = data.rows || [];
-    let html = '<div style="overflow-x:auto;">';
-    html += '<table class="table"><thead><tr>';
-    for (const c of cols) html += `<th>${String(c)}</th>`;
-    html += '</tr></thead><tbody>';
-    for (const r of rows) {
-      html += '<tr>';
-      for (const v of r) html += `<td>${v === null || typeof v === 'undefined' ? '' : String(v)}</td>`;
-      html += '</tr>';
+    const srcRows = data.rows || [];
+    const cfg = arguments[2] || {};
+
+    function esc(v) {
+      return String(v == null ? '' : v)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
     }
-    html += '</tbody></table></div>';
-    container.innerHTML = html;
+
+    function parseNum(v) {
+      const n = Number(String(v == null ? '' : v).replace(',', '.'));
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function cmpValues(a, b) {
+      const an = parseNum(a);
+      const bn = parseNum(b);
+      if (an != null && bn != null) return an - bn;
+      return String(a == null ? '' : a).localeCompare(String(b == null ? '' : b), undefined, { numeric: true, sensitivity: 'base' });
+    }
+
+    const stateKey = container.getAttribute('data-table-state-key') || '';
+    const allowedPageSizes = [10, 25, 50, 100, -1];
+    const defaultPageSize = Number(cfg.table_page_size || cfg.page_size || 25);
+    const state = {
+      sortIndex: -1,
+      sortDir: 'asc',
+      page: 1,
+      pageSize: allowedPageSizes.includes(defaultPageSize) ? defaultPageSize : 25
+    };
+
+    if (stateKey) {
+      try {
+        const raw = localStorage.getItem(stateKey);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') {
+            if (Number.isInteger(parsed.sortIndex)) state.sortIndex = parsed.sortIndex;
+            if (parsed.sortDir === 'asc' || parsed.sortDir === 'desc') state.sortDir = parsed.sortDir;
+            if (Number.isInteger(parsed.page) && parsed.page > 0) state.page = parsed.page;
+            if (allowedPageSizes.includes(Number(parsed.pageSize))) state.pageSize = Number(parsed.pageSize);
+          }
+        }
+      } catch (e) {}
+    }
+
+    function persistState() {
+      if (!stateKey) return;
+      try {
+        localStorage.setItem(stateKey, JSON.stringify(state));
+      } catch (e) {}
+    }
+
+    function processedRows() {
+      const rows = srcRows.slice();
+      if (state.sortIndex >= 0 && state.sortIndex < cols.length) {
+        rows.sort((a, b) => cmpValues(a[state.sortIndex], b[state.sortIndex]));
+        if (state.sortDir === 'desc') rows.reverse();
+      }
+      return rows;
+    }
+
+    function render() {
+      const rows = processedRows();
+      const total = rows.length;
+      const pageSize = state.pageSize;
+      const totalPages = pageSize === -1 ? 1 : Math.max(1, Math.ceil(total / pageSize));
+      if (state.page > totalPages) state.page = totalPages;
+      if (state.page < 1) state.page = 1;
+
+      const start = pageSize === -1 ? 0 : (state.page - 1) * pageSize;
+      const end = pageSize === -1 ? total : Math.min(total, start + pageSize);
+      const pageRows = rows.slice(start, end);
+
+      let html = '<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">';
+      html += `<div class="small text-secondary">${total} lignes</div>`;
+      html += '<div class="d-flex align-items-center gap-2">';
+      html += '<label class="small text-secondary mb-0">Taille de page</label>';
+      html += '<select class="form-select form-select-sm" data-table-pagesize style="width:auto;">';
+      for (const ps of allowedPageSizes) {
+        const lbl = ps === -1 ? 'Tout' : String(ps);
+        const sel = ps === pageSize ? ' selected' : '';
+        html += `<option value="${ps}"${sel}>${lbl}</option>`;
+      }
+      html += '</select>';
+      html += '</div></div>';
+
+      html += '<div style="overflow-x:auto;">';
+      html += '<table class="table table-sm align-middle"><thead><tr>';
+      cols.forEach((c, idx) => {
+        let icon = '';
+        if (state.sortIndex === idx) icon = state.sortDir === 'asc' ? ' ▲' : ' ▼';
+        html += `<th scope="col" data-sort-idx="${idx}" style="cursor:pointer; user-select:none;">${esc(c)}${icon}</th>`;
+      });
+      html += '</tr></thead><tbody>';
+      for (const r of pageRows) {
+        html += '<tr>';
+        for (const v of r) html += `<td>${esc(v)}</td>`;
+        html += '</tr>';
+      }
+      html += '</tbody></table></div>';
+
+      html += '<div class="d-flex align-items-center justify-content-between flex-wrap gap-2">';
+      html += `<div class="small text-secondary">${total === 0 ? '0' : (start + 1)}-${end} / ${total}</div>`;
+      html += '<div class="btn-group btn-group-sm" role="group">';
+      html += `<button type="button" class="btn btn-outline-secondary" data-page="prev" ${state.page <= 1 ? 'disabled' : ''}>Précédent</button>`;
+      html += `<button type="button" class="btn btn-outline-secondary" disabled>${state.page}/${totalPages}</button>`;
+      html += `<button type="button" class="btn btn-outline-secondary" data-page="next" ${state.page >= totalPages ? 'disabled' : ''}>Suivant</button>`;
+      html += '</div></div>';
+
+      container.innerHTML = html;
+
+      container.querySelectorAll('th[data-sort-idx]').forEach(th => {
+        th.addEventListener('click', () => {
+          const idx = Number(th.getAttribute('data-sort-idx'));
+          if (!Number.isInteger(idx)) return;
+          if (state.sortIndex === idx) {
+            state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+          } else {
+            state.sortIndex = idx;
+            state.sortDir = 'asc';
+          }
+          state.page = 1;
+          persistState();
+          render();
+        });
+      });
+
+      const pageSizeSel = container.querySelector('[data-table-pagesize]');
+      if (pageSizeSel) {
+        pageSizeSel.addEventListener('change', () => {
+          const v = Number(pageSizeSel.value);
+          state.pageSize = allowedPageSizes.includes(v) ? v : 25;
+          state.page = 1;
+          persistState();
+          render();
+        });
+      }
+
+      const prevBtn = container.querySelector('button[data-page="prev"]');
+      const nextBtn = container.querySelector('button[data-page="next"]');
+      if (prevBtn) {
+        prevBtn.addEventListener('click', () => {
+          state.page = Math.max(1, state.page - 1);
+          persistState();
+          render();
+        });
+      }
+      if (nextBtn) {
+        nextBtn.addEventListener('click', () => {
+          state.page = Math.min(totalPages, state.page + 1);
+          persistState();
+          render();
+        });
+      }
+    }
+
+    render();
   }
 
   function renderPivot(container, data, cfg) {
@@ -202,7 +351,7 @@ window.BI = window.BI || {};
       };
     } else {
       chart.dispose();
-      renderTable(container, data);
+      renderTable(container, data, cfg);
       return;
     }
 
@@ -285,8 +434,26 @@ window.BI = window.BI || {};
     const cards = document.querySelectorAll('[data-bi-card="1"]');
     if (!cards.length) return;
 
+    const storageKey = window.BI_DASHBOARD_FILTERS_KEY || '';
     const state = window.BI_DASHBOARD_STATE || { filters: [] };
     window.BI_DASHBOARD_STATE = state;
+
+    if (storageKey && (!Array.isArray(state.filters) || !state.filters.length)) {
+      try {
+        const raw = localStorage.getItem(storageKey);
+        const parsed = raw ? JSON.parse(raw) : null;
+        if (parsed && Array.isArray(parsed.filters)) {
+          state.filters = parsed.filters;
+        }
+      } catch (e) {}
+    }
+
+    function persistDashboardFilters() {
+      if (!storageKey) return;
+      try {
+        localStorage.setItem(storageKey, JSON.stringify({ filters: state.filters || [] }));
+      } catch (e) {}
+    }
 
     function rerender() {
       for (const card of cards) {
@@ -298,11 +465,13 @@ window.BI = window.BI || {};
         if (cfg.type === 'pivot') {
           renderPivot(viz, filtered, cfg);
         } else if (cfg.type === 'table') {
-          renderTable(viz, filtered);
+          viz.setAttribute('data-table-state-key', `bi.table.dashboard.${id}`);
+          renderTable(viz, filtered, cfg);
         } else {
           renderChart(viz, filtered, cfg, (field, value) => {
             state.filters = (state.filters || []).filter(f => f.field !== field);
             state.filters.push({ field: field, op: 'eq', value: value });
+            persistDashboardFilters();
             renderFilterSummary();
             rerender();
           });
@@ -329,6 +498,7 @@ window.BI = window.BI || {};
           e.preventDefault();
           const idx = Number(a.getAttribute('data-rm'));
           state.filters.splice(idx, 1);
+          persistDashboardFilters();
           renderFilterSummary();
           rerender();
         });
@@ -345,6 +515,7 @@ window.BI = window.BI || {};
         const val = document.getElementById('bi-filter-value')?.value;
         if (!field || typeof val === 'undefined' || val === null || String(val).trim() === '') return;
         state.filters.push({ field: field, op: op, value: val });
+        persistDashboardFilters();
         renderFilterSummary();
         rerender();
       });
@@ -354,6 +525,7 @@ window.BI = window.BI || {};
       clearBtn.addEventListener('click', (e) => {
         e.preventDefault();
         state.filters = [];
+        persistDashboardFilters();
         renderFilterSummary();
         rerender();
       });
@@ -436,7 +608,8 @@ window.BI = window.BI || {};
       if (cfg.type === 'pivot') {
         renderPivot(previewEl, data, cfg);
       } else if (cfg.type === 'table') {
-        renderTable(previewEl, data);
+        previewEl.setAttribute('data-table-state-key', `bi.table.preview.${window.location.pathname || 'default'}`);
+        renderTable(previewEl, data, cfg);
       } else {
         renderChart(previewEl, data, cfg, null);
       }
@@ -474,7 +647,7 @@ window.BI = window.BI || {};
     if (type === 'pivot') {
       renderPivot(container, data, cfg);
     } else if (type === 'table' || !type) {
-      renderTable(container, data);
+      renderTable(container, data, cfg);
     } else {
       renderChart(container, data, cfg, onDrill || null);
     }

@@ -51,6 +51,11 @@
               <i class="bi bi-graph-up-arrow me-2"></i>{{ _('Relatórios') }}
             </a>
           </li>
+          <li>
+            <a class="dropdown-item" href="{{ url_for('finance.reports_accounting') }}">
+              <i class="bi bi-journal-check me-2"></i>{{ _('Rapport comptable') }}
+            </a>
+          </li>
         </ul>
       </div>
     </div>
@@ -62,6 +67,7 @@
     <li class="nav-item"><a class="nav-link {% if active=='transactions' %}active{% endif %}" href="{{ url_for('finance.transactions_list') }}">{{ _('Transações') }}</a></li>
     <li class="nav-item"><a class="nav-link {% if active=='quick_entry' %}active{% endif %}" href="{{ url_for('finance.quick_entry') }}">{{ _('Entrada rápida') }}</a></li>
     <li class="nav-item"><a class="nav-link {% if active=='reports' %}active{% endif %}" href="{{ url_for('finance.reports_transactions') }}">{{ _('Relatórios') }}</a></li>
+    <li class="nav-item"><a class="nav-link {% if active=='reports' %}active{% endif %}" href="{{ url_for('finance.reports_accounting') }}">{{ _('Rapport comptable') }}</a></li>
     <li class="nav-item"><a class="nav-link {% if active=='pivot' %}active{% endif %}" href="{{ url_for('finance.pivot_page') }}">{{ _('Pivot') }}</a></li>
     <li class="nav-item"><a class="nav-link {% if active=='invoices' %}active{% endif %}" href="{{ url_for('finance.invoices_list') }}">{{ _('E-faturas') }}</a></li>
     <li class="nav-item"><a class="nav-link {% if active=='alerts' %}active{% endif %}" href="{{ url_for('finance.alerts_page') }}">{{ _('Alertas') }}</a></li>

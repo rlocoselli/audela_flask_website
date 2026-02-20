@@ -1,0 +1,346 @@
+{% extends "portal/layout.html" %}
+{% set title = _('Project Management') %}
+
+{% block portal_content %}
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="h4 mb-1">{{ _('Projetos') }}</h1>
+    <div class="text-secondary small">{{ _('Kanban, Gantt, livrables et cérémonies Scrum/Agile – MVP') }}</div>
+  </div>
+  <div class="d-flex align-items-center gap-2">
+    <span id="pm-save-status" class="small text-secondary">{{ _('Chargement...') }}</span>
+    <button class="btn btn-sm btn-outline-primary" id="pm-save-now">{{ _('Sauvegarder') }}</button>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-lg-8">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h5 class="mb-0">{{ _('Kanban') }}</h5>
+          <button class="btn btn-sm btn-primary" id="pm-add-card">{{ _('Nouvelle carte') }}</button>
+        </div>
+        <div class="row g-2" id="pm-kanban">
+          <div class="col-md-3"><div class="border rounded p-2" data-col="backlog"><div class="fw-semibold small mb-2">Backlog</div><div class="d-grid gap-2 pm-col-body"></div></div></div>
+          <div class="col-md-3"><div class="border rounded p-2" data-col="todo"><div class="fw-semibold small mb-2">{{ _('À faire') }}</div><div class="d-grid gap-2 pm-col-body"></div></div></div>
+          <div class="col-md-3"><div class="border rounded p-2" data-col="doing"><div class="fw-semibold small mb-2">{{ _('En cours') }}</div><div class="d-grid gap-2 pm-col-body"></div></div></div>
+          <div class="col-md-3"><div class="border rounded p-2" data-col="done"><div class="fw-semibold small mb-2">{{ _('Terminé') }}</div><div class="d-grid gap-2 pm-col-body"></div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-body">
+        <h5 class="mb-2">{{ _('Cérémonies Scrum') }}</h5>
+        <ul class="list-group list-group-flush" id="pm-ceremonies"></ul>
+        <button class="btn btn-sm btn-outline-primary mt-2" id="pm-add-ceremony">{{ _('Ajouter cérémonie') }}</button>
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <h5 class="mb-2">{{ _('Arbre des livrables') }}</h5>
+        <div id="pm-deliverables" class="small"></div>
+        <button class="btn btn-sm btn-outline-primary mt-2" id="pm-add-deliverable">{{ _('Ajouter item') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-body">
+    <div class="d-flex align-items-center justify-content-between mb-2">
+      <h5 class="mb-0">{{ _('Graph Gantt (simple)') }}</h5>
+      <button class="btn btn-sm btn-outline-primary" id="pm-add-gantt">{{ _('Ajouter tâche') }}</button>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle" id="pm-gantt-table">
+        <thead>
+          <tr>
+            <th>{{ _('Tâche') }}</th>
+            <th>{{ _('Début') }}</th>
+            <th>{{ _('Fin') }}</th>
+            <th>{{ _('Timeline') }}</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script>
+    window.onReady(function(){
+      const API_GET = '{{ url_for("portal.project_workspace_get") }}';
+      const API_SAVE = '{{ url_for("portal.project_workspace_save") }}';
+      const FALLBACK_KEY = 'audela.pm.mini.v1';
+      const statusEl = document.getElementById('pm-save-status');
+      const state = {
+        cards: [],
+        ceremonies: [],
+        deliverables: [],
+        gantt: []
+      };
+
+      function setStatus(text, klass){
+        if (!statusEl) return;
+        statusEl.className = 'small ' + (klass || 'text-secondary');
+        statusEl.textContent = text || '';
+      }
+
+      function fallbackSave(){
+        try { localStorage.setItem(FALLBACK_KEY, JSON.stringify(state)); } catch (e) {}
+      }
+
+      function fallbackLoad(){
+        try {
+          const raw = localStorage.getItem(FALLBACK_KEY);
+          const parsed = raw ? JSON.parse(raw) : {};
+          if (parsed && typeof parsed === 'object') {
+            state.cards = Array.isArray(parsed.cards) ? parsed.cards : [];
+            state.ceremonies = Array.isArray(parsed.ceremonies) ? parsed.ceremonies : [];
+            state.deliverables = Array.isArray(parsed.deliverables) ? parsed.deliverables : [];
+            state.gantt = Array.isArray(parsed.gantt) ? parsed.gantt : [];
+          }
+        } catch (e) {}
+      }
+
+      function csrfToken(){
+        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+      }
+
+      function uid(){ return Math.random().toString(36).slice(2, 10); }
+
+      function applyServerState(payload){
+        const parsed = payload && typeof payload === 'object' ? payload : {};
+        state.cards = Array.isArray(parsed.cards) ? parsed.cards : [];
+        state.ceremonies = Array.isArray(parsed.ceremonies) ? parsed.ceremonies : [];
+        state.deliverables = Array.isArray(parsed.deliverables) ? parsed.deliverables : [];
+        state.gantt = Array.isArray(parsed.gantt) ? parsed.gantt : [];
+      }
+
+      async function saveNow(){
+        setStatus('{{ _('Sauvegarde...') }}', 'text-secondary');
+        try {
+          const token = csrfToken();
+          const res = await fetch(API_SAVE, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? {'X-CSRFToken': token} : {})
+            },
+            body: JSON.stringify({ state: state })
+          });
+          const data = await res.json();
+          if (!res.ok || !data.ok) throw new Error((data && data.error) || 'save failed');
+          fallbackSave();
+          setStatus('{{ _('Sauvegardé') }}', 'text-success');
+        } catch (e) {
+          fallbackSave();
+          setStatus('{{ _('Sauvegarde locale uniquement') }}', 'text-warning');
+        }
+      }
+
+      let saveTimer = null;
+      function scheduleSave(){
+        fallbackSave();
+        if (saveTimer) clearTimeout(saveTimer);
+        setStatus('{{ _('Modifications non sauvegardées') }}', 'text-warning');
+        saveTimer = setTimeout(function(){
+          saveNow();
+        }, 900);
+      }
+
+      async function loadWorkspace(){
+        try {
+          const res = await fetch(API_GET, { method: 'GET' });
+          const data = await res.json();
+          if (!res.ok || !data.ok) throw new Error((data && data.error) || 'load failed');
+          applyServerState(data.state || {});
+          setStatus('{{ _('Chargé depuis la base') }}', 'text-secondary');
+          return true;
+        } catch (e) {
+          fallbackLoad();
+          setStatus('{{ _('Chargé en local (hors ligne)') }}', 'text-warning');
+          return false;
+        }
+      }
+
+      function renderAll(){
+        renderKanban();
+        renderCeremonies();
+        renderDeliverables();
+        renderGantt();
+      }
+
+      function renderKanban(){
+        document.querySelectorAll('#pm-kanban [data-col]').forEach(function(col){
+          const body = col.querySelector('.pm-col-body');
+          body.innerHTML = '';
+          const key = col.getAttribute('data-col');
+          state.cards.filter(c => c.col === key).forEach(function(c){
+            const item = document.createElement('div');
+            item.className = 'border rounded p-2 bg-body-tertiary';
+            item.innerHTML = '<div class="fw-semibold small">' + c.title + '</div><div class="small text-secondary">' + (c.owner || '-') + '</div>';
+            item.addEventListener('click', function(){
+              const next = prompt('Colonne: backlog|todo|doing|done', c.col) || c.col;
+              c.col = ['backlog','todo','doing','done'].includes(next) ? next : c.col;
+              renderKanban();
+              scheduleSave();
+            });
+            body.appendChild(item);
+          });
+        });
+      }
+
+      function renderCeremonies(){
+        const el = document.getElementById('pm-ceremonies');
+        el.innerHTML = '';
+        state.ceremonies.forEach(function(c){
+          const li = document.createElement('li');
+          li.className = 'list-group-item d-flex justify-content-between align-items-center';
+          li.innerHTML = '<span><strong>' + c.type + '</strong> · ' + c.when + '</span><button class="btn btn-sm btn-outline-danger">×</button>';
+          li.querySelector('button').addEventListener('click', function(){
+            state.ceremonies = state.ceremonies.filter(x => x.id !== c.id);
+            renderCeremonies();
+            scheduleSave();
+          });
+          el.appendChild(li);
+        });
+      }
+
+      function renderDeliverables(){
+        const el = document.getElementById('pm-deliverables');
+        el.innerHTML = '';
+        if (!state.deliverables.length) {
+          el.innerHTML = '<span class="text-secondary">Aucun item</span>';
+          return;
+        }
+        const ul = document.createElement('ul');
+        ul.className = 'mb-0';
+        state.deliverables.forEach(function(d){
+          const li = document.createElement('li');
+          li.innerHTML = '<label><input type="checkbox" ' + (d.done ? 'checked' : '') + '> ' + d.label + '</label>';
+          li.querySelector('input').addEventListener('change', function(e){
+            d.done = !!e.target.checked;
+            scheduleSave();
+          });
+          ul.appendChild(li);
+        });
+        el.appendChild(ul);
+      }
+
+      function dt(v){ const d = new Date(v); return Number.isNaN(+d) ? null : d; }
+      function fmtDate(v){ const d = dt(v); return d ? d.toISOString().slice(0,10) : ''; }
+      function daysBetween(a,b){ return Math.max(1, Math.round((b-a)/(1000*60*60*24))+1); }
+
+      function renderGantt(){
+        const tbody = document.querySelector('#pm-gantt-table tbody');
+        tbody.innerHTML = '';
+        if (!state.gantt.length) return;
+
+        const allStart = state.gantt.map(g => dt(g.start)).filter(Boolean);
+        const allEnd = state.gantt.map(g => dt(g.end)).filter(Boolean);
+        if (!allStart.length || !allEnd.length) return;
+        const min = new Date(Math.min.apply(null, allStart));
+        const max = new Date(Math.max.apply(null, allEnd));
+        const total = daysBetween(min, max);
+
+        state.gantt.forEach(function(g){
+          const s = dt(g.start), e = dt(g.end);
+          if (!s || !e) return;
+          const offset = daysBetween(min, s) - 1;
+          const len = daysBetween(s, e);
+          const left = Math.max(0, (offset / total) * 100);
+          const width = Math.max(2, (len / total) * 100);
+          const tr = document.createElement('tr');
+          tr.innerHTML = '<td>' + g.task + '</td><td>' + fmtDate(g.start) + '</td><td>' + fmtDate(g.end) + '</td>' +
+            '<td><div style="position:relative;height:16px;background:var(--bs-light);border-radius:8px;overflow:hidden;"><div style="position:absolute;left:' + left + '%;width:' + width + '%;top:0;bottom:0;background:var(--bs-primary);"></div></div></td>';
+          tbody.appendChild(tr);
+        });
+      }
+
+      document.getElementById('pm-add-card')?.addEventListener('click', function(){
+        const title = prompt('Titre de carte');
+        if (!title) return;
+        const owner = prompt('Responsable') || '';
+        state.cards.push({ id: uid(), title: title, owner: owner, col: 'backlog' });
+        renderKanban();
+        scheduleSave();
+      });
+
+      document.getElementById('pm-add-ceremony')?.addEventListener('click', function(){
+        const type = prompt('Type (planning/daily/review/retro)');
+        if (!type) return;
+        const when = prompt('Quand ? (ex: 2026-03-01 10:00)') || '';
+        state.ceremonies.push({ id: uid(), type: type, when: when });
+        renderCeremonies();
+        scheduleSave();
+      });
+
+      document.getElementById('pm-add-deliverable')?.addEventListener('click', function(){
+        const label = prompt('Nom du livrable / item');
+        if (!label) return;
+        state.deliverables.push({ id: uid(), label: label, done: false });
+        renderDeliverables();
+        scheduleSave();
+      });
+
+      document.getElementById('pm-add-gantt')?.addEventListener('click', function(){
+        const task = prompt('Tâche');
+        if (!task) return;
+        const start = prompt('Date début YYYY-MM-DD');
+        const end = prompt('Date fin YYYY-MM-DD');
+        if (!start || !end) return;
+        state.gantt.push({ id: uid(), task: task, start: start, end: end });
+        renderGantt();
+        scheduleSave();
+      });
+
+      document.getElementById('pm-save-now')?.addEventListener('click', function(){
+        saveNow();
+      });
+
+      (async function init(){
+        await loadWorkspace();
+
+        if (!state.cards.length) {
+          state.cards = [
+            { id: uid(), title: 'Kickoff projet', owner: 'PO', col: 'todo' },
+            { id: uid(), title: 'Setup backlog MVP', owner: 'PM', col: 'doing' }
+          ];
+        }
+        if (!state.ceremonies.length) {
+          state.ceremonies = [
+            { id: uid(), type: 'planning', when: 'Lundi 09:30' },
+            { id: uid(), type: 'daily', when: 'Chaque jour 10:00' },
+            { id: uid(), type: 'review', when: 'Vendredi 16:00' }
+          ];
+        }
+        if (!state.deliverables.length) {
+          state.deliverables = [
+            { id: uid(), label: 'Epic: Portail client', done: false },
+            { id: uid(), label: 'Feature: Tableau Kanban', done: true },
+            { id: uid(), label: 'Task: Vue Gantt', done: false }
+          ];
+        }
+        if (!state.gantt.length) {
+          state.gantt = [
+            { id: uid(), task: 'Discovery', start: '2026-02-20', end: '2026-02-24' },
+            { id: uid(), task: 'MVP Build', start: '2026-02-25', end: '2026-03-05' },
+            { id: uid(), task: 'UAT + GoLive', start: '2026-03-06', end: '2026-03-10' }
+          ];
+        }
+
+        renderAll();
+        await saveNow();
+      })();
+    });
+  </script>
+{% endblock %}

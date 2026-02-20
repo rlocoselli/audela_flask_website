@@ -6,11 +6,11 @@
   
   <!-- Filters Card -->
   <div class="card mb-3 sticky-top" style="top: 1rem; z-index: 10; box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);">
-    <div class="card-header fw-semibold">{{ _('Filtrar Transações') }}</div>
+    <div class="card-header fw-semibold" data-tip="{{ _('Filtrer les mouvements financiers par compte, catégorie, contrepartie et période.') }}">{{ _('Filtrar Transações') }}</div>
     <div class="card-body">
       <form method="get" class="row g-3">
         <div class="col-12 col-md-2">
-          <label class="form-label">{{ _('Conta') }}</label>
+          <label class="form-label" data-tip="{{ _('Limiter aux transactions d’un compte spécifique.') }}">{{ _('Conta') }}</label>
           <select class="form-select" name="account_id">
             <option value="">{{ _('Todas as contas') }}</option>
             {% for acc in accounts %}
@@ -20,7 +20,7 @@
         </div>
         
         <div class="col-12 col-md-2">
-          <label class="form-label">{{ _('Categoria') }}</label>
+          <label class="form-label" data-tip="{{ _('Filtrer selon la catégorie analytique ou comptable.') }}">{{ _('Categoria') }}</label>
           <select class="form-select" name="category_id">
             <option value="">{{ _('Todas as categorias') }}</option>
             {% for cat in categories %}
@@ -30,7 +30,7 @@
         </div>
         
         <div class="col-12 col-md-2">
-          <label class="form-label">{{ _('Contraparte') }}</label>
+          <label class="form-label" data-tip="{{ _('Filtrer par client, fournisseur ou autre contrepartie.') }}">{{ _('Contraparte') }}</label>
           <select class="form-select" name="counterparty_id">
             <option value="">{{ _('Todas as contrapartes') }}</option>
             {% for cp in counterparties %}
@@ -40,7 +40,7 @@
         </div>
         
         <div class="col-12 col-md-2">
-          <label class="form-label">{{ _('Tipo de Movimento') }}</label>
+          <label class="form-label" data-tip="{{ _('Séparer les entrées de trésorerie des sorties.') }}">{{ _('Tipo de Movimento') }}</label>
           <select class="form-select" name="type">
             <option value="">{{ _('Todos os tipos') }}</option>
             <option value="inflow" {% if txn_type == 'inflow' %}selected{% endif %}>{{ _('Entrada') }}</option>
@@ -59,15 +59,15 @@
         </div>
         
         <div class="col-12 col-md-2">
-          <button type="submit" class="btn btn-primary w-100">{{ _('Aplicar Filtros') }}</button>
+          <button type="submit" class="btn btn-primary w-100" data-tip="{{ _('Appliquer les critères de recherche à la liste des transactions.') }}">{{ _('Aplicar Filtros') }}</button>
         </div>
         
         <div class="col-12 col-md-2">
-          <a href="{{ url_for('finance.transactions_list') }}" class="btn btn-secondary w-100">{{ _('Limpar Filtros') }}</a>
+          <a href="{{ url_for('finance.transactions_list') }}" class="btn btn-secondary w-100" data-tip="{{ _('Réinitialiser tous les filtres et revenir à la vue complète.') }}">{{ _('Limpar Filtros') }}</a>
         </div>
         
         <div class="col-12 col-md-2">
-          <label class="form-label">{{ _('Número de Registros') }}</label>
+          <label class="form-label" data-tip="{{ _('Nombre de lignes affichées par page.') }}">{{ _('Número de Registros') }}</label>
           <select class="form-select" name="per_page" onchange="this.form.submit()">
             <option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
             <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
@@ -83,7 +83,7 @@
   <div class="card mb-3">
     <div class="card-body row g-0">
       <div class="col-6 col-md-3">
-        <div class="text-secondary small">{{ _('Total de Transações') }}</div>
+        <div class="text-secondary small" data-tip="{{ _('Nombre total de transactions correspondant aux filtres courants.') }}">{{ _('Total de Transações') }}</div>
         <div class="h5 mb-0 fw-semibold">{{ pagination.total }}</div>
       </div>
       <div class="col-6 col-md-3">
@@ -106,7 +106,8 @@
                 <th>{{ _('Descrição') }}</th>
                 <th>{{ _('Categoria') }}</th>
                 <th>{{ _('Contraparte') }}</th>
-                <th class="text-end">{{ _('Valor') }}</th>
+                <th class="text-end" data-tip="{{ _('Montant signé: positif pour entrée, négatif pour sortie.') }}">{{ _('Valor') }}</th>
+                <th class="text-end">{{ _('Actions') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -139,6 +140,14 @@
                     {% else %}
                       <span class="text-danger">{{ "{:,.2f}".format(txn.amount or 0) }}</span>
                     {% endif %}
+                  </td>
+                  <td class="text-end">
+                    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('finance.transaction_edit', txn_id=txn.id, next=request.full_path) }}">{{ _('Editar') }}</a>
+                    <form method="post" action="{{ url_for('finance.transaction_delete', txn_id=txn.id) }}" class="d-inline" onsubmit="return confirm('{{ _('Remover esta transação?') }}');">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                      <input type="hidden" name="next" value="{{ request.full_path }}" />
+                      <button class="btn btn-sm btn-outline-danger" type="submit">{{ _('Remover') }}</button>
+                    </form>
                   </td>
                 </tr>
               {% endfor %}

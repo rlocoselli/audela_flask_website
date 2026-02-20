@@ -1,18 +1,18 @@
 {% extends "portal/layout.html" %}
-{% set title = "Dashboards" %}
+{% set title = _('Dashboards') %}
 
 {% block portal_content %}
   <div class="box">
-    <p><a class="button" href="{{ url_for('portal.dashboards_new') }}">Novo dashboard</a></p>
+    <p><a class="button" data-tip="{{ _('Créer un nouveau dashboard BI à partir de questions sauvegardées.') }}" href="{{ url_for('portal.dashboards_new') }}">{{ _('Nouveau dashboard') }}</a></p>
     {% if not dashboards %}
-      <p>Nenhum dashboard criado ainda.</p>
+      <p>{{ _('Aucun dashboard créé pour le moment.') }}</p>
     {% else %}
       <div style="overflow-x:auto;">
         <table class="table">
           <thead>
             <tr>
-              <th>Nome</th>
-              <th>Atualizado</th>
+              <th data-tip="{{ _('Nom fonctionnel du dashboard affiché dans la navigation BI.') }}">{{ _('Nom') }}</th>
+              <th data-tip="{{ _('Date de dernière modification du dashboard.') }}">{{ _('Mis à jour') }}</th>
               <th></th>
             </tr>
           </thead>
@@ -22,9 +22,9 @@
                 <td><a href="{{ url_for('portal.dashboard_view', dashboard_id=d.id) }}">{{ d.name }}</a></td>
                 <td>{{ d.updated_at }}</td>
                 <td>
-                  <form method="post" action="{{ url_for('portal.dashboards_delete', dashboard_id=d.id) }}" style="display:inline;" onsubmit="return confirm('Excluir dashboard?');">
+                  <form method="post" action="{{ url_for('portal.dashboards_delete', dashboard_id=d.id) }}" style="display:inline;" onsubmit="return confirm('{{ _('Supprimer ce dashboard ?') }}');">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                    <button type="submit" class="button small">Excluir</button>
+                    <button type="submit" class="button small" data-tip="{{ _('Supprimer définitivement ce dashboard et sa configuration.') }}">{{ _('Supprimer') }}</button>
                   </form>
                 </td>
               </tr>
