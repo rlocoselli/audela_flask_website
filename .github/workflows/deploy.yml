@@ -69,17 +69,29 @@ jobs:
               sleep 3
             done
 
+            # Pre-fix: if project_workspaces table already exists, mark its migration as applied.
+            PW_EXISTS="$($COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela python -c "from sqlalchemy import text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); exists=db.session.execute(text(\"SELECT to_regclass('public.project_workspaces')\")).scalar(); print('1' if exists else '0'); ctx.pop()" 2>/dev/null || echo 0)"
+            if [ "$PW_EXISTS" = "1" ]; then
+              echo "ℹ️ project_workspaces exists -> pre-stamp 20260220_add_project_workspaces"
+              $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db stamp 20260220_add_project_workspaces || true
+            fi
+
             # Retry migrations to handle transient startup race conditions
             MIG_OK=0
             for i in $(seq 1 5); do
               echo "🧭 Alembic heads (attempt $i):"
               $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db heads || true
 
-              MIG_OUT="$($COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db upgrade 2>&1)" && {
+              set +e
+              MIG_OUT="$($COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db upgrade 2>&1)"
+              MIG_RC=$?
+              set -e
+
+              if [ "$MIG_RC" -eq 0 ]; then
                 echo "$MIG_OUT"
                 MIG_OK=1
                 break
-              }
+              fi
               echo "$MIG_OUT"
 
               if echo "$MIG_OUT" | grep -Eqi "DuplicateTable|already exists" && echo "$MIG_OUT" | grep -Eqi "project_workspaces"; then
