@@ -1,0 +1,461 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'stats' %}
+
+{% block finance_content %}
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-12 col-md-3">
+          <label class="form-label">{{ _('Data início') }}</label>
+          <input type="date" class="form-control" name="start" value="{{ start.isoformat() }}" />
+        </div>
+        <div class="col-12 col-md-3">
+          <label class="form-label">{{ _('Data fim') }}</label>
+          <input type="date" class="form-control" name="end" value="{{ end.isoformat() }}" />
+        </div>
+        <div class="col-12 col-md-2">
+          <label class="form-label">{{ _('Granularité') }}</label>
+          <select class="form-select" name="granularity">
+            <option value="month" {% if granularity=='month' %}selected{% endif %}>{{ _('Mensuel') }}</option>
+            <option value="quarter" {% if granularity=='quarter' %}selected{% endif %}>{{ _('Trimestriel') }}</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-2">
+          <button class="btn btn-outline-secondary w-100">{{ _('Filtrar') }}</button>
+        </div>
+        <div class="col-12 col-md-2 text-md-end text-secondary small">
+          {{ _('Período') }}: <span class="fw-semibold">{{ start }} → {{ end }}</span>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-md-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="text-secondary small">{{ _('Média despesas') }}</div>
+          <div class="h5 mb-0">{{ kpis.avg_expense_fmt }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="text-secondary small">{{ _('Média receitas') }}</div>
+          <div class="h5 mb-0">{{ kpis.avg_income_fmt }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="text-secondary small">{{ _('Outliers detectados') }}</div>
+          <div class="h5 mb-0">{{ kpis.outliers_count }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="text-secondary small">{{ _('Total passifs suivis') }}</div>
+          <div class="h5 mb-0">{{ kpis.total_liabilities_fmt }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-md-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="text-secondary small">{{ _('Médiane dépenses') }}</div>
+          <div class="h5 mb-0">{{ kpis.median_expense_fmt }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="text-secondary small">{{ _('Ratio dépenses/recettes') }}</div>
+          <div class="h5 mb-0">{% if kpis.expense_income_ratio_pct is not none %}{{ '%.2f'|format(kpis.expense_income_ratio_pct) }}%{% else %}—{% endif %}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="text-secondary small">{{ _('Volatilité mensuelle') }}</div>
+          <div class="h5 mb-0">{{ '%.2f'|format(kpis.monthly_volatility_pct) }}%</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-3">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="text-secondary small">{{ _('Monte Carlo M+6 attendu') }}</div>
+          <div class="h5 mb-0">{{ kpis.mc_expected_last_fmt }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-lg-6">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="fw-semibold mb-2">{{ _('Moyenne par catégorie (dépenses)') }}</div>
+          <div id="chart-category-avg" style="height: 280px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-6">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <div class="fw-semibold">{{ _('Tendance des dépenses') }}</div>
+            <span class="badge text-bg-light border">{{ _('Tendance') }}: {{ kpis.trend_label }}{% if kpis.trend_change_pct is not none %} ({{ '%+.2f'|format(kpis.trend_change_pct) }}%){% endif %}</span>
+          </div>
+          <div id="chart-expense-trend" style="height: 280px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="fw-semibold mb-2">{{ _('Distribution gaussienne des dépenses (détection outliers)') }}</div>
+      <div id="chart-gauss" style="height: 320px;"></div>
+      <div class="text-secondary small mt-2">
+        {{ _('Moyenne') }}: {{ '%.2f'|format(gauss.mean) }} · {{ _('Écart-type') }}: {{ '%.2f'|format(gauss.std) }} · {{ _('Règle') }}: |z| ≥ 2
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-lg-6">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="fw-semibold mb-2">{{ _('Projection Monte Carlo (dépenses)') }}</div>
+          <div id="chart-monte-carlo" style="height: 300px;"></div>
+          <div class="text-secondary small mt-2">{{ _('Bandes P10 / P50 / P90 sur {n} périodes.', n=kpis.mc_horizon) }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-6">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <div class="fw-semibold">{{ _('Corrélation catégories (dépenses)') }}</div>
+            <span class="badge text-bg-light border">{{ _('Top corrélation') }}: {{ kpis.corr_top_pair }} ({{ '%+.2f'|format(kpis.corr_top_value) }})</span>
+          </div>
+          <div id="chart-correlation" style="height: 300px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-lg-6">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="fw-semibold mb-2">{{ _('Passifs les plus importants') }}</div>
+          {% if liability_rows %}
+            <div class="table-responsive">
+              <table class="table table-sm align-middle">
+                <thead>
+                  <tr>
+                    <th>{{ _('Nom') }}</th>
+                    <th>{{ _('Prêteur') }}</th>
+                    <th>{{ _('Échéance') }}</th>
+                    <th class="text-end">{{ _('Encours') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in liability_rows %}
+                    <tr>
+                      <td>{{ row.name }}</td>
+                      <td>{{ row.lender }}</td>
+                      <td>{{ row.maturity_date or '—' }}</td>
+                      <td class="text-end">{{ row.outstanding_fmt }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="text-secondary">{{ _('Aucun passif enregistré.') }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-6">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="fw-semibold mb-2">{{ _('Produits les plus vendus') }}</div>
+          {% if top_products %}
+            <div class="table-responsive">
+              <table class="table table-sm align-middle">
+                <thead>
+                  <tr>
+                    <th>{{ _('Produit') }}</th>
+                    <th class="text-end">{{ _('Quantité') }}</th>
+                    <th class="text-end">{{ _('CA brut') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in top_products %}
+                    <tr>
+                      <td>{{ row.name }}</td>
+                      <td class="text-end">{{ row.quantity }}</td>
+                      <td class="text-end">{{ row.gross_fmt }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="text-secondary">{{ _('Aucune vente sur la période.') }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-lg-6">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="fw-semibold mb-2">{{ _('Investissements les plus rentables') }}</div>
+          {% if top_investments %}
+            <div class="table-responsive">
+              <table class="table table-sm align-middle">
+                <thead>
+                  <tr>
+                    <th>{{ _('Nom') }}</th>
+                    <th>{{ _('Type') }}</th>
+                    <th class="text-end">ROI</th>
+                    <th class="text-end">{{ _('P/L') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in top_investments %}
+                    <tr>
+                      <td>{{ row.name }}</td>
+                      <td>{{ row.provider }}</td>
+                      <td class="text-end">{{ '%+.2f'|format(row.roi_pct) }}%</td>
+                      <td class="text-end">{{ row.pnl_fmt }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="text-secondary">{{ _('Aucun investissement exploitable.') }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-6">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="fw-semibold mb-2">{{ _('Transactions outliers') }}</div>
+          {% if outlier_rows %}
+            <div class="table-responsive">
+              <table class="table table-sm align-middle">
+                <thead>
+                  <tr>
+                    <th>{{ _('Data') }}</th>
+                    <th>{{ _('Categoria') }}</th>
+                    <th>{{ _('Descrição') }}</th>
+                    <th class="text-end">{{ _('Valor') }}</th>
+                    <th class="text-end">z-score</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in outlier_rows %}
+                    <tr>
+                      <td>{{ row.txn_date }}</td>
+                      <td>{{ row.category }}</td>
+                      <td>{{ row.description }}</td>
+                      <td class="text-end">{{ row.amount_fmt }}</td>
+                      <td class="text-end">{{ '%+.2f'|format(row.zscore) }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="text-secondary">{{ _('Aucun outlier détecté sur la période.') }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <script>
+    (window.onReady || function(fn){ window.addEventListener('load', fn); })(function(){
+      if (!window.echarts) return;
+
+      const categoryChartData = {{ category_chart|tojson }};
+      const trendData = {{ trend|tojson }};
+      const gaussData = {{ gauss|tojson }};
+      const monteCarloData = {{ montecarlo|tojson }};
+      const correlationData = {{ correlation|tojson }};
+
+      const categoryEl = document.getElementById('chart-category-avg');
+      if (categoryEl) {
+        const chart = echarts.init(categoryEl);
+        chart.setOption({
+          tooltip: { trigger: 'axis' },
+          xAxis: { type: 'value' },
+          yAxis: { type: 'category', data: categoryChartData.labels || [] },
+          series: [{
+            type: 'bar',
+            data: categoryChartData.values || [],
+            barMaxWidth: 24,
+          }]
+        });
+        window.addEventListener('resize', function(){ try { chart.resize(); } catch (_e) {} });
+      }
+
+      const trendEl = document.getElementById('chart-expense-trend');
+      if (trendEl) {
+        const chart = echarts.init(trendEl);
+        chart.setOption({
+          tooltip: { trigger: 'axis' },
+          xAxis: { type: 'category', data: trendData.labels || [] },
+          yAxis: { type: 'value', scale: true },
+          series: [{
+            name: window.t('Dépenses'),
+            type: 'line',
+            smooth: true,
+            data: trendData.values || [],
+            areaStyle: { opacity: 0.12 },
+            showSymbol: false,
+          }]
+        });
+        window.addEventListener('resize', function(){ try { chart.resize(); } catch (_e) {} });
+      }
+
+      const gaussEl = document.getElementById('chart-gauss');
+      if (gaussEl) {
+        const zValues = Array.isArray(gaussData.z_values) ? gaussData.z_values : [];
+        const chart = echarts.init(gaussEl);
+
+        if (!zValues.length) {
+          chart.setOption({ title: { text: window.t('Pas assez de données') } });
+          return;
+        }
+
+        const bins = [-3, -2, -1, 0, 1, 2, 3];
+        const hist = [0, 0, 0, 0, 0, 0];
+        zValues.forEach((z) => {
+          for (let i = 0; i < bins.length - 1; i += 1) {
+            if (z >= bins[i] && z < bins[i + 1]) {
+              hist[i] += 1;
+              return;
+            }
+          }
+          if (z >= 3) hist[5] += 1;
+          if (z < -3) hist[0] += 1;
+        });
+
+        const gaussPoints = [];
+        for (let x = -3; x <= 3.0001; x += 0.1) {
+          const y = (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-0.5 * x * x);
+          gaussPoints.push([x.toFixed(1), y]);
+        }
+        const maxHist = Math.max(1, ...hist);
+        const maxGauss = Math.max(...gaussPoints.map((p) => p[1]));
+        const scaledGauss = gaussPoints.map((p) => [p[0], (p[1] / maxGauss) * maxHist]);
+
+        chart.setOption({
+          tooltip: { trigger: 'axis' },
+          legend: { data: [window.t('Histogramme z-scores'), window.t('Courbe gaussienne')] },
+          xAxis: {
+            type: 'category',
+            data: ['-3/-2', '-2/-1', '-1/0', '0/1', '1/2', '2/3+']
+          },
+          yAxis: { type: 'value' },
+          series: [
+            {
+              name: window.t('Histogramme z-scores'),
+              type: 'bar',
+              data: hist,
+              barMaxWidth: 36,
+            },
+            {
+              name: window.t('Courbe gaussienne'),
+              type: 'line',
+              smooth: true,
+              data: [scaledGauss[5][1], scaledGauss[15][1], scaledGauss[25][1], scaledGauss[35][1], scaledGauss[45][1], scaledGauss[55][1]],
+              showSymbol: false,
+            }
+          ]
+        });
+        window.addEventListener('resize', function(){ try { chart.resize(); } catch (_e) {} });
+      }
+
+      const mcEl = document.getElementById('chart-monte-carlo');
+      if (mcEl) {
+        const chart = echarts.init(mcEl);
+        chart.setOption({
+          tooltip: { trigger: 'axis' },
+          legend: { data: ['P10', 'P50', 'P90'] },
+          xAxis: { type: 'category', data: monteCarloData.labels || [] },
+          yAxis: { type: 'value', scale: true },
+          series: [
+            { name: 'P10', type: 'line', data: monteCarloData.p10 || [], smooth: true, showSymbol: false },
+            { name: 'P50', type: 'line', data: monteCarloData.p50 || [], smooth: true, showSymbol: false },
+            { name: 'P90', type: 'line', data: monteCarloData.p90 || [], smooth: true, showSymbol: false },
+          ]
+        });
+        window.addEventListener('resize', function(){ try { chart.resize(); } catch (_e) {} });
+      }
+
+      const corrEl = document.getElementById('chart-correlation');
+      if (corrEl) {
+        const labels = correlationData.labels || [];
+        const matrix = correlationData.matrix || [];
+        const chart = echarts.init(corrEl);
+        if (labels.length < 2 || !matrix.length) {
+          chart.setOption({ title: { text: window.t('Pas assez de données') } });
+        } else {
+          chart.setOption({
+            tooltip: {
+              position: 'top',
+              formatter: function (p) {
+                const x = labels[p.data[0]];
+                const y = labels[p.data[1]];
+                return `${x} ↔ ${y}: ${Number(p.data[2]).toFixed(2)}`;
+              }
+            },
+            xAxis: { type: 'category', data: labels, splitArea: { show: true }, axisLabel: { rotate: 25 } },
+            yAxis: { type: 'category', data: labels, splitArea: { show: true } },
+            visualMap: {
+              min: -1,
+              max: 1,
+              calculable: false,
+              orient: 'horizontal',
+              left: 'center',
+              bottom: 0,
+            },
+            series: [{
+              type: 'heatmap',
+              data: matrix,
+              label: { show: true, formatter: function(p){ return Number(p.data[2]).toFixed(2); } }
+            }]
+          });
+        }
+        window.addEventListener('resize', function(){ try { chart.resize(); } catch (_e) {} });
+      }
+    });
+  </script>
+{% endblock %}

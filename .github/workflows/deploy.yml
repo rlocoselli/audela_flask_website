@@ -72,7 +72,7 @@ jobs:
             # Retry migrations to handle transient startup race conditions
             MIG_OK=0
             for i in $(seq 1 5); do
-              if $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db upgrade; then
+              if $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db upgrade heads; then
                 MIG_OK=1
                 break
               fi

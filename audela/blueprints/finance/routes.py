@@ -4,6 +4,7 @@ import logging
 import time
 import uuid
 import os
+import random
 from datetime import date, datetime, timedelta
 from io import BytesIO
 from decimal import Decimal
@@ -2642,6 +2643,402 @@ def reports_transactions():
         by_category=_top_map(by_cat),
         by_counterparty=_top_map(by_cp),
         latest=latest_rows,
+    )
+
+
+@bp.route("/reports/statistics")
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def reports_statistics():
+    company = _get_company()
+    base_cur = company.base_currency or "EUR"
+    granularity = (request.args.get("granularity") or "month").strip().lower()
+    if granularity not in {"month", "quarter"}:
+        granularity = "month"
+
+    today = date.today()
+    default_start = today - timedelta(days=365)
+    try:
+        start = datetime.strptime((request.args.get("start") or default_start.isoformat()), "%Y-%m-%d").date()
+    except Exception:
+        start = default_start
+    try:
+        end = datetime.strptime((request.args.get("end") or today.isoformat()), "%Y-%m-%d").date()
+    except Exception:
+        end = today
+    if end < start:
+        start, end = end, start
+
+    txns = (
+        _q_txns(company)
+        .filter(FinanceTransaction.txn_date >= start)
+        .filter(FinanceTransaction.txn_date <= end)
+        .order_by(FinanceTransaction.txn_date.asc(), FinanceTransaction.id.asc())
+        .all()
+    )
+
+    expense_rows: list[dict] = []
+    income_values: list[Decimal] = []
+    by_category_expense: dict[str, dict] = {}
+    period_expenses: dict[str, Decimal] = {}
+    period_income: dict[str, Decimal] = {}
+    by_category_period: dict[str, dict[str, Decimal]] = {}
+
+    def _period_key(d: date) -> str:
+        if granularity == "quarter":
+            q = ((d.month - 1) // 3) + 1
+            return f"{d.year}-Q{q}"
+        return d.strftime("%Y-%m")
+
+    def _period_start(d: date) -> date:
+        if granularity == "quarter":
+            sm = ((d.month - 1) // 3) * 3 + 1
+            return date(d.year, sm, 1)
+        return date(d.year, d.month, 1)
+
+    def _next_period_start(d: date) -> date:
+        step = 3 if granularity == "quarter" else 1
+        y = d.year
+        m = d.month + step
+        while m > 12:
+            y += 1
+            m -= 12
+        return date(y, m, 1)
+
+    for t in txns:
+        amt = Decimal(str(t.amount or 0))
+        cat_name = (t.category_ref.name if getattr(t, "category_ref", None) else None) or (t.category or "Sem categoria")
+        if amt < 0:
+            exp_amt = abs(amt)
+            pkey = _period_key(t.txn_date)
+            expense_rows.append(
+                {
+                    "txn_date": t.txn_date,
+                    "description": t.description or "",
+                    "category": cat_name,
+                    "amount": exp_amt,
+                }
+            )
+            bucket = by_category_expense.setdefault(cat_name, {"count": 0, "total": Decimal("0")})
+            bucket["count"] += 1
+            bucket["total"] += exp_amt
+            period_expenses[pkey] = period_expenses.get(pkey, Decimal("0")) + exp_amt
+            cat_period = by_category_period.setdefault(cat_name, {})
+            cat_period[pkey] = cat_period.get(pkey, Decimal("0")) + exp_amt
+        elif amt > 0:
+            income_values.append(amt)
+            pkey = _period_key(t.txn_date)
+            period_income[pkey] = period_income.get(pkey, Decimal("0")) + amt
+
+    category_avg_rows = []
+    for cat, stats in by_category_expense.items():
+        count = int(stats["count"] or 0)
+        total = Decimal(str(stats["total"] or 0))
+        avg = (total / Decimal(str(count))) if count > 0 else Decimal("0")
+        category_avg_rows.append(
+            {
+                "name": cat,
+                "count": count,
+                "total": total,
+                "avg": avg,
+                "total_fmt": _fmt_money(total, base_cur),
+                "avg_fmt": _fmt_money(avg, base_cur),
+            }
+        )
+    category_avg_rows.sort(key=lambda x: x["avg"], reverse=True)
+
+    month_cursor = _period_start(start)
+    end_month = _period_start(end)
+    expense_trend_labels: list[str] = []
+    expense_trend_values: list[float] = []
+    while month_cursor <= end_month:
+        key = _period_key(month_cursor)
+        expense_trend_labels.append(key)
+        expense_trend_values.append(float(period_expenses.get(key, Decimal("0"))))
+        month_cursor = _next_period_start(month_cursor)
+
+    trend_label = _("Stable")
+    trend_slope = 0.0
+    trend_change_pct = None
+    n_vals = len(expense_trend_values)
+    if n_vals >= 2:
+        mean_x = (n_vals - 1) / 2.0
+        mean_y = sum(expense_trend_values) / n_vals
+        denom = sum((i - mean_x) ** 2 for i in range(n_vals))
+        if denom > 0:
+            trend_slope = sum((i - mean_x) * (expense_trend_values[i] - mean_y) for i in range(n_vals)) / denom
+        if trend_slope > 0.01:
+            trend_label = _("Hausse")
+        elif trend_slope < -0.01:
+            trend_label = _("Baisse")
+    if n_vals >= 6:
+        prev_avg = sum(expense_trend_values[-6:-3]) / 3.0
+        last_avg = sum(expense_trend_values[-3:]) / 3.0
+        if prev_avg > 0:
+            trend_change_pct = ((last_avg - prev_avg) / prev_avg) * 100.0
+
+    monthly_changes: list[float] = []
+    for i in range(1, len(expense_trend_values)):
+        prev_v = expense_trend_values[i - 1]
+        cur_v = expense_trend_values[i]
+        if prev_v > 0:
+            monthly_changes.append((cur_v - prev_v) / prev_v)
+
+    monthly_volatility_pct = 0.0
+    if len(monthly_changes) >= 2:
+        ch_mean = sum(monthly_changes) / len(monthly_changes)
+        ch_var = sum((x - ch_mean) ** 2 for x in monthly_changes) / len(monthly_changes)
+        monthly_volatility_pct = (ch_var ** 0.5) * 100.0
+
+    outlier_rows = []
+    z_values: list[float] = []
+    gauss_mean = 0.0
+    gauss_std = 0.0
+    if len(expense_rows) >= 3:
+        values = [float(r["amount"]) for r in expense_rows]
+        gauss_mean = sum(values) / len(values)
+        variance = sum((v - gauss_mean) ** 2 for v in values) / len(values)
+        gauss_std = variance ** 0.5
+        if gauss_std > 0:
+            for r in expense_rows:
+                z = (float(r["amount"]) - gauss_mean) / gauss_std
+                z_values.append(z)
+                if abs(z) >= 2.0:
+                    outlier_rows.append(
+                        {
+                            "txn_date": r["txn_date"],
+                            "description": r["description"],
+                            "category": r["category"],
+                            "amount_fmt": _fmt_money(Decimal(str(r["amount"])), base_cur),
+                            "zscore": z,
+                        }
+                    )
+    outlier_rows.sort(key=lambda x: abs(x["zscore"]), reverse=True)
+
+    liabilities = (
+        FinanceLiability.query
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+        .order_by(FinanceLiability.outstanding_amount.desc().nullslast(), FinanceLiability.id.desc())
+        .limit(10)
+        .all()
+    )
+    liability_rows = []
+    total_liabilities = Decimal("0")
+    for l in liabilities:
+        outstanding = Decimal(str(l.outstanding_amount if l.outstanding_amount is not None else (l.principal_amount or 0)))
+        total_liabilities += outstanding
+        liability_rows.append(
+            {
+                "name": l.name,
+                "lender": (l.lender.name if getattr(l, "lender", None) else "—"),
+                "outstanding": outstanding,
+                "outstanding_fmt": _fmt_money(outstanding, l.currency_code or base_cur),
+                "maturity_date": l.maturity_date,
+            }
+        )
+
+    product_rows_raw = (
+        db.session.query(
+            FinanceInvoiceLine.description,
+            func.coalesce(func.sum(FinanceInvoiceLine.quantity), 0),
+            func.coalesce(func.sum(FinanceInvoiceLine.gross_amount), 0),
+        )
+        .join(FinanceInvoice, FinanceInvoice.id == FinanceInvoiceLine.invoice_id)
+        .filter(FinanceInvoiceLine.tenant_id == g.tenant.id)
+        .filter(FinanceInvoiceLine.company_id == company.id)
+        .filter(FinanceInvoice.invoice_type == "sale")
+        .filter(FinanceInvoice.status != "void")
+        .filter(FinanceInvoice.issue_date >= start)
+        .filter(FinanceInvoice.issue_date <= end)
+        .group_by(FinanceInvoiceLine.description)
+        .order_by(func.coalesce(func.sum(FinanceInvoiceLine.quantity), 0).desc())
+        .limit(10)
+        .all()
+    )
+    top_products = []
+    for desc, qty, gross in product_rows_raw:
+        qty_dec = Decimal(str(qty or 0))
+        qty_fmt = format(qty_dec, "f").rstrip("0").rstrip(".") if qty_dec % 1 != 0 else str(int(qty_dec))
+        top_products.append(
+            {
+                "name": desc or "—",
+                "quantity": qty_fmt,
+                "gross_fmt": _fmt_money(Decimal(str(gross or 0)), base_cur),
+            }
+        )
+
+    inv_rows = []
+    for inv in _safe_get_investments(company):
+        invested = Decimal(str(inv.invested_amount or 0))
+        if invested <= 0:
+            continue
+        current_value = Decimal(str(inv.current_value if inv.current_value is not None else (inv.invested_amount or 0)))
+        pnl = current_value - invested
+        roi_pct = (pnl / invested) * Decimal("100")
+        inv_rows.append(
+            {
+                "name": inv.name,
+                "provider": inv.provider,
+                "invested_fmt": _fmt_money(invested, inv.currency_code or base_cur),
+                "current_fmt": _fmt_money(current_value, inv.currency_code or base_cur),
+                "pnl_fmt": _fmt_money(pnl, inv.currency_code or base_cur),
+                "roi_pct": float(roi_pct),
+            }
+        )
+    top_investments = sorted(inv_rows, key=lambda x: x["roi_pct"], reverse=True)[:10]
+
+    montecarlo_horizon = 6 if granularity == "month" else 4
+    montecarlo_runs = 400
+    mc_labels = [f"M+{i}" for i in range(1, montecarlo_horizon + 1)]
+    mc_p10 = [0.0] * montecarlo_horizon
+    mc_p50 = [0.0] * montecarlo_horizon
+    mc_p90 = [0.0] * montecarlo_horizon
+    mc_expected_last = 0.0
+
+    base_monthly_expense = 0.0
+    non_zero_monthly = [v for v in expense_trend_values if v > 0]
+    if non_zero_monthly:
+        base_monthly_expense = non_zero_monthly[-1]
+    elif expense_trend_values:
+        base_monthly_expense = expense_trend_values[-1]
+
+    if base_monthly_expense > 0:
+        rng = random.Random(42)
+        mu = (sum(monthly_changes) / len(monthly_changes)) if monthly_changes else 0.0
+        sigma = ((monthly_volatility_pct / 100.0) if monthly_volatility_pct > 0 else 0.05)
+        sigma = max(0.001, min(sigma, 0.8))
+
+        paths: list[list[float]] = []
+        for run_idx in range(montecarlo_runs):
+            cur = base_monthly_expense
+            path = []
+            for _step in range(montecarlo_horizon):
+                shock = rng.gauss(mu, sigma)
+                cur = max(0.0, cur * (1.0 + shock))
+                path.append(cur)
+            paths.append(path)
+
+        def _pct(sorted_vals: list[float], p: float) -> float:
+            if not sorted_vals:
+                return 0.0
+            idx = int(round((len(sorted_vals) - 1) * p))
+            idx = max(0, min(len(sorted_vals) - 1, idx))
+            return float(sorted_vals[idx])
+
+        for j in range(montecarlo_horizon):
+            col = sorted(path[j] for path in paths)
+            mc_p10[j] = _pct(col, 0.10)
+            mc_p50[j] = _pct(col, 0.50)
+            mc_p90[j] = _pct(col, 0.90)
+        mc_expected_last = sum(path[-1] for path in paths) / len(paths)
+
+    top_cats = [r["name"] for r in sorted(category_avg_rows, key=lambda x: x["total"], reverse=True)[:5]]
+
+    def _pearson(xs: list[float], ys: list[float]) -> float:
+        if len(xs) != len(ys) or len(xs) < 2:
+            return 0.0
+        mx = sum(xs) / len(xs)
+        my = sum(ys) / len(ys)
+        num = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+        denx = sum((x - mx) ** 2 for x in xs)
+        deny = sum((y - my) ** 2 for y in ys)
+        den = (denx * deny) ** 0.5
+        if den <= 0:
+            return 0.0
+        return max(-1.0, min(1.0, num / den))
+
+    corr_matrix: list[list[float | int]] = []
+    corr_top_pair = "—"
+    corr_top_value = 0.0
+    if len(top_cats) >= 2:
+        cat_series: dict[str, list[float]] = {}
+        for c in top_cats:
+            cat_month = by_category_period.get(c, {})
+            cat_series[c] = [float(cat_month.get(m, Decimal("0"))) for m in expense_trend_labels]
+
+        for i, ci in enumerate(top_cats):
+            for j, cj in enumerate(top_cats):
+                corr = _pearson(cat_series[ci], cat_series[cj])
+                corr_matrix.append([i, j, round(corr, 4)])
+                if i < j and abs(corr) > abs(corr_top_value):
+                    corr_top_value = corr
+                    corr_top_pair = f"{ci} ↔ {cj}"
+
+    avg_expense = (
+        sum((Decimal(str(r["amount"])) for r in expense_rows), Decimal("0")) / Decimal(str(len(expense_rows)))
+        if expense_rows
+        else Decimal("0")
+    )
+    avg_income = (
+        sum(income_values, Decimal("0")) / Decimal(str(len(income_values)))
+        if income_values
+        else Decimal("0")
+    )
+    total_expense_amount = sum((Decimal(str(r["amount"])) for r in expense_rows), Decimal("0"))
+    total_income_amount = sum(income_values, Decimal("0"))
+    expense_income_ratio_pct = float((total_expense_amount / total_income_amount) * Decimal("100")) if total_income_amount > 0 else None
+
+    median_expense = Decimal("0")
+    if expense_rows:
+        sorted_exp = sorted((Decimal(str(r["amount"])) for r in expense_rows))
+        n_exp = len(sorted_exp)
+        mid = n_exp // 2
+        if n_exp % 2 == 1:
+            median_expense = sorted_exp[mid]
+        else:
+            median_expense = (sorted_exp[mid - 1] + sorted_exp[mid]) / Decimal("2")
+
+    return render_template(
+        "finance/reports_statistics.html",
+        tenant=g.tenant,
+        company=company,
+        start=start,
+        end=end,
+        kpis={
+            "avg_expense_fmt": _fmt_money(avg_expense, base_cur),
+            "avg_income_fmt": _fmt_money(avg_income, base_cur),
+            "outliers_count": len(outlier_rows),
+            "total_liabilities_fmt": _fmt_money(total_liabilities, base_cur),
+            "trend_label": trend_label,
+            "trend_change_pct": trend_change_pct,
+            "median_expense_fmt": _fmt_money(median_expense, base_cur),
+            "expense_income_ratio_pct": expense_income_ratio_pct,
+            "monthly_volatility_pct": monthly_volatility_pct,
+            "mc_expected_last_fmt": _fmt_money(Decimal(str(mc_expected_last or 0)), base_cur),
+            "corr_top_pair": corr_top_pair,
+            "corr_top_value": corr_top_value,
+            "mc_horizon": montecarlo_horizon,
+        },
+        category_avg_rows=category_avg_rows,
+        liability_rows=liability_rows,
+        top_products=top_products,
+        top_investments=top_investments,
+        outlier_rows=outlier_rows[:20],
+        gauss={
+            "mean": gauss_mean,
+            "std": gauss_std,
+            "z_values": z_values,
+        },
+        trend={
+            "labels": expense_trend_labels,
+            "values": expense_trend_values,
+            "slope": trend_slope,
+        },
+        montecarlo={
+            "labels": mc_labels,
+            "p10": mc_p10,
+            "p50": mc_p50,
+            "p90": mc_p90,
+        },
+        correlation={
+            "labels": top_cats,
+            "matrix": corr_matrix,
+        },
+        category_chart={
+            "labels": [r["name"] for r in category_avg_rows[:12]],
+            "values": [float(r["avg"]) for r in category_avg_rows[:12]],
+        },
+        granularity=granularity,
     )
 
 
