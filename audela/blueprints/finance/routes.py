@@ -597,6 +597,60 @@ def dashboard():
     net_debt = max(0.0, debt_total - max(0.0, _n(cash)))
     net_debt_to_ebitda = (net_debt / ebitda_12m) if ebitda_12m > 0 else None
 
+    expense_by_category: dict[str, float] = {}
+    start_6m = date.today() - timedelta(days=183)
+    monthly_flows: dict[str, dict[str, float]] = {}
+    for t in txns_12m:
+        amt = _n(getattr(t, "amount", 0))
+        if amt < 0:
+            cat_name = (getattr(getattr(t, "category_ref", None), "name", None) or getattr(t, "category", None) or "Sem categoria")
+            expense_by_category[cat_name] = expense_by_category.get(cat_name, 0.0) + abs(amt)
+
+        if t.txn_date >= start_6m:
+            mkey = t.txn_date.strftime("%Y-%m")
+            bucket = monthly_flows.setdefault(mkey, {"in": 0.0, "out": 0.0})
+            if amt >= 0:
+                bucket["in"] += amt
+            else:
+                bucket["out"] += abs(amt)
+
+    top_expense_categories = [
+        {"name": nm, "value": val}
+        for nm, val in sorted(expense_by_category.items(), key=lambda x: x[1], reverse=True)[:8]
+    ]
+
+    month_cursor = date(start_6m.year, start_6m.month, 1)
+    end_month = date(date.today().year, date.today().month, 1)
+    cashflow_labels: list[str] = []
+    cashflow_in: list[float] = []
+    cashflow_out: list[float] = []
+    while month_cursor <= end_month:
+        key = month_cursor.strftime("%Y-%m")
+        cashflow_labels.append(key)
+        row = monthly_flows.get(key, {"in": 0.0, "out": 0.0})
+        cashflow_in.append(float(row.get("in", 0.0)))
+        cashflow_out.append(float(row.get("out", 0.0)))
+        if month_cursor.month == 12:
+            month_cursor = date(month_cursor.year + 1, 1, 1)
+        else:
+            month_cursor = date(month_cursor.year, month_cursor.month + 1, 1)
+
+    inflows_6m = sum(cashflow_in)
+    outflows_6m = sum(cashflow_out)
+    net_6m = inflows_6m - outflows_6m
+
+    flow_trend_label = _("Stable")
+    flow_trend_pct = None
+    if len(cashflow_in) >= 6 and len(cashflow_out) >= 6:
+        prev_net = sum(cashflow_in[-6:-3]) - sum(cashflow_out[-6:-3])
+        last_net = sum(cashflow_in[-3:]) - sum(cashflow_out[-3:])
+        if prev_net != 0:
+            flow_trend_pct = ((last_net - prev_net) / abs(prev_net)) * 100.0
+        if last_net > prev_net + 0.01:
+            flow_trend_label = _("Hausse")
+        elif last_net < prev_net - 0.01:
+            flow_trend_label = _("Baisse")
+
     # Small, friendly KPIs
     kpis = {
         "cash": cash,
@@ -614,6 +668,11 @@ def dashboard():
         "assets_total": assets_total,
         "liabilities_total": liabilities_total,
         "equity_total": equity_total,
+        "inflows_6m": inflows_6m,
+        "outflows_6m": outflows_6m,
+        "net_6m": net_6m,
+        "flow_trend_label": flow_trend_label,
+        "flow_trend_pct": flow_trend_pct,
     }
 
     return render_template(
@@ -622,6 +681,12 @@ def dashboard():
         company=company,
         kpis=kpis,
         accounts=accounts,
+        top_expense_categories=top_expense_categories,
+        cashflow_simple={
+            "labels": cashflow_labels,
+            "inflows": cashflow_in,
+            "outflows": cashflow_out,
+        },
     )
 
 

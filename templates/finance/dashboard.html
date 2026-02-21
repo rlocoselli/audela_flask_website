@@ -44,6 +44,57 @@
   </div>
 
   <div class="row g-3 mb-3">
+    <div class="col-12 col-md-4">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="text-secondary small mb-1">{{ _('Entrées (6m)') }}</div>
+          <div class="h5 mb-0">{{ '%.2f'|format(kpis.inflows_6m or 0) }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="text-secondary small mb-1">{{ _('Sorties (6m)') }}</div>
+          <div class="h5 mb-0">{{ '%.2f'|format(kpis.outflows_6m or 0) }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="card h-100">
+        <div class="card-body">
+          <div class="text-secondary small mb-1">{{ _('Net (6m)') }}</div>
+          <div class="h5 mb-0">{{ '%.2f'|format(kpis.net_6m or 0) }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-lg-6">
+      <div class="card h-100">
+        <div class="card-header fw-semibold">{{ _('Plus grandes catégories de dépenses') }}</div>
+        <div class="card-body">
+          <div id="chart-expense-categories" style="height:280px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-6">
+      <div class="card h-100">
+        <div class="card-header d-flex align-items-center justify-content-between">
+          <span class="fw-semibold">{{ _('Entrées / Sorties (résumé)') }}</span>
+          <span class="badge text-bg-light border">
+            {{ _('Tendance') }}: {{ kpis.flow_trend_label }}{% if kpis.flow_trend_pct is not none %} ({{ '%+.1f'|format(kpis.flow_trend_pct) }}%){% endif %}
+          </span>
+        </div>
+        <div class="card-body">
+          <div id="chart-in-out-summary" style="height:280px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
     <div class="col-12 col-md-6 col-lg-3">
       <div class="card h-100">
         <div class="card-body">
@@ -191,4 +242,53 @@
       </div>
     </div>
   </div>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <script>
+    (window.onReady || function(fn){ window.addEventListener('load', fn); })(function(){
+      if (!window.echarts) return;
+
+      const catData = {{ top_expense_categories|tojson }};
+      const flowData = {{ cashflow_simple|tojson }};
+
+      const catEl = document.getElementById('chart-expense-categories');
+      if (catEl) {
+        const chart = echarts.init(catEl);
+        chart.setOption({
+          tooltip: { trigger: 'axis' },
+          xAxis: { type: 'value' },
+          yAxis: { type: 'category', data: (catData || []).map(x => x.name) },
+          series: [{
+            type: 'bar',
+            data: (catData || []).map(x => x.value),
+            barMaxWidth: 24,
+          }]
+        });
+        window.addEventListener('resize', function(){ try { chart.resize(); } catch (_e) {} });
+      }
+
+      const flowEl = document.getElementById('chart-in-out-summary');
+      if (flowEl) {
+        const chart = echarts.init(flowEl);
+        const netSeries = (flowData.inflows || []).map(function(v, i){
+          return Number(v || 0) - Number((flowData.outflows || [])[i] || 0);
+        });
+        chart.setOption({
+          tooltip: { trigger: 'axis' },
+          legend: { data: [window.t('Entrées'), window.t('Sorties'), window.t('Net')] },
+          xAxis: { type: 'category', data: flowData.labels || [] },
+          yAxis: { type: 'value', scale: true },
+          series: [
+            { name: window.t('Entrées'), type: 'bar', barMaxWidth: 24, data: flowData.inflows || [] },
+            { name: window.t('Sorties'), type: 'bar', barMaxWidth: 24, data: flowData.outflows || [] },
+            { name: window.t('Net'), type: 'line', smooth: true, showSymbol: false, data: netSeries },
+          ]
+        });
+        window.addEventListener('resize', function(){ try { chart.resize(); } catch (_e) {} });
+      }
+    });
+  </script>
 {% endblock %}
