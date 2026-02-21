@@ -72,10 +72,20 @@ jobs:
             # Retry migrations to handle transient startup race conditions
             MIG_OK=0
             for i in $(seq 1 5); do
+              echo "🧭 Alembic heads (attempt $i):"
+              $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db heads || true
+
+              if $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db upgrade; then
+                MIG_OK=1
+                break
+              fi
+
+              # Fallback for temporary multi-head situations
               if $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db upgrade heads; then
                 MIG_OK=1
                 break
               fi
+
               echo "⚠️ Migration attempt $i failed, retrying..."
               sleep 4
             done
