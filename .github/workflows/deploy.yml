@@ -69,12 +69,21 @@ jobs:
               sleep 3
             done
 
-            # Pre-fix: if project_workspaces table already exists, mark its migration as applied.
-            PW_EXISTS="$($COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela python -c "from sqlalchemy import text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); exists=db.session.execute(text(\"SELECT to_regclass('public.project_workspaces')\")).scalar(); print('1' if exists else '0'); ctx.pop()" 2>/dev/null || echo 0)"
-            if [ "$PW_EXISTS" = "1" ]; then
-              echo "ℹ️ project_workspaces exists -> pre-stamp 20260220_add_project_workspaces"
-              $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db stamp 20260220_add_project_workspaces || true
-            fi
+            # Pre-fix: if known tables already exist, mark corresponding migrations as applied.
+            pre_stamp_if_exists () {
+              local tbl="$1"
+              local rev="$2"
+              local exists
+              exists="$($COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela python -c "from sqlalchemy import text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); e=db.session.execute(text(\"SELECT to_regclass('public.${tbl}')\")).scalar(); print('1' if e else '0'); ctx.pop()" 2>/dev/null || echo 0)"
+              if [ "$exists" = "1" ]; then
+                echo "ℹ️ ${tbl} exists -> pre-stamp ${rev}"
+                $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db stamp "$rev" || true
+              fi
+            }
+
+            pre_stamp_if_exists project_workspaces 20260220_add_project_workspaces
+            pre_stamp_if_exists finance_investments 20260221_add_finance_investments
+            pre_stamp_if_exists finance_accounting_periods 20260221_add_finance_accounting_periods
 
             # Retry migrations to handle transient startup race conditions
             MIG_OK=0
@@ -94,9 +103,17 @@ jobs:
               fi
               echo "$MIG_OUT"
 
-              if echo "$MIG_OUT" | grep -Eqi "DuplicateTable|already exists" && echo "$MIG_OUT" | grep -Eqi "project_workspaces"; then
-                echo "⚠️ project_workspaces already exists -> stamping migration 20260220_add_project_workspaces"
-                $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db stamp 20260220_add_project_workspaces || true
+              if echo "$MIG_OUT" | grep -Eqi "DuplicateTable|already exists"; then
+                if echo "$MIG_OUT" | grep -Eqi "project_workspaces"; then
+                  echo "⚠️ project_workspaces already exists -> stamping migration 20260220_add_project_workspaces"
+                  $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db stamp 20260220_add_project_workspaces || true
+                elif echo "$MIG_OUT" | grep -Eqi "finance_investments"; then
+                  echo "⚠️ finance_investments already exists -> stamping migration 20260221_add_finance_investments"
+                  $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db stamp 20260221_add_finance_investments || true
+                elif echo "$MIG_OUT" | grep -Eqi "finance_accounting_periods"; then
+                  echo "⚠️ finance_accounting_periods already exists -> stamping migration 20260221_add_finance_accounting_periods"
+                  $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db stamp 20260221_add_finance_accounting_periods || true
+                fi
                 if $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db upgrade heads; then
                   MIG_OK=1
                   break

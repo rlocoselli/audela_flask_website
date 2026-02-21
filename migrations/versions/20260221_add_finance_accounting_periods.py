@@ -7,6 +7,7 @@ Create Date: 2026-02-21
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.exc import ProgrammingError
 
 
 revision = "20260221_add_finance_accounting_periods"
@@ -16,28 +17,37 @@ depends_on = None
 
 
 def upgrade():
-    op.create_table(
-        "finance_accounting_periods",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("tenant_id", sa.Integer(), nullable=False),
-        sa.Column("company_id", sa.Integer(), nullable=False),
-        sa.Column("period_start", sa.Date(), nullable=False),
-        sa.Column("period_end", sa.Date(), nullable=False),
-        sa.Column("is_closed", sa.Boolean(), nullable=False, server_default=sa.false()),
-        sa.Column("closed_at", sa.DateTime(), nullable=True),
-        sa.Column("closed_by_user_id", sa.Integer(), nullable=True),
-        sa.Column("reopened_at", sa.DateTime(), nullable=True),
-        sa.Column("reopened_by_user_id", sa.Integer(), nullable=True),
-        sa.Column("note", sa.String(length=300), nullable=True),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(), nullable=False),
-        sa.ForeignKeyConstraint(["company_id"], ["finance_companies.id"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("tenant_id", "company_id", "period_start", "period_end", name="uq_fin_acc_period_scope"),
-    )
-    op.create_index("ix_fin_acc_period_scope", "finance_accounting_periods", ["tenant_id", "company_id", "period_start", "period_end"])
-    op.create_index(op.f("ix_finance_accounting_periods_tenant_id"), "finance_accounting_periods", ["tenant_id"])
-    op.create_index(op.f("ix_finance_accounting_periods_company_id"), "finance_accounting_periods", ["company_id"])
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+
+    if not inspector.has_table("finance_accounting_periods"):
+        try:
+            op.create_table(
+                "finance_accounting_periods",
+                sa.Column("id", sa.Integer(), nullable=False),
+                sa.Column("tenant_id", sa.Integer(), nullable=False),
+                sa.Column("company_id", sa.Integer(), nullable=False),
+                sa.Column("period_start", sa.Date(), nullable=False),
+                sa.Column("period_end", sa.Date(), nullable=False),
+                sa.Column("is_closed", sa.Boolean(), nullable=False, server_default=sa.false()),
+                sa.Column("closed_at", sa.DateTime(), nullable=True),
+                sa.Column("closed_by_user_id", sa.Integer(), nullable=True),
+                sa.Column("reopened_at", sa.DateTime(), nullable=True),
+                sa.Column("reopened_by_user_id", sa.Integer(), nullable=True),
+                sa.Column("note", sa.String(length=300), nullable=True),
+                sa.Column("created_at", sa.DateTime(), nullable=False),
+                sa.Column("updated_at", sa.DateTime(), nullable=False),
+                sa.ForeignKeyConstraint(["company_id"], ["finance_companies.id"], ondelete="CASCADE"),
+                sa.PrimaryKeyConstraint("id"),
+                sa.UniqueConstraint("tenant_id", "company_id", "period_start", "period_end", name="uq_fin_acc_period_scope"),
+            )
+        except ProgrammingError as e:
+            if "already exists" not in str(e).lower() and "duplicatetable" not in str(e).lower():
+                raise
+
+    op.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_fin_acc_period_scope ON finance_accounting_periods (tenant_id, company_id, period_start, period_end)"))
+    op.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_finance_accounting_periods_tenant_id ON finance_accounting_periods (tenant_id)"))
+    op.execute(sa.text("CREATE INDEX IF NOT EXISTS ix_finance_accounting_periods_company_id ON finance_accounting_periods (company_id)"))
 
 
 def downgrade():
