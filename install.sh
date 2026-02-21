@@ -30,6 +30,13 @@ OPENAI_API_KEY_ARG="${4:-}"
 DB_NAME_ARG="${5:-audela}"
 DB_PORT_ARG="${6:-5432}"
 DATABASE_URL_ARG="${7:-}"
+MAIL_SERVER_ARG="${8:-}"
+MAIL_PORT_ARG="${9:-}"
+MAIL_USE_TLS_ARG="${10:-}"
+MAIL_USE_SSL_ARG="${11:-}"
+MAIL_USERNAME_ARG="${12:-}"
+MAIL_PASSWORD_ARG="${13:-}"
+MAIL_DEFAULT_SENDER_ARG="${14:-}"
 
 if [[ -z "${DB_HOST_ARG}" || -z "${DB_USER_ARG}" || -z "${DB_PASSWORD_ARG}" ]]; then
   echo "❌ Missing required args. Usage: ./install.sh HOST USER PASSWORD OPENAI_API_KEY [DB_NAME] [DB_PORT] [DATABASE_URL]"
@@ -104,6 +111,14 @@ ensure_env_file() {
   local env_file="${APP_DIR}/.env"
   local secret_key=""
   local data_key=""
+    # ---- SMTP / Email effective values (allow override by args, else defaults) ----
+  local mail_server_effective="${MAIL_SERVER_ARG:-$SMTP_SERVER_DEFAULT}"
+  local mail_port_effective="${MAIL_PORT_ARG:-$SMTP_PORT_DEFAULT}"
+  local mail_use_tls_effective="${MAIL_USE_TLS_ARG:-$SMTP_USE_TLS_DEFAULT}"
+  local mail_use_ssl_effective="${MAIL_USE_SSL_ARG:-$SMTP_USE_SSL_DEFAULT}"
+  local mail_username_effective="${MAIL_USERNAME_ARG:-$SMTP_USERNAME_DEFAULT}"
+  local mail_password_effective="${MAIL_PASSWORD_ARG:-}"  # pas de default => à fournir
+  local mail_default_sender_effective="${MAIL_DEFAULT_SENDER_ARG:-$SMTP_DEFAULT_SENDER_DEFAULT}"
 
   if [[ -f "${env_file}" ]]; then
     secret_key="$(grep -E '^SECRET_KEY=' "${env_file}" | tail -n1 | cut -d= -f2- || true)"
@@ -147,6 +162,15 @@ APP_PASSWORD=${DB_PASSWORD_ARG}
 DB_NAME=${DB_NAME_ARG}
 DB_PORT=${DB_PORT_ARG}
 REDIS_URL=redis://redis:6379/0
+# --- SMTP / Email (Flask-Mail + ETL notifications) ---
+MAIL_SERVER=${mail_server_effective}
+MAIL_PORT=${mail_port_effective}
+MAIL_USE_TLS=${mail_use_tls_effective}
+MAIL_USE_SSL=${mail_use_ssl_effective}
+MAIL_USERNAME=${mail_username_effective}
+MAIL_PASSWORD=${mail_password_effective}
+MAIL_DEFAULT_SENDER=${mail_default_sender_effective}
+
 
 # --- Internal Postgres (still started for persistence/monitoring; app may point to external DB) ---
 POSTGRES_DB=${DB_NAME_ARG}

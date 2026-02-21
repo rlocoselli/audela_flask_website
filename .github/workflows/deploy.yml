@@ -10,12 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: audeladesdonnees
 
-    env:
-      APP_HOST: ${{ secrets.HOST }}
-      APP_USER: ${{ secrets.USER }}
-      APP_PASSWORD: ${{ secrets.PASSWORD }}
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -47,7 +41,14 @@ jobs:
               "${{ secrets.OPENAI_API_KEY }}" \
               "${{ secrets.DB_NAME }}" \
               "${{ secrets.DB_PORT }}" \
-              "${{ secrets.DATABASE_URL }}"
+              "${{ secrets.DATABASE_URL }}" \
+              "${{ secrets.MAIL_SERVER }}" \
+              "${{ secrets.MAIL_PORT }}" \
+              "${{ secrets.MAIL_USE_TLS }}" \
+              "${{ secrets.MAIL_USE_SSL }}" \
+              "${{ secrets.MAIL_USERNAME }}" \
+              "${{ secrets.MAIL_PASSWORD }}" \
+              "${{ secrets.MAIL_DEFAULT_SENDER }}"
 
             echo "🔄 Restart service"
             systemctl restart audeladedonnees
