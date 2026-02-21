@@ -1,0 +1,80 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'reports' %}
+
+{% block finance_content %}
+<div class="card shadow-sm mb-3">
+  <div class="card-body">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+      <h5 class="mb-0">{{ _('Rapport comptable par période') }}</h5>
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.reports_accounting', company_id=company.id) }}">{{ _('Retour au rapport comptable') }}</a>
+    </div>
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-12 col-md-3">
+        <label class="form-label">{{ _('Nombre de mois') }}</label>
+        <input type="number" min="3" max="36" class="form-control" name="months" value="{{ months_back }}">
+      </div>
+      <div class="col-12 col-md-3">
+        <button class="btn btn-primary w-100" type="submit">{{ _('Filtrer') }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0">
+        <thead>
+          <tr>
+            <th>{{ _('Période') }}</th>
+            <th class="text-end">{{ _('Débit') }}</th>
+            <th class="text-end">{{ _('Crédit') }}</th>
+            <th class="text-end">{{ _('Lignes') }}</th>
+            <th>{{ _('Statut') }}</th>
+            <th class="text-end">{{ _('Actions') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in periods %}
+          <tr>
+            <td>{{ p.start.isoformat() }} → {{ p.end.isoformat() }}</td>
+            <td class="text-end">{{ '%.2f'|format(p.debit or 0) }}</td>
+            <td class="text-end">{{ '%.2f'|format(p.credit or 0) }}</td>
+            <td class="text-end">{{ p.line_count }}</td>
+            <td>
+              {% if p.is_closed %}
+                <span class="badge text-bg-danger">{{ _('Clôturée') }}</span>
+              {% else %}
+                <span class="badge text-bg-success">{{ _('Ouverte') }}</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              <div class="d-inline-flex gap-1">
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('finance.reports_accounting', company_id=company.id, start=p.start.isoformat(), end=p.end.isoformat()) }}">{{ _('Voir') }}</a>
+                {% if p.is_closed %}
+                <form method="post" action="{{ url_for('finance.reopen_accounting_period', company_id=company.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="start" value="{{ p.start.isoformat() }}">
+                  <input type="hidden" name="end" value="{{ p.end.isoformat() }}">
+                  <button class="btn btn-sm btn-outline-warning" type="submit">{{ _('Réouvrir') }}</button>
+                </form>
+                {% else %}
+                <form method="post" action="{{ url_for('finance.close_accounting_period', company_id=company.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="start" value="{{ p.start.isoformat() }}">
+                  <input type="hidden" name="end" value="{{ p.end.isoformat() }}">
+                  <button class="btn btn-sm btn-outline-danger" type="submit">{{ _('Clôturer') }}</button>
+                </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="text-center text-secondary py-4">{{ _('Aucune période disponible.') }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

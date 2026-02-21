@@ -6,7 +6,10 @@
     <div class="card-body">
       <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
         <h5 class="mb-0">{{ _('Rapport comptable (Chart of Accounts)') }}</h5>
-        <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.reports_transactions') }}">{{ _('Relatórios') }}</a>
+        <div class="d-flex gap-2">
+          <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.reports_transactions') }}">{{ _('Relatórios') }}</a>
+          <a class="btn btn-outline-primary btn-sm" href="{{ url_for('finance.reports_accounting_periods', company_id=company.id) }}">{{ _('Rapport par période') }}</a>
+        </div>
       </div>
       <p class="text-secondary small mb-3">{{ _('Valeurs par compte comptable: solde d’ouverture, débits, crédits et solde de clôture sur la période.') }}</p>
 
@@ -38,6 +41,48 @@
           <div class="fw-semibold">{{ '%.2f'|format(investment_summary.unrealized_result or 0) }}</div>
         </div>
       </div>
+
+      <div class="alert alert-info mt-3 mb-0 small">
+        <div class="fw-semibold mb-1">{{ _('Comment les valeurs sont calculées') }}</div>
+        <div>• {{ _('Ouverture') }} = {{ _('somme (débit - crédit) des lignes comptables avant la date de début') }}</div>
+        <div>• {{ _('Débit') }} / {{ _('Crédit') }} = {{ _('sommes des lignes comptables entre début et fin') }}</div>
+        <div>• {{ _('Clôture') }} = {{ _('Ouverture + Débit - Crédit (inversé pour passif/produit/capitaux propres)') }}</div>
+        <div>• {{ _('Investido (ativos)') }} / {{ _('Valor atual') }} = {{ _('somme des investissements actifs (montant investi / valeur courante)') }}</div>
+        <div class="mt-1 text-secondary">
+          {{ _('Périmètre actuel') }}: {{ accounting_explain.gl_accounts }} {{ _('comptes') }},
+          {{ accounting_explain.opening_line_count }} {{ _('lignes avant période') }},
+          {{ accounting_explain.period_line_count }} {{ _('lignes dans la période') }}.
+        </div>
+      </div>
+
+      <div class="border rounded p-2 mt-3 small d-flex flex-wrap justify-content-between gap-2 align-items-center">
+        <div>
+          <span class="text-secondary">{{ _('Statut période') }}:</span>
+          {% if period_state and period_state.is_closed %}
+            <span class="badge text-bg-danger">{{ _('Clôturée') }}</span>
+          {% else %}
+            <span class="badge text-bg-success">{{ _('Ouverte') }}</span>
+          {% endif %}
+          <span class="text-secondary ms-2">{{ start.isoformat() }} → {{ end.isoformat() }}</span>
+        </div>
+        <div class="d-flex gap-2">
+          {% if period_state and period_state.is_closed %}
+            <form method="post" action="{{ url_for('finance.reopen_accounting_period', company_id=company.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="start" value="{{ start.isoformat() }}">
+              <input type="hidden" name="end" value="{{ end.isoformat() }}">
+              <button class="btn btn-sm btn-outline-warning" type="submit">{{ _('Réouvrir la période') }}</button>
+            </form>
+          {% else %}
+            <form method="post" action="{{ url_for('finance.close_accounting_period', company_id=company.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="hidden" name="start" value="{{ start.isoformat() }}">
+              <input type="hidden" name="end" value="{{ end.isoformat() }}">
+              <button class="btn btn-sm btn-outline-danger" type="submit">{{ _('Clôturer la période') }}</button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
     </div>
   </div>
 
@@ -54,6 +99,7 @@
               <th class="text-end">{{ _('Débit') }}</th>
               <th class="text-end">{{ _('Crédit') }}</th>
               <th class="text-end">{{ _('Clôture') }}</th>
+              <th class="text-end">{{ _('Source') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -66,9 +112,17 @@
                 <td class="text-end">{{ '%.2f'|format(r.debit or 0) }}</td>
                 <td class="text-end">{{ '%.2f'|format(r.credit or 0) }}</td>
                 <td class="text-end fw-semibold">{{ '%.2f'|format(r.closing or 0) }}</td>
+                <td class="text-end">
+                  <button class="btn btn-sm btn-outline-primary js-source-btn" type="button"
+                     data-gl-id="{{ r.gl_id }}"
+                     data-gl-code="{{ r.code }}"
+                     data-gl-name="{{ r.name }}">
+                    {{ _('Voir les écritures source') }}
+                  </button>
+                </td>
               </tr>
             {% else %}
-              <tr><td colspan="7" class="text-center text-secondary py-4">{{ _('Aucune donnée comptable sur la période.') }}</td></tr>
+              <tr><td colspan="8" class="text-center text-secondary py-4">{{ _('Aucune donnée comptable sur la période.') }}</td></tr>
             {% endfor %}
           </tbody>
           <tfoot>
@@ -78,10 +132,116 @@
               <th class="text-end">{{ '%.2f'|format(totals.debit or 0) }}</th>
               <th class="text-end">{{ '%.2f'|format(totals.credit or 0) }}</th>
               <th class="text-end">{{ '%.2f'|format(totals.closing or 0) }}</th>
+              <th></th>
             </tr>
           </tfoot>
         </table>
       </div>
     </div>
   </div>
+
+  <div class="modal fade" id="accounting-source-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="accounting-source-title">{{ _('Écritures source') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-0">
+          <div class="px-3 pt-3 small text-secondary" id="accounting-source-period"></div>
+          <div class="table-responsive mt-2">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>{{ _('Date') }}</th>
+                  <th>{{ _('Référence') }}</th>
+                  <th>{{ _('Libellé pièce') }}</th>
+                  <th>{{ _('Libellé ligne') }}</th>
+                  <th class="text-end">{{ _('Débit') }}</th>
+                  <th class="text-end">{{ _('Crédit') }}</th>
+                </tr>
+              </thead>
+              <tbody id="accounting-source-body">
+                <tr><td colspan="6" class="text-center text-secondary py-4">{{ _('Chargement...') }}</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function(){
+      const sourceUrl = "{{ url_for('finance.reports_accounting_source') }}";
+      const startInput = document.querySelector('input[name="start"]');
+      const endInput = document.querySelector('input[name="end"]');
+      const titleEl = document.getElementById('accounting-source-title');
+      const periodEl = document.getElementById('accounting-source-period');
+      const bodyEl = document.getElementById('accounting-source-body');
+      const modalEl = document.getElementById('accounting-source-modal');
+
+      function fmt(v) {
+        const n = Number(v || 0);
+        return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      }
+
+      function esc(s) {
+        return String(s ?? '')
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#039;');
+      }
+
+      async function openSourceModal(glId, glCode, glName) {
+        const start = startInput?.value || "{{ start.isoformat() }}";
+        const end = endInput?.value || "{{ end.isoformat() }}";
+        const url = new URL(sourceUrl, window.location.origin);
+        url.searchParams.set('gl_id', String(glId));
+        url.searchParams.set('start', start);
+        url.searchParams.set('end', end);
+
+        titleEl.textContent = `{{ _('Écritures source') }} · ${glCode} - ${glName}`;
+        periodEl.textContent = `{{ _('Période') }}: ${start} → ${end}`;
+        bodyEl.innerHTML = `<tr><td colspan="6" class="text-center text-secondary py-4">{{ _('Chargement...') }}</td></tr>`;
+
+        if (window.bootstrap?.Modal) {
+          window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+        }
+
+        try {
+          const res = await fetch(url);
+          const payload = await res.json();
+          if (!res.ok) throw new Error(payload.error || 'failed');
+
+          const rows = payload.rows || [];
+          if (!rows.length) {
+            bodyEl.innerHTML = `<tr><td colspan="6" class="text-center text-secondary py-4">{{ _('Aucune écriture sur la période pour ce compte.') }}</td></tr>`;
+            return;
+          }
+
+          bodyEl.innerHTML = rows.map((r) => (
+            `<tr>` +
+            `<td>${esc(r.voucher_date || '-')}</td>` +
+            `<td>${esc(r.voucher_ref || '-')}</td>` +
+            `<td>${esc(r.voucher_desc || '-')}</td>` +
+            `<td>${esc(r.line_desc || '-')}</td>` +
+            `<td class="text-end">${fmt(r.debit)}</td>` +
+            `<td class="text-end">${fmt(r.credit)}</td>` +
+            `</tr>`
+          )).join('');
+        } catch (_err) {
+          bodyEl.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-4">{{ _('Erreur lors du chargement des écritures source.') }}</td></tr>`;
+        }
+      }
+
+      document.querySelectorAll('.js-source-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          openSourceModal(btn.dataset.glId, btn.dataset.glCode, btn.dataset.glName);
+        });
+      });
+    })();
+  </script>
 {% endblock %}

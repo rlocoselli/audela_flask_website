@@ -145,6 +145,37 @@ class FinanceLedgerLine(db.Model):
     gl_account = relationship("FinanceGLAccount")
 
 
+class FinanceAccountingPeriod(db.Model):
+    __tablename__ = "finance_accounting_periods"
+    __table_args__ = (
+        db.UniqueConstraint(
+            "tenant_id",
+            "company_id",
+            "period_start",
+            "period_end",
+            name="uq_fin_acc_period_scope",
+        ),
+        db.Index("ix_fin_acc_period_scope", "tenant_id", "company_id", "period_start", "period_end"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, nullable=False, index=True)
+    company_id = db.Column(db.Integer, db.ForeignKey("finance_companies.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    period_start = db.Column(db.Date, nullable=False)
+    period_end = db.Column(db.Date, nullable=False)
+    is_closed = db.Column(db.Boolean, nullable=False, default=False)
+
+    closed_at = db.Column(db.DateTime, nullable=True)
+    closed_by_user_id = db.Column(db.Integer, nullable=True)
+    reopened_at = db.Column(db.DateTime, nullable=True)
+    reopened_by_user_id = db.Column(db.Integer, nullable=True)
+    note = db.Column(db.String(300), nullable=True)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
 class FinanceLiability(db.Model):
     """Financing / liabilities registry (loans, debts, leases).
 

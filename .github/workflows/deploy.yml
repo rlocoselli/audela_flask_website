@@ -50,6 +50,55 @@ jobs:
               "${{ secrets.MAIL_PASSWORD }}" \
               "${{ secrets.MAIL_DEFAULT_SENDER }}"
 
+            echo "🗃️ Apply DB migrations"
+            # RUN_MIGRATIONS=1 is already set on container startup; this explicit step
+            # guarantees latest schema after deploy.
+            COMPOSE_CMD="docker compose"
+            if ! docker compose version >/dev/null 2>&1; then
+              COMPOSE_CMD="docker-compose"
+            fi
+
+            # Wait until app container is ready for exec
+            for i in $(seq 1 20); do
+              if $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml ps audela >/dev/null 2>&1; then
+                if $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela sh -lc "echo ready" >/dev/null 2>&1; then
+                  break
+                fi
+              fi
+              echo "⏳ Waiting audela container... ($i/20)"
+              sleep 3
+            done
+
+            # Retry migrations to handle transient startup race conditions
+            MIG_OK=0
+            for i in $(seq 1 5); do
+              if $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db upgrade; then
+                MIG_OK=1
+                break
+              fi
+              echo "⚠️ Migration attempt $i failed, retrying..."
+              sleep 4
+            done
+
+            if [ "$MIG_OK" -ne 1 ]; then
+              echo "❌ Migration failed after retries"
+              exit 1
+            fi
+
+            echo "🔎 Verify migration objects"
+            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela python - <<'PY'
+from sqlalchemy import text
+from audela import create_app
+from audela.extensions import db
+
+app = create_app()
+with app.app_context():
+    exists = db.session.execute(text("SELECT to_regclass('public.finance_accounting_periods')")).scalar()
+    if not exists:
+        raise SystemExit("finance_accounting_periods table not found")
+    print("finance_accounting_periods table found:", exists)
+PY
+
             echo "🔄 Restart service"
             systemctl restart audeladedonnees
 

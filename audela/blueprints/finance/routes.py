@@ -30,6 +30,7 @@ from ...models.finance_ext import (
     FinanceGLAccount,
     FinanceLedgerVoucher,
     FinanceLedgerLine,
+    FinanceAccountingPeriod,
     FinanceLiability,
     FinanceInvestment,
     FinanceRecurringTransaction,
@@ -1889,9 +1890,10 @@ def pivot_data():
 def risk():
     company = _get_company()
     accounts = _q_accounts(company).all()
+    liabilities = FinanceLiability.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).all()
     
     # Use new robust risk metrics (LCR, NSFR, concentration)
-    res = compute_risk_metrics(accounts)
+    res = compute_risk_metrics(accounts, liabilities=liabilities)
 
     # Convert all Decimal values to float for Jinja2 template compatibility
     def convert_decimals(obj):
@@ -2455,6 +2457,10 @@ def reconcile_create_voucher(txn_id: int):
     company = _get_company()
     txn = FinanceTransaction.query.filter_by(id=txn_id, tenant_id=g.tenant.id, company_id=company.id).first_or_404()
 
+    if _is_period_closed(company, txn.txn_date):
+        flash(_("Período contábil fechado para a data da transação. Reabra o período para lançar."), "danger")
+        return redirect(url_for("finance.reconciliation"))
+
     if txn.ledger_voucher_id:
         flash(_("Transação já conciliada."), "info")
         return redirect(url_for("finance.reconciliation"))
@@ -2673,6 +2679,27 @@ def reports_accounting():
         .group_by(FinanceLedgerLine.gl_account_id)
         .all()
     )
+
+    opening_line_count = (
+        db.session.query(func.count(FinanceLedgerLine.id))
+        .join(FinanceLedgerVoucher, FinanceLedgerVoucher.id == FinanceLedgerLine.voucher_id)
+        .filter(FinanceLedgerLine.tenant_id == g.tenant.id)
+        .filter(FinanceLedgerLine.company_id == company.id)
+        .filter(FinanceLedgerVoucher.voucher_date < start)
+        .scalar()
+        or 0
+    )
+
+    period_line_count = (
+        db.session.query(func.count(FinanceLedgerLine.id))
+        .join(FinanceLedgerVoucher, FinanceLedgerVoucher.id == FinanceLedgerLine.voucher_id)
+        .filter(FinanceLedgerLine.tenant_id == g.tenant.id)
+        .filter(FinanceLedgerLine.company_id == company.id)
+        .filter(FinanceLedgerVoucher.voucher_date >= start)
+        .filter(FinanceLedgerVoucher.voucher_date <= end)
+        .scalar()
+        or 0
+    )
     period_rows = (
         db.session.query(
             FinanceLedgerLine.gl_account_id,
@@ -2702,6 +2729,7 @@ def reports_accounting():
         signed_closing = opening + p_debit - p_credit
         natural_closing = signed_closing if (gl.kind or "").lower() in {"asset", "expense"} else -signed_closing
         rows.append({
+            "gl_id": int(gl.id),
             "code": gl.code,
             "name": gl.name,
             "kind": gl.kind,
@@ -2730,6 +2758,42 @@ def reports_accounting():
         "unrealized_result": current_value_total - invested_total,
     }
 
+    detail_gl_id = request.args.get("detail_gl_id", type=int)
+    detail_gl = None
+    detail_rows = []
+    if detail_gl_id:
+        detail_gl = next((gl for gl in gl_accounts if int(gl.id) == int(detail_gl_id)), None)
+        if detail_gl is not None:
+            detail_query = (
+                db.session.query(
+                    FinanceLedgerVoucher.voucher_date,
+                    FinanceLedgerVoucher.reference,
+                    FinanceLedgerVoucher.description,
+                    FinanceLedgerLine.debit,
+                    FinanceLedgerLine.credit,
+                    FinanceLedgerLine.description,
+                )
+                .join(FinanceLedgerVoucher, FinanceLedgerVoucher.id == FinanceLedgerLine.voucher_id)
+                .filter(FinanceLedgerLine.tenant_id == g.tenant.id)
+                .filter(FinanceLedgerLine.company_id == company.id)
+                .filter(FinanceLedgerLine.gl_account_id == detail_gl_id)
+                .filter(FinanceLedgerVoucher.voucher_date >= start)
+                .filter(FinanceLedgerVoucher.voucher_date <= end)
+                .order_by(FinanceLedgerVoucher.voucher_date.desc(), FinanceLedgerLine.id.desc())
+                .limit(300)
+            )
+            for v_date, v_ref, v_desc, ln_debit, ln_credit, ln_desc in detail_query.all():
+                detail_rows.append(
+                    {
+                        "voucher_date": v_date,
+                        "voucher_ref": v_ref,
+                        "voucher_desc": v_desc,
+                        "line_desc": ln_desc,
+                        "debit": Decimal(str(ln_debit or 0)),
+                        "credit": Decimal(str(ln_credit or 0)),
+                    }
+                )
+
     return render_template(
         "finance/reports_accounting.html",
         tenant=g.tenant,
@@ -2744,6 +2808,243 @@ def reports_accounting():
             "closing": total_closing,
         },
         investment_summary=investment_summary,
+        accounting_explain={
+            "gl_accounts": len(gl_accounts),
+            "opening_line_count": int(opening_line_count),
+            "period_line_count": int(period_line_count),
+        },
+        detail_gl=detail_gl,
+        detail_rows=detail_rows,
+        period_state=(
+            FinanceAccountingPeriod.query.filter_by(
+                tenant_id=g.tenant.id,
+                company_id=company.id,
+                period_start=start,
+                period_end=end,
+            ).first()
+        ),
+    )
+
+
+def _is_period_closed(company: FinanceCompany, target_date: date) -> bool:
+    period = (
+        FinanceAccountingPeriod.query
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id, is_closed=True)
+        .filter(FinanceAccountingPeriod.period_start <= target_date)
+        .filter(FinanceAccountingPeriod.period_end >= target_date)
+        .first()
+    )
+    return bool(period)
+
+
+@bp.route("/reports/accounting/periods")
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def reports_accounting_periods():
+    company = _get_company()
+
+    months_back = int(request.args.get("months") or 12)
+    months_back = max(3, min(months_back, 36))
+    today = date.today()
+
+    periods = []
+    for i in range(months_back):
+        anchor = date(today.year, today.month, 1) - timedelta(days=31 * i)
+        month_start = date(anchor.year, anchor.month, 1)
+        next_month = date(anchor.year + 1, 1, 1) if anchor.month == 12 else date(anchor.year, anchor.month + 1, 1)
+        month_end = next_month - timedelta(days=1)
+
+        sums = (
+            db.session.query(
+                func.coalesce(func.sum(FinanceLedgerLine.debit), 0),
+                func.coalesce(func.sum(FinanceLedgerLine.credit), 0),
+                func.count(FinanceLedgerLine.id),
+            )
+            .join(FinanceLedgerVoucher, FinanceLedgerVoucher.id == FinanceLedgerLine.voucher_id)
+            .filter(FinanceLedgerLine.tenant_id == g.tenant.id)
+            .filter(FinanceLedgerLine.company_id == company.id)
+            .filter(FinanceLedgerVoucher.voucher_date >= month_start)
+            .filter(FinanceLedgerVoucher.voucher_date <= month_end)
+            .first()
+        )
+        period_state = (
+            FinanceAccountingPeriod.query
+            .filter_by(
+                tenant_id=g.tenant.id,
+                company_id=company.id,
+                period_start=month_start,
+                period_end=month_end,
+            )
+            .first()
+        )
+        debit = Decimal(str((sums[0] if sums else 0) or 0))
+        credit = Decimal(str((sums[1] if sums else 0) or 0))
+        line_count = int((sums[2] if sums else 0) or 0)
+        periods.append(
+            {
+                "start": month_start,
+                "end": month_end,
+                "debit": debit,
+                "credit": credit,
+                "line_count": line_count,
+                "is_closed": bool(period_state and period_state.is_closed),
+                "closed_at": (period_state.closed_at if period_state else None),
+            }
+        )
+
+    periods = sorted(periods, key=lambda r: r["start"], reverse=True)
+
+    return render_template(
+        "finance/reports_accounting_periods.html",
+        tenant=g.tenant,
+        company=company,
+        periods=periods,
+        months_back=months_back,
+    )
+
+
+@bp.route("/reports/accounting/period/close", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def close_accounting_period():
+    company = _get_company()
+
+    try:
+        start = datetime.strptime((request.form.get("start") or "").strip(), "%Y-%m-%d").date()
+        end = datetime.strptime((request.form.get("end") or "").strip(), "%Y-%m-%d").date()
+    except Exception:
+        flash(_("Período inválido."), "danger")
+        return redirect(url_for("finance.reports_accounting_periods", company_id=company.id))
+
+    if end < start:
+        flash(_("Período inválido."), "danger")
+        return redirect(url_for("finance.reports_accounting_periods", company_id=company.id))
+
+    period = (
+        FinanceAccountingPeriod.query
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id, period_start=start, period_end=end)
+        .first()
+    )
+    if not period:
+        period = FinanceAccountingPeriod(
+            tenant_id=g.tenant.id,
+            company_id=company.id,
+            period_start=start,
+            period_end=end,
+        )
+        db.session.add(period)
+
+    period.is_closed = True
+    period.closed_at = datetime.utcnow()
+    period.closed_by_user_id = getattr(current_user, "id", None)
+    period.reopened_at = None
+    period.reopened_by_user_id = None
+    period.note = (request.form.get("note") or "").strip() or None
+
+    db.session.commit()
+    flash(_("Período contábil fechado."), "success")
+    return redirect(url_for("finance.reports_accounting_periods", company_id=company.id))
+
+
+@bp.route("/reports/accounting/period/reopen", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def reopen_accounting_period():
+    company = _get_company()
+
+    try:
+        start = datetime.strptime((request.form.get("start") or "").strip(), "%Y-%m-%d").date()
+        end = datetime.strptime((request.form.get("end") or "").strip(), "%Y-%m-%d").date()
+    except Exception:
+        flash(_("Período inválido."), "danger")
+        return redirect(url_for("finance.reports_accounting_periods", company_id=company.id))
+
+    period = (
+        FinanceAccountingPeriod.query
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id, period_start=start, period_end=end)
+        .first()
+    )
+    if not period:
+        flash(_("Período não encontrado."), "warning")
+        return redirect(url_for("finance.reports_accounting_periods", company_id=company.id))
+
+    period.is_closed = False
+    period.reopened_at = datetime.utcnow()
+    period.reopened_by_user_id = getattr(current_user, "id", None)
+    db.session.commit()
+
+    flash(_("Período contábil reaberto."), "success")
+    return redirect(url_for("finance.reports_accounting_periods", company_id=company.id))
+
+
+@bp.route("/reports/accounting/source")
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def reports_accounting_source():
+    company = _get_company()
+
+    gl_id = request.args.get("gl_id", type=int)
+    if not gl_id:
+        return jsonify({"error": "missing gl_id"}), 400
+
+    today = date.today()
+    try:
+        start = datetime.strptime((request.args.get("start") or f"{today.year}-01-01"), "%Y-%m-%d").date()
+    except Exception:
+        start = date(today.year, 1, 1)
+    try:
+        end = datetime.strptime((request.args.get("end") or today.isoformat()), "%Y-%m-%d").date()
+    except Exception:
+        end = today
+
+    gl = FinanceGLAccount.query.filter_by(id=gl_id, tenant_id=g.tenant.id, company_id=company.id).first()
+    if not gl:
+        return jsonify({"error": "gl account not found"}), 404
+
+    detail_query = (
+        db.session.query(
+            FinanceLedgerVoucher.voucher_date,
+            FinanceLedgerVoucher.reference,
+            FinanceLedgerVoucher.description,
+            FinanceLedgerLine.debit,
+            FinanceLedgerLine.credit,
+            FinanceLedgerLine.description,
+        )
+        .join(FinanceLedgerVoucher, FinanceLedgerVoucher.id == FinanceLedgerLine.voucher_id)
+        .filter(FinanceLedgerLine.tenant_id == g.tenant.id)
+        .filter(FinanceLedgerLine.company_id == company.id)
+        .filter(FinanceLedgerLine.gl_account_id == gl_id)
+        .filter(FinanceLedgerVoucher.voucher_date >= start)
+        .filter(FinanceLedgerVoucher.voucher_date <= end)
+        .order_by(FinanceLedgerVoucher.voucher_date.desc(), FinanceLedgerLine.id.desc())
+        .limit(300)
+    )
+
+    rows = []
+    for v_date, v_ref, v_desc, ln_debit, ln_credit, ln_desc in detail_query.all():
+        rows.append(
+            {
+                "voucher_date": v_date.isoformat() if v_date else None,
+                "voucher_ref": v_ref,
+                "voucher_desc": v_desc,
+                "line_desc": ln_desc,
+                "debit": float(Decimal(str(ln_debit or 0))),
+                "credit": float(Decimal(str(ln_credit or 0))),
+            }
+        )
+
+    return jsonify(
+        {
+            "account": {
+                "id": int(gl.id),
+                "code": gl.code,
+                "name": gl.name,
+                "kind": gl.kind,
+            },
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+            "rows": rows,
+        }
     )
 
 

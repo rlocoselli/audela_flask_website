@@ -8,6 +8,7 @@ from io import StringIO
 from typing import Iterable, List, Tuple
 
 from ..models.finance import FinanceAccount, FinanceTransaction
+from ..models.finance_ext import FinanceLiability
 
 
 def _d(x) -> Decimal:
@@ -320,7 +321,11 @@ def compute_basic_risk(accounts: Iterable[FinanceAccount]) -> dict:
     return {"currency": ccy_rows, "counterparty": cp_rows[:10]}
 
 
-def compute_risk_metrics(accounts: Iterable[FinanceAccount], transactions: Iterable[FinanceTransaction] | None = None) -> dict:
+def compute_risk_metrics(
+    accounts: Iterable[FinanceAccount],
+    transactions: Iterable[FinanceTransaction] | None = None,
+    liabilities: Iterable[FinanceLiability] | None = None,
+) -> dict:
     """Compute robust SME-friendly liquidity risk metrics: LCR, NSFR, and concentration ratios.
     
     LCR (Liquidity Coverage Ratio) = High Quality Liquid Assets / Total Net Cash Outflows (30d)
@@ -384,6 +389,28 @@ def compute_risk_metrics(accounts: Iterable[FinanceAccount], transactions: Itera
         if t in {"loan", "receivable"} and side == "asset":
             assets_illiquid += bal
     
+    # Include financing registry liabilities (finance_liabilities) in maturity buckets.
+    # This avoids missing denominator/short-term outflows when liabilities are tracked
+    # in financing registry but not mirrored as balance-sheet liability accounts.
+    for l in (liabilities or []):
+        principal = _d(getattr(l, "outstanding_amount", None))
+        if principal <= 0:
+            principal = _d(getattr(l, "principal_amount", None))
+        principal = abs(principal)
+        if principal <= 0:
+            continue
+
+        total_liabilities += principal
+        liabilities_total += principal
+
+        dt = getattr(l, "maturity_date", None)
+        if dt:
+            days_to_maturity = (dt - as_of).days
+            if days_to_maturity <= 30:
+                liabilities_0_30d += principal
+            elif days_to_maturity <= 90:
+                liabilities_30_90d += principal
+
     # For 30-day horizon: assume liability outflows + some emergency withdrawal allowance
     # SME approximation: assume 10% of HQLA must be held as buffer for operational needs
     # and 100% of liabilities maturing in 30d must be paid
