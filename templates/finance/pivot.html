@@ -3,42 +3,16 @@
 
 {% block finance_content %}
   <meta name="csrf-token" content="{{ csrf_token() }}">
+
   <div class="card mb-3">
-    <div class="card-header fw-semibold">{{ _('Pivot') }}</div>
+    <div class="card-header fw-semibold">{{ _('Pivot') }} · {{ _('Cubo') }}</div>
     <div class="card-body">
-      <!-- Source selector -->
       <div class="row g-3 mb-3">
         <div class="col-12 col-md-3">
           <label class="form-label">{{ _('Fonte') }}</label>
           <select class="form-select" id="pivot-source">
             <option value="transactions" selected>{{ _('Transações') }}</option>
             <option value="invoices">{{ _('Faturas') }}</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Dimension selectors -->
-      <div class="row g-3 align-items-end">
-        <div class="col-12 col-md-3">
-          <label class="form-label">{{ _('Linha') }} ({{ _('Selecionar linhas') }})</label>
-          <select class="form-select" id="pivot-row" multiple size="4">
-            <option value="month" selected>{{ _('Mês') }}</option>
-            <option value="account">{{ _('Conta') }}</option>
-            <option value="category">{{ _('Categoria') }}</option>
-            <option value="counterparty">{{ _('Contraparte') }}</option>
-            <option value="type">{{ _('Tipo') }}</option>
-            <option value="invoice_type" style="display:none;">{{ _('Tipo Fatura') }}</option>
-          </select>
-        </div>
-        <div class="col-12 col-md-3">
-          <label class="form-label">{{ _('Coluna') }} ({{ _('Selecionar colunas') }})</label>
-          <select class="form-select" id="pivot-col" multiple size="4">
-            <option value="account">{{ _('Conta') }}</option>
-            <option value="category">{{ _('Categoria') }}</option>
-            <option value="counterparty">{{ _('Contraparte') }}</option>
-            <option value="type">{{ _('Tipo') }}</option>
-            <option value="month">{{ _('Mês') }}</option>
-            <option value="invoice_type" style="display:none;">{{ _('Tipo Fatura') }}</option>
           </select>
         </div>
         <div class="col-12 col-md-3">
@@ -50,9 +24,64 @@
             <option value="count">{{ _('Contagem') }}</option>
           </select>
         </div>
-        <div class="col-12 col-md-3">
+        <div class="col-12 col-md-3 d-flex align-items-end">
           <button class="btn btn-primary w-100" type="button" id="pivot-generate">{{ _('Gerar') }}</button>
         </div>
+        <div class="col-12 col-md-3 d-flex align-items-end">
+          <button class="btn btn-outline-secondary w-100" type="button" id="pivot-reset">{{ _('Reiniciar') }}</button>
+        </div>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-12 col-lg-4">
+          <div class="border rounded p-3 h-100">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <div class="fw-semibold">{{ _('Dimensões') }}</div>
+              <small class="text-secondary">{{ _('Arrastar e soltar') }}</small>
+            </div>
+            <div id="pivot-dimension-pool" class="d-flex flex-wrap gap-2"></div>
+          </div>
+        </div>
+        <div class="col-12 col-lg-8">
+          <div class="row g-2">
+            <div class="col-12 col-md-4">
+              <div class="border rounded p-2 h-100 pivot-dropzone" data-zone="rows">
+                <div class="fw-semibold mb-2">{{ _('Linhas') }}</div>
+                <div class="pivot-zone-list d-flex flex-wrap gap-2" id="pivot-zone-rows"></div>
+              </div>
+            </div>
+            <div class="col-12 col-md-4">
+              <div class="border rounded p-2 h-100 pivot-dropzone" data-zone="cols">
+                <div class="fw-semibold mb-2">{{ _('Colunas') }}</div>
+                <div class="pivot-zone-list d-flex flex-wrap gap-2" id="pivot-zone-cols"></div>
+              </div>
+            </div>
+            <div class="col-12 col-md-4">
+              <div class="border rounded p-2 h-100 pivot-dropzone" data-zone="filters">
+                <div class="fw-semibold mb-2">{{ _('Filtros') }}</div>
+                <div class="pivot-zone-list d-flex flex-wrap gap-2" id="pivot-zone-filters"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3 mt-1" id="pivot-filter-controls"></div>
+
+      <div class="alert alert-info mt-3 mb-0 small">
+        {{ _('Arraste dimensões para Linhas, Colunas e Filtros. Clique em uma célula para drill-down.') }}
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-3" id="pivot-drilldown-card" style="display:none;">
+    <div class="card-header d-flex justify-content-between align-items-center gap-2">
+      <span class="fw-semibold" id="pivot-drilldown-title">{{ _('Drill-down') }}</span>
+      <button class="btn btn-sm btn-outline-secondary" type="button" id="pivot-drilldown-close">{{ _('Fechar') }}</button>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm mb-0" id="pivot-drilldown-table"></table>
       </div>
     </div>
   </div>
@@ -88,84 +117,313 @@
 
   <script>
     const pivotDataUrl = "{{ url_for('finance.pivot_data') }}";
+    const PIVOT_KEY_SEP = '\u001f';
+    const PIVOT_CELL_SEP = '||';
+
+    const PIVOT_TEXT = {
+      noData: "{{ _('Sem dados') }}",
+      total: "{{ _('Total') }}",
+      selectRowCol: "{{ _('Selecione pelo menos uma linha e uma coluna') }}",
+      rows: "{{ _('Linhas') }}",
+      cols: "{{ _('Colunas') }}",
+      drilldown: "{{ _('Drill-down') }}",
+      value: "{{ _('Valor') }}",
+      all: "{{ _('Todos') }}",
+      limitInfo: "{{ _('Mostrando até 200 linhas') }}",
+      dropHint: "{{ _('Solte dimensões aqui') }}",
+    };
+
+    const DIMENSIONS = [
+      { key: 'month', label: "{{ _('Mês') }}", sources: ['transactions', 'invoices'] },
+      { key: 'account', label: "{{ _('Conta') }}", sources: ['transactions', 'invoices'] },
+      { key: 'category', label: "{{ _('Categoria') }}", sources: ['transactions', 'invoices'] },
+      { key: 'counterparty', label: "{{ _('Contraparte') }}", sources: ['transactions', 'invoices'] },
+      { key: 'type', label: "{{ _('Tipo') }}", sources: ['transactions', 'invoices'] },
+      { key: 'invoice_type', label: "{{ _('Tipo Fatura') }}", sources: ['invoices'] },
+    ];
+
+    const state = {
+      source: 'transactions',
+      rows: ['month'],
+      cols: ['account'],
+      filters: [],
+      measure: 'amount_sum',
+      filterValues: {},
+    };
 
     function formatNumber(value) {
-      if (value === null || value === undefined || Number.isNaN(value)) return "0";
+      if (value === null || value === undefined || Number.isNaN(value)) return '0';
       return Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    function normalizeValue(rec, key) {
+      return rec[key] || PIVOT_TEXT.noData;
+    }
+
+    function getVisibleDimensions() {
+      return DIMENSIONS.filter((dim) => dim.sources.includes(state.source));
+    }
+
+    function getDimensionLabel(key) {
+      return DIMENSIONS.find((dim) => dim.key === key)?.label || key;
     }
 
     function getMeasureValue(rec, measure) {
       if (measure === 'count') return 1;
-      if (measure === 'inflow_sum') return rec.inflow;
-      if (measure === 'outflow_sum') return rec.outflow;
-      return rec.amount;
+      if (measure === 'inflow_sum') return Number(rec.inflow || 0);
+      if (measure === 'outflow_sum') return Number(rec.outflow || 0);
+      return Number(rec.amount || 0);
+    }
+
+    function sanitizeStateForSource() {
+      const visible = new Set(getVisibleDimensions().map((dim) => dim.key));
+      state.rows = state.rows.filter((k) => visible.has(k));
+      state.cols = state.cols.filter((k) => visible.has(k));
+      state.filters = state.filters.filter((k) => visible.has(k));
+      Object.keys(state.filterValues).forEach((k) => {
+        if (!visible.has(k)) delete state.filterValues[k];
+      });
+
+      if (!state.rows.length) state.rows = ['month'];
+      if (!state.cols.length) state.cols = ['account'];
+    }
+
+    function renderPool() {
+      const host = document.getElementById('pivot-dimension-pool');
+      const used = new Set([...state.rows, ...state.cols, ...state.filters]);
+      const available = getVisibleDimensions().filter((dim) => !used.has(dim.key));
+
+      if (!available.length) {
+        host.innerHTML = `<span class="text-secondary small">${escapeHtml(PIVOT_TEXT.noData)}</span>`;
+        return;
+      }
+
+      host.innerHTML = available.map((dim) => (
+        `<span class="badge border text-body bg-light" draggable="true" data-dim-key="${escapeHtml(dim.key)}" style="cursor: grab;">` +
+          `<i class="bi bi-grid-3x3-gap me-1"></i>${escapeHtml(dim.label)}` +
+        `</span>`
+      )).join('');
+
+      host.querySelectorAll('[data-dim-key]').forEach((el) => {
+        el.addEventListener('dragstart', (ev) => {
+          ev.dataTransfer.setData('text/plain', JSON.stringify({ field: el.dataset.dimKey, fromZone: 'pool' }));
+        });
+      });
+    }
+
+    function renderZone(zoneName, zoneId) {
+      const host = document.getElementById(zoneId);
+      const keys = state[zoneName] || [];
+
+      if (!keys.length) {
+        host.innerHTML = `<span class="text-secondary small">${escapeHtml(PIVOT_TEXT.dropHint)}</span>`;
+      } else {
+        host.innerHTML = keys.map((key) => (
+          `<span class="badge bg-primary-subtle text-primary-emphasis border" draggable="true" data-zone="${zoneName}" data-dim-key="${escapeHtml(key)}" style="cursor: grab;">` +
+            `${escapeHtml(getDimensionLabel(key))}` +
+            `<button type="button" class="btn btn-sm p-0 border-0 ms-2 text-primary-emphasis" data-remove-zone="${zoneName}" data-remove-key="${escapeHtml(key)}" aria-label="remove">×</button>` +
+          `</span>`
+        )).join('');
+      }
+
+      host.querySelectorAll('[data-zone][data-dim-key]').forEach((el) => {
+        el.addEventListener('dragstart', (ev) => {
+          ev.dataTransfer.setData('text/plain', JSON.stringify({ field: el.dataset.dimKey, fromZone: zoneName }));
+        });
+      });
+
+      host.querySelectorAll('[data-remove-zone]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const zone = btn.dataset.removeZone;
+          const key = btn.dataset.removeKey;
+          state[zone] = (state[zone] || []).filter((k) => k !== key);
+          if (zone === 'rows' && !state.rows.length) state.rows = ['month'];
+          if (zone === 'cols' && !state.cols.length) state.cols = ['account'];
+          renderCubeBuilder();
+          generatePivot();
+        });
+      });
+    }
+
+    function renderFilterControls() {
+      const host = document.getElementById('pivot-filter-controls');
+      const records = window.__pivotData || [];
+
+      if (!state.filters.length) {
+        host.innerHTML = '';
+        return;
+      }
+
+      let html = '';
+      state.filters.forEach((key) => {
+        const values = Array.from(new Set(records.map((rec) => normalizeValue(rec, key)))).sort();
+        const selected = state.filterValues[key] || '__all__';
+
+        html += `<div class="col-12 col-md-4">`;
+        html += `<label class="form-label small mb-1">${escapeHtml(getDimensionLabel(key))}</label>`;
+        html += `<select class="form-select form-select-sm" data-filter-key="${escapeHtml(key)}">`;
+        html += `<option value="__all__" ${selected === '__all__' ? 'selected' : ''}>${escapeHtml(PIVOT_TEXT.all)}</option>`;
+        values.forEach((value) => {
+          html += `<option value="${escapeHtml(value)}" ${selected === value ? 'selected' : ''}>${escapeHtml(value)}</option>`;
+        });
+        html += `</select></div>`;
+      });
+
+      host.innerHTML = html;
+      host.querySelectorAll('[data-filter-key]').forEach((sel) => {
+        sel.addEventListener('change', () => {
+          state.filterValues[sel.dataset.filterKey] = sel.value;
+          generatePivot();
+        });
+      });
+    }
+
+    function renderCubeBuilder() {
+      renderPool();
+      renderZone('rows', 'pivot-zone-rows');
+      renderZone('cols', 'pivot-zone-cols');
+      renderZone('filters', 'pivot-zone-filters');
+      renderFilterControls();
+    }
+
+    function setupDropzones() {
+      document.querySelectorAll('.pivot-dropzone').forEach((zone) => {
+        zone.addEventListener('dragover', (ev) => {
+          ev.preventDefault();
+          zone.classList.add('border-primary');
+        });
+
+        zone.addEventListener('dragleave', () => {
+          zone.classList.remove('border-primary');
+        });
+
+        zone.addEventListener('drop', (ev) => {
+          ev.preventDefault();
+          zone.classList.remove('border-primary');
+
+          let payload;
+          try {
+            payload = JSON.parse(ev.dataTransfer.getData('text/plain') || '{}');
+          } catch (_e) {
+            payload = {};
+          }
+
+          const field = payload.field;
+          const fromZone = payload.fromZone;
+          const targetZone = zone.dataset.zone;
+          if (!field || !targetZone) return;
+
+          if (fromZone && fromZone !== 'pool' && Array.isArray(state[fromZone])) {
+            state[fromZone] = state[fromZone].filter((k) => k !== field);
+          }
+          if (!state[targetZone].includes(field)) {
+            state[targetZone].push(field);
+          }
+
+          if (!state.rows.length) state.rows = ['month'];
+          if (!state.cols.length) state.cols = ['account'];
+
+          renderCubeBuilder();
+          generatePivot();
+        });
+      });
+    }
+
+    function applyFilters(records) {
+      if (!state.filters.length) return records;
+      return records.filter((rec) => {
+        return state.filters.every((key) => {
+          const selected = state.filterValues[key] || '__all__';
+          if (selected === '__all__') return true;
+          return normalizeValue(rec, key) === selected;
+        });
+      });
     }
 
     function buildPivot(records, rowKeys, colKeys, measure) {
-      const rows = new Map();
-      const cols = new Map();
+      const rowsMap = new Map();
+      const colsMap = new Map();
       const data = new Map();
+      const details = new Map();
 
       records.forEach((rec) => {
-        // Build row key (concatenate multiple dimensions)
-        const rowParts = rowKeys.map(k => rec[k] || '{{ _('Sem dados') }}');
-        const r = rowParts.join(' | ');
-        
-        // Build col key (concatenate multiple dimensions)
-        const colParts = colKeys.map(k => rec[k] || '{{ _('Sem dados') }}');
-        const c = colParts.join(' | ');
-        
-        rows.set(r, true);
-        cols.set(c, true);
-        const key = `${r}||${c}`;
-        const prev = data.get(key) || 0;
-        data.set(key, prev + getMeasureValue(rec, measure));
+        const rowValues = rowKeys.map((k) => normalizeValue(rec, k));
+        const colValues = colKeys.map((k) => normalizeValue(rec, k));
+        const rowKey = rowValues.join(PIVOT_KEY_SEP);
+        const colKey = colValues.join(PIVOT_KEY_SEP);
+        const rowLabel = rowValues.join(' | ');
+        const colLabel = colValues.join(' | ');
+        const cellKey = `${rowKey}${PIVOT_CELL_SEP}${colKey}`;
+
+        rowsMap.set(rowKey, { key: rowKey, label: rowLabel });
+        colsMap.set(colKey, { key: colKey, label: colLabel });
+
+        const prev = data.get(cellKey) || 0;
+        data.set(cellKey, prev + getMeasureValue(rec, measure));
+
+        if (!details.has(cellKey)) details.set(cellKey, []);
+        details.get(cellKey).push(rec);
       });
 
-      return {
-        rows: Array.from(rows.keys()).sort(),
-        cols: Array.from(cols.keys()).sort(),
-        data,
-      };
+      const rows = Array.from(rowsMap.values()).sort((a, b) => a.label.localeCompare(b.label));
+      const cols = Array.from(colsMap.values()).sort((a, b) => a.label.localeCompare(b.label));
+      return { rows, cols, data, details };
     }
 
     function renderPivotTable(container, pivot) {
       const { rows, cols, data } = pivot;
       if (!rows.length || !cols.length) {
-        container.innerHTML = `<tr><td class="p-3 text-secondary">{{ _('Sem dados') }}</td></tr>`;
+        container.innerHTML = `<tr><td class="p-3 text-secondary">${escapeHtml(PIVOT_TEXT.noData)}</td></tr>`;
         return;
       }
 
       let html = '<thead><tr><th></th>';
-      cols.forEach(c => { html += `<th class="text-end">${c}</th>`; });
-      html += '<th class="text-end">{{ _('Total') }}</th></tr></thead>';
-      html += '<tbody>';
+      cols.forEach((col) => { html += `<th class="text-end">${escapeHtml(col.label)}</th>`; });
+      html += `<th class="text-end">${escapeHtml(PIVOT_TEXT.total)}</th></tr></thead><tbody>`;
 
       const colTotals = new Map();
-      cols.forEach(c => colTotals.set(c, 0));
+      cols.forEach((col) => colTotals.set(col.key, 0));
       let grandTotal = 0;
 
-      rows.forEach(r => {
+      rows.forEach((row) => {
         let rowTotal = 0;
-        html += `<tr><td>${r}</td>`;
-        cols.forEach(c => {
-          const key = `${r}||${c}`;
-          const val = data.get(key) || 0;
+        html += `<tr><td>${escapeHtml(row.label)}</td>`;
+
+        cols.forEach((col) => {
+          const cellKey = `${row.key}${PIVOT_CELL_SEP}${col.key}`;
+          const val = data.get(cellKey) || 0;
           rowTotal += val;
-          colTotals.set(c, colTotals.get(c) + val);
-          html += `<td class="text-end">${formatNumber(val)}</td>`;
+          colTotals.set(col.key, colTotals.get(col.key) + val);
+          html += `<td class="text-end">` +
+            `<button class="btn btn-link btn-sm p-0 text-decoration-none text-end w-100 pivot-cell-drill" type="button" data-row-key="${escapeHtml(row.key)}" data-col-key="${escapeHtml(col.key)}">${formatNumber(val)}</button>` +
+            `</td>`;
         });
+
         grandTotal += rowTotal;
         html += `<td class="text-end fw-semibold">${formatNumber(rowTotal)}</td></tr>`;
       });
 
-      html += '<tr class="table-light"><td class="fw-semibold">{{ _('Total') }}</td>';
-      cols.forEach(c => {
-        html += `<td class="text-end fw-semibold">${formatNumber(colTotals.get(c))}</td>`;
+      html += `<tr class="table-light"><td class="fw-semibold">${escapeHtml(PIVOT_TEXT.total)}</td>`;
+      cols.forEach((col) => {
+        html += `<td class="text-end fw-semibold">${formatNumber(colTotals.get(col.key))}</td>`;
       });
-      html += `<td class="text-end fw-semibold">${formatNumber(grandTotal)}</td></tr>`;
-      html += '</tbody>';
+      html += `<td class="text-end fw-semibold">${formatNumber(grandTotal)}</td></tr></tbody>`;
+
       container.innerHTML = html;
+      container.querySelectorAll('.pivot-cell-drill').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          showDrilldown(btn.dataset.rowKey, btn.dataset.colKey);
+        });
+      });
     }
 
     function renderPivotChart(pivot, dimension, chartType) {
@@ -173,12 +431,14 @@
       if (!dom || !window.echarts) return;
       const chart = echarts.init(dom);
 
-      const labels = dimension === 'row' ? pivot.rows : pivot.cols;
-      const totals = labels.map(label => {
+      const labels = (dimension === 'row' ? pivot.rows : pivot.cols).map((x) => x.label);
+      const totals = labels.map((_, idx) => {
         if (dimension === 'row') {
-          return pivot.cols.reduce((acc, c) => acc + (pivot.data.get(`${label}||${c}`) || 0), 0);
+          const rowKey = pivot.rows[idx].key;
+          return pivot.cols.reduce((acc, col) => acc + (pivot.data.get(`${rowKey}${PIVOT_CELL_SEP}${col.key}`) || 0), 0);
         }
-        return pivot.rows.reduce((acc, r) => acc + (pivot.data.get(`${r}||${label}`) || 0), 0);
+        const colKey = pivot.cols[idx].key;
+        return pivot.rows.reduce((acc, row) => acc + (pivot.data.get(`${row.key}${PIVOT_CELL_SEP}${colKey}`) || 0), 0);
       });
 
       let option;
@@ -201,8 +461,49 @@
       }
 
       chart.setOption(option);
-      setTimeout(() => { try { chart.resize(); } catch (e) {} }, 80);
-      window.addEventListener('resize', () => { try { chart.resize(); } catch (e) {} });
+      setTimeout(() => { try { chart.resize(); } catch (_e) {} }, 80);
+      window.addEventListener('resize', () => { try { chart.resize(); } catch (_e) {} });
+    }
+
+    function showDrilldown(rowKey, colKey) {
+      const ctx = window.__pivotContext;
+      if (!ctx || !ctx.pivot) return;
+
+      const cellKey = `${rowKey}${PIVOT_CELL_SEP}${colKey}`;
+      const records = ctx.pivot.details.get(cellKey) || [];
+      const rowLabel = ctx.pivot.rows.find((r) => r.key === rowKey)?.label || PIVOT_TEXT.noData;
+      const colLabel = ctx.pivot.cols.find((c) => c.key === colKey)?.label || PIVOT_TEXT.noData;
+
+      const card = document.getElementById('pivot-drilldown-card');
+      const title = document.getElementById('pivot-drilldown-title');
+      const table = document.getElementById('pivot-drilldown-table');
+
+      title.textContent = `${PIVOT_TEXT.drilldown} · ${PIVOT_TEXT.rows}: ${rowLabel} · ${PIVOT_TEXT.cols}: ${colLabel} (${records.length})`;
+
+      const head = `<thead><tr>` +
+        `<th>${escapeHtml(getDimensionLabel('month'))}</th>` +
+        `<th>${escapeHtml(getDimensionLabel('account'))}</th>` +
+        `<th>${escapeHtml(getDimensionLabel('category'))}</th>` +
+        `<th>${escapeHtml(getDimensionLabel('counterparty'))}</th>` +
+        `<th>${escapeHtml(getDimensionLabel('type'))}</th>` +
+        `<th class="text-end">${escapeHtml(PIVOT_TEXT.value)}</th>` +
+      `</tr></thead>`;
+
+      const bodyRows = records.slice(0, 200).map((rec) => (
+        `<tr>` +
+          `<td>${escapeHtml(normalizeValue(rec, 'month'))}</td>` +
+          `<td>${escapeHtml(normalizeValue(rec, 'account'))}</td>` +
+          `<td>${escapeHtml(normalizeValue(rec, 'category'))}</td>` +
+          `<td>${escapeHtml(normalizeValue(rec, 'counterparty'))}</td>` +
+          `<td>${escapeHtml(normalizeValue(rec, 'type'))}</td>` +
+          `<td class="text-end">${formatNumber(rec.amount || 0)}</td>` +
+        `</tr>`
+      )).join('');
+
+      const foot = `<tfoot><tr><td colspan="6" class="small text-secondary">${escapeHtml(PIVOT_TEXT.limitInfo)}</td></tr></tfoot>`;
+      table.innerHTML = head + `<tbody>${bodyRows || `<tr><td colspan="6" class="text-secondary p-3">${escapeHtml(PIVOT_TEXT.noData)}</td></tr>`}</tbody>` + foot;
+      card.style.display = '';
+      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     async function loadPivotData(source) {
@@ -217,68 +518,66 @@
       return res.json();
     }
 
-    function updateDimensionOptions() {
-      const source = document.getElementById('pivot-source').value;
-      const rowSelect = document.getElementById('pivot-row');
-      const colSelect = document.getElementById('pivot-col');
-      const invoiceTypeOption = Array.from(rowSelect.options).find(opt => opt.value === 'invoice_type');
-      
-      if (source === 'invoices' && invoiceTypeOption) {
-        invoiceTypeOption.style.display = '';
-        Array.from(colSelect.options).find(opt => opt.value === 'invoice_type').style.display = '';
-      } else if (invoiceTypeOption) {
-        invoiceTypeOption.style.display = 'none';
-        Array.from(colSelect.options).find(opt => opt.value === 'invoice_type').style.display = 'none';
-      }
+    function resetPivotState() {
+      state.rows = ['month'];
+      state.cols = ['account'];
+      state.filters = [];
+      state.filterValues = {};
+      state.measure = 'amount_sum';
+      document.getElementById('pivot-measure').value = state.measure;
+      document.getElementById('pivot-drilldown-card').style.display = 'none';
+      renderCubeBuilder();
     }
 
-    async function generatePivot() {
-      const source = document.getElementById('pivot-source').value;
-      const rowSelect = document.getElementById('pivot-row');
-      const colSelect = document.getElementById('pivot-col');
-      const measure = document.getElementById('pivot-measure').value;
+    function generatePivot() {
+      state.measure = document.getElementById('pivot-measure').value;
       const chartDim = document.getElementById('pivot-chart-dim').value;
       const chartType = document.getElementById('pivot-chart-type').value;
 
-      // Get selected options from multi-select
-      const rowKeys = Array.from(rowSelect.selectedOptions).map(opt => opt.value);
-      const colKeys = Array.from(colSelect.selectedOptions).map(opt => opt.value);
-
-      if (!rowKeys.length || !colKeys.length) {
-        alert('{{ _('Selecione pelo menos uma linha e uma coluna') }}');
+      if (!state.rows.length || !state.cols.length) {
+        alert(PIVOT_TEXT.selectRowCol);
         return;
       }
 
-      const data = window.__pivotData || [];
-      const pivot = buildPivot(data, rowKeys, colKeys, measure);
+      const allData = window.__pivotData || [];
+      const filteredData = applyFilters(allData);
+      const pivot = buildPivot(filteredData, state.rows, state.cols, state.measure);
+
+      window.__pivotContext = { pivot };
       renderPivotTable(document.getElementById('pivot-table'), pivot);
       renderPivotChart(pivot, chartDim, chartType);
     }
 
     (window.onReady || function(fn){ window.addEventListener('load', fn); })(async function(){
-      updateDimensionOptions();
-      
+      setupDropzones();
+
       document.getElementById('pivot-source').addEventListener('change', async function() {
-        updateDimensionOptions();
-        window.__pivotData = await loadPivotData(this.value);
+        state.source = this.value;
+        sanitizeStateForSource();
+        renderCubeBuilder();
+        window.__pivotData = await loadPivotData(state.source);
+        renderFilterControls();
         generatePivot();
       });
 
       document.getElementById('pivot-generate').addEventListener('click', generatePivot);
-      document.getElementById('pivot-row').addEventListener('change', generatePivot);
-      document.getElementById('pivot-col').addEventListener('change', generatePivot);
-      document.getElementById('pivot-measure').addEventListener('change', generatePivot);
-      document.getElementById('pivot-chart-dim').addEventListener('change', () => {
+      document.getElementById('pivot-reset').addEventListener('click', () => {
+        resetPivotState();
         generatePivot();
       });
-      document.getElementById('pivot-chart-type').addEventListener('change', () => {
-        generatePivot();
+      document.getElementById('pivot-measure').addEventListener('change', generatePivot);
+      document.getElementById('pivot-chart-dim').addEventListener('change', generatePivot);
+      document.getElementById('pivot-chart-type').addEventListener('change', generatePivot);
+      document.getElementById('pivot-drilldown-close').addEventListener('click', () => {
+        document.getElementById('pivot-drilldown-card').style.display = 'none';
       });
 
-      const source = document.getElementById('pivot-source').value;
-      window.__pivotData = await loadPivotData(source);
+      state.source = document.getElementById('pivot-source').value;
+      sanitizeStateForSource();
+      renderCubeBuilder();
+      window.__pivotData = await loadPivotData(state.source);
+      renderFilterControls();
       generatePivot();
     });
   </script>
 {% endblock %}
-
