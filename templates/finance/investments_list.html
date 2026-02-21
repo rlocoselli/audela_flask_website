@@ -1,0 +1,102 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'investments' %}
+
+{% block finance_content %}
+  <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+    <div>
+      <div class="h5 mb-0">{{ _('Investimentos') }}</div>
+      <div class="text-secondary small">{{ _('Opções EDF e Stock Exchange, com impacto em cashflow/liquidez.') }}</div>
+    </div>
+    <a class="btn btn-primary btn-sm" href="{{ url_for('finance.investment_new') }}">
+      <i class="bi bi-plus-lg me-1"></i>{{ _('Novo investimento') }}
+    </a>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <form method="get" class="row g-2 align-items-end mb-3">
+        <div class="col-12 col-md-4">
+          <label class="form-label">{{ _('Pesquisar') }}</label>
+          <input class="form-control" name="q" value="{{ filters.q }}" placeholder="{{ _('Nome ou código') }}" />
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label">{{ _('Tipo') }}</label>
+          <select class="form-select" name="provider">
+            <option value="">{{ _('Todos') }}</option>
+            <option value="edf" {% if filters.provider=='edf' %}selected{% endif %}>EDF</option>
+            <option value="stock_exchange" {% if filters.provider=='stock_exchange' %}selected{% endif %}>{{ _('Stock Exchange') }}</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label">{{ _('Status') }}</label>
+          <select class="form-select" name="status">
+            <option value="">{{ _('Todos') }}</option>
+            <option value="active" {% if filters.status=='active' %}selected{% endif %}>{{ _('Active') }}</option>
+            <option value="closed" {% if filters.status=='closed' %}selected{% endif %}>{{ _('Closed') }}</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-2">
+          <button class="btn btn-outline-secondary w-100">{{ _('Filtrar') }}</button>
+        </div>
+      </form>
+
+      {% if items %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th>{{ _('Nome') }}</th>
+                <th>{{ _('Tipo') }}</th>
+                <th>{{ _('Código') }}</th>
+                <th class="text-end">{{ _('Investido') }}</th>
+                <th class="text-end">{{ _('Valor atual') }}</th>
+                <th class="text-end">{{ _('P/L') }}</th>
+                <th>{{ _('Status') }}</th>
+                <th class="text-end">{{ _('Ações') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for i in items %}
+                <tr>
+                  <td class="fw-semibold">{{ i.name }}</td>
+                  <td>{{ i.provider_label }}</td>
+                  <td>{{ i.instrument_code or '' }}</td>
+                  <td class="text-end">{{ i.invested_fmt }}</td>
+                  <td class="text-end">{{ i.current_fmt }}</td>
+                  <td class="text-end">{{ i.pnl_fmt }}</td>
+                  <td><span class="badge text-bg-light border">{{ i.status_label }}</span></td>
+                  <td class="text-end">
+                    <form method="post" action="{{ url_for('finance.investment_update', investment_id=i.id) }}" class="d-inline-flex align-items-center gap-1">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                      <input class="form-control form-control-sm" name="current_value" style="width: 110px" placeholder="{{ _('Valor') }}" />
+                      <select class="form-select form-select-sm" name="status" style="width: 95px">
+                        <option value="active" {% if i.status=='active' %}selected{% endif %}>{{ _('Active') }}</option>
+                        <option value="closed" {% if i.status=='closed' %}selected{% endif %}>{{ _('Closed') }}</option>
+                      </select>
+                      <button class="btn btn-outline-secondary btn-sm">{{ _('Atualizar') }}</button>
+                    </form>
+
+                    <form method="post" action="{{ url_for('finance.investment_cash_event', investment_id=i.id) }}" class="d-inline-flex align-items-center gap-1 ms-1">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                      <select class="form-select form-select-sm" name="event_type" style="width: 95px">
+                        <option value="buy">{{ _('Compra') }}</option>
+                        <option value="sell" selected>{{ _('Venda') }}</option>
+                        <option value="dividend">{{ _('Dividendo') }}</option>
+                        <option value="fee">{{ _('Taxa') }}</option>
+                      </select>
+                      <input class="form-control form-control-sm" name="amount" style="width: 100px" placeholder="{{ _('Valor') }}" required />
+                      <input class="form-control form-control-sm" type="date" name="txn_date" style="width: 145px" />
+                      <button class="btn btn-outline-primary btn-sm">{{ _('Registrar') }}</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="text-secondary">{{ _('Nenhum investimento registrado ainda.') }}</div>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

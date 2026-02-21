@@ -28,6 +28,8 @@ class CashflowPoint:
     outflow: Decimal
     net: Decimal
     balance: Decimal
+    txns_net: Decimal
+    financing_net: Decimal
 
 
 def compute_starting_cash(accounts: Iterable[FinanceAccount]) -> Decimal:
@@ -47,10 +49,13 @@ def compute_cashflow(
     start: date,
     end: date,
     starting_balance: Decimal,
+    extra_events: Iterable[tuple[date, Decimal, str] | tuple[date, Decimal]] | None = None,
 ) -> List[CashflowPoint]:
     """Aggregate transactions into daily cashflow and compute cumulative balance."""
     # Aggregate by day
     by_day: dict[date, Tuple[Decimal, Decimal]] = {}
+    by_day_txns_net: dict[date, Decimal] = {}
+    by_day_financing_net: dict[date, Decimal] = {}
     for t in transactions:
         d = t.txn_date
         if d < start or d > end:
@@ -62,6 +67,29 @@ def compute_cashflow(
         else:
             outflow += (-amt)
         by_day[d] = (inflow, outflow)
+        by_day_txns_net[d] = by_day_txns_net.get(d, Decimal("0")) + amt
+
+    # Optional synthetic events (e.g. financing drawdown and installment schedule)
+    if extra_events:
+        for item in extra_events:
+            if len(item) == 3:
+                d, amt_raw, source = item
+            else:
+                d, amt_raw = item
+                source = "financing"
+            if d < start or d > end:
+                continue
+            amt = _d(amt_raw)
+            inflow, outflow = by_day.get(d, (Decimal("0"), Decimal("0")))
+            if amt >= 0:
+                inflow += amt
+            else:
+                outflow += (-amt)
+            by_day[d] = (inflow, outflow)
+            if (source or "").lower() == "financing":
+                by_day_financing_net[d] = by_day_financing_net.get(d, Decimal("0")) + amt
+            else:
+                by_day_txns_net[d] = by_day_txns_net.get(d, Decimal("0")) + amt
 
     pts: List[CashflowPoint] = []
     bal = _d(starting_balance)
@@ -70,7 +98,17 @@ def compute_cashflow(
         inflow, outflow = by_day.get(cur, (Decimal("0"), Decimal("0")))
         net = inflow - outflow
         bal = bal + net
-        pts.append(CashflowPoint(day=cur, inflow=inflow, outflow=outflow, net=net, balance=bal))
+        pts.append(
+            CashflowPoint(
+                day=cur,
+                inflow=inflow,
+                outflow=outflow,
+                net=net,
+                balance=bal,
+                txns_net=by_day_txns_net.get(cur, Decimal("0")),
+                financing_net=by_day_financing_net.get(cur, Decimal("0")),
+            )
+        )
         cur += timedelta(days=1)
     return pts
 

@@ -1,14 +1,20 @@
 from __future__ import annotations
 
+import logging
+import time
+import uuid
+import os
 from datetime import date, datetime, timedelta
 from io import BytesIO
 from decimal import Decimal
+import requests
 
 from flask import abort, flash, g, redirect, render_template, request, session, url_for, current_app, jsonify, send_file
 from flask_login import current_user, login_required
 from werkzeug.utils import secure_filename
 from sqlalchemy.orm import joinedload
 from sqlalchemy import func
+from sqlalchemy.exc import SQLAlchemyError
 
 from ...extensions import db
 from ...i18n import DEFAULT_LANG, tr
@@ -25,6 +31,7 @@ from ...models.finance_ext import (
     FinanceLedgerVoucher,
     FinanceLedgerLine,
     FinanceLiability,
+    FinanceInvestment,
     FinanceRecurringTransaction,
     FinanceProduct,
 )
@@ -58,6 +65,89 @@ from ...services.subscription_service import SubscriptionService
 from ...tenancy import get_current_tenant_id, get_user_module_access
 
 from . import bp
+
+
+finance_logger = logging.getLogger("audela.finance")
+_INVEST_LOOKUP_CACHE: dict[str, tuple[float, list[dict]]] = {}
+_INVEST_LOOKUP_CACHE_TTL_S = int(os.environ.get("INVEST_LOOKUP_CACHE_TTL_S", "60"))
+
+
+def _finance_context() -> dict:
+    return {
+        "tenant_id": getattr(getattr(g, "tenant", None), "id", None),
+        "user_id": getattr(current_user, "id", None) if getattr(current_user, "is_authenticated", False) else None,
+        "endpoint": request.endpoint,
+        "path": request.path,
+        "method": request.method,
+        "request_id": getattr(g, "finance_request_id", None),
+    }
+
+
+@bp.before_app_request
+def _finance_log_request_start() -> None:
+    if not (request.endpoint and request.endpoint.startswith("finance.")):
+        return
+    g.finance_request_started = time.perf_counter()
+    g.finance_request_id = request.headers.get("X-Request-Id") or uuid.uuid4().hex[:12]
+    ctx = _finance_context()
+    finance_logger.info(
+        "event=finance.request.start request_id=%s tenant_id=%s user_id=%s endpoint=%s method=%s path=%s",
+        ctx["request_id"],
+        ctx["tenant_id"],
+        ctx["user_id"],
+        ctx["endpoint"],
+        ctx["method"],
+        ctx["path"],
+    )
+
+
+@bp.after_app_request
+def _finance_log_request_end(response):
+    if not (request.endpoint and request.endpoint.startswith("finance.")):
+        return response
+    started = getattr(g, "finance_request_started", None)
+    duration_ms = ((time.perf_counter() - started) * 1000.0) if started is not None else 0.0
+    ctx = _finance_context()
+    msg = (
+        "event=finance.request.end request_id=%s tenant_id=%s user_id=%s endpoint=%s method=%s "
+        "path=%s status=%s duration_ms=%.2f"
+    )
+    args = (
+        ctx["request_id"],
+        ctx["tenant_id"],
+        ctx["user_id"],
+        ctx["endpoint"],
+        ctx["method"],
+        ctx["path"],
+        response.status_code,
+        duration_ms,
+    )
+    if response.status_code >= 500:
+        finance_logger.error(msg, *args)
+    elif response.status_code >= 400:
+        finance_logger.warning(msg, *args)
+    else:
+        finance_logger.info(msg, *args)
+    return response
+
+
+@bp.teardown_request
+def _finance_log_exception(exc) -> None:
+    if exc is None:
+        return
+    if not (request.endpoint and request.endpoint.startswith("finance.")):
+        return
+    ctx = _finance_context()
+    finance_logger.exception(
+        "event=finance.request.exception request_id=%s tenant_id=%s user_id=%s endpoint=%s method=%s path=%s err=%s",
+        ctx["request_id"],
+        ctx["tenant_id"],
+        ctx["user_id"],
+        ctx["endpoint"],
+        ctx["method"],
+        ctx["path"],
+        str(exc),
+    )
 
 
 def _(msgid: str, **kwargs):
@@ -438,10 +528,13 @@ def dashboard():
         .all()
     )
     liabilities = FinanceLiability.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).all()
+    investments = _safe_get_investments(company)
 
     cash = compute_starting_cash(accounts)
     nii = compute_nii(accounts, horizon_days=365)
     liquidity = compute_liquidity(accounts, horizon_days=30)
+    investment_liquid_sources = _compute_investment_liquid_sources(investments)
+    liquidity = _with_investment_liquidity(liquidity, investment_liquid_sources)
 
     def _n(v) -> float:
         try:
@@ -1546,6 +1639,57 @@ def statement_import(account_id: int):
 # -----------------
 
 
+def _next_liability_cashflow_date(d: date, freq: str) -> date:
+    f = (freq or "monthly").strip().lower()
+    if f == "yearly":
+        return _add_months(d, 12)
+    if f == "quarterly":
+        return _add_months(d, 3)
+    if f == "other":
+        # Fallback for MVP when custom schedule is not modeled
+        return _add_months(d, 1)
+    return _add_months(d, 1)
+
+
+def _build_financing_cashflow_events(
+    liabilities: list[FinanceLiability],
+    *,
+    start: date,
+    end: date,
+) -> list[tuple[date, Decimal, str]]:
+    """Build synthetic cashflow events from financing registry.
+
+    Rules (MVP):
+    - principal drawdown on start_date => inflow
+    - installment schedule from next_payment_date => outflow
+    - bullet repayment on maturity_date when no installments => outflow outstanding
+    """
+    events: list[tuple[date, Decimal, str]] = []
+
+    for l in liabilities:
+        principal = Decimal(str(l.principal_amount or 0))
+        outstanding = Decimal(str(l.outstanding_amount or 0))
+        installment = Decimal(str(l.installment_amount or 0))
+
+        if l.start_date and principal > 0 and start <= l.start_date <= end:
+            events.append((l.start_date, abs(principal), "financing"))
+
+        has_schedule = bool(l.next_payment_date and installment > 0)
+        if has_schedule:
+            d = l.next_payment_date
+            while d and d <= end:
+                if l.maturity_date and d > l.maturity_date:
+                    break
+                if d >= start:
+                    events.append((d, -abs(installment), "financing"))
+                d = _next_liability_cashflow_date(d, l.payment_frequency or "monthly")
+
+        if (not has_schedule) and l.maturity_date and outstanding > 0 and start <= l.maturity_date <= end:
+            events.append((l.maturity_date, -abs(outstanding), "financing"))
+
+    return events
+
+
 @bp.route("/cashflow")
 @login_required
 @require_roles("tenant_admin", "creator", "viewer")
@@ -1553,6 +1697,7 @@ def cashflow():
     company = _get_company()
     accounts = _q_accounts(company).all()
     txns = _q_txns(company).all()
+    liabilities = FinanceLiability.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).all()
 
     # default horizon: 90 days ahead
     try:
@@ -1571,7 +1716,14 @@ def cashflow():
     else:
         current_balance = compute_starting_cash(accounts)
         starting = compute_opening_balance(txns, start=start, as_of=date.today(), current_balance=current_balance)
-    series = compute_cashflow(txns, start=start, end=end, starting_balance=starting)
+    financing_events = _build_financing_cashflow_events(liabilities, start=start, end=end)
+    series = compute_cashflow(
+        txns,
+        start=start,
+        end=end,
+        starting_balance=starting,
+        extra_events=financing_events,
+    )
 
     chart = [
         {
@@ -1649,8 +1801,10 @@ def gaps():
 def liquidity():
     company = _get_company()
     accounts = _q_accounts(company).all()
+    investments = _safe_get_investments(company)
     horizon = int(request.args.get("days") or 30)
     res = compute_liquidity(accounts, horizon_days=horizon)
+    res = _with_investment_liquidity(res, _compute_investment_liquid_sources(investments))
     return render_template(
         "finance/liquidity.html",
         tenant=g.tenant,
@@ -2561,6 +2715,21 @@ def reports_accounting():
         total_credit += p_credit
         total_closing += natural_closing
 
+    investments = _safe_get_investments(company)
+    invested_total = Decimal("0")
+    current_value_total = Decimal("0")
+    for inv in investments:
+        if (inv.status or "active").lower() != "active":
+            continue
+        invested_total += Decimal(str(inv.invested_amount or 0))
+        current_value_total += Decimal(str(inv.current_value if inv.current_value is not None else (inv.invested_amount or 0)))
+
+    investment_summary = {
+        "invested_total": invested_total,
+        "current_value_total": current_value_total,
+        "unrealized_result": current_value_total - invested_total,
+    }
+
     return render_template(
         "finance/reports_accounting.html",
         tenant=g.tenant,
@@ -2574,6 +2743,7 @@ def reports_accounting():
             "credit": total_credit,
             "closing": total_closing,
         },
+        investment_summary=investment_summary,
     )
 
 
@@ -2620,6 +2790,432 @@ def _find_or_create_category(company: FinanceCompany, name: str | None, *, direc
     db.session.add(cat)
     db.session.flush()
     return cat
+
+
+def _compute_investment_liquid_sources(investments: list[FinanceInvestment]) -> Decimal:
+    total = Decimal("0")
+    for inv in investments:
+        if (inv.status or "active").lower() != "active":
+            continue
+        provider = (inv.provider or "").lower()
+        if provider not in {"edf", "stock_exchange"}:
+            continue
+        total += Decimal(str(inv.current_value if inv.current_value is not None else (inv.invested_amount or 0)))
+    return total
+
+
+def _investments_table_available(company: FinanceCompany) -> bool:
+    try:
+        (
+            FinanceInvestment.query
+            .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+            .limit(1)
+            .all()
+        )
+        return True
+    except SQLAlchemyError as e:
+        finance_logger.warning(
+            "event=finance.investments.table_unavailable tenant_id=%s company_id=%s err=%s",
+            getattr(getattr(g, "tenant", None), "id", None),
+            getattr(company, "id", None),
+            str(e),
+        )
+        return False
+
+
+def _safe_get_investments(company: FinanceCompany) -> list[FinanceInvestment]:
+    if not _investments_table_available(company):
+        return []
+    return (
+        FinanceInvestment.query
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+        .all()
+    )
+
+
+def _with_investment_liquidity(res: dict, investment_sources: Decimal) -> dict:
+    out = dict(res)
+    base_total_sources = Decimal(str(out.get("total_sources") or 0))
+    uses_short_liab = Decimal(str(out.get("uses_short_liab") or 0))
+    total_sources = base_total_sources + Decimal(str(investment_sources or 0))
+    out["sources_investments"] = Decimal(str(investment_sources or 0))
+    out["total_sources"] = total_sources
+    out["liquidity_ratio"] = (total_sources / uses_short_liab) if uses_short_liab > 0 else None
+    out["net_liquidity"] = total_sources - uses_short_liab
+    return out
+
+
+def _lookup_market_instruments(query: str, provider: str) -> list[dict]:
+    q = (query or "").strip()
+    p = (provider or "stock_exchange").strip().lower()
+    if not q:
+        return []
+
+    cache_key = f"{p}:{q.lower()}"
+    now_ts = time.time()
+    cached = _INVEST_LOOKUP_CACHE.get(cache_key)
+    if cached and cached[0] > now_ts:
+        return cached[1]
+
+    def _push(rows_list: list[dict], symbol: str, name: str, exchange: str, provider_name: str) -> None:
+        sym = (symbol or "").strip()
+        nm = (name or "").strip() or sym
+        ex = (exchange or "").strip()
+        if not sym and not nm:
+            return
+        key = (sym.lower(), nm.lower())
+        seen = {(str(x.get("symbol") or "").lower(), str(x.get("name") or "").lower()) for x in rows_list}
+        if key in seen:
+            return
+        rows_list.append(
+            {
+                "symbol": sym,
+                "name": nm,
+                "exchange": ex,
+                "provider": provider_name,
+            }
+        )
+
+    rows: list[dict] = []
+
+    try:
+        resp = requests.get(
+            "https://query1.finance.yahoo.com/v1/finance/search",
+            params={"q": q, "quotesCount": 12, "newsCount": 0},
+            headers={"User-Agent": "Mozilla/5.0 AUDELA/1.0"},
+            timeout=5,
+        )
+        resp.raise_for_status()
+        payload = resp.json() if resp.content else {}
+    except Exception as e:
+        finance_logger.warning("event=finance.investments.lookup_failed provider=%s q=%s err=%s", p, q, str(e))
+        payload = {}
+
+    for it in (payload.get("quotes") or []):
+        symbol = (it.get("symbol") or "").strip()
+        short_name = (it.get("shortname") or it.get("longname") or "").strip()
+        exch = (it.get("exchange") or "").strip()
+        txt = f"{symbol} {short_name}".lower()
+        if p == "edf" and "edf" not in txt:
+            continue
+        _push(rows, symbol, short_name, exch, p)
+
+    # Fallback 2: Financial Modeling Prep demo endpoint (free/demo key)
+    if not rows and p != "edf":
+        try:
+            r2 = requests.get(
+                "https://financialmodelingprep.com/api/v3/search",
+                params={"query": q, "limit": 10, "apikey": "demo"},
+                headers={"User-Agent": "Mozilla/5.0 AUDELA/1.0"},
+                timeout=5,
+            )
+            if r2.ok:
+                payload2 = r2.json() if r2.content else []
+                for it in (payload2 or []):
+                    _push(
+                        rows,
+                        str(it.get("symbol") or ""),
+                        str(it.get("name") or ""),
+                        str(it.get("exchangeShortName") or it.get("exchange") or ""),
+                        p,
+                    )
+        except Exception as e:
+            finance_logger.warning("event=finance.investments.lookup_fallback_failed provider=%s q=%s err=%s", p, q, str(e))
+
+    # Fallback 3: local quick symbols for common queries
+    if not rows:
+        local_catalog = [
+            ("EDF.PA", "EDF", "EURONEXT"),
+            ("TSLA", "Tesla", "NASDAQ"),
+            ("AAPL", "Apple", "NASDAQ"),
+            ("MSFT", "Microsoft", "NASDAQ"),
+            ("AIR.PA", "Airbus", "EURONEXT"),
+            ("MC.PA", "LVMH", "EURONEXT"),
+        ]
+        ql = q.lower()
+        for sym, nm, exch in local_catalog:
+            txt = f"{sym} {nm}".lower()
+            if ql in txt:
+                if p == "edf" and "edf" not in txt:
+                    continue
+                _push(rows, sym, nm, exch, p)
+
+    if p == "edf" and not rows:
+        _push(rows, "EDF.PA", "EDF", "EURONEXT", "edf")
+
+    result = rows[:10]
+    _INVEST_LOOKUP_CACHE[cache_key] = (now_ts + max(5, _INVEST_LOOKUP_CACHE_TTL_S), result)
+    if len(_INVEST_LOOKUP_CACHE) > 500:
+        # Keep cache bounded with a lightweight sweep.
+        expired = [k for k, (exp, _val) in _INVEST_LOOKUP_CACHE.items() if exp <= now_ts]
+        for k in expired[:250]:
+            _INVEST_LOOKUP_CACHE.pop(k, None)
+    return result
+
+
+@bp.route("/investments/lookup", methods=["GET"])
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def investments_lookup():
+    _get_company()
+    provider = (request.args.get("provider") or "stock_exchange").strip().lower()
+    query = (request.args.get("q") or "").strip()
+    rows = _lookup_market_instruments(query, provider)
+    return jsonify({"items": rows})
+
+
+@bp.route("/investments")
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def investments_list():
+    company = _get_company()
+    items = sorted(_safe_get_investments(company), key=lambda x: x.updated_at or datetime.min, reverse=True)
+
+    provider_filter = (request.args.get("provider") or "").strip().lower()
+    status_filter = (request.args.get("status") or "").strip().lower()
+    search_filter = (request.args.get("q") or "").strip().lower()
+
+    if provider_filter:
+        items = [x for x in items if (x.provider or "").lower() == provider_filter]
+    if status_filter:
+        items = [x for x in items if (x.status or "").lower() == status_filter]
+    if search_filter:
+        items = [
+            x
+            for x in items
+            if search_filter in (x.name or "").lower()
+            or search_filter in (x.instrument_code or "").lower()
+        ]
+
+    def _provider_label(provider: str | None) -> str:
+        if (provider or "").lower() == "edf":
+            return "EDF"
+        return _("Bolsa de valores")
+
+    rows = []
+    for inv in items:
+        invested = Decimal(str(inv.invested_amount or 0))
+        current_value = Decimal(str(inv.current_value if inv.current_value is not None else (inv.invested_amount or 0)))
+        rows.append(
+            {
+                "id": inv.id,
+                "name": inv.name,
+                "provider": inv.provider,
+                "provider_label": _provider_label(inv.provider),
+                "instrument_code": inv.instrument_code,
+                "status": inv.status,
+                "status_label": _("Ativo") if (inv.status or "").lower() == "active" else _("Encerrado"),
+                "started_on": inv.started_on,
+                "currency": inv.currency_code or company.base_currency,
+                "invested_fmt": _fmt_money(invested, inv.currency_code or company.base_currency),
+                "current_fmt": _fmt_money(current_value, inv.currency_code or company.base_currency),
+                "pnl_fmt": _fmt_money(current_value - invested, inv.currency_code or company.base_currency),
+            }
+        )
+
+    return render_template(
+        "finance/investments_list.html",
+        tenant=g.tenant,
+        company=company,
+        items=rows,
+        filters={
+            "provider": provider_filter,
+            "status": status_filter,
+            "q": request.args.get("q") or "",
+        },
+    )
+
+
+@bp.route("/investments/new", methods=["GET", "POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def investment_new():
+    company = _get_company()
+    if not _investments_table_available(company):
+        flash(_("Module Investimentos indisponível: execute as migrações do banco."), "error")
+        return redirect(url_for("finance.dashboard"))
+
+    accounts = (
+        FinanceAccount.query
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+        .filter(FinanceAccount.account_type.in_(["cash", "bank"]))
+        .order_by(FinanceAccount.name.asc())
+        .all()
+    )
+
+    if request.method == "POST":
+        name = (request.form.get("name") or "").strip()
+        provider = (request.form.get("provider") or "stock_exchange").strip().lower()
+        instrument_code = (request.form.get("instrument_code") or "").strip() or None
+        account_id = int(request.form.get("account_id") or 0)
+        currency_code = (request.form.get("currency_code") or "").strip().upper() or None
+        invested_amount_raw = (request.form.get("invested_amount") or "0").strip().replace(",", ".")
+        current_value_raw = (request.form.get("current_value") or "").strip().replace(",", ".")
+        started_on_raw = (request.form.get("started_on") or "").strip()
+        notes = (request.form.get("notes") or "").strip() or None
+
+        if not name:
+            flash(_("Preencha o nome."), "error")
+            return redirect(url_for("finance.investment_new"))
+
+        if provider not in {"edf", "stock_exchange"}:
+            provider = "stock_exchange"
+
+        acc = FinanceAccount.query.filter_by(id=account_id, tenant_id=g.tenant.id, company_id=company.id).first() if account_id else None
+        if not acc:
+            flash(_("Selecione uma conta de caixa/banco para liquidação."), "error")
+            return redirect(url_for("finance.investment_new"))
+
+        try:
+            invested_amount = abs(Decimal(invested_amount_raw))
+            current_value = Decimal(current_value_raw) if current_value_raw else invested_amount
+            started_on = date.fromisoformat(started_on_raw) if started_on_raw else date.today()
+        except Exception:
+            flash(_("Dados inválidos."), "error")
+            return redirect(url_for("finance.investment_new"))
+
+        inv = FinanceInvestment(
+            tenant_id=g.tenant.id,
+            company_id=company.id,
+            name=name,
+            provider=provider,
+            instrument_code=instrument_code,
+            account_id=acc.id,
+            currency_code=currency_code or acc.currency,
+            invested_amount=invested_amount,
+            current_value=current_value,
+            started_on=started_on,
+            status="active",
+            notes=notes,
+        )
+        db.session.add(inv)
+
+        if invested_amount > 0:
+            if not _ensure_transaction_quota(1):
+                return redirect(url_for("finance.investments_list"))
+            db.session.add(
+                FinanceTransaction(
+                    tenant_id=g.tenant.id,
+                    company_id=company.id,
+                    account_id=acc.id,
+                    txn_date=started_on,
+                    amount=-abs(invested_amount),
+                    description=f"Investimento inicial: {name}",
+                    category="investment_buy",
+                    reference=instrument_code,
+                )
+            )
+
+        db.session.commit()
+        flash(_("Investimento criado e refletido no cashflow."), "success")
+        return redirect(url_for("finance.investments_list"))
+
+    return render_template(
+        "finance/investment_form.html",
+        tenant=g.tenant,
+        company=company,
+        title=_("Novo investimento"),
+        accounts=accounts,
+        currencies=get_currencies(),
+        form={
+            "name": "",
+            "provider": "stock_exchange",
+            "instrument_code": "",
+            "account_id": "",
+            "currency_code": company.base_currency,
+            "invested_amount": "",
+            "current_value": "",
+            "started_on": date.today().isoformat(),
+            "notes": "",
+        },
+    )
+
+
+@bp.route("/investments/<int:investment_id>/update", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def investment_update(investment_id: int):
+    company = _get_company()
+    if not _investments_table_available(company):
+        flash(_("Module Investimentos indisponível: execute as migrações do banco."), "error")
+        return redirect(url_for("finance.dashboard"))
+
+    inv = FinanceInvestment.query.filter_by(id=investment_id, tenant_id=g.tenant.id, company_id=company.id).first_or_404()
+
+    current_value_raw = (request.form.get("current_value") or "").strip().replace(",", ".")
+    status = (request.form.get("status") or inv.status or "active").strip().lower()
+    if status not in {"active", "closed"}:
+        status = "active"
+
+    try:
+        inv.current_value = Decimal(current_value_raw) if current_value_raw else inv.current_value
+    except Exception:
+        flash(_("Valor inválido."), "error")
+        return redirect(url_for("finance.investments_list"))
+
+    inv.status = status
+    db.session.commit()
+    flash(_("Investimento atualizado."), "success")
+    return redirect(url_for("finance.investments_list"))
+
+
+@bp.route("/investments/<int:investment_id>/cash_event", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def investment_cash_event(investment_id: int):
+    company = _get_company()
+    if not _investments_table_available(company):
+        flash(_("Module Investimentos indisponível: execute as migrações do banco."), "error")
+        return redirect(url_for("finance.dashboard"))
+
+    inv = FinanceInvestment.query.filter_by(id=investment_id, tenant_id=g.tenant.id, company_id=company.id).first_or_404()
+
+    event_type = (request.form.get("event_type") or "sell").strip().lower()
+    amount_raw = (request.form.get("amount") or "0").strip().replace(",", ".")
+    txn_date_raw = (request.form.get("txn_date") or date.today().isoformat()).strip()
+
+    try:
+        amount = abs(Decimal(amount_raw))
+        txn_date = date.fromisoformat(txn_date_raw)
+    except Exception:
+        flash(_("Dados inválidos."), "error")
+        return redirect(url_for("finance.investments_list"))
+
+    if event_type not in {"buy", "sell", "dividend", "fee"}:
+        event_type = "sell"
+
+    sign = Decimal("1") if event_type in {"sell", "dividend"} else Decimal("-1")
+    txn_amount = sign * amount
+
+    if not inv.account_id:
+        flash(_("Defina uma conta no investimento antes de registrar evento de caixa."), "error")
+        return redirect(url_for("finance.investments_list"))
+
+    if not _ensure_transaction_quota(1):
+        return redirect(url_for("finance.investments_list"))
+
+    db.session.add(
+        FinanceTransaction(
+            tenant_id=g.tenant.id,
+            company_id=company.id,
+            account_id=inv.account_id,
+            txn_date=txn_date,
+            amount=txn_amount,
+            description=f"Investimento {event_type}: {inv.name}",
+            category=f"investment_{event_type}",
+            reference=inv.instrument_code,
+        )
+    )
+
+    if event_type == "buy":
+        inv.invested_amount = Decimal(str(inv.invested_amount or 0)) + amount
+    elif event_type == "sell":
+        base = Decimal(str(inv.invested_amount or 0))
+        inv.invested_amount = max(Decimal("0"), base - amount)
+
+    db.session.commit()
+    flash(_("Evento de investimento registrado."), "success")
+    return redirect(url_for("finance.investments_list"))
 
 
 @bp.route("/liabilities")

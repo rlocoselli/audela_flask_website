@@ -1,0 +1,141 @@
+{% extends "finance/base_finance.html" %}
+{% set active = 'investments' %}
+
+{% block finance_content %}
+  <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+    <div>
+      <div class="h5 mb-0">{{ title }}</div>
+      <div class="text-secondary small">{{ _('MVP com opções EDF e Stock Exchange.') }}</div>
+    </div>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.investments_list') }}">{{ _('Voltar') }}</a>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+        <div class="row g-3">
+          <div class="col-12 col-lg-6">
+            <label class="form-label">{{ _('Nome') }}</label>
+            <input class="form-control" name="name" value="{{ form.name }}" required />
+          </div>
+
+          <div class="col-12 col-lg-3">
+            <label class="form-label">{{ _('Opção') }}</label>
+            <select class="form-select" name="provider">
+              <option value="edf" {% if form.provider=='edf' %}selected{% endif %}>EDF</option>
+              <option value="stock_exchange" {% if form.provider=='stock_exchange' %}selected{% endif %}>{{ _('Bolsa de valores') }}</option>
+            </select>
+          </div>
+
+          <div class="col-12 col-lg-3">
+            <label class="form-label">{{ _('Código instrumento') }}</label>
+            <input class="form-control" name="instrument_code" value="{{ form.instrument_code }}" placeholder="EDF / ISIN / Ticker" />
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">{{ _('Consulta API gratuita (nomes)') }}</label>
+            <div class="input-group">
+              <input class="form-control" id="market-query" placeholder="{{ _('Ex.: EDF, Tesla, Air Liquide') }}" />
+              <button type="button" id="market-lookup-btn" class="btn btn-outline-secondary">{{ _('Consultar') }}</button>
+            </div>
+            <div id="market-lookup-results" class="small mt-2"></div>
+          </div>
+
+          <div class="col-12 col-lg-4">
+            <label class="form-label">{{ _('Conta de liquidação') }}</label>
+            <select class="form-select" name="account_id" required>
+              <option value="">—</option>
+              {% for a in accounts %}
+                <option value="{{ a.id }}" {% if (a.id|string)==(form.account_id|string) %}selected{% endif %}>{{ a.name }} ({{ a.currency }})</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-6 col-lg-2">
+            <label class="form-label">{{ _('Moeda') }}</label>
+            <select class="form-select" name="currency_code">
+              {% for cur in currencies %}
+                <option value="{{ cur.code }}" {% if cur.code==form.currency_code %}selected{% endif %}>{{ cur.code }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-6 col-lg-3">
+            <label class="form-label">{{ _('Montant investi') }}</label>
+            <input class="form-control" name="invested_amount" value="{{ form.invested_amount }}" required />
+          </div>
+
+          <div class="col-6 col-lg-3">
+            <label class="form-label">{{ _('Valor atual (opcional)') }}</label>
+            <input class="form-control" name="current_value" value="{{ form.current_value }}" />
+          </div>
+
+          <div class="col-6 col-lg-3">
+            <label class="form-label">{{ _('Data de início') }}</label>
+            <input class="form-control" type="date" name="started_on" value="{{ form.started_on }}" />
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">{{ _('Notas') }}</label>
+            <textarea class="form-control" name="notes" rows="3">{{ form.notes }}</textarea>
+          </div>
+        </div>
+
+        <div class="mt-3 d-flex gap-2">
+          <button class="btn btn-primary">{{ _('Salvar') }}</button>
+          <a class="btn btn-outline-secondary" href="{{ url_for('finance.investments_list') }}">{{ _('Cancelar') }}</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    (window.onReady || function(fn){ window.addEventListener('load', fn); })(function(){
+      const qInput = document.getElementById('market-query');
+      const btn = document.getElementById('market-lookup-btn');
+      const out = document.getElementById('market-lookup-results');
+      const providerSel = document.querySelector('select[name="provider"]');
+      const nameInput = document.querySelector('input[name="name"]');
+      const codeInput = document.querySelector('input[name="instrument_code"]');
+
+      if (!qInput || !btn || !out || !providerSel || !nameInput || !codeInput) return;
+
+      function render(items){
+        if (!items || !items.length){
+          out.innerHTML = `<span class="text-secondary">${window.t ? window.t('Nenhum resultado.') : 'Nenhum resultado.'}</span>`;
+          return;
+        }
+        const rows = items.map((x, idx) => {
+          const label = `${x.name || ''} (${x.symbol || ''}${x.exchange ? ' · ' + x.exchange : ''})`;
+          return `<button type="button" class="btn btn-sm btn-outline-primary me-1 mb-1" data-idx="${idx}">${label}</button>`;
+        }).join('');
+        out.innerHTML = rows;
+        out.querySelectorAll('button[data-idx]').forEach((el) => {
+          el.addEventListener('click', () => {
+            const i = Number(el.getAttribute('data-idx'));
+            const pick = items[i];
+            if (!pick) return;
+            nameInput.value = pick.name || pick.symbol || '';
+            codeInput.value = pick.symbol || '';
+          });
+        });
+      }
+
+      btn.addEventListener('click', async function(){
+        const q = (qInput.value || '').trim();
+        if (!q) return;
+        const provider = (providerSel.value || 'stock_exchange');
+        out.innerHTML = `<span class="text-secondary">${window.t ? window.t('Carregando...') : 'Carregando...'}</span>`;
+        try {
+          const res = await fetch(`{{ url_for('finance.investments_lookup') }}?provider=${encodeURIComponent(provider)}&q=${encodeURIComponent(q)}`);
+          const data = await res.json();
+          render(data.items || []);
+        } catch (e) {
+          out.innerHTML = `<span class="text-danger">${window.t ? window.t('Falha na consulta.') : 'Falha na consulta.'}</span>`;
+        }
+      });
+    });
+  </script>
+{% endblock %}

@@ -23,6 +23,21 @@
           <button class="btn btn-primary w-100" type="submit">{{ _('Filtrer') }}</button>
         </div>
       </form>
+
+      <div class="row g-2 mt-2">
+        <div class="col-12 col-md-4">
+          <div class="small text-secondary">{{ _('Investido (ativos)') }}</div>
+          <div class="fw-semibold">{{ '%.2f'|format(investment_summary.invested_total or 0) }}</div>
+        </div>
+        <div class="col-12 col-md-4">
+          <div class="small text-secondary">{{ _('Valor atual') }}</div>
+          <div class="fw-semibold">{{ '%.2f'|format(investment_summary.current_value_total or 0) }}</div>
+        </div>
+        <div class="col-12 col-md-4">
+          <div class="small text-secondary">{{ _('Resultado não realizado') }}</div>
+          <div class="fw-semibold">{{ '%.2f'|format(investment_summary.unrealized_result or 0) }}</div>
+        </div>
+      </div>
     </div>
   </div>
 

@@ -193,6 +193,44 @@ class FinanceLiability(db.Model):
     currency = relationship("FinanceCurrency")
 
 
+class FinanceInvestment(db.Model):
+    """Investment registry (EDF products, stock exchange positions).
+
+    MVP: stores current valuation and links to settlement account for cash impact.
+    """
+
+    __tablename__ = "finance_investments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, nullable=False, index=True)
+    company_id = db.Column(
+        db.Integer,
+        db.ForeignKey("finance_companies.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    name = db.Column(db.String(160), nullable=False)
+    provider = db.Column(db.String(32), nullable=False, default="stock_exchange")  # edf|stock_exchange
+    instrument_code = db.Column(db.String(64), nullable=True)
+
+    account_id = db.Column(db.Integer, db.ForeignKey("finance_accounts.id", ondelete="SET NULL"), nullable=True, index=True)
+    currency_code = db.Column(db.String(8), db.ForeignKey("finance_currencies.code"), nullable=True)
+
+    invested_amount = db.Column(db.Numeric(18, 2), nullable=False, default=0)
+    current_value = db.Column(db.Numeric(18, 2), nullable=True)
+
+    started_on = db.Column(db.Date, nullable=True)
+    status = db.Column(db.String(24), nullable=False, default="active")  # active|closed
+    notes = db.Column(db.String(500), nullable=True)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    account = relationship("FinanceAccount")
+    currency = relationship("FinanceCurrency")
+
+
 class FinanceRecurringTransaction(db.Model):
     """Recurring transactions template (e.g. rent, subscriptions).
 

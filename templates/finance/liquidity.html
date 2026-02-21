@@ -22,7 +22,7 @@
           <div class="p-3 border rounded">
             <div class="text-secondary small mb-1">{{ _('Total fontes') }}</div>
             <div class="h4 mb-0">{{ res.total_sources }}</div>
-            <div class="small text-secondary">{{ _('Caixa') }}: {{ res.sources_cash }} · {{ _('Linhas disponíveis') }}: {{ res.sources_lines }}</div>
+            <div class="small text-secondary">{{ _('Caixa') }}: {{ res.sources_cash }} · {{ _('Linhas disponíveis') }}: {{ res.sources_lines }} · {{ _('Investimentos líquidos') }}: {{ res.sources_investments or 0 }}</div>
           </div>
         </div>
         <div class="col-12 col-md-6">

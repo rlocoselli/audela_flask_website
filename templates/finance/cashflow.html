@@ -27,6 +27,10 @@
 
   <div class="card mb-3">
     <div class="card-body">
+      <div class="d-flex flex-wrap gap-2 small mb-2">
+        <span class="badge text-bg-primary">{{ _('Transações') }}</span>
+        <span class="badge text-bg-info">{{ _('Financiamentos') }}</span>
+      </div>
       <div id="cashflow-chart" style="height: 360px;"></div>
     </div>
   </div>
@@ -42,12 +46,16 @@
               <th class="text-end">{{ _('Entradas') }}</th>
               <th class="text-end">{{ _('Saídas') }}</th>
               <th class="text-end">{{ _('Net') }}</th>
+              <th class="text-end">{{ _('Net transações') }}</th>
+              <th class="text-end">{{ _('Net financiamentos') }}</th>
               <th class="text-end">{{ _('Saldo') }}</th>
             </tr>
           </thead>
           <tbody>
             <tr class="table-light">
               <td>{{ _('Saldo inicial') }}</td>
+              <td class="text-end">-</td>
+              <td class="text-end">-</td>
               <td class="text-end">-</td>
               <td class="text-end">-</td>
               <td class="text-end">-</td>
@@ -59,6 +67,8 @@
                 <td class="text-end">{{ p.inflow }}</td>
                 <td class="text-end">{{ p.outflow }}</td>
                 <td class="text-end">{{ p.net }}</td>
+                <td class="text-end">{{ p.txns_net }}</td>
+                <td class="text-end">{{ p.financing_net }}</td>
                 <td class="text-end">{{ p.balance }}</td>
               </tr>
             {% endfor %}

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import logging
 import os
+import sys
 
 from flask import Flask
 from flask import g, request, session
@@ -11,7 +13,25 @@ from .models.core import User
 from .i18n import DEFAULT_LANG, SUPPORTED_LANGS, TRANSLATIONS, best_lang_from_accept_language, normalize_lang, tr
 
 
+def _configure_logging() -> None:
+    level_name = os.environ.get("LOG_LEVEL", "INFO").upper()
+    level = getattr(logging, level_name, logging.INFO)
+
+    root_logger = logging.getLogger()
+    if not root_logger.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(
+            logging.Formatter(
+                "ts=%(asctime)s level=%(levelname)s logger=%(name)s msg=%(message)s"
+            )
+        )
+        root_logger.addHandler(handler)
+    root_logger.setLevel(level)
+
+
 def create_app() -> Flask:
+    _configure_logging()
+
     # This repository keeps `templates/` and `static/` at the project root (sibling of the `audela/` package).
     # Using absolute paths avoids TemplateNotFound issues when the working directory changes (gunicorn, tests, etc.).
     package_dir = os.path.dirname(__file__)
