@@ -98,7 +98,7 @@ def list_products():
     page = request.args.get('page', 1, type=int)
     search = request.args.get('search', '')
     
-    query = FinanceProduct.query.filter_by(company_id=company.id)
+    query = FinanceProduct.query.filter_by(tenant_id=g.tenant.id, company_id=company.id)
     
     if search:
         query = query.filter(
@@ -132,38 +132,47 @@ def create_product():
         
         if not name:
             flash(_('Nome é obrigatório'), 'error')
-            return redirect(url_for('finance_master.create_product'))
+            return redirect(url_for('finance_master.create_product', company_id=company.id))
         
         # Vérifier unicité du code si fourni
         if code and FinanceProduct.query.filter_by(
+            tenant_id=g.tenant.id,
             company_id=company.id,
             code=code
         ).first():
             flash(_('Slug já existe'), 'error')
-            return redirect(url_for('finance_master.create_product'))
+            return redirect(url_for('finance_master.create_product', company_id=company.id))
         
+        # Pricing + currency (required by model)
+        try:
+            unit_price = Decimal((form_data.get('unit_price') or '0').strip() or '0')
+        except (ValueError, TypeError):
+            flash(_('Dados inválidos'), 'error')
+            return redirect(url_for('finance_master.create_product', company_id=company.id))
+        currency_code = ((form_data.get('currency_code') or getattr(company, 'base_currency', None) or 'EUR').strip().upper())[:8]
+
         # VAT Configuration
         try:
             vat_applies = form_data.get('vat_applies') == 'on'
-            vat_rate = Decimal(form_data.get('vat_rate', '0.20')) if vat_applies else Decimal('0')
+            vat_rate = Decimal(form_data.get('vat_rate', '20.0')) if vat_applies else Decimal('0')
             tax_exempt_reason = form_data.get('tax_exempt_reason', '').strip() if not vat_applies else ''
         except (ValueError, TypeError):
             flash(_('Dados inválidos'), 'error')
-            return redirect(url_for('finance_master.create_product'))
+            return redirect(url_for('finance_master.create_product', company_id=company.id))
         
         # Créer le produit
         try:
             product = FinanceProduct(
+                tenant_id=g.tenant.id,
                 company_id=company.id,
                 name=name,
                 code=code,
                 description=description,
+                unit_price=unit_price,
+                currency_code=currency_code,
                 vat_applies=vat_applies,
                 vat_rate=vat_rate,
                 tax_exempt_reason=tax_exempt_reason,
-                created_by=current_user.id,
-                created_at=datetime.utcnow(),
-                tenant_id=g.tenant.id
             )
             
             db.session.add(product)
@@ -190,6 +199,7 @@ def edit_product(product_id):
     
     product = FinanceProduct.query.filter_by(
         id=product_id,
+        tenant_id=g.tenant.id,
         company_id=company.id
     ).first()
     
@@ -207,7 +217,7 @@ def edit_product(product_id):
             product.vat_applies = form_data.get('vat_applies') == 'on'
             if product.vat_applies:
                 try:
-                    product.vat_rate = Decimal(form_data.get('vat_rate', '0.20'))
+                    product.vat_rate = Decimal(form_data.get('vat_rate', '20.0'))
                 except (ValueError, TypeError):
                     flash(_('Dados inválidos'), 'error')
                     return redirect(url_for(
@@ -244,6 +254,7 @@ def delete_product(product_id):
     
     product = FinanceProduct.query.filter_by(
         id=product_id,
+        tenant_id=g.tenant.id,
         company_id=company.id
     ).first()
     

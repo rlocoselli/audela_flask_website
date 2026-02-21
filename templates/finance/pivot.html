@@ -74,14 +74,18 @@
     </div>
   </div>
 
-  <div class="card mb-3" id="pivot-drilldown-card" style="display:none;">
-    <div class="card-header d-flex justify-content-between align-items-center gap-2">
-      <span class="fw-semibold" id="pivot-drilldown-title">{{ _('Drill-down') }}</span>
-      <button class="btn btn-sm btn-outline-secondary" type="button" id="pivot-drilldown-close">{{ _('Fechar') }}</button>
-    </div>
-    <div class="card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-sm mb-0" id="pivot-drilldown-table"></table>
+  <div class="modal fade" id="pivot-drilldown-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title fw-semibold" id="pivot-drilldown-title">{{ _('Drill-down') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm mb-0" id="pivot-drilldown-table"></table>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -474,9 +478,9 @@
       const rowLabel = ctx.pivot.rows.find((r) => r.key === rowKey)?.label || PIVOT_TEXT.noData;
       const colLabel = ctx.pivot.cols.find((c) => c.key === colKey)?.label || PIVOT_TEXT.noData;
 
-      const card = document.getElementById('pivot-drilldown-card');
       const title = document.getElementById('pivot-drilldown-title');
       const table = document.getElementById('pivot-drilldown-table');
+      const modalEl = document.getElementById('pivot-drilldown-modal');
 
       title.textContent = `${PIVOT_TEXT.drilldown} · ${PIVOT_TEXT.rows}: ${rowLabel} · ${PIVOT_TEXT.cols}: ${colLabel} (${records.length})`;
 
@@ -502,8 +506,11 @@
 
       const foot = `<tfoot><tr><td colspan="6" class="small text-secondary">${escapeHtml(PIVOT_TEXT.limitInfo)}</td></tr></tfoot>`;
       table.innerHTML = head + `<tbody>${bodyRows || `<tr><td colspan="6" class="text-secondary p-3">${escapeHtml(PIVOT_TEXT.noData)}</td></tr>`}</tbody>` + foot;
-      card.style.display = '';
-      card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+      if (window.bootstrap?.Modal) {
+        const modal = window.bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+      }
     }
 
     async function loadPivotData(source) {
@@ -525,7 +532,11 @@
       state.filterValues = {};
       state.measure = 'amount_sum';
       document.getElementById('pivot-measure').value = state.measure;
-      document.getElementById('pivot-drilldown-card').style.display = 'none';
+      const modalEl = document.getElementById('pivot-drilldown-modal');
+      if (window.bootstrap?.Modal) {
+        const modal = window.bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.hide();
+      }
       renderCubeBuilder();
     }
 
@@ -568,9 +579,6 @@
       document.getElementById('pivot-measure').addEventListener('change', generatePivot);
       document.getElementById('pivot-chart-dim').addEventListener('change', generatePivot);
       document.getElementById('pivot-chart-type').addEventListener('change', generatePivot);
-      document.getElementById('pivot-drilldown-close').addEventListener('click', () => {
-        document.getElementById('pivot-drilldown-card').style.display = 'none';
-      });
 
       state.source = document.getElementById('pivot-source').value;
       sanitizeStateForSource();

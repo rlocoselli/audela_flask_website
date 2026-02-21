@@ -72,7 +72,8 @@
                                 </td>
                                 <td>
                                     {% if product.vat_applies %}
-                                        <span class="badge bg-info">{{ (product.vat_rate * 100) | int }}%</span>
+                                        {% set vat_display = (product.vat_rate * 100) if product.vat_rate is not none and product.vat_rate <= 1 else product.vat_rate %}
+                                        <span class="badge bg-info">{{ (vat_display | float) | round(2) }}%</span>
                                     {% else %}
                                         <span class="badge bg-secondary">Exempté</span>
                                         {% if product.tax_exempt_reason %}

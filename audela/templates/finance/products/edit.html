@@ -66,8 +66,9 @@
                             <div class="mb-3">
                                 <label for="vat_rate" class="form-label">Taux de TVA (%)</label>
                                 <div class="input-group">
+                                    {% set vat_display = (product.vat_rate * 100) if product.vat_rate is not none and product.vat_rate <= 1 else product.vat_rate %}
                                     <input type="number" class="form-control" id="vat_rate" name="vat_rate" 
-                                           value="{{ (product.vat_rate * 100) | int }}" step="0.01" min="0" max="100">
+                                           value="{{ (vat_display | float) | round(2) }}" step="0.01" min="0" max="100">
                                     <span class="input-group-text">%</span>
                                 </div>
                             </div>
