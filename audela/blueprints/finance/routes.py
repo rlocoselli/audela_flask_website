@@ -71,6 +71,8 @@ from . import bp
 finance_logger = logging.getLogger("audela.finance")
 _INVEST_LOOKUP_CACHE: dict[str, tuple[float, list[dict]]] = {}
 _INVEST_LOOKUP_CACHE_TTL_S = int(os.environ.get("INVEST_LOOKUP_CACHE_TTL_S", "60"))
+_INVEST_HISTORY_CACHE: dict[str, tuple[float, list[dict]]] = {}
+_INVEST_HISTORY_CACHE_TTL_S = int(os.environ.get("INVEST_HISTORY_CACHE_TTL_S", "300"))
 
 
 def _finance_context() -> dict:
@@ -3254,6 +3256,65 @@ def _lookup_market_instruments(query: str, provider: str) -> list[dict]:
     return result
 
 
+def _history_params(horizon: str) -> tuple[str, str]:
+    hz = (horizon or "1y").strip().lower()
+    if hz in {"24h", "1d", "day"}:
+        return "1d", "5m"
+    if hz in {"5y", "5years", "5a"}:
+        return "5y", "1wk"
+    return "1y", "1d"
+
+
+def _load_market_history(symbol: str, horizon: str) -> list[dict]:
+    sym = (symbol or "").strip()
+    if not sym:
+        return []
+
+    range_v, interval_v = _history_params(horizon)
+    cache_key = f"{sym.upper()}:{range_v}:{interval_v}"
+    now_ts = time.time()
+    cached = _INVEST_HISTORY_CACHE.get(cache_key)
+    if cached and cached[0] > now_ts:
+        return cached[1]
+
+    points: list[dict] = []
+    try:
+        resp = requests.get(
+            f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}",
+            params={"range": range_v, "interval": interval_v},
+            headers={"User-Agent": "Mozilla/5.0 AUDELA/1.0"},
+            timeout=8,
+        )
+        resp.raise_for_status()
+        payload = resp.json() if resp.content else {}
+        result = ((payload.get("chart") or {}).get("result") or [None])[0] or {}
+        timestamps = result.get("timestamp") or []
+        quotes = ((result.get("indicators") or {}).get("quote") or [None])[0] or {}
+        closes = quotes.get("close") or []
+
+        for ts, close in zip(timestamps, closes):
+            if close is None:
+                continue
+            try:
+                points.append(
+                    {
+                        "t": datetime.utcfromtimestamp(int(ts)).isoformat(),
+                        "v": float(close),
+                    }
+                )
+            except Exception:
+                continue
+    except Exception as e:
+        finance_logger.warning("event=finance.investments.history_failed symbol=%s horizon=%s err=%s", sym, horizon, str(e))
+
+    _INVEST_HISTORY_CACHE[cache_key] = (now_ts + max(30, _INVEST_HISTORY_CACHE_TTL_S), points)
+    if len(_INVEST_HISTORY_CACHE) > 1000:
+        expired = [k for k, (exp, _val) in _INVEST_HISTORY_CACHE.items() if exp <= now_ts]
+        for k in expired[:500]:
+            _INVEST_HISTORY_CACHE.pop(k, None)
+    return points
+
+
 @bp.route("/investments/lookup", methods=["GET"])
 @login_required
 @require_roles("tenant_admin", "creator", "viewer")
@@ -3517,6 +3578,42 @@ def investment_cash_event(investment_id: int):
     db.session.commit()
     flash(_("Evento de investimento registrado."), "success")
     return redirect(url_for("finance.investments_list"))
+
+
+@bp.route("/investments/<int:investment_id>/history", methods=["GET"])
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def investment_history(investment_id: int):
+    company = _get_company()
+    if not _investments_table_available(company):
+        return jsonify({"error": "investments module unavailable", "items": []}), 400
+
+    inv = FinanceInvestment.query.filter_by(id=investment_id, tenant_id=g.tenant.id, company_id=company.id).first_or_404()
+    horizon = (request.args.get("horizon") or "1y").strip().lower()
+    if horizon not in {"24h", "1y", "5y"}:
+        horizon = "1y"
+
+    symbol = (inv.instrument_code or "").strip()
+    if not symbol:
+        return jsonify(
+            {
+                "investment_id": inv.id,
+                "symbol": "",
+                "horizon": horizon,
+                "points": [],
+                "message": "instrument code missing",
+            }
+        )
+
+    points = _load_market_history(symbol, horizon)
+    return jsonify(
+        {
+            "investment_id": inv.id,
+            "symbol": symbol,
+            "horizon": horizon,
+            "points": points,
+        }
+    )
 
 
 @bp.route("/liabilities")

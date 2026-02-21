@@ -86,18 +86,7 @@ jobs:
             fi
 
             echo "🔎 Verify migration objects"
-            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela python - <<'PY'
-from sqlalchemy import text
-from audela import create_app
-from audela.extensions import db
-
-app = create_app()
-with app.app_context():
-    exists = db.session.execute(text("SELECT to_regclass('public.finance_accounting_periods')")).scalar()
-    if not exists:
-        raise SystemExit("finance_accounting_periods table not found")
-    print("finance_accounting_periods table found:", exists)
-PY
+            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela python -c "from sqlalchemy import text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); exists=db.session.execute(text(\"SELECT to_regclass('public.finance_accounting_periods')\")).scalar(); assert exists, 'finance_accounting_periods table not found'; print('finance_accounting_periods table found:', exists); ctx.pop()"
 
             echo "🔄 Restart service"
             systemctl restart audeladedonnees

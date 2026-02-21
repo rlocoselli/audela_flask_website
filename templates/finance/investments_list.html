@@ -88,6 +88,14 @@
                       <input class="form-control form-control-sm" type="date" name="txn_date" style="width: 145px" />
                       <button class="btn btn-outline-primary btn-sm">{{ _('Registrar') }}</button>
                     </form>
+
+                    <button type="button"
+                            class="btn btn-outline-info btn-sm ms-1 js-invest-history"
+                            data-history-url="{{ url_for('finance.investment_history', investment_id=i.id) }}"
+                            data-name="{{ i.name }}"
+                            data-symbol="{{ i.instrument_code or '' }}">
+                      {{ _('Historique') }}
+                    </button>
                   </td>
                 </tr>
               {% endfor %}
@@ -99,4 +107,176 @@
       {% endif %}
     </div>
   </div>
+
+  <div class="modal fade" id="investment-history-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="investment-history-title">{{ _('Historique') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="d-flex gap-2 mb-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary js-history-range" data-range="24h">24h</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary js-history-range" data-range="1y">1 an</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary js-history-range" data-range="5y">5 ans</button>
+          </div>
+          <div id="investment-history-status" class="small text-secondary mb-2"></div>
+          <div id="investment-history-return" class="mb-2"></div>
+          <div id="investment-history-chart" style="height: 320px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (window.onReady || function(fn){ window.addEventListener('load', fn); })(function(){
+      const modalEl = document.getElementById('investment-history-modal');
+      const titleEl = document.getElementById('investment-history-title');
+      const statusEl = document.getElementById('investment-history-status');
+      const returnEl = document.getElementById('investment-history-return');
+      const chartEl = document.getElementById('investment-history-chart');
+      if (!modalEl || !titleEl || !statusEl || !returnEl || !chartEl) return;
+
+      let currentUrl = '';
+      let currentName = '';
+      let currentSymbol = '';
+      let currentRange = '1y';
+      let chart = null;
+      let pendingChartPayload = null;
+
+      function setActiveRange(){
+        document.querySelectorAll('.js-history-range').forEach((btn) => {
+          const on = btn.getAttribute('data-range') === currentRange;
+          btn.classList.toggle('btn-primary', on);
+          btn.classList.toggle('btn-outline-secondary', !on);
+        });
+      }
+
+      function ensureChart(){
+        if (!window.echarts) return null;
+        if (!chart) chart = echarts.init(chartEl);
+        return chart;
+      }
+
+      function renderHistoryChart(labels, values){
+        const ch = ensureChart();
+        if (!ch) {
+          statusEl.textContent = 'Bibliothèque graphique indisponible.';
+          return;
+        }
+        ch.setOption({
+          tooltip: { trigger: 'axis' },
+          xAxis: { type: 'category', data: labels, axisLabel: { show: false } },
+          yAxis: { type: 'value', scale: true },
+          series: [{
+            name: currentSymbol || 'Price',
+            type: 'line',
+            data: values,
+            smooth: true,
+            showSymbol: false,
+            areaStyle: { opacity: 0.12 },
+          }],
+        });
+        setTimeout(() => { try { ch.resize(); } catch (_e) {} }, 120);
+      }
+
+      function renderCumulativeReturn(values){
+        if (!values || values.length < 2) {
+          returnEl.innerHTML = `<span class="badge text-bg-light border">Performance cumulée: n/a</span>`;
+          return;
+        }
+        const first = Number(values[0] || 0);
+        const last = Number(values[values.length - 1] || 0);
+        if (!Number.isFinite(first) || first === 0 || !Number.isFinite(last)) {
+          returnEl.innerHTML = `<span class="badge text-bg-light border">Performance cumulée: n/a</span>`;
+          return;
+        }
+        const pct = ((last - first) / first) * 100;
+        const cls = pct >= 0 ? 'text-bg-success' : 'text-bg-danger';
+        const sign = pct >= 0 ? '+' : '';
+        returnEl.innerHTML = `<span class="badge ${cls}">Performance cumulée: ${sign}${pct.toFixed(2)}%</span>`;
+      }
+
+      async function loadHistory(){
+        if (!currentUrl) return;
+        setActiveRange();
+        statusEl.textContent = 'Chargement...';
+
+        const url = new URL(currentUrl, window.location.origin);
+        url.searchParams.set('horizon', currentRange);
+
+        try {
+          const res = await fetch(url);
+          const payload = await res.json();
+          if (!res.ok) throw new Error(payload.error || 'history load failed');
+
+          const points = payload.points || [];
+          if (!points.length) {
+            statusEl.textContent = 'Aucune donnée historique disponible.';
+            returnEl.innerHTML = `<span class="badge text-bg-light border">Performance cumulée: n/a</span>`;
+            const ch = ensureChart();
+            if (ch) ch.clear();
+            return;
+          }
+
+          statusEl.textContent = `${currentSymbol || payload.symbol || ''} · ${currentRange} · ${points.length} points`;
+          const labels = points.map((p) => p.t);
+          const values = points.map((p) => Number(p.v || 0));
+          renderCumulativeReturn(values);
+          if (modalEl.classList.contains('show') && chartEl.clientWidth > 0) {
+            renderHistoryChart(labels, values);
+            pendingChartPayload = null;
+          } else {
+            pendingChartPayload = { labels, values };
+          }
+        } catch (_err) {
+          statusEl.textContent = 'Erreur lors du chargement de l\'historique.';
+          returnEl.innerHTML = `<span class="badge text-bg-light border">Performance cumulée: n/a</span>`;
+          const ch = ensureChart();
+          if (ch) ch.clear();
+        }
+      }
+
+      document.querySelectorAll('.js-invest-history').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          currentUrl = btn.getAttribute('data-history-url') || '';
+          currentName = btn.getAttribute('data-name') || '';
+          currentSymbol = btn.getAttribute('data-symbol') || '';
+          currentRange = '1y';
+          titleEl.textContent = `Historique · ${currentName}${currentSymbol ? ' (' + currentSymbol + ')' : ''}`;
+          returnEl.innerHTML = `<span class="badge text-bg-light border">Performance cumulée: ...</span>`;
+
+          if (window.bootstrap?.Modal) {
+            window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+          }
+          loadHistory();
+        });
+      });
+
+      document.querySelectorAll('.js-history-range').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          currentRange = btn.getAttribute('data-range') || '1y';
+          loadHistory();
+        });
+      });
+
+      modalEl.addEventListener('shown.bs.modal', () => {
+        if (pendingChartPayload) {
+          renderHistoryChart(pendingChartPayload.labels, pendingChartPayload.values);
+          pendingChartPayload = null;
+          return;
+        }
+        if (chart) {
+          try { chart.resize(); } catch (_e) {}
+        }
+      });
+
+      window.addEventListener('resize', () => {
+        if (chart) {
+          try { chart.resize(); } catch (_e) {}
+        }
+      });
+    });
+  </script>
 {% endblock %}
