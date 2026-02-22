@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  tests-and-migrations:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unixodbc-dev
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Run tests
+        env:
+          DATABASE_URL: sqlite:///:memory:
+          AUTO_CREATE_DB: "false"
+        run: |
+          pytest -q tests/test_tenant_isolation.py
+
+      - name: Check Alembic heads
+        run: |
+          flask --app app db heads
+
+      - name: Dry-run migrations SQL (no apply)
+        env:
+          DATABASE_URL: sqlite:///:memory:
+          AUTO_CREATE_DB: "false"
+        run: |
+          flask --app app db upgrade --sql > /tmp/migrations.sql
+          test -s /tmp/migrations.sql
