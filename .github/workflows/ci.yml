@@ -9,6 +9,25 @@ on:
 jobs:
   tests-and-migrations:
     runs-on: ubuntu-latest
+    env:
+      CI_POSTGRES_DB: ${{ vars.CI_POSTGRES_DB || 'audela_ci' }}
+      CI_POSTGRES_USER: ${{ vars.CI_POSTGRES_USER || 'postgres' }}
+      CI_POSTGRES_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD || 'postgres' }}
+      CI_DATABASE_URL: postgresql+psycopg2://${{ vars.CI_POSTGRES_USER || 'postgres' }}:${{ secrets.CI_POSTGRES_PASSWORD || 'postgres' }}@localhost:5432/${{ vars.CI_POSTGRES_DB || 'audela_ci' }}
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: ${{ vars.CI_POSTGRES_DB || 'audela_ci' }}
+          POSTGRES_USER: ${{ vars.CI_POSTGRES_USER || 'postgres' }}
+          POSTGRES_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD || 'postgres' }}
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U ${{ vars.CI_POSTGRES_USER || 'postgres' }} -d ${{ vars.CI_POSTGRES_DB || 'audela_ci' }}"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
 
     steps:
       - name: Checkout
@@ -31,20 +50,35 @@ jobs:
           pip install -r requirements.txt
           pip install pytest
 
+      - name: Wait for PostgreSQL
+        env:
+          PGPASSWORD: ${{ env.CI_POSTGRES_PASSWORD }}
+        run: |
+          for i in {1..30}; do
+            pg_isready -h localhost -p 5432 -U "$CI_POSTGRES_USER" -d "$CI_POSTGRES_DB" && exit 0
+            echo "Waiting for PostgreSQL... ($i/30)"
+            sleep 2
+          done
+          echo "PostgreSQL did not become ready in time"
+          exit 1
+
       - name: Run tests
         env:
-          DATABASE_URL: sqlite:///:memory:
+          DATABASE_URL: ${{ env.CI_DATABASE_URL }}
           AUTO_CREATE_DB: "false"
         run: |
           pytest -q tests/test_tenant_isolation.py
 
       - name: Check Alembic heads
+        env:
+          DATABASE_URL: ${{ env.CI_DATABASE_URL }}
+          AUTO_CREATE_DB: "false"
         run: |
           flask --app app db heads
 
       - name: Dry-run migrations SQL (no apply)
         env:
-          DATABASE_URL: sqlite:///:memory:
+          DATABASE_URL: ${{ env.CI_DATABASE_URL }}
           AUTO_CREATE_DB: "false"
         run: |
           flask --app app db upgrade --sql > /tmp/migrations.sql

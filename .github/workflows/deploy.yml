@@ -81,9 +81,39 @@ jobs:
               fi
             }
 
+            pre_stamp_if_all_tables_exist () {
+              local rev="$1"
+              shift
+              local all_exist="1"
+              local tbl
+              local exists
+
+              for tbl in "$@"; do
+                exists="$($COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela python -c "from sqlalchemy import text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); e=db.session.execute(text(\"SELECT to_regclass('public.${tbl}')\")).scalar(); print('1' if e else '0'); ctx.pop()" 2>/dev/null || echo 0)"
+                if [ "$exists" != "1" ]; then
+                  all_exist="0"
+                  echo "ℹ️ ${tbl} missing -> not stamping ${rev}"
+                  break
+                fi
+              done
+
+              if [ "$all_exist" = "1" ]; then
+                echo "ℹ️ all target tables exist -> pre-stamp ${rev}"
+                $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db stamp "$rev" || true
+              fi
+            }
+
             pre_stamp_if_exists project_workspaces 20260220_add_project_workspaces
             pre_stamp_if_exists finance_investments 20260221_add_finance_investments
             pre_stamp_if_exists finance_accounting_periods 20260221_add_finance_accounting_periods
+            pre_stamp_if_all_tables_exist 7811fe58d1ac \
+              finance_products \
+              finance_daily_balances \
+              finance_adjustments \
+              finance_adjustment_logs \
+              finance_counterparty_attributes \
+              finance_gocardless_connections \
+              finance_gocardless_sync_logs
 
             # Retry migrations to handle transient startup race conditions
             MIG_OK=0
@@ -113,6 +143,16 @@ jobs:
                 elif echo "$MIG_OUT" | grep -Eqi "finance_accounting_periods"; then
                   echo "⚠️ finance_accounting_periods already exists -> stamping migration 20260221_add_finance_accounting_periods"
                   $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db stamp 20260221_add_finance_accounting_periods || true
+                elif echo "$MIG_OUT" | grep -Eqi "finance_products|finance_daily_balances|finance_adjustments|finance_adjustment_logs|finance_counterparty_attributes|finance_gocardless_connections|finance_gocardless_sync_logs"; then
+                  echo "⚠️ finance models tables conflict detected -> validating full set before stamping 7811fe58d1ac"
+                  pre_stamp_if_all_tables_exist 7811fe58d1ac \
+                    finance_products \
+                    finance_daily_balances \
+                    finance_adjustments \
+                    finance_adjustment_logs \
+                    finance_counterparty_attributes \
+                    finance_gocardless_connections \
+                    finance_gocardless_sync_logs
                 fi
                 if $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db upgrade heads; then
                   MIG_OK=1
