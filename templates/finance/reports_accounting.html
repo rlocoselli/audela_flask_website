@@ -6,7 +6,7 @@
     <div class="card-body">
       <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
         <h5 class="mb-0">{{ _('Rapport comptable (Chart of Accounts)') }}</h5>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 finance-row-actions">
           <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.reports_transactions') }}">{{ _('Relatórios') }}</a>
           <a class="btn btn-outline-primary btn-sm" href="{{ url_for('finance.reports_accounting_periods', company_id=company.id) }}">{{ _('Rapport par période') }}</a>
         </div>
@@ -65,16 +65,16 @@
           {% endif %}
           <span class="text-secondary ms-2">{{ start.isoformat() }} → {{ end.isoformat() }}</span>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 finance-row-actions">
           {% if period_state and period_state.is_closed %}
-            <form method="post" action="{{ url_for('finance.reopen_accounting_period', company_id=company.id) }}">
+            <form method="post" action="{{ url_for('finance.reopen_accounting_period', company_id=company.id) }}" class="finance-inline-form">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="start" value="{{ start.isoformat() }}">
               <input type="hidden" name="end" value="{{ end.isoformat() }}">
               <button class="btn btn-sm btn-outline-warning" type="submit">{{ _('Réouvrir la période') }}</button>
             </form>
           {% else %}
-            <form method="post" action="{{ url_for('finance.close_accounting_period', company_id=company.id) }}">
+            <form method="post" action="{{ url_for('finance.close_accounting_period', company_id=company.id) }}" class="finance-inline-form">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <input type="hidden" name="start" value="{{ start.isoformat() }}">
               <input type="hidden" name="end" value="{{ end.isoformat() }}">
@@ -113,7 +113,7 @@
                 <td class="text-end">{{ '%.2f'|format(r.credit or 0) }}</td>
                 <td class="text-end fw-semibold">{{ '%.2f'|format(r.closing or 0) }}</td>
                 <td class="text-end">
-                  <button class="btn btn-sm btn-outline-primary js-source-btn" type="button"
+                  <button class="btn btn-sm btn-outline-primary js-source-btn finance-action-btn" type="button"
                      data-gl-id="{{ r.gl_id }}"
                      data-gl-code="{{ r.code }}"
                      data-gl-name="{{ r.name }}">
@@ -244,4 +244,29 @@
       });
     })();
   </script>
+{% endblock %}
+
+{% block head_extra %}
+  {{ super() }}
+  <style>
+    .finance-row-actions {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: .35rem;
+    }
+
+    @media (max-width: 767.98px) {
+      .finance-row-actions {
+        display: flex;
+        justify-content: stretch !important;
+        width: 100%;
+      }
+
+      .finance-row-actions .btn,
+      .finance-row-actions .finance-inline-form,
+      .finance-action-btn {
+        width: 100%;
+      }
+    }
+  </style>
 {% endblock %}

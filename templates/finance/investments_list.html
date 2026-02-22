@@ -66,36 +66,38 @@
                   <td class="text-end">{{ i.pnl_fmt }}</td>
                   <td><span class="badge text-bg-light border">{{ i.status_label }}</span></td>
                   <td class="text-end">
-                    <form method="post" action="{{ url_for('finance.investment_update', investment_id=i.id) }}" class="d-inline-flex align-items-center gap-1">
+                    <div class="finance-row-actions justify-content-end">
+                    <form method="post" action="{{ url_for('finance.investment_update', investment_id=i.id) }}" class="d-inline-flex align-items-center gap-1 finance-inline-form">
                       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                      <input class="form-control form-control-sm" name="current_value" style="width: 110px" placeholder="{{ _('Valor') }}" />
-                      <select class="form-select form-select-sm" name="status" style="width: 95px">
+                      <input class="form-control form-control-sm inv-w-110" name="current_value" placeholder="{{ _('Valor') }}" />
+                      <select class="form-select form-select-sm inv-w-95" name="status">
                         <option value="active" {% if i.status=='active' %}selected{% endif %}>{{ _('Active') }}</option>
                         <option value="closed" {% if i.status=='closed' %}selected{% endif %}>{{ _('Closed') }}</option>
                       </select>
                       <button class="btn btn-outline-secondary btn-sm">{{ _('Atualizar') }}</button>
                     </form>
 
-                    <form method="post" action="{{ url_for('finance.investment_cash_event', investment_id=i.id) }}" class="d-inline-flex align-items-center gap-1 ms-1">
+                    <form method="post" action="{{ url_for('finance.investment_cash_event', investment_id=i.id) }}" class="d-inline-flex align-items-center gap-1 ms-1 finance-inline-form">
                       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                      <select class="form-select form-select-sm" name="event_type" style="width: 95px">
+                      <select class="form-select form-select-sm inv-w-95" name="event_type">
                         <option value="buy">{{ _('Compra') }}</option>
                         <option value="sell" selected>{{ _('Venda') }}</option>
                         <option value="dividend">{{ _('Dividendo') }}</option>
                         <option value="fee">{{ _('Taxa') }}</option>
                       </select>
-                      <input class="form-control form-control-sm" name="amount" style="width: 100px" placeholder="{{ _('Valor') }}" required />
-                      <input class="form-control form-control-sm" type="date" name="txn_date" style="width: 145px" />
+                      <input class="form-control form-control-sm inv-w-100" name="amount" placeholder="{{ _('Valor') }}" required />
+                      <input class="form-control form-control-sm inv-w-145" type="date" name="txn_date" />
                       <button class="btn btn-outline-primary btn-sm">{{ _('Registrar') }}</button>
                     </form>
 
                     <button type="button"
-                            class="btn btn-outline-info btn-sm ms-1 js-invest-history"
+                            class="btn btn-outline-info btn-sm ms-1 js-invest-history finance-action-btn"
                             data-history-url="{{ url_for('finance.investment_history', investment_id=i.id) }}"
                             data-name="{{ i.name }}"
                             data-symbol="{{ i.instrument_code or '' }}">
                       {{ _('Historique') }}
                     </button>
+                    </div>
                   </td>
                 </tr>
               {% endfor %}
@@ -279,4 +281,44 @@
       });
     });
   </script>
+{% endblock %}
+
+{% block head_extra %}
+  {{ super() }}
+  <style>
+    .finance-row-actions {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: .35rem;
+    }
+
+    .inv-w-95 { width: 95px; }
+    .inv-w-100 { width: 100px; }
+    .inv-w-110 { width: 110px; }
+    .inv-w-145 { width: 145px; }
+
+    @media (max-width: 767.98px) {
+      .finance-row-actions {
+        display: flex;
+        justify-content: stretch !important;
+      }
+
+      .finance-row-actions .finance-inline-form,
+      .finance-row-actions .finance-action-btn {
+        width: 100%;
+        margin-left: 0 !important;
+      }
+
+      .finance-row-actions .finance-inline-form {
+        flex-wrap: wrap;
+      }
+
+      .finance-row-actions .finance-inline-form .form-control,
+      .finance-row-actions .finance-inline-form .form-select,
+      .finance-row-actions .finance-inline-form .btn,
+      .finance-row-actions .finance-action-btn {
+        width: 100%;
+      }
+    }
+  </style>
 {% endblock %}

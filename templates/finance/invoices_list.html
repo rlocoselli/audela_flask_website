@@ -55,10 +55,10 @@
                 <td>{{ inv.counterparty.name if inv.counterparty else '' }}</td>
                 <td class="text-end">{{ '%.2f'|format(inv.total_gross or 0) }} {{ inv.currency }}</td>
                 <td class="text-end">
-                  <div class="btn-group btn-group-sm">
-                    <a class="btn btn-outline-secondary" href="{{ url_for('finance.invoice_edit', invoice_id=inv.id) }}">{{ _('Editar') }}</a>
-                    <a class="btn btn-outline-primary" href="{{ url_for('finance.invoice_export', invoice_id=inv.id, country='fr') }}">{{ _('FR ZIP') }}</a>
-                    <a class="btn btn-outline-primary" href="{{ url_for('finance.invoice_export', invoice_id=inv.id, country='it') }}">{{ _('IT ZIP') }}</a>
+                  <div class="finance-row-actions justify-content-end">
+                    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.invoice_edit', invoice_id=inv.id) }}">{{ _('Editar') }}</a>
+                    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('finance.invoice_export', invoice_id=inv.id, country='fr') }}">{{ _('FR ZIP') }}</a>
+                    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('finance.invoice_export', invoice_id=inv.id, country='it') }}">{{ _('IT ZIP') }}</a>
                   </div>
                 </td>
               </tr>
@@ -72,4 +72,26 @@
       </div>
     </div>
   </div>
+{% endblock %}
+
+{% block head_extra %}
+  {{ super() }}
+  <style>
+    .finance-row-actions {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: .35rem;
+    }
+
+    @media (max-width: 767.98px) {
+      .finance-row-actions {
+        display: flex;
+        justify-content: stretch !important;
+      }
+
+      .finance-row-actions .btn {
+        width: 100%;
+      }
+    }
+  </style>
 {% endblock %}

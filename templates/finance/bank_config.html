@@ -150,9 +150,11 @@
                                         {% endif %}
                                     </td>
                                     <td class="text-end">
-                                        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#ibanModal{{ account.id }}">
-                                            <i class="bi bi-pencil me-1"></i>{{ _('Éditer') }}
-                                        </button>
+                                        <div class="finance-row-actions justify-content-end">
+                                            <button type="button" class="btn btn-sm btn-outline-primary finance-action-btn" data-bs-toggle="modal" data-bs-target="#ibanModal{{ account.id }}">
+                                                <i class="bi bi-pencil me-1"></i>{{ _('Éditer') }}
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                                 
@@ -331,6 +333,29 @@ document.addEventListener('DOMContentLoaded', function() {
         padding: 0.2rem 0.4rem;
         border-radius: 0.25rem;
         font-size: 0.85rem;
+    }
+
+    .finance-row-actions {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: .35rem;
+    }
+
+    @media (max-width: 767.98px) {
+        .finance-row-actions {
+            display: flex;
+            justify-content: stretch !important;
+        }
+
+        .finance-row-actions .finance-action-btn {
+            width: 100%;
+        }
+
+        code {
+            display: inline-block;
+            max-width: 100%;
+            word-break: break-all;
+        }
     }
 </style>
 {% endblock %}

@@ -71,7 +71,38 @@
     </div>
   </div>
 
-  <ul class="nav nav-pills flex-wrap gap-1 mb-4">
+  <div class="d-md-none mb-3">
+    <label class="form-label small text-secondary mb-1" for="finance-mobile-nav">{{ _('Navigation Finance') }}</label>
+    <select
+      id="finance-mobile-nav"
+      class="form-select form-select-sm"
+      onchange="if(this.value){ window.location.href = this.value; }"
+    >
+      <option value="{{ url_for('finance.dashboard') }}" {% if active=='dashboard' %}selected{% endif %}>{{ _('Visão geral') }}</option>
+      <option value="{{ url_for('finance.accounts_list') }}" {% if active=='accounts' %}selected{% endif %}>{{ _('Contas') }}</option>
+      <option value="{{ url_for('finance.transactions_list') }}" {% if active=='transactions' %}selected{% endif %}>{{ _('Transações') }}</option>
+      <option value="{{ url_for('finance.quick_entry') }}" {% if active=='quick_entry' %}selected{% endif %}>{{ _('Entrada rápida') }}</option>
+      <option value="{{ url_for('finance.reports_transactions') }}" {% if active=='reports' %}selected{% endif %}>{{ _('Relatórios') }}</option>
+      <option value="{{ url_for('finance.reports_statistics') }}" {% if active=='stats' %}selected{% endif %}>{{ _('Statistiques') }}</option>
+      <option value="{{ url_for('finance.reports_accounting') }}" {% if active=='reports' %}selected{% endif %}>{{ _('Rapport comptable') }}</option>
+      <option value="{{ url_for('finance.pivot_page') }}" {% if active=='pivot' %}selected{% endif %}>{{ _('Pivot') }}</option>
+      <option value="{{ url_for('finance.invoices_list') }}" {% if active=='invoices' %}selected{% endif %}>{{ _('E-faturas') }}</option>
+      <option value="{{ url_for('finance.alerts_page') }}" {% if active=='alerts' %}selected{% endif %}>{{ _('Alertas') }}</option>
+      <option value="{{ url_for('finance.regulation_page') }}" {% if active=='regulation' %}selected{% endif %}>{{ _('Regulação') }}</option>
+      <option value="{{ url_for('finance.liabilities_list') }}" {% if active=='liabilities' %}selected{% endif %}>{{ _('Financiamentos') }}</option>
+      <option value="{{ url_for('finance.investments_list') }}" {% if active=='investments' %}selected{% endif %}>{{ _('Investimentos') }}</option>
+      <option value="{{ url_for('finance.recurring_list') }}" {% if active=='recurring' %}selected{% endif %}>{{ _('Recorrentes') }}</option>
+      <option value="{{ url_for('finance.cashflow') }}" {% if active=='cashflow' %}selected{% endif %}>{{ _('Cashflow') }}</option>
+      <option value="{{ url_for('finance.nii') }}" {% if active=='nii' %}selected{% endif %}>{{ _('NII') }}</option>
+      <option value="{{ url_for('finance.gaps') }}" {% if active=='gaps' %}selected{% endif %}>{{ _('Gaps') }}</option>
+      <option value="{{ url_for('finance.liquidity') }}" {% if active=='liquidity' %}selected{% endif %}>{{ _('Liquidez') }}</option>
+      <option value="{{ url_for('finance.risk') }}" {% if active=='risk' %}selected{% endif %}>{{ _('Risco') }}</option>
+      <option value="{{ url_for('finance.settings_categories') }}" {% if active=='settings' %}selected{% endif %}>{{ _('Configurações') }}</option>
+      <option value="{{ url_for('finance.help_page') }}" {% if active=='help' %}selected{% endif %}>{{ _('Ajuda') }}</option>
+    </select>
+  </div>
+
+  <ul class="nav nav-pills d-none d-md-flex flex-wrap gap-1 mb-4">
     <li class="nav-item"><a class="nav-link {% if active=='dashboard' %}active{% endif %}" href="{{ url_for('finance.dashboard') }}">{{ _('Visão geral') }}</a></li>
     <li class="nav-item"><a class="nav-link {% if active=='accounts' %}active{% endif %}" href="{{ url_for('finance.accounts_list') }}">{{ _('Contas') }}</a></li>
     <li class="nav-item"><a class="nav-link {% if active=='transactions' %}active{% endif %}" href="{{ url_for('finance.transactions_list') }}">{{ _('Transações') }}</a></li>

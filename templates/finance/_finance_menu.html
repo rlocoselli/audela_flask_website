@@ -1,5 +1,18 @@
 <!-- Finance Master Data Menu - _finance_menu.html -->
-<ul class="nav flex-column">
+<div class="d-md-none mb-2">
+    <label class="form-label small text-secondary mb-1" for="finance-master-mobile-nav">{{ _('Dados Mestres') }}</label>
+    <select
+        id="finance-master-mobile-nav"
+        class="form-select form-select-sm"
+        onchange="if(this.value){ window.location.href = this.value; }"
+    >
+        <option value="{{ url_for('finance_master.list_products') }}" {% if 'finance_master.list_products' in request.endpoint %}selected{% endif %}>{{ _('Produtos') }}</option>
+        <option value="{{ url_for('finance_master.list_counterparties') }}" {% if 'finance_master.list_counterparties' in request.endpoint %}selected{% endif %}>{{ _('Contrapartes') }}</option>
+        <option value="{{ url_for('finance_master.bank_config') }}" {% if 'finance_master.bank_config' in request.endpoint %}selected{% endif %}>{{ _('Configuração Bancária') }}</option>
+    </select>
+</div>
+
+<ul class="nav flex-column d-none d-md-flex">
     <li class="nav-item">
         <a class="nav-link d-flex align-items-center {% if 'finance_master.list_products' in request.endpoint %}active{% endif %}" 
            href="{{ url_for('finance_master.list_products') }}">

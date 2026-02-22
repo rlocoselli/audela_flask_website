@@ -142,12 +142,14 @@
                     {% endif %}
                   </td>
                   <td class="text-end">
-                    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('finance.transaction_edit', txn_id=txn.id, next=request.full_path) }}">{{ _('Editar') }}</a>
-                    <form method="post" action="{{ url_for('finance.transaction_delete', txn_id=txn.id) }}" class="d-inline" onsubmit="return confirm('{{ _('Remover esta transação?') }}');">
-                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                      <input type="hidden" name="next" value="{{ request.full_path }}" />
-                      <button class="btn btn-sm btn-outline-danger" type="submit">{{ _('Remover') }}</button>
-                    </form>
+                    <div class="finance-row-actions justify-content-end">
+                      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('finance.transaction_edit', txn_id=txn.id, next=request.full_path) }}">{{ _('Editar') }}</a>
+                      <form method="post" action="{{ url_for('finance.transaction_delete', txn_id=txn.id) }}" class="d-inline" onsubmit="return confirm('{{ _('Remover esta transação?') }}');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                        <input type="hidden" name="next" value="{{ request.full_path }}" />
+                        <button class="btn btn-sm btn-outline-danger" type="submit">{{ _('Remover') }}</button>
+                      </form>
+                    </div>
                   </td>
                 </tr>
               {% endfor %}
@@ -209,4 +211,27 @@
     </div>
   </div>
 
+{% endblock %}
+
+{% block head_extra %}
+  {{ super() }}
+  <style>
+    .finance-row-actions {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: .35rem;
+    }
+
+    @media (max-width: 767.98px) {
+      .finance-row-actions {
+        display: flex;
+        justify-content: stretch !important;
+      }
+
+      .finance-row-actions .btn,
+      .finance-row-actions form {
+        width: 100%;
+      }
+    }
+  </style>
 {% endblock %}
