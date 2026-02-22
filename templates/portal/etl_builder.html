@@ -18,15 +18,15 @@
 {% block portal_content %}
 <div class="container-fluid py-3">
   <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-    <h3 class="m-0"><i class="bi bi-diagram-3 me-2"></i>{{ _('ETL Builder') }}</h3>
+    <h3 class="m-0" data-tour="{{ _('Construisez ici vos workflows ETL visuellement, étape par étape.') }}" data-tour-title="{{ _('Tutoriel ETL') }}" data-tour-order="1"><i class="bi bi-diagram-3 me-2"></i>{{ _('ETL Builder') }}</h3>
     <div class="d-flex gap-2">
-      <button class="btn btn-outline-secondary btn-sm" onclick="previewWorkflow()">
+      <button class="btn btn-outline-secondary btn-sm" onclick="previewWorkflow()" data-tour="{{ _('Prévisualisez les sorties récentes du workflow avant exécution.') }}" data-tour-title="{{ _('Tutoriel ETL') }}" data-tour-order="6">
         <i class="bi bi-eye me-1"></i>{{ _('Preview') }}
       </button>
-      <button class="btn btn-outline-secondary btn-sm" onclick="saveWorkflow()">
+      <button class="btn btn-outline-secondary btn-sm" onclick="saveWorkflow()" data-tour="{{ _('Sauvegardez la structure du workflow pour la réutiliser.') }}" data-tour-title="{{ _('Tutoriel ETL') }}" data-tour-order="7">
         <i class="bi bi-save me-1"></i>{{ _('Salvar workflow') }}
       </button>
-      <button class="btn btn-primary btn-sm" onclick="runWorkflow()">
+      <button class="btn btn-primary btn-sm" onclick="runWorkflow()" data-tour="{{ _('Exécutez le workflow complet avec les connexions configurées.') }}" data-tour-title="{{ _('Tutoriel ETL') }}" data-tour-order="8">
         <i class="bi bi-play-fill me-1"></i>{{ _('Executar') }}
       </button>
     </div>
@@ -38,7 +38,7 @@
         <div class="card-body">
           <div class="small text-muted mb-2">{{ _('Adicionar passos') }}</div>
 
-          <button class="btn btn-sm btn-primary w-100 mb-2" onclick="addNode('extract.http')">
+          <button class="btn btn-sm btn-primary w-100 mb-2" onclick="addNode('extract.http')" data-tour="{{ _('Commencez par un nœud d\'extraction pour importer les données source.') }}" data-tour-title="{{ _('Tutoriel ETL') }}" data-tour-order="2">
             <i class="bi bi-cloud-download me-2"></i>{{ _('HTTP Extract') }}
           </button>
 
@@ -46,7 +46,7 @@
             <i class="bi bi-database-down me-2"></i>{{ _('SQL Extract') }}
           </button>
 
-          <button class="btn btn-sm btn-warning w-100 mb-2" onclick="addNode('transform.mapping')">
+          <button class="btn btn-sm btn-warning w-100 mb-2" onclick="addNode('transform.mapping')" data-tour="{{ _('Ajoutez ensuite une transformation pour nettoyer ou mapper les champs.') }}" data-tour-title="{{ _('Tutoriel ETL') }}" data-tour-order="3">
             <i class="bi bi-funnel me-2"></i>{{ _('Transform') }}
           </button>
 
@@ -66,7 +66,7 @@
             <i class="bi bi-box-arrow-in-down me-2"></i>{{ _('Load (Staging)') }}
           </button>
 
-          <button class="btn btn-sm btn-success w-100 mb-3" onclick="addNode('load.warehouse')">
+          <button class="btn btn-sm btn-success w-100 mb-3" onclick="addNode('load.warehouse')" data-tour="{{ _('Terminez avec un nœud de chargement vers votre entrepôt de données.') }}" data-tour-title="{{ _('Tutoriel ETL') }}" data-tour-order="4">
             <i class="bi bi-database-up me-2"></i>{{ _('Load (Warehouse)') }}
           </button>
 
@@ -83,7 +83,7 @@
       <div class="card shadow-sm mt-3">
         <div class="card-body">
           <div class="small text-muted mb-2">{{ _('Preview (últimos resultados)') }}</div>
-          <pre id="etlPreview" class="small mb-0" style="max-height:260px; overflow:auto; white-space:pre-wrap;"></pre>
+          <pre id="etlPreview" class="small mb-0" style="max-height:260px; overflow:auto; white-space:pre-wrap;" data-tour="{{ _('Consultez ici les derniers résultats de preview ou d\'exécution.') }}" data-tour-title="{{ _('Tutoriel ETL') }}" data-tour-order="9"></pre>
         </div>
       </div>
     </div>
@@ -96,7 +96,7 @@
             <span class="text-success fw-semibold">● output_1 = TRUE (balle du haut)</span>
             <span class="text-danger fw-semibold">● output_2 = FALSE (balle du bas)</span>
           </div>
-          <div id="drawflow" class="drawflow" style="height:70vh; min-height:520px;"></div>
+          <div id="drawflow" class="drawflow" style="height:70vh; min-height:520px;" data-tour="{{ _('Zone de canvas: reliez les nœuds pour définir le flux de données.') }}" data-tour-title="{{ _('Tutoriel ETL') }}" data-tour-order="5"></div>
         </div>
       </div>
     </div>

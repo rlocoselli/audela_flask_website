@@ -8,7 +8,7 @@ from ...models import Prospect
 from ...models import Tenant
 from ...services.subscription_service import SubscriptionService
 
-from ...i18n import DEFAULT_LANG, SUPPORTED_LANGS, normalize_lang
+from ...i18n import DEFAULT_LANG, SUPPORTED_LANGS, normalize_lang, tr
 
 from . import bp
 
@@ -31,18 +31,18 @@ def request_demo():
     timezone = (request.form.get("timezone") or "Europe/Paris").strip() or "Europe/Paris"
 
     if not full_name or not email or not rdv_date_raw or not rdv_time_raw:
-        flash("Veuillez renseigner nom, email, date et horaire du RDV.", "error")
+        flash(tr("Veuillez renseigner nom, email, date et horaire du RDV.", session.get("lang")), "error")
         return redirect(url_for("public.index") + "#five")
 
     try:
         rdv_date = datetime.strptime(rdv_date_raw, "%Y-%m-%d").date()
         rdv_time = datetime.strptime(rdv_time_raw, "%H:%M").time()
     except ValueError:
-        flash("Format de date/heure invalide.", "error")
+        flash(tr("Format de date/heure invalide.", session.get("lang")), "error")
         return redirect(url_for("public.index") + "#five")
 
     if rdv_date < date.today():
-        flash("La date de RDV doit être aujourd'hui ou future.", "error")
+        flash(tr("La date de RDV doit être aujourd'hui ou future.", session.get("lang")), "error")
         return redirect(url_for("public.index") + "#five")
 
     prospect = Prospect(
@@ -60,7 +60,7 @@ def request_demo():
     db.session.add(prospect)
     db.session.commit()
 
-    flash("Merci. Votre demande de démonstration a bien été enregistrée.", "success")
+    flash(tr("Merci. Votre demande de démonstration a bien été enregistrée.", session.get("lang")), "success")
     return redirect(url_for("public.index") + "#five")
 
 

@@ -146,6 +146,14 @@
       let currentRange = '1y';
       let chart = null;
       let pendingChartPayload = null;
+      const textChartUnavailable = "{{ _('Bibliothèque graphique indisponible.') }}";
+      const textPerfNa = "{{ _('Performance cumulée: n/a') }}";
+      const textPerfLoading = "{{ _('Performance cumulée: ...') }}";
+      const textPerfLabel = "{{ _('Performance cumulée') }}";
+      const textLoading = "{{ _('Chargement...') }}";
+      const textNoHistory = "{{ _('Aucune donnée historique disponible.') }}";
+      const textHistoryError = "{{ _('Erreur lors du chargement de l\'historique.') }}";
+      const textHistoryTitle = "{{ _('Historique') }}";
 
       function setActiveRange(){
         document.querySelectorAll('.js-history-range').forEach((btn) => {
@@ -164,7 +172,7 @@
       function renderHistoryChart(labels, values){
         const ch = ensureChart();
         if (!ch) {
-          statusEl.textContent = 'Bibliothèque graphique indisponible.';
+          statusEl.textContent = textChartUnavailable;
           return;
         }
         ch.setOption({
@@ -185,25 +193,25 @@
 
       function renderCumulativeReturn(values){
         if (!values || values.length < 2) {
-          returnEl.innerHTML = `<span class="badge text-bg-light border">Performance cumulée: n/a</span>`;
+          returnEl.innerHTML = `<span class="badge text-bg-light border">${textPerfNa}</span>`;
           return;
         }
         const first = Number(values[0] || 0);
         const last = Number(values[values.length - 1] || 0);
         if (!Number.isFinite(first) || first === 0 || !Number.isFinite(last)) {
-          returnEl.innerHTML = `<span class="badge text-bg-light border">Performance cumulée: n/a</span>`;
+          returnEl.innerHTML = `<span class="badge text-bg-light border">${textPerfNa}</span>`;
           return;
         }
         const pct = ((last - first) / first) * 100;
         const cls = pct >= 0 ? 'text-bg-success' : 'text-bg-danger';
         const sign = pct >= 0 ? '+' : '';
-        returnEl.innerHTML = `<span class="badge ${cls}">Performance cumulée: ${sign}${pct.toFixed(2)}%</span>`;
+        returnEl.innerHTML = `<span class="badge ${cls}">${textPerfLabel}: ${sign}${pct.toFixed(2)}%</span>`;
       }
 
       async function loadHistory(){
         if (!currentUrl) return;
         setActiveRange();
-        statusEl.textContent = 'Chargement...';
+        statusEl.textContent = textLoading;
 
         const url = new URL(currentUrl, window.location.origin);
         url.searchParams.set('horizon', currentRange);
@@ -215,8 +223,8 @@
 
           const points = payload.points || [];
           if (!points.length) {
-            statusEl.textContent = 'Aucune donnée historique disponible.';
-            returnEl.innerHTML = `<span class="badge text-bg-light border">Performance cumulée: n/a</span>`;
+            statusEl.textContent = textNoHistory;
+            returnEl.innerHTML = `<span class="badge text-bg-light border">${textPerfNa}</span>`;
             const ch = ensureChart();
             if (ch) ch.clear();
             return;
@@ -233,8 +241,8 @@
             pendingChartPayload = { labels, values };
           }
         } catch (_err) {
-          statusEl.textContent = 'Erreur lors du chargement de l\'historique.';
-          returnEl.innerHTML = `<span class="badge text-bg-light border">Performance cumulée: n/a</span>`;
+          statusEl.textContent = textHistoryError;
+          returnEl.innerHTML = `<span class="badge text-bg-light border">${textPerfNa}</span>`;
           const ch = ensureChart();
           if (ch) ch.clear();
         }
@@ -246,8 +254,8 @@
           currentName = btn.getAttribute('data-name') || '';
           currentSymbol = btn.getAttribute('data-symbol') || '';
           currentRange = '1y';
-          titleEl.textContent = `Historique · ${currentName}${currentSymbol ? ' (' + currentSymbol + ')' : ''}`;
-          returnEl.innerHTML = `<span class="badge text-bg-light border">Performance cumulée: ...</span>`;
+          titleEl.textContent = `${textHistoryTitle} · ${currentName}${currentSymbol ? ' (' + currentSymbol + ')' : ''}`;
+          returnEl.innerHTML = `<span class="badge text-bg-light border">${textPerfLoading}</span>`;
 
           if (window.bootstrap?.Modal) {
             window.bootstrap.Modal.getOrCreateInstance(modalEl).show();

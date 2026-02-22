@@ -7,6 +7,8 @@ from functools import wraps
 from flask import g, session, redirect, url_for, flash
 from flask_login import current_user
 
+from .i18n import tr
+
 
 @dataclass(frozen=True)
 class CurrentTenant:
@@ -85,12 +87,12 @@ def require_tenant(func):
     def decorated_view(*args, **kwargs):
         # Check if user has tenant context
         if not current_user.is_authenticated:
-            flash("Please log in to access this page.", "warning")
+            flash(tr("Please log in to access this page.", getattr(g, "lang", None)), "warning")
             return redirect(url_for("tenant.login"))
         
         # Check if tenant_id exists
         if not hasattr(current_user, 'tenant_id') or current_user.tenant_id is None:
-            flash("No tenant context found. Please login with a tenant.", "warning")
+            flash(tr("No tenant context found. Please login with a tenant.", getattr(g, "lang", None)), "warning")
             return redirect(url_for("tenant.login"))
         
         # Ensure tenant is set in g
@@ -108,10 +110,10 @@ def require_tenant(func):
                         name=tenant.name
                     )
                 else:
-                    flash("Tenant not found. Please login again.", "danger")
+                    flash(tr("Tenant not found. Please login again.", getattr(g, "lang", None)), "danger")
                     return redirect(url_for("tenant.login"))
             else:
-                flash("No active tenant session. Please login.", "warning")
+                flash(tr("No active tenant session. Please login.", getattr(g, "lang", None)), "warning")
                 return redirect(url_for("tenant.login"))
         
         return func(*args, **kwargs)

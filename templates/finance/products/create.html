@@ -9,9 +9,9 @@
         <div class="col-md-8 offset-md-2">
             <div class="page-header mb-4">
                 <a href="{{ url_for('finance_master.list_products', company_id=company.id) }}" class="btn btn-outline-secondary btn-sm">
-                    <i class="fas fa-arrow-left"></i> Retour
+                    <i class="fas fa-arrow-left"></i> {{ _('Voltar') }}
                 </a>
-                <h1 class="mt-3">Créer un nouveau produit</h1>
+                <h1 class="mt-3">{{ _('Criar novo produto') }}</h1>
             </div>
 
             {% for category, message in get_flashed_messages(with_categories=True) %}
@@ -25,85 +25,84 @@
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="mb-0">Informations Générales</h5>
+                        <h5 class="mb-0">{{ _('Informações Gerais') }}</h5>
                     </div>
                     <div class="card-body">
                         <div class="mb-3">
-                            <label for="name" class="form-label">Nom du produit <span class="text-danger">*</span></label>
+                            <label for="name" class="form-label">{{ _('Nome do produto') }} <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="name" name="name" 
-                                   placeholder="Ex: Service de conseil" required>
-                            <small class="form-text text-muted">Nom descriptif du produit</small>
+                                   placeholder="{{ _('Ex: Serviço de consultoria') }}" required>
+                            <small class="form-text text-muted">{{ _('Nome descritivo do produto') }}</small>
                         </div>
 
                         <div class="mb-3">
-                            <label for="code" class="form-label">Code (optionnel)</label>
+                            <label for="code" class="form-label">{{ _('Código (opcional)') }}</label>
                             <input type="text" class="form-control" id="code" name="code" 
-                                   placeholder="Ex: CONS-001">
-                            <small class="form-text text-muted">Code interne pour identifier le produit</small>
+                                   placeholder="{{ _('Ex: CONS-001') }}">
+                            <small class="form-text text-muted">{{ _('Código interno para identificar o produto') }}</small>
                         </div>
 
                         <div class="mb-3">
-                            <label for="description" class="form-label">Description</label>
+                            <label for="description" class="form-label">{{ _('Descrição') }}</label>
                             <textarea class="form-control" id="description" name="description" 
-                                      rows="3" placeholder="Description détaillée du produit..."></textarea>
+                                      rows="3" placeholder="{{ _('Descrição detalhada do produto...') }}"></textarea>
                         </div>
                     </div>
                 </div>
 
                 <div class="card mt-4">
                     <div class="card-header">
-                        <h5 class="mb-0">Configuration TVA</h5>
+                        <h5 class="mb-0">{{ _('Configuração de IVA') }}</h5>
                     </div>
                     <div class="card-body">
                         <div class="mb-3">
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="vat_applies" name="vat_applies">
                                 <label class="form-check-label" for="vat_applies">
-                                    Ce produit est soumis à la TVA
+                                    {{ _('Este produto está sujeito a IVA') }}
                                 </label>
                             </div>
                         </div>
 
                         <div id="vat_config" style="display: none;">
                             <div class="mb-3">
-                                <label for="vat_rate" class="form-label">Taux de TVA (%)</label>
+                                <label for="vat_rate" class="form-label">{{ _('Taxa de IVA (%)') }}</label>
                                 <div class="input-group">
                                     <input type="number" class="form-control" id="vat_rate" name="vat_rate" 
                                            placeholder="20.0" step="0.01" min="0" max="100" value="20.0">
                                     <span class="input-group-text">%</span>
                                 </div>
                                 <small class="form-text text-muted">
-                                    Taux TVA applicable. Utilisez 20 pour 20%, etc.
+                                    {{ _('Taxa de IVA aplicável. Use 20 para 20%, etc.') }}
                                 </small>
                             </div>
                         </div>
 
                         <div id="exemption_config" style="display: none;">
                             <div class="mb-3">
-                                <label for="tax_exempt_reason" class="form-label">Raison de l'exonération</label>
+                                <label for="tax_exempt_reason" class="form-label">{{ _('Motivo da isenção') }}</label>
                                 <textarea class="form-control" id="tax_exempt_reason" name="tax_exempt_reason" 
-                                          rows="2" placeholder="Ex: Exportation, Service financier..."></textarea>
+                                          rows="2" placeholder="{{ _('Ex: Exportação, serviço financeiro...') }}"></textarea>
                                 <small class="form-text text-muted">
-                                    Motif l'exonération TVA applicable
+                                    {{ _('Motivo da isenção de IVA aplicável') }}
                                 </small>
                             </div>
                         </div>
 
                         <div class="alert alert-info alert-sm mt-3">
                             <i class="fas fa-info-circle"></i>
-                            <strong>Information:</strong> La TVA configurée ici sera appliquée automatiquement 
-                            lors de la création de transactions pour ce produit.
+                            <strong>{{ _('Informação') }}:</strong> {{ _('O IVA configurado aqui será aplicado automaticamente nas transações desse produto.') }}
                         </div>
                     </div>
                 </div>
 
                 <div class="mt-4">
                     <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save"></i> Créer le produit
+                        <i class="fas fa-save"></i> {{ _('Criar produto') }}
                     </button>
                     <a href="{{ url_for('finance_master.list_products', company_id=company.id) }}" 
                        class="btn btn-secondary">
-                        Annuler
+                        {{ _('Cancelar') }}
                     </a>
                 </div>
             </form>
@@ -129,7 +128,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     vatCheckbox.addEventListener('change', updateVATDisplay);
     
-    // Initialiser l'affichage initial
+    // Inicializar estado
     updateVATDisplay();
 });
 </script>

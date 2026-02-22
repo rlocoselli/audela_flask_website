@@ -10,7 +10,8 @@ from flask import (
     flash,
     request,
     jsonify,
-    current_app
+    current_app,
+    g,
 )
 from flask_login import login_required, current_user
 
@@ -66,7 +67,7 @@ def subscription():
     
     tenant = Tenant.query.get(current_user.tenant_id)
     if not tenant:
-        flash("Tenant not found", "error")
+        flash(tr("Tenant not found", getattr(g, "lang", None)), "error")
         return redirect(url_for("portal.home"))
     
     stats = TenantService.get_tenant_stats(current_user.tenant_id)
@@ -94,17 +95,17 @@ def upgrade(plan_code):
     """Initiate upgrade to a paid plan."""
     plan = SubscriptionPlan.query.filter_by(code=plan_code, is_active=True).first()
     if not plan:
-        flash("Plan not found", "error")
+        flash(tr("Plan not found", getattr(g, "lang", None)), "error")
         return redirect(url_for("billing.plans"))
     
     tenant = Tenant.query.get(current_user.tenant_id)
     if not tenant:
-        flash("Tenant not found", "error")
+        flash(tr("Tenant not found", getattr(g, "lang", None)), "error")
         return redirect(url_for("portal.home"))
     
     # Check if already on this plan
     if tenant.subscription and tenant.subscription.plan.code == plan_code:
-        flash("You are already on this plan", "info")
+        flash(tr("You are already on this plan", getattr(g, "lang", None)), "info")
         return redirect(url_for("billing.subscription"))
     
     return render_template(
@@ -125,12 +126,12 @@ def checkout():
     billing_cycle = request.form.get("billing_cycle", "monthly")
     
     if not plan_code or billing_cycle not in ["monthly", "yearly"]:
-        flash("Invalid plan or billing cycle", "error")
+        flash(tr("Invalid plan or billing cycle", getattr(g, "lang", None)), "error")
         return redirect(url_for("billing.plans"))
     
     plan = SubscriptionPlan.query.filter_by(code=plan_code, is_active=True).first()
     if not plan:
-        flash("Plan not found", "error")
+        flash(tr("Plan not found", getattr(g, "lang", None)), "error")
         return redirect(url_for("billing.plans"))
 
     is_free_plan = (
@@ -152,7 +153,7 @@ def checkout():
                 stripe_customer_id=None,
                 stripe_subscription_id=None,
             )
-            flash("Free plan activated. No card required.", "success")
+            flash(tr("Free plan activated. No card required.", getattr(g, "lang", None)), "success")
             return redirect(url_for("billing.subscription"))
 
         # Create Stripe checkout session
@@ -167,11 +168,11 @@ def checkout():
         return redirect(session_url)
     
     except ValueError as e:
-        flash(str(e), "error")
+        flash(tr(str(e), getattr(g, "lang", None)), "error")
         return redirect(url_for("billing.plans"))
     except Exception as e:
         current_app.logger.error(f"Stripe checkout error: {e}")
-        flash("Payment processing error. Please try again.", "error")
+        flash(tr("Payment processing error. Please try again.", getattr(g, "lang", None)), "error")
         return redirect(url_for("billing.plans"))
 
 
@@ -180,7 +181,7 @@ def checkout():
 @require_tenant
 def checkout_success():
     """Handle successful Stripe payment."""
-    flash("Payment successful! Your subscription is now active.", "success")
+    flash(tr("Payment successful! Your subscription is now active.", getattr(g, "lang", None)), "success")
     return redirect(url_for("billing.subscription"))
 
 
@@ -189,7 +190,7 @@ def checkout_success():
 @require_tenant
 def checkout_cancel():
     """Handle cancelled Stripe payment."""
-    flash("Payment cancelled. Your subscription was not changed.", "info")
+    flash(tr("Payment cancelled. Your subscription was not changed.", getattr(g, "lang", None)), "info")
     return redirect(url_for("billing.plans"))
 
 
@@ -202,7 +203,7 @@ def cancel_subscription():
     
     tenant = Tenant.query.get(current_user.tenant_id)
     if not tenant or not tenant.subscription:
-        flash("No active subscription found", "error")
+        flash(tr("No active subscription found", getattr(g, "lang", None)), "error")
         return redirect(url_for("billing.subscription"))
     
     try:
@@ -210,10 +211,10 @@ def cancel_subscription():
             tenant_id=current_user.tenant_id,
             reason=reason
         )
-        flash("Subscription cancelled successfully", "success")
+        flash(tr("Subscription cancelled successfully", getattr(g, "lang", None)), "success")
     except Exception as e:
         current_app.logger.error(f"Cancel subscription error: {e}")
-        flash("Error cancelling subscription. Please contact support.", "error")
+        flash(tr("Error cancelling subscription. Please contact support.", getattr(g, "lang", None)), "error")
     
     return redirect(url_for("billing.subscription"))
 

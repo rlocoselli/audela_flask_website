@@ -1,16 +1,17 @@
-{% extends "base.html" %}
+{% extends "finance/base_finance.html" %}
+{% set active = 'master_data' %}
 
-{% block title %}Éditer Produit{% endblock %}
+{% block title %}{{ _('Editar Produto') }}{% endblock %}
 
-{% block content %}
+{% block finance_content %}
 <div class="container">
     <div class="row">
         <div class="col-md-8 offset-md-2">
             <div class="page-header mb-4">
                 <a href="{{ url_for('finance_master.list_products', company_id=company.id) }}" class="btn btn-outline-secondary btn-sm">
-                    <i class="fas fa-arrow-left"></i> Retour
+                    <i class="fas fa-arrow-left"></i> {{ _('Voltar') }}
                 </a>
-                <h1 class="mt-3">Éditer le produit</h1>
+                <h1 class="mt-3">{{ _('Editar produto') }}</h1>
                 <p class="text-muted">{{ product.name }}</p>
             </div>
 
@@ -22,25 +23,26 @@
             {% endfor %}
 
             <form method="POST" class="needs-validation" novalidate>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="mb-0">Informations Générales</h5>
+                        <h5 class="mb-0">{{ _('Informações Gerais') }}</h5>
                     </div>
                     <div class="card-body">
                         <div class="mb-3">
-                            <label for="name" class="form-label">Nom du produit</label>
+                            <label for="name" class="form-label">{{ _('Nome do produto') }}</label>
                             <input type="text" class="form-control" id="name" name="name" 
                                    value="{{ product.name }}" required>
                         </div>
 
                         <div class="mb-3">
-                            <label for="code" class="form-label">Code (lecture seule)</label>
-                            <input type="text" class="form-control" value="{{ product.code or 'N/A' }}" disabled>
-                            <small class="form-text text-muted">Le code ne peut pas être modifié</small>
+                            <label for="code" class="form-label">{{ _('Código (somente leitura)') }}</label>
+                            <input type="text" class="form-control" value="{{ product.code or _('N/D') }}" disabled>
+                            <small class="form-text text-muted">{{ _('O código não pode ser alterado') }}</small>
                         </div>
 
                         <div class="mb-3">
-                            <label for="description" class="form-label">Description</label>
+                            <label for="description" class="form-label">{{ _('Descrição') }}</label>
                             <textarea class="form-control" id="description" name="description" 
                                       rows="3">{{ product.description or '' }}</textarea>
                         </div>
@@ -49,7 +51,7 @@
 
                 <div class="card mt-4">
                     <div class="card-header">
-                        <h5 class="mb-0">Configuration TVA</h5>
+                        <h5 class="mb-0">{{ _('Configuração de IVA') }}</h5>
                     </div>
                     <div class="card-body">
                         <div class="mb-3">
@@ -57,14 +59,14 @@
                                 <input class="form-check-input" type="checkbox" id="vat_applies" name="vat_applies"
                                        {% if product.vat_applies %}checked{% endif %}>
                                 <label class="form-check-label" for="vat_applies">
-                                    Ce produit est soumis à la TVA
+                                    {{ _('Este produto está sujeito a IVA') }}
                                 </label>
                             </div>
                         </div>
 
                         <div id="vat_config" style="display: {% if product.vat_applies %}block{% else %}none{% endif %};">
                             <div class="mb-3">
-                                <label for="vat_rate" class="form-label">Taux de TVA (%)</label>
+                                <label for="vat_rate" class="form-label">{{ _('Taxa de IVA (%)') }}</label>
                                 <div class="input-group">
                                     {% set vat_display = (product.vat_rate * 100) if product.vat_rate is not none and product.vat_rate <= 1 else product.vat_rate %}
                                     <input type="number" class="form-control" id="vat_rate" name="vat_rate" 
@@ -76,7 +78,7 @@
 
                         <div id="exemption_config" style="display: {% if not product.vat_applies %}block{% else %}none{% endif %};">
                             <div class="mb-3">
-                                <label for="tax_exempt_reason" class="form-label">Raison de l'exonération</label>
+                                <label for="tax_exempt_reason" class="form-label">{{ _('Motivo da isenção') }}</label>
                                 <textarea class="form-control" id="tax_exempt_reason" name="tax_exempt_reason" 
                                           rows="2">{{ product.tax_exempt_reason or '' }}</textarea>
                             </div>
@@ -86,17 +88,16 @@
 
                 <div class="alert alert-warning mt-4">
                     <i class="fas fa-clock"></i>
-                    <strong>Important:</strong> Les modifications n'affecteront que les futures transactions.
-                    Les transactions existantes conserveront leur configuration TVA initiale.
+                    <strong>{{ _('Importante') }}:</strong> {{ _('As alterações afetarão apenas transações futuras. As transações existentes manterão a configuração original de IVA.') }}
                 </div>
 
                 <div class="mt-4">
                     <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save"></i> Mettre à jour
+                        <i class="fas fa-save"></i> {{ _('Atualizar') }}
                     </button>
                     <a href="{{ url_for('finance_master.list_products', company_id=company.id) }}" 
                        class="btn btn-secondary">
-                        Annuler
+                        {{ _('Cancelar') }}
                     </a>
                 </div>
             </form>

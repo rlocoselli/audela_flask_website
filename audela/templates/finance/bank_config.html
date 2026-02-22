@@ -1,12 +1,13 @@
-{% extends "base.html" %}
+{% extends "finance/base_finance.html" %}
+{% set active = 'master_data' %}
 
-{% block title %}Configuration Bancaire{% endblock %}
+{% block title %}{{ _('Configuração Bancária') }}{% endblock %}
 
-{% block content %}
+{% block finance_content %}
 <div class="container">
     <div class="page-header mb-4">
-        <h1>Configuration Bancaire</h1>
-        <p class="text-muted">Configurez les IBAN et connexions bancaires pour {{ company.name }}</p>
+        <h1>{{ _('Configuração Bancária') }}</h1>
+        <p class="text-muted">{{ _('Configure IBAN e conexões bancárias para') }} {{ company.name }}</p>
     </div>
 
     {% for category, message in get_flashed_messages(with_categories=True) %}
@@ -22,40 +23,43 @@
             <div class="card">
                 <div class="card-header bg-primary text-white">
                     <h5 class="mb-0">
-                        <i class="fas fa-university"></i> Configuration IBAN
+                        <i class="fas fa-university"></i> {{ _('Configuração IBAN') }}
                     </h5>
                 </div>
                 <div class="card-body">
                     {% if config %}
                         <div class="alert alert-success">
-                            <strong>IBAN Configuré:</strong>
+                            <strong>{{ _('IBAN Configurado') }}:</strong>
                             <br><code>{{ config.formatted_iban }}</code>
                         </div>
                     {% else %}
-                        <p class="text-muted">Aucun IBAN configuré pour cette compagnie</p>
+                        <p class="text-muted">{{ _('Nenhum IBAN configurado para esta empresa') }}</p>
                     {% endif %}
 
                     <form method="POST" action="{{ url_for('finance_master.set_iban', company_id=company.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
                         <div class="mb-3">
-                            <label for="iban" class="form-label">IBAN de la Compagnie</label>
-                            <input type="text" class="form-control" id="iban" name="iban" 
+                            <label for="iban" class="form-label">{{ _('IBAN da empresa') }}</label>
+                            <input type="text" class="form-control iban-input" id="iban" name="iban" 
                                    value="{{ config.iban if config else '' }}"
-                                   placeholder="Ex: FR1420041010050500013M02606" required>
+                                   placeholder="Ex: FR1420041010050500013M02606" required
+                                   data-validation-target="iban-validation"
+                                   data-original-iban="{{ config.iban if config else '' }}">
                             <small class="form-text text-muted d-block mt-2">
-                                IBAN (International Bank Account Number) au format ISO 13616
+                                {{ _('IBAN (International Bank Account Number) no formato ISO 13616') }}
                             </small>
                             <div id="iban-validation" class="mt-2"></div>
                         </div>
 
                         <button type="submit" class="btn btn-primary w-100">
-                            <i class="fas fa-save"></i> Configurer IBAN
+                            <i class="fas fa-save"></i> {{ _('Configurar IBAN') }}
                         </button>
                     </form>
 
                     <div class="alert alert-info mt-3 mb-0">
-                        <strong>✓ Format valide:</strong> 27 à 34 caractères alphanumériques
-                        <br><strong>✓ Validation:</strong> Checksum ISO 13616 automatiquement vérifiée
-                        <br><strong>✓ Utilisation:</strong> Utilisé pour les virements bancaires sortants
+                        <strong>✓ {{ _('Formato válido') }}:</strong> {{ _('27 a 34 caracteres alfanuméricos') }}
+                        <br><strong>✓ {{ _('Validação') }}:</strong> {{ _('Checksum ISO 13616 verificado automaticamente') }}
+                        <br><strong>✓ {{ _('Uso') }}:</strong> {{ _('Utilizado para transferências bancárias de saída') }}
                     </div>
                 </div>
             </div>
@@ -66,36 +70,36 @@
             <div class="card">
                 <div class="card-header bg-success text-white">
                     <h5 class="mb-0">
-                        <i class="fas fa-sync"></i> Synchronisation Bancaire
+                        <i class="fas fa-sync"></i> {{ _('Sincronização Bancária') }}
                     </h5>
                 </div>
                 <div class="card-body">
                     <p class="text-muted">
-                        Connectez votre compte bancaire pour synchroniser automatiquement vos transactions.
+                        {{ _('Conecte sua conta bancária para sincronizar transações automaticamente.') }}
                     </p>
 
                     <div class="alert alert-info">
                         <strong>GoCardless / Nordigen</strong>
                         <p class="mb-0 mt-2">
-                            Accès sécurisé à vos données bancaires via l'API Nordigen (service GoCardless).
+                            {{ _('Acesso seguro aos dados bancários via API Nordigen (serviço GoCardless).') }}
                         </p>
                     </div>
 
                     <div class="mb-3">
                         <a href="{{ url_for('finance_master.bank_config', company_id=company.id) }}" 
                            class="btn btn-success w-100">
-                            <i class="fas fa-plug"></i> Connecter une Banque
+                            <i class="fas fa-plug"></i> {{ _('Conectar um banco') }}
                         </a>
                     </div>
 
                     <div class="list-group">
                         <div class="list-group-item">
-                            <h6 class="mb-1"><i class="fas fa-check-circle text-success"></i> Avantages</h6>
+                            <h6 class="mb-1"><i class="fas fa-check-circle text-success"></i> {{ _('Vantagens') }}</h6>
                             <ul class="small mb-0">
-                                <li>✓ Import automatique des transactions</li>
-                                <li>✓ Synchronisation en temps réel</li>
-                                <li>✓ Support multi-banques</li>
-                                <li>✓ Sécurisé (norme PSD2)</li>
+                                <li>✓ {{ _('Importação automática de transações') }}</li>
+                                <li>✓ {{ _('Sincronização em tempo real') }}</li>
+                                <li>✓ {{ _('Suporte a múltiplos bancos') }}</li>
+                                <li>✓ {{ _('Seguro (padrão PSD2)') }}</li>
                             </ul>
                         </div>
                     </div>
@@ -106,71 +110,135 @@
 
     <!-- Informations sur les comptes bancaires -->
     <div class="card mt-4">
-        <div class="card-header">
-            <h5 class="mb-0">Comptes Bancaires Associés</h5>
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0">
+                <i class="bi bi-safe me-1"></i>{{ _('Contas Bancárias') }}
+            </h5>
         </div>
         <div class="card-body">
-            <p class="text-muted mb-3">
-                Vous pouvez également configurer des IBAN spécifiques pour chaque compte financier.
-            </p>
-            
-            <div class="alert alert-light border">
-                <div class="row">
-                    <div class="col-md-4">
-                        <strong>Pour un compte spécifique:</strong>
-                        <p class="small text-muted mt-2">
-                            Allez dans la liste des comptes et cliquez sur "Configurer IBAN"
-                        </p>
-                    </div>
-                    <div class="col-md-4">
-                        <strong>Pour la compagnie (par défaut):</strong>
-                        <p class="small text-muted mt-2">
-                            Utilisez l'IBAN configuré ci-dessus (cette section)
-                        </p>
-                    </div>
-                    <div class="col-md-4">
-                        <strong>Pour les contreparties:</strong>
-                        <p class="small text-muted mt-2">
-                            Gérez les IBAN clients/fournisseurs depuis la section Contreparties
-                        </p>
-                    </div>
+            {% if accounts %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>{{ _('Conta') }}</th>
+                                <th>{{ _('Tipo') }}</th>
+                                <th>{{ _('Lado') }}</th>
+                                <th>{{ _('IBAN') }}</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for account in accounts %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ account.name }}</strong>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-light text-dark">{{ account.account_type }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge {% if account.side == 'asset' %}bg-success{% else %}bg-warning{% endif %}">
+                                            {{ account.side }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if account.iban %}
+                                            <code class="text-success">{{ account.formatted_iban }}</code>
+                                        {% else %}
+                                            <span class="text-muted small">{{ _('Não configurado') }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        <div class="finance-row-actions justify-content-end">
+                                            <button type="button" class="btn btn-sm btn-outline-primary finance-action-btn" data-bs-toggle="modal" data-bs-target="#ibanModal{{ account.id }}">
+                                                <i class="bi bi-pencil me-1"></i>{{ _('Editar') }}
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                
+                                <!-- Modal para editar IBAN do conta -->
+                                <div class="modal fade" id="ibanModal{{ account.id }}" tabindex="-1">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title">{{ _('Configurar IBAN') }}: {{ account.name }}</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <form method="POST" action="{{ url_for('finance_master.set_iban', company_id=company.id) }}">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                                                <div class="modal-body">
+                                                    <input type="hidden" name="account_id" value="{{ account.id }}">
+                                                    
+                                                    <div class="mb-3">
+                                                        <label for="iban_{{ account.id }}" class="form-label">IBAN</label>
+                                                        <input type="text" class="form-control iban-input" 
+                                                               id="iban_{{ account.id }}" 
+                                                               name="iban"
+                                                               value="{{ account.iban if account.iban else '' }}"
+                                                               placeholder="FR1420041010050500013M02606"
+                                                               data-account-id="{{ account.id }}"
+                                                               data-validation-target="validation_{{ account.id }}"
+                                                               data-original-iban="{{ account.iban if account.iban else '' }}">
+                                                        <small class="form-text text-muted d-block mt-2">
+                                                            {{ _('Formato ISO 13616 (27-34 caracteres)') }}
+                                                        </small>
+                                                        <div id="validation_{{ account.id }}" class="mt-2"></div>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+                                                    <button type="submit" class="btn btn-primary">{{ _('Guardar') }}</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
-            </div>
+            {% else %}
+                <div class="alert alert-info mb-0">
+                    <strong>{{ _('Nenhuma conta encontrada') }}</strong>
+                    <p class="mb-0 mt-2">{{ _('Crie uma conta financeira primeiro') }}</p>
+                </div>
+            {% endif %}
         </div>
     </div>
 
-    <!-- Aide -->
+    <!-- Ajuda -->
     <div class="card mt-4 bg-light">
         <div class="card-header">
             <h5 class="mb-0">
-                <i class="fas fa-question-circle"></i> Aide & Documentation
+                <i class="fas fa-question-circle"></i> {{ _('Ajuda e documentação') }}
             </h5>
         </div>
         <div class="card-body">
             <div class="row">
                 <div class="col-md-6">
-                    <h6>Qu'est-ce qu'un IBAN?</h6>
+                    <h6>{{ _('O que é um IBAN?') }}</h6>
                     <p class="small">
-                        L'International Bank Account Number (IBAN) est le format standard pour les numéros 
-                        de compte bancaire en Europe et au-delà. Il comprend:
+                        {{ _('O IBAN é o formato padrão internacional para contas bancárias na Europa e além. Ele inclui:') }}
                     </p>
                     <ul class="small">
-                        <li>Code pays (2 lettres)</li>
-                        <li>Clé de contrôle (2 chiffres)</li>
-                        <li>Numéro de compte bancaire (jusqu'à 30 caractères)</li>
+                        <li>{{ _('Código do país (2 letras)') }}</li>
+                        <li>{{ _('Dígitos de controle (2 números)') }}</li>
+                        <li>{{ _('Número da conta bancária (até 30 caracteres)') }}</li>
                     </ul>
-                    <p class="small"><strong>Exemple:</strong> FR14 2004 1010 0505 0001 3M02 606</p>
+                    <p class="small"><strong>{{ _('Exemplo') }}:</strong> FR14 2004 1010 0505 0001 3M02 606</p>
                 </div>
                 <div class="col-md-6">
-                    <h6>Où trouver votre IBAN?</h6>
+                    <h6>{{ _('Onde encontrar seu IBAN?') }}</h6>
                     <ul class="small">
-                        <li>Sur vos relevés bancaires</li>
-                        <li>Sur l'application mobile de votre banque</li>
-                        <li>En contactant le service client de votre banque</li>
-                        <li>Sur le site de votre banque en ligne</li>
+                        <li>{{ _('No extrato bancário') }}</li>
+                        <li>{{ _('No aplicativo móvel do seu banco') }}</li>
+                        <li>{{ _('No atendimento ao cliente do banco') }}</li>
+                        <li>{{ _('No internet banking do banco') }}</li>
                     </ul>
                     <p class="small mt-3">
-                        <strong>Important:</strong> L'IBAN est confidentiel. Ne le partagez que si nécessaire.
+                        <strong>{{ _('Importante') }}:</strong> {{ _('O IBAN é sensível. Compartilhe apenas quando necessário.') }}
                     </p>
                 </div>
             </div>
@@ -180,17 +248,23 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const ibanInput = document.getElementById('iban');
-    const ibanValidation = document.getElementById('iban-validation');
-    const originalIban = '{{ config.iban if config else "" }}';
+    const ibanInputs = document.querySelectorAll('.iban-input');
 
-    // Validation IBAN en temps réel
-    ibanInput.addEventListener('change', async function() {
-        const iban = this.value.trim();
-        
+    async function validateIbanInput(input) {
+        const iban = input.value.trim();
+        const targetId = input.dataset.validationTarget;
+        const originalIban = input.dataset.originalIban || '';
+        const validationTarget = targetId ? document.getElementById(targetId) : null;
+
+        if (!validationTarget) {
+            return;
+        }
+
         // Si la valeur n'a pas changé, ne pas valider
         if (iban === originalIban || !iban) {
-            ibanValidation.innerHTML = '';
+            validationTarget.innerHTML = '';
+            input.classList.remove('is-valid');
+            input.classList.remove('is-invalid');
             return;
         }
 
@@ -206,27 +280,31 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
             
             if (data.valid) {
-                ibanValidation.innerHTML = `
+                validationTarget.innerHTML = `
                     <div class="alert alert-success alert-sm mb-0">
-                        <i class="fas fa-check-circle"></i> <strong>IBAN valide</strong>
+                        <i class="fas fa-check-circle"></i> <strong>{{ _('IBAN válido') }}</strong>
                         <br><code style="font-size: 0.85rem;">${data.formatted}</code>
                     </div>
                 `;
-                ibanInput.classList.remove('is-invalid');
-                ibanInput.classList.add('is-valid');
+                input.classList.remove('is-invalid');
+                input.classList.add('is-valid');
             } else {
-                ibanValidation.innerHTML = `
+                validationTarget.innerHTML = `
                     <div class="alert alert-danger alert-sm mb-0">
-                        <i class="fas fa-exclamation-circle"></i> <strong>IBAN invalide</strong>
+                        <i class="fas fa-exclamation-circle"></i> <strong>{{ _('IBAN inválido') }}</strong>
                         <br>${data.message}
                     </div>
                 `;
-                ibanInput.classList.remove('is-valid');
-                ibanInput.classList.add('is-invalid');
+                input.classList.remove('is-valid');
+                input.classList.add('is-invalid');
             }
         } catch (error) {
             console.error('Error validating IBAN:', error);
         }
+    }
+
+    ibanInputs.forEach((input) => {
+        input.addEventListener('change', () => validateIbanInput(input));
     });
 });
 </script>
@@ -254,6 +332,29 @@ document.addEventListener('DOMContentLoaded', function() {
         padding: 0.2rem 0.4rem;
         border-radius: 0.25rem;
         font-size: 0.85rem;
+    }
+
+    .finance-row-actions {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: .35rem;
+    }
+
+    @media (max-width: 767.98px) {
+        .finance-row-actions {
+            display: flex;
+            justify-content: stretch !important;
+        }
+
+        .finance-row-actions .finance-action-btn {
+            width: 100%;
+        }
+
+        code {
+            display: inline-block;
+            max-width: 100%;
+            word-break: break-all;
+        }
     }
 </style>
 {% endblock %}

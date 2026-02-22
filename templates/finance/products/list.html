@@ -9,7 +9,7 @@
         <div class="row align-items-center">
             <div class="col">
                 <h1>{{ _('Produtos Financeiros') }}</h1>
-                <p class="text-muted">{{ _('Gérez vos produits et services') }}</p>
+                <p class="text-muted">{{ _('Gerencie seus produtos e serviços') }}</p>
             </div>
             <div class="col-auto">
                 <a href="{{ url_for('finance_master.create_product', company_id=company.id) }}" 
@@ -27,7 +27,7 @@
         </div>
     {% endfor %}
 
-    <!-- Barre de recherche -->
+    <!-- Barra de pesquisa -->
     <div class="card mb-4">
         <div class="card-body">
             <form method="GET" class="row g-3">
@@ -46,18 +46,18 @@
     </div>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-    <!-- Tableau des produits -->
+    <!-- Tabela de produtos -->
     <div class="card">
         <div class="table-responsive">
             {% if products.items %}
                 <table class="table table-hover mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th style="width: 20%">Nom</th>
-                            <th style="width: 15%">Code</th>
-                            <th style="width: 30%">Description</th>
-                            <th style="width: 15%">TVA</th>
-                            <th style="width: 20%">Actions</th>
+                            <th style="width: 20%">{{ _('Nome') }}</th>
+                            <th style="width: 15%">{{ _('Código') }}</th>
+                            <th style="width: 30%">{{ _('Descrição') }}</th>
+                            <th style="width: 15%">{{ _('IVA') }}</th>
+                            <th style="width: 20%">{{ _('Ações') }}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -67,7 +67,7 @@
                                     <strong>{{ product.name }}</strong>
                                 </td>
                                 <td>
-                                    <span class="badge bg-secondary">{{ product.code or 'N/A' }}</span>
+                                    <span class="badge bg-secondary">{{ product.code or _('N/D') }}</span>
                                 </td>
                                 <td>
                                     <small class="text-muted">{{ product.description or '-' }}</small>
@@ -77,7 +77,7 @@
                                         {% set vat_display = (product.vat_rate * 100) if product.vat_rate is not none and product.vat_rate <= 1 else product.vat_rate %}
                                         <span class="badge bg-info">{{ (vat_display | float) | round(2) }}%</span>
                                     {% else %}
-                                        <span class="badge bg-secondary">Exempté</span>
+                                        <span class="badge bg-secondary">{{ _('Isento') }}</span>
                                         {% if product.tax_exempt_reason %}
                                             <small class="text-muted d-block">{{ product.tax_exempt_reason }}</small>
                                         {% endif %}
@@ -104,29 +104,29 @@
             {% else %}
                 <div class="card-body text-center text-muted">
                     <i class="fas fa-inbox" style="font-size: 3rem; opacity: 0.3;"></i>
-                    <p class="mt-3">{{ _('Aucun produto trouvé') }}</p>
+                    <p class="mt-3">{{ _('Nenhum produto encontrado') }}</p>
                     <a href="{{ url_for('finance_master.create_product', company_id=company.id) }}" 
                        class="btn btn-primary btn-sm">
-                        {{ _('Créer le primer producto') }}
+                        {{ _('Criar o primeiro produto') }}
                     </a>
                 </div>
             {% endif %}
         </div>
     </div>
 
-    <!-- Pagination -->
+    <!-- Paginação -->
     {% if products.pages > 1 %}
         <nav aria-label="Page navigation" class="mt-4">
             <ul class="pagination justify-content-center">
                 {% if products.has_prev %}
                     <li class="page-item">
                         <a class="page-link" href="{{ url_for('finance_master.list_products', page=1, search=search, company_id=company.id) }}">
-                            Première
+                            {{ _('Primeira') }}
                         </a>
                     </li>
                     <li class="page-item">
                         <a class="page-link" href="{{ url_for('finance_master.list_products', page=products.prev_num, search=search, company_id=company.id) }}">
-                            Précédente
+                            {{ _('Anterior') }}
                         </a>
                     </li>
                 {% endif %}
@@ -154,12 +154,12 @@
                 {% if products.has_next %}
                     <li class="page-item">
                         <a class="page-link" href="{{ url_for('finance_master.list_products', page=products.next_num, search=search, company_id=company.id) }}">
-                            Suivante
+                            {{ _('Próxima') }}
                         </a>
                     </li>
                     <li class="page-item">
                         <a class="page-link" href="{{ url_for('finance_master.list_products', page=products.pages, search=search, company_id=company.id) }}">
-                            Dernière
+                            {{ _('Última') }}
                         </a>
                     </li>
                 {% endif %}

@@ -20,6 +20,9 @@
     <!-- PivotTable.js -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pivottable@2.23.0/dist/pivot.min.css">
 
+    <!-- Driver.js (guided tours) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/driverjs/driver.css') }}">
+
     <!-- Portal styles -->
     <link rel="stylesheet" href="{{ url_for('static', filename='portal/portal.css') }}">
 
@@ -133,6 +136,13 @@
 
     <!-- PivotTable.js (requires jQuery) -->
     <script src="https://cdn.jsdelivr.net/npm/pivottable@2.23.0/dist/pivot.min.js"></script>
+
+    <!-- Driver.js (guided tours) -->
+    <script>
+      window.__AUD_DRIVER_URL = "{{ url_for('static', filename='vendor/driverjs/driver.iife.js') }}";
+    </script>
+    <script src="{{ url_for('static', filename='vendor/driverjs/driver.iife.js') }}"></script>
+    <script src="{{ url_for('static', filename='portal/driver_tutorial.js') }}"></script>
 
     {% block body_scripts %}{% endblock %}
   </body>

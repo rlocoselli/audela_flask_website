@@ -50,6 +50,10 @@ jobs:
           pip install -r requirements.txt
           pip install pytest
 
+      - name: i18n lint (non-blocking)
+        run: |
+          python scripts/i18n_lint.py --max 250 || true
+
       - name: Wait for PostgreSQL
         env:
           PGPASSWORD: ${{ env.CI_POSTGRES_PASSWORD }}

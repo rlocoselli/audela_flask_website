@@ -82,7 +82,7 @@ def _save_profile_photo_upload(tenant_id: int, user_id: int, file_storage) -> st
         return None
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     if ext not in {"png", "jpg", "jpeg", "webp", "gif"}:
-        raise ValueError("Image format non supporté")
+        raise ValueError("Unsupported image format")
 
     rel_dir = os.path.join("uploads", "avatars", f"tenant_{int(tenant_id)}")
     abs_dir = os.path.join(current_app.static_folder, rel_dir)
@@ -134,7 +134,7 @@ def _save_tenant_logo_upload(tenant_id: int, file_storage) -> str | None:
         return None
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     if ext not in {"png", "jpg", "jpeg", "webp", "gif", "svg"}:
-        raise ValueError("Format de logo non supporté")
+        raise ValueError("Unsupported logo format")
 
     rel_dir = os.path.join("uploads", "tenant_logos", f"tenant_{int(tenant_id)}")
     abs_dir = os.path.join(current_app.static_folder, rel_dir)

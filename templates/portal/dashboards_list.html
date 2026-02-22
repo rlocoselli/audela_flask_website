@@ -3,12 +3,12 @@
 
 {% block portal_content %}
   <div class="box">
-    <p><a class="button" data-tip="{{ _('Créer un nouveau dashboard BI à partir de questions sauvegardées.') }}" href="{{ url_for('portal.dashboards_new') }}">{{ _('Nouveau dashboard') }}</a></p>
+    <p><a class="button" data-tip="{{ _('Créer un nouveau dashboard BI à partir de questions sauvegardées.') }}" href="{{ url_for('portal.dashboards_new') }}" data-tour="{{ _('Créez un nouveau dashboard BI depuis ce bouton.') }}" data-tour-title="{{ _('Tutoriel BI') }}" data-tour-order="1">{{ _('Nouveau dashboard') }}</a></p>
     {% if not dashboards %}
       <p>{{ _('Aucun dashboard créé pour le moment.') }}</p>
     {% else %}
       <div style="overflow-x:auto;">
-        <table class="table">
+        <table class="table" data-tour="{{ _('Retrouvez ici la liste des dashboards existants et leur état.') }}" data-tour-title="{{ _('Tutoriel BI') }}" data-tour-order="2">
           <thead>
             <tr>
               <th data-tip="{{ _('Nom fonctionnel du dashboard affiché dans la navigation BI.') }}">{{ _('Nom') }}</th>
@@ -19,7 +19,7 @@
           <tbody>
             {% for d in dashboards %}
               <tr>
-                <td><a href="{{ url_for('portal.dashboard_view', dashboard_id=d.id) }}">{{ d.name }}</a></td>
+                <td><a href="{{ url_for('portal.dashboard_view', dashboard_id=d.id) }}" data-tour="{{ _('Ouvrez un dashboard pour consulter ses widgets et indicateurs.') }}" data-tour-title="{{ _('Tutoriel BI') }}" data-tour-order="3">{{ d.name }}</a></td>
                 <td>{{ d.updated_at }}</td>
                 <td>
                   <form method="post" action="{{ url_for('portal.dashboards_delete', dashboard_id=d.id) }}" style="display:inline;" onsubmit="return confirm('{{ _('Supprimer ce dashboard ?') }}');">

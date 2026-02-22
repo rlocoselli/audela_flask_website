@@ -6,8 +6,8 @@
 {% block finance_content %}
 <div class="container-fluid">
     <div class="page-header mb-4">
-        <h1>Gestion Financière</h1>
-        <p class="text-muted">Gérez les données maîtres de votre finance</p>
+        <h1>{{ _('Gestão Financeira') }}</h1>
+        <p class="text-muted">{{ _('Gerencie os dados mestres da sua área financeira') }}</p>
     </div>
 
     <div class="row">
@@ -19,17 +19,17 @@
                         <div class="icon-box mb-3">
                             <i class="fas fa-box-open" style="font-size: 2.5rem; color: #4CAF50;"></i>
                         </div>
-                        <h5 class="card-title">Produits</h5>
+                        <h5 class="card-title">{{ _('Produtos') }}</h5>
                         <p class="card-text text-muted small">
-                            Gérez vos produits et services avec configuration TVA automatique
+                            {{ _('Gerencie produtos e serviços com configuração automática de IVA') }}
                         </p>
                         <div class="btn-group w-100" role="group">
                             <button type="button" class="btn btn-sm btn-outline-primary">
-                                <i class="fas fa-list"></i> Voir
+                                <i class="fas fa-list"></i> {{ _('Ver') }}
                             </button>
                             <a href="{{ url_for('finance_master.create_product') }}" 
                                class="btn btn-sm btn-outline-primary">
-                                <i class="fas fa-plus"></i> Créer
+                                <i class="fas fa-plus"></i> {{ _('Criar') }}
                             </a>
                         </div>
                     </div>
@@ -45,17 +45,17 @@
                         <div class="icon-box mb-3">
                             <i class="fas fa-users" style="font-size: 2.5rem; color: #2196F3;"></i>
                         </div>
-                        <h5 class="card-title">Contreparties</h5>
+                        <h5 class="card-title">{{ _('Contrapartes') }}</h5>
                         <p class="card-text text-muted small">
-                            Clients, fournisseurs et partenaires avec IBAN et attributs flexibles
+                            {{ _('Clientes, fornecedores e parceiros com IBAN e atributos flexíveis') }}
                         </p>
                         <div class="btn-group w-100" role="group">
                             <button type="button" class="btn btn-sm btn-outline-primary">
-                                <i class="fas fa-list"></i> Voir
+                                <i class="fas fa-list"></i> {{ _('Ver') }}
                             </button>
                             <a href="{{ url_for('finance_master.create_counterparty') }}" 
                                class="btn btn-sm btn-outline-primary">
-                                <i class="fas fa-plus"></i> Créer
+                                <i class="fas fa-plus"></i> {{ _('Criar') }}
                             </a>
                         </div>
                     </div>
@@ -71,13 +71,13 @@
                         <div class="icon-box mb-3">
                             <i class="fas fa-university" style="font-size: 2.5rem; color: #FF9800;"></i>
                         </div>
-                        <h5 class="card-title">Configuration Bancaire</h5>
+                        <h5 class="card-title">{{ _('Configuração Bancária') }}</h5>
                         <p class="card-text text-muted small">
-                            IBAN et synchronisation bancaire via GoCardless/Nordigen
+                            {{ _('IBAN e sincronização bancária via GoCardless/Nordigen') }}
                         </p>
                         <a href="{{ url_for('finance_master.bank_config') }}" 
                            class="btn btn-sm btn-outline-primary w-100">
-                            <i class="fas fa-cog"></i> Configurer
+                            <i class="fas fa-cog"></i> {{ _('Configurar') }}
                         </a>
                     </div>
                 </div>
@@ -85,14 +85,14 @@
         </div>
     </div>
 
-    <!-- Statistiques rapides -->
+    <!-- Estatísticas rápidas -->
     <div class="row mt-4">
         <div class="col-md-3">
             <div class="card border-0 shadow-sm">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
-                            <p class="text-muted small mb-1">Produits</p>
+                            <p class="text-muted small mb-1">{{ _('Produtos') }}</p>
                             <h3 class="mb-0">{{ products_count or 0 }}</h3>
                         </div>
                         <i class="fas fa-box-open text-success" style="font-size: 1.5rem; opacity: 0.3;"></i>
@@ -106,7 +106,7 @@
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
-                            <p class="text-muted small mb-1">Contreparties</p>
+                            <p class="text-muted small mb-1">{{ _('Contrapartes') }}</p>
                             <h3 class="mb-0">{{ counterparties_count or 0 }}</h3>
                         </div>
                         <i class="fas fa-users text-primary" style="font-size: 1.5rem; opacity: 0.3;"></i>
@@ -120,7 +120,7 @@
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
-                            <p class="text-muted small mb-1">IBAN Configuré</p>
+                            <p class="text-muted small mb-1">{{ _('IBAN Configurado') }}</p>
                             <h3 class="mb-0">
                                 <i class="fas fa-{% if company_has_iban %}check text-success{% else %}times text-danger{% endif %}"></i>
                             </h3>
@@ -136,7 +136,7 @@
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
-                            <p class="text-muted small mb-1">Synchronisation</p>
+                            <p class="text-muted small mb-1">{{ _('Sincronização') }}</p>
                             <h3 class="mb-0">
                                 <i class="fas fa-sync-alt {% if gocardless_configured %}text-success{% else %}text-muted{% endif %}"></i>
                             </h3>
@@ -148,42 +148,42 @@
         </div>
     </div>
 
-    <!-- Aide et Documentation -->
+    <!-- Ajuda e documentação -->
     <div class="row mt-4">
         <div class="col-md-12">
             <div class="card border-info">
                 <div class="card-header bg-info text-white">
                     <h5 class="mb-0">
-                        <i class="fas fa-info-circle"></i> Guide Rapide
+                        <i class="fas fa-info-circle"></i> {{ _('Guia Rápido') }}
                     </h5>
                 </div>
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-4">
-                            <h6><i class="fas fa-check text-success"></i> Voici comment commencer</h6>
+                            <h6><i class="fas fa-check text-success"></i> {{ _('Como começar') }}</h6>
                             <ol class="small">
-                                <li>Créez vos <strong>Produits</strong> avec configuration TVA</li>
-                                <li>Enregistrez vos <strong>Contreparties</strong> (clients/fournisseurs)</li>
-                                <li>Configurez votre <strong>IBAN</strong> de compagnie</li>
-                                <li>Connectez votre banque pour synchronisation automatique</li>
+                                <li>{{ _('Crie seus produtos com configuração de IVA') }}</li>
+                                <li>{{ _('Cadastre suas contrapartes (clientes/fornecedores)') }}</li>
+                                <li>{{ _('Configure o IBAN da empresa') }}</li>
+                                <li>{{ _('Conecte seu banco para sincronização automática') }}</li>
                             </ol>
                         </div>
                         <div class="col-md-4">
-                            <h6><i class="fas fa-lightbulb text-warning"></i> Conseils</h6>
+                            <h6><i class="fas fa-lightbulb text-warning"></i> {{ _('Dicas') }}</h6>
                             <ul class="small">
-                                <li>Utilisez des codes produits cohérents</li>
-                                <li>Maintenez à jour les données de contreparties</li>
-                                <li>L'IBAN est validé automatiquement (ISO 13616)</li>
-                                <li>Les transactions synchronisées sont importées en temps réel</li>
+                                <li>{{ _('Use códigos de produto consistentes') }}</li>
+                                <li>{{ _('Mantenha os dados de contrapartes atualizados') }}</li>
+                                <li>{{ _('O IBAN é validado automaticamente (ISO 13616)') }}</li>
+                                <li>{{ _('As transações sincronizadas são importadas em tempo real') }}</li>
                             </ul>
                         </div>
                         <div class="col-md-4">
-                            <h6><i class="fas fa-link text-primary"></i> Documentation</h6>
+                            <h6><i class="fas fa-link text-primary"></i> {{ _('Documentação') }}</h6>
                             <ul class="small">
-                                <li><a href="#" target="_blank">Guide IBAN &rarr;</a></li>
-                                <li><a href="#" target="_blank">GoCardless Setup &rarr;</a></li>
-                                <li><a href="#" target="_blank">Gestion des Produits &rarr;</a></li>
-                                <li><a href="{{ url_for('finance_master.list_products') }}" target="_blank">Démarrer &rarr;</a></li>
+                                <li><a href="#" target="_blank">{{ _('Guia de IBAN') }} &rarr;</a></li>
+                                <li><a href="#" target="_blank">{{ _('Configuração GoCardless') }} &rarr;</a></li>
+                                <li><a href="#" target="_blank">{{ _('Gestão de Produtos') }} &rarr;</a></li>
+                                <li><a href="{{ url_for('finance_master.list_products') }}" target="_blank">{{ _('Começar') }} &rarr;</a></li>
                             </ul>
                         </div>
                     </div>

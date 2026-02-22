@@ -5,7 +5,12 @@
 {% block content %}
 <div class="portal-shell d-flex">
   <!-- Sidebar -->
-  <aside class="sidebar border-end bg-body-tertiary p-3 d-none d-lg-flex flex-column">
+  <aside
+    class="sidebar border-end bg-body-tertiary p-3 d-none d-lg-flex flex-column"
+    data-tour="{{ _('Navigation principale vers les modules BI et Finance.') }}"
+    data-tour-title="{{ _('Tutoriel') }}"
+    data-tour-order="1"
+  >
     <div class="d-flex align-items-center gap-2 mb-3">
       <i class="bi bi-bar-chart-line"></i>
       <span class="brand">AUDELA BI</span>
@@ -24,10 +29,10 @@
       {% endif %}
       <a class="nav-link" href="{{ url_for('portal.etls_list') }}"><i class="bi bi-diagram-3 me-2"></i>{{ _('ETL') }}</a>
       <a class="nav-link" href="{{ url_for('portal.sources_diagram') }}"><i class="bi bi-diagram-3 me-2"></i>{{ _('Source Diagram') }}</a>
-      <a class="nav-link" href="{{ url_for('portal.sql_editor') }}"><i class="bi bi-braces me-2"></i>{{ _('Editor SQL') }}</a>
+      <a class="nav-link" href="{{ url_for('portal.sql_editor') }}" data-tour="{{ _('Accédez rapidement à l\'éditeur SQL.') }}" data-tour-title="{{ _('Tutoriel') }}" data-tour-order="2"><i class="bi bi-braces me-2"></i>{{ _('Editor SQL') }}</a>
       <a class="nav-link" href="{{ url_for('portal.excel_ai') }}"><i class="bi bi-file-earmark-spreadsheet me-2"></i>{{ _('Excel IA') }}</a>
       <a class="nav-link" href="{{ url_for('portal.questions_list') }}"><i class="bi bi-question-circle me-2"></i>{{ _('Perguntas') }}</a>
-      <a class="nav-link" href="{{ url_for('portal.dashboards_list') }}"><i class="bi bi-grid-1x2 me-2"></i>{{ _('Dashboards') }}</a>
+      <a class="nav-link" href="{{ url_for('portal.dashboards_list') }}" data-tour="{{ _('Créez et gérez vos tableaux de bord ici.') }}" data-tour-title="{{ _('Tutoriel') }}" data-tour-order="3"><i class="bi bi-grid-1x2 me-2"></i>{{ _('Dashboards') }}</a>
       <a class="nav-link" href="{{ url_for('portal.reports_list') }}"><i class="bi bi-file-earmark-richtext me-2"></i>{{ _('Relatórios') }}</a>
       <a class="nav-link" href="{{ url_for('portal.files_home') }}"><i class="bi bi-folder2-open me-2"></i>{{ _('Arquivos') }}</a>
       <a class="nav-link" href="{{ url_for('portal.statistics_home') }}"><i class="bi bi-graph-up-arrow me-2"></i>{{ _('Estatísticas') }}</a>
@@ -72,7 +77,7 @@
           {% endif %}
 
           <div class="dropdown">
-            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" data-tour="{{ _('Changez la langue de l\'interface.') }}" data-tour-title="{{ _('Tutoriel') }}" data-tour-order="4">
               {{ lang_label(current_lang) }}
             </button>
             <ul class="dropdown-menu dropdown-menu-end">
@@ -82,6 +87,16 @@
             </ul>
           </div>
           
+          <button
+            class="btn btn-outline-info btn-sm js-start-tutorial"
+            type="button"
+            title="{{ _('Ouvrir le tutoriel guidé de cette page') }}"
+            aria-label="{{ _('Ouvrir le tutoriel guidé de cette page') }}"
+          >
+            <i class="bi bi-signpost-2 me-1"></i>
+            <span class="d-none d-md-inline">{{ _('Tutoriel') }}</span>
+          </button>
+
           <!-- Theme selector -->
           <div class="ms-2">
             <select id="theme-select" class="form-select form-select-sm">
@@ -92,7 +107,7 @@
             </select>
           </div>
 
-          <button class="btn btn-outline-secondary btn-sm" type="button" onclick="__toggleTheme()" title="{{ _('Tema') }}">
+          <button class="btn btn-outline-secondary btn-sm" type="button" onclick="__toggleTheme()" title="{{ _('Tema') }}" data-tour="{{ _('Basculez le thème clair/sombre.') }}" data-tour-title="{{ _('Tutoriel') }}" data-tour-order="5">
             <i class="bi bi-moon-stars"></i>
           </button>
 

@@ -2955,7 +2955,7 @@ def sql_editor():
         params_text = (request.form.get("params_json") or "").strip()
         src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first()
         if not src:
-            flash("Selecione uma fonte válida.", "error")
+            flash(tr("Selecione uma fonte válida.", getattr(g, "lang", None)), "error")
             return render_template("portal/sql_editor.html", tenant=g.tenant, sources=sources)
 
         started = datetime.utcnow()

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Votre période d'essai expire bientôt</title>
+    <title>{{ _('Votre période d\'essai expire bientôt') }}</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -97,45 +97,45 @@
 <body>
     <div class="container">
         <div class="header">
-            <div class="logo">AUDELA</div>
+            <div class="logo">{{ _('AUDELA') }}</div>
         </div>
         
-        <h1>Votre période d'essai expire bientôt ⏰</h1>
+        <h1>{{ _('Votre période d\'essai expire bientôt ⏰') }}</h1>
         
-        <p>Bonjour,</p>
+        <p>{{ _('Bonjour,') }}</p>
         
         <div class="countdown">
             <div class="days-left">{{ days_left }}</div>
-            <div>jour{% if days_left > 1 %}s{% endif %} restant{% if days_left > 1 %}s{% endif %}</div>
+            <div>{{ _('jour') }}{% if days_left > 1 %}s{% endif %} {{ _('restant') }}{% if days_left > 1 %}s{% endif %}</div>
         </div>
         
         <div class="warning-box">
-            <strong>⚠️ Action requise</strong>
-            <p style="margin: 10px 0 0 0;">Votre période d'essai gratuite de 30 jours se termine le <strong>{{ expiry_date.strftime('%d/%m/%Y') }}</strong>. Pour continuer à utiliser AUDELA, veuillez choisir un plan d'abonnement.</p>
+            <strong>{{ _('⚠️ Action requise') }}</strong>
+            <p style="margin: 10px 0 0 0;">{{ _('Votre période d\'essai gratuite de 30 jours se termine le') }} <strong>{{ expiry_date.strftime('%d/%m/%Y') }}</strong>. {{ _('Pour continuer à utiliser AUDELA, veuillez choisir un plan d\'abonnement.') }}</p>
         </div>
         
-        <h2>Choisissez votre plan</h2>
+        <h2>{{ _('Choisissez votre plan') }}</h2>
         
-        <p>Continuez à profiter d'AUDELA en choisissant le plan qui convient à vos besoins:</p>
+        <p>{{ _('Continuez à profiter d\'AUDELA en choisissant le plan qui convient à vos besoins:') }}</p>
         
         <div style="text-align: center;">
-            <a href="{{ upgrade_url }}" class="btn">Voir les plans et s'abonner</a>
+            <a href="{{ upgrade_url }}" class="btn">{{ _('Voir les plans et s\'abonner') }}</a>
         </div>
         
-        <h2>Qu'est-ce que vous perdez?</h2>
+        <h2>{{ _('Qu\'est-ce que vous perdez?') }}</h2>
         <ul>
-            <li>Accès aux modules Finance et/ou BI</li>
-            <li>Synchronisation bancaire automatique</li>
-            <li>Rapports et tableaux de bord</li>
-            <li>Collaboration d'équipe</li>
-            <li>Toutes vos données</li>
+            <li>{{ _('Accès aux modules Finance et/ou BI') }}</li>
+            <li>{{ _('Synchronisation bancaire automatique') }}</li>
+            <li>{{ _('Rapports et tableaux de bord') }}</li>
+            <li>{{ _('Collaboration d\'équipe') }}</li>
+            <li>{{ _('Toutes vos données') }}</li>
         </ul>
         
-        <p><strong>Conseil:</strong> Abonnez-vous maintenant pour garantir un accès ininterrompu à votre compte.</p>
+        <p><strong>{{ _('Conseil:') }}</strong> {{ _('Abonnez-vous maintenant pour garantir un accès ininterrompu à votre compte.') }}</p>
         
         <div class="footer">
-            <p>© 2024 AUDELA - Plateforme de gestion financière et business intelligence</p>
-            <p>Cet email a été envoyé automatiquement, merci de ne pas répondre.</p>
+            <p>{{ _('© 2024 AUDELA - Plateforme de gestion financière et business intelligence') }}</p>
+            <p>{{ _('Cet email a été envoyé automatiquement, merci de ne pas répondre.') }}</p>
         </div>
     </div>
 </body>

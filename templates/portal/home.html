@@ -7,7 +7,7 @@
 
   <!-- Primary dashboard highlight -->
   {% if main_dashboard %}
-    <div class="card border-0 shadow-sm rounded-4 mb-3" style="border: 1px solid rgba(25,135,84,.25)!important;">
+    <div class="card border-0 shadow-sm rounded-4 mb-3" style="border: 1px solid rgba(25,135,84,.25)!important;" data-tour="{{ _('Votre dashboard principal est mis en avant ici pour un accès rapide.') }}" data-tour-title="{{ _('Tutoriel BI') }}" data-tour-order="1">
       <div class="card-body py-4">
         <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
           <div class="min-w-0">
@@ -26,7 +26,7 @@
           </div>
 
           <div class="d-flex gap-2 flex-wrap justify-content-lg-end">
-            <a class="btn btn-success" href="{{ url_for('portal.dashboard_view', dashboard_id=main_dashboard.id) }}">
+            <a class="btn btn-success" href="{{ url_for('portal.dashboard_view', dashboard_id=main_dashboard.id) }}" data-tour="{{ _('Ouvrez directement le dashboard principal de votre tenant.') }}" data-tour-title="{{ _('Tutoriel BI') }}" data-tour-order="2">
               <i class="bi bi-box-arrow-up-right me-1"></i> {{ _('Abrir') }}
             </a>
             <a class="btn btn-outline-secondary" href="{{ url_for('portal.dashboards_list') }}">
@@ -41,7 +41,7 @@
   <div class="row g-3">
     <!-- Quick start -->
     <div class="col-12 col-xl-6">
-      <div class="card border-0 shadow-sm rounded-4">
+      <div class="card border-0 shadow-sm rounded-4" data-tour="{{ _('Suivez ce parcours de démarrage pour configurer votre espace BI.') }}" data-tour-title="{{ _('Tutoriel BI') }}" data-tour-order="3">
         <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-3">
           <div class="d-flex align-items-center gap-2">
             <i class="bi bi-rocket-takeoff" style="opacity:.75"></i>
@@ -72,14 +72,14 @@
 
     <!-- Recent dashboards -->
     <div class="col-12 col-xl-6">
-      <div class="card border-0 shadow-sm rounded-4">
+      <div class="card border-0 shadow-sm rounded-4" data-tour="{{ _('Consultez ici vos dashboards récemment modifiés.') }}" data-tour-title="{{ _('Tutoriel BI') }}" data-tour-order="4">
         <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-3">
           <div class="d-flex align-items-center justify-content-between gap-2">
             <div class="d-flex align-items-center gap-2">
               <i class="bi bi-clock-history" style="opacity:.75"></i>
               <div class="fw-semibold">{{ _('Dashboards recentes') }}</div>
             </div>
-            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.dashboards_list') }}">
+            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.dashboards_list') }}" data-tour="{{ _('Accédez à la liste complète des dashboards BI.') }}" data-tour-title="{{ _('Tutoriel BI') }}" data-tour-order="5">
               {{ _('Ver todos') }}
             </a>
           </div>

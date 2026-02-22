@@ -8,7 +8,7 @@
     <div class="card-body">
 
       <div class="mb-4">
-        <h4 class="mb-1">➕ {{ _('Nova fonte de dados') }}</h4>
+        <h4 class="mb-1" data-tour="{{ _('Créez ici une nouvelle source de données pour SQL, dashboards et rapports.') }}" data-tour-title="{{ _('Tutoriel Source') }}" data-tour-order="1">➕ {{ _('Nova fonte de dados') }}</h4>
         <p class="text-muted mb-0">{{ _('Configure uma nova origem de dados para consultas e relatórios.') }}</p>
       </div>
 
@@ -23,13 +23,13 @@
         <div class="row g-3">
           <div class="col-md-6">
             <label class="form-label">{{ _('Nome') }}</label>
-            <input type="text" name="name" class="form-control" placeholder="{{ _('Ex.: DW Produção') }}" required value="{{ f.get('name','') }}" />
+            <input type="text" name="name" class="form-control" placeholder="{{ _('Ex.: DW Produção') }}" required value="{{ f.get('name','') }}" data-tour="{{ _('Donnez un nom explicite à la source pour la retrouver facilement.') }}" data-tour-title="{{ _('Tutoriel Source') }}" data-tour-order="2" />
             <div class="form-text">{{ _('Nome interno para identificar a fonte.') }}</div>
           </div>
 
           <div class="col-md-6">
             <label class="form-label">{{ _('Tipo de banco') }}</label>
-            <select name="type" id="ds-type" class="form-select" required>
+            <select name="type" id="ds-type" class="form-select" required data-tour="{{ _('Choisissez le type de base pour adapter automatiquement les champs de connexion.') }}" data-tour-title="{{ _('Tutoriel Source') }}" data-tour-order="3">
               {% set t = (f.get('type') or 'postgres') %}
               <option value="postgres" {% if t=='postgres' %}selected{% endif %}>PostgreSQL</option>
               <option value="mysql" {% if t=='mysql' %}selected{% endif %}>MySQL / MariaDB</option>
@@ -51,7 +51,7 @@
 
         <ul class="nav nav-tabs" id="ds-tabs" role="tablist">
           <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="ds-tab-builder" data-bs-toggle="tab" data-bs-target="#ds-pane-builder" type="button" role="tab">{{ _('Assistente') }}</button>
+            <button class="nav-link active" id="ds-tab-builder" data-bs-toggle="tab" data-bs-target="#ds-pane-builder" type="button" role="tab" data-tour="{{ _('Utilisez l\'assistant pour générer l\'URL SQLAlchemy sans erreur.') }}" data-tour-title="{{ _('Tutoriel Source') }}" data-tour-order="4">{{ _('Assistente') }}</button>
           </li>
           <li class="nav-item" role="presentation">
             <button class="nav-link" id="ds-tab-manual" data-bs-toggle="tab" data-bs-target="#ds-pane-manual" type="button" role="tab">{{ _('URL manual') }}</button>
@@ -115,7 +115,7 @@
               <div class="col-12">
                 <label class="form-label">{{ _('URL gerada (SQLAlchemy)') }}</label>
                 <div class="input-group">
-                  <input type="text" class="form-control" id="ds-url-preview" readonly />
+                  <input type="text" class="form-control" id="ds-url-preview" readonly data-tour="{{ _('Prévisualisez l\'URL de connexion générée avant sauvegarde.') }}" data-tour-title="{{ _('Tutoriel Source') }}" data-tour-order="5" />
                   <button class="btn btn-outline-secondary" type="button" id="ds-copy-url"><i class="bi bi-clipboard"></i></button>
                 </div>
                 <div class="form-text">{{ _('A URL abaixo será copiada para o campo "URL manual" automaticamente.') }}</div>
@@ -126,7 +126,7 @@
 
           <div class="tab-pane fade" id="ds-pane-manual" role="tabpanel">
             <label class="form-label">{{ _('URL de conexão (SQLAlchemy)') }}</label>
-            <input type="text" name="url" id="ds-url" class="form-control" placeholder="postgresql+psycopg2://user:pass@host:5432/dbname" value="{{ f.get('url','') }}" />
+            <input type="text" name="url" id="ds-url" class="form-control" placeholder="postgresql+psycopg2://user:pass@host:5432/dbname" value="{{ f.get('url','') }}" data-tour="{{ _('Vous pouvez aussi coller une URL complète en mode manuel.') }}" data-tour-title="{{ _('Tutoriel Source') }}" data-tour-order="6" />
             <div class="form-text">
               {{ _('SQLite local:') }} <code>sqlite:////caminho/arquivo.db</code>
             </div>
@@ -138,7 +138,7 @@
             <label class="form-label mb-1">{{ _('Config (descriptografado)') }}</label>
             <button type="button" class="btn btn-sm btn-outline-secondary" id="ds-copy-config"><i class="bi bi-clipboard"></i> {{ _('Copiar') }}</button>
           </div>
-          <textarea class="form-control font-monospace" id="ds-config-preview" rows="8" readonly></textarea>
+          <textarea class="form-control font-monospace" id="ds-config-preview" rows="8" readonly data-tour="{{ _('Vérifiez ici le JSON final qui sera chiffré lors de l\'enregistrement.') }}" data-tour-title="{{ _('Tutoriel Source') }}" data-tour-order="7"></textarea>
           <div class="form-text">{{ _('Prévia do JSON que será criptografado ao salvar.') }}</div>
         </div>
 
@@ -166,9 +166,9 @@
         </div>
 
         <div class="d-flex justify-content-end gap-2 mt-4">
-          <button type="button" class="btn btn-outline-primary" id="ds-test-conn"><i class="bi bi-plug"></i> {{ _('Testar conexão') }}</button>
+          <button type="button" class="btn btn-outline-primary" id="ds-test-conn" data-tour="{{ _('Testez la connexion avant de sauvegarder pour valider les paramètres.') }}" data-tour-title="{{ _('Tutoriel Source') }}" data-tour-order="8"><i class="bi bi-plug"></i> {{ _('Testar conexão') }}</button>
           <a href="{{ url_for('portal.sources_list') }}" class="btn btn-outline-secondary">{{ _('Cancelar') }}</a>
-          <button type="submit" class="btn btn-primary">💾 {{ _('Salvar fonte') }}</button>
+          <button type="submit" class="btn btn-primary" data-tour="{{ _('Enregistrez la source pour la rendre disponible dans SQL Editor et les dashboards.') }}" data-tour-title="{{ _('Tutoriel Source') }}" data-tour-order="9">💾 {{ _('Salvar fonte') }}</button>
         </div>
 
       </form>

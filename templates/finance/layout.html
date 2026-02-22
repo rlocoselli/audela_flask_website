@@ -3,7 +3,12 @@
 {% block title %}{% if title %}{{ title }} – {% endif %}{{ _('AUDELA Finance') }}{% endblock %}
 
 {% block content %}
-  <nav class="navbar navbar-expand-lg border-bottom bg-body sticky-top">
+  <nav
+    class="navbar navbar-expand-lg border-bottom bg-body sticky-top"
+    data-tour="{{ _('Barre de navigation Finance et accès rapide aux pages clés.') }}"
+    data-tour-title="{{ _('Tutoriel') }}"
+    data-tour-order="1"
+  >
     <div class="container-fluid">
       <a class="navbar-brand fw-semibold" href="{{ url_for('finance.dashboard') }}">
         <i class="bi bi-cash-coin me-1"></i>{{ _('AUDELA Finance') }}
@@ -51,12 +56,22 @@
             </span>
           {% endif %}
 
-          <button class="btn btn-outline-secondary btn-sm" type="button" onclick="window.__toggleTheme()" title="{{ _('Tema') }}">
+          <button class="btn btn-outline-secondary btn-sm" type="button" onclick="window.__toggleTheme()" title="{{ _('Tema') }}" data-tour="{{ _('Basculez le thème clair/sombre.') }}" data-tour-title="{{ _('Tutoriel') }}" data-tour-order="4">
             <i class="bi bi-moon-stars"></i>
           </button>
 
+          <button
+            class="btn btn-outline-info btn-sm js-start-tutorial"
+            type="button"
+            title="{{ _('Ouvrir le tutoriel guidé de cette page') }}"
+            aria-label="{{ _('Ouvrir le tutoriel guidé de cette page') }}"
+          >
+            <i class="bi bi-signpost-2 me-1"></i>
+            <span class="d-none d-md-inline">{{ _('Tutoriel') }}</span>
+          </button>
+
           <div class="dropdown">
-            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown">{{ lang_label(current_lang) }}</button>
+            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown" data-tour="{{ _('Changez la langue de l\'interface.') }}" data-tour-title="{{ _('Tutoriel') }}" data-tour-order="3">{{ lang_label(current_lang) }}</button>
             <ul class="dropdown-menu dropdown-menu-end">
               {% for code, info in supported_langs.items() %}
                 <li><a class="dropdown-item" href="{{ url_for('public.set_language', lang_code=code, next=request.full_path) }}">{{ info.label }}</a></li>
