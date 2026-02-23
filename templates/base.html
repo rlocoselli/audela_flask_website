@@ -28,7 +28,6 @@
 				</h1>
 				<nav id="nav">
 					<ul>
-						<li><a href="{{ url_for('public.index') }}" class="scrolly">{{ _('Accueil') }}</a></li>
 						<li>
 							<a href="#">{{ _('AUDELA') }}</a>
 							<ul>
@@ -56,7 +55,8 @@
 							<li><a href="{{ url_for('public.metabase') }}">{{ _('BI & Metabase') }}</a></li>
 							</ul>
 						</li>
-						<li><a href="{{ url_for('public.plans') }}">{{ _('Plans BI & Projet') }}</a></li>
+						<li><a href="{{ url_for('public.plans') }}">{{ _('Plans') }}</a></li>
+						<li><a href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=rlocoselli%40yahoo.com.br&currency_code=EUR&amount=10.00&item_name=Support%20AUDELA%20versions%20gratuites" class="button" target="_blank" rel="noopener">{{ _('Soutenir les versions gratuites (10 €)') }}</a></li>
 						<li><a href="{{ url_for('public.index') }}#clients" class="scrolly">{{ _('Clients') }}</a></li>
 						<li><a href="{{ url_for('tenant.login') }}" class="button primary">{{ _('Gestion Tenant') }}</a></li>
 							<li><a href="{{ url_for('public.index') }}#five" class="button scrolly">{{ _('Contact') }}</a></li>
@@ -108,7 +108,7 @@
 
 				<p style="margin-top:10px; font-size:0.95em;">
 					{{ _('Soutenez les versions gratuites avec un don de 10 €.') }}
-					<a class="button small" href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=rlocoselli%40yahoo.com.br&currency_code=EUR&amount=10.00&item_name=Support%20AUDELA%20versions%20gratuites" target="_blank" rel="noopener">{{ _('Faire un don (10 €)') }}</a>
+					<a class="button small" href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=rlocoselli%40yahoo.com.br&currency_code=EUR&amount=10.00&item_name=Support%20AUDELA%20versions%20gratuites" target="_blank" rel="noopener">{{ _('Soutenir les versions gratuites (10 €)') }}</a>
 				</p>
 
 				<ul class="copyright">
