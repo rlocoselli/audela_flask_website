@@ -148,6 +148,11 @@ def legal_privacy():
     return render_template("legal/privacy.html")
 
 
+@bp.route("/legal/nutritracker/lgpd-request")
+def nutritracker_lgpd_request():
+    return render_template("legal/nutritracker_lgpd_request.html")
+
+
 @bp.route("/legal/cookies")
 def legal_cookies():
     return render_template("legal/cookies.html")

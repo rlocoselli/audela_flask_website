@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}NutriTracker – Solicitação LGPD (Exclusão de Conta e Dados){% endblock %}
+
+{% block head_extra %}
+<style>
+  .nt-lgpd-fab-wrap {
+    display: none;
+  }
+
+  @media screen and (max-width: 736px) {
+    .nt-lgpd-fab-wrap {
+      position: fixed;
+      right: 1rem;
+      bottom: 1rem;
+      z-index: 10000;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+    }
+
+    .nt-lgpd-fab {
+      width: 56px;
+      height: 56px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      text-decoration: none;
+      font-size: 0.72rem;
+      letter-spacing: 0.04em;
+      line-height: 1;
+      text-align: center;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<section id="main" class="wrapper style1">
+  <div class="container">
+    <header class="major">
+      <h2>NutriTracker – Solicitação LGPD</h2>
+      <p class="muted">Exclusão de conta e exclusão de dados pessoais</p>
+    </header>
+
+    <div class="legal-content">
+      <p>
+        Esta página permite solicitar, por e‑mail, a <strong>exclusão da conta</strong> e/ou a
+        <strong>exclusão de dados pessoais</strong> vinculados ao aplicativo NutriTracker, em
+        conformidade com a LGPD.
+      </p>
+
+      <h3>Contato oficial</h3>
+      <p>
+        E‑mail: <a href="mailto:admin@audeladedonees.fr">admin@audeladedonees.fr</a>
+      </p>
+
+      <h3>Solicitar exclusão da conta</h3>
+      <p>
+        <a id="nt-delete-account-link" class="button primary" href="mailto:admin@audeladedonees.fr?subject=NutriTracker%20LGPD%20-%20Solicita%C3%A7%C3%A3o%20de%20exclus%C3%A3o%20de%20conta&body=Ol%C3%A1%2C%0A%0ASolicito%20a%20exclus%C3%A3o%20da%20minha%20conta%20no%20app%20NutriTracker.%0A%0AEmail%20da%20conta%3A%20%0ANome%20completo%3A%20%0ATelefone%20(opcional)%3A%20%0AMotivo%20(opcional)%3A%20%0A%0AObrigado.">
+          Enviar solicitação de exclusão de conta
+        </a>
+      </p>
+
+      <h3>Solicitar exclusão de dados pessoais</h3>
+      <p>
+        <a id="nt-delete-data-link" class="button" href="mailto:admin@audeladedonees.fr?subject=NutriTracker%20LGPD%20-%20Solicita%C3%A7%C3%A3o%20de%20exclus%C3%A3o%20de%20dados&body=Ol%C3%A1%2C%0A%0ASolicito%20a%20exclus%C3%A3o%20dos%20meus%20dados%20pessoais%20no%20app%20NutriTracker.%0A%0AEmail%20da%20conta%3A%20%0ANome%20completo%3A%20%0ATelefone%20(opcional)%3A%20%0ADados%20a%20remover%20(se%20houver)%3A%20%0A%0AObrigado.">
+          Enviar solicitação de exclusão de dados
+        </a>
+      </p>
+
+      <h3>Prazo e validação</h3>
+      <p>
+        Por segurança, podemos solicitar confirmação de identidade antes de executar a solicitação.
+        O tratamento será realizado no prazo legal aplicável.
+      </p>
+    </div>
+  </div>
+</section>
+
+<div class="nt-lgpd-fab-wrap" aria-label="Ações rápidas LGPD">
+  <a class="button primary nt-lgpd-fab" href="#nt-delete-account-link" aria-label="Ir para exclusão de conta">Conta</a>
+  <a class="button nt-lgpd-fab" href="#nt-delete-data-link" aria-label="Ir para exclusão de dados">Dados</a>
+</div>
+{% endblock %}
