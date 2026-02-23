@@ -24,9 +24,6 @@
       <a class="nav-link" href="{{ url_for('portal.sources_list') }}"><i class="bi bi-database me-2"></i>{{ _('Fontes') }}</a>
       <a class="nav-link" href="{{ url_for('portal.api_sources_list') }}"><i class="bi bi-plug me-2"></i>{{ _('Fontes API') }}</a>
       <a class="nav-link" href="{{ url_for('portal.integrations_hub') }}"><i class="bi bi-link-45deg me-2"></i>{{ _('Intégrations') }}</a>
-      {% if current_user.has_role('tenant_admin') %}
-      <a class="nav-link" href="{{ url_for('tenant.prospects_agenda') }}"><i class="bi bi-calendar-week me-2"></i>{{ _('Agenda RDV') }}</a>
-      {% endif %}
       <a class="nav-link" href="{{ url_for('portal.etls_list') }}"><i class="bi bi-diagram-3 me-2"></i>{{ _('ETL') }}</a>
       <a class="nav-link" href="{{ url_for('portal.sources_diagram') }}"><i class="bi bi-diagram-3 me-2"></i>{{ _('Source Diagram') }}</a>
       <a class="nav-link" href="{{ url_for('portal.sql_editor') }}" data-tour="{{ _('Accédez rapidement à l\'éditeur SQL.') }}" data-tour-title="{{ _('Tutoriel') }}" data-tour-order="2"><i class="bi bi-braces me-2"></i>{{ _('Editor SQL') }}</a>
@@ -222,9 +219,6 @@
       {% endif %}
       <a class="nav-link" href="{{ url_for('portal.sources_list') }}">{{ _('Fontes') }}</a>
       <a class="nav-link" href="{{ url_for('portal.integrations_hub') }}">{{ _('Intégrations') }}</a>
-      {% if current_user.has_role('tenant_admin') %}
-      <a class="nav-link" href="{{ url_for('tenant.prospects_agenda') }}">{{ _('Agenda RDV') }}</a>
-      {% endif %}
       <a class="nav-link" href="{{ url_for('portal.sql_editor') }}">{{ _('Editor SQL') }}</a>
       <a class="nav-link" href="{{ url_for('portal.excel_ai') }}">{{ _('Excel IA') }}</a>
       <a class="nav-link" href="{{ url_for('portal.questions_list') }}">{{ _('Perguntas') }}</a>
