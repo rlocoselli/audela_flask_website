@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}NutriTracker – Solicitação LGPD (Exclusão de Conta e Dados){% endblock %}
+{% block title %}{{ _('NutriTracker – Demande LGPD (Suppression de compte et de données)') }}{% endblock %}
 
 {% block head_extra %}
 <style>
@@ -38,50 +38,51 @@
 {% endblock %}
 
 {% block content %}
+{% set nt_account_subject = _('NutriTracker LGPD - Demande de suppression du compte') %}
+{% set nt_account_body = _('Bonjour,\n\nJe demande la suppression de mon compte sur l\'application NutriTracker.\n\nE-mail du compte : \nNom complet : \nTéléphone (optionnel) : \nMotif (optionnel) : \n\nMerci.') %}
+{% set nt_data_subject = _('NutriTracker LGPD - Demande de suppression des données') %}
+{% set nt_data_body = _('Bonjour,\n\nJe demande la suppression de mes données personnelles sur l\'application NutriTracker.\n\nE-mail du compte : \nNom complet : \nTéléphone (optionnel) : \nDonnées à supprimer (si applicable) : \n\nMerci.') %}
 <section id="main" class="wrapper style1">
   <div class="container">
     <header class="major">
-      <h2>NutriTracker – Solicitação LGPD</h2>
-      <p class="muted">Exclusão de conta e exclusão de dados pessoais</p>
+      <h2>{{ _('NutriTracker – Demande LGPD') }}</h2>
+      <p class="muted">{{ _('Suppression de compte et suppression de données personnelles') }}</p>
     </header>
 
     <div class="legal-content">
       <p>
-        Esta página permite solicitar, por e‑mail, a <strong>exclusão da conta</strong> e/ou a
-        <strong>exclusão de dados pessoais</strong> vinculados ao aplicativo NutriTracker, em
-        conformidade com a LGPD.
+        {{ _('Cette page permet de demander, par e-mail, la suppression du compte et/ou la suppression des données personnelles liées à l\'application NutriTracker, conformément à la LGPD.') }}
       </p>
 
-      <h3>Contato oficial</h3>
+      <h3>{{ _('Contact officiel') }}</h3>
       <p>
         E‑mail: <a href="mailto:admin@audeladedonees.fr">admin@audeladedonees.fr</a>
       </p>
 
-      <h3>Solicitar exclusão da conta</h3>
+      <h3>{{ _('Demander la suppression du compte') }}</h3>
       <p>
-        <a id="nt-delete-account-link" class="button primary" href="mailto:admin@audeladedonees.fr?subject=NutriTracker%20LGPD%20-%20Solicita%C3%A7%C3%A3o%20de%20exclus%C3%A3o%20de%20conta&body=Ol%C3%A1%2C%0A%0ASolicito%20a%20exclus%C3%A3o%20da%20minha%20conta%20no%20app%20NutriTracker.%0A%0AEmail%20da%20conta%3A%20%0ANome%20completo%3A%20%0ATelefone%20(opcional)%3A%20%0AMotivo%20(opcional)%3A%20%0A%0AObrigado.">
-          Enviar solicitação de exclusão de conta
+        <a id="nt-delete-account-link" class="button primary" href="mailto:admin@audeladedonees.fr?subject={{ nt_account_subject|urlencode }}&body={{ nt_account_body|urlencode }}">
+          {{ _('Envoyer la demande de suppression du compte') }}
         </a>
       </p>
 
-      <h3>Solicitar exclusão de dados pessoais</h3>
+      <h3>{{ _('Demander la suppression des données personnelles') }}</h3>
       <p>
-        <a id="nt-delete-data-link" class="button" href="mailto:admin@audeladedonees.fr?subject=NutriTracker%20LGPD%20-%20Solicita%C3%A7%C3%A3o%20de%20exclus%C3%A3o%20de%20dados&body=Ol%C3%A1%2C%0A%0ASolicito%20a%20exclus%C3%A3o%20dos%20meus%20dados%20pessoais%20no%20app%20NutriTracker.%0A%0AEmail%20da%20conta%3A%20%0ANome%20completo%3A%20%0ATelefone%20(opcional)%3A%20%0ADados%20a%20remover%20(se%20houver)%3A%20%0A%0AObrigado.">
-          Enviar solicitação de exclusão de dados
+        <a id="nt-delete-data-link" class="button" href="mailto:admin@audeladedonees.fr?subject={{ nt_data_subject|urlencode }}&body={{ nt_data_body|urlencode }}">
+          {{ _('Envoyer la demande de suppression des données') }}
         </a>
       </p>
 
-      <h3>Prazo e validação</h3>
+      <h3>{{ _('Délai et vérification') }}</h3>
       <p>
-        Por segurança, podemos solicitar confirmação de identidade antes de executar a solicitação.
-        O tratamento será realizado no prazo legal aplicável.
+        {{ _('Pour des raisons de sécurité, nous pouvons demander une confirmation d\'identité avant d\'exécuter la demande. Le traitement est effectué dans le délai légal applicable.') }}
       </p>
     </div>
   </div>
 </section>
 
-<div class="nt-lgpd-fab-wrap" aria-label="Ações rápidas LGPD">
-  <a class="button primary nt-lgpd-fab" href="#nt-delete-account-link" aria-label="Ir para exclusão de conta">Conta</a>
-  <a class="button nt-lgpd-fab" href="#nt-delete-data-link" aria-label="Ir para exclusão de dados">Dados</a>
+<div class="nt-lgpd-fab-wrap" aria-label="{{ _('Actions rapides LGPD') }}">
+  <a class="button primary nt-lgpd-fab" href="#nt-delete-account-link" aria-label="{{ _('Aller à la suppression du compte') }}">{{ _('Compte') }}</a>
+  <a class="button nt-lgpd-fab" href="#nt-delete-data-link" aria-label="{{ _('Aller à la suppression des données') }}">{{ _('Données') }}</a>
 </div>
 {% endblock %}
