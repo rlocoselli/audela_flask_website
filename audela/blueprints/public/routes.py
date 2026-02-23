@@ -133,6 +133,21 @@ def plans():
     )
 
 
+@bp.route("/produits/finance")
+def product_finance():
+    return render_template("products/finance.html")
+
+
+@bp.route("/produits/bi")
+def product_bi():
+    return render_template("products/bi.html")
+
+
+@bp.route("/produits/projet")
+def product_project():
+    return render_template("products/project.html")
+
+
 # -----------------
 # Legal pages
 # -----------------

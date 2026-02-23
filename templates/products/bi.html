@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}{{ _('Produit BI') }} – AUDELA{% endblock %}
+
+{% block content %}
+<section id="main" class="wrapper style1">
+  <div class="container">
+    <header class="major">
+      <h2>{{ _('Produit BI') }}</h2>
+      <p class="muted">{{ _('Décision pilotée par la donnée, de la source au dashboard.') }}</p>
+    </header>
+
+    <div class="legal-content">
+      <h3>{{ _('Ce produit inclut :') }}</h3>
+      <ul>
+        <li>{{ _('Connexion aux sources SQL/API et gouvernance par tenant.') }}</li>
+        <li>{{ _('Modélisation, requêtes, visualisations et dashboards.') }}</li>
+        <li>{{ _('Partage sécurisé, exports et supervision des exécutions.') }}</li>
+        <li>{{ _('Assistant IA pour accélérer l\'analyse.') }}</li>
+      </ul>
+
+      <h3>{{ _('Pour qui ?') }}</h3>
+      <p>{{ _('Équipes data, opérations, direction générale et métiers.') }}</p>
+
+      <ul class="actions">
+        <li><a href="{{ url_for('public.plans', product='bi') }}" class="button primary">{{ _('Découvrir les plans BI') }}</a></li>
+        <li><a href="{{ url_for('public.index') }}#five" class="button">{{ _('Contact') }}</a></li>
+      </ul>
+    </div>
+  </div>
+</section>
+{% endblock %}

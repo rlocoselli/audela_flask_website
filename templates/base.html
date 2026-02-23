@@ -39,6 +39,14 @@
 							</ul>
 						</li>
 						<li>
+							<a href="#">{{ _('Produits') }}</a>
+							<ul>
+								<li><a href="{{ url_for('public.product_finance') }}">{{ _('Finance') }}</a></li>
+								<li><a href="{{ url_for('public.product_bi') }}">{{ _('BI') }}</a></li>
+								<li><a href="{{ url_for('public.product_project') }}">{{ _('Projet') }}</a></li>
+							</ul>
+						</li>
+						<li>
 							<a href="#">{{ _('Projets') }}</a>
 							<ul>
 								<li><a href="{{ url_for('public.projects_mobile') }}">{{ _('Mobile') }}</a></li>

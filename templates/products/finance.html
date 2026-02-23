@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}{{ _('Produit Finance') }} – AUDELA{% endblock %}
+
+{% block content %}
+<section id="main" class="wrapper style1">
+  <div class="container">
+    <header class="major">
+      <h2>{{ _('Produit Finance') }}</h2>
+      <p class="muted">{{ _('Pilotage financier, trésorerie et conformité, dans une plateforme unique.') }}</p>
+    </header>
+
+    <div class="legal-content">
+      <h3>{{ _('Ce produit inclut :') }}</h3>
+      <ul>
+        <li>{{ _('Tableaux de bord de cashflow et liquidité.') }}</li>
+        <li>{{ _('Rapprochement bancaire et catégorisation assistée.') }}</li>
+        <li>{{ _('Prévisions, alertes et suivi des écarts.') }}</li>
+        <li>{{ _('Exports réglementaires et piste d\'audit.') }}</li>
+      </ul>
+
+      <h3>{{ _('Pour qui ?') }}</h3>
+      <p>{{ _('Directions financières, cabinets comptables, PME et groupes multi-entités.') }}</p>
+
+      <ul class="actions">
+        <li><a href="{{ url_for('public.plans', product='finance') }}" class="button primary">{{ _('Découvrir les plans Finance') }}</a></li>
+        <li><a href="{{ url_for('public.index') }}#five" class="button">{{ _('Contact') }}</a></li>
+      </ul>
+    </div>
+  </div>
+</section>
+{% endblock %}
