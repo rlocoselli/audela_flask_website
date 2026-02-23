@@ -150,6 +150,30 @@
   </div>
 </div>
 
+<div id="biQuickActions" class="position-fixed end-0 p-3" style="bottom:72px; z-index:1081;">
+  <div id="biQuickActionsMenu" class="d-none mb-2 d-flex flex-column align-items-end gap-2">
+    <a class="btn btn-light border shadow-sm btn-sm rounded-pill" href="{{ url_for('portal.sources_new') }}" title="{{ _('Créer une nouvelle source de données') }}">
+      <i class="bi bi-database-add me-1"></i>{{ _('Nouvelle source') }}
+    </a>
+    <a class="btn btn-light border shadow-sm btn-sm rounded-pill" href="{{ url_for('portal.sql_editor') }}" title="{{ _('Exécuter une requête SQL') }}">
+      <i class="bi bi-play-circle me-1"></i>{{ _('Exécuter requête') }}
+    </a>
+    <a class="btn btn-light border shadow-sm btn-sm rounded-pill" href="{{ url_for('portal.dashboards_new') }}" title="{{ _('Créer un nouveau dashboard') }}">
+      <i class="bi bi-grid-1x2-fill me-1"></i>{{ _('Nouveau dashboard') }}
+    </a>
+  </div>
+  <button
+    id="biQuickActionsToggle"
+    class="btn btn-primary rounded-circle shadow"
+    style="width:52px;height:52px;"
+    type="button"
+    aria-label="{{ _('Actions rapides BI') }}"
+    title="{{ _('Actions rapides BI') }}"
+  >
+    <i class="bi bi-lightning-charge"></i>
+  </button>
+</div>
+
 <div id="biHelpChat" class="position-fixed bottom-0 end-0 p-3" style="z-index:1080;">
   <button
     id="biHelpChatToggle"
@@ -252,6 +276,32 @@
 
         window.__initBiTooltips = initBiTooltips;
         initBiTooltips(document);
+
+        const quickToggle = document.getElementById('biQuickActionsToggle');
+        const quickMenu = document.getElementById('biQuickActionsMenu');
+        if (quickToggle && quickMenu) {
+          function closeQuickActions() {
+            quickMenu.classList.add('d-none');
+            quickToggle.classList.remove('btn-secondary');
+            quickToggle.classList.add('btn-primary');
+          }
+          quickToggle.addEventListener('click', function(e){
+            e.stopPropagation();
+            const isOpen = !quickMenu.classList.contains('d-none');
+            if (isOpen) {
+              closeQuickActions();
+            } else {
+              quickMenu.classList.remove('d-none');
+              quickToggle.classList.remove('btn-primary');
+              quickToggle.classList.add('btn-secondary');
+            }
+          });
+          document.addEventListener('click', function(e){
+            if (!quickMenu.contains(e.target) && !quickToggle.contains(e.target)) {
+              closeQuickActions();
+            }
+          });
+        }
 
         const toggle = document.getElementById('biHelpChatToggle');
         const panel = document.getElementById('biHelpChatPanel');

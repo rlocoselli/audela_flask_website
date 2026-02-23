@@ -105,6 +105,30 @@
     {% block finance_page %}{% endblock %}
   </div>
 
+  <div id="financeQuickActions" class="position-fixed end-0 p-3" style="bottom:72px; z-index:1081;">
+    <div id="financeQuickActionsMenu" class="d-none mb-2 d-flex flex-column align-items-end gap-2">
+      <a class="btn btn-light border shadow-sm btn-sm rounded-pill" href="{{ url_for('finance.quick_entry') }}" title="{{ _('Entrée rapide') }}">
+        <i class="bi bi-lightning-charge me-1"></i>{{ _('Entrée rapide') }}
+      </a>
+      <a class="btn btn-light border shadow-sm btn-sm rounded-pill" href="{{ url_for('finance.transaction_new') }}" title="{{ _('Nouvelle transaction') }}">
+        <i class="bi bi-plus-circle me-1"></i>{{ _('Nouvelle transaction') }}
+      </a>
+      <a class="btn btn-light border shadow-sm btn-sm rounded-pill" href="{{ url_for('finance.reports_transactions') }}" title="{{ _('Voir les rapports') }}">
+        <i class="bi bi-graph-up me-1"></i>{{ _('Rapports') }}
+      </a>
+    </div>
+    <button
+      id="financeQuickActionsToggle"
+      class="btn btn-primary rounded-circle shadow"
+      style="width:52px;height:52px;"
+      type="button"
+      aria-label="{{ _('Actions rapides Finance') }}"
+      title="{{ _('Actions rapides Finance') }}"
+    >
+      <i class="bi bi-lightning-charge"></i>
+    </button>
+  </div>
+
   <div id="financeHelpChat" class="position-fixed bottom-0 end-0 p-3" style="z-index:1080;">
     <button
       id="financeHelpChatToggle"
@@ -178,6 +202,32 @@
       if (window.bootstrap && window.bootstrap.Tooltip) {
         document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function(el){
           window.bootstrap.Tooltip.getOrCreateInstance(el);
+        });
+      }
+
+      const quickToggle = document.getElementById('financeQuickActionsToggle');
+      const quickMenu = document.getElementById('financeQuickActionsMenu');
+      if (quickToggle && quickMenu) {
+        function closeQuickActions() {
+          quickMenu.classList.add('d-none');
+          quickToggle.classList.remove('btn-secondary');
+          quickToggle.classList.add('btn-primary');
+        }
+        quickToggle.addEventListener('click', function(e){
+          e.stopPropagation();
+          const isOpen = !quickMenu.classList.contains('d-none');
+          if (isOpen) {
+            closeQuickActions();
+          } else {
+            quickMenu.classList.remove('d-none');
+            quickToggle.classList.remove('btn-primary');
+            quickToggle.classList.add('btn-secondary');
+          }
+        });
+        document.addEventListener('click', function(e){
+          if (!quickMenu.contains(e.target) && !quickToggle.contains(e.target)) {
+            closeQuickActions();
+          }
         });
       }
 

@@ -71,6 +71,30 @@
   {% block project_page %}{% endblock %}
 </div>
 
+<div id="projectQuickActions" class="position-fixed end-0 p-3" style="bottom:72px; z-index:1081;">
+  <div id="projectQuickActionsMenu" class="d-none mb-2 d-flex flex-column align-items-end gap-2">
+    <button type="button" class="btn btn-light border shadow-sm btn-sm rounded-pill" data-project-quick-action="new-project" title="{{ _('Créer un nouveau projet') }}">
+      <i class="bi bi-kanban-fill me-1"></i>{{ _('Nouveau projet') }}
+    </button>
+    <button type="button" class="btn btn-light border shadow-sm btn-sm rounded-pill" data-project-quick-action="new-task" title="{{ _('Créer une nouvelle tâche') }}">
+      <i class="bi bi-list-task me-1"></i>{{ _('Nouvelle tâche') }}
+    </button>
+    <a class="btn btn-light border shadow-sm btn-sm rounded-pill" href="{{ url_for('project.dashboard') }}#pm-section-gantt" title="{{ _('Aller au Gantt') }}">
+      <i class="bi bi-bar-chart-steps me-1"></i>{{ _('Gantt') }}
+    </a>
+  </div>
+  <button
+    id="projectQuickActionsToggle"
+    class="btn btn-primary rounded-circle shadow"
+    style="width:52px;height:52px;"
+    type="button"
+    aria-label="{{ _('Actions rapides Projet') }}"
+    title="{{ _('Actions rapides Projet') }}"
+  >
+    <i class="bi bi-lightning-charge"></i>
+  </button>
+</div>
+
 <div id="projectHelpChat" class="position-fixed bottom-0 end-0 p-3" style="z-index:1080;">
   <button
     id="projectHelpChatToggle"
@@ -131,6 +155,45 @@
       if (window.bootstrap && window.bootstrap.Tooltip) {
         document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function(el){
           window.bootstrap.Tooltip.getOrCreateInstance(el);
+        });
+      }
+
+      const quickToggle = document.getElementById('projectQuickActionsToggle');
+      const quickMenu = document.getElementById('projectQuickActionsMenu');
+      if (quickToggle && quickMenu) {
+        function closeQuickActions() {
+          quickMenu.classList.add('d-none');
+          quickToggle.classList.remove('btn-secondary');
+          quickToggle.classList.add('btn-primary');
+        }
+        quickToggle.addEventListener('click', function(e){
+          e.stopPropagation();
+          const isOpen = !quickMenu.classList.contains('d-none');
+          if (isOpen) {
+            closeQuickActions();
+          } else {
+            quickMenu.classList.remove('d-none');
+            quickToggle.classList.remove('btn-primary');
+            quickToggle.classList.add('btn-secondary');
+          }
+        });
+        document.addEventListener('click', function(e){
+          if (!quickMenu.contains(e.target) && !quickToggle.contains(e.target)) {
+            closeQuickActions();
+          }
+        });
+
+        quickMenu.querySelectorAll('[data-project-quick-action]').forEach(function(btn){
+          btn.addEventListener('click', function(){
+            const action = btn.getAttribute('data-project-quick-action');
+            if (action === 'new-project') {
+              document.getElementById('pm-new-project-btn')?.click();
+            }
+            if (action === 'new-task') {
+              document.getElementById('pm-add-card')?.click();
+            }
+            closeQuickActions();
+          });
         });
       }
 
