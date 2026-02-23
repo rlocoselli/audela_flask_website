@@ -26,6 +26,45 @@
     <!-- Portal styles -->
     <link rel="stylesheet" href="{{ url_for('static', filename='portal/portal.css') }}">
 
+    <style>
+      @media (max-width: 768px) {
+        #financeQuickActions,
+        #financeHelpChat,
+        #biQuickActions,
+        #biHelpChat,
+        #projectQuickActions,
+        #projectHelpChat {
+          right: 0.5rem !important;
+          left: auto !important;
+          padding: 0.5rem !important;
+        }
+
+        #financeHelpChatPanel,
+        #biHelpChatPanel,
+        #projectHelpChatPanel {
+          width: min(340px, calc(100vw - 1rem)) !important;
+          max-width: min(340px, calc(100vw - 1rem)) !important;
+          margin-left: auto;
+          box-sizing: border-box;
+        }
+
+        #financeQuickActionsMenu,
+        #biQuickActionsMenu,
+        #projectQuickActionsMenu {
+          max-width: min(88vw, 320px);
+        }
+
+        #financeQuickActionsMenu .btn,
+        #biQuickActionsMenu .btn,
+        #projectQuickActionsMenu .btn {
+          max-width: 100%;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+      }
+    </style>
+
     {% block head_extra %}{% endblock %}
 
     <script>

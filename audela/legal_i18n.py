@@ -13,6 +13,7 @@ LEGAL_TRANSLATIONS = {
         "footer.privacy": "Politique de confidentialité",
         "footer.retention": "Conservation des données",
         "footer.cookies": "Politique cookies",
+        "footer.nutritracker_lgpd": "NutriTracker — Suppression compte (LGPD)",
 
         "legal.last_updated": "Dernière mise à jour : {date}",
 
@@ -206,6 +207,7 @@ Adresse : <em>à compléter</em></p>
         "footer.privacy": "Privacy policy",
         "footer.retention": "Data retention",
         "footer.cookies": "Cookie policy",
+        "footer.nutritracker_lgpd": "NutriTracker — Account deletion (LGPD)",
 
         "legal.last_updated": "Last updated: {date}",
 
@@ -399,6 +401,7 @@ Address: <em>to be completed</em></p>
         "footer.privacy": "Política de privacidade",
         "footer.retention": "Retenção de dados",
         "footer.cookies": "Política de cookies",
+        "footer.nutritracker_lgpd": "NutriTracker — Exclusão de conta (LGPD)",
 
         "legal.last_updated": "Última atualização: {date}",
 
@@ -592,6 +595,7 @@ Endereço: <em>a completar</em></p>
         "footer.privacy": "Política de privacidad",
         "footer.retention": "Retención de datos",
         "footer.cookies": "Política de cookies",
+        "footer.nutritracker_lgpd": "NutriTracker — Eliminación de cuenta (LGPD)",
 
         "legal.last_updated": "Última actualización: {date}",
 
@@ -785,6 +789,7 @@ Dirección: <em>por completar</em></p>
         "footer.privacy": "Informativa privacy",
         "footer.retention": "Conservazione dei dati",
         "footer.cookies": "Cookie policy",
+        "footer.nutritracker_lgpd": "NutriTracker — Eliminazione account (LGPD)",
 
         "legal.last_updated": "Ultimo aggiornamento: {date}",
 
@@ -978,6 +983,7 @@ Indirizzo: <em>da completare</em></p>
         "footer.privacy": "Datenschutzerklärung",
         "footer.retention": "Speicherdauer",
         "footer.cookies": "Cookie-Richtlinie",
+        "footer.nutritracker_lgpd": "NutriTracker — Kontolöschung (LGPD)",
 
         "legal.last_updated": "Zuletzt aktualisiert: {date}",
 
