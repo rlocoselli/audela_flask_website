@@ -42,8 +42,16 @@ jobs:
             fi
 
             if [ ! -f .env ]; then
-              echo "❌ .env missing on server. Bootstrap required before migrations."
-              exit 1
+              echo "⚠️ .env missing on server"
+              if [ -n "${{ secrets.SERVER_ENV_FILE }}" ]; then
+                printf "%s" "${{ secrets.SERVER_ENV_FILE }}" > .env
+                chmod 600 .env || true
+                echo "✅ .env bootstrapped from GitHub secret SERVER_ENV_FILE"
+              else
+                echo "❌ .env missing and secret SERVER_ENV_FILE is not set"
+                echo "   Configure SERVER_ENV_FILE (full .env content) in GitHub Environment secrets."
+                exit 1
+              fi
             fi
 
             echo "🚀 Ensure app container is up (no deps rebuild)"
