@@ -1,0 +1,70 @@
+name: Run DB Migrations (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_ref:
+        description: "Git ref to deploy before migrations (branch/tag/sha)"
+        required: false
+        default: "main"
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    environment: audeladesdonnees
+
+    steps:
+      - name: Run migrations via SSH (root)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: root
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          command_timeout: 40m
+          script: |
+            set -e
+            echo "🛠️ Migrations-only job started"
+
+            cd /root/audela_flask_website
+
+            TARGET_REF="${{ github.event.inputs.git_ref }}"
+            if [ -z "$TARGET_REF" ]; then TARGET_REF="main"; fi
+
+            echo "📥 Git fetch/reset to $TARGET_REF"
+            git fetch --all --prune
+            git checkout "$TARGET_REF"
+            git reset --hard "origin/$TARGET_REF" || true
+
+            COMPOSE_CMD="docker compose"
+            if ! docker compose version >/dev/null 2>&1; then
+              COMPOSE_CMD="docker-compose"
+            fi
+
+            if [ ! -f .env ]; then
+              echo "❌ .env missing on server. Bootstrap required before migrations."
+              exit 1
+            fi
+
+            echo "🚀 Ensure app container is up (no deps rebuild)"
+            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml up -d --no-deps audela
+
+            echo "⏳ Waiting audela container readiness"
+            for i in $(seq 1 30); do
+              if $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela sh -lc "echo ready" >/dev/null 2>&1; then
+                break
+              fi
+              echo "Waiting audela... ($i/30)"
+              sleep 2
+            done
+
+            echo "🧭 Alembic heads"
+            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db heads || true
+
+            echo "⬆️ Apply migrations"
+            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db upgrade
+
+            echo "✅ Verify finance_accounting_periods exists"
+            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela python -c "from sqlalchemy import text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); exists=db.session.execute(text(\"SELECT to_regclass('public.finance_accounting_periods')\")).scalar(); assert exists, 'finance_accounting_periods table not found'; print('finance_accounting_periods table found:', exists); ctx.pop()"
+
+            echo "✅ Migrations-only job completed"

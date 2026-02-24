@@ -21,6 +21,7 @@ jobs:
           username: root
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
+          command_timeout: 40m
 
           script: |
             set -e
@@ -32,23 +33,20 @@ jobs:
             git reset --hard
             git pull origin main
 
-            echo "🔧 Run install"
-            chmod +x install.sh
-            ./install.sh \
-              "${{ secrets.HOST }}" \
-              "${{ secrets.USER }}" \
-              "${{ secrets.PASSWORD }}" \
-              "${{ secrets.OPENAI_API_KEY }}" \
-              "${{ secrets.DB_NAME }}" \
-              "${{ secrets.DB_PORT }}" \
-              "${{ secrets.DATABASE_URL }}" \
-              "${{ secrets.MAIL_SERVER }}" \
-              "${{ secrets.MAIL_PORT }}" \
-              "${{ secrets.MAIL_USE_TLS }}" \
-              "${{ secrets.MAIL_USE_SSL }}" \
-              "${{ secrets.MAIL_USERNAME }}" \
-              "${{ secrets.MAIL_PASSWORD }}" \
-              "${{ secrets.MAIL_DEFAULT_SENDER }}"
+            # Never run full install here (it rebuilds celery image too).
+            # This deploy job updates only web app service.
+            if [ ! -f .env ]; then
+              echo "❌ .env not found. Run bootstrap install manually once (install.sh), then rerun deploy."
+              exit 1
+            fi
+
+            echo "⚡ Incremental deploy (audela only, skip celery image rebuild)"
+            COMPOSE_CMD="docker compose"
+            if ! docker compose version >/dev/null 2>&1; then
+              COMPOSE_CMD="docker-compose"
+            fi
+            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml build audela
+            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml up -d --no-deps audela
 
             echo "🗃️ Apply DB migrations"
             # RUN_MIGRATIONS=1 is already set on container startup; this explicit step
