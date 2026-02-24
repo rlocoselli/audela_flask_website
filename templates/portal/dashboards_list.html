@@ -12,6 +12,7 @@
           <thead>
             <tr>
               <th data-tip="{{ _('Nom fonctionnel du dashboard affiché dans la navigation BI.') }}">{{ _('Nom') }}</th>
+              <th>{{ _('Principal') }}</th>
               <th data-tip="{{ _('Date de dernière modification du dashboard.') }}">{{ _('Mis à jour') }}</th>
               <th></th>
             </tr>
@@ -19,7 +20,21 @@
           <tbody>
             {% for d in dashboards %}
               <tr>
-                <td><a href="{{ url_for('portal.dashboard_view', dashboard_id=d.id) }}" data-tour="{{ _('Ouvrez un dashboard pour consulter ses widgets et indicateurs.') }}" data-tour-title="{{ _('Tutoriel BI') }}" data-tour-order="3">{{ d.name }}</a></td>
+                <td>
+                  <a href="{{ url_for('portal.dashboard_view', dashboard_id=d.id) }}" data-tour="{{ _('Ouvrez un dashboard pour consulter ses widgets et indicateurs.') }}" data-tour-title="{{ _('Tutoriel BI') }}" data-tour-order="3">{{ d.name }}</a>
+                </td>
+                <td>
+                  {% if d.is_primary %}
+                    <span class="badge text-bg-success"><i class="bi bi-star-fill me-1"></i>{{ _('Principal') }}</span>
+                  {% else %}
+                    <form method="post" action="{{ url_for('portal.dashboards_set_primary', dashboard_id=d.id) }}" style="display:inline;">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                      <button type="submit" class="button small" data-tip="{{ _('Dashboard definido como principal.') }}">
+                        <i class="bi bi-star me-1"></i>{{ _('Principal') }}
+                      </button>
+                    </form>
+                  {% endif %}
+                </td>
                 <td>{{ d.updated_at }}</td>
                 <td>
                   <form method="post" action="{{ url_for('portal.dashboards_delete', dashboard_id=d.id) }}" style="display:inline;" onsubmit="return confirm('{{ _('Supprimer ce dashboard ?') }}');">

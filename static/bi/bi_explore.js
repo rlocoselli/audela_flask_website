@@ -44,6 +44,98 @@
 
   function qs (s) { return document.querySelector(s); }
 
+  function initFloatingFiltersPanel () {
+    const panel = document.getElementById('ex-floating-filters');
+    if (!panel) return;
+
+    const head = document.getElementById('ex-floating-filters-head');
+    const toggleBtn = document.getElementById('ex-floating-filters-toggle');
+    const collapseBtn = document.getElementById('ex-floating-filters-collapse');
+    const dockBtn = document.getElementById('ex-floating-filters-dock');
+    const keyCollapsed = 'bi.explore.filters.collapsed';
+
+    const applyCollapsed = (collapsed) => {
+      panel.classList.toggle('is-collapsed', !!collapsed);
+      if (collapseBtn) {
+        collapseBtn.innerHTML = collapsed
+          ? '<i class="bi bi-chevron-up"></i>'
+          : '<i class="bi bi-chevron-down"></i>';
+      }
+    };
+
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => {
+        panel.classList.toggle('d-none');
+      });
+    }
+
+    if (collapseBtn) {
+      collapseBtn.addEventListener('click', () => {
+        const collapsed = !panel.classList.contains('is-collapsed');
+        applyCollapsed(collapsed);
+        try { localStorage.setItem(keyCollapsed, collapsed ? '1' : '0'); } catch (e) {}
+      });
+    }
+
+    if (dockBtn) {
+      dockBtn.addEventListener('click', () => {
+        panel.style.removeProperty('left');
+        panel.style.removeProperty('top');
+        panel.style.removeProperty('right');
+        panel.style.removeProperty('bottom');
+      });
+    }
+
+    try {
+      applyCollapsed(localStorage.getItem(keyCollapsed) === '1');
+    } catch (e) {}
+
+    if (!head) return;
+    let dragging = false;
+    let sx = 0;
+    let sy = 0;
+    let sl = 0;
+    let st = 0;
+
+    const onMove = (e) => {
+      if (!dragging) return;
+      const x = (e.touches?.[0]?.clientX ?? e.clientX);
+      const y = (e.touches?.[0]?.clientY ?? e.clientY);
+      const dx = x - sx;
+      const dy = y - sy;
+      panel.style.left = `${sl + dx}px`;
+      panel.style.top = `${st + dy}px`;
+      panel.style.right = 'auto';
+      panel.style.bottom = 'auto';
+    };
+
+    const onUp = () => {
+      dragging = false;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onUp);
+    };
+
+    const onDown = (e) => {
+      if (window.matchMedia('(max-width: 991.98px)').matches) return;
+      if (e.target.closest('button')) return;
+      dragging = true;
+      const rect = panel.getBoundingClientRect();
+      sx = (e.touches?.[0]?.clientX ?? e.clientX);
+      sy = (e.touches?.[0]?.clientY ?? e.clientY);
+      sl = rect.left;
+      st = rect.top;
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+      document.addEventListener('touchmove', onMove, { passive: true });
+      document.addEventListener('touchend', onUp);
+    };
+
+    head.addEventListener('mousedown', onDown);
+    head.addEventListener('touchstart', onDown, { passive: true });
+  }
+
   function parseParams () {
     const txt = qs('#ex-params')?.value || '';
     if (!txt.trim()) return {};
@@ -193,6 +285,7 @@
   }
 
   function boot () {
+    initFloatingFiltersPanel();
     const qSel = qs('#ex-question');
     if (!qSel) return;
 

@@ -4224,6 +4224,7 @@ def dashboards_new():
 @login_required
 def dashboard_view(dashboard_id: int):
     _require_tenant()
+    embed_mode = (request.args.get("embed") or "").strip().lower() in {"1", "true", "yes", "on"}
 
     # IMPORTANT: avoid leaking existence across tenants -> 404 if tenant mismatch
     dash = Dashboard.query.filter_by(id=dashboard_id, tenant_id=g.tenant.id).first_or_404()
@@ -4281,6 +4282,7 @@ def dashboard_view(dashboard_id: int):
         dashboard=dash,
         cards=rendered_cards,
         all_questions=all_questions,
+        embed_mode=embed_mode,
     )
 
 

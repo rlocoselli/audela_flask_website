@@ -4,6 +4,48 @@
 {% block head_extra %}
   {{ super() }}
   <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <style>
+    .bi-floating-filters {
+      position: fixed;
+      top: 110px;
+      right: 18px;
+      width: min(420px, calc(100vw - 24px));
+      max-height: calc(100vh - 130px);
+      z-index: 1040;
+      box-shadow: var(--bs-box-shadow-sm);
+      border: 1px solid var(--bs-border-color);
+      border-radius: .75rem;
+      background: var(--bs-body-bg);
+      display: flex;
+      flex-direction: column;
+    }
+    .bi-floating-filters .bi-floating-head {
+      cursor: move;
+      user-select: none;
+      border-bottom: 1px solid var(--bs-border-color);
+      padding: .55rem .7rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .5rem;
+    }
+    .bi-floating-filters .bi-floating-body {
+      overflow: auto;
+      padding: .7rem;
+    }
+    .bi-floating-filters.is-collapsed .bi-floating-body { display: none; }
+    @media (max-width: 991.98px) {
+      .bi-floating-filters {
+        right: 8px;
+        left: 8px;
+        width: auto;
+        top: auto;
+        bottom: 8px;
+        max-height: 60vh;
+      }
+      .bi-floating-filters .bi-floating-head { cursor: default; }
+    }
+  </style>
 {% endblock %}
 
 {% block portal_content %}
@@ -11,6 +53,11 @@
   <div>
     <h1 class="h4 mb-1">{{ _('Explorar') }}</h1>
     <div class="text-secondary">{{ _('Explore dados e crie visualizações como no Superset/Metabase.') }}</div>
+  </div>
+  <div>
+    <button class="btn btn-outline-secondary btn-sm" id="ex-floating-filters-toggle" type="button">
+      <i class="bi bi-funnel me-1"></i>{{ _('Filtres flottants') }}
+    </button>
   </div>
 </div>
 
@@ -144,38 +191,45 @@
       </div>
     </div>
 
-    <div class="card border-0 shadow-sm mt-3" style="border-radius: 1rem;">
-      <div class="card-body">
-        <div class="fw-semibold mb-2">{{ _('Filtros') }}</div>
-        <div class="row g-2 align-items-end">
-          <div class="col-12 col-md-4">
-            <label class="form-label mb-1">{{ _('Campo') }}</label>
-            <select id="ex-filter-field" class="form-select form-select-sm"></select>
-          </div>
-          <div class="col-6 col-md-2">
-            <label class="form-label mb-1">&nbsp;</label>
-            <select id="ex-filter-op" class="form-select form-select-sm">
-              <option value="eq">=</option>
-              <option value="contains">contains</option>
-              <option value="gt">&gt;</option>
-              <option value="lt">&lt;</option>
-            </select>
-          </div>
-          <div class="col-6 col-md-3">
-            <label class="form-label mb-1">&nbsp;</label>
-            <input id="ex-filter-value" class="form-control form-control-sm" type="text" placeholder="value" />
-          </div>
-          <div class="col-12 col-md-3">
-            <label class="form-label mb-1">&nbsp;</label>
-            <div class="d-flex gap-2">
-              <button class="btn btn-outline-primary btn-sm" id="ex-add-filter">{{ _('Adicionar filtro') }}</button>
-              <button class="btn btn-outline-secondary btn-sm" id="ex-clear-filters">{{ _('Limpar filtros') }}</button>
-            </div>
-          </div>
-        </div>
-        <div id="ex-filter-summary" class="mt-2"></div>
+  </div>
+</div>
+
+<div id="ex-floating-filters" class="bi-floating-filters" aria-label="{{ _('Filtres flottants') }}">
+  <div id="ex-floating-filters-head" class="bi-floating-head">
+    <div class="fw-semibold d-flex align-items-center gap-2">
+      <i class="bi bi-funnel"></i>
+      <span>{{ _('Filtres') }}</span>
+    </div>
+    <div class="d-flex align-items-center gap-1">
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="ex-floating-filters-dock" title="{{ _('Reencaixar') }}"><i class="bi bi-bounding-box"></i></button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="ex-floating-filters-collapse" title="{{ _('Minimizar') }}"><i class="bi bi-chevron-down"></i></button>
+    </div>
+  </div>
+  <div class="bi-floating-body">
+    <div class="row g-2 align-items-end">
+      <div class="col-12">
+        <label class="form-label mb-1">{{ _('Campo') }}</label>
+        <select id="ex-filter-field" class="form-select form-select-sm"></select>
+      </div>
+      <div class="col-6">
+        <label class="form-label mb-1">{{ _('Opérateur') }}</label>
+        <select id="ex-filter-op" class="form-select form-select-sm">
+          <option value="eq">=</option>
+          <option value="contains">contains</option>
+          <option value="gt">&gt;</option>
+          <option value="lt">&lt;</option>
+        </select>
+      </div>
+      <div class="col-6">
+        <label class="form-label mb-1">{{ _('Valeur') }}</label>
+        <input id="ex-filter-value" class="form-control form-control-sm" type="text" placeholder="value" />
+      </div>
+      <div class="col-12 d-flex flex-wrap gap-2">
+        <button class="btn btn-outline-primary btn-sm" id="ex-add-filter">{{ _('Adicionar filtro') }}</button>
+        <button class="btn btn-outline-secondary btn-sm" id="ex-clear-filters">{{ _('Limpar filtros') }}</button>
       </div>
     </div>
+    <div id="ex-filter-summary" class="mt-2"></div>
   </div>
 </div>
 {% endblock %}

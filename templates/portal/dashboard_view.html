@@ -4,6 +4,23 @@
 {% block head_extra %}
   {{ super() }}
   <style>
+    {% if embed_mode %}
+    .portal-shell > .sidebar,
+    .portal-shell .topbar,
+    .portal-shell footer,
+    #biQuickActions,
+    #biHelpChat,
+    #mobileNav,
+    .container-fluid.pt-3 {
+      display: none !important;
+    }
+    .portal-shell .main-area {
+      width: 100% !important;
+    }
+    .portal-shell .main-area > .container-fluid.pb-4 {
+      padding: .5rem !important;
+    }
+    {% endif %}
     .bi-floating-filters {
       position: fixed;
       top: 110px;
@@ -48,6 +65,7 @@
 {% endblock %}
 
 {% block portal_content %}
+{% if not embed_mode %}
 <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
   <div>
     <h1 class="h4 mb-1">{{ dashboard.name }}</h1>
@@ -117,6 +135,7 @@
     <div id="bi-filter-summary" class="mt-2"></div>
   </div>
 </div>
+{% endif %}
 
 {% if not cards %}
   <div class="alert alert-info">{{ _('Nenhum card ainda. Crie um dashboard escolhendo perguntas.') }}</div>
@@ -177,9 +196,12 @@
       <div class="grid-stack-item-content">
         <div class="card-head">
           <div class="d-flex align-items-center gap-2" style="min-width: 0;">
+            {% if not embed_mode %}
             <i class="bi bi-ui-checks" style="opacity:.65"></i>
+            {% endif %}
             <div class="card-title">{{ item.question.name }}</div>
           </div>
+          {% if not embed_mode %}
           <div class="d-flex gap-1">
             <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.questions_viz', question_id=item.question.id) }}" title="{{ _('Configurar visualização') }}">
               <i class="bi bi-sliders"></i>
@@ -188,6 +210,7 @@
               <i class="bi bi-trash"></i>
             </button>
           </div>
+          {% endif %}
         </div>
         <div class="card-body-inner">
           {% if item.result.error %}
