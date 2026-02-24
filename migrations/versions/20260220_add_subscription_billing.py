@@ -5,7 +5,7 @@ Revises: 20260218_einvoice_alerts_regulation
 Create Date: 2024-02-20 10:00:00.000000
 
 """
-from alembic import op
+from alembic import context, op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
@@ -17,6 +17,11 @@ depends_on = None
 
 
 def upgrade():
+    dialect_name = context.get_context().dialect.name
+    use_sqlite_safe_types = dialect_name == 'sqlite'
+    json_type = sa.JSON() if use_sqlite_safe_types else postgresql.JSONB(astext_type=sa.Text())
+    role_codes_type = sa.JSON() if use_sqlite_safe_types else postgresql.ARRAY(sa.String(50))
+
     # Create subscription_plans table
     op.create_table(
         'subscription_plans',
@@ -34,7 +39,7 @@ def upgrade():
         sa.Column('max_transactions_per_month', sa.Integer(), nullable=False, server_default='100', comment='-1 = illimité'),
         sa.Column('is_active', sa.Boolean(), nullable=False, server_default='true'),
         sa.Column('display_order', sa.Integer(), nullable=False, server_default='0'),
-        sa.Column('features_json', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column('features_json', json_type, nullable=True),
         sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
         sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
         sa.PrimaryKeyConstraint('id'),
@@ -98,7 +103,7 @@ def upgrade():
         sa.Column('tenant_id', sa.Integer(), nullable=False),
         sa.Column('email', sa.String(255), nullable=False),
         sa.Column('token', sa.String(100), nullable=False),
-        sa.Column('role_codes', postgresql.ARRAY(sa.String(50)), nullable=True),
+        sa.Column('role_codes', role_codes_type, nullable=True),
         sa.Column('invited_by_user_id', sa.Integer(), nullable=False),
         sa.Column('status', sa.String(20), nullable=False, server_default='pending'),
         sa.Column('expires_at', sa.DateTime(), nullable=False),
@@ -124,7 +129,7 @@ def upgrade():
         sa.Column('amount', sa.Numeric(10, 2), nullable=True),
         sa.Column('currency', sa.String(3), nullable=True, server_default='EUR'),
         sa.Column('description', sa.Text(), nullable=True),
-        sa.Column('metadata_json', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column('metadata_json', json_type, nullable=True),
         sa.Column('stripe_event_id', sa.String(100), nullable=True),
         sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
         sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ondelete='CASCADE'),

@@ -6,7 +6,7 @@ Create Date: 2026-02-16
 
 """
 
-from alembic import op
+from alembic import context, op
 import sqlalchemy as sa
 from datetime import datetime
 
@@ -85,43 +85,49 @@ def upgrade():
     op.create_index(op.f("ix_finance_statement_imports_account_id"), "finance_statement_imports", ["account_id"], unique=False)
 
     # Add FKs / columns to existing finance tables (batch mode for SQLite compatibility)
-    with op.batch_alter_table("finance_companies") as batch:
-        batch.create_foreign_key(
-            "fk_fin_companies_base_currency",
-            "finance_currencies",
-            ["base_currency"],
-            ["code"],
-        )
+    if context.is_offline_mode():
+        op.add_column("finance_accounts", sa.Column("counterparty_id", sa.Integer(), nullable=True))
+        op.create_index(op.f("ix_finance_accounts_counterparty_id"), "finance_accounts", ["counterparty_id"], unique=False)
+        op.add_column("finance_transactions", sa.Column("counterparty_id", sa.Integer(), nullable=True))
+        op.create_index(op.f("ix_finance_transactions_counterparty_id"), "finance_transactions", ["counterparty_id"], unique=False)
+    else:
+        with op.batch_alter_table("finance_companies") as batch:
+            batch.create_foreign_key(
+                "fk_fin_companies_base_currency",
+                "finance_currencies",
+                ["base_currency"],
+                ["code"],
+            )
 
-    with op.batch_alter_table("finance_accounts") as batch:
-        batch.add_column(sa.Column("counterparty_id", sa.Integer(), nullable=True))
-        batch.create_foreign_key(
-            "fk_fin_accounts_currency",
-            "finance_currencies",
-            ["currency"],
-            ["code"],
-        )
-        batch.create_foreign_key(
-            "fk_fin_accounts_counterparty",
-            "finance_counterparties",
-            ["counterparty_id"],
-            ["id"],
-            ondelete="SET NULL",
-        )
+        with op.batch_alter_table("finance_accounts") as batch:
+            batch.add_column(sa.Column("counterparty_id", sa.Integer(), nullable=True))
+            batch.create_foreign_key(
+                "fk_fin_accounts_currency",
+                "finance_currencies",
+                ["currency"],
+                ["code"],
+            )
+            batch.create_foreign_key(
+                "fk_fin_accounts_counterparty",
+                "finance_counterparties",
+                ["counterparty_id"],
+                ["id"],
+                ondelete="SET NULL",
+            )
 
-    op.create_index(op.f("ix_finance_accounts_counterparty_id"), "finance_accounts", ["counterparty_id"], unique=False)
+        op.create_index(op.f("ix_finance_accounts_counterparty_id"), "finance_accounts", ["counterparty_id"], unique=False)
 
-    with op.batch_alter_table("finance_transactions") as batch:
-        batch.add_column(sa.Column("counterparty_id", sa.Integer(), nullable=True))
-        batch.create_foreign_key(
-            "fk_fin_txns_counterparty",
-            "finance_counterparties",
-            ["counterparty_id"],
-            ["id"],
-            ondelete="SET NULL",
-        )
+        with op.batch_alter_table("finance_transactions") as batch:
+            batch.add_column(sa.Column("counterparty_id", sa.Integer(), nullable=True))
+            batch.create_foreign_key(
+                "fk_fin_txns_counterparty",
+                "finance_counterparties",
+                ["counterparty_id"],
+                ["id"],
+                ondelete="SET NULL",
+            )
 
-    op.create_index(op.f("ix_finance_transactions_counterparty_id"), "finance_transactions", ["counterparty_id"], unique=False)
+        op.create_index(op.f("ix_finance_transactions_counterparty_id"), "finance_transactions", ["counterparty_id"], unique=False)
 
 
 def downgrade():

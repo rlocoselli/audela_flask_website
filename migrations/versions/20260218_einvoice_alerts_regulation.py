@@ -6,7 +6,7 @@ Create Date: 2026-02-18
 
 """
 
-from alembic import op
+from alembic import context, op
 import sqlalchemy as sa
 
 
@@ -18,6 +18,10 @@ depends_on = None
 
 
 def upgrade():
+    has_liabilities_table = True
+    if not context.is_offline_mode():
+        has_liabilities_table = sa.inspect(op.get_bind()).has_table("finance_liabilities")
+
     # --- finance_companies: add optional legal/invoicing fields
     with op.batch_alter_table("finance_companies") as batch:
         batch.add_column(sa.Column("country_code", sa.String(length=2), nullable=True))
@@ -57,9 +61,10 @@ def upgrade():
         batch.add_column(sa.Column("payload_json", sa.JSON(), nullable=True))
 
     # --- finance_liabilities: optional schedule helpers
-    with op.batch_alter_table("finance_liabilities") as batch:
-        batch.add_column(sa.Column("installment_amount", sa.Numeric(18, 2), nullable=True))
-        batch.add_column(sa.Column("next_payment_date", sa.Date(), nullable=True))
+    if has_liabilities_table:
+        with op.batch_alter_table("finance_liabilities") as batch:
+            batch.add_column(sa.Column("installment_amount", sa.Numeric(18, 2), nullable=True))
+            batch.add_column(sa.Column("next_payment_date", sa.Date(), nullable=True))
 
     # --- finance_settings
     op.create_table(
@@ -122,9 +127,13 @@ def downgrade():
     op.drop_table("finance_invoices")
     op.drop_table("finance_settings")
 
-    with op.batch_alter_table("finance_liabilities") as batch:
-        batch.drop_column("next_payment_date")
-        batch.drop_column("installment_amount")
+    has_liabilities_table = True
+    if not context.is_offline_mode():
+        has_liabilities_table = sa.inspect(op.get_bind()).has_table("finance_liabilities")
+    if has_liabilities_table:
+        with op.batch_alter_table("finance_liabilities") as batch:
+            batch.drop_column("next_payment_date")
+            batch.drop_column("installment_amount")
 
     with op.batch_alter_table("finance_statement_imports") as batch:
         batch.drop_column("payload_json")

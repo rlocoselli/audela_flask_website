@@ -6,6 +6,7 @@ Create Date: 2026-02-18 11:38:33.640827
 
 """
 from alembic import op
+from alembic import context
 import sqlalchemy as sa
 
 
@@ -17,10 +18,14 @@ depends_on = None
 
 
 def _has_table(table_name: str) -> bool:
+    if context.is_offline_mode():
+        return True
     return sa.inspect(op.get_bind()).has_table(table_name)
 
 
 def _has_index(table_name: str, index_name: str) -> bool:
+    if context.is_offline_mode():
+        return False
     indexes = sa.inspect(op.get_bind()).get_indexes(table_name)
     return any(index.get("name") == index_name for index in indexes)
 

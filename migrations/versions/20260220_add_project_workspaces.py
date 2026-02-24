@@ -5,7 +5,7 @@ Revises: 20260220_add_subscription_billing
 Create Date: 2026-02-20 17:30:00.000000
 
 """
-from alembic import op
+from alembic import context, op
 import sqlalchemy as sa
 from sqlalchemy.exc import ProgrammingError
 
@@ -18,10 +18,13 @@ depends_on = None
 
 
 def upgrade():
-    bind = op.get_bind()
-    inspector = sa.inspect(bind)
+    has_table = False
+    if not context.is_offline_mode():
+        bind = op.get_bind()
+        inspector = sa.inspect(bind)
+        has_table = inspector.has_table('project_workspaces')
 
-    if not inspector.has_table('project_workspaces'):
+    if not has_table:
         try:
             op.create_table(
                 'project_workspaces',
