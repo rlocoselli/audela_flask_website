@@ -79,7 +79,7 @@
                     {% if c.default_gl_account %}{{ c.default_gl_account.code }}{% endif %}
                   </td>
                   <td class="text-end">
-                    <form method="post" action="{{ url_for('finance.category_delete', category_id=c.id) }}" onsubmit="return confirm('{{ _('Remover categoria?') }}')">
+                    <form method="post" action="{{ url_for('finance.category_delete', category_id=c.id) }}" class="js-confirm-form" data-confirm-message="{{ _('Remover categoria?') }}">
                       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
                       <button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
                     </form>
@@ -95,11 +95,50 @@
 
   <div class="col-12 col-lg-7">
     <div class="card">
-      <div class="card-header fw-semibold">{{ _('Regras de mapeamento automático') }}</div>
+      <div class="card-header d-flex align-items-center justify-content-between gap-2 flex-wrap">
+        <span class="fw-semibold">{{ _('Regras de mapeamento automático') }}</span>
+        <form method="post" action="{{ url_for('finance.rules_apply_uncategorized') }}" id="applyRulesForm" class="js-confirm-form" data-confirm-message="{{ _('Appliquer les règles de mapping sur toutes les transactions non catégorisées ?') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <button class="btn btn-outline-primary btn-sm" id="applyRulesBtn" type="submit">
+            <span class="spinner-border spinner-border-sm me-1 d-none" id="applyRulesSpinner" role="status" aria-hidden="true"></span>
+            <i class="bi bi-play-circle me-1" id="applyRulesIcon"></i>{{ _('Exécuter sur non catégorisées') }}
+          </button>
+        </form>
+      </div>
       <div class="card-body">
         <p class="text-secondary small mb-3">
           {{ _('As regras são avaliadas por prioridade (menor primeiro). Se “palavras‑chave” aparece na descrição, a transação recebe a categoria. Você pode restringir por direção, contraparte e faixa de valor.') }}
         </p>
+
+        <form method="post" action="{{ url_for('finance.rules_recategorize_period') }}" id="recategorizePeriodForm" class="border rounded p-3 mb-3 js-confirm-form" data-confirm-message="{{ _('Recatégoriser les transactions sur la période sélectionnée ?') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <div class="row g-2 align-items-end">
+            <div class="col-12 col-md-4">
+              <label class="form-label">{{ _('Horizon de période') }}</label>
+              <select class="form-select" name="horizon" id="recatHorizon">
+                <option value="30d">{{ _('30 derniers jours') }}</option>
+                <option value="90d" selected>{{ _('90 derniers jours') }}</option>
+                <option value="180d">{{ _('180 derniers jours') }}</option>
+                <option value="365d">{{ _('365 derniers jours') }}</option>
+                <option value="custom">{{ _('Personnalisé') }}</option>
+              </select>
+            </div>
+            <div class="col-6 col-md-3 d-none" id="recatStartWrap">
+              <label class="form-label">{{ _('De') }}</label>
+              <input type="date" class="form-control" name="start_date" id="recatStartDate" />
+            </div>
+            <div class="col-6 col-md-3 d-none" id="recatEndWrap">
+              <label class="form-label">{{ _('À') }}</label>
+              <input type="date" class="form-control" name="end_date" id="recatEndDate" />
+            </div>
+            <div class="col-12 col-md-2">
+              <button class="btn btn-outline-secondary w-100" id="recatPeriodBtn" type="submit">
+                <span class="spinner-border spinner-border-sm me-1 d-none" id="recatPeriodSpinner" role="status" aria-hidden="true"></span>
+                <i class="bi bi-arrow-repeat me-1" id="recatPeriodIcon"></i>{{ _('Recatégoriser') }}
+              </button>
+            </div>
+          </div>
+        </form>
 
         <form method="post" action="{{ url_for('finance.rule_create') }}" class="border rounded p-3 mb-3">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
@@ -169,10 +208,17 @@
                   <td class="text-secondary small">{{ r.priority }}</td>
                   <td class="fw-semibold">{{ r.category.name if r.category else '' }}</td>
                   <td class="text-secondary small">{{ r.direction }}</td>
-                  <td class="text-secondary small">{{ r.counterparty.name if r.counterparty else '' }}</td>
+                  <td class="text-secondary small">
+                    {% if r.counterparty %}
+                      <span class="badge text-bg-light border">{{ _('Liée') }}</span>
+                      <span class="ms-1">{{ r.counterparty.name }}</span>
+                    {% else %}
+                      <span class="text-secondary">—</span>
+                    {% endif %}
+                  </td>
                   <td class="text-secondary small">{{ r.keywords or '' }}</td>
                   <td class="text-end">
-                    <form method="post" action="{{ url_for('finance.rule_delete', rule_id=r.id) }}" onsubmit="return confirm('{{ _('Remover regra?') }}')">
+                    <form method="post" action="{{ url_for('finance.rule_delete', rule_id=r.id) }}" class="js-confirm-form" data-confirm-message="{{ _('Remover regra?') }}">
                       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
                       <button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
                     </form>
@@ -186,4 +232,110 @@
     </div>
   </div>
 </div>
+
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script>
+    window.onReady(function(){
+      const form = document.getElementById('applyRulesForm');
+      const btn = document.getElementById('applyRulesBtn');
+      const spinner = document.getElementById('applyRulesSpinner');
+      const icon = document.getElementById('applyRulesIcon');
+      const recatForm = document.getElementById('recategorizePeriodForm');
+      const recatBtn = document.getElementById('recatPeriodBtn');
+      const recatSpinner = document.getElementById('recatPeriodSpinner');
+      const recatIcon = document.getElementById('recatPeriodIcon');
+      const horizon = document.getElementById('recatHorizon');
+      const startWrap = document.getElementById('recatStartWrap');
+      const endWrap = document.getElementById('recatEndWrap');
+      const startInput = document.getElementById('recatStartDate');
+      const endInput = document.getElementById('recatEndDate');
+      const confirmModalEl = document.getElementById('financeConfirmModal');
+      const confirmMessageEl = document.getElementById('financeConfirmMessage');
+      const confirmBtn = document.getElementById('financeConfirmActionBtn');
+      const confirmModal = (confirmModalEl && window.bootstrap) ? new window.bootstrap.Modal(confirmModalEl) : null;
+      let pendingSubmit = null;
+
+      function askConfirmation(message, onConfirm) {
+        if (!confirmModal || !confirmBtn || !confirmMessageEl) {
+          onConfirm();
+          return;
+        }
+        pendingSubmit = onConfirm;
+        confirmMessageEl.textContent = message || window.t('Confirmer ?');
+        confirmModal.show();
+      }
+
+      if (confirmBtn) {
+        confirmBtn.addEventListener('click', function(){
+          if (pendingSubmit) pendingSubmit();
+          pendingSubmit = null;
+          if (confirmModal) confirmModal.hide();
+        });
+      }
+
+      if (form && btn) {
+        form.addEventListener('submit', function(e){
+          if (form.dataset.confirmed === '1') return;
+          e.preventDefault();
+          askConfirmation(form.dataset.confirmMessage, function(){
+            form.dataset.confirmed = '1';
+            btn.setAttribute('disabled', 'disabled');
+            if (spinner) spinner.classList.remove('d-none');
+            if (icon) icon.classList.add('d-none');
+            form.submit();
+          });
+        });
+      }
+
+      function toggleCustomDates(){
+        const custom = horizon && horizon.value === 'custom';
+        if (startWrap) startWrap.classList.toggle('d-none', !custom);
+        if (endWrap) endWrap.classList.toggle('d-none', !custom);
+        if (startInput) startInput.required = !!custom;
+        if (endInput) endInput.required = !!custom;
+      }
+
+      if (horizon) {
+        horizon.addEventListener('change', toggleCustomDates);
+        toggleCustomDates();
+      }
+
+      if (recatForm && recatBtn) {
+        recatForm.addEventListener('submit', function(e){
+          if (recatForm.dataset.confirmed === '1') return;
+          e.preventDefault();
+          askConfirmation(recatForm.dataset.confirmMessage, function(){
+            recatForm.dataset.confirmed = '1';
+            recatBtn.setAttribute('disabled', 'disabled');
+            if (recatSpinner) recatSpinner.classList.remove('d-none');
+            if (recatIcon) recatIcon.classList.add('d-none');
+            recatForm.submit();
+          });
+        });
+      }
+
+      document.querySelectorAll('form.js-confirm-form').forEach(function(confirmForm){
+        if (confirmForm.id === 'applyRulesForm' || confirmForm.id === 'recategorizePeriodForm') {
+          return;
+        }
+        confirmForm.addEventListener('submit', function(e){
+          if (confirmForm.dataset.confirmed === '1') return;
+          e.preventDefault();
+          askConfirmation(confirmForm.dataset.confirmMessage, function(){
+            confirmForm.dataset.confirmed = '1';
+            confirmForm.submit();
+          });
+        });
+      });
+
+      if (confirmModalEl) {
+        confirmModalEl.addEventListener('hidden.bs.modal', function(){
+          pendingSubmit = null;
+        });
+      }
+    });
+  </script>
 {% endblock %}

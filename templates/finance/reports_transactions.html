@@ -111,7 +111,10 @@
     <div class="col-12 col-lg-6">
       <div class="card">
         <div class="card-body">
-          <div class="fw-semibold mb-2">{{ _('Por contraparte') }}</div>
+          <div class="fw-semibold mb-2 d-flex justify-content-between align-items-center">
+            <span>{{ _('Por contraparte') }}</span>
+            <span class="small text-secondary">{{ cp_total }} {{ _('itens') }}</span>
+          </div>
           {% if by_counterparty %}
             <div class="table-responsive">
               <table class="table table-sm align-middle">
@@ -131,6 +134,27 @@
                 </tbody>
               </table>
             </div>
+            {% if cp_pages > 1 %}
+              <nav aria-label="Counterparty pages">
+                <ul class="pagination pagination-sm mb-0 justify-content-end">
+                  <li class="page-item {% if cp_page <= 1 %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('finance.reports_transactions', view=view, year=year, month=month, cp_page=cp_page-1, cp_per_page=cp_per_page) }}">{{ _('Anterior') }}</a>
+                  </li>
+                  {% for p in range(1, cp_pages + 1) %}
+                    {% if p == 1 or p == cp_pages or (p >= cp_page - 2 and p <= cp_page + 2) %}
+                      <li class="page-item {% if p == cp_page %}active{% endif %}">
+                        <a class="page-link" href="{{ url_for('finance.reports_transactions', view=view, year=year, month=month, cp_page=p, cp_per_page=cp_per_page) }}">{{ p }}</a>
+                      </li>
+                    {% elif p == cp_page - 3 or p == cp_page + 3 %}
+                      <li class="page-item disabled"><span class="page-link">…</span></li>
+                    {% endif %}
+                  {% endfor %}
+                  <li class="page-item {% if cp_page >= cp_pages %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('finance.reports_transactions', view=view, year=year, month=month, cp_page=cp_page+1, cp_per_page=cp_per_page) }}">{{ _('Próxima') }}</a>
+                  </li>
+                </ul>
+              </nav>
+            {% endif %}
           {% else %}
             <div class="text-secondary">{{ _('Sem transações neste período.') }}</div>
           {% endif %}

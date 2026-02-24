@@ -52,30 +52,15 @@
       </div>
 
       <div class="card mt-3">
-        <div class="card-header fw-semibold">{{ _('Importar transações (CSV)') }}</div>
+        <div class="card-header fw-semibold">{{ _('Importar transações (CSV/PDF)') }}</div>
         <div class="card-body">
-          <form method="post" action="{{ url_for('finance.transactions_import') }}" enctype="multipart/form-data">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-            <input type="hidden" name="account_id" value="{{ account.id }}" />
-            <div class="mb-2">
-              <input class="form-control" type="file" name="file" accept=".csv,text/csv" required />
-              <div class="form-text">{{ _('Colunas: date, amount, description, category, counterparty, reference') }}</div>
-            </div>
-            <button class="btn btn-outline-primary btn-sm">{{ _('Importar') }}</button>
-          </form>
-        </div>
-      </div>
-    </div>
-
-      <div class="card mt-3">
-        <div class="card-header fw-semibold">{{ _('Importar extrato bancário (PDF)') }}</div>
-        <div class="card-body">
-          <div class="text-secondary small mb-2">{{ _('Envie um PDF de extrato e deixe o sistema extrair transações automaticamente.') }}</div>
+          <div class="text-secondary small mb-2">{{ _('Configure o mapping de colunas para CSV ou importe PDF via OpenAI.') }}</div>
           <a class="btn btn-outline-primary btn-sm" href="{{ url_for('finance.statement_import', account_id=account.id) }}">
-            <i class="bi bi-file-earmark-arrow-up me-1"></i>{{ _('Importar PDF') }}
+            <i class="bi bi-file-earmark-arrow-up me-1"></i>{{ _('Abrir importador') }}
           </a>
         </div>
       </div>
+    </div>
 
 
     <div class="col-12 col-lg-8">
@@ -104,7 +89,7 @@
                     <td class="text-end">{{ t.amount }}</td>
                     <td class="text-end">
                       <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('finance.transaction_edit', txn_id=t.id, next=request.full_path) }}">{{ _('Editar') }}</a>
-                      <form method="post" class="d-inline" action="{{ url_for('finance.transaction_delete', txn_id=t.id) }}" onsubmit="return confirm('{{ _('Remover esta transação?') }}');">
+                      <form method="post" class="d-inline js-confirm-form" action="{{ url_for('finance.transaction_delete', txn_id=t.id) }}" data-confirm-message="{{ _('Remover esta transação?') }}">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
                         <input type="hidden" name="next" value="{{ request.full_path }}" />
                         <button class="btn btn-sm btn-outline-danger">{{ _('Remover') }}</button>
@@ -117,6 +102,30 @@
               </tbody>
             </table>
           </div>
+
+          {% if pagination %}
+          <div class="p-3 border-top d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2">
+            <div class="small text-secondary">
+              {{ _('Página') }} {{ pagination.page }} / {{ pagination.pages or 1 }} · {{ _('Total') }}: {{ pagination.total }}
+            </div>
+            <nav aria-label="Transactions pagination">
+              <ul class="pagination pagination-sm mb-0">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                  <a class="page-link" href="{{ url_for('finance.account_view', account_id=account.id, page=1, per_page=per_page) }}">{{ _('Primeira') }}</a>
+                </li>
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                  <a class="page-link" href="{{ url_for('finance.account_view', account_id=account.id, page=pagination.prev_num, per_page=per_page) }}">{{ _('Anterior') }}</a>
+                </li>
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                  <a class="page-link" href="{{ url_for('finance.account_view', account_id=account.id, page=pagination.next_num, per_page=per_page) }}">{{ _('Próxima') }}</a>
+                </li>
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                  <a class="page-link" href="{{ url_for('finance.account_view', account_id=account.id, page=pagination.pages or 1, per_page=per_page) }}">{{ _('Última') }}</a>
+                </li>
+              </ul>
+            </nav>
+          </div>
+          {% endif %}
         </div>
       </div>
     </div>

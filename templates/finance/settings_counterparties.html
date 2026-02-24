@@ -30,7 +30,7 @@
                     <td>{{ cp.name }}</td>
                     <td class="text-secondary">{{ cp.kind or '' }}</td>
                     <td class="text-end">
-                      <form method="post" action="{{ url_for('finance.settings_counterparty_delete', cp_id=cp.id) }}" onsubmit="return confirm('{{ _('Remover esta contraparte?') }}');">
+                      <form method="post" action="{{ url_for('finance.settings_counterparty_delete', cp_id=cp.id) }}" class="js-confirm-form" data-confirm-message="{{ _('Remover esta contraparte?') }}">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
                         <button class="btn btn-outline-danger btn-sm">{{ _('Remover') }}</button>
                       </form>

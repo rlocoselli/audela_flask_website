@@ -122,7 +122,7 @@
       </form>
 
       {% if account %}
-        <form class="mt-3" method="post" action="{{ url_for('finance.account_delete', account_id=account.id) }}" onsubmit="return confirm('{{ _('Remover esta conta?') }}');">
+        <form class="mt-3 js-confirm-form" method="post" action="{{ url_for('finance.account_delete', account_id=account.id) }}" data-confirm-message="{{ _('Remover esta conta?') }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
           <button class="btn btn-outline-danger">{{ _('Remover') }}</button>
         </form>

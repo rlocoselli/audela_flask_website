@@ -5,6 +5,7 @@ import time
 import uuid
 import os
 import random
+from collections import defaultdict
 from datetime import date, datetime, timedelta
 from io import BytesIO
 from decimal import Decimal
@@ -14,7 +15,7 @@ from flask import abort, flash, g, redirect, render_template, request, session, 
 from flask_login import current_user, login_required
 from werkzeug.utils import secure_filename
 from sqlalchemy.orm import joinedload
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.exc import SQLAlchemyError
 
 from ...extensions import db
@@ -52,6 +53,8 @@ from ...services.finance_service import (
     compute_nii,
     compute_starting_cash,
     parse_transactions_csv,
+    parse_transactions_csv_mapped,
+    normalize_counterparty_label,
     # Legacy: kept for compatibility, but PDF imports now use audela.services.bank_statement
     parse_bank_statement_pdf_local,
     parse_bank_statement_pdf_via_api,
@@ -493,9 +496,24 @@ def _is_descendant_gl_account(candidate_parent_id: int, node_id: int, company: F
     return False
 
 
-def apply_category_rules(company: FinanceCompany, *, description: str, counterparty_id: int | None, amount: float) -> int | None:
+def apply_category_rules(
+    company: FinanceCompany,
+    *,
+    description: str,
+    counterparty_id: int | None,
+    amount: float,
+    counterparty_name: str | None = None,
+) -> int | None:
     direction = "inflow" if amount > 0 else "outflow" if amount < 0 else "any"
     desc_l = (description or "").lower()
+    counterparty_name_l = (counterparty_name or "").strip().lower()
+    cp_name_by_id: dict[int, str] = {}
+    if counterparty_name_l:
+        cp_name_by_id = {
+            int(cp.id): (cp.name or "").strip().lower()
+            for cp in get_counterparties(company)
+            if cp.id and (cp.name or "").strip()
+        }
     rules = (
         FinanceCategoryRule.query
         .filter_by(tenant_id=g.tenant.id, company_id=company.id)
@@ -505,8 +523,15 @@ def apply_category_rules(company: FinanceCompany, *, description: str, counterpa
     for r in rules:
         if r.direction and r.direction != "any" and r.direction != direction:
             continue
-        if r.counterparty_id and counterparty_id and r.counterparty_id != counterparty_id:
-            continue
+        if r.counterparty_id:
+            if counterparty_id:
+                if r.counterparty_id != counterparty_id:
+                    continue
+            elif counterparty_name_l:
+                if cp_name_by_id.get(int(r.counterparty_id)) != counterparty_name_l:
+                    continue
+            else:
+                continue
         if r.min_amount is not None and abs(amount) < float(r.min_amount):
             continue
         if r.max_amount is not None and abs(amount) > float(r.max_amount):
@@ -881,13 +906,25 @@ def account_new():
 def account_view(account_id: int):
     company = _get_company()
     acc = FinanceAccount.query.filter_by(id=account_id, tenant_id=g.tenant.id, company_id=company.id).first_or_404()
-    txns = (
-        FinanceTransaction.query.filter_by(tenant_id=g.tenant.id, company_id=company.id, account_id=acc.id)
-        .order_by(FinanceTransaction.txn_date.desc())
-        .limit(200)
-        .all()
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 25, type=int)
+    per_page = min(max(per_page, 10), 200)
+
+    pagination = (
+        FinanceTransaction.query
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id, account_id=acc.id)
+        .order_by(FinanceTransaction.txn_date.desc(), FinanceTransaction.id.desc())
+        .paginate(page=page, per_page=per_page, error_out=False)
     )
-    return render_template("finance/account_view.html", tenant=g.tenant, company=company, account=acc, txns=txns)
+    return render_template(
+        "finance/account_view.html",
+        tenant=g.tenant,
+        company=company,
+        account=acc,
+        txns=pagination.items,
+        pagination=pagination,
+        per_page=per_page,
+    )
 
 
 @bp.route("/accounts/<int:account_id>/edit", methods=["GET", "POST"])
@@ -1471,9 +1508,19 @@ def counterparty_delete(cp_id: int):
 def statement_import(account_id: int):
     company = _get_company()
     acc = FinanceAccount.query.filter_by(id=account_id, tenant_id=g.tenant.id, company_id=company.id).first_or_404()
+    csv_setting_key = f"csv_import_mapping_account_{acc.id}"
+    csv_mapping_preset = {}
+    csv_setting = FinanceSetting.query.filter_by(
+        tenant_id=g.tenant.id,
+        company_id=company.id,
+        key=csv_setting_key,
+    ).first()
+    if csv_setting and isinstance(csv_setting.value_json, dict):
+        csv_mapping_preset = csv_setting.value_json
 
     if request.method == "POST":
-        provider = (request.form.get("provider") or "auto").strip()
+        import_mode = (request.form.get("import_mode") or "pdf").strip().lower()
+        provider = "openai"
         bank = (request.form.get("bank") or "auto").strip().lower()
         bank_hint = None if bank in ("", "auto", "detect") else bank
 
@@ -1482,17 +1529,65 @@ def statement_import(account_id: int):
             flash(_("Selecione um arquivo."), "error")
             return redirect(url_for("finance.statement_import", account_id=acc.id))
 
-        filename = secure_filename(f.filename or "statement.pdf")
-        pdf_bytes = f.read() or b""
-        if not pdf_bytes:
+        filename = secure_filename(f.filename or ("transactions.csv" if import_mode == "csv" else "statement.pdf"))
+        file_bytes = f.read() or b""
+        if not file_bytes:
             flash(_("Falha ao ler arquivo."), "error")
             return redirect(url_for("finance.statement_import", account_id=acc.id))
 
         rows: list[dict] = []
-        payload: dict = {"provider": provider, "bank_hint": bank_hint or "auto"}
+        payload: dict = {"provider": provider, "bank_hint": bank_hint or "auto", "import_mode": import_mode}
 
-        # OpenAI Structured Outputs parsing (optional)
-        if provider == "openai":
+        if import_mode == "csv":
+            csv_delimiter = (request.form.get("csv_delimiter") or "auto").strip().lower()
+            csv_date_format = (request.form.get("csv_date_format") or "auto").strip().lower()
+            save_csv_mapping = (request.form.get("save_csv_mapping") or "").strip() in ("1", "true", "on", "yes")
+            mapping = {
+                "date": (request.form.get("map_date") or "").strip(),
+                "amount": (request.form.get("map_amount") or "").strip(),
+                "description": (request.form.get("map_description") or "").strip(),
+                "category": (request.form.get("map_category") or "").strip(),
+                "counterparty": (request.form.get("map_counterparty") or "").strip(),
+                "reference": (request.form.get("map_reference") or "").strip(),
+            }
+            if not mapping["date"] or not mapping["amount"]:
+                flash(_("Mapeie ao menos as colunas de data e valor."), "error")
+                return redirect(url_for("finance.statement_import", account_id=acc.id))
+            try:
+                text = file_bytes.decode("utf-8")
+            except UnicodeDecodeError:
+                text = file_bytes.decode("latin-1", errors="ignore")
+            rows = parse_transactions_csv_mapped(
+                text,
+                mapping,
+                delimiter=csv_delimiter,
+                date_format=csv_date_format,
+            )
+            payload["csv_mapping"] = mapping
+            payload["csv_delimiter"] = csv_delimiter
+            payload["csv_date_format"] = csv_date_format
+            payload["provider"] = "csv"
+            provider = "csv"
+
+            if save_csv_mapping:
+                preset_payload = {
+                    "mapping": mapping,
+                    "delimiter": csv_delimiter,
+                    "date_format": csv_date_format,
+                }
+                if not csv_setting:
+                    csv_setting = FinanceSetting(
+                        tenant_id=g.tenant.id,
+                        company_id=company.id,
+                        key=csv_setting_key,
+                        value_json=preset_payload,
+                    )
+                    db.session.add(csv_setting)
+                else:
+                    csv_setting.value_json = preset_payload
+                db.session.commit()
+        else:
+            pdf_bytes = file_bytes
             gv_key = (current_app.config.get("GOOGLE_VISION_API_KEY") or "").strip() or None
             try:
                 bank_detected, parsed_rows, meta = parse_bank_statement_pdf_via_openai(
@@ -1525,60 +1620,6 @@ def statement_import(account_id: int):
                     msg = msg[:260] + "…"
                 flash(_("Falha ao importar via OpenAI: {msg}", msg=msg), "error")
                 return redirect(url_for("finance.statement_import", account_id=acc.id))
-
-        # External parsing API (optional)
-        if provider == "api":
-            endpoint = (current_app.config.get("STATEMENT_PARSER_ENDPOINT") or "").strip()
-            api_key = (current_app.config.get("STATEMENT_PARSER_API_KEY") or "").strip() or None
-            payload["endpoint"] = endpoint
-            if endpoint:
-                try:
-                    rows = parse_bank_statement_pdf_via_api(pdf_bytes, filename=filename, endpoint=endpoint, api_key=api_key)
-                except Exception as e:
-                    payload["api_error"] = str(e)[:250]
-                    rows = []
-            # fallback to smart local flow
-            if not rows:
-                provider = "auto"
-                payload["fallback"] = "auto"
-
-        # Smart local import flow (with OCR fallbacks if configured)
-        if not rows:
-            mindee_key = (current_app.config.get("MINDEE_API_KEY") or "").strip() or None
-            gv_key = (current_app.config.get("GOOGLE_VISION_API_KEY") or "").strip() or None
-
-            prefer = provider if provider in ("local", "mindee", "google", "tesseract") else "local"
-            if provider == "auto":
-                prefer = "local"
-
-            bank_detected, parsed, meta = import_bank_statement(
-                pdf_bytes,
-                prefer=prefer,
-                default_currency=(acc.currency or company.base_currency or "EUR"),
-                bank_hint=bank_hint,
-                mindee_api_key=mindee_key,
-                google_vision_api_key=gv_key,
-                max_pages=10,
-            )
-            payload["meta"] = meta
-            payload["bank_detected"] = bank_detected
-            for p in parsed:
-                ref = None
-                if p.raw and isinstance(p.raw, dict):
-                    ref = p.raw.get("id") or p.raw.get("transaction_id") or p.raw.get("reference")
-                rows.append(
-                    {
-                        "txn_date": p.date,
-                        "amount": float(p.amount),
-                        "description": p.description,
-                        "category": None,
-                        "counterparty": p.counterparty,
-                        "currency": p.currency,
-                        "reference": ref,
-                        "balance": p.balance,
-                        "raw": p.raw,
-                    }
-                )
 
         if not rows:
             flash(_("Nenhuma linha válida encontrada."), "error")
@@ -1646,6 +1687,7 @@ def statement_import(account_id: int):
                     description=r.get("description") or "",
                     counterparty_id=cp_obj.id if cp_obj else None,
                     amount=float(r["amount"]),
+                    counterparty_name=cp_name,
                 )
                 if cat_id:
                     cat_obj = FinanceCategory.query.filter_by(id=cat_id, tenant_id=g.tenant.id, company_id=company.id).first()
@@ -1699,6 +1741,7 @@ def statement_import(account_id: int):
         tenant=g.tenant,
         company=company,
         account=acc,
+        csv_mapping_preset=csv_mapping_preset,
     )
 
 
@@ -1958,10 +2001,23 @@ def pivot_data():
 def risk():
     company = _get_company()
     accounts = _q_accounts(company).all()
+    horizon_raw = (request.args.get("horizon") or "90").strip()
+    if horizon_raw not in {"30", "90", "180", "365", "0"}:
+        horizon_raw = "90"
+    horizon_days = int(horizon_raw)
+
+    transactions_q = (
+        FinanceTransaction.query
+        .options(joinedload(FinanceTransaction.account), joinedload(FinanceTransaction.counterparty_ref))
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+    )
+    if horizon_days > 0:
+        transactions_q = transactions_q.filter(FinanceTransaction.txn_date >= (date.today() - timedelta(days=horizon_days)))
+    transactions = transactions_q.all()
     liabilities = FinanceLiability.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).all()
     
     # Use new robust risk metrics (LCR, NSFR, concentration)
-    res = compute_risk_metrics(accounts, liabilities=liabilities)
+    res = compute_risk_metrics(accounts, transactions=transactions, liabilities=liabilities)
 
     # Convert all Decimal values to float for Jinja2 template compatibility
     def convert_decimals(obj):
@@ -1985,6 +2041,7 @@ def risk():
         company=company,
         res=res,
         ccy_chart=ccy_chart,
+        horizon_days=horizon_days,
     )
 
 
@@ -2034,6 +2091,48 @@ def settings_categories():
     gl_accounts = get_postable_gl_accounts(company)
     counterparties = get_counterparties(company)
 
+    cp_chart_horizon = (request.args.get("cp_chart_horizon") or "90d").strip().lower()
+    cp_start_date = date.today() - timedelta(days=90)
+    cp_end_date = date.today()
+    if cp_chart_horizon in ("30d", "90d", "180d", "365d"):
+        cp_start_date = date.today() - timedelta(days=int(cp_chart_horizon.replace("d", "")))
+    elif cp_chart_horizon == "custom":
+        try:
+            raw_start = (request.args.get("cp_start_date") or "").strip()
+            raw_end = (request.args.get("cp_end_date") or "").strip()
+            cp_start_date = datetime.strptime(raw_start, "%Y-%m-%d").date()
+            cp_end_date = datetime.strptime(raw_end, "%Y-%m-%d").date()
+            if cp_start_date > cp_end_date:
+                raise ValueError("invalid range")
+        except Exception:
+            cp_start_date = date.today() - timedelta(days=90)
+            cp_end_date = date.today()
+            cp_chart_horizon = "90d"
+
+    txns = (
+        FinanceTransaction.query
+        .options(joinedload(FinanceTransaction.counterparty_ref))
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+        .filter(FinanceTransaction.txn_date >= cp_start_date)
+        .filter(FinanceTransaction.txn_date <= cp_end_date)
+        .filter(FinanceTransaction.amount < 0)
+        .all()
+    )
+
+    cp_totals = defaultdict(float)
+    for t in txns:
+        cp_name = (
+            (t.counterparty_ref.name if getattr(t, "counterparty_ref", None) else None)
+            or (t.counterparty or "")
+            or str(_("Sem contraparte"))
+        )
+        cp_totals[cp_name] += abs(float(t.amount or 0))
+
+    cp_debit_chart = [
+        {"name": name, "value": round(total, 2)}
+        for name, total in sorted(cp_totals.items(), key=lambda x: x[1], reverse=True)[:12]
+    ]
+
     return render_template(
         "finance/settings_categories.html",
         tenant=g.tenant,
@@ -2042,6 +2141,10 @@ def settings_categories():
         rules=rules,
         gl_accounts=gl_accounts,
         counterparties=counterparties,
+        cp_debit_chart=cp_debit_chart,
+        cp_chart_horizon=cp_chart_horizon,
+        cp_start_date=cp_start_date,
+        cp_end_date=cp_end_date,
     )
 
 
@@ -2101,6 +2204,132 @@ def rule_delete(rule_id: int):
     db.session.delete(rule)
     db.session.commit()
     flash(_("Regra removida."), "success")
+    return redirect(url_for("finance.settings_categories"))
+
+
+@bp.route("/settings/rules/apply-uncategorized", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def rules_apply_uncategorized():
+    company = _get_company()
+
+    txns = (
+        FinanceTransaction.query
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+        .filter(
+            or_(
+                FinanceTransaction.category_id.is_(None),
+                FinanceTransaction.category_id == 0,
+            )
+        )
+        .all()
+    )
+
+    updated = 0
+    scanned = 0
+    for txn in txns:
+        scanned += 1
+        cat_id = apply_category_rules(
+            company,
+            description=txn.description or "",
+            counterparty_id=txn.counterparty_id,
+            amount=float(txn.amount or 0),
+            counterparty_name=txn.counterparty,
+        )
+        if not cat_id:
+            continue
+        cat_obj = FinanceCategory.query.filter_by(
+            id=cat_id,
+            tenant_id=g.tenant.id,
+            company_id=company.id,
+        ).first()
+        if not cat_obj:
+            continue
+
+        txn.category_id = cat_obj.id
+        txn.category = cat_obj.name
+        txn.gl_account_id = cat_obj.default_gl_account_id if cat_obj.default_gl_account_id else txn.gl_account_id
+        updated += 1
+
+    if updated:
+        db.session.commit()
+
+    flash(
+        _("Règles appliquées: {updated} transaction(s) catégorisée(s) sur {scanned} analysée(s).", updated=updated, scanned=scanned),
+        "success" if updated else "info",
+    )
+    return redirect(url_for("finance.settings_categories"))
+
+
+@bp.route("/settings/rules/recategorize-period", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def rules_recategorize_period():
+    company = _get_company()
+
+    horizon = (request.form.get("horizon") or "90d").strip().lower()
+    today = date.today()
+    end_date = today
+    start_date = today - timedelta(days=90)
+
+    if horizon in ("30d", "90d", "180d", "365d"):
+        days = int(horizon.replace("d", ""))
+        start_date = today - timedelta(days=days)
+    elif horizon == "custom":
+        raw_start = (request.form.get("start_date") or "").strip()
+        raw_end = (request.form.get("end_date") or "").strip()
+        try:
+            start_date = datetime.strptime(raw_start, "%Y-%m-%d").date()
+            end_date = datetime.strptime(raw_end, "%Y-%m-%d").date()
+        except Exception:
+            flash(_("Période invalide."), "error")
+            return redirect(url_for("finance.settings_categories"))
+        if start_date > end_date:
+            flash(_("Période invalide."), "error")
+            return redirect(url_for("finance.settings_categories"))
+
+    txns = (
+        FinanceTransaction.query
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+        .filter(FinanceTransaction.txn_date >= start_date)
+        .filter(FinanceTransaction.txn_date <= end_date)
+        .all()
+    )
+
+    updated = 0
+    scanned = 0
+    for txn in txns:
+        scanned += 1
+        cat_id = apply_category_rules(
+            company,
+            description=txn.description or "",
+            counterparty_id=txn.counterparty_id,
+            amount=float(txn.amount or 0),
+            counterparty_name=txn.counterparty,
+        )
+        if not cat_id:
+            continue
+        if txn.category_id == cat_id:
+            continue
+        cat_obj = FinanceCategory.query.filter_by(
+            id=cat_id,
+            tenant_id=g.tenant.id,
+            company_id=company.id,
+        ).first()
+        if not cat_obj:
+            continue
+        txn.category_id = cat_obj.id
+        txn.category = cat_obj.name
+        txn.gl_account_id = cat_obj.default_gl_account_id if cat_obj.default_gl_account_id else txn.gl_account_id
+        updated += 1
+
+    if updated:
+        db.session.commit()
+
+    flash(
+        _("Recatégorisation exécutée: {updated} transaction(s) mise(s) à jour sur {scanned} analysée(s).", updated=updated, scanned=scanned),
+        "success" if updated else "info",
+    )
     return redirect(url_for("finance.settings_categories"))
 
 
@@ -2638,6 +2867,9 @@ def reports_transactions():
     except Exception:
         month = today.month
     month = max(1, min(12, month))
+    cp_page = request.args.get("cp_page", type=int) or 1
+    cp_per_page = request.args.get("cp_per_page", type=int) or 20
+    cp_per_page = max(10, min(100, cp_per_page))
 
     start, end, label = _date_range_from_view(view, year, month)
     base_cur = company.base_currency or "EUR"
@@ -2666,7 +2898,8 @@ def reports_transactions():
             outflow += abs(amt)
 
         cat_name = (t.category_ref.name if getattr(t, "category_ref", None) else None) or (t.category or "Sem categoria")
-        cp_name = (t.counterparty_ref.name if getattr(t, "counterparty_ref", None) else None) or (t.counterparty or "—")
+        cp_name_raw = (t.counterparty_ref.name if getattr(t, "counterparty_ref", None) else None) or (t.counterparty or t.description or "—")
+        cp_name = normalize_counterparty_label(cp_name_raw)
         by_cat[cat_name] = by_cat.get(cat_name, Decimal("0")) + amt
         by_cp[cp_name] = by_cp.get(cp_name, Decimal("0")) + amt
 
@@ -2688,6 +2921,17 @@ def reports_transactions():
             }
         )
 
+    cp_items = sorted(by_cp.items(), key=lambda kv: abs(kv[1]), reverse=True)
+    cp_total = len(cp_items)
+    cp_pages = max(1, ((cp_total - 1) // cp_per_page) + 1) if cp_total else 1
+    cp_page = max(1, min(cp_page, cp_pages))
+    cp_start = (cp_page - 1) * cp_per_page
+    cp_end = cp_start + cp_per_page
+    by_counterparty_rows = [
+        {"name": k, "net": v, "net_fmt": _fmt_money(v, base_cur)}
+        for k, v in cp_items[cp_start:cp_end]
+    ]
+
     years = list(range(today.year - 5, today.year + 1))
 
     return render_template(
@@ -2706,7 +2950,11 @@ def reports_transactions():
             "count": len(txns),
         },
         by_category=_top_map(by_cat),
-        by_counterparty=_top_map(by_cp),
+        by_counterparty=by_counterparty_rows,
+        cp_page=cp_page,
+        cp_pages=cp_pages,
+        cp_total=cp_total,
+        cp_per_page=cp_per_page,
         latest=latest_rows,
     )
 

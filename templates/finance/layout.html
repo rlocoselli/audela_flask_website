@@ -9,8 +9,8 @@
     data-tour-title="{{ _('Tutoriel') }}"
     data-tour-order="1"
   >
-    <div class="container-fluid">
-      <a class="navbar-brand fw-semibold" href="{{ url_for('finance.dashboard') }}">
+    <div class="container-fluid finance-topbar-row">
+      <a class="navbar-brand fw-semibold finance-topbar-left" href="{{ url_for('finance.dashboard') }}">
         <i class="bi bi-cash-coin me-1"></i>{{ _('AUDELA Finance') }}
       </a>
 
@@ -18,7 +18,7 @@
         <span class="navbar-toggler-icon"></span>
       </button>
 
-      <div class="collapse navbar-collapse" id="financeTopNav">
+      <div class="collapse navbar-collapse finance-topbar-collapse" id="financeTopNav">
         <ul class="navbar-nav me-auto mb-2 mb-lg-0">
           <li class="nav-item"><a class="nav-link" href="{{ url_for('finance.dashboard') }}">{{ _('Visão geral') }}</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('finance.accounts_list') }}">{{ _('Contas') }}</a></li>
@@ -44,7 +44,7 @@
           <li class="nav-item"><a class="nav-link" href="{{ url_for('finance.help_page') }}">{{ _('Ajuda') }}</a></li>
         </ul>
 
-        <div class="d-flex align-items-center gap-2 finance-top-actions flex-wrap">
+        <div class="d-flex align-items-center gap-2 finance-top-actions finance-topbar-right flex-wrap">
           <a class="btn btn-outline-primary btn-sm" href="{{ url_for('tenant.dashboard') }}">
             <i class="bi bi-arrow-left-circle me-1"></i>
             <span class="d-none d-md-inline">{{ _('Retour au dashboard tenant') }}</span>
@@ -174,6 +174,22 @@
       <a class="btn btn-outline-primary btn-sm ms-2" href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=rlocoselli%40yahoo.com.br&currency_code=EUR&amount=10.00&item_name=Support%20AUDELA%20versions%20gratuites" target="_blank" rel="noopener">{{ _('Soutenir les versions gratuites (10 €)') }}</a>
     </div>
   </footer>
+
+  <div class="modal fade" id="financeConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">{{ _('Confirmation') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Fechar') }}"></button>
+        </div>
+        <div class="modal-body" id="financeConfirmMessage">{{ _('Confirmer ?') }}</div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+          <button type="button" class="btn btn-primary" id="financeConfirmActionBtn">{{ _('Confirmer') }}</button>
+        </div>
+      </div>
+    </div>
+  </div>
 {% endblock %}
 
 {% block head_extra %}
@@ -189,6 +205,40 @@
       }
       .finance-top-actions > * {
         flex: 0 0 auto;
+      }
+
+      .finance-topbar-left {
+        min-width: 0;
+        max-width: calc(100vw - 5.25rem);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .finance-topbar-collapse {
+        max-height: min(70vh, 560px);
+        overflow-y: auto;
+      }
+    }
+
+    @media (max-width: 767.98px) {
+      .finance-topbar-row {
+        align-items: flex-start;
+      }
+
+      .finance-topbar-right {
+        flex-wrap: nowrap !important;
+        overflow-x: auto;
+        padding-bottom: .15rem;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .finance-topbar-right > * {
+        flex: 0 0 auto;
+      }
+
+      .finance-topbar-right .badge {
+        white-space: nowrap;
       }
     }
   </style>
@@ -353,6 +403,47 @@
           e.preventDefault();
           send();
         }
+      });
+
+      const confirmModalEl = document.getElementById('financeConfirmModal');
+      const confirmMessageEl = document.getElementById('financeConfirmMessage');
+      const confirmActionBtn = document.getElementById('financeConfirmActionBtn');
+      const confirmModal = (confirmModalEl && window.bootstrap) ? new window.bootstrap.Modal(confirmModalEl) : null;
+      let pendingConfirmSubmit = null;
+
+      function askFinanceConfirmation(message, submitFn){
+        if (!confirmModal || !confirmMessageEl || !confirmActionBtn) {
+          submitFn();
+          return;
+        }
+        pendingConfirmSubmit = submitFn;
+        confirmMessageEl.textContent = message || window.t('Confirmer ?');
+        confirmModal.show();
+      }
+
+      if (confirmActionBtn) {
+        confirmActionBtn.addEventListener('click', function(){
+          if (pendingConfirmSubmit) pendingConfirmSubmit();
+          pendingConfirmSubmit = null;
+          if (confirmModal) confirmModal.hide();
+        });
+      }
+
+      if (confirmModalEl) {
+        confirmModalEl.addEventListener('hidden.bs.modal', function(){
+          pendingConfirmSubmit = null;
+        });
+      }
+
+      document.querySelectorAll('form.js-confirm-form').forEach(function(confirmForm){
+        confirmForm.addEventListener('submit', function(e){
+          if (confirmForm.dataset.confirmed === '1') return;
+          e.preventDefault();
+          askFinanceConfirmation(confirmForm.dataset.confirmMessage || '', function(){
+            confirmForm.dataset.confirmed = '1';
+            confirmForm.submit();
+          });
+        });
       });
     });
   </script>

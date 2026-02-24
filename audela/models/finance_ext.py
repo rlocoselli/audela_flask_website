@@ -46,6 +46,7 @@ class FinanceCategoryRule(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     category = relationship("FinanceCategory", back_populates="rules")
+    counterparty = relationship("FinanceCounterparty", foreign_keys=[counterparty_id])
 
 
 class FinanceBankConnection(db.Model):

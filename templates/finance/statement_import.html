@@ -2,9 +2,12 @@
 {% set active = 'accounts' %}
 
 {% block finance_content %}
+  {% set csv_mapping = (csv_mapping_preset.get('mapping') if csv_mapping_preset else {}) or {} %}
+  {% set csv_delimiter_preset = (csv_mapping_preset.get('delimiter') if csv_mapping_preset else 'auto') or 'auto' %}
+  {% set csv_date_format_preset = (csv_mapping_preset.get('date_format') if csv_mapping_preset else 'auto') or 'auto' %}
   <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
     <div>
-      <div class="h5 mb-0">{{ _('Importar extrato bancário (PDF)') }}</div>
+      <div class="h5 mb-0">{{ _('Importar transações (PDF/CSV)') }}</div>
       <div class="text-secondary small">{{ account.name }} · {{ _('Moeda') }}: {{ account.currency }}</div>
     </div>
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.account_view', account_id=account.id) }}">{{ _('Voltar') }}</a>
@@ -12,18 +15,18 @@
 
   <div class="card">
     <div class="card-body">
-      <div class="alert alert-info">
-        <div class="fw-semibold mb-1">{{ _('Como funciona') }}</div>
+      <div class="alert alert-info mb-3">
+        <div class="fw-semibold mb-1">{{ _('Importação PDF') }}</div>
         <ul class="mb-0">
-          <li>{{ _('Você envia um PDF do extrato (texto ou scan).') }}</li>
-          <li>{{ _('O sistema tenta extrair transações (data, descrição, valor) e cria contrapartes automaticamente.') }}</li>
-          <li>{{ _('Mapeamento automático “extrato → categorias” é aplicado por regras (palavras‑chave) e pode ser ajustado nas Configurações.') }}</li>
+          <li>{{ _('Por enquanto, o PDF usa somente OpenAI.') }}</li>
+          <li>{{ _('O sistema extrai transações (data, descrição, valor) e cria contrapartes automaticamente.') }}</li>
           <li>{{ _('Duplicatas são ignoradas automaticamente.') }}</li>
         </ul>
       </div>
 
-      <form method="post" enctype="multipart/form-data">
+      <form id="pdfImportForm" method="post" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <input type="hidden" name="import_mode" value="pdf" />
         <div class="row g-3">
           <div class="col-12 col-lg-6">
             <label class="form-label">{{ _('PDF do extrato') }}</label>
@@ -43,17 +46,9 @@
           </div>
           <div class="col-12 col-lg-3">
             <label class="form-label">{{ _('Método de extração') }}</label>
-            <select class="form-select" name="provider">
-              <option value="auto">{{ _('Auto (local + fallback OCR)') }}</option>
-              <option value="local">{{ _('Local (heurístico)') }}</option>
-              <option value="openai">{{ _('OpenAI (IA – JSON)') }}</option>
-              <option value="mindee">{{ _('Mindee (API)') }}</option>
-              <option value="google">{{ _('Google Vision (OCR)') }}</option>
-              <option value="tesseract">{{ _('Tesseract (OCR local)') }}</option>
-              <option value="api">{{ _('API (parser custom)') }}</option>
-            </select>
+            <input class="form-control" value="OpenAI (IA – JSON)" disabled />
             <div class="form-text">
-              {{ _('“Auto” tenta primeiro local e, se necessário, usa Mindee/Google Vision/Tesseract quando configurados no servidor.') }}
+              {{ _('Les autres méthodes sont masquées temporairement.') }}
             </div>
             <div class="form-text text-warning">
               <i class="bi bi-shield-exclamation me-1"></i>{{ _('Aviso: o método OpenAI envia o texto do extrato para a API OpenAI.') }}
@@ -66,6 +61,135 @@
             <i class="bi bi-file-earmark-arrow-up me-1"></i>{{ _('Importar') }}
           </button>
           <a class="btn btn-outline-secondary" href="{{ url_for('finance.account_view', account_id=account.id) }}">{{ _('Cancelar') }}</a>
+        </div>
+      </form>
+
+      <hr class="my-4" />
+
+      <div class="alert alert-secondary mb-3">
+        <div class="fw-semibold mb-1">{{ _('Importação CSV com mapping') }}</div>
+        <div class="small">{{ _('Envie o CSV e mapeie coluna a coluna para os campos da transação.') }}</div>
+      </div>
+
+      <form id="csvImportForm" method="post" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <input type="hidden" name="import_mode" value="csv" />
+
+        <div class="row g-3">
+          <div class="col-12 col-lg-5">
+            <label class="form-label">{{ _('Arquivo CSV') }}</label>
+            <input id="csvImportFile" class="form-control" type="file" name="file" accept=".csv,text/csv" required />
+            <div class="form-text">{{ _('Selecione um arquivo com cabeçalho na primeira linha.') }}</div>
+          </div>
+
+          <div class="col-6 col-lg-3">
+            <label class="form-label">{{ _('Delimitador') }}</label>
+            <select class="form-select" name="csv_delimiter">
+              <option value="auto" {% if csv_delimiter_preset == 'auto' %}selected{% endif %}>{{ _('Auto') }}</option>
+              <option value="comma" {% if csv_delimiter_preset == 'comma' %}selected{% endif %}>,</option>
+              <option value="semicolon" {% if csv_delimiter_preset == 'semicolon' %}selected{% endif %}>;</option>
+              <option value="tab" {% if csv_delimiter_preset == 'tab' %}selected{% endif %}>TAB</option>
+            </select>
+          </div>
+
+          <div class="col-6 col-lg-4">
+            <label class="form-label">{{ _('Formato de data') }}</label>
+            <select class="form-select" name="csv_date_format">
+              <option value="auto" {% if csv_date_format_preset == 'auto' %}selected{% endif %}>{{ _('Auto') }}</option>
+              <option value="ymd" {% if csv_date_format_preset == 'ymd' %}selected{% endif %}>YYYY-MM-DD</option>
+              <option value="dmy" {% if csv_date_format_preset == 'dmy' %}selected{% endif %}>DD/MM/YYYY</option>
+              <option value="mdy" {% if csv_date_format_preset == 'mdy' %}selected{% endif %}>MM/DD/YYYY</option>
+            </select>
+          </div>
+
+          <div class="col-12"><hr class="my-1" /></div>
+
+          <div class="col-12 col-md-6 col-lg-4">
+            <label class="form-label">{{ _('Coluna Data') }} *</label>
+            <select class="form-select csv-map-select" name="map_date" required>
+              <option value="">{{ _('Selecione…') }}</option>
+              {% if csv_mapping.get('date') %}
+                <option value="{{ csv_mapping.get('date') }}" selected>{{ csv_mapping.get('date') }}</option>
+              {% endif %}
+            </select>
+          </div>
+          <div class="col-12 col-md-6 col-lg-4">
+            <label class="form-label">{{ _('Coluna Valor') }} *</label>
+            <select class="form-select csv-map-select" name="map_amount" required>
+              <option value="">{{ _('Selecione…') }}</option>
+              {% if csv_mapping.get('amount') %}
+                <option value="{{ csv_mapping.get('amount') }}" selected>{{ csv_mapping.get('amount') }}</option>
+              {% endif %}
+            </select>
+          </div>
+          <div class="col-12 col-md-6 col-lg-4">
+            <label class="form-label">{{ _('Coluna Descrição') }}</label>
+            <select class="form-select csv-map-select" name="map_description">
+              <option value="">{{ _('Nenhuma') }}</option>
+              {% if csv_mapping.get('description') %}
+                <option value="{{ csv_mapping.get('description') }}" selected>{{ csv_mapping.get('description') }}</option>
+              {% endif %}
+            </select>
+          </div>
+          <div class="col-12 col-md-6 col-lg-4">
+            <label class="form-label">{{ _('Coluna Categoria') }}</label>
+            <select class="form-select csv-map-select" name="map_category">
+              <option value="">{{ _('Nenhuma') }}</option>
+              {% if csv_mapping.get('category') %}
+                <option value="{{ csv_mapping.get('category') }}" selected>{{ csv_mapping.get('category') }}</option>
+              {% endif %}
+            </select>
+          </div>
+          <div class="col-12 col-md-6 col-lg-4">
+            <label class="form-label">{{ _('Coluna Contraparte') }}</label>
+            <select class="form-select csv-map-select" name="map_counterparty">
+              <option value="">{{ _('Nenhuma') }}</option>
+              {% if csv_mapping.get('counterparty') %}
+                <option value="{{ csv_mapping.get('counterparty') }}" selected>{{ csv_mapping.get('counterparty') }}</option>
+              {% endif %}
+            </select>
+          </div>
+          <div class="col-12 col-md-6 col-lg-4">
+            <label class="form-label">{{ _('Coluna Referência') }}</label>
+            <select class="form-select csv-map-select" name="map_reference">
+              <option value="">{{ _('Nenhuma') }}</option>
+              {% if csv_mapping.get('reference') %}
+                <option value="{{ csv_mapping.get('reference') }}" selected>{{ csv_mapping.get('reference') }}</option>
+              {% endif %}
+            </select>
+          </div>
+
+          <div class="col-12">
+            <div class="form-check mt-1">
+              <input class="form-check-input" type="checkbox" value="1" id="saveCsvMapping" name="save_csv_mapping" checked />
+              <label class="form-check-label" for="saveCsvMapping">
+                {{ _('Salvar mapping e layout (delimitador/data) para esta conta') }}
+              </label>
+            </div>
+          </div>
+
+          <div class="col-12">
+            <div id="csvPreviewCard" class="card border-0 bg-body-tertiary d-none">
+              <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <div class="fw-semibold">{{ _('Pré-visualização CSV (5 linhas)') }}</div>
+                  <div class="small text-secondary" id="csvPreviewMeta"></div>
+                </div>
+                <div class="table-responsive">
+                  <table class="table table-sm align-middle mb-0" id="csvPreviewTable">
+                    <thead></thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-3 d-flex gap-2">
+          <button class="btn btn-outline-primary">
+            <i class="bi bi-upload me-1"></i>{{ _('Importar CSV') }}
+          </button>
         </div>
       </form>
 
@@ -88,10 +212,6 @@
         <div class="mt-2 small text-secondary">
           <ul>
             <li>{{ _('OpenAI: defina OPENAI_API_KEY (e opcional OPENAI_MODEL).') }}</li>
-            <li>{{ _('Mindee: defina MINDEE_API_KEY') }}</li>
-            <li>{{ _('Google Vision: defina GOOGLE_VISION_API_KEY') }}</li>
-            <li>{{ _('API custom: STATEMENT_PARSER_ENDPOINT e (opcional) STATEMENT_PARSER_API_KEY') }}</li>
-            <li>{{ _('Tesseract: requer dependências locais (tesseract + pdf2image/poppler).') }}</li>
           </ul>
         </div>
       </details>
@@ -103,10 +223,15 @@
   {{ super() }}
   <script>
     window.onReady(function(){
-      const form = document.querySelector('form[enctype="multipart/form-data"]');
+      const form = document.getElementById('pdfImportForm');
       const overlay = document.getElementById('stmtImportOverlay');
       const msg = document.getElementById('stmtImportMsg');
       const btnCancel = document.getElementById('stmtImportCancel');
+      const csvFileInput = document.getElementById('csvImportFile');
+      const csvMapSelects = Array.from(document.querySelectorAll('.csv-map-select'));
+      const csvPreviewCard = document.getElementById('csvPreviewCard');
+      const csvPreviewMeta = document.getElementById('csvPreviewMeta');
+      const csvPreviewTable = document.getElementById('csvPreviewTable');
       if (!form || !overlay || !msg) return;
 
       const SHOW_TIMEOUT_MS = 120000; // 2 minutes
@@ -150,6 +275,132 @@
           try { if (t1) clearTimeout(t1); if (t2) clearTimeout(t2); } catch(e) {}
           // Navigating away will abort the request in the browser.
           window.location.href = "{{ url_for('finance.account_view', account_id=account.id) }}";
+        });
+      }
+
+      function splitHeader(line){
+        const counts = {
+          ',': (line.match(/,/g) || []).length,
+          ';': (line.match(/;/g) || []).length,
+          '\t': (line.match(/\t/g) || []).length,
+        };
+        const delim = counts[';'] > counts[','] && counts[';'] >= counts['\t']
+          ? ';'
+          : (counts['\t'] > counts[','] ? '\t' : ',');
+        return line.split(delim).map(function(h){ return (h || '').trim().replace(/^"|"$/g, ''); }).filter(Boolean);
+      }
+
+      function detectDelimiter(line){
+        const counts = {
+          ',': (line.match(/,/g) || []).length,
+          ';': (line.match(/;/g) || []).length,
+          '\t': (line.match(/\t/g) || []).length,
+        };
+        if (counts[';'] > counts[','] && counts[';'] >= counts['\t']) return ';';
+        if (counts['\t'] > counts[',']) return '\t';
+        return ',';
+      }
+
+      function splitCsvLine(line, delim){
+        const out = [];
+        let cur = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if (ch === '"') {
+            if (inQuotes && line[i + 1] === '"') {
+              cur += '"';
+              i += 1;
+            } else {
+              inQuotes = !inQuotes;
+            }
+            continue;
+          }
+          if (ch === delim && !inQuotes) {
+            out.push(cur.trim());
+            cur = '';
+            continue;
+          }
+          cur += ch;
+        }
+        out.push(cur.trim());
+        return out.map(function(v){ return v.replace(/^"|"$/g, ''); });
+      }
+
+      function renderCsvPreview(headers, rows, delim){
+        if (!csvPreviewCard || !csvPreviewTable) return;
+        const thead = csvPreviewTable.querySelector('thead');
+        const tbody = csvPreviewTable.querySelector('tbody');
+        if (!thead || !tbody) return;
+
+        thead.innerHTML = '';
+        tbody.innerHTML = '';
+
+        const trh = document.createElement('tr');
+        headers.forEach(function(h){
+          const th = document.createElement('th');
+          th.textContent = h || '—';
+          trh.appendChild(th);
+        });
+        thead.appendChild(trh);
+
+        rows.slice(0, 5).forEach(function(row){
+          const tr = document.createElement('tr');
+          headers.forEach(function(_, idx){
+            const td = document.createElement('td');
+            td.textContent = (row[idx] || '').trim();
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        });
+
+        if (csvPreviewMeta) {
+          const d = (delim === '\t') ? 'TAB' : delim;
+          csvPreviewMeta.textContent = `${window.t('Delimitador')}: ${d}`;
+        }
+        csvPreviewCard.classList.remove('d-none');
+      }
+
+      function repopulateCsvMappings(headers){
+        if (!csvMapSelects.length) return;
+        csvMapSelects.forEach(function(sel){
+          const current = sel.value;
+          const firstOption = sel.querySelector('option[value=""]');
+          sel.innerHTML = '';
+          if (firstOption) sel.appendChild(firstOption);
+          else {
+            const empty = document.createElement('option');
+            empty.value = '';
+            empty.textContent = window.t('Selecione…');
+            sel.appendChild(empty);
+          }
+          headers.forEach(function(h){
+            const opt = document.createElement('option');
+            opt.value = h;
+            opt.textContent = h;
+            sel.appendChild(opt);
+          });
+          if (current && headers.includes(current)) sel.value = current;
+        });
+      }
+
+      if (csvFileInput) {
+        csvFileInput.addEventListener('change', function(){
+          const file = csvFileInput.files && csvFileInput.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = function(){
+            const text = String(reader.result || '');
+            const lines = text.split(/\r?\n/).filter(function(ln){ return (ln || '').trim().length > 0; });
+            const firstLine = (lines[0] || '').trim();
+            if (!firstLine) return;
+            const delim = detectDelimiter(firstLine);
+            const headers = splitHeader(firstLine);
+            repopulateCsvMappings(headers);
+            const dataRows = lines.slice(1, 6).map(function(ln){ return splitCsvLine(ln, delim); });
+            renderCsvPreview(headers, dataRows, delim);
+          };
+          reader.readAsText(file);
         });
       }
     });

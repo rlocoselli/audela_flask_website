@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import re
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -20,6 +21,24 @@ def _d(x) -> Decimal:
         return Decimal(str(x))
     except Exception:
         return Decimal("0")
+
+
+def normalize_counterparty_label(value: str | None) -> str:
+    text = " ".join((value or "").strip().split())
+    if not text:
+        return "(n/a)"
+
+    normalized = text.upper()
+    normalized = re.sub(
+        r"\b(CB|CARTE|PAIEMENT|PAYMENT|ACHAT|VIR(?:EMENT)?|SEPA|PRLV|PRELEVEMENT|"
+        r"POS|FACTURE|FACT|REF|REFERENCE|TRANSFERT|TRANSFER|TXN|DEBIT|CREDIT)\b",
+        " ",
+        normalized,
+    )
+    normalized = re.sub(r"\b\d{3,}\b", " ", normalized)
+    normalized = re.sub(r"[^A-Z0-9 ]+", " ", normalized)
+    normalized = " ".join(normalized.split())
+    return normalized or text
 
 
 @dataclass
@@ -437,31 +456,67 @@ def compute_risk_metrics(
     nsfr_status = "healthy" if nsfr >= 100 else ("caution" if nsfr >= 75 else "stressed")
     
     # ===== Concentration Ratios =====
+    # Prefer transaction-based concentration (requested behavior):
+    # exposure per currency/counterparty as % of total transaction volume.
     by_ccy: dict[str, Decimal] = {}
     by_cp: dict[str, Decimal] = {}
-    
-    for a in accounts_list:
-        ccy = (a.currency or "").upper() or "EUR"
-        by_ccy[ccy] = by_ccy.get(ccy, Decimal("0")) + _d(a.balance)
-        
-        cp = (a.counterparty_ref.name if getattr(a, "counterparty_ref", None) else (a.counterparty or "").strip()) or "(n/a)"
-        by_cp[cp] = by_cp.get(cp, Decimal("0")) + abs(_d(a.balance))
-    
-    # Calculate concentration ratios (% of total assets)
+    cp_display: dict[str, str] = {}
+    txns_list = list(transactions or [])
+
+    if txns_list:
+        total_txn_volume = Decimal("0")
+        for t in txns_list:
+            amt = abs(_d(getattr(t, "amount", None)))
+            if amt <= 0:
+                continue
+
+            total_txn_volume += amt
+            account = getattr(t, "account", None)
+            ccy = (getattr(account, "currency", "") or "").upper() or "EUR"
+            by_ccy[ccy] = by_ccy.get(ccy, Decimal("0")) + amt
+
+            raw_cp = (
+                t.counterparty_ref.name
+                if getattr(t, "counterparty_ref", None)
+                else (getattr(t, "counterparty", "") or "").strip()
+            )
+            if not raw_cp:
+                raw_cp = (getattr(t, "description", "") or "").strip()
+
+            cp = normalize_counterparty_label(raw_cp)
+            cp_key = cp.casefold()
+            cp_display.setdefault(cp_key, cp)
+            by_cp[cp_key] = by_cp.get(cp_key, Decimal("0")) + amt
+
+        concentration_base = total_txn_volume
+    else:
+        # Backward-compatible fallback when no transactions exist yet.
+        for a in accounts_list:
+            ccy = (a.currency or "").upper() or "EUR"
+            by_ccy[ccy] = by_ccy.get(ccy, Decimal("0")) + abs(_d(a.balance))
+
+            cp_raw = (a.counterparty_ref.name if getattr(a, "counterparty_ref", None) else (a.counterparty or "").strip())
+            cp = normalize_counterparty_label(cp_raw)
+            cp_key = cp.casefold()
+            cp_display.setdefault(cp_key, cp)
+            by_cp[cp_key] = by_cp.get(cp_key, Decimal("0")) + abs(_d(a.balance))
+
+        concentration_base = abs(total_assets)
+
     ccy_rows = []
-    for k, v in sorted(by_ccy.items(), key=lambda x: abs(x[1]), reverse=True):
-        conc_ratio = (v / total_assets * 100) if total_assets > 0 else Decimal("0")
+    for k, v in sorted(by_ccy.items(), key=lambda x: x[1], reverse=True):
+        conc_ratio = (v / concentration_base * 100) if concentration_base > 0 else Decimal("0")
         ccy_rows.append({
             "currency": k,
             "exposure": v,
             "concentration": conc_ratio,
         })
-    
+
     cp_rows = []
     for k, v in sorted(by_cp.items(), key=lambda x: x[1], reverse=True)[:10]:
-        conc_ratio = (v / total_assets * 100) if total_assets > 0 else Decimal("0")
+        conc_ratio = (v / concentration_base * 100) if concentration_base > 0 else Decimal("0")
         cp_rows.append({
-            "counterparty": k,
+            "counterparty": cp_display.get(k, k),
             "exposure": v,
             "concentration": conc_ratio,
         })
@@ -544,6 +599,100 @@ def parse_transactions_csv(text: str) -> list[dict]:
                 "category": (row.get("category") or row.get("Category") or "").strip() or None,
                 "counterparty": (row.get("counterparty") or row.get("Counterparty") or "").strip() or None,
                 "reference": (row.get("reference") or row.get("Reference") or "").strip() or None,
+            }
+        )
+
+    return out
+
+
+def parse_transactions_csv_mapped(
+    text: str,
+    mapping: dict,
+    *,
+    delimiter: str = "auto",
+    date_format: str = "auto",
+) -> list[dict]:
+    """Parse CSV using an explicit column mapping.
+
+    mapping keys accepted:
+      - date (required)
+      - amount (required)
+      - description, category, counterparty, reference (optional)
+    """
+    if not text:
+        return []
+
+    date_col = (mapping.get("date") or "").strip()
+    amount_col = (mapping.get("amount") or "").strip()
+    if not date_col or not amount_col:
+        return []
+
+    sample = text[:2048]
+    if delimiter == "semicolon":
+        sep = ";"
+    elif delimiter == "tab":
+        sep = "\t"
+    elif delimiter == "comma":
+        sep = ","
+    else:
+        sep = ";" if sample.count(";") > sample.count(",") else ","
+
+    if date_format == "ymd":
+        date_formats = ["%Y-%m-%d", "%Y/%m/%d"]
+    elif date_format == "dmy":
+        date_formats = ["%d/%m/%Y", "%d-%m-%Y"]
+    elif date_format == "mdy":
+        date_formats = ["%m/%d/%Y", "%m-%d-%Y"]
+    else:
+        date_formats = ["%Y-%m-%d", "%Y/%m/%d", "%d/%m/%Y", "%d-%m-%Y", "%m/%d/%Y", "%m-%d-%Y"]
+
+    sio = StringIO(text)
+    reader = csv.DictReader(sio, delimiter=sep)
+
+    out = []
+    for row in reader:
+        raw_date = (row.get(date_col) or "").strip()
+        raw_amount = (row.get(amount_col) or "").strip()
+        if not raw_date or not raw_amount:
+            continue
+
+        parsed_date = None
+        for fmt in date_formats:
+            try:
+                parsed_date = datetime.strptime(raw_date, fmt).date()
+                break
+            except Exception:
+                continue
+        if parsed_date is None:
+            continue
+
+        amount_norm = raw_amount.replace("\u00a0", " ").replace(" ", "")
+        if amount_norm.count(",") > 0 and amount_norm.count(".") > 0:
+            if amount_norm.rfind(",") > amount_norm.rfind("."):
+                amount_norm = amount_norm.replace(".", "").replace(",", ".")
+            else:
+                amount_norm = amount_norm.replace(",", "")
+        else:
+            amount_norm = amount_norm.replace(",", ".")
+
+        try:
+            amount = Decimal(amount_norm)
+        except Exception:
+            continue
+
+        desc_col = (mapping.get("description") or "").strip()
+        cat_col = (mapping.get("category") or "").strip()
+        cp_col = (mapping.get("counterparty") or "").strip()
+        ref_col = (mapping.get("reference") or "").strip()
+
+        out.append(
+            {
+                "txn_date": parsed_date,
+                "amount": amount,
+                "description": (row.get(desc_col) or "").strip() or None,
+                "category": (row.get(cat_col) or "").strip() or None,
+                "counterparty": (row.get(cp_col) or "").strip() or None,
+                "reference": (row.get(ref_col) or "").strip() or None,
             }
         )
 

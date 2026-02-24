@@ -144,7 +144,7 @@
                   <td class="text-end">
                     <div class="finance-row-actions justify-content-end">
                       <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('finance.transaction_edit', txn_id=txn.id, next=request.full_path) }}">{{ _('Editar') }}</a>
-                      <form method="post" action="{{ url_for('finance.transaction_delete', txn_id=txn.id) }}" class="d-inline" onsubmit="return confirm('{{ _('Remover esta transação?') }}');">
+                      <form method="post" action="{{ url_for('finance.transaction_delete', txn_id=txn.id) }}" class="d-inline js-confirm-form" data-confirm-message="{{ _('Remover esta transação?') }}">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
                         <input type="hidden" name="next" value="{{ request.full_path }}" />
                         <button class="btn btn-sm btn-outline-danger" type="submit">{{ _('Remover') }}</button>
