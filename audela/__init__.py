@@ -136,8 +136,9 @@ def create_app() -> Flask:
     app.register_blueprint(billing_bp)
 
     # Finance CLI Commands
-    from .commands import init_finance_cli
+    from .commands import init_finance_cli, init_celery_cli
     init_finance_cli(app)
+    init_celery_cli(app)
 
     # Finance Auto-balance Updates (SQLAlchemy Event Listeners)
     from .services.bank_configuration_service import initialize_balance_updates

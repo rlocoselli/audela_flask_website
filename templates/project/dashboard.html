@@ -17,13 +17,35 @@
 
 <datalist id="pm-managers-datalist"></datalist>
 
+<ul class="nav nav-tabs mb-3" id="pm-main-tabs" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active" id="pm-tab-execution" data-bs-toggle="tab" data-bs-target="#pm-pane-execution" type="button" role="tab" aria-controls="pm-pane-execution" aria-selected="true">{{ _('Tableau') }}</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="pm-tab-governance" data-bs-toggle="tab" data-bs-target="#pm-pane-governance" type="button" role="tab" aria-controls="pm-pane-governance" aria-selected="false">{{ _('Gouvernance') }}</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="pm-tab-reporting" data-bs-toggle="tab" data-bs-target="#pm-pane-reporting" type="button" role="tab" aria-controls="pm-pane-reporting" aria-selected="false">{{ _('Reporting') }}</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="pm-tab-notifications" data-bs-toggle="tab" data-bs-target="#pm-pane-notifications" type="button" role="tab" aria-controls="pm-pane-notifications" aria-selected="false">{{ _('Notifications') }}</button>
+  </li>
+</ul>
+
+<div class="tab-content" id="pm-main-tabs-content">
+<div class="tab-pane fade show active" id="pm-pane-execution" role="tabpanel" aria-labelledby="pm-tab-execution" tabindex="0">
 <div class="row g-3 mb-3">
   <div class="col-lg-8">
     <div class="card border-0 shadow-sm h-100" id="pm-section-kanban">
       <div class="card-body">
         <div class="d-flex align-items-center justify-content-between mb-2">
           <h5 class="mb-0">{{ _('Kanban') }}</h5>
-          <button class="btn btn-sm btn-primary" id="pm-add-card" data-tip="{{ _('Ajouter une tâche Kanban dans l\'arriéré ou les colonnes de suivi.') }}">{{ _('Créer une tâche') }}</button>
+          <div class="d-flex align-items-center gap-2">
+            <select class="form-select form-select-sm" id="pm-sprint-filter" style="min-width: 180px;">
+              <option value="">{{ _('Tous les sprints') }}</option>
+            </select>
+            <button class="btn btn-sm btn-primary" id="pm-add-card" data-tip="{{ _('Ajouter une tâche Kanban dans l\'arriéré ou les colonnes de suivi.') }}">{{ _('Créer une tâche') }}</button>
+          </div>
         </div>
         <div class="row g-2" id="pm-kanban">
           <div class="col-md-3"><div class="border rounded p-2" data-col="backlog"><div class="fw-semibold small mb-2">{{ _('Arriéré') }}</div><div class="d-grid gap-2 pm-col-body"></div></div></div>
@@ -63,6 +85,9 @@
     </div>
   </div>
 </div>
+
+</div>
+<div class="tab-pane fade" id="pm-pane-governance" role="tabpanel" aria-labelledby="pm-tab-governance" tabindex="0">
 
 <div class="row g-3 mb-3" id="pm-section-governance">
   <div class="col-lg-6">
@@ -187,6 +212,9 @@
   </div>
 </div>
 
+</div>
+<div class="tab-pane fade" id="pm-pane-reporting" role="tabpanel" aria-labelledby="pm-tab-reporting" tabindex="0">
+
 <div class="row g-3 mb-3" id="pm-section-reporting">
   <div class="col-lg-8">
     <div class="card border-0 shadow-sm h-100">
@@ -213,13 +241,18 @@
           </div>
         </div>
         <div id="pm-version-compare" class="small mt-2"></div>
+        <hr class="my-3">
+        <div id="pm-section-productivity">
+          <h6 class="mb-2">{{ _('Rapport productivité') }}</h6>
+          <div id="pm-productivity-report" class="small"></div>
+        </div>
       </div>
     </div>
   </div>
   <div class="col-lg-4" id="pm-section-security">
     <div class="card border-0 shadow-sm h-100">
       <div class="card-body">
-        <h5 class="mb-2">{{ _('Sécurité & administration') }}</h5>
+        <h5 class="mb-2">{{ _('Paramètres & sécurité') }}</h5>
         <div class="mb-2">
           <label class="form-label small mb-1">{{ _('Droits') }}</label>
           <select id="pm-security-rights" class="form-select form-select-sm">
@@ -228,11 +261,11 @@
             <option value="r">{{ _('Lecture seule') }}</option>
           </select>
         </div>
-        <div class="mb-2">
+        <div class="mb-2 d-none">
           <label class="form-label small mb-1">{{ _('Templates / champs personnalisés') }}</label>
           <textarea id="pm-security-templates" class="form-control form-control-sm" rows="2"></textarea>
         </div>
-        <div>
+        <div class="d-none">
           <label class="form-label small mb-1">{{ _('Intégrations') }}</label>
           <textarea id="pm-security-integrations" class="form-control form-control-sm" rows="2" placeholder="{{ _('Email, calendrier, Jira, Git, ERP...') }}"></textarea>
         </div>
@@ -275,6 +308,81 @@
     </div>
     <div id="pm-finance-summary" class="mt-3"></div>
   </div>
+</div>
+
+  </div>
+  <div class="tab-pane fade" id="pm-pane-notifications" role="tabpanel" aria-labelledby="pm-tab-notifications" tabindex="0">
+
+  <div class="row g-3 mb-3" id="pm-section-notifications">
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <h5 class="mb-2">{{ _('Canaux de notification') }}</h5>
+
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" id="pm-notif-slack-enabled">
+            <label class="form-check-label" for="pm-notif-slack-enabled">{{ _('Activer Slack') }}</label>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small mb-1">{{ _('Webhook Slack') }}</label>
+            <input class="form-control form-control-sm" id="pm-notif-slack-webhook" placeholder="https://hooks.slack.com/services/..." />
+          </div>
+
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" id="pm-notif-mail-enabled">
+            <label class="form-check-label" for="pm-notif-mail-enabled">{{ _('Activer email') }}</label>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small mb-1">{{ _('Destinataires email') }}</label>
+            <input class="form-control form-control-sm" id="pm-notif-mail-to" placeholder="pm@entreprise.com,ops@entreprise.com" />
+            <div class="form-text">{{ _('Le owner de la carte est toujours ajouté en destinataire email.') }}</div>
+          </div>
+
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" id="pm-notif-teams-enabled">
+            <label class="form-check-label" for="pm-notif-teams-enabled">{{ _('Activer Teams') }}</label>
+          </div>
+          <div>
+            <label class="form-label small mb-1">{{ _('Webhook Teams') }}</label>
+            <input class="form-control form-control-sm" id="pm-notif-teams-webhook" placeholder="https://outlook.office.com/webhook/..." />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body">
+          <h5 class="mb-2">{{ _('Quand notifier') }}</h5>
+
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" id="pm-notif-trigger-project-delay">
+            <label class="form-check-label" for="pm-notif-trigger-project-delay">{{ _('Projet en retard (Gantt)') }}</label>
+          </div>
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" id="pm-notif-trigger-card-delay">
+            <label class="form-check-label" for="pm-notif-trigger-card-delay">{{ _('Carte en retard (Kanban)') }}</label>
+          </div>
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" id="pm-notif-trigger-risk-high">
+            <label class="form-check-label" for="pm-notif-trigger-risk-high">{{ _('Risque élevé ajouté') }}</label>
+          </div>
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" id="pm-notif-trigger-change-approved">
+            <label class="form-check-label" for="pm-notif-trigger-change-approved">{{ _('Changement approuvé/rejeté') }}</label>
+          </div>
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="checkbox" id="pm-notif-trigger-daily-summary">
+            <label class="form-check-label" for="pm-notif-trigger-daily-summary">{{ _('Résumé quotidien') }}</label>
+          </div>
+
+          <div class="small text-secondary mt-2">{{ _('Les notifications sont configurées dans ce module et seront utilisées par les traitements d\'alerte.') }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
 </div>
 
 <style>
@@ -338,13 +446,18 @@
           <input class="form-control" name="title" required maxlength="160">
         </div>
         <div class="mb-2">
+          <label class="form-label">{{ _('Description détaillée') }}</label>
+          <textarea class="form-control" name="description" rows="6"></textarea>
+        </div>
+        <div class="mb-2">
           <label class="form-label">{{ _('Projet') }}</label>
           <select class="form-select" name="project_id"></select>
         </div>
         <div class="row g-2">
-          <div class="col-md-6">
-            <label class="form-label">{{ _('Responsable') }}</label>
-            <input class="form-control" name="owner" maxlength="120" list="pm-managers-datalist">
+          <div class="col-12">
+            <label class="form-label">{{ _('Responsables') }}</label>
+            <select class="form-select" name="owners" id="pm-todo-owners" multiple size="5"></select>
+            <div class="form-text">{{ _('Sélection multiple: Ctrl/Cmd + clic') }}</div>
           </div>
           <div class="col-md-6">
             <label class="form-label">{{ _('Priorité') }}</label>
@@ -366,6 +479,10 @@
           <div class="col-md-6">
             <label class="form-label">{{ _('Échéance') }}</label>
             <input type="date" class="form-control" name="due_date">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">{{ _('Sprint') }}</label>
+            <input class="form-control" name="sprint" maxlength="80" placeholder="{{ _('Ex.: Sprint 1') }}">
           </div>
         </div>
       </div>
@@ -401,12 +518,13 @@
   {{ super() }}
   <script>
     window.onReady(function(){
+      const IS_TENANT_ADMIN = {{ 'true' if is_tenant_admin else 'false' }};
       const API_GET = '{{ url_for("project.workspace_get") }}';
       const API_SAVE = '{{ url_for("project.workspace_save") }}';
       const FALLBACK_KEY = 'audela.pm.mini.v3';
       const state = {
         projects: [], selected_project_id: null, cards: [], ceremonies: [], deliverables: [], gantt: [], managers: [],
-        project_meta: {}, stakeholders: [], risks: [], issues: [], decisions: [], changes: [], documents: [], meetings: [], audit_log: [], project_versions: [], security: {}
+        project_meta: {}, stakeholders: [], risks: [], issues: [], decisions: [], changes: [], documents: [], meetings: [], audit_log: [], project_versions: [], security: {}, notifications: {}
       };
       const statusEl = document.getElementById('pm-save-status');
       const projectSelect = document.getElementById('pm-project-select');
@@ -446,12 +564,63 @@
         state.project_versions = asArray(state.project_versions);
         state.project_meta = (state.project_meta && typeof state.project_meta === 'object') ? state.project_meta : {};
         state.security = (state.security && typeof state.security === 'object') ? state.security : {};
+        state.notifications = (state.notifications && typeof state.notifications === 'object') ? state.notifications : {};
       }
 
       function forCurrentProject(list){ return (list || []).filter(function(x){ return x.project_id === state.selected_project_id; }); }
       function currentRights(){ return (state.security && state.security.rights) || 'rw'; }
       function canWrite(){ return currentRights() !== 'r'; }
       function canApprove(){ return currentRights() === 'rwa'; }
+      function canEditSecurity(){ return IS_TENANT_ADMIN || canWrite(); }
+      function ensureNotificationsDefaults(){
+        if (!state.notifications || typeof state.notifications !== 'object') state.notifications = {};
+        if (!state.notifications.channels || typeof state.notifications.channels !== 'object') state.notifications.channels = {};
+        if (!state.notifications.triggers || typeof state.notifications.triggers !== 'object') state.notifications.triggers = {};
+
+        if (typeof state.notifications.channels.slack_enabled !== 'boolean') state.notifications.channels.slack_enabled = false;
+        if (typeof state.notifications.channels.mail_enabled !== 'boolean') state.notifications.channels.mail_enabled = false;
+        if (typeof state.notifications.channels.teams_enabled !== 'boolean') state.notifications.channels.teams_enabled = false;
+        state.notifications.channels.mail_include_card_owner = true;
+
+        state.notifications.channels.slack_webhook = (state.notifications.channels.slack_webhook || '').toString();
+        state.notifications.channels.mail_to = (state.notifications.channels.mail_to || '').toString();
+        state.notifications.channels.teams_webhook = (state.notifications.channels.teams_webhook || '').toString();
+
+        if (typeof state.notifications.triggers.project_delay !== 'boolean') state.notifications.triggers.project_delay = true;
+        if (typeof state.notifications.triggers.card_delay !== 'boolean') state.notifications.triggers.card_delay = true;
+        if (typeof state.notifications.triggers.risk_high !== 'boolean') state.notifications.triggers.risk_high = true;
+        if (typeof state.notifications.triggers.change_approved !== 'boolean') state.notifications.triggers.change_approved = true;
+        if (typeof state.notifications.triggers.daily_summary !== 'boolean') state.notifications.triggers.daily_summary = false;
+      }
+      function renderNotificationsSettings(){
+        ensureNotificationsDefaults();
+        const ch = state.notifications.channels;
+        const tr = state.notifications.triggers;
+
+        const slackEnabled = document.getElementById('pm-notif-slack-enabled');
+        const slackWebhook = document.getElementById('pm-notif-slack-webhook');
+        const mailEnabled = document.getElementById('pm-notif-mail-enabled');
+        const mailTo = document.getElementById('pm-notif-mail-to');
+        const teamsEnabled = document.getElementById('pm-notif-teams-enabled');
+        const teamsWebhook = document.getElementById('pm-notif-teams-webhook');
+        const projectDelay = document.getElementById('pm-notif-trigger-project-delay');
+        const cardDelay = document.getElementById('pm-notif-trigger-card-delay');
+        const riskHigh = document.getElementById('pm-notif-trigger-risk-high');
+        const changeApproved = document.getElementById('pm-notif-trigger-change-approved');
+        const dailySummary = document.getElementById('pm-notif-trigger-daily-summary');
+
+        if (slackEnabled) slackEnabled.checked = !!ch.slack_enabled;
+        if (slackWebhook) slackWebhook.value = ch.slack_webhook || '';
+        if (mailEnabled) mailEnabled.checked = !!ch.mail_enabled;
+        if (mailTo) mailTo.value = ch.mail_to || '';
+        if (teamsEnabled) teamsEnabled.checked = !!ch.teams_enabled;
+        if (teamsWebhook) teamsWebhook.value = ch.teams_webhook || '';
+        if (projectDelay) projectDelay.checked = !!tr.project_delay;
+        if (cardDelay) cardDelay.checked = !!tr.card_delay;
+        if (riskHigh) riskHigh.checked = !!tr.risk_high;
+        if (changeApproved) changeApproved.checked = !!tr.change_approved;
+        if (dailySummary) dailySummary.checked = !!tr.daily_summary;
+      }
       function metaForProject(){
         const key = state.selected_project_id || '__none__';
         if (!state.project_meta[key] || typeof state.project_meta[key] !== 'object') {
@@ -479,9 +648,54 @@
         const m = managerByName(name);
         return Math.max(0, num(m && m.hourly_rate));
       }
+      function managerEmail(name){
+        const m = managerByName(name);
+        return m && m.email ? String(m.email).trim() : '';
+      }
       function managerHoursPerDay(name){
         const m = managerByName(name);
         return Math.max(0, num((m && m.hours_per_day) || 8));
+      }
+      function normalizeOwnerList(value){
+        if (Array.isArray(value)) {
+          return Array.from(new Set(value.map(normalizeManagerName).filter(Boolean)));
+        }
+        if (!value) return [];
+        return Array.from(new Set(String(value).split(',').map(normalizeManagerName).filter(Boolean)));
+      }
+      function cardOwners(card){
+        if (!card || typeof card !== 'object') return [];
+        if (Array.isArray(card.owners) && card.owners.length) return normalizeOwnerList(card.owners);
+        return normalizeOwnerList(card.owner);
+      }
+      function setCardOwners(card, owners){
+        const normalized = normalizeOwnerList(owners);
+        card.owners = normalized;
+        card.owner = normalized.join(', ');
+      }
+      function ownersDisplay(card){
+        const owners = cardOwners(card);
+        return owners.length ? owners.join(', ') : '-';
+      }
+      function parseEmailList(raw){
+        if (!raw) return [];
+        return String(raw)
+          .split(/[;,\n]/)
+          .map(function(x){ return x.trim().toLowerCase(); })
+          .filter(Boolean);
+      }
+      function notificationMailRecipientsForCard(card){
+        ensureNotificationsDefaults();
+        const settingsRecipients = parseEmailList(state.notifications.channels.mail_to || '');
+        const ownerRecipients = cardOwners(card).map(function(owner){ return managerEmail(owner).toLowerCase(); }).filter(Boolean);
+        return Array.from(new Set(settingsRecipients.concat(ownerRecipients)));
+      }
+      function normalizeSprint(value){
+        return (value || '').toString().trim();
+      }
+      function sprintLabel(card){
+        const sprint = normalizeSprint(card && card.sprint);
+        return sprint || '{{ _('Sans sprint') }}';
       }
       function taskComputedHours(task){
         const days = Math.max(0, num(task && task.duration_days));
@@ -587,7 +801,7 @@
           });
         });
         state.projects.forEach(function(p){ upsertManager(p.owner); });
-        state.cards.forEach(function(c){ upsertManager(c.owner); });
+        state.cards.forEach(function(c){ cardOwners(c).forEach(function(owner){ upsertManager(owner); }); });
         state.gantt.forEach(function(g){ upsertManager(g.owner); });
         const dedup = [];
         const seen = new Set();
@@ -661,7 +875,13 @@
           state.selected_project_id = state.projects[0].id;
         }
 
-        state.cards = state.cards.map(function(c){ return Object.assign({}, c, { project_id: c.project_id || state.selected_project_id }); });
+        state.cards = state.cards.map(function(c){
+          const row = Object.assign({}, c, { project_id: c.project_id || state.selected_project_id });
+          setCardOwners(row, row.owners || row.owner);
+          row.description = (row.description || '').toString();
+          row.sprint = normalizeSprint(row.sprint);
+          return row;
+        });
         state.gantt = state.gantt.map(function(g){
           const deps = Array.isArray(g.dependencies)
             ? g.dependencies
@@ -685,8 +905,8 @@
 
         if (!state.cards.length) {
           state.cards = [
-            { id: uid(), project_id: state.selected_project_id, title: '{{ _('Lancement du projet') }}', owner: 'PO', priority:'medium', due_date:'', col:'todo' },
-            { id: uid(), project_id: state.selected_project_id, title: '{{ _('Structuration du backlog MVP') }}', owner: 'PM', priority:'high', due_date:'', col:'doing' }
+            { id: uid(), project_id: state.selected_project_id, title: '{{ _('Lancement du projet') }}', owner: 'PO', owners: ['PO'], description: '', sprint: 'Sprint 1', priority:'medium', due_date:'', col:'todo' },
+            { id: uid(), project_id: state.selected_project_id, title: '{{ _('Structuration du backlog MVP') }}', owner: 'PM', owners: ['PM'], description: '', sprint: 'Sprint 1', priority:'high', due_date:'', col:'doing' }
           ];
         }
         if (!state.ceremonies.length) state.ceremonies = [{ id: uid(), type:'planning', when:'Lundi 09:30' }, { id: uid(), type:'daily', when:'Chaque jour 10:00' }];
@@ -699,6 +919,7 @@
         if (!state.security.rights) state.security.rights = 'rw';
         if (!state.security.templates) state.security.templates = '';
         if (!state.security.integrations) state.security.integrations = '';
+        ensureNotificationsDefaults();
         if (!Array.isArray(state.project_versions)) state.project_versions = [];
       }
 
@@ -886,21 +1107,63 @@
         });
       }
 
+      function sprintNamesForCurrentProject(){
+        const names = currentProjectCards().map(function(c){ return sprintLabel(c); }).filter(Boolean);
+        return Array.from(new Set(names)).sort(function(a, b){ return a.localeCompare(b); });
+      }
+
+      function renderSprintFilter(){
+        const select = document.getElementById('pm-sprint-filter');
+        if (!select) return;
+        const current = select.value || '';
+        const names = sprintNamesForCurrentProject();
+        select.innerHTML = '<option value="">{{ _('Tous les sprints') }}</option>' + names.map(function(name){
+          const selected = current === name ? ' selected' : '';
+          return '<option value="' + name.replace(/"/g, '&quot;') + '"' + selected + '>' + name + '</option>';
+        }).join('');
+      }
+
       function renderKanban(){
         const cards = currentProjectCards();
+        const selectedSprint = (document.getElementById('pm-sprint-filter')?.value || '').toString();
         document.querySelectorAll('#pm-kanban [data-col]').forEach(function(col){
           const key = col.getAttribute('data-col');
           const body = col.querySelector('.pm-col-body');
           body.innerHTML = '';
-          cards.filter(c => c.col === key).forEach(function(c){
+          const grouped = {};
+          cards.filter(function(c){
+            if (c.col !== key) return false;
+            if (!selectedSprint) return true;
+            return sprintLabel(c) === selectedSprint;
+          }).forEach(function(c){
+            const label = sprintLabel(c);
+            if (!grouped[label]) grouped[label] = [];
+            grouped[label].push(c);
+          });
+
+          Object.keys(grouped).sort(function(a, b){ return a.localeCompare(b); }).forEach(function(groupName){
+            const groupWrap = document.createElement('div');
+            groupWrap.className = 'border rounded p-2 bg-body mb-2';
+            groupWrap.innerHTML = '<div class="fw-semibold small text-primary mb-2">' + groupName + '</div>';
+
+            const groupList = document.createElement('div');
+            groupList.className = 'd-grid gap-2';
+
+            grouped[groupName].forEach(function(c){
             const item = document.createElement('div');
             item.className = 'text-start border rounded p-2 bg-body-tertiary';
             item.style.cursor = 'grab';
             item.draggable = true;
             item.dataset.cardId = c.id;
+            const cardDescription = (c.description || '').toString().trim();
+            const cardDescriptionHtml = cardDescription
+              ? '<div class="small text-secondary mt-1">' + cardDescription.replace(/</g, '&lt;').replace(/>/g, '&gt;').slice(0, 180) + (cardDescription.length > 180 ? '…' : '') + '</div>'
+              : '';
             item.innerHTML = '<div class="fw-semibold small mb-1">' + c.title + '</div>' +
-              '<div class="small text-secondary">' + (c.owner || '-') + '</div>' +
-              '<div class="d-flex gap-1 mt-1"><span class="badge text-bg-' + priorityBadge(c.priority) + '">' + (c.priority || 'medium') + '</span>' +
+              '<div class="small text-secondary">' + ownersDisplay(c) + '</div>' +
+              cardDescriptionHtml +
+              '<div class="d-flex flex-wrap gap-1 mt-1"><span class="badge text-bg-' + priorityBadge(c.priority) + '">' + (c.priority || 'medium') + '</span>' +
+              '<span class="badge text-bg-light border">' + sprintLabel(c) + '</span>' +
               (c.due_date ? '<span class="badge text-bg-light border">' + c.due_date + '</span>' : '') + '</div>';
             item.addEventListener('dragstart', function(e){
               draggedCardId = c.id;
@@ -909,7 +1172,11 @@
             });
             item.addEventListener('dragend', function(){ item.style.opacity = '1'; });
             item.addEventListener('click', function(){ openTodoModal(c); });
-            body.appendChild(item);
+            groupList.appendChild(item);
+          });
+
+            groupWrap.appendChild(groupList);
+            body.appendChild(groupWrap);
           });
         });
       }
@@ -968,7 +1235,10 @@
             const current = state.managers.find(function(m){ return m.id === id; });
             if (!current) return;
             state.managers = state.managers.filter(function(m){ return m.id !== id; });
-            state.cards.forEach(function(c){ if ((c.owner || '').trim() === current.name) c.owner = ''; });
+            state.cards.forEach(function(c){
+              const filtered = cardOwners(c).filter(function(owner){ return normalizeManagerName(owner).toLowerCase() !== normalizeManagerName(current.name).toLowerCase(); });
+              setCardOwners(c, filtered);
+            });
             state.gantt.forEach(function(g){ if ((g.owner || '').trim() === current.name) g.owner = ''; });
             state.projects.forEach(function(p){ if ((p.owner || '').trim() === current.name) p.owner = ''; });
             renderAll();
@@ -1127,16 +1397,65 @@
         document.getElementById('pm-security-integrations').value = state.security.integrations || '';
 
         const tasks = currentProjectGantt();
-        const totalTasks = tasks.length;
-        const doneTasks = currentProjectCards().filter(function(c){ return c.col === 'done'; }).length;
-        const blocked = currentProjectCards().filter(function(c){ return (c.col || '') === 'doing' && (c.priority || '') === 'high'; }).length;
+        const cards = currentProjectCards();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const totalKanbanTasks = cards.length;
+        const doneKanbanTasks = cards.filter(function(c){ return c.col === 'done'; }).length;
+        const kanbanProgressRatio = totalKanbanTasks > 0
+          ? Math.max(0, Math.min(1, doneKanbanTasks / totalKanbanTasks))
+          : 0;
+
+        let ganttProgressRatio = 0;
+        let ganttCompletedTasks = 0;
+        if (tasks.length) {
+          let weightedDone = 0;
+          let weightedTotal = 0;
+          tasks.forEach(function(t){
+            const duration = Math.max(1, Number(t.duration_days || 1));
+            weightedTotal += duration;
+            const s = dt(t.start);
+            const e = dt(t.end);
+            if (s && e) {
+              if (today >= e) {
+                weightedDone += duration;
+                ganttCompletedTasks += 1;
+              } else if (today >= s) {
+                const elapsed = Math.max(1, daysBetween(s, today));
+                weightedDone += Math.min(duration, elapsed);
+              }
+            }
+          });
+          ganttProgressRatio = weightedTotal > 0 ? Math.max(0, Math.min(1, weightedDone / weightedTotal)) : 0;
+        }
+
+        const totalTasks = totalKanbanTasks > 0 ? totalKanbanTasks : tasks.length;
+        const doneTasks = totalKanbanTasks > 0
+          ? doneKanbanTasks
+          : tasks.filter(function(t){
+              const end = dt(t.end);
+              return !!end && end < today;
+            }).length;
+
+        const blocked = cards.filter(function(c){ return (c.col || '') === 'doing' && (c.priority || '') === 'high'; }).length;
+        const delayedCards = cards.filter(function(c){
+          if ((c.col || '') === 'done') return false;
+          const due = dt(c.due_date);
+          return !!due && due < today;
+        }).length;
+        const delayedGantt = tasks.filter(function(t){
+          const end = dt(t.end);
+          return !!end && end < today;
+        }).length;
+        const delaysAndBlocks = blocked + delayedCards + delayedGantt;
         const actualCost = tasks.reduce(function(acc, t){ return acc + taskComputedCost(t); }, 0);
         const metaBudget = (meta.budget || { initial: 0, revised: 0, engaged: 0 });
         const revised = Math.max(0, num(metaBudget.revised || metaBudget.initial));
         const remaining = Math.max(0, revised - actualCost);
         const eac = actualCost + remaining;
 
-        const progressRatio = totalTasks ? Math.max(0, Math.min(1, doneTasks / totalTasks)) : 0;
+        const progressRatio = tasks.length ? ganttProgressRatio : kanbanProgressRatio;
         const ev = revised * progressRatio;
         let pvRatio = progressRatio;
         const starts = tasks.map(function(t){ return dt(t.start); }).filter(Boolean);
@@ -1165,8 +1484,9 @@
 
           report.innerHTML =
             '<div class="row g-2">' +
-              '<div class="col-md-3"><div class="border rounded p-2"><div class="text-secondary small">{{ _('Avancement') }}</div><div class="fw-semibold">' + (totalTasks ? Math.round((doneTasks / totalTasks) * 100) : 0) + '%</div></div></div>' +
-              '<div class="col-md-3"><div class="border rounded p-2"><div class="text-secondary small">{{ _('Retards/Bloquants') }}</div><div class="fw-semibold">' + blocked + '</div></div></div>' +
+              '<div class="col-md-3"><div class="border rounded p-2"><div class="text-secondary small">{{ _('Progrès Kanban') }}</div><div class="fw-semibold">' + Math.round(kanbanProgressRatio * 100) + '%</div><div class="small text-secondary">' + doneKanbanTasks + '/' + totalKanbanTasks + '</div></div></div>' +
+              '<div class="col-md-3"><div class="border rounded p-2"><div class="text-secondary small">{{ _('Progrès projet (Gantt)') }}</div><div class="fw-semibold">' + Math.round(ganttProgressRatio * 100) + '%</div><div class="small text-secondary">' + ganttCompletedTasks + '/' + tasks.length + ' {{ _('Tâches') }}</div></div></div>' +
+              '<div class="col-md-3"><div class="border rounded p-2"><div class="text-secondary small">{{ _('Retards/Bloquants') }}</div><div class="fw-semibold">' + delaysAndBlocks + '</div></div></div>' +
               '<div class="col-md-3"><div class="border rounded p-2"><div class="text-secondary small">{{ _('Consommé') }}</div><div class="fw-semibold">' + money(actualCost) + '</div></div></div>' +
               '<div class="col-md-3"><div class="border rounded p-2"><div class="text-secondary small">EAC</div><div class="fw-semibold">' + money(eac) + '</div></div></div>' +
             '</div>' +
@@ -1192,6 +1512,8 @@
       function applyPermissionsUI(){
         const writable = canWrite();
         const approvable = canApprove();
+        const securityEditable = canEditSecurity();
+        const notificationsEditable = canEditSecurity();
         [
           'pm-new-project-btn','pm-add-card','pm-add-ceremony','pm-add-deliverable','pm-add-manager','pm-add-gantt',
           'pm-add-stakeholder','pm-add-risk','pm-add-issue','pm-add-decision','pm-add-change','pm-add-document','pm-add-meeting'
@@ -1206,9 +1528,12 @@
         const rights = document.getElementById('pm-security-rights');
         const templates = document.getElementById('pm-security-templates');
         const integrations = document.getElementById('pm-security-integrations');
-        if (rights) rights.disabled = !approvable;
-        if (templates) templates.disabled = !approvable;
-        if (integrations) integrations.disabled = !approvable;
+        if (rights) rights.disabled = !securityEditable;
+        if (templates) templates.disabled = !securityEditable;
+        if (integrations) integrations.disabled = !securityEditable;
+        document.querySelectorAll('#pm-section-notifications input, #pm-section-notifications select, #pm-section-notifications textarea').forEach(function(el){
+          el.disabled = !notificationsEditable;
+        });
         document.querySelectorAll('[data-change-approve],[data-change-reject]').forEach(function(btn){ btn.disabled = !approvable; });
       }
 
@@ -1231,6 +1556,7 @@
             card.col = targetCol;
             draggedCardId = null;
             renderKanban();
+            renderProductivityReport();
             scheduleSave();
           });
         });
@@ -1412,8 +1738,67 @@
           '<div class="table-responsive"><table class="table table-sm mb-0"><thead><tr><th>{{ _('Responsable') }}</th><th class="text-end">{{ _('Heures') }}</th><th class="text-end">{{ _('Montant') }}</th></tr></thead><tbody>' + ownerRows + '</tbody></table></div>';
       }
 
+      function renderProductivityReport(){
+        const el = document.getElementById('pm-productivity-report');
+        if (!el) return;
+        const cards = currentProjectCards();
+        if (!cards.length) {
+          el.innerHTML = '<div class="text-secondary">{{ _('Aucune donnée de productivité.') }}</div>';
+          return;
+        }
+
+        const byOwner = {};
+        let totalWeighted = 0;
+        let doneWeighted = 0;
+
+        cards.forEach(function(card){
+          const owners = cardOwners(card);
+          const ownerList = owners.length ? owners : ['{{ _('Non assigné') }}'];
+          const share = 1 / ownerList.length;
+          ownerList.forEach(function(ownerName){
+            const key = ownerName;
+            if (!byOwner[key]) byOwner[key] = { total: 0, done: 0, doing: 0, todo: 0, backlog: 0 };
+            byOwner[key].total += share;
+            if (card.col === 'done') byOwner[key].done += share;
+            else if (card.col === 'doing') byOwner[key].doing += share;
+            else if (card.col === 'todo') byOwner[key].todo += share;
+            else byOwner[key].backlog += share;
+          });
+          totalWeighted += 1;
+          if (card.col === 'done') doneWeighted += 1;
+        });
+
+        const rows = Object.keys(byOwner).sort().map(function(owner){
+          const row = byOwner[owner];
+          const rate = row.total > 0 ? ((row.done / row.total) * 100) : 0;
+          return '<tr>' +
+            '<td>' + owner + '</td>' +
+            '<td class="text-end">' + row.total.toFixed(2) + '</td>' +
+            '<td class="text-end">' + row.done.toFixed(2) + '</td>' +
+            '<td class="text-end">' + row.doing.toFixed(2) + '</td>' +
+            '<td class="text-end">' + (row.todo + row.backlog).toFixed(2) + '</td>' +
+            '<td class="text-end">' + rate.toFixed(1) + '%</td>' +
+          '</tr>';
+        }).join('');
+
+        const globalRate = totalWeighted > 0 ? ((doneWeighted / totalWeighted) * 100) : 0;
+        const sampleRecipients = notificationMailRecipientsForCard(cards[0] || {}).join(', ');
+        el.innerHTML =
+          '<div class="mb-2">' +
+            '<span class="badge text-bg-light border">{{ _('Cartes') }}: ' + totalWeighted + '</span> ' +
+            '<span class="badge text-bg-light border">{{ _('Terminées') }}: ' + doneWeighted + '</span> ' +
+            '<span class="badge text-bg-success">{{ _('Taux global') }}: ' + globalRate.toFixed(1) + '%</span>' +
+          '</div>' +
+          (sampleRecipients ? '<div class="small text-secondary mb-2">{{ _('Exemple destinataires email (règle owner + settings)') }}: ' + sampleRecipients + '</div>' : '') +
+          '<div class="table-responsive"><table class="table table-sm mb-0">' +
+            '<thead><tr><th>{{ _('Responsable') }}</th><th class="text-end">{{ _('Cartes') }}</th><th class="text-end">{{ _('Terminées') }}</th><th class="text-end">{{ _('En cours') }}</th><th class="text-end">{{ _('À faire + Arriéré') }}</th><th class="text-end">{{ _('Taux') }}</th></tr></thead>' +
+            '<tbody>' + rows + '</tbody>' +
+          '</table></div>';
+      }
+
       function renderAll(){
         renderProjectSelect();
+        renderSprintFilter();
         renderKanban();
         renderCeremonies();
         renderDeliverables();
@@ -1422,6 +1807,8 @@
         renderProjectVersions();
         renderGantt();
         renderFinanceSummary();
+        renderProductivityReport();
+        renderNotificationsSettings();
       }
 
       const projectModal = window.bootstrap.Modal.getOrCreateInstance(document.getElementById('projectModal'));
@@ -1462,17 +1849,29 @@
         });
       }
 
+      function fillTodoOwnersSelect(sel, selectedOwners){
+        if (!sel) return;
+        const selected = new Set(normalizeOwnerList(selectedOwners).map(function(x){ return x.toLowerCase(); }));
+        const names = state.managers.map(function(m){ return managerLabel(m); }).filter(Boolean).sort();
+        sel.innerHTML = names.map(function(name){
+          const isSelected = selected.has(name.toLowerCase()) ? ' selected' : '';
+          return '<option value="' + name.replace(/"/g, '&quot;') + '"' + isSelected + '>' + name + '</option>';
+        }).join('');
+      }
+
       function openTodoModal(card){
         const form = document.getElementById('todoForm');
         form.reset();
         fillTodoProjectSelect(form.querySelector('[name="project_id"]'), card ? card.project_id : state.selected_project_id);
+        fillTodoOwnersSelect(form.querySelector('[name="owners"]'), card ? cardOwners(card) : []);
         document.getElementById('todoDeleteBtn').classList.toggle('d-none', !card);
         form.querySelector('[name="todo_id"]').value = card ? card.id : '';
         form.querySelector('[name="title"]').value = card ? (card.title || '') : '';
-        form.querySelector('[name="owner"]').value = card ? (card.owner || '') : '';
+        form.querySelector('[name="description"]').value = card ? (card.description || '') : '';
         form.querySelector('[name="priority"]').value = card ? (card.priority || 'medium') : 'medium';
         form.querySelector('[name="col"]').value = card ? (card.col || 'backlog') : 'backlog';
         form.querySelector('[name="due_date"]').value = card ? (card.due_date || '') : '';
+        form.querySelector('[name="sprint"]').value = card ? (card.sprint || '') : '';
         todoModal.show();
       }
 
@@ -1483,22 +1882,30 @@
         if (!canWrite()) return;
         const fd = new FormData(e.target);
         const id = (fd.get('todo_id') || '').toString();
+        const selectedOwners = Array.from(e.target.querySelectorAll('[name="owners"] option:checked')).map(function(opt){
+          return normalizeManagerName(opt.value);
+        }).filter(Boolean);
         const payload = {
           id: id || uid(),
           project_id: (fd.get('project_id') || state.selected_project_id).toString(),
           title: (fd.get('title') || '').toString().trim(),
-          owner: (fd.get('owner') || '').toString().trim(),
+          owner: selectedOwners.join(', '),
+          owners: selectedOwners,
+          description: (fd.get('description') || '').toString().trim(),
           priority: (fd.get('priority') || 'medium').toString(),
           col: (fd.get('col') || 'backlog').toString(),
           due_date: (fd.get('due_date') || '').toString(),
+          sprint: normalizeSprint(fd.get('sprint')),
         };
         if (!payload.title) return;
-        upsertManager(payload.owner);
+        payload.owners.forEach(function(owner){ upsertManager(owner); });
         const idx = state.cards.findIndex(c => c.id === payload.id);
         if (idx >= 0) state.cards[idx] = payload;
         else state.cards.push(payload);
         todoModal.hide();
+        renderSprintFilter();
         renderKanban();
+        renderProductivityReport();
         scheduleSave();
       });
 
@@ -1508,7 +1915,9 @@
         if (!id) return;
         state.cards = state.cards.filter(c => c.id !== id);
         todoModal.hide();
+        renderSprintFilter();
         renderKanban();
+        renderProductivityReport();
         scheduleSave();
       });
 
@@ -1729,11 +2138,17 @@
 
       projectSelect.addEventListener('change', function(){
         state.selected_project_id = projectSelect.value;
+        renderSprintFilter();
         renderKanban();
         renderGantt();
         renderGovernance();
         renderFinanceSummary();
+        renderProductivityReport();
         if (canWrite()) scheduleSave();
+      });
+
+      document.getElementById('pm-sprint-filter')?.addEventListener('change', function(){
+        renderKanban();
       });
 
       ['pm-charter-objectives','pm-charter-scope','pm-charter-deliverables','pm-charter-milestones','pm-baseline-planning','pm-baseline-budget','pm-baseline-scope'].forEach(function(id){
@@ -1761,11 +2176,37 @@
         const el = document.getElementById(id);
         if (!el) return;
         el.addEventListener('change', function(){
-          if (!canApprove()) return;
+          if (!canEditSecurity()) return;
           state.security.rights = document.getElementById('pm-security-rights').value || 'rw';
           state.security.templates = document.getElementById('pm-security-templates').value || '';
           state.security.integrations = document.getElementById('pm-security-integrations').value || '';
           addAudit('security.updated');
+          scheduleSave();
+        });
+      });
+
+      [
+        'pm-notif-slack-enabled','pm-notif-slack-webhook','pm-notif-mail-enabled','pm-notif-mail-to','pm-notif-teams-enabled','pm-notif-teams-webhook',
+        'pm-notif-trigger-project-delay','pm-notif-trigger-card-delay','pm-notif-trigger-risk-high','pm-notif-trigger-change-approved','pm-notif-trigger-daily-summary'
+      ].forEach(function(id){
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('change', function(){
+          if (!canEditSecurity()) return;
+          ensureNotificationsDefaults();
+          state.notifications.channels.slack_enabled = !!document.getElementById('pm-notif-slack-enabled')?.checked;
+          state.notifications.channels.slack_webhook = (document.getElementById('pm-notif-slack-webhook')?.value || '').trim();
+          state.notifications.channels.mail_enabled = !!document.getElementById('pm-notif-mail-enabled')?.checked;
+          state.notifications.channels.mail_to = (document.getElementById('pm-notif-mail-to')?.value || '').trim();
+          state.notifications.channels.mail_include_card_owner = true;
+          state.notifications.channels.teams_enabled = !!document.getElementById('pm-notif-teams-enabled')?.checked;
+          state.notifications.channels.teams_webhook = (document.getElementById('pm-notif-teams-webhook')?.value || '').trim();
+          state.notifications.triggers.project_delay = !!document.getElementById('pm-notif-trigger-project-delay')?.checked;
+          state.notifications.triggers.card_delay = !!document.getElementById('pm-notif-trigger-card-delay')?.checked;
+          state.notifications.triggers.risk_high = !!document.getElementById('pm-notif-trigger-risk-high')?.checked;
+          state.notifications.triggers.change_approved = !!document.getElementById('pm-notif-trigger-change-approved')?.checked;
+          state.notifications.triggers.daily_summary = !!document.getElementById('pm-notif-trigger-daily-summary')?.checked;
+          addAudit('notifications.updated', { mail_policy: 'settings_plus_card_owner' });
           scheduleSave();
         });
       });
@@ -1784,7 +2225,6 @@
       document.getElementById('pm-version-b').addEventListener('change', renderVersionComparison);
 
       function setGanttMaximized(maximized){
-          'pm-add-stakeholder','pm-add-risk','pm-add-issue','pm-add-decision','pm-add-change','pm-add-document','pm-add-meeting','pm-add-version'
         ganttIsMaximized = !!maximized;
         ganttCard.classList.toggle('pm-gantt-fullscreen', ganttIsMaximized);
         document.body.style.overflow = ganttIsMaximized ? 'hidden' : '';
@@ -1803,11 +2243,34 @@
         }
       });
 
+      function activateTabByHash(){
+        const hash = (window.location.hash || '').toLowerCase();
+        if (!hash) return;
+        let tabBtnId = null;
+        if (hash.startsWith('#pm-section-governance') || hash.startsWith('#pm-section-risks') || hash.startsWith('#pm-section-change')) {
+          tabBtnId = 'pm-tab-governance';
+        } else if (hash.startsWith('#pm-section-reporting') || hash.startsWith('#pm-section-gantt') || hash.startsWith('#pm-section-productivity') || hash.startsWith('#pm-section-security')) {
+          tabBtnId = 'pm-tab-reporting';
+        } else if (hash.startsWith('#pm-section-notifications')) {
+          tabBtnId = 'pm-tab-notifications';
+        } else if (hash.startsWith('#pm-section-kanban') || hash.startsWith('#pm-section-ceremonies') || hash.startsWith('#pm-section-deliverables') || hash.startsWith('#pm-section-managers')) {
+          tabBtnId = 'pm-tab-execution';
+        }
+        if (!tabBtnId) return;
+        const btn = document.getElementById(tabBtnId);
+        if (!btn) return;
+        const tab = window.bootstrap && window.bootstrap.Tab ? window.bootstrap.Tab.getOrCreateInstance(btn) : null;
+        if (tab) tab.show();
+      }
+
+      window.addEventListener('hashchange', activateTabByHash);
+
       (async function init(){
         await load();
         ensureDefaults();
         initKanbanDropzones();
         renderAll();
+        activateTabByHash();
         await saveNow();
       })();
     });

@@ -15,6 +15,7 @@ from audela.etl.registry import REGISTRY
 from audela.etl.workflow_loader import normalize_workflow
 from audela.extensions import csrf, db
 from audela.services.subscription_service import SubscriptionService
+from audela.services.etl_jobs_service import load_jobs, upsert_job, delete_job, run_job
 
 bp = Blueprint("etl", __name__, url_prefix="/etl")
 
@@ -56,6 +57,48 @@ def _workflows_dir() -> str:
     d = os.path.join(base, tenant_slug)
     os.makedirs(d, exist_ok=True)
     return d
+
+
+@bp.get("/api/jobs")
+def list_jobs():
+    tenant_slug = getattr(getattr(g, "tenant", None), "slug", None)
+    items = load_jobs(current_app.instance_path, tenant_slug)
+    return jsonify({"jobs": items})
+
+
+@bp.post("/api/jobs")
+@csrf.exempt
+def save_job():
+    payload = request.get_json(force=True, silent=False) or {}
+    tenant_slug = getattr(getattr(g, "tenant", None), "slug", None)
+    try:
+        item = upsert_job(current_app.instance_path, tenant_slug, payload)
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    return jsonify({"ok": True, "job": item})
+
+
+@bp.post("/api/jobs/<job_id>/delete")
+@csrf.exempt
+def remove_job(job_id: str):
+    tenant_slug = getattr(getattr(g, "tenant", None), "slug", None)
+    ok = delete_job(current_app.instance_path, tenant_slug, job_id)
+    if not ok:
+        return jsonify({"ok": False, "error": "job not found"}), 404
+    return jsonify({"ok": True})
+
+
+@bp.post("/api/jobs/<job_id>/run")
+@csrf.exempt
+def run_saved_job(job_id: str):
+    tenant_slug = getattr(getattr(g, "tenant", None), "slug", None)
+    try:
+        out = run_job(current_app.instance_path, tenant_slug, job_id, trigger="manual")
+        return jsonify(out)
+    except KeyError:
+        return jsonify({"ok": False, "error": "job not found"}), 404
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
 
 @bp.get("/builder")
 def builder():

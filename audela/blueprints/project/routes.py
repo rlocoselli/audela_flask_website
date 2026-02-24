@@ -33,6 +33,13 @@ def _has_project_access(tenant: Tenant) -> bool:
     return SubscriptionService.check_feature_access(tenant.id, "project")
 
 
+def _is_tenant_admin() -> bool:
+    has_role = getattr(current_user, "has_role", None)
+    if not callable(has_role):
+        return False
+    return bool(has_role("tenant_admin"))
+
+
 def _sanitize_state(payload: dict | None) -> dict:
     payload = payload or {}
     state = payload if isinstance(payload, dict) else {}
@@ -70,6 +77,7 @@ def _sanitize_state(payload: dict | None) -> dict:
         "audit_log": _list("audit_log", 4000),
         "project_versions": _list("project_versions", 2000),
         "security": _dict("security"),
+        "notifications": _dict("notifications"),
     }
 
 
@@ -91,7 +99,12 @@ def dashboard():
     if not _has_project_access(g.tenant):
         flash(_("Le produit Projet n'est pas disponible dans votre plan actuel."), "warning")
         return redirect(url_for("billing.plans", product="project"))
-    return render_template("project/dashboard.html", tenant=g.tenant, title="AUDELA Project")
+    return render_template(
+        "project/dashboard.html",
+        tenant=g.tenant,
+        title="AUDELA Project",
+        is_tenant_admin=current_user.has_role("tenant_admin"),
+    )
 
 
 @bp.route("/api/workspace", methods=["GET"])
@@ -121,6 +134,14 @@ def workspace_save():
     state = _sanitize_state(payload.get("state") if isinstance(payload, dict) else {})
 
     ws = ProjectWorkspace.query.filter_by(tenant_id=g.tenant.id).first()
+    previous_state = ws.state_json if ws and isinstance(ws.state_json, dict) else {}
+
+    if not _is_tenant_admin():
+        previous_security = previous_state.get("security") if isinstance(previous_state, dict) else {}
+        state["security"] = previous_security if isinstance(previous_security, dict) else {}
+        previous_notifications = previous_state.get("notifications") if isinstance(previous_state, dict) else {}
+        state["notifications"] = previous_notifications if isinstance(previous_notifications, dict) else {}
+
     if not ws:
         ws = ProjectWorkspace(tenant_id=g.tenant.id)
         db.session.add(ws)

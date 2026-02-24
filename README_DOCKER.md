@@ -10,6 +10,10 @@ It also adds **environment monitoring**:
 - **Prometheus** scrapes host + container + DB + Redis + Traefik metrics
 - **Grafana** (pre-provisioned Prometheus datasource + basic dashboard)
 
+Background jobs included:
+- **Celery Worker** (`celery-worker`) for async tasks
+- **Celery Beat** (`celery-beat`) for periodic schedules (ex: project notifications scan)
+
 ## Files added
 
 - `Dockerfile` (builds the Flask app)
@@ -52,6 +56,38 @@ docker compose up -d --build
 - App: `https://$APP_HOSTNAME/`
 - Login: `https://$APP_HOSTNAME/app/login`
 - Grafana: `https://$GRAFANA_HOSTNAME/` (admin creds from `.env`)
+
+Celery services run automatically with Compose:
+- `celery-worker`
+- `celery-beat`
+
+### `.env` minimal for Celery + project notifications
+
+Add this block in your `.env`:
+
+```env
+# Redis / Celery
+REDIS_URL=redis://redis:6379/0
+CELERY_BROKER_URL=redis://redis:6379/0
+CELERY_RESULT_BACKEND=redis://redis:6379/0
+CELERY_DEFAULT_QUEUE=default
+CELERY_TIMEZONE=UTC
+CELERY_ENABLE_UTC=true
+
+# Project notifications job
+PROJECT_NOTIFICATIONS_ENABLED=true
+PROJECT_NOTIFICATIONS_SCAN_MINUTES=5
+PROJECT_NOTIFICATIONS_COOLDOWN_MINUTES=120
+
+# SMTP (required for email notifications)
+MAIL_SERVER=smtp.your-provider.com
+MAIL_PORT=587
+MAIL_USE_TLS=true
+MAIL_USE_SSL=false
+MAIL_USERNAME=alerts@your-domain.com
+MAIL_PASSWORD=change-me
+MAIL_DEFAULT_SENDER=alerts@your-domain.com
+```
 
 Ports exposed on the host: **80** and **443** (Traefik). Everything else stays private.
 

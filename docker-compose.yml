@@ -80,6 +80,49 @@ services:
       timeout: 5s
       retries: 10
 
+  celery-worker:
+    build:
+      context: .
+    restart: unless-stopped
+    command: ["celery", "-A", "audela.celery_app.celery_app", "worker", "-l", "info"]
+    env_file:
+      - .env
+    environment:
+      FLASK_ENV: production
+      REDIS_URL: redis://redis:6379/0
+      TENANT_FILE_ROOT: /app/instance/tenant_files
+      AUTO_CREATE_DB: "false"
+      RUN_MIGRATIONS: "0"
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - audela_instance:/app/instance
+    networks:
+      - backend
+
+  celery-beat:
+    build:
+      context: .
+    restart: unless-stopped
+    command: ["celery", "-A", "audela.celery_app.celery_app", "beat", "-l", "info", "--schedule", "/app/instance/celerybeat-schedule"]
+    env_file:
+      - .env
+    environment:
+      FLASK_ENV: production
+      REDIS_URL: redis://redis:6379/0
+      TENANT_FILE_ROOT: /app/instance/tenant_files
+      AUTO_CREATE_DB: "false"
+      RUN_MIGRATIONS: "0"
+    depends_on:
+      - db
+      - redis
+      - celery-worker
+    volumes:
+      - audela_instance:/app/instance
+    networks:
+      - backend
+
   grafana:
     image: grafana/grafana:latest
     restart: unless-stopped

@@ -7,6 +7,7 @@ let _configModal = null;
 let _dbSources = [];
 let _apiSources = [];
 let _workflows = [];
+let _jobs = [];
 let _uiModal = null;
 let _advancedEditors = {
   python: null,
@@ -683,10 +684,13 @@ function refreshWorkflows() {
     .then(data => {
       _workflows = data.workflows || [];
       const sel = document.getElementById("savedWorkflows");
+      const selJobWorkflow = document.getElementById("jobWorkflow");
       if (!sel) return;
       sel.innerHTML = "";
+      if (selJobWorkflow) selJobWorkflow.innerHTML = "";
       if (!_workflows.length) {
         sel.innerHTML = `<option value="">(empty)</option>`;
+        if (selJobWorkflow) selJobWorkflow.innerHTML = `<option value="">(empty)</option>`;
         return;
       }
       _workflows.forEach(w => {
@@ -694,9 +698,150 @@ function refreshWorkflows() {
         opt.value = w.name;
         opt.textContent = w.name;
         sel.appendChild(opt);
+
+        if (selJobWorkflow) {
+          const optJob = document.createElement("option");
+          optJob.value = w.name;
+          optJob.textContent = w.name;
+          selJobWorkflow.appendChild(optJob);
+        }
       });
+
+      if (selJobWorkflow && !selJobWorkflow.value && _workflows[0]) {
+        selJobWorkflow.value = _workflows[0].name;
+      }
     })
     .catch(err => console.error("workflows:", err));
+}
+
+// ---------------- Jobs ----------------
+
+function _jobFormPayload() {
+  const id = (document.getElementById("jobId")?.value || "").trim();
+  const name = (document.getElementById("jobName")?.value || "").trim();
+  const workflowName = (document.getElementById("jobWorkflow")?.value || "").trim();
+  const interval = parseInt(document.getElementById("jobInterval")?.value || "60", 10);
+  const enabled = !!document.getElementById("jobEnabled")?.checked;
+  return {
+    id: id || undefined,
+    name,
+    workflow_name: workflowName,
+    interval_minutes: Number.isFinite(interval) ? Math.max(1, interval) : 60,
+    enabled,
+  };
+}
+
+function _setJobForm(job) {
+  document.getElementById("jobId").value = job?.id || "";
+  document.getElementById("jobName").value = job?.name || "";
+  if (job?.workflow_name && document.getElementById("jobWorkflow")) {
+    document.getElementById("jobWorkflow").value = job.workflow_name;
+  }
+  document.getElementById("jobInterval").value = job?.interval_minutes || 60;
+  document.getElementById("jobEnabled").checked = !!(job ? job.enabled : true);
+}
+
+function refreshJobs() {
+  _fetchJson("/etl/api/jobs", { method: "GET" })
+    .then(data => {
+      _jobs = data.jobs || [];
+      const host = document.getElementById("jobsList");
+      if (!host) return;
+
+      if (!_jobs.length) {
+        host.innerHTML = `<div class="text-secondary">No jobs</div>`;
+        return;
+      }
+
+      host.innerHTML = _jobs.map(job => {
+        const status = _escapeHtml(job.last_status || "-");
+        const runAt = _escapeHtml(job.last_run_at || "-");
+        const title = _escapeHtml(job.name || job.id);
+        const wf = _escapeHtml(job.workflow_name || "-");
+        const interval = Number(job.interval_minutes || 60);
+        const badge = job.enabled
+          ? `<span class="badge text-bg-success">active</span>`
+          : `<span class="badge text-bg-secondary">paused</span>`;
+
+        return `
+          <div class="border rounded p-2 mb-2">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+              <div>
+                <div class="fw-semibold">${title}</div>
+                <div class="text-secondary">workflow: ${wf}</div>
+                <div class="text-secondary">every ${interval} min · ${badge}</div>
+                <div class="text-secondary">last: ${runAt} · status: ${status}</div>
+              </div>
+              <div class="d-flex flex-column gap-1">
+                <button class="btn btn-sm btn-outline-primary" onclick="editJob('${_escapeHtml(job.id)}')">Edit</button>
+                <button class="btn btn-sm btn-outline-success" onclick="runJobNow('${_escapeHtml(job.id)}')">Run</button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteJob('${_escapeHtml(job.id)}')">Delete</button>
+              </div>
+            </div>
+          </div>`;
+      }).join("");
+    })
+    .catch(err => {
+      const host = document.getElementById("jobsList");
+      if (host) host.innerHTML = `<div class="text-danger">${_escapeHtml(err.message || err)}</div>`;
+    });
+}
+
+function editJob(jobId) {
+  const row = (_jobs || []).find(j => String(j.id) === String(jobId));
+  if (!row) return;
+  _setJobForm(row);
+}
+
+function saveJob() {
+  const payload = _jobFormPayload();
+  if (!payload.workflow_name) {
+    _showMessageModal("Select a workflow first", "Validation");
+    return;
+  }
+  if (!payload.name) {
+    _showMessageModal("Enter job name", "Validation");
+    return;
+  }
+
+  _fetchJson("/etl/api/jobs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
+    .then(data => {
+      _setJobForm(data.job || null);
+      refreshJobs();
+      _showMessageModal("Job saved", "Success");
+    })
+    .catch(err => _showMessageModal("Job save error: " + err.message, "Error"));
+}
+
+function runJobNow(jobId) {
+  _fetchJson(`/etl/api/jobs/${encodeURIComponent(jobId)}/run`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  })
+    .then(data => {
+      const el = document.getElementById("etlPreview");
+      if (el) el.textContent = _jsonPretty(data.result || data);
+      refreshJobs();
+    })
+    .catch(err => _showMessageModal("Job run error: " + err.message, "Error"));
+}
+
+function deleteJob(jobId) {
+  _fetchJson(`/etl/api/jobs/${encodeURIComponent(jobId)}/delete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  })
+    .then(() => {
+      _setJobForm(null);
+      refreshJobs();
+    })
+    .catch(err => _showMessageModal("Job delete error: " + err.message, "Error"));
 }
 
 function loadSelectedWorkflow() {
@@ -1998,6 +2143,7 @@ function saveNodeConfig() {
 // ---------------- init ----------------
 function initEtlBuilder() {
   refreshWorkflows();
+  refreshJobs();
   refreshDbSources();
   refreshApiSources();
 

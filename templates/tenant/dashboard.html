@@ -85,7 +85,7 @@
                 {% else %}
                   <i class="bi bi-x-circle"></i> {{ _('Abonnement annulé') }}
                 {% endif %}
-                – {{ stats.plan_name }}
+                – {{ _(stats.plan_name) }}
               </h5>
               <p class="mb-0">
                 {% if subscription.is_trial() %}
@@ -222,7 +222,7 @@
                 <div class="col-md-6">
                   <div class="mb-3">
                     <strong>{{ _('Plan:') }}</strong> 
-                    <span class="badge bg-primary">{{ stats.plan_name }}</span>
+                    <span class="badge bg-primary">{{ _(stats.plan_name) }}</span>
                   </div>
                   <div class="mb-3">
                     <strong>{{ _('Modules:') }}</strong>

@@ -34,7 +34,7 @@
         #biHelpChat,
         #projectQuickActions,
         #projectHelpChat {
-          right: 0.5rem !important;
+          right: calc(0.5rem + env(safe-area-inset-right, 0px)) !important;
           left: auto !important;
           padding: 0.5rem !important;
         }
@@ -42,8 +42,8 @@
         #financeHelpChatPanel,
         #biHelpChatPanel,
         #projectHelpChatPanel {
-          width: min(340px, calc(100vw - 1rem)) !important;
-          max-width: min(340px, calc(100vw - 1rem)) !important;
+          width: min(340px, calc(100vw - 1.25rem - env(safe-area-inset-right, 0px))) !important;
+          max-width: min(340px, calc(100vw - 1.25rem - env(safe-area-inset-right, 0px))) !important;
           margin-left: auto;
           box-sizing: border-box;
         }
@@ -52,12 +52,14 @@
         #biQuickActionsMenu,
         #projectQuickActionsMenu {
           max-width: min(88vw, 320px);
+          align-items: stretch !important;
         }
 
         #financeQuickActionsMenu .btn,
         #biQuickActionsMenu .btn,
         #projectQuickActionsMenu .btn {
           max-width: 100%;
+          width: 100%;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;

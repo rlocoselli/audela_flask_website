@@ -44,7 +44,7 @@
           <li class="nav-item"><a class="nav-link" href="{{ url_for('finance.help_page') }}">{{ _('Ajuda') }}</a></li>
         </ul>
 
-        <div class="d-flex align-items-center gap-2">
+        <div class="d-flex align-items-center gap-2 finance-top-actions flex-wrap">
           <a class="btn btn-outline-primary btn-sm" href="{{ url_for('tenant.dashboard') }}">
             <i class="bi bi-arrow-left-circle me-1"></i>
             <span class="d-none d-md-inline">{{ _('Retour au dashboard tenant') }}</span>
@@ -52,7 +52,7 @@
 
           {% if transaction_usage %}
             <span class="badge text-bg-light border">
-              {{ _('Transações') }}: {{ transaction_usage.current }}/{{ transaction_usage.max_label }}
+              <span class="d-none d-sm-inline">{{ _('Transações') }}:</span> {{ transaction_usage.current }}/{{ transaction_usage.max_label }}
             </span>
           {% endif %}
 
@@ -61,7 +61,7 @@
           </button>
 
           <button
-            class="btn btn-outline-info btn-sm js-start-tutorial"
+            class="btn btn-outline-info btn-sm js-start-tutorial d-none d-sm-inline-flex"
             type="button"
             title="{{ _('Ouvrir le tutoriel guidé de cette page') }}"
             aria-label="{{ _('Ouvrir le tutoriel guidé de cette page') }}"
@@ -174,6 +174,24 @@
       <a class="btn btn-outline-primary btn-sm ms-2" href="https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=rlocoselli%40yahoo.com.br&currency_code=EUR&amount=10.00&item_name=Support%20AUDELA%20versions%20gratuites" target="_blank" rel="noopener">{{ _('Soutenir les versions gratuites (10 €)') }}</a>
     </div>
   </footer>
+{% endblock %}
+
+{% block head_extra %}
+  {{ super() }}
+  <style>
+    @media (max-width: 991.98px) {
+      .finance-top-actions {
+        width: 100%;
+        margin-top: .5rem;
+        overflow-x: auto;
+        flex-wrap: nowrap !important;
+        -webkit-overflow-scrolling: touch;
+      }
+      .finance-top-actions > * {
+        flex: 0 0 auto;
+      }
+    }
+  </style>
 {% endblock %}
 
 {% block body_scripts %}

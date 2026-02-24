@@ -62,6 +62,24 @@ class Config:
     REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
     CACHE_TTL_SECONDS = int(os.environ.get("CACHE_TTL_SECONDS", "300"))
 
+    # Celery (shared async job module)
+    CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", REDIS_URL)
+    CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", CELERY_BROKER_URL)
+    CELERY_DEFAULT_QUEUE = os.environ.get("CELERY_DEFAULT_QUEUE", "default")
+    CELERY_TIMEZONE = os.environ.get("CELERY_TIMEZONE", "UTC")
+    CELERY_ENABLE_UTC = os.environ.get("CELERY_ENABLE_UTC", "true").lower() == "true"
+    CELERY_TASK_IGNORE_RESULT = os.environ.get("CELERY_TASK_IGNORE_RESULT", "false").lower() == "true"
+    CELERY_BEAT_SCHEDULE = {}
+
+    # Project notifications job
+    PROJECT_NOTIFICATIONS_ENABLED = os.environ.get("PROJECT_NOTIFICATIONS_ENABLED", "true").lower() == "true"
+    PROJECT_NOTIFICATIONS_SCAN_MINUTES = int(os.environ.get("PROJECT_NOTIFICATIONS_SCAN_MINUTES", "5"))
+    PROJECT_NOTIFICATIONS_COOLDOWN_MINUTES = int(os.environ.get("PROJECT_NOTIFICATIONS_COOLDOWN_MINUTES", "120"))
+
+    # ETL jobs scheduler
+    ETL_JOBS_ENABLED = os.environ.get("ETL_JOBS_ENABLED", "true").lower() == "true"
+    ETL_JOBS_SCAN_MINUTES = int(os.environ.get("ETL_JOBS_SCAN_MINUTES", "1"))
+
     # Dev convenience: auto-create tables when using SQLite and no migrations yet.
     # In production you should run Alembic migrations instead.
     AUTO_CREATE_DB = os.environ.get("AUTO_CREATE_DB", "true").lower() == "true"

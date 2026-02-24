@@ -23,11 +23,14 @@
         <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-risks">{{ _('Risques/Issues') }}</a></li>
         <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-change">{{ _('Changements') }}</a></li>
         <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-reporting">{{ _('Reporting') }}</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-security">{{ _('Paramètres') }}</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-notifications">{{ _('Notifications') }}</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-productivity">{{ _('Productivité') }}</a></li>
         <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-deliverables">{{ _('Livrables') }}</a></li>
         <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-ceremonies">{{ _('Cérémonies') }}</a></li>
       </ul>
 
-      <div class="d-flex align-items-center gap-2">
+      <div class="d-flex align-items-center gap-2 project-top-actions flex-wrap">
         <a class="btn btn-outline-primary btn-sm" href="{{ url_for('tenant.dashboard') }}">
           <i class="bi bi-arrow-left-circle me-1"></i>
           <span class="d-none d-md-inline">{{ _('Retour au dashboard tenant') }}</span>
@@ -121,6 +124,24 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block head_extra %}
+  {{ super() }}
+  <style>
+    @media (max-width: 991.98px) {
+      .project-top-actions {
+        width: 100%;
+        margin-top: .5rem;
+        overflow-x: auto;
+        flex-wrap: nowrap !important;
+        -webkit-overflow-scrolling: touch;
+      }
+      .project-top-actions > * {
+        flex: 0 0 auto;
+      }
+    }
+  </style>
 {% endblock %}
 
 {% block body_scripts %}
