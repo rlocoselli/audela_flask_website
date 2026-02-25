@@ -26,8 +26,29 @@ http:
         certResolver: letsencrypt
       service: grenobleski-svc
 
+    bilieu-http:
+      rule: "Host(`bilieu.fr`) || Host(`www.bilieu.fr`)"
+      entryPoints:
+        - web
+      middlewares:
+        - bilieu-https-redirect
+      service: bilieu-svc
+
+    bilieu-https:
+      rule: "Host(`bilieu.fr`) || Host(`www.bilieu.fr`)"
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+      service: bilieu-svc
+
   middlewares:
     grenobleski-https-redirect:
+      redirectScheme:
+        scheme: https
+        permanent: true
+
+    bilieu-https-redirect:
       redirectScheme:
         scheme: https
         permanent: true
@@ -37,4 +58,10 @@ http:
       loadBalancer:
         servers:
           - url: "http://host.docker.internal:8081"
+        passHostHeader: true
+
+    bilieu-svc:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:8082"
         passHostHeader: true
