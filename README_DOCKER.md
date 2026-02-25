@@ -35,6 +35,7 @@ cp .env.example .env
 Edit `.env` and set at least:
 - `APP_HOSTNAME` (your existing domain, ex: `audela.example.com`)
 - `GRAFANA_HOSTNAME` (ex: `grafana.example.com`)
+- `GRAFANA_HOSTNAME_ALT` (optional second Grafana domain, ex: `monitoring.example.com`)
 - `SECRET_KEY` and `DATA_KEY`
 - `POSTGRES_*` and `GRAFANA_ADMIN_PASSWORD`
 

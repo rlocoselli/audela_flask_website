@@ -151,12 +151,12 @@ services:
       - traefik.docker.network=audela_web
 
       # HTTP -> HTTPS
-      - traefik.http.routers.grafana-http.rule=Host(`${GRAFANA_HOSTNAME}`)
+      - traefik.http.routers.grafana-http.rule=Host(`${GRAFANA_HOSTNAME}`) || Host(`${GRAFANA_HOSTNAME_ALT:-grafana-alt.invalid}`)
       - traefik.http.routers.grafana-http.entrypoints=web
       - traefik.http.routers.grafana-http.middlewares=redirect-to-https
 
       # HTTPS
-      - traefik.http.routers.grafana.rule=Host(`${GRAFANA_HOSTNAME}`)
+      - traefik.http.routers.grafana.rule=Host(`${GRAFANA_HOSTNAME}`) || Host(`${GRAFANA_HOSTNAME_ALT:-grafana-alt.invalid}`)
       - traefik.http.routers.grafana.entrypoints=websecure
       - traefik.http.routers.grafana.tls=true
       - traefik.http.routers.grafana.tls.certresolver=letsencrypt
