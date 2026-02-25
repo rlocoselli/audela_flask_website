@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block title %}{{ _('legal.nutritracker_privacy.title') }} – AUDELA{% endblock %}
+
+{% block content %}
+<section id="main" class="wrapper style1">
+  <div class="container">
+    <header class="major">
+      <h2>{{ _('legal.nutritracker_privacy.title') }}</h2>
+      <p class="muted">{{ _('legal.nutritracker_privacy.subtitle') }}</p>
+      <p class="muted">{{ _('legal.last_updated', date='2026-02-25') }}</p>
+    </header>
+
+    <div class="legal-content">
+      {{ _('legal.nutritracker_privacy.body_html')|safe }}
+
+      <hr>
+      <p>
+        <a class="button" href="{{ url_for('public.nutritracker_lgpd_request') }}">
+          {{ _('legal.nutritracker_privacy.cta_lgpd') }}
+        </a>
+      </p>
+    </div>
+  </div>
+</section>
+{% endblock %}

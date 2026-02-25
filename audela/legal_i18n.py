@@ -1168,3 +1168,287 @@ Anschrift: <em>zu ergänzen</em></p>
 """,
     },
 }
+
+
+NUTRITRACKER_POLICY_TRANSLATIONS = {
+    "fr": {
+        "footer.nutritracker_privacy": "NutriTracker — Politique de confidentialité",
+        "legal.nutritracker_privacy.title": "NutriTracker — Politique de confidentialité",
+        "legal.nutritracker_privacy.subtitle": "Politique de confidentialité dédiée à l'application mobile NutriTracker",
+        "legal.nutritracker_privacy.cta_lgpd": "Gérer suppression de compte et données (LGPD)",
+        "legal.nutritracker_privacy.body_html": """
+<h3>1. Responsable du traitement</h3>
+<p>Le responsable du traitement des données de l'application <strong>NutriTracker</strong> est <strong>AUDELA</strong>. Contact : <a href=\"mailto:admin@audeladedonees.fr\">admin@audeladedonees.fr</a>.</p>
+
+<h3>2. Données collectées</h3>
+<ul>
+  <li>Données de compte : e‑mail, identifiant interne, paramètres de profil.</li>
+  <li>Données de nutrition et de suivi que vous saisissez dans l'application.</li>
+  <li>Données techniques minimales : journaux de sécurité, informations de diagnostic et métadonnées de fonctionnement.</li>
+</ul>
+
+<h3>3. Finalités</h3>
+<ul>
+  <li>Fournir les fonctionnalités NutriTracker (suivi, historique, synchronisation).</li>
+  <li>Assurer la sécurité du service et prévenir les abus.</li>
+  <li>Améliorer la stabilité et les performances de l'application.</li>
+  <li>Respecter nos obligations légales et réglementaires.</li>
+</ul>
+
+<h3>4. Base légale</h3>
+<p>Les traitements reposent sur l'exécution du service demandé, notre intérêt légitime (sécurité et amélioration), et le respect des obligations légales. Le consentement est demandé lorsqu'il est requis.</p>
+
+<h3>5. Partage des données</h3>
+<p>Nous ne vendons pas vos données personnelles. Les données peuvent être partagées uniquement avec des sous‑traitants techniques (hébergement, supervision, sauvegarde) strictement nécessaires à l'exploitation du service.</p>
+
+<h3>6. Conservation</h3>
+<p>Les données sont conservées pendant la durée d'utilisation du compte puis supprimées ou anonymisées dans un délai raisonnable, sauf obligation légale contraire.</p>
+
+<h3>7. Vos droits</h3>
+<p>Vous disposez de droits d'accès, de rectification, d'effacement, d'opposition, de limitation et de portabilité selon la réglementation applicable. Vous pouvez exercer ces droits à : <a href=\"mailto:admin@audeladedonees.fr\">admin@audeladedonees.fr</a>.</p>
+
+<h3>8. Suppression du compte et des données</h3>
+<p>Vous pouvez demander la suppression du compte et/ou des données personnelles via la page dédiée : <a href=\"/legal/nutritracker/lgpd-request\">Demande LGPD NutriTracker</a>.</p>
+
+<h3>9. Sécurité</h3>
+<p>Nous appliquons des mesures techniques et organisationnelles appropriées : contrôle d'accès, journalisation, chiffrement quand pertinent, et limitation des habilitations.</p>
+
+<h3>10. Contact et réclamations</h3>
+<p>Pour toute question relative à la vie privée : <a href=\"mailto:admin@audeladedonees.fr\">admin@audeladedonees.fr</a>.</p>
+""",
+    },
+    "en": {
+        "footer.nutritracker_privacy": "NutriTracker — Privacy policy",
+        "legal.nutritracker_privacy.title": "NutriTracker — Privacy policy",
+        "legal.nutritracker_privacy.subtitle": "Privacy policy dedicated to the NutriTracker mobile app",
+        "legal.nutritracker_privacy.cta_lgpd": "Manage account/data deletion (LGPD)",
+        "legal.nutritracker_privacy.body_html": """
+<h3>1. Data controller</h3>
+<p>The data controller for the <strong>NutriTracker</strong> app is <strong>AUDELA</strong>. Contact: <a href=\"mailto:admin@audeladedonees.fr\">admin@audeladedonees.fr</a>.</p>
+
+<h3>2. Data we collect</h3>
+<ul>
+  <li>Account data: email, internal account identifier, profile settings.</li>
+  <li>Nutrition and tracking data that you enter in the app.</li>
+  <li>Minimal technical data: security logs, diagnostics, and operational metadata.</li>
+</ul>
+
+<h3>3. Purposes</h3>
+<ul>
+  <li>Provide NutriTracker features (tracking, history, sync).</li>
+  <li>Secure the service and prevent abuse.</li>
+  <li>Improve app stability and performance.</li>
+  <li>Comply with legal and regulatory obligations.</li>
+</ul>
+
+<h3>4. Legal bases</h3>
+<p>Processing is based on service delivery, legitimate interests (security and improvement), and legal obligations. Consent is collected where required.</p>
+
+<h3>5. Data sharing</h3>
+<p>We do not sell personal data. Data may only be shared with strictly necessary technical processors (hosting, monitoring, backup).</p>
+
+<h3>6. Retention</h3>
+<p>Data is kept while your account is active and then deleted or anonymized within a reasonable period, unless a legal obligation requires otherwise.</p>
+
+<h3>7. Your rights</h3>
+<p>You have rights of access, rectification, erasure, objection, restriction, and portability as applicable law provides. To exercise your rights: <a href=\"mailto:admin@audeladedonees.fr\">admin@audeladedonees.fr</a>.</p>
+
+<h3>8. Account and data deletion</h3>
+<p>You can request account and/or personal data deletion using the dedicated page: <a href=\"/legal/nutritracker/lgpd-request\">NutriTracker LGPD request</a>.</p>
+
+<h3>9. Security</h3>
+<p>We implement appropriate technical and organizational safeguards, including access control, logging, encryption where relevant, and least-privilege principles.</p>
+
+<h3>10. Contact and complaints</h3>
+<p>For privacy questions: <a href=\"mailto:admin@audeladedonees.fr\">admin@audeladedonees.fr</a>.</p>
+""",
+    },
+    "pt": {
+        "footer.nutritracker_privacy": "NutriTracker — Política de privacidade",
+        "legal.nutritracker_privacy.title": "NutriTracker — Política de privacidade",
+        "legal.nutritracker_privacy.subtitle": "Política de privacidade dedicada ao aplicativo móvel NutriTracker",
+        "legal.nutritracker_privacy.cta_lgpd": "Gerenciar exclusão de conta/dados (LGPD)",
+        "legal.nutritracker_privacy.body_html": """
+<h3>1. Controlador de dados</h3>
+<p>O controlador dos dados do aplicativo <strong>NutriTracker</strong> é a <strong>AUDELA</strong>. Contato: <a href=\"mailto:admin@audeladedonees.fr\">admin@audeladedonees.fr</a>.</p>
+
+<h3>2. Dados coletados</h3>
+<ul>
+  <li>Dados de conta: e-mail, identificador interno e configurações de perfil.</li>
+  <li>Dados de nutrição e acompanhamento informados por você no app.</li>
+  <li>Dados técnicos mínimos: logs de segurança, diagnósticos e metadados operacionais.</li>
+</ul>
+
+<h3>3. Finalidades</h3>
+<ul>
+  <li>Fornecer recursos do NutriTracker (acompanhamento, histórico e sincronização).</li>
+  <li>Garantir segurança do serviço e prevenir abuso.</li>
+  <li>Melhorar estabilidade e desempenho do aplicativo.</li>
+  <li>Cumprir obrigações legais e regulatórias.</li>
+</ul>
+
+<h3>4. Bases legais</h3>
+<p>Os tratamentos se baseiam na execução do serviço, no interesse legítimo (segurança e melhoria) e no cumprimento de obrigações legais. O consentimento é solicitado quando necessário.</p>
+
+<h3>5. Compartilhamento de dados</h3>
+<p>Não vendemos dados pessoais. Os dados podem ser compartilhados apenas com operadores técnicos estritamente necessários (hospedagem, monitoramento e backup).</p>
+
+<h3>6. Retenção</h3>
+<p>Os dados são mantidos enquanto sua conta estiver ativa e depois excluídos ou anonimizados em prazo razoável, salvo obrigação legal em contrário.</p>
+
+<h3>7. Seus direitos</h3>
+<p>Você tem direitos de acesso, correção, exclusão, oposição, limitação e portabilidade, conforme a lei aplicável. Para exercer seus direitos: <a href=\"mailto:admin@audeladedonees.fr\">admin@audeladedonees.fr</a>.</p>
+
+<h3>8. Exclusão de conta e dados</h3>
+<p>Você pode solicitar a exclusão da conta e/ou dos dados pessoais na página dedicada: <a href=\"/legal/nutritracker/lgpd-request\">Solicitação LGPD NutriTracker</a>.</p>
+
+<h3>9. Segurança</h3>
+<p>Aplicamos medidas técnicas e organizacionais adequadas: controle de acesso, registros de auditoria, criptografia quando pertinente e princípio do menor privilégio.</p>
+
+<h3>10. Contato e reclamações</h3>
+<p>Para questões de privacidade: <a href=\"mailto:admin@audeladedonees.fr\">admin@audeladedonees.fr</a>.</p>
+""",
+    },
+    "es": {
+        "footer.nutritracker_privacy": "NutriTracker — Política de privacidad",
+        "legal.nutritracker_privacy.title": "NutriTracker — Política de privacidad",
+        "legal.nutritracker_privacy.subtitle": "Política de privacidad dedicada a la aplicación móvil NutriTracker",
+        "legal.nutritracker_privacy.cta_lgpd": "Gestionar eliminación de cuenta/datos (LGPD)",
+        "legal.nutritracker_privacy.body_html": """
+<h3>1. Responsable del tratamiento</h3>
+<p>El responsable del tratamiento de datos de la aplicación <strong>NutriTracker</strong> es <strong>AUDELA</strong>. Contacto: <a href=\"mailto:admin@audeladedonees.fr\">admin@audeladedonees.fr</a>.</p>
+
+<h3>2. Datos recopilados</h3>
+<ul>
+  <li>Datos de cuenta: correo electrónico, identificador interno y ajustes de perfil.</li>
+  <li>Datos de nutrición y seguimiento introducidos por usted en la app.</li>
+  <li>Datos técnicos mínimos: registros de seguridad, diagnósticos y metadatos operativos.</li>
+</ul>
+
+<h3>3. Finalidades</h3>
+<ul>
+  <li>Prestar las funcionalidades de NutriTracker (seguimiento, historial y sincronización).</li>
+  <li>Proteger el servicio y prevenir abusos.</li>
+  <li>Mejorar la estabilidad y el rendimiento de la aplicación.</li>
+  <li>Cumplir obligaciones legales y regulatorias.</li>
+</ul>
+
+<h3>4. Base jurídica</h3>
+<p>El tratamiento se basa en la prestación del servicio, el interés legítimo (seguridad y mejora) y el cumplimiento de obligaciones legales. Se solicita consentimiento cuando corresponda.</p>
+
+<h3>5. Cesión de datos</h3>
+<p>No vendemos datos personales. Los datos solo pueden compartirse con encargados técnicos estrictamente necesarios (hosting, monitorización y copias de seguridad).</p>
+
+<h3>6. Conservación</h3>
+<p>Los datos se conservan mientras su cuenta esté activa y después se eliminan o anonimizan en un plazo razonable, salvo obligación legal en contrario.</p>
+
+<h3>7. Sus derechos</h3>
+<p>Usted dispone de los derechos de acceso, rectificación, supresión, oposición, limitación y portabilidad según la normativa aplicable. Para ejercerlos: <a href=\"mailto:admin@audeladedonees.fr\">admin@audeladedonees.fr</a>.</p>
+
+<h3>8. Eliminación de cuenta y datos</h3>
+<p>Puede solicitar la eliminación de la cuenta y/o de datos personales en la página dedicada: <a href=\"/legal/nutritracker/lgpd-request\">Solicitud LGPD NutriTracker</a>.</p>
+
+<h3>9. Seguridad</h3>
+<p>Aplicamos medidas técnicas y organizativas adecuadas: control de acceso, registro de eventos, cifrado cuando procede y principio de mínimo privilegio.</p>
+
+<h3>10. Contacto y reclamaciones</h3>
+<p>Para cuestiones de privacidad: <a href=\"mailto:admin@audeladedonees.fr\">admin@audeladedonees.fr</a>.</p>
+""",
+    },
+    "it": {
+        "footer.nutritracker_privacy": "NutriTracker — Informativa privacy",
+        "legal.nutritracker_privacy.title": "NutriTracker — Informativa privacy",
+        "legal.nutritracker_privacy.subtitle": "Informativa privacy dedicata all'app mobile NutriTracker",
+        "legal.nutritracker_privacy.cta_lgpd": "Gestire eliminazione account/dati (LGPD)",
+        "legal.nutritracker_privacy.body_html": """
+<h3>1. Titolare del trattamento</h3>
+<p>Il titolare del trattamento dei dati dell'app <strong>NutriTracker</strong> è <strong>AUDELA</strong>. Contatto: <a href=\"mailto:admin@audeladedonees.fr\">admin@audeladedonees.fr</a>.</p>
+
+<h3>2. Dati raccolti</h3>
+<ul>
+  <li>Dati account: email, identificativo interno e impostazioni profilo.</li>
+  <li>Dati nutrizionali e di monitoraggio inseriti nell'app.</li>
+  <li>Dati tecnici minimi: log di sicurezza, diagnostica e metadati operativi.</li>
+</ul>
+
+<h3>3. Finalità</h3>
+<ul>
+  <li>Fornire le funzionalità NutriTracker (monitoraggio, storico e sincronizzazione).</li>
+  <li>Proteggere il servizio e prevenire abusi.</li>
+  <li>Migliorare stabilità e prestazioni dell'app.</li>
+  <li>Adempiere agli obblighi legali e normativi.</li>
+</ul>
+
+<h3>4. Base giuridica</h3>
+<p>Il trattamento si basa sull'erogazione del servizio, sul legittimo interesse (sicurezza e miglioramento) e sugli obblighi legali. Il consenso è richiesto quando necessario.</p>
+
+<h3>5. Condivisione dei dati</h3>
+<p>Non vendiamo dati personali. I dati possono essere condivisi solo con responsabili tecnici strettamente necessari (hosting, monitoraggio, backup).</p>
+
+<h3>6. Conservazione</h3>
+<p>I dati sono conservati finché l'account è attivo e poi eliminati o anonimizzati entro tempi ragionevoli, salvo obblighi di legge.</p>
+
+<h3>7. I tuoi diritti</h3>
+<p>Hai diritto di accesso, rettifica, cancellazione, opposizione, limitazione e portabilità nei limiti previsti dalla legge. Per esercitare i diritti: <a href=\"mailto:admin@audeladedonees.fr\">admin@audeladedonees.fr</a>.</p>
+
+<h3>8. Eliminazione account e dati</h3>
+<p>Puoi richiedere l'eliminazione dell'account e/o dei dati personali nella pagina dedicata: <a href=\"/legal/nutritracker/lgpd-request\">Richiesta LGPD NutriTracker</a>.</p>
+
+<h3>9. Sicurezza</h3>
+<p>Applichiamo misure tecniche e organizzative adeguate: controllo accessi, logging, cifratura quando pertinente e principio del privilegio minimo.</p>
+
+<h3>10. Contatti e reclami</h3>
+<p>Per questioni privacy: <a href=\"mailto:admin@audeladedonees.fr\">admin@audeladedonees.fr</a>.</p>
+""",
+    },
+    "de": {
+        "footer.nutritracker_privacy": "NutriTracker — Datenschutzerklärung",
+        "legal.nutritracker_privacy.title": "NutriTracker — Datenschutzerklärung",
+        "legal.nutritracker_privacy.subtitle": "Datenschutzerklärung für die mobile App NutriTracker",
+        "legal.nutritracker_privacy.cta_lgpd": "Konto-/Datenlöschung verwalten (LGPD)",
+        "legal.nutritracker_privacy.body_html": """
+<h3>1. Verantwortlicher</h3>
+<p>Verantwortlicher für die Datenverarbeitung in der App <strong>NutriTracker</strong> ist <strong>AUDELA</strong>. Kontakt: <a href=\"mailto:admin@audeladedonees.fr\">admin@audeladedonees.fr</a>.</p>
+
+<h3>2. Erhobene Daten</h3>
+<ul>
+  <li>Kontodaten: E-Mail, interne Kennung und Profileinstellungen.</li>
+  <li>Ernährungs- und Trackingdaten, die Sie in der App eingeben.</li>
+  <li>Minimale technische Daten: Sicherheitsprotokolle, Diagnosedaten und Betriebsmetadaten.</li>
+</ul>
+
+<h3>3. Zwecke</h3>
+<ul>
+  <li>Bereitstellung der NutriTracker-Funktionen (Tracking, Verlauf, Synchronisierung).</li>
+  <li>Schutz des Dienstes und Missbrauchsprävention.</li>
+  <li>Verbesserung von Stabilität und Leistung der App.</li>
+  <li>Erfüllung gesetzlicher und regulatorischer Pflichten.</li>
+</ul>
+
+<h3>4. Rechtsgrundlagen</h3>
+<p>Die Verarbeitung basiert auf der Leistungserbringung, berechtigten Interessen (Sicherheit und Verbesserung) sowie gesetzlichen Verpflichtungen. Eine Einwilligung wird eingeholt, wenn erforderlich.</p>
+
+<h3>5. Weitergabe</h3>
+<p>Wir verkaufen keine personenbezogenen Daten. Eine Weitergabe erfolgt nur an technisch notwendige Auftragsverarbeiter (Hosting, Monitoring, Backups).</p>
+
+<h3>6. Speicherdauer</h3>
+<p>Daten werden während der aktiven Kontonutzung gespeichert und anschließend innerhalb angemessener Frist gelöscht oder anonymisiert, sofern keine gesetzliche Pflicht entgegensteht.</p>
+
+<h3>7. Ihre Rechte</h3>
+<p>Sie haben je nach geltendem Recht Rechte auf Auskunft, Berichtigung, Löschung, Widerspruch, Einschränkung und Datenübertragbarkeit. Zur Ausübung: <a href=\"mailto:admin@audeladedonees.fr\">admin@audeladedonees.fr</a>.</p>
+
+<h3>8. Konto- und Datenlöschung</h3>
+<p>Die Löschung von Konto und/oder personenbezogenen Daten können Sie über die Seite anfordern: <a href=\"/legal/nutritracker/lgpd-request\">NutriTracker LGPD-Anfrage</a>.</p>
+
+<h3>9. Sicherheit</h3>
+<p>Wir setzen angemessene technische und organisatorische Maßnahmen um: Zugriffskontrollen, Protokollierung, Verschlüsselung bei Bedarf und Prinzip der minimalen Rechte.</p>
+
+<h3>10. Kontakt und Beschwerden</h3>
+<p>Bei Datenschutzfragen: <a href=\"mailto:admin@audeladedonees.fr\">admin@audeladedonees.fr</a>.</p>
+""",
+    },
+}
+
+
+for _lang, _messages in NUTRITRACKER_POLICY_TRANSLATIONS.items():
+    LEGAL_TRANSLATIONS.setdefault(_lang, {}).update(_messages)
