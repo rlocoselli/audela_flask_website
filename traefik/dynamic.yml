@@ -1,12 +1,6 @@
-# TLS certs (bring-your-own). Put the files in ./certs/
-#  - certs/fullchain.pem
-#  - certs/privkey.pem
-# If you prefer Let's Encrypt, use docker-compose.letsencrypt.yml instead.
-
-tls:
-  certificates:
-    - certFile: /certs/fullchain.pem
-      keyFile: /certs/privkey.pem
+# Dynamic routers/services config.
+# TLS certificates are handled by Let's Encrypt (certResolver: letsencrypt)
+# from docker-compose configuration.
 
 http:
   routers:
@@ -26,21 +20,21 @@ http:
         certResolver: letsencrypt
       service: grenobleski-svc
 
-    bilieu-http:
+    domusbiliacum-http:
       rule: "Host(`domusbiliacum.fr`) || Host(`www.domusbiliacum.fr`)"
       entryPoints:
         - web
       middlewares:
-        - bilieu-https-redirect
-      service: bilieu-svc
+        - domusbiliacum-https-redirect
+      service: domusbiliacum-svc
 
-    bilieu-https:
+    domusbiliacum-https:
       rule: "Host(`domusbiliacum.fr`) || Host(`www.domusbiliacum.fr`)"
       entryPoints:
         - websecure
       tls:
         certResolver: letsencrypt
-      service: bilieu-svc
+      service: domusbiliacum-svc
 
   middlewares:
     grenobleski-https-redirect:
@@ -48,7 +42,7 @@ http:
         scheme: https
         permanent: true
 
-    bilieu-https-redirect:
+    domusbiliacum-https-redirect:
       redirectScheme:
         scheme: https
         permanent: true
@@ -60,7 +54,7 @@ http:
           - url: "http://host.docker.internal:8081"
         passHostHeader: true
 
-    bilieu-svc:
+    domusbiliacum-svc:
       loadBalancer:
         servers:
           - url: "http://host.docker.internal:8082"
