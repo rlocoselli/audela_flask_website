@@ -7,3 +7,34 @@ tls:
   certificates:
     - certFile: /certs/fullchain.pem
       keyFile: /certs/privkey.pem
+
+http:
+  routers:
+    grenobleski-http:
+      rule: "Host(`grenobleski.fr`) || Host(`www.grenobleski.fr`)"
+      entryPoints:
+        - web
+      middlewares:
+        - grenobleski-https-redirect
+      service: grenobleski-svc
+
+    grenobleski-https:
+      rule: "Host(`grenobleski.fr`) || Host(`www.grenobleski.fr`)"
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+      service: grenobleski-svc
+
+  middlewares:
+    grenobleski-https-redirect:
+      redirectScheme:
+        scheme: https
+        permanent: true
+
+  services:
+    grenobleski-svc:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:8081"
+        passHostHeader: true

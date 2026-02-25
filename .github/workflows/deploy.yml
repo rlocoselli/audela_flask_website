@@ -201,6 +201,25 @@ jobs:
             echo "🔄 Restart service"
             systemctl restart audeladedonnees
 
+            echo "🌐 Refresh Traefik to apply dynamic routers/services"
+            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml up -d --no-deps traefik
+
+            echo "🔎 Verify Traefik routing/cert hints for grenobleski domains"
+            set +e
+            HTTP_WWW_CODE="$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: www.grenobleski.fr' http://127.0.0.1/)"
+            HTTP_ROOT_CODE="$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: grenobleski.fr' http://127.0.0.1/)"
+            set -e
+            echo "ℹ️ HTTP status with Host www.grenobleski.fr: ${HTTP_WWW_CODE}"
+            echo "ℹ️ HTTP status with Host grenobleski.fr: ${HTTP_ROOT_CODE}"
+
+            if $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T traefik sh -lc "test -s /letsencrypt/acme.json && grep -q 'www.grenobleski.fr' /letsencrypt/acme.json && grep -q 'grenobleski.fr' /letsencrypt/acme.json"; then
+              echo "✅ Let's Encrypt certificates found in acme.json for grenobleski.fr and www.grenobleski.fr"
+            else
+              echo "⚠️ Certificates not yet found in acme.json for grenobleski domains."
+              echo "   This can be normal right after deploy; certs are issued on first successful challenge/request."
+              echo "   Check: docker compose -f docker-compose.yml -f docker-compose.letsencrypt.yml logs --tail=200 traefik"
+            fi
+
             if [ "$CELERY_ACTION" = "disable" ]; then
               echo "⏸️ Disabling Celery services for low-resource mode"
               $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml stop celery-beat celery-worker || true

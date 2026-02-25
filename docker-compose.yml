@@ -7,6 +7,8 @@ services:
     command:
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
+      - --providers.file.filename=/etc/traefik/dynamic.yml
+      - --providers.file.watch=true
 
       - --entrypoints.web.address=:80
       - --entrypoints.websecure.address=:443
@@ -19,16 +21,19 @@ services:
       - --api.dashboard=true
 
       # --- Let's Encrypt (ACME HTTP-01) ---
-      - --certificatesresolvers.le.acme.email=${LETSENCRYPT_EMAIL}
-      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
-      - --certificatesresolvers.le.acme.httpchallenge=true
-      - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
+      - --certificatesresolvers.letsencrypt.acme.email=${LETSENCRYPT_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - letsencrypt:/letsencrypt
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - web
       - monitoring
@@ -69,7 +74,7 @@ services:
       - traefik.http.routers.audela.rule=Host(`${APP_HOSTNAME}`) || Host(`${APP_HOSTNAME_WWW}`)
       - traefik.http.routers.audela.entrypoints=websecure
       - traefik.http.routers.audela.tls=true
-      - traefik.http.routers.audela.tls.certresolver=le
+      - traefik.http.routers.audela.tls.certresolver=letsencrypt
       - traefik.http.services.audela.loadbalancer.server.port=8000
     networks:
       - web
@@ -154,7 +159,7 @@ services:
       - traefik.http.routers.grafana.rule=Host(`${GRAFANA_HOSTNAME}`)
       - traefik.http.routers.grafana.entrypoints=websecure
       - traefik.http.routers.grafana.tls=true
-      - traefik.http.routers.grafana.tls.certresolver=le
+      - traefik.http.routers.grafana.tls.certresolver=letsencrypt
       - traefik.http.services.grafana.loadbalancer.server.port=3000
     networks:
       - web
