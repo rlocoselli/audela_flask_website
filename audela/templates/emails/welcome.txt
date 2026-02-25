@@ -1,27 +1,27 @@
-AUDELA - Bienvenue sur AUDELA!
+AUDELA - {{ _('Bienvenue sur AUDELA!') }}
 
-Bonjour {{ user.email }},
+{{ _('Bonjour') }} {{ user.email }},
 
-Votre compte a été vérifié avec succès! Vous pouvez maintenant profiter de toutes les fonctionnalités d'AUDELA.
+{{ _('Votre compte a été vérifié avec succès! Vous pouvez maintenant profiter de toutes les fonctionnalités d\'AUDELA.') }}
 
 {% if trial_days %}
-🚀 PÉRIODE D'ESSAI GRATUITE: {{ trial_days }} JOURS
-Testez toutes les fonctionnalités sans engagement
+🚀 {{ _('Période d\'essai gratuite') }}: {{ trial_days }} {{ _('jours') }}
+{{ _('Testez toutes les fonctionnalités sans engagement') }}
 {% endif %}
 
-QU'EST-CE QU'AUDELA?
+{{ _('Qu\'est-ce qu\'AUDELA?') }}
 
-✓ Gestion financière - Suivez vos transactions, liquidité (LCR), et ratios NSFR
-✓ Business Intelligence - Tableaux de bord et analyses avancées
-✓ Synchronisation bancaire - Connexion sécurisée avec Powens/Tink
-✓ Multi-utilisateurs - Invitez votre équipe avec des rôles personnalisés
-✓ Multi-langues - 6 langues disponibles (FR, EN, PT, ES, IT, DE)
+✓ {{ _('Gestion financière') }} {{ _('- Suivez vos transactions, liquidité (LCR), et ratios NSFR') }}
+✓ {{ _('Business Intelligence') }} {{ _('- Tableaux de bord et analyses avancées') }}
+✓ {{ _('Synchronisation bancaire') }} {{ _('- Connexion sécurisée avec Powens/Tink') }}
+✓ {{ _('Multi-utilisateurs') }} {{ _('- Invitez votre équipe avec des rôles personnalisés') }}
+✓ {{ _('Multi-langues') }} {{ _('- 6 langues disponibles (FR, EN, PT, ES, IT, DE)') }}
 
-Commencez maintenant: {{ app_url }}
+{{ _('Commencer maintenant') }}: {{ app_url }}
 
-BESOIN D'AIDE?
-Consultez notre documentation ou contactez le support si vous avez des questions.
+{{ _('Besoin d\'aide?') }}
+{{ _('Consultez notre documentation ou contactez le support si vous avez des questions.') }}
 
 ---
-© 2024 AUDELA - Plateforme de gestion financière et business intelligence
-Cet email a été envoyé automatiquement, merci de ne pas répondre.
+{{ _('© 2024 AUDELA - Plateforme de gestion financière et business intelligence') }}
+{{ _('Cet email a été envoyé automatiquement, merci de ne pas répondre.') }}

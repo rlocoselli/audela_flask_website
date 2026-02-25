@@ -108,6 +108,11 @@
             <i class="bi bi-moon-stars"></i>
           </button>
 
+          <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('auth.change_password') }}">
+            <i class="bi bi-key"></i>
+            <span class="ms-1 d-none d-md-inline">{{ _('Alterar senha') }}</span>
+          </a>
+
           <a class="btn btn-outline-danger btn-sm" href="{{ url_for('auth.logout') }}">
             <i class="bi bi-box-arrow-right"></i>
             <span class="ms-1 d-none d-md-inline">{{ _('Sair') }}</span>
@@ -232,6 +237,7 @@
       <a class="nav-link" href="{{ url_for('portal.ai_chat') }}">{{ _('Chat IA') }}</a>
       <a class="nav-link" href="{{ url_for('portal.runs_list') }}">{{ _('Execuções') }}</a>
       <a class="nav-link" href="{{ url_for('portal.audit_list') }}">{{ _('Auditoria') }}</a>
+      <a class="nav-link" href="{{ url_for('auth.change_password') }}">{{ _('Alterar senha') }}</a>
     </div>
   </div>
 </div>

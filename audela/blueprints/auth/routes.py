@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from flask import flash, redirect, render_template, request, url_for, g, session, current_app
-from flask_login import login_user, logout_user, current_user
+from flask_login import login_user, logout_user, current_user, login_required
 
 from ...extensions import db
 from ...models.bi import AuditEvent
@@ -127,6 +127,56 @@ def logout():
     logout_user()
     clear_current_tenant()
     return redirect(url_for("public.index"))
+
+
+@bp.route("/change-password", methods=["GET", "POST"])
+@login_required
+def change_password():
+    """Allow authenticated users to change their password."""
+    if request.method == "POST":
+        current_password = request.form.get("current_password", "")
+        new_password = request.form.get("new_password", "")
+        confirm_password = request.form.get("confirm_password", "")
+
+        if not current_password or not new_password or not confirm_password:
+            flash(tr("Preencha todos os campos.", getattr(g, "lang", None)), "error")
+            return render_template("portal/change_password.html")
+
+        if not current_user.check_password(current_password):
+            flash(tr("Senha atual inválida.", getattr(g, "lang", None)), "error")
+            return render_template("portal/change_password.html")
+
+        if len(new_password) < 8:
+            flash(tr("A senha deve ter pelo menos 8 caracteres.", getattr(g, "lang", None)), "error")
+            return render_template("portal/change_password.html")
+
+        if new_password != confirm_password:
+            flash(tr("As senhas não coincidem.", getattr(g, "lang", None)), "error")
+            return render_template("portal/change_password.html")
+
+        if current_password == new_password:
+            flash(tr("A nova senha deve ser diferente da senha atual.", getattr(g, "lang", None)), "error")
+            return render_template("portal/change_password.html")
+
+        try:
+            current_user.set_password(new_password)
+            db.session.add(
+                AuditEvent(
+                    tenant_id=current_user.tenant_id,
+                    user_id=current_user.id,
+                    event_type="auth.password.changed",
+                    payload_json={"email": current_user.email},
+                )
+            )
+            db.session.commit()
+            flash(tr("Senha alterada com sucesso.", getattr(g, "lang", None)), "success")
+            return redirect(url_for("auth.change_password"))
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f"Password change error: {e}")
+            flash(tr("Erro ao alterar senha. Tente novamente.", getattr(g, "lang", None)), "error")
+
+    return render_template("portal/change_password.html")
 
 
 @bp.route("/bootstrap", methods=["GET", "POST"])

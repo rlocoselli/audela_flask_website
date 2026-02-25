@@ -8,21 +8,31 @@ Supporte: Flask-Mail, templates Jinja2, queuing optionnel.
 from typing import Optional, List
 from datetime import datetime, timedelta
 
-from flask import current_app, render_template, url_for
+from flask import current_app, render_template, url_for, g, has_request_context
 from flask_mail import Message
 
 from audela.extensions import db, mail
 from audela.models import User, EmailVerificationToken, UserInvitation
+from audela.i18n import tr, DEFAULT_LANG, normalize_lang
 
 
 class EmailService:
     """Service d'envoi d'emails."""
+
+    @staticmethod
+    def _resolve_lang(lang: str | None = None) -> str:
+        if lang:
+            return normalize_lang(lang)
+        if has_request_context():
+            return normalize_lang(getattr(g, "lang", None))
+        return DEFAULT_LANG
     
     @staticmethod
     def send_email(
         to: str | List[str],
         subject: str,
         template: str,
+        lang: str | None = None,
         **context
     ) -> bool:
         """
@@ -41,9 +51,14 @@ class EmailService:
             if isinstance(to, str):
                 to = [to]
             
+            resolved_lang = EmailService._resolve_lang(lang)
+            template_context = dict(context)
+            template_context["current_lang"] = resolved_lang
+            template_context["_"] = lambda msgid, **kwargs: tr(msgid, resolved_lang, **kwargs)
+
             # Render HTML et text
-            html_body = render_template(f"emails/{template}.html", **context)
-            text_body = render_template(f"emails/{template}.txt", **context)
+            html_body = render_template(f"emails/{template}.html", **template_context)
+            text_body = render_template(f"emails/{template}.txt", **template_context)
             
             msg = Message(
                 subject=subject,
@@ -69,7 +84,7 @@ class EmailService:
             return False
     
     @staticmethod
-    def send_verification_email(user: User, token: str) -> bool:
+    def send_verification_email(user: User, token: str, lang: str | None = None) -> bool:
         """
         Envoyer email de vérification.
         
@@ -80,6 +95,8 @@ class EmailService:
         Returns:
             True si envoyé
         """
+        resolved_lang = EmailService._resolve_lang(lang)
+
         verification_url = url_for(
             'auth.verify_email',
             token=token,
@@ -88,15 +105,16 @@ class EmailService:
         
         return EmailService.send_email(
             to=user.email,
-            subject="Vérifiez votre adresse email - AUDELA",
+            subject=tr("Vérifiez votre adresse email - AUDELA", resolved_lang),
             template="verify_email",
+            lang=resolved_lang,
             user=user,
             verification_url=verification_url,
             tenant_name=user.tenant.name
         )
     
     @staticmethod
-    def send_invitation_email(invitation: UserInvitation) -> bool:
+    def send_invitation_email(invitation: UserInvitation, lang: str | None = None) -> bool:
         """
         Envoyer email d'invitation.
         
@@ -106,6 +124,8 @@ class EmailService:
         Returns:
             True si envoyé
         """
+        resolved_lang = EmailService._resolve_lang(lang)
+
         invitation_url = url_for(
             'auth.accept_invitation',
             token=invitation.token,
@@ -116,8 +136,9 @@ class EmailService:
         
         return EmailService.send_email(
             to=invitation.email,
-            subject=f"Invitation à rejoindre {invitation.tenant.name} sur AUDELA",
+            subject=f"{tr('Invitation à rejoindre', resolved_lang)} {invitation.tenant.name} - AUDELA",
             template="user_invitation",
+            lang=resolved_lang,
             invitation=invitation,
             invitation_url=invitation_url,
             invited_by_name=invited_by_name,
@@ -125,7 +146,7 @@ class EmailService:
         )
     
     @staticmethod
-    def send_welcome_email(user: User) -> bool:
+    def send_welcome_email(user: User, lang: str | None = None) -> bool:
         """
         Envoyer email de bienvenue après vérification.
         
@@ -135,19 +156,22 @@ class EmailService:
         Returns:
             True si envoyé
         """
-        login_url = url_for('auth.login', _external=True)
+        resolved_lang = EmailService._resolve_lang(lang)
+
+        app_url = url_for('auth.login', _external=True)
         
         return EmailService.send_email(
             to=user.email,
-            subject="Bienvenue sur AUDELA!",
+            subject=tr("Bienvenue sur AUDELA!", resolved_lang),
             template="welcome",
+            lang=resolved_lang,
             user=user,
-            login_url=login_url,
+            app_url=app_url,
             tenant_name=user.tenant.name
         )
     
     @staticmethod
-    def send_trial_expiring_email(user: User, days_left: int) -> bool:
+    def send_trial_expiring_email(user: User, days_left: int, lang: str | None = None) -> bool:
         """
         Envoyer email avant expiration du trial.
         
@@ -158,12 +182,15 @@ class EmailService:
         Returns:
             True si envoyé
         """
+        resolved_lang = EmailService._resolve_lang(lang)
+
         upgrade_url = url_for('billing.plans', _external=True)
         
         return EmailService.send_email(
             to=user.email,
-            subject=f"Votre période d'essai expire dans {days_left} jours",
+            subject=tr("Votre période d'essai expire bientôt", resolved_lang),
             template="trial_expiring",
+            lang=resolved_lang,
             user=user,
             days_left=days_left,
             upgrade_url=upgrade_url,
@@ -171,7 +198,7 @@ class EmailService:
         )
     
     @staticmethod
-    def send_subscription_confirmation_email(user: User, plan_name: str, amount: float) -> bool:
+    def send_subscription_confirmation_email(user: User, plan_name: str, amount: float, lang: str | None = None) -> bool:
         """
         Envoyer email de confirmation d'abonnement.
         
@@ -183,10 +210,13 @@ class EmailService:
         Returns:
             True si envoyé
         """
+        resolved_lang = EmailService._resolve_lang(lang)
+
         return EmailService.send_email(
             to=user.email,
-            subject="Confirmation de votre abonnement AUDELA",
+            subject=tr("Confirmation de votre abonnement AUDELA", resolved_lang),
             template="subscription_confirmed",
+            lang=resolved_lang,
             user=user,
             plan_name=plan_name,
             amount=amount,
@@ -194,7 +224,7 @@ class EmailService:
         )
     
     @staticmethod
-    def send_payment_failed_email(user: User) -> bool:
+    def send_payment_failed_email(user: User, lang: str | None = None) -> bool:
         """
         Envoyer email en cas d'échec de paiement.
         
@@ -204,19 +234,22 @@ class EmailService:
         Returns:
             True si envoyé
         """
+        resolved_lang = EmailService._resolve_lang(lang)
+
         billing_url = url_for('billing.payment_method', _external=True)
         
         return EmailService.send_email(
             to=user.email,
-            subject="Échec de paiement - AUDELA",
+            subject=tr("Échec de paiement - AUDELA", resolved_lang),
             template="payment_failed",
+            lang=resolved_lang,
             user=user,
             billing_url=billing_url,
             tenant_name=user.tenant.name
         )
     
     @staticmethod
-    def send_password_reset_email(user: User, token: str) -> bool:
+    def send_password_reset_email(user: User, token: str, lang: str | None = None) -> bool:
         """
         Envoyer email de réinitialisation mot de passe.
         
@@ -227,6 +260,8 @@ class EmailService:
         Returns:
             True si envoyé
         """
+        resolved_lang = EmailService._resolve_lang(lang)
+
         reset_url = url_for(
             'auth.reset_password',
             token=token,
@@ -235,8 +270,9 @@ class EmailService:
         
         return EmailService.send_email(
             to=user.email,
-            subject="Réinitialisation de votre mot de passe AUDELA",
+            subject=tr("Réinitialisation de votre mot de passe AUDELA", resolved_lang),
             template="password_reset",
+            lang=resolved_lang,
             user=user,
             reset_url=reset_url
         )
