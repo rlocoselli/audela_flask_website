@@ -27,7 +27,7 @@ http:
       service: grenobleski-svc
 
     bilieu-http:
-      rule: "Host(`bilieu.fr`) || Host(`www.bilieu.fr`)"
+      rule: "Host(`domusbiliacum.fr`) || Host(`www.domusbiliacum.fr`)"
       entryPoints:
         - web
       middlewares:
@@ -35,7 +35,7 @@ http:
       service: bilieu-svc
 
     bilieu-https:
-      rule: "Host(`bilieu.fr`) || Host(`www.bilieu.fr`)"
+      rule: "Host(`domusbiliacum.fr`) || Host(`www.domusbiliacum.fr`)"
       entryPoints:
         - websecure
       tls:
