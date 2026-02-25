@@ -50,3 +50,20 @@ MVP uses **model 1** (shared app DB with `tenant_id` on all BI entities) and **e
 - To use **PostgreSQL** for the app DB, set `DATABASE_URL` (e.g. `postgresql+psycopg2://...`) and run `flask db upgrade`.
 - `DATA_KEY` can be set to rotate the encryption key used for datasource configs (otherwise it derives from `SECRET_KEY` in dev).
 
+## Email in local dev
+
+Email verification and invitation flows now support a dev mode that does not require a real SMTP server.
+
+- `MAIL_DEV_MODE=true` (default in `FLASK_ENV=development`): renders templates and logs the email instead of sending it.
+- `MAIL_SUPPRESS_SEND=true` (default in `FLASK_ENV=development`): prevents real SMTP delivery.
+
+Example (local):
+
+```bash
+export FLASK_ENV=development
+export MAIL_DEV_MODE=true
+export MAIL_SUPPRESS_SEND=true
+```
+
+For production, keep both values as `false` and configure normal SMTP settings (`MAIL_SERVER`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, etc.).
+

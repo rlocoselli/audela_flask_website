@@ -89,6 +89,24 @@ MAIL_PASSWORD=change-me
 MAIL_DEFAULT_SENDER=alerts@your-domain.com
 ```
 
+### Email verification in Docker (dev vs prod)
+
+- **Production**: keep real SMTP settings and set:
+
+```env
+MAIL_DEV_MODE=false
+MAIL_SUPPRESS_SEND=false
+```
+
+- **Development / staging without SMTP**: keep auth flows working (register, verify, resend) without delivery:
+
+```env
+MAIL_DEV_MODE=true
+MAIL_SUPPRESS_SEND=true
+```
+
+In this mode, emails are rendered and logged, but not sent to an SMTP server.
+
 Ports exposed on the host: **80** and **443** (Traefik). Everything else stays private.
 
 ## Alternative: Let's Encrypt certificates

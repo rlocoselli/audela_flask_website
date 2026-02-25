@@ -34,6 +34,7 @@ boto3==1.34.162
 # AI (optional)
 requests==2.32.3
 celery==5.4.0
+redis==5.0.8
 
 
 PyYAML==6.0.2
