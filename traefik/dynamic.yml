@@ -36,6 +36,22 @@ http:
         certResolver: letsencrypt
       service: domusbiliacum-svc
 
+    bilieu-http:
+      rule: "Host(`bilieu.fr`) || Host(`www.bilieu.fr`)"
+      entryPoints:
+        - web
+      middlewares:
+        - bilieu-https-redirect
+      service: domusbiliacum-svc
+
+    bilieu-https:
+      rule: "Host(`bilieu.fr`) || Host(`www.bilieu.fr`)"
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+      service: domusbiliacum-svc
+
   middlewares:
     grenobleski-https-redirect:
       redirectScheme:
@@ -43,6 +59,11 @@ http:
         permanent: true
 
     domusbiliacum-https-redirect:
+      redirectScheme:
+        scheme: https
+        permanent: true
+
+    bilieu-https-redirect:
       redirectScheme:
         scheme: https
         permanent: true
