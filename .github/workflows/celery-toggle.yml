@@ -1,0 +1,84 @@
+name: Manage Celery Services (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Celery action"
+        required: true
+        type: choice
+        options:
+          - disable
+          - enable
+          - restart
+          - status
+        default: disable
+
+jobs:
+  manage-celery:
+    runs-on: ubuntu-latest
+    environment: audeladesdonnees
+
+    steps:
+      - name: Manage celery via SSH (root)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: root
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          command_timeout: 30m
+          script: |
+            set -e
+            ACTION="${{ github.event.inputs.action }}"
+            echo "🧭 Requested action: $ACTION"
+
+            cd /root/audela_flask_website
+
+            COMPOSE_CMD="docker compose"
+            if ! docker compose version >/dev/null 2>&1; then
+              COMPOSE_CMD="docker-compose"
+            fi
+
+            COMPOSE_FILES="-f docker-compose.yml"
+            if [ -f docker-compose.letsencrypt.yml ]; then
+              COMPOSE_FILES="$COMPOSE_FILES -f docker-compose.letsencrypt.yml"
+            fi
+
+            case "$ACTION" in
+              disable)
+                echo "⏸️ Stopping Celery services"
+                $COMPOSE_CMD $COMPOSE_FILES stop celery-beat celery-worker || true
+                $COMPOSE_CMD $COMPOSE_FILES rm -f celery-beat celery-worker || true
+                ;;
+
+              enable)
+                echo "▶️ Starting Celery services"
+                $COMPOSE_CMD $COMPOSE_FILES up -d --no-deps celery-worker celery-beat
+                ;;
+
+              restart)
+                echo "🔄 Restarting Celery services"
+                $COMPOSE_CMD $COMPOSE_FILES up -d --no-deps celery-worker celery-beat
+                $COMPOSE_CMD $COMPOSE_FILES restart celery-worker celery-beat
+                ;;
+
+              status)
+                echo "📊 Celery services status"
+                ;;
+
+              *)
+                echo "❌ Unknown action: $ACTION"
+                exit 1
+                ;;
+            esac
+
+            echo "📋 docker compose ps"
+            $COMPOSE_CMD $COMPOSE_FILES ps celery-worker celery-beat || true
+
+            if [ "$ACTION" != "disable" ]; then
+              echo "🪵 Recent logs"
+              $COMPOSE_CMD $COMPOSE_FILES logs --tail=80 celery-worker celery-beat || true
+            fi
+
+            echo "✅ Celery action completed"

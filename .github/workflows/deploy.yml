@@ -4,6 +4,17 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      celery_action:
+        description: "Celery mode during deploy"
+        required: true
+        type: choice
+        options:
+          - keep
+          - enable
+          - disable
+        default: disable
 
 jobs:
   deploy:
@@ -26,6 +37,9 @@ jobs:
           script: |
             set -e
             echo "🚀 Deploy started (root)"
+
+            CELERY_ACTION="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.celery_action || 'disable' }}"
+            echo "🧭 Celery action for this deploy: ${CELERY_ACTION}"
 
             cd /root/audela_flask_website
 
@@ -186,5 +200,16 @@ jobs:
 
             echo "🔄 Restart service"
             systemctl restart audeladedonnees
+
+            if [ "$CELERY_ACTION" = "disable" ]; then
+              echo "⏸️ Disabling Celery services for low-resource mode"
+              $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml stop celery-beat celery-worker || true
+              $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml rm -f celery-beat celery-worker || true
+            elif [ "$CELERY_ACTION" = "enable" ]; then
+              echo "▶️ Enabling Celery services"
+              $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml up -d --no-deps celery-worker celery-beat
+            else
+              echo "ℹ️ Keeping current Celery state"
+            fi
 
             echo "✅ Deploy completed"
