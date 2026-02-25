@@ -18,6 +18,10 @@ http:
         - websecure
       tls:
         certResolver: letsencrypt
+        domains:
+          - main: grenobleski.fr
+            sans:
+              - www.grenobleski.fr
       service: grenobleski-svc
 
     domusbiliacum-http:
@@ -34,6 +38,10 @@ http:
         - websecure
       tls:
         certResolver: letsencrypt
+        domains:
+          - main: domusbiliacum.fr
+            sans:
+              - www.domusbiliacum.fr
       service: domusbiliacum-svc
 
     bilieu-http:
@@ -50,6 +58,10 @@ http:
         - websecure
       tls:
         certResolver: letsencrypt
+        domains:
+          - main: bilieu.fr
+            sans:
+              - www.bilieu.fr
       service: domusbiliacum-svc
 
   middlewares:
