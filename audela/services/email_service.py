@@ -7,7 +7,6 @@ Supporte: Flask-Mail, templates Jinja2, queuing optionnel.
 
 from typing import Optional, List
 from datetime import datetime, timedelta
-import os
 
 from flask import current_app, render_template, url_for
 from flask_mail import Message
@@ -53,6 +52,14 @@ class EmailService:
                 body=text_body,
                 sender=current_app.config.get('MAIL_DEFAULT_SENDER', 'noreply@audela.com')
             )
+
+            if current_app.config.get("MAIL_DEV_MODE", False):
+                current_app.logger.info(
+                    "MAIL_DEV_MODE active: email not sent (to=%s, subject=%s)",
+                    to,
+                    subject,
+                )
+                return True
             
             mail.send(msg)
             return True

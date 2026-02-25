@@ -6,6 +6,7 @@ import sys
 
 from flask import Flask
 from flask import g, request, session
+from jinja2 import ChoiceLoader, FileSystemLoader
 
 from .config import DevConfig, ProdConfig
 from .extensions import csrf, db, login_manager, migrate, mail
@@ -37,9 +38,16 @@ def create_app() -> Flask:
     package_dir = os.path.dirname(__file__)
     project_root = os.path.abspath(os.path.join(package_dir, ".."))
     template_dir = os.path.join(project_root, "templates")
+    package_template_dir = os.path.join(package_dir, "templates")
     static_dir = os.path.join(project_root, "static")
 
     app = Flask(__name__, static_folder=static_dir, template_folder=template_dir)
+    app.jinja_loader = ChoiceLoader(
+        [
+            FileSystemLoader(template_dir),
+            FileSystemLoader(package_template_dir),
+        ]
+    )
 
     # Ensure instance folder exists (SQLite, uploads, etc.)
     try:

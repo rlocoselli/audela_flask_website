@@ -106,14 +106,21 @@ class Config:
     MAIL_USERNAME = os.environ.get("MAIL_USERNAME", "")
     MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD", "")
     MAIL_DEFAULT_SENDER = os.environ.get("MAIL_DEFAULT_SENDER", "noreply@audela.com")
+    MAIL_SUPPRESS_SEND = os.environ.get("MAIL_SUPPRESS_SEND", "false").lower() == "true"
+    MAIL_DEV_MODE = os.environ.get("MAIL_DEV_MODE", "false").lower() == "true"
 
 
 class DevConfig(Config):
     DEBUG = True
+    # Local dev convenience: avoid SMTP dependency and still validate mail flows.
+    MAIL_SUPPRESS_SEND = os.environ.get("MAIL_SUPPRESS_SEND", "true").lower() == "true"
+    MAIL_DEV_MODE = os.environ.get("MAIL_DEV_MODE", "true").lower() == "true"
 
 
 class ProdConfig(Config):
     DEBUG = False
+    MAIL_SUPPRESS_SEND = os.environ.get("MAIL_SUPPRESS_SEND", "false").lower() == "true"
+    MAIL_DEV_MODE = os.environ.get("MAIL_DEV_MODE", "false").lower() == "true"
     SESSION_COOKIE_SAMESITE = "Lax"
     # Enable in production behind TLS
     SESSION_COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "0") == "1"

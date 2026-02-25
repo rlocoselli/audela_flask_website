@@ -47,7 +47,7 @@ def login():
         # Check email verification
         if user.status == "pending_verification":
             flash(tr("Você precisa verificar seu email antes de fazer login.", getattr(g, "lang", None)), "warning")
-            return redirect(url_for("auth.resend_verification"))
+            return redirect(url_for("auth.resend_verification", email=email))
 
         login_user(user)
         user.last_login_at = datetime.utcnow()
@@ -101,7 +101,7 @@ def login_finance():
         # Check email verification
         if user.status == "pending_verification":
             flash(tr("Você precisa verificar seu email antes de fazer login.", getattr(g, "lang", None)), "warning")
-            return redirect(url_for("auth.resend_verification"))
+            return redirect(url_for("auth.resend_verification", email=email))
 
         login_user(user)
         user.last_login_at = datetime.utcnow()
@@ -286,23 +286,28 @@ def verify_email(token):
 @bp.route("/resend-verification", methods=["GET", "POST"])
 def resend_verification():
     """Resend email verification link."""
+    prefill_email = request.args.get("email", "").strip().lower()
+
     if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
         
         if not email:
             flash(tr("Digite seu email.", getattr(g, "lang", None)), "error")
-            return render_template("portal/resend_verification.html")
+            return render_template("portal/resend_verification.html", email=prefill_email)
         
         # Find user
         user = User.query.filter_by(email=email, status="pending_verification").first()
         
         if user:
             try:
-                EmailVerificationService.resend_verification_email(user)
-                flash(
-                    tr("Email de verificação reenviado. Verifique sua caixa de entrada.", getattr(g, "lang", None)),
-                    "success"
-                )
+                sent = EmailVerificationService.resend_verification(user)
+                if sent:
+                    flash(
+                        tr("Email de verificação reenviado. Verifique sua caixa de entrada.", getattr(g, "lang", None)),
+                        "success"
+                    )
+                else:
+                    flash(tr("Erro ao enviar email. Tente novamente.", getattr(g, "lang", None)), "error")
             except Exception as e:
                 current_app.logger.error(f"Resend verification error: {e}")
                 flash(tr("Erro ao enviar email. Tente novamente.", getattr(g, "lang", None)), "error")
@@ -315,7 +320,7 @@ def resend_verification():
         
         return redirect(url_for("auth.login"))
     
-    return render_template("portal/resend_verification.html")
+    return render_template("portal/resend_verification.html", email=prefill_email)
 
 
 @bp.route("/accept-invitation/<token>", methods=["GET", "POST"])
