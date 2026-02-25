@@ -279,16 +279,36 @@ class EmailVerificationService:
         Returns:
             (success, error_message)
         """
+        try:
+            EmailVerificationService.verify_email(token_string)
+            return True, None
+        except ValueError as e:
+            return False, str(e)
+
+    @staticmethod
+    def verify_email(token_string: str) -> User:
+        """
+        Vérifier un token d'email et activer l'utilisateur.
+
+        Args:
+            token_string: Token à vérifier
+
+        Returns:
+            Utilisateur vérifié
+
+        Raises:
+            ValueError: si le token est invalide/expiré/déjà utilisé
+        """
         token = EmailVerificationToken.query.filter_by(token=token_string).first()
         
         if not token:
-            return False, "Token invalide"
+            raise ValueError("Token invalide")
         
         if token.is_verified():
-            return False, "Email déjà vérifié"
+            raise ValueError("Email déjà vérifié")
         
         if token.is_expired():
-            return False, "Token expiré"
+            raise ValueError("Token expiré")
         
         # Marquer comme vérifié
         token.verified_at = datetime.utcnow()
@@ -299,8 +319,7 @@ class EmailVerificationService:
             user.status = "active"
         
         db.session.commit()
-        
-        return True, None
+        return user
     
     @staticmethod
     def resend_verification(user: User) -> bool:
