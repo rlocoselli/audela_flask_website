@@ -2,6 +2,7 @@
 
 (function () {
   let _biModal = null;
+  const t = (window.t ? window.t : (s) => s);
 
   function ensureModal () {
     if (_biModal) return _biModal;
@@ -11,8 +12,8 @@
         <div class="modal-dialog modal-dialog-centered">
           <div class="modal-content">
             <div class="modal-header">
-              <h5 class="modal-title" id="biUiModalTitle">Information</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              <h5 class="modal-title" id="biUiModalTitle">${t('Information')}</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="${t('Fechar')}"></button>
             </div>
             <div class="modal-body" id="biUiModalBody"></div>
             <div class="modal-footer" id="biUiModalFooter"></div>
@@ -34,7 +35,7 @@
 
   function uiAlert (message, title) {
     const m = ensureModal();
-    m.title.textContent = title || 'Information';
+    m.title.textContent = title || t('Information');
     m.body.textContent = String(message || '');
     m.footer.innerHTML = `<button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>`;
     m.bs.show();
@@ -42,7 +43,7 @@
 
   function uiConfirm (message, title) {
     const m = ensureModal();
-    m.title.textContent = title || 'Confirmation';
+    m.title.textContent = title || t('Confirmation');
     m.body.textContent = String(message || '');
     m.footer.innerHTML = `
       <button type="button" class="btn btn-outline-secondary" data-ui-no>${window.t ? window.t('Cancelar') : 'Cancel'}</button>
@@ -141,7 +142,7 @@
     body: JSON.stringify({ question_id: questionId, viz_config: vizConfig })
   });
   const out = await resp2.json().catch(() => ({}));
-  if (!resp2.ok) throw new Error(out.error || 'Request failed');
+  if (!resp2.ok) throw new Error(out.error || t('Falha na requisição.'));
   if (statusEl) statusEl.textContent = window.t('Card criado. Recarregando...');
   // simplest: reload to render server-side with data + cfg
   window.location.reload();
@@ -154,7 +155,7 @@ async function apiDeleteCard (dashboardId, cardId) {
     headers: { ...(getCsrfToken() ? { 'X-CSRFToken': getCsrfToken() } : {}) }
   });
   const out = await resp.json().catch(() => ({}));
-  if (!resp.ok) throw new Error(out.error || 'Request failed');
+  if (!resp.ok) throw new Error(out.error || t('Falha na requisição.'));
   return out;
 }
 
@@ -340,12 +341,12 @@ function boot () {
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok) {
-          if (window.uiToast) window.uiToast((data && data.error) ? data.error : window.t('Falha ao salvar layout.'), { variant: 'danger' });
-          else uiAlert((data && data.error) ? data.error : window.t('Falha ao salvar layout.'), window.t('Erreur'));
+          if (window.uiToast) window.uiToast((data && data.error) ? data.error : t('Falha ao salvar layout.'), { variant: 'danger' });
+          else uiAlert((data && data.error) ? data.error : t('Falha ao salvar layout.'), t('Erro'));
           return;
         }
-        if (window.uiToast) window.uiToast(window.t('Layout salvo.'), { variant: 'success' });
-        else uiAlert(window.t('Layout salvo.'), window.t('Succès'));
+        if (window.uiToast) window.uiToast(t('Layout salvo.'), { variant: 'success' });
+        else uiAlert(t('Layout salvo.'), t('Sucesso'));
         setEditMode(false);
       });
     }
@@ -371,16 +372,16 @@ if (qSearch) qSearch.addEventListener('input', filterQuestions);
 if (createBtn) {
   createBtn.addEventListener('click', async () => {
     const qid = Number(qSel?.value || 0);
-    if (!qid) { if (window.uiToast) window.uiToast(window.t('Selecione uma pergunta.'), { variant: 'danger' }); else uiAlert(window.t('Selecione uma pergunta.'), window.t('Validation')); return; }
+    if (!qid) { if (window.uiToast) window.uiToast(t('Selecione uma pergunta.'), { variant: 'danger' }); else uiAlert(t('Selecione uma pergunta.'), t('Validação')); return; }
     let params = {};
     if (paramsEl && paramsEl.value.trim()) {
-      try { params = JSON.parse(paramsEl.value); } catch (e) { if (window.uiToast) window.uiToast(window.t('Parâmetros JSON inválidos.'), { variant: 'danger' }); else uiAlert(window.t('Parâmetros JSON inválidos.'), window.t('Validation')); return; }
+      try { params = JSON.parse(paramsEl.value); } catch (e) { if (window.uiToast) window.uiToast(t('Parâmetros JSON inválidos.'), { variant: 'danger' }); else uiAlert(t('Parâmetros JSON inválidos.'), t('Validação')); return; }
     }
     const vizType = typeSel?.value || 'table';
     try {
       await apiAddCard(dashboardId, qid, params, vizType);
     } catch (e) {
-      if (window.uiToast) window.uiToast(String(e.message || e), { variant: 'danger' }); else uiAlert(String(e.message || e), window.t('Erreur'));
+      if (window.uiToast) window.uiToast(String(e.message || e), { variant: 'danger' }); else uiAlert(String(e.message || e), t('Erro'));
     }
   });
 }
@@ -392,13 +393,13 @@ document.querySelectorAll('[data-card-remove="1"]').forEach(btn => {
     const item = btn.closest('.grid-stack-item');
     const cardId = Number(item?.getAttribute('data-card-id') || 0);
     if (!cardId) return;
-    const ok = await uiConfirm(window.t('Remover card?'), window.t('Confirmação'));
+    const ok = await uiConfirm(t('Remover card?'), t('Confirmação'));
     if (!ok) return;
     try {
       await apiDeleteCard(dashboardId, cardId);
       if (item) grid.removeWidget(item);
     } catch (err) {
-      if (window.uiToast) window.uiToast(String(err.message || err), { variant: 'danger' }); else uiAlert(String(err.message || err), window.t('Erreur'));
+      if (window.uiToast) window.uiToast(String(err.message || err), { variant: 'danger' }); else uiAlert(String(err.message || err), t('Erro'));
     }
   });
 });

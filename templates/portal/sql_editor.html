@@ -66,7 +66,7 @@
               <select name="source_id" id="source_id" class="form-select" required data-tour="{{ _('Sélectionnez la source de données à interroger.') }}" data-tour-title="{{ _('Tutoriel SQL') }}" data-tour-order="2">
                 <option value="">--</option>
                 {% for s in sources %}
-                  <option value="{{ s.id }}" data-dbtype="{{ s.type }}">
+                  <option value="{{ s.id }}" data-dbtype="{{ s.type }}" {% if source_id and (source_id|int) == s.id %}selected{% endif %}>
                     {{ s.name }} ({{ s.type }})
                   </option>
                 {% endfor %}
@@ -179,7 +179,7 @@
 
             <!-- SQL -->
             <div class="mb-3">
-              <label class="form-label">SQL</label>
+              <label class="form-label">{{ _('SQL') }}</label>
               <textarea
                 name="sql_text"
                 id="sql_text"
@@ -189,7 +189,7 @@
                 data-tour="{{ _('Éditez ici votre requête SQL finale avant exécution.') }}"
                 data-tour-title="{{ _('Tutoriel SQL') }}"
                 data-tour-order="5"
-              ></textarea>
+              >{{ sql_text or '' }}</textarea>
             </div>
 
             <!-- PARAMS -->
@@ -203,7 +203,7 @@
                 data-tour="{{ _('Ajoutez des paramètres JSON nommés pour rendre la requête dynamique.') }}"
                 data-tour-title="{{ _('Tutoriel SQL') }}"
                 data-tour-order="6"
-              ></textarea>
+              >{{ params_json or '' }}</textarea>
               <div class="form-text">
                 {{ _('Use :nome_param no SQL. tenant_id é aplicado automaticamente.') }}
               </div>
@@ -316,7 +316,7 @@
         if (btn) {
           btn.addEventListener('click', async (e) => {
             e.preventDefault();
-            await BI.exportPdf('SQL Export', data);
+            await BI.exportPdf('{{ _('Export SQL') }}', data);
           });
         }
 
@@ -324,7 +324,7 @@
         if (btnXlsx) {
           btnXlsx.addEventListener('click', async (e) => {
             e.preventDefault();
-            await BI.exportXlsx('SQL Export', data);
+            await BI.exportXlsx('{{ _('Export SQL') }}', data);
           });
         }
       }

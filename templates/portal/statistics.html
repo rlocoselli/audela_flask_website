@@ -48,7 +48,7 @@
             <select class="form-select" name="source_id">
               <option value="">—</option>
               {% for s in sources %}
-                <option value="{{ s.id }}">{{ s.name }} ({{ s.type }})</option>
+                <option value="{{ s.id }}" {% if selected_source_id and (selected_source_id|int) == s.id %}selected{% endif %}>{{ s.name }} ({{ s.type }})</option>
               {% endfor %}
             </select>
             <div class="form-text">{{ _('Selecione a fonte se for usar SQL manual.') }}</div>
@@ -59,7 +59,7 @@
             <select class="form-select" name="question_id">
               <option value="">—</option>
               {% for q in questions %}
-                <option value="{{ q.id }}">{{ q.name }}</option>
+                <option value="{{ q.id }}" {% if selected_question_id and (selected_question_id|int) == q.id %}selected{% endif %}>{{ q.name }}</option>
               {% endfor %}
             </select>
             <div class="form-text">{{ _('Usa a fonte e o SQL salvos na pergunta.') }}</div>
@@ -67,21 +67,29 @@
 
           <div class="col-12 col-xl-4">
             <label class="form-label">{{ _('Observação para a IA (opcional)') }}</label>
-            <input class="form-control" name="note" placeholder="Ex.: foco em risco, tendência, outliers..." />
+            <input class="form-control" name="note" value="{{ note_input or '' }}" placeholder="Ex.: foco em risco, tendência, outliers..." />
             <div class="form-text">{{ _('Se OPENAI_API_KEY estiver configurada, a IA gera um resumo executivo.') }}</div>
           </div>
 
           <div class="col-12">
-            <label class="form-label">SQL (somente leitura)</label>
-            <textarea class="form-control" name="sql_text" rows="5" placeholder="SELECT ..."></textarea>
+            <label class="form-label">{{ _('SQL (somente leitura)') }}</label>
+            <textarea class="form-control" name="sql_text" rows="5" placeholder="SELECT ...">{{ sql_text_input or '' }}</textarea>
             <div class="form-text">{{ _('Se a fonte exigir tenant, inclua :tenant_id no WHERE.') }}</div>
           </div>
 
           <div class="col-12 d-flex gap-2 justify-content-end">
-            <button class="btn btn-primary" type="submit"><i class="bi bi-graph-up"></i> {{ _('Analisar') }}</button>
+            <button class="btn btn-primary" type="submit" id="stats-submit-btn"><i class="bi bi-graph-up"></i> {{ _('Analisar') }}</button>
           </div>
         </div>
       </form>
+    </div>
+  </div>
+
+  <div id="stats-loading-overlay" style="position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:12px;padding:16px 18px;min-width:260px;box-shadow:0 8px 24px rgba(0,0,0,.2);text-align:center;">
+      <div class="spinner-border text-primary" role="status" aria-hidden="true"></div>
+      <div id="stats-loading-text" style="margin-top:.75rem;font-weight:600;">{{ _('Carregando...') }}</div>
+      <div id="stats-loading-elapsed" style="margin-top:.2rem;color:#666;font-size:.9rem;">0s</div>
     </div>
   </div>
 
@@ -348,25 +356,29 @@
             <div class="fw-semibold"><i class="bi bi-bar-chart me-1"></i> {{ _('Gráficos') }}</div>
           </div>
           <div class="card-body">
-            {% if stats.gauges %}
+            {% if stats.numeric %}
               <div class="row g-3 mb-3">
-                {% for g in stats.gauges %}
-                  <div class="col-12 col-lg-6">
-                    <div class="border rounded-4 p-2">
-                      <div class="d-flex align-items-center justify-content-between mb-1">
-                        <div class="fw-semibold small">{{ g.title }}</div>
-                        {% if g.mean is not none and (g.p95 is not none or g.max is not none) %}
-                          <span class="badge text-bg-light border">
-                            mean {{ '%.2f'|format(g.mean) if g.mean is not none else '' }} /
-                            {% if g.p95 is not none %}P95 {{ '%.2f'|format(g.p95) }}{% else %}max {{ '%.2f'|format(g.max) }}{% endif %}
-                          </span>
-                        {% endif %}
+                <div class="col-12 col-lg-6">
+                  <div class="border rounded-4 p-2">
+                    <div class="d-flex align-items-center justify-content-between mb-1 gap-2 flex-wrap">
+                      <div class="fw-semibold small" id="gauge-title"></div>
+                      <div class="d-flex align-items-center gap-2">
+                        <label for="gauge-measure-select" class="small text-secondary mb-0">{{ _('Coluna') }}</label>
+                        <select id="gauge-measure-select" class="form-select form-select-sm" style="max-width:220px;">
+                          {% set initial_gauge_col = (stats.gauges[0].column if stats.gauges else (stats.numeric[0].name if stats.numeric else '')) %}
+                          {% for n in stats.numeric[:30] %}
+                            <option value="{{ n.name }}" {% if n.name == initial_gauge_col %}selected{% endif %}>{{ n.name }}</option>
+                          {% endfor %}
+                        </select>
                       </div>
-                      <div class="border rounded-4" style="height: 260px;" id="gauge-{{ loop.index }}"></div>
-                      <script type="application/json" id="gaugecfg-{{ loop.index }}">{{ g.echarts_option|tojson }}</script>
                     </div>
+                    <div class="d-flex justify-content-end mb-1">
+                      <span class="badge text-bg-light border" id="gauge-badge"></span>
+                    </div>
+                    <div class="border rounded-4" style="height: 260px;" id="gauge-selected"></div>
+                    <script type="application/json" id="gauge-numeric-data">{{ stats.numeric|tojson }}</script>
                   </div>
-                {% endfor %}
+                </div>
               </div>
             {% endif %}
 
@@ -390,6 +402,85 @@
 
     <script>
       (function(){
+        function normalizeGaugeValue(item){
+          const mean = Number(item && item.mean);
+          const p95 = Number(item && item.p95);
+          const maxv = Number(item && item.max);
+          const hasP95 = Number.isFinite(p95) && p95 !== 0;
+          const hasMax = Number.isFinite(maxv) && maxv !== 0;
+          const denom = hasP95 ? p95 : (hasMax ? maxv : null);
+          if (!Number.isFinite(mean) || !Number.isFinite(denom) || denom === 0) return 0;
+          const raw = (mean / denom) * 100;
+          return Math.max(0, Math.min(100, Number(raw.toFixed(2))));
+        }
+
+        function gaugeOption(item){
+          return {
+            series: [
+              {
+                type: 'gauge',
+                startAngle: 200,
+                endAngle: -20,
+                min: 0,
+                max: 100,
+                splitNumber: 5,
+                progress: { show: true, width: 14 },
+                axisLine: { lineStyle: { width: 14 } },
+                axisTick: { show: true },
+                splitLine: { show: true, length: 12 },
+                axisLabel: { distance: 18 },
+                pointer: { length: '60%', width: 5 },
+                anchor: { show: true, showAbove: true, size: 12 },
+                title: { show: true, offsetCenter: [0, '60%'], fontSize: 12 },
+                detail: {
+                  valueAnimation: true,
+                  formatter: '{value}%',
+                  offsetCenter: [0, '25%'],
+                  fontSize: 18,
+                },
+                data: [
+                  {
+                    value: normalizeGaugeValue(item),
+                    name: 'mean / P95',
+                  }
+                ],
+              }
+            ]
+          };
+        }
+
+        function initSelectableGauge(){
+          const dataEl = document.getElementById('gauge-numeric-data');
+          const chartEl = document.getElementById('gauge-selected');
+          const selectEl = document.getElementById('gauge-measure-select');
+          const titleEl = document.getElementById('gauge-title');
+          const badgeEl = document.getElementById('gauge-badge');
+          if (!dataEl || !chartEl || !selectEl || !window.echarts) return;
+
+          let data = [];
+          try { data = JSON.parse(dataEl.textContent || '[]'); } catch (_) { data = []; }
+          if (!Array.isArray(data) || !data.length) return;
+
+          const chart = echarts.init(chartEl);
+
+          const render = (colName) => {
+            const item = data.find((d) => String(d.name) === String(colName)) || data[0];
+            if (!item) return;
+            const mean = Number(item.mean);
+            const p95 = Number(item.p95);
+            const maxv = Number(item.max);
+            titleEl.textContent = `Nível médio — ${item.name} (mean vs P95)`;
+            const denomLabel = Number.isFinite(p95) ? `P95 ${p95.toFixed(2)}` : (Number.isFinite(maxv) ? `max ${maxv.toFixed(2)}` : 'max —');
+            const meanLabel = Number.isFinite(mean) ? mean.toFixed(2) : '—';
+            badgeEl.textContent = `mean ${meanLabel} / ${denomLabel}`;
+            chart.setOption(gaugeOption(item), true);
+          };
+
+          render(selectEl.value);
+          selectEl.addEventListener('change', () => render(selectEl.value));
+          window.addEventListener('resize', () => chart.resize());
+        }
+
         function initChart(id, cfgId){
           const el = document.getElementById(id);
           const cfgEl = document.getElementById(cfgId);
@@ -399,9 +490,7 @@
           chart.setOption(opt);
           window.addEventListener('resize', () => chart.resize());
         }
-        {% for g in stats.gauges %}
-          initChart('gauge-{{ loop.index }}', 'gaugecfg-{{ loop.index }}');
-        {% endfor %}
+        initSelectableGauge();
         {% for ch in stats.charts %}
           initChart('chart-{{ loop.index }}', 'chartcfg-{{ loop.index }}');
         {% endfor %}
@@ -410,4 +499,30 @@
   {% endif %}
 
 </div>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script>
+    (() => {
+      const form = document.querySelector('form[action="{{ url_for('portal.statistics_run') }}"]');
+      const overlay = document.getElementById('stats-loading-overlay');
+      const elapsedEl = document.getElementById('stats-loading-elapsed');
+      const submitBtn = document.getElementById('stats-submit-btn');
+      if (!form || !overlay || !elapsedEl) return;
+
+      let timer = null;
+      let startedAt = 0;
+      form.addEventListener('submit', () => {
+        startedAt = Date.now();
+        overlay.style.display = 'flex';
+        if (submitBtn) submitBtn.disabled = true;
+        if (timer) clearInterval(timer);
+        timer = setInterval(() => {
+          const sec = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+          elapsedEl.textContent = `${sec}s`;
+        }, 250);
+      });
+    })();
+  </script>
 {% endblock %}

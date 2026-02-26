@@ -52,6 +52,26 @@
               <label class="form-label">{{ _('Ou téléverser un logo') }}</label>
               <input class="form-control" type="file" name="tenant_logo_file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml">
             </div>
+
+            <div class="col-12"><hr class="my-1"></div>
+            <div class="col-12">
+              <h2 class="h6 mb-1"><i class="bi bi-cpu"></i> {{ _('Configuration IA du tenant') }}</h2>
+              <p class="text-secondary small mb-0">{{ _('Choisissez le provider IA par défaut (OpenAI ou Mistral) et le modèle à utiliser.') }}</p>
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label">{{ _('Provider IA') }}</label>
+              <select class="form-select" name="ai_provider">
+                <option value="openai" {% if (ai_settings.provider or 'openai') == 'openai' %}selected{% endif %}>OpenAI</option>
+                <option value="mistral" {% if (ai_settings.provider or 'openai') == 'mistral' %}selected{% endif %}>Mistral AI</option>
+              </select>
+            </div>
+
+            <div class="col-12 col-md-6">
+              <label class="form-label">{{ _('Modèle IA') }}</label>
+              <input class="form-control" name="ai_model" maxlength="120" value="{{ ai_settings.model or '' }}" placeholder="gpt-4o-mini / mistral-small-latest">
+              <div class="form-text">{{ _('Laissez vide pour utiliser le modèle par défaut du provider.') }}</div>
+            </div>
             {% endif %}
 
             <div class="col-12 col-md-6">

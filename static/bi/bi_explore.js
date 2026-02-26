@@ -1,6 +1,7 @@
 /* global BI */
 (function () {
   let _biModal = null;
+  const t = (window.t ? window.t : (s) => s);
 
   function ensureModal () {
     if (_biModal) return _biModal;
@@ -10,12 +11,12 @@
         <div class="modal-dialog modal-dialog-centered">
           <div class="modal-content">
             <div class="modal-header">
-              <h5 class="modal-title" id="biExploreModalTitle">Information</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              <h5 class="modal-title" id="biExploreModalTitle">${t('Information')}</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="${t('Fechar')}"></button>
             </div>
             <div class="modal-body" id="biExploreModalBody"></div>
             <div class="modal-footer">
-              <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+              <button type="button" class="btn btn-primary" data-bs-dismiss="modal">${t('OK')}</button>
             </div>
           </div>
         </div>
@@ -33,7 +34,7 @@
 
   function uiAlert (message, title) {
     const m = ensureModal();
-    m.title.textContent = title || 'Information';
+    m.title.textContent = title || t('Information');
     m.body.textContent = String(message || '');
     m.bs.show();
   }
@@ -170,7 +171,7 @@
     for (const o of options) {
       const opt = document.createElement('option');
       opt.value = o;
-      opt.textContent = o;
+      opt.textContent = (o === '' ? '—' : o);
       if (selected && selected === o) opt.selected = true;
       sel.appendChild(opt);
     }
@@ -187,7 +188,10 @@
       if (dim) cfg.dim = dim;
       if (met) cfg.metric = met;
       if (aggFunc) cfg.agg = { func: aggFunc, metric: met, dim: dim };
-      if (drill) cfg.drill_field = drill;
+      if (drill) {
+        cfg.drill = drill;
+        cfg.drill_field = drill;
+      }
     }
     if (type === 'pivot') {
       cfg.pivot_rows = qs('#ex-pr')?.value || '';
@@ -195,6 +199,11 @@
       cfg.pivot_val = qs('#ex-pv')?.value || '';
     }
     if (type === 'gauge') {
+      if (met) cfg.metric = met;
+    }
+    if (type === 'map') {
+      cfg.map_level = qs('#ex-map-level')?.value || 'points';
+      if (dim) cfg.dim = dim;
       if (met) cfg.metric = met;
     }
     return cfg;
@@ -209,23 +218,34 @@
     const container = qs('#ex-viz');
     if (!container || !raw) return;
     if (!window.BI || !window.BI.renderViz) {
-      container.innerHTML = '<p style="color: #999;">Carregando visualizador...</p>';
+      container.innerHTML = '<p style="color: #999;">' + t('Carregando visualizador...') + '</p>';
       return;
     }
     const data = (filters && filters.length) ? BI.applyFilters(raw, filters) : raw;
     const cfg = cfgFromUi();
-    BI.renderViz(container, data, cfg, (drillField, value) => {
-      if (!drillField) return;
-      filters.push({ field: drillField, op: 'eq', value: value });
-      render(raw, filters);
-      renderFiltersSummary(filters);
-    });
+    try {
+      BI.renderViz(container, data, cfg, (drillField, value) => {
+        if (!drillField) return;
+        filters.push({ field: drillField, op: 'eq', value: value });
+        render(raw, filters);
+        renderFiltersSummary(filters);
+      });
+    } catch (err) {
+      const msg = String(err && err.message ? err.message : err || t('Erro de renderização.'));
+      container.innerHTML =
+        '<div class="alert alert-danger" role="alert">' +
+        '<div class="fw-semibold mb-1">' + t('Falha ao renderizar visualização') + '</div>' +
+        '<div class="small">' + msg + '</div>' +
+        '</div>';
+      setStatus(t('Erro de renderização'));
+      console.error('bi_explore: render failure', err, { cfg, columns: data.columns, rows: (data.rows || []).length });
+    }
   }
 
   function renderFiltersSummary (filters) {
     const el = qs('#ex-filter-summary');
     if (!el) return;
-    if (!filters.length) { el.innerHTML = '<span class="small-muted">' + window.t('Sem filtros.') + '</span>'; return; }
+    if (!filters.length) { el.innerHTML = '<span class="small-muted">' + t('Sem filtros.') + '</span>'; return; }
     el.innerHTML = filters.map((f, i) =>
       `<span class="badge text-bg-secondary me-1">${f.field} ${f.op} ${f.value} <a href="#" data-rm="${i}" class="link-light ms-1" style="text-decoration:none;">×</a></span>`
     ).join(' ');
@@ -250,7 +270,7 @@
       body: JSON.stringify({ params: params || {} })
     });
     const data = await resp.json().catch(() => ({}));
-    if (!resp.ok) throw new Error(data.error || 'Request failed');
+    if (!resp.ok) throw new Error(data.error || t('Falha na requisição.'));
     return data;
   }
 
@@ -265,7 +285,7 @@
       body: JSON.stringify({ viz_config: cfg })
     });
     const data = await resp.json().catch(() => ({}));
-    if (!resp.ok) throw new Error(data.error || 'Request failed');
+    if (!resp.ok) throw new Error(data.error || t('Falha na requisição.'));
     return data;
   }
 
@@ -280,7 +300,7 @@
       body: JSON.stringify({ question_id: questionId, viz_config: cfg })
     });
     const data = await resp.json().catch(() => ({}));
-    if (!resp.ok) throw new Error(data.error || 'Request failed');
+    if (!resp.ok) throw new Error(data.error || t('Falha na requisição.'));
     return data;
   }
 
@@ -293,6 +313,7 @@
     const metSel = qs('#ex-met');
     const drillSel = qs('#ex-drill');
     const pr = qs('#ex-pr'); const pc = qs('#ex-pc'); const pv = qs('#ex-pv');
+    const mapLevelSel = qs('#ex-map-level');
     const typeSel = qs('#ex-type');
     const refreshBtn = qs('#ex-refresh');
     const saveBtn = qs('#ex-save');
@@ -316,9 +337,9 @@
       fillSelect(dimSel, allCols);
       fillSelect(drillSel, [''].concat(allCols));
       fillSelect(metSel, allCols);
-      fillSelect(pr, allCols);
-      fillSelect(pc, allCols);
-      fillSelect(pv, allCols);
+      fillSelect(pr, [''].concat(allCols));
+      fillSelect(pc, [''].concat(allCols));
+      fillSelect(pv, [''].concat(allCols));
       fillSelect(filterField, allCols);
 
       // Pick defaults
@@ -326,8 +347,9 @@
       const m0 = metCols[0] || allCols[0] || '';
       if (dimSel && d0) dimSel.value = d0;
       if (metSel && m0) metSel.value = m0;
-      if (pr && d0) pr.value = d0;
-      if (pv && m0) pv.value = m0;
+      if (pr) pr.value = d0 || '';
+      if (pc) pc.value = '';
+      if (pv) pv.value = m0 || '';
     }
 
     async function refresh () {
@@ -335,11 +357,11 @@
       if (!qid) return;
       const params = parseParams();
       if (params === null) {
-        if (window.uiToast) window.uiToast(window.t('Parâmetros JSON inválidos.'), { variant: 'danger' });
-        else uiAlert(window.t('Parâmetros JSON inválidos.'), window.t('Validation'));
+        if (window.uiToast) window.uiToast(t('Parâmetros JSON inválidos.'), { variant: 'danger' });
+        else uiAlert(t('Parâmetros JSON inválidos.'), t('Validação'));
         return;
       }
-      setStatus(window.t('Carregando...'));
+      setStatus(t('Carregando...'));
       try {
         // include aggregation info if present
         const cfg = cfgFromUi();
@@ -355,32 +377,34 @@
             body: JSON.stringify({ params: params || {}, agg: agg })
           });
           const data = await resp.json().catch(() => ({}));
-          if (!resp.ok) throw new Error(data.error || 'Request failed');
+          if (!resp.ok) throw new Error(data.error || t('Falha na requisição.'));
           return data;
         })();
         fillColumns(raw);
         filters.length = 0;
         renderFiltersSummary(filters);
-        setStatus(window.t('OK'));
+        setStatus(t('OK'));
         // If dataset is empty, show a helpful message in the preview
         if (!raw || !raw.rows || raw.rows.length === 0) {
           const container = qs('#ex-viz');
-          if (container) container.innerHTML = '<p class="small-muted">' + window.t('Sem linhas retornadas.') + '</p>';
+          if (container) container.innerHTML = '<p class="small-muted">' + t('Sem linhas retornadas.') + '</p>';
         } else {
           console.debug('bi_explore: rendering preview', { columns: raw.columns && raw.columns.length, rows: raw.rows && raw.rows.length, cfg: cfgFromUi() });
           render(raw, filters);
         }
       } catch (e) {
-        setStatus(window.t('Erro'));
+        setStatus(t('Erro'));
         if (window.uiToast) window.uiToast(String(e.message || e), { variant: 'danger' });
-        else uiAlert(String(e.message || e), window.t('Erreur'));
+        else uiAlert(String(e.message || e), t('Erro'));
       }
     }
 
     function onTypeChange () {
       const pivotBox = qs('#ex-pivot-box');
+      const mapBox = qs('#ex-map-box');
       const type = typeSel.value;
       if (pivotBox) pivotBox.style.display = (type === 'pivot') ? '' : 'none';
+      if (mapBox) mapBox.style.display = (type === 'map') ? '' : 'none';
       if (raw) render(raw, filters);
     }
 
@@ -425,6 +449,7 @@
     [dimSel, metSel, drillSel, pr, pc, pv].forEach(el => {
       if (el) el.addEventListener('change', () => { if (raw) render(raw, filters); });
     });
+    if (mapLevelSel) mapLevelSel.addEventListener('change', () => { if (raw) render(raw, filters); });
 
     if (addFilterBtn) addFilterBtn.addEventListener('click', () => {
       if (!raw) return;
@@ -447,11 +472,11 @@
       if (!qid) return;
       try {
         await saveViz(qid, cfgFromUi());
-        if (window.uiToast) window.uiToast(window.t('Visualização salva.'), { variant: 'success' });
-        else uiAlert(window.t('Visualização salva.'), window.t('Succès'));
+        if (window.uiToast) window.uiToast(t('Visualização salva.'), { variant: 'success' });
+        else uiAlert(t('Visualização salva.'), t('Sucesso'));
       } catch (e) {
         if (window.uiToast) window.uiToast(String(e.message || e), { variant: 'danger' });
-        else uiAlert(String(e.message || e), window.t('Erreur'));
+        else uiAlert(String(e.message || e), t('Erro'));
       }
     });
 
@@ -461,11 +486,11 @@
       if (!qid || !did) return;
       try {
         await addToDashboard(did, qid, cfgFromUi());
-        if (window.uiToast) window.uiToast(window.t('Card adicionado ao dashboard.'), { variant: 'success' });
-        else uiAlert(window.t('Card adicionado ao dashboard.'), window.t('Succès'));
+        if (window.uiToast) window.uiToast(t('Card adicionado ao dashboard.'), { variant: 'success' });
+        else uiAlert(t('Card adicionado ao dashboard.'), t('Sucesso'));
       } catch (e) {
         if (window.uiToast) window.uiToast(String(e.message || e), { variant: 'danger' });
-        else uiAlert(String(e.message || e), window.t('Erreur'));
+        else uiAlert(String(e.message || e), t('Erro'));
       }
     });
 

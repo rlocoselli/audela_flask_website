@@ -9,6 +9,7 @@ from datetime import date, datetime
 import requests
 
 from ..i18n import DEFAULT_LANG, tr
+from .ai_runtime_config import resolve_ai_runtime_config
 
 
 def _env(name: str, default: str | None = None) -> str | None:
@@ -52,13 +53,15 @@ def analyze_with_ai(
     This is an MVP. If OPENAI_API_KEY is not set, returns an error dict.
     Response will be in the language specified by `lang` parameter.
     """
-    api_key = _env("OPENAI_API_KEY")
+    runtime = resolve_ai_runtime_config(default_model="gpt-4o-mini")
+    api_key = runtime.get("api_key")
     if not api_key:
         lang_code = lang or DEFAULT_LANG
-        return {"error": tr("Chave OpenAI ausente. Defina OPENAI_API_KEY no servidor.", lang_code)}
+        missing_env = runtime.get("missing_key_env") or "OPENAI_API_KEY"
+        return {"error": tr("Chave OpenAI ausente. Defina OPENAI_API_KEY no servidor.", lang_code).replace("OPENAI_API_KEY", str(missing_env))}
 
-    model = _env("OPENAI_MODEL", "gpt-4o-mini")
-    base_url = _env("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    model = runtime.get("model") or "gpt-4o-mini"
+    base_url = runtime.get("base_url") or "https://api.openai.com/v1"
     lang_code = lang or DEFAULT_LANG
 
     # Build system prompt in the selected language
@@ -78,6 +81,8 @@ def analyze_with_ai(
     # Keep context light
     payload_context = {
         "question": data_bundle.get("question"),
+        "source": data_bundle.get("source"),
+        "source_schema": data_bundle.get("source_schema"),
         "params": data_bundle.get("params"),
         "result": data_bundle.get("result"),
         "profile": data_bundle.get("profile"),

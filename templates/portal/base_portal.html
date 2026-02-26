@@ -95,12 +95,18 @@
 
       // Theme (Bootstrap 5.3) - persisted in localStorage
       (function(){
-        const key = 'audela_theme';
-        const saved = localStorage.getItem(key);
-        if (saved) document.documentElement.setAttribute('data-bs-theme', saved);
+          const key = 'audela_bs_theme';
+          const legacyKey = 'audela_theme';
+          const saved = localStorage.getItem(key);
+          const legacy = localStorage.getItem(legacyKey);
+          const normalized = (saved === 'dark' || saved === 'light')
+            ? saved
+            : ((legacy === 'dark' || legacy === 'light') ? legacy : null);
+          if (normalized) document.documentElement.setAttribute('data-bs-theme', normalized);
         window.__setTheme = function(theme){
-          document.documentElement.setAttribute('data-bs-theme', theme);
-          localStorage.setItem(key, theme);
+            const normalizedTheme = (theme === 'dark') ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-bs-theme', normalizedTheme);
+            localStorage.setItem(key, normalizedTheme);
         };
         window.__toggleTheme = function(){
           const current = document.documentElement.getAttribute('data-bs-theme') || 'light';

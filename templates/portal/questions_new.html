@@ -39,7 +39,7 @@
   <!-- HEADER -->
   <div class="card shadow-sm mb-4">
     <div class="card-body">
-      <h4 class="mb-1" data-tour="{{ _('Créez ici une question réutilisable pour dashboards et rapports.') }}" data-tour-title="{{ _('Tutoriel BI') }}" data-tour-order="1">➕ {{ _('Nova pergunta') }}</h4>
+      <h4 class="mb-1" data-tour="{{ _('Crie aqui uma pergunta reutilizável para dashboards e relatórios.') }}" data-tour-title="{{ _('Tutorial BI') }}" data-tour-order="1">➕ {{ _('Nova pergunta') }}</h4>
       <p class="text-muted mb-0">
         {{ _('Defina uma pergunta reutilizável baseada em uma consulta SQL.') }}
       </p>
@@ -61,9 +61,10 @@
                 name="name"
                 class="form-control"
                 placeholder="Ex.: Total de vendas por mês"
+                value="{{ (form.name if form is defined and form else '') }}"
                 required
-                data-tour="{{ _('Donnez un nom métier clair à la question.') }}"
-                data-tour-title="{{ _('Tutoriel BI') }}"
+                data-tour="{{ _('Dê um nome de negócio claro para a pergunta.') }}"
+                data-tour-title="{{ _('Tutorial BI') }}"
                 data-tour-order="2"
               >
               <div class="form-text">{{ _('Nome exibido para usuários e dashboards.') }}</div>
@@ -71,10 +72,10 @@
 
             <div class="mb-3">
               <label class="form-label">{{ _('Fonte de dados') }}</label>
-              <select id="source_id" name="source_id" class="form-select" required data-tour="{{ _('Choisissez la source de données utilisée par la requête.') }}" data-tour-title="{{ _('Tutoriel BI') }}" data-tour-order="3">
+              <select id="source_id" name="source_id" class="form-select" required data-tour="{{ _('Escolha a fonte de dados usada pela consulta.') }}" data-tour-title="{{ _('Tutorial BI') }}" data-tour-order="3">
                 <option value="">— {{ _('Selecione uma fonte.') }} —</option>
                 {% for s in sources %}
-                  <option value="{{ s.id }}" data-dbtype="{{ s.type }}">
+                  <option value="{{ s.id }}" data-dbtype="{{ s.type }}" {% if form is defined and form and (form.source_id|int) == s.id %}selected{% endif %}>
                     {{ s.name }} ({{ s.type }})
                   </option>
                 {% endfor %}
@@ -85,14 +86,14 @@
             <div class="mb-4">
               <label class="form-label">{{ _('Linguagem humana') }}</label>
               <div class="d-flex gap-2 flex-wrap">
-                <input type="text" id="nlq-text" class="form-control" placeholder="{{ _('ex: total vendas por mês') }}" data-tour="{{ _('Décrivez votre besoin en langage naturel pour proposer un SQL initial.') }}" data-tour-title="{{ _('Tutoriel BI') }}" data-tour-order="4">
+                <input type="text" id="nlq-text" class="form-control" placeholder="{{ _('ex: total vendas por mês') }}" data-tour="{{ _('Descreva sua necessidade em linguagem natural para sugerir um SQL inicial.') }}" data-tour-title="{{ _('Tutorial BI') }}" data-tour-order="4">
                 <button type="button" class="btn btn-outline-primary" id="nlq-generate">{{ _('Gerar SQL') }}</button>
               </div>
               <div id="nlq-warnings" class="form-text mt-1"></div>
             </div>
 
             <details class="mb-4">
-              <summary class="fw-semibold cursor-pointer" data-tour="{{ _('Utilisez le Query Builder pour composer la requête sans partir de zéro.') }}" data-tour-title="{{ _('Tutoriel BI') }}" data-tour-order="5">
+              <summary class="fw-semibold cursor-pointer" data-tour="{{ _('Use o Query Builder para montar a consulta sem começar do zero.') }}" data-tour-title="{{ _('Tutorial BI') }}" data-tour-order="5">
                 {{ _('Query Builder') }}
                 <span class="text-muted">— {{ _('montar SELECT com ajuda da estrutura') }}</span>
               </summary>
@@ -143,31 +144,31 @@
             </details>
 
             <div class="mb-4">
-              <label class="form-label">SQL</label>
+              <label class="form-label">{{ _('SQL') }}</label>
               <textarea
                 id="sql_text"
                 name="sql_text"
                 class="form-control"
                 rows="10"
-                placeholder="SELECT ..."
+                placeholder="{{ _('SELECT ...') }}"
                 required
-                data-tour="{{ _('Éditez ici la requête SQL finale à sauvegarder.') }}"
-                data-tour-title="{{ _('Tutoriel BI') }}"
+                data-tour="{{ _('Edite aqui a consulta SQL final para salvar.') }}"
+                data-tour-title="{{ _('Tutorial BI') }}"
                 data-tour-order="6"
-              ></textarea>
+              >{{ (form.sql_text if form is defined and form else '') }}</textarea>
               <div class="form-text">{{ _('Use Ctrl+Space para autocomplete. Se a fonte exigir tenant, inclua :tenant_id.') }}</div>
             </div>
 
             <div class="mb-4">
               <label class="form-label">{{ _('Parâmetros (JSON)') }}</label>
-              <textarea name="params_json" id="params_json" class="form-control" rows="4" data-tour="{{ _('Ajoutez les paramètres JSON attendus par la requête.') }}" data-tour-title="{{ _('Tutoriel BI') }}" data-tour-order="7">{}</textarea>
+              <textarea name="params_json" id="params_json" class="form-control" rows="4" data-tour="{{ _('Adicione os parâmetros JSON esperados pela consulta.') }}" data-tour-title="{{ _('Tutorial BI') }}" data-tour-order="7">{{ (form.params_json if form is defined and form and form.params_json is not none else '{}') }}</textarea>
               <div class="form-text">{{ _('Use :nome_param no SQL. tenant_id é aplicado automaticamente.') }}</div>
             </div>
 
             <div class="mb-4">
               <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
                 <label class="form-label mb-0">{{ _('Aperçu') }}</label>
-                <button type="button" class="btn btn-outline-secondary btn-sm" id="sql-preview-btn" data-tour="{{ _('Lancez une prévisualisation pour valider rapidement les données retournées.') }}" data-tour-title="{{ _('Tutoriel BI') }}" data-tour-order="8">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="sql-preview-btn" data-tour="{{ _('Execute uma prévia para validar rapidamente os dados retornados.') }}" data-tour-title="{{ _('Tutorial BI') }}" data-tour-order="8">
                   <i class="bi bi-eye me-1"></i>{{ _('Prévia dos dados') }}
                 </button>
               </div>
@@ -176,7 +177,7 @@
 
             <div class="d-flex justify-content-end gap-2">
               <a href="{{ url_for('portal.questions_list') }}" class="btn btn-outline-secondary">{{ _('Cancelar') }}</a>
-              <button type="submit" class="btn btn-primary" data-tour="{{ _('Enregistrez la question pour la réutiliser dans les dashboards.') }}" data-tour-title="{{ _('Tutoriel BI') }}" data-tour-order="9">💾 {{ _('Salvar pergunta') }}</button>
+              <button type="submit" class="btn btn-primary" data-tour="{{ _('Salve a pergunta para reutilizar em dashboards.') }}" data-tour-title="{{ _('Tutorial BI') }}" data-tour-order="9">💾 {{ _('Salvar pergunta') }}</button>
             </div>
           </form>
         </div>

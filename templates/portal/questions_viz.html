@@ -20,7 +20,7 @@
       </div>
     </div>
     <div class="d-flex gap-2">
-      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.questions_view', question_id=question.id) }}">
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.dashboard_view', dashboard_id=dashboard_id) if dashboard_id else url_for('portal.questions_view', question_id=question.id) }}">
         <i class="bi bi-arrow-left"></i> {{ _('Voltar') }}
       </a>
     </div>
@@ -55,11 +55,11 @@
               <label class="form-label">{{ _('Tipo') }}</label>
               <select class="form-select" id="viz_type">
                 <option value="table">{{ _('Tabela') }}</option>
-                <option value="bar">Bar</option>
-                <option value="line">Line</option>
-                <option value="area">Area</option>
-                <option value="pie">Pie</option>
-                <option value="scatter">Scatter</option>
+                <option value="bar">{{ _('Bar') }}</option>
+                <option value="line">{{ _('Line') }}</option>
+                <option value="area">{{ _('Area') }}</option>
+                <option value="pie">{{ _('Pie') }}</option>
+                <option value="scatter">{{ _('Scatter') }}</option>
                 <option value="gauge">{{ _('Gauge') }}</option>
                 <option value="pivot">{{ _('Pivot') }}</option>
               </select>
@@ -67,7 +67,7 @@
 
             <div class="row g-3">
               <div class="col-12 col-md-6">
-                <label class="form-label">X / Dimension</label>
+                <label class="form-label">{{ _('X / Dimension') }}</label>
                 <select class="form-select" id="viz_dim">
                   <option value="">--</option>
                   {% for c in result.columns %}
@@ -76,7 +76,7 @@
                 </select>
               </div>
               <div class="col-12 col-md-6">
-                <label class="form-label">Y / Metric</label>
+                <label class="form-label">{{ _('Y / Metric') }}</label>
                 <select class="form-select" id="viz_metric">
                   <option value="">--</option>
                   {% for c in result.columns %}
@@ -107,19 +107,19 @@
             <div class="row g-2">
               <div class="col-12 col-md-4">
                 <select class="form-select" id="pivot_rows">
-                  <option value="">Rows</option>
+                  <option value="">{{ _('Rows') }}</option>
                   {% for c in result.columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
                 </select>
               </div>
               <div class="col-12 col-md-4">
                 <select class="form-select" id="pivot_cols">
-                  <option value="">Cols</option>
+                  <option value="">{{ _('Cols') }}</option>
                   {% for c in result.columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
                 </select>
               </div>
               <div class="col-12 col-md-4">
                 <select class="form-select" id="pivot_val">
-                  <option value="">Value</option>
+                  <option value="">{{ _('Value') }}</option>
                   {% for c in result.columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
                 </select>
               </div>

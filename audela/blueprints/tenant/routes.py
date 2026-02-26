@@ -111,6 +111,27 @@ def _save_tenant_branding(tenant: Tenant, branding: dict) -> None:
     flag_modified(tenant, "settings_json")
 
 
+def _tenant_ai_settings(tenant: Tenant) -> dict:
+    settings = tenant.settings_json if isinstance(tenant.settings_json, dict) else {}
+    ai = settings.get("ai") if isinstance(settings.get("ai"), dict) else {}
+    provider = str(ai.get("provider") or "openai").strip().lower()
+    if provider not in {"openai", "mistral"}:
+        provider = "openai"
+    model = str(ai.get("model") or "").strip()
+    return {
+        "provider": provider,
+        "model": model,
+        "updated_at": ai.get("updated_at"),
+    }
+
+
+def _save_tenant_ai_settings(tenant: Tenant, ai_settings: dict) -> None:
+    settings = tenant.settings_json if isinstance(tenant.settings_json, dict) else {}
+    settings["ai"] = ai_settings
+    tenant.settings_json = settings
+    flag_modified(tenant, "settings_json")
+
+
 def _save_tenant_user_module_access(tenant: Tenant, user_id: int, module_access: dict) -> None:
     settings = tenant.settings_json if isinstance(tenant.settings_json, dict) else {}
     uam = settings.get("uam") if isinstance(settings.get("uam"), dict) else {}
@@ -325,6 +346,7 @@ def profile():
 
     profile_data = _tenant_user_profile(tenant, current_user.id)
     branding = _tenant_branding(tenant)
+    ai_settings = _tenant_ai_settings(tenant)
     is_admin = current_user.has_role("tenant_admin")
 
     if request.method == "POST":
@@ -362,6 +384,7 @@ def profile():
                     "photo_url": photo_url,
                 },
                 avatar_choices=AVATAR_CHOICES,
+                    ai_settings=ai_settings,
             )
 
         profile_data = {
@@ -395,6 +418,7 @@ def profile():
                         "nickname": tenant_nickname,
                         "logo_url": tenant_logo_url,
                     },
+                    ai_settings=ai_settings,
                 )
 
             branding = {
@@ -403,6 +427,19 @@ def profile():
                 "updated_at": datetime.utcnow().isoformat(),
             }
             _save_tenant_branding(tenant, branding)
+
+            ai_provider = (request.form.get("ai_provider") or "openai").strip().lower()
+            if ai_provider not in {"openai", "mistral"}:
+                ai_provider = "openai"
+            ai_model = (request.form.get("ai_model") or "").strip()
+            if len(ai_model) > 120:
+                ai_model = ai_model[:120]
+            ai_settings = {
+                "provider": ai_provider,
+                "model": ai_model,
+                "updated_at": datetime.utcnow().isoformat(),
+            }
+            _save_tenant_ai_settings(tenant, ai_settings)
 
         db.session.commit()
         flash(tr("Profil mis à jour.", getattr(g, "lang", None)), "success")
@@ -415,6 +452,7 @@ def profile():
         avatar_choices=AVATAR_CHOICES,
         is_admin=is_admin,
         branding=branding,
+        ai_settings=ai_settings,
     )
 
 

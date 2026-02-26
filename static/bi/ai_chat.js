@@ -2,6 +2,7 @@
 
 (function () {
   let _biModal = null;
+  const t = (window.t ? window.t : (s) => s);
 
   function ensureModal () {
     if (_biModal) return _biModal;
@@ -11,12 +12,12 @@
         <div class="modal-dialog modal-dialog-centered">
           <div class="modal-content">
             <div class="modal-header">
-              <h5 class="modal-title" id="aiChatModalTitle">Information</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              <h5 class="modal-title" id="aiChatModalTitle">${t('Information')}</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="${t('Fechar')}"></button>
             </div>
             <div class="modal-body" id="aiChatModalBody"></div>
             <div class="modal-footer">
-              <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+              <button type="button" class="btn btn-primary" data-bs-dismiss="modal">${t('OK')}</button>
             </div>
           </div>
         </div>
@@ -34,7 +35,7 @@
 
   function uiAlert (message, title) {
     const m = ensureModal();
-    m.title.textContent = title || 'Information';
+    m.title.textContent = title || t('Information');
     m.body.textContent = String(message || '');
     m.bs.show();
   }
@@ -54,6 +55,21 @@
     } catch (e) {
       return null;
     }
+  }
+
+  async function fetchWithRetry (url, options, retries) {
+    let lastError = null;
+    const maxRetries = Number.isFinite(retries) ? retries : 1;
+    for (let i = 0; i <= maxRetries; i += 1) {
+      try {
+        return await fetch(url, options);
+      } catch (e) {
+        lastError = e;
+        if (i >= maxRetries) break;
+        await new Promise(resolve => setTimeout(resolve, 450));
+      }
+    }
+    throw lastError;
   }
 
   function renderMessage (log, role, text) {
@@ -102,7 +118,7 @@
         window.addEventListener('resize', () => chart.resize());
       } catch (e) {
         const p = el('div', 'text-secondary');
-        p.textContent = 'Falha ao renderizar gráfico.';
+        p.textContent = t('Falha ao renderizar gráfico.');
         body.appendChild(p);
       }
     }
@@ -113,8 +129,13 @@
     const input = qs('#ai-input');
     const sendBtn = qs('#ai-send');
     const clearBtn = qs('#ai-clear');
+    const modeSel = qs('#ai-mode');
     const questionSel = qs('#ai-question');
+    const sourceSel = qs('#ai-source');
     const paramsEl = qs('#ai-params');
+    const questionWrap = qs('#ai-question-wrap');
+    const sourceWrap = qs('#ai-source-wrap');
+    const paramsWrap = qs('#ai-params-wrap');
     const status = qs('#ai-status');
 
     if (!log || !input || !sendBtn || !questionSel) return;
@@ -137,21 +158,44 @@
       clearAll();
     });
 
+    function syncModeUi () {
+      const mode = (modeSel?.value || 'question');
+      if (questionWrap) questionWrap.classList.toggle('d-none', mode !== 'question');
+      if (sourceWrap) sourceWrap.classList.toggle('d-none', mode !== 'source');
+      if (paramsWrap) paramsWrap.classList.toggle('d-none', mode !== 'question');
+    }
+
+    if (modeSel) modeSel.addEventListener('change', syncModeUi);
+    syncModeUi();
+
     async function send () {
+      const mode = (modeSel?.value || 'question');
       const qid = Number(questionSel.value || 0);
+      const sid = Number(sourceSel?.value || 0);
       const msg = (input.value || '').trim();
-      if (!qid) {
-        if (window.uiToast) window.uiToast(window.t('Selecione uma pergunta'), { variant: 'danger' });
-        else uiAlert(window.t('Selecione uma pergunta'), window.t('Validation'));
-        return;
+      if (mode === 'question') {
+        if (!qid) {
+          if (window.uiToast) window.uiToast(t('Selecione uma pergunta'), { variant: 'danger' });
+          else uiAlert(t('Selecione uma pergunta'), t('Validação'));
+          return;
+        }
+      } else {
+        if (!sid) {
+          if (window.uiToast) window.uiToast(t('Selecione uma fonte.'), { variant: 'danger' });
+          else uiAlert(t('Selecione uma fonte.'), t('Validação'));
+          return;
+        }
       }
       if (!msg) return;
 
-      const params = parseJsonSafe(paramsEl ? paramsEl.value : '');
-      if (params === null) {
-        if (window.uiToast) window.uiToast('Parâmetros JSON inválidos.', { variant: 'danger' });
-        else uiAlert('Parâmetros JSON inválidos.', window.t('Validation'));
-        return;
+      let params = {};
+      if (mode === 'question') {
+        params = parseJsonSafe(paramsEl ? paramsEl.value : '');
+        if (params === null) {
+          if (window.uiToast) window.uiToast(t('Parâmetros JSON inválidos.'), { variant: 'danger' });
+          else uiAlert(t('Parâmetros JSON inválidos.'), t('Validação'));
+          return;
+        }
       }
 
       renderMessage(log, 'user', msg);
@@ -159,21 +203,28 @@
       input.value = '';
       clearCharts();
 
-      setStatus(window.t('Gerando resposta...'));
+      setStatus(t('Gerando resposta...'));
 
-      const resp = await fetch('/app/api/ai/chat', {
+      const resp = await fetchWithRetry('/app/api/ai/chat', {
         method: 'POST',
         credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
           ...(getCsrfToken() ? { 'X-CSRFToken': getCsrfToken() } : {})
         },
-        body: JSON.stringify({ question_id: qid, message: msg, history: history, params: params || {} })
-      });
+        body: JSON.stringify({
+          mode: mode,
+          question_id: (mode === 'question') ? qid : null,
+          source_id: (mode === 'source') ? sid : null,
+          message: msg,
+          history: history,
+          params: params || {}
+        })
+      }, 1);
 
       const payload = await resp.json().catch(() => ({}));
       if (!resp.ok || payload.error) {
-        const err = payload.error || 'Erro';
+        const err = payload.error || t('Erro');
         renderMessage(log, 'assistant', err);
         history.push({ role: 'assistant', content: err });
         setStatus('');
@@ -192,7 +243,7 @@
       e.preventDefault();
       send().catch((err) => {
         setStatus('');
-        renderMessage(log, 'assistant', String(err || 'Erro'));
+        renderMessage(log, 'assistant', String(err || t('Erro')));
       });
     });
 
@@ -204,7 +255,7 @@
     });
 
     // Hello
-    renderMessage(log, 'assistant', 'Selecione uma pergunta e descreva o que você quer analisar.');
+    renderMessage(log, 'assistant', t('Select a question or a source and describe what you want to analyze.'));
   }
 
   document.addEventListener('DOMContentLoaded', boot);

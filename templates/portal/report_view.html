@@ -418,21 +418,21 @@
           <label class="form-label mb-1">{{ _('Opérateur') }}</label>
           <select id="rp-filter-op" class="form-select form-select-sm">
             <option value="eq">=</option>
-            <option value="contains">contains</option>
+            <option value="contains">{{ _('contains') }}</option>
             <option value="gt">&gt;</option>
             <option value="lt">&lt;</option>
           </select>
         </div>
         <div class="col-6">
           <label class="form-label mb-1">{{ _('Valeur') }}</label>
-          <input id="rp-filter-value" class="form-control form-control-sm" type="text" placeholder="value" />
+          <input id="rp-filter-value" class="form-control form-control-sm" type="text" placeholder="{{ _('value') }}" />
         </div>
         <div class="col-12 d-flex flex-wrap gap-2">
           <button class="btn btn-outline-primary btn-sm" id="rp-add-filter">{{ _('Adicionar filtro') }}</button>
           <button class="btn btn-outline-secondary btn-sm" id="rp-clear-filters">{{ _('Limpar filtros') }}</button>
         </div>
       </div>
-      <div id="rp-filter-summary" class="mt-2"><em>(sem filtros)</em></div>
+      <div id="rp-filter-summary" class="mt-2"><em>({{ _('Sem filtros.') }})</em></div>
     </div>
   </div>
 
@@ -443,6 +443,7 @@
   {{ super() }}
   <script>
     window.onReady(function(){
+      const t = window.t ? window.t : (s) => s;
       const panel = document.getElementById('rp-floating-filters');
       if (!panel) return;
 
@@ -521,14 +522,14 @@
         }).join('');
         fieldEl.innerHTML = '<option value="">--</option>' + options;
         if (!options) {
-          fieldEl.innerHTML = '<option value="">(aucun champ)</option>';
+          fieldEl.innerHTML = '<option value="">(' + t('Nenhum campo') + ')</option>';
         }
       }
 
       function renderSummary(){
         if (!summary) return;
         if (!state.filters.length) {
-          summary.innerHTML = '<em>(sem filtros)</em>';
+          summary.innerHTML = '<em>(' + t('Sem filtros.') + ')</em>';
           return;
         }
         summary.innerHTML = state.filters.map(function(f, idx){
@@ -738,11 +739,11 @@
           pageRows.forEach(r => tbody.appendChild(r));
 
           toolbar.innerHTML =
-            '<div class="small text-secondary">' + total + ' lignes</div>' +
-            '<div class="d-flex align-items-center gap-2"><label class="small text-secondary mb-0">Taille de page</label>' +
+            '<div class="small text-secondary">' + total + ' ' + t('Linhas') + '</div>' +
+            '<div class="d-flex align-items-center gap-2"><label class="small text-secondary mb-0">' + t('Tamanho da página') + '</label>' +
             '<select class="form-select form-select-sm" data-rp-pagesize style="width:auto;">' +
             allowed.map(function(ps){
-              const lbl = ps === -1 ? 'Tout' : String(ps);
+              const lbl = ps === -1 ? t('Tudo') : String(ps);
               return '<option value="' + ps + '"' + (ps === pageSize ? ' selected' : '') + '>' + lbl + '</option>';
             }).join('') +
             '</select></div>';
@@ -750,9 +751,9 @@
           pager.innerHTML =
             '<div class="small text-secondary">' + (total === 0 ? '0' : (start + 1)) + '-' + end + ' / ' + total + '</div>' +
             '<div class="btn-group btn-group-sm" role="group">' +
-            '<button type="button" class="btn btn-outline-secondary" data-rp-page="prev"' + (page <= 1 ? ' disabled' : '') + '>Précédent</button>' +
+            '<button type="button" class="btn btn-outline-secondary" data-rp-page="prev"' + (page <= 1 ? ' disabled' : '') + '>' + t('Précédent') + '</button>' +
             '<button type="button" class="btn btn-outline-secondary" disabled>' + page + '/' + totalPages + '</button>' +
-            '<button type="button" class="btn btn-outline-secondary" data-rp-page="next"' + (page >= totalPages ? ' disabled' : '') + '>Suivant</button>' +
+            '<button type="button" class="btn btn-outline-secondary" data-rp-page="next"' + (page >= totalPages ? ' disabled' : '') + '>' + t('Suivant') + '</button>' +
             '</div>';
 
           const pageSizeSel = toolbar.querySelector('[data-rp-pagesize]');

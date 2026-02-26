@@ -117,14 +117,14 @@
         <label class="form-label mb-1">{{ _('Opérateur') }}</label>
         <select id="bi-filter-op" class="form-select form-select-sm">
           <option value="eq">=</option>
-          <option value="contains">contains</option>
+          <option value="contains">{{ _('contains') }}</option>
           <option value="gt">&gt;</option>
           <option value="lt">&lt;</option>
         </select>
       </div>
       <div class="col-6">
         <label class="form-label mb-1">{{ _('Valeur') }}</label>
-        <input id="bi-filter-value" class="form-control form-control-sm" type="text" placeholder="value" />
+        <input id="bi-filter-value" class="form-control form-control-sm" type="text" placeholder="{{ _('value') }}" />
       </div>
       <div class="col-12 d-flex flex-wrap gap-2">
         <button class="btn btn-outline-primary btn-sm" id="bi-add-filter">{{ _('Adicionar filtro') }}</button>
@@ -146,7 +146,7 @@
 <div class="offcanvas offcanvas-end" tabindex="-1" id="addCardCanvas">
   <div class="offcanvas-header">
     <h5 class="offcanvas-title">{{ _('Adicionar card') }}</h5>
-    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="{{ _('Fechar') }}"></button>
   </div>
   <div class="offcanvas-body">
     <div class="mb-2">
@@ -166,13 +166,13 @@
       <label class="form-label">{{ _('Visualização') }}</label>
       <select class="form-select" id="addcard-type">
         <option value="table">{{ _('Tabela') }}</option>
-        <option value="bar">Bar</option>
-        <option value="line">Line</option>
-        <option value="area">Area</option>
-        <option value="pie">Pie</option>
-        <option value="scatter">Scatter</option>
-        <option value="gauge">Gauge</option>
-        <option value="pivot">Pivot</option>
+        <option value="bar">{{ _('Bar') }}</option>
+        <option value="line">{{ _('Line') }}</option>
+        <option value="area">{{ _('Area') }}</option>
+        <option value="pie">{{ _('Pie') }}</option>
+        <option value="scatter">{{ _('Scatter') }}</option>
+        <option value="gauge">{{ _('Gauge') }}</option>
+        <option value="pivot">{{ _('Pivot') }}</option>
       </select>
       <div class="form-text">{{ _('Você pode refinar depois em Configurar visualização.') }}</div>
     </div>
@@ -203,7 +203,7 @@
           </div>
           {% if not embed_mode %}
           <div class="d-flex gap-1">
-            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.questions_viz', question_id=item.question.id) }}" title="{{ _('Configurar visualização') }}">
+            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.questions_viz', question_id=item.question.id, dashboard_id=dashboard.id) }}" title="{{ _('Configurar visualização') }}">
               <i class="bi bi-sliders"></i>
             </a>
             <button class="btn btn-outline-danger btn-sm d-none" data-card-remove="1" title="{{ _('Remover card') }}">

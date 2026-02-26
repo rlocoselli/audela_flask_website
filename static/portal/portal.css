@@ -342,6 +342,112 @@ body.theme-dark .table th {
   color: var(--text-primary);
 }
 
+/* Bootstrap dark mode hardening (when toggled via moon button) */
+html[data-bs-theme="dark"]:not(.theme-dark) body,
+html[data-bs-theme="dark"] body:not(.theme-dark) {
+  --bg-primary: #161b2f;
+  --bg-secondary: #0f1420;
+  --bg-tertiary: #1b2440;
+  --bg-hover: #27314f;
+  --card-bg: #171d33;
+  --card-border: #2a3755;
+  --sidebar-bg: #111827;
+  --sidebar-border: #24314d;
+  --sidebar-text: #dbe4f0;
+  --sidebar-hover-bg: #1b2a44;
+  --sidebar-active-bg: #203a5f;
+  --sidebar-active-text: #8ec5ff;
+  --text-primary: #eef3fb;
+  --text-secondary: #c5d0df;
+  --text-muted: #94a3b8;
+  --border-color: #2a3755;
+  --border-subtle: #22314b;
+  --btn-secondary-bg: #22314b;
+  --btn-secondary-text: #dbe4f0;
+  --btn-secondary-hover: #2b3b59;
+}
+
+html[data-bs-theme="dark"] .sidebar .nav-link {
+  color: var(--sidebar-text);
+}
+
+html[data-bs-theme="dark"] .sidebar .nav-link:hover {
+  color: var(--sidebar-active-text);
+}
+
+html[data-bs-theme="dark"] .topbar,
+html[data-bs-theme="dark"] .sidebar,
+html[data-bs-theme="dark"] .main-area {
+  background: var(--bg-primary);
+}
+
+html[data-bs-theme="dark"] .topbar .btn-outline-secondary,
+html[data-bs-theme="dark"] .topbar .form-select,
+html[data-bs-theme="dark"] .dropdown-menu,
+html[data-bs-theme="dark"] .offcanvas {
+  border-color: var(--border-color);
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
+}
+
+html[data-bs-theme="dark"] .portal-topbar-right .badge {
+  color: var(--text-primary) !important;
+  background: var(--bg-tertiary) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Finance + Project dark mode hardening */
+html[data-bs-theme="dark"] .finance-navbar,
+html[data-bs-theme="dark"] .project-navbar {
+  background: var(--bg-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+html[data-bs-theme="dark"] .finance-navbar .navbar-brand,
+html[data-bs-theme="dark"] .project-navbar .navbar-brand,
+html[data-bs-theme="dark"] .finance-navbar .nav-link,
+html[data-bs-theme="dark"] .project-navbar .nav-link {
+  color: var(--text-primary) !important;
+}
+
+html[data-bs-theme="dark"] .finance-navbar .nav-link:hover,
+html[data-bs-theme="dark"] .project-navbar .nav-link:hover,
+html[data-bs-theme="dark"] .finance-navbar .nav-link:focus,
+html[data-bs-theme="dark"] .project-navbar .nav-link:focus {
+  color: var(--sidebar-active-text) !important;
+}
+
+html[data-bs-theme="dark"] .finance-navbar .navbar-toggler,
+html[data-bs-theme="dark"] .project-navbar .navbar-toggler {
+  border-color: var(--border-color) !important;
+}
+
+html[data-bs-theme="dark"] .finance-navbar .navbar-toggler-icon,
+html[data-bs-theme="dark"] .project-navbar .navbar-toggler-icon {
+  filter: invert(0.85);
+}
+
+html[data-bs-theme="dark"] .finance-top-actions .badge,
+html[data-bs-theme="dark"] .project-top-actions .badge {
+  color: var(--text-primary) !important;
+  background: var(--bg-tertiary) !important;
+  border-color: var(--border-color) !important;
+}
+
+html[data-bs-theme="dark"] #financeQuickActionsMenu .btn,
+html[data-bs-theme="dark"] #projectQuickActionsMenu .btn {
+  background: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+html[data-bs-theme="dark"] #financeHelpChatPanel,
+html[data-bs-theme="dark"] #projectHelpChatPanel {
+  background: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-color);
+}
+
 /* Modern checkbox (Bootstrap friendly) */
 :root{
   --cb-size: 1.05rem;

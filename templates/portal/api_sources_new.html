@@ -1,7 +1,8 @@
 {% extends "portal/layout.html" %}
 
 {% block portal_content %}
-  <h2 class="h4 mb-3">{{ _('Nova fonte API') }}</h2>
+  {% set is_edit = source is defined and source %}
+  <h2 class="h4 mb-3">{{ _('Editar fonte API') if is_edit else _('Nova fonte API') }}</h2>
 
   <div class="card shadow-sm">
     <div class="card-body">
@@ -71,7 +72,7 @@
         </div>
 
         <div class="col-12 d-flex gap-2">
-          <button class="btn btn-primary" type="submit">{{ _('Criar') }}</button>
+          <button class="btn btn-primary" type="submit">{{ _('Salvar alterações') if is_edit else _('Criar') }}</button>
           <a class="btn btn-outline-secondary" href="{{ url_for('portal.api_sources_list') }}">{{ _('Voltar') }}</a>
         </div>
       </form>

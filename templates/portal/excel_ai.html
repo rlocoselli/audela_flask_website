@@ -10,6 +10,17 @@
   </div>
 </div>
 
+<div class="alert alert-info d-flex align-items-start justify-content-between gap-3" role="alert">
+  <div>
+    <div class="fw-semibold">{{ _('Para usar arquivos Excel no BI, crie primeiro um workspace.') }}</div>
+    <div class="small mt-1">{{ _('No workspace, você conecta arquivos (Excel/CSV/Parquet) e pode combinar com tabelas do banco.') }}</div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('portal.workspaces_new') }}">{{ _('Criar workspace') }}</a>
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('portal.workspaces_list') }}">{{ _('Ver workspaces') }}</a>
+  </div>
+</div>
+
 <div class="row g-3">
   <div class="col-lg-6">
     <div class="card shadow-sm">

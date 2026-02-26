@@ -4,6 +4,8 @@ from datetime import datetime
 import hashlib
 import secrets
 import re
+import csv
+import io
 
 import json
 import copy
@@ -36,10 +38,12 @@ from ...services.xlsx_export import table_to_xlsx_bytes
 from ...services.ai_service import analyze_with_ai
 from ...services.statistics_service import run_statistics_analysis, stats_report_to_pdf_bytes
 from ...services.report_render_service import report_to_pdf_bytes
+from ...services.web_extract_service import extract_structured_table_from_web
 from ...services.file_storage_service import (
     delete_folder_tree,
     delete_stored_file,
     resolve_abs_path,
+    store_bytes,
     store_upload,
     store_stream,
 )
@@ -671,6 +675,109 @@ def api_sources_new():
     return render_template("portal/api_sources_new.html", tenant=g.tenant, form=form)
 
 
+@bp.route("/sources/api/<int:source_id>/edit", methods=["GET", "POST"])
+@login_required
+@require_roles("tenant_admin")
+def api_sources_edit(source_id: int):
+    """Edit an existing API source."""
+    _require_tenant()
+    src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id, type="api").first_or_404()
+    cfg_existing = decrypt_config(src) or {}
+    auth_existing = cfg_existing.get("auth_flow") if isinstance(cfg_existing.get("auth_flow"), dict) else {}
+
+    import json
+
+    form = {
+        "name": request.form.get("name", src.name or "").strip(),
+        "base_url": request.form.get("base_url", cfg_existing.get("base_url") or src.base_url or "").strip(),
+        "headers_json": (request.form.get("headers_json") or json.dumps(cfg_existing.get("headers") or {}, ensure_ascii=False, indent=2)).strip(),
+        "enable_auth_flow": str(request.form.get("enable_auth_flow") or auth_existing.get("enabled") or "").strip().lower() in ("1", "true", "on", "yes"),
+        "auth_url": request.form.get("auth_url", auth_existing.get("url") or "").strip(),
+        "auth_method": (request.form.get("auth_method", auth_existing.get("method") or "POST") or "POST").strip().upper(),
+        "auth_headers_json": (request.form.get("auth_headers_json") or json.dumps(auth_existing.get("headers") or {}, ensure_ascii=False, indent=2)).strip(),
+        "auth_body_json": (request.form.get("auth_body_json") or json.dumps(auth_existing.get("body") or {}, ensure_ascii=False, indent=2)).strip(),
+        "token_json_path": request.form.get("token_json_path", auth_existing.get("token_json_path") or "access_token").strip(),
+        "token_header_name": request.form.get("token_header_name", auth_existing.get("token_header_name") or "Authorization").strip(),
+        "token_prefix": request.form.get("token_prefix", auth_existing.get("token_prefix") or "Bearer").strip(),
+    }
+
+    if request.method == "POST":
+        name = form["name"]
+        base_url = form["base_url"]
+        headers_raw = form["headers_json"]
+
+        if not name or not base_url:
+            flash(tr("Preencha nome e URL base.", getattr(g, "lang", None)), "error")
+            return render_template("portal/api_sources_new.html", tenant=g.tenant, form=form, source=src)
+
+        headers = None
+        if headers_raw:
+            try:
+                headers = json.loads(headers_raw)
+                if not isinstance(headers, dict):
+                    raise ValueError("headers_json must be a JSON object")
+            except Exception as e:
+                flash(tr("JSON inválido em cabeçalhos: {error}", getattr(g, "lang", None), error=str(e)), "error")
+                return render_template("portal/api_sources_new.html", tenant=g.tenant, form=form, source=src)
+
+        auth_flow: dict = {"enabled": False}
+        if form["enable_auth_flow"]:
+            auth_method = form["auth_method"] if form["auth_method"] in ("GET", "POST", "PUT", "PATCH") else "POST"
+            if not form["auth_url"]:
+                flash(tr("Informe a URL de autenticação para o fluxo de token.", getattr(g, "lang", None)), "error")
+                return render_template("portal/api_sources_new.html", tenant=g.tenant, form=form, source=src)
+
+            auth_headers = {}
+            if form["auth_headers_json"]:
+                try:
+                    auth_headers = json.loads(form["auth_headers_json"])
+                    if not isinstance(auth_headers, dict):
+                        raise ValueError("auth_headers_json must be a JSON object")
+                except Exception as e:
+                    flash(tr("JSON inválido em cabeçalhos de auth: {error}", getattr(g, "lang", None), error=str(e)), "error")
+                    return render_template("portal/api_sources_new.html", tenant=g.tenant, form=form, source=src)
+
+            auth_body = {}
+            if form["auth_body_json"]:
+                try:
+                    auth_body = json.loads(form["auth_body_json"])
+                    if not isinstance(auth_body, dict):
+                        raise ValueError("auth_body_json must be a JSON object")
+                except Exception as e:
+                    flash(tr("JSON inválido em body de auth: {error}", getattr(g, "lang", None), error=str(e)), "error")
+                    return render_template("portal/api_sources_new.html", tenant=g.tenant, form=form, source=src)
+
+            auth_flow = {
+                "enabled": True,
+                "url": form["auth_url"],
+                "method": auth_method,
+                "headers": auth_headers,
+                "body": auth_body,
+                "token_json_path": form["token_json_path"] or "access_token",
+                "token_header_name": form["token_header_name"] or "Authorization",
+                "token_prefix": form["token_prefix"] or "Bearer",
+            }
+
+        from ...services.crypto import encrypt_json
+
+        config = {
+            "base_url": base_url,
+            "headers": headers or {},
+            "auth_flow": auth_flow,
+        }
+
+        src.name = name
+        src.base_url = base_url
+        src.config_encrypted = encrypt_json(config)
+        _audit("bi.datasource.updated", {"id": src.id, "name": src.name, "type": "api"})
+        db.session.commit()
+
+        flash(tr("Fonte API atualizada.", getattr(g, "lang", None)), "success")
+        return redirect(url_for("portal.api_sources_list"))
+
+    return render_template("portal/api_sources_new.html", tenant=g.tenant, form=form, source=src)
+
+
 @bp.get("/sources/api/<int:source_id>/preview")
 @login_required
 @require_roles("tenant_admin", "creator")
@@ -846,6 +953,83 @@ def api_sources_preview_call(source_id: int):
         return jsonify({"ok": False, "error": tr("Erro de rede/API: {error}", getattr(g, "lang", None), error=str(e))}), 502
     except Exception as e:
         return jsonify({"ok": False, "error": tr("Erro ao executar preview: {error}", getattr(g, "lang", None), error=str(e))}), 500
+
+
+@bp.post("/api/sources/api/<int:source_id>/preview_save")
+@login_required
+@require_roles("tenant_admin")
+def api_sources_preview_save(source_id: int):
+    _require_tenant()
+    src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id, type="api").first_or_404()
+    payload = request.get_json(silent=True) or {}
+
+    import json
+    from ...services.crypto import encrypt_json
+
+    def _parse_obj(v, name: str):
+        if v in (None, ""):
+            return {}
+        if isinstance(v, dict):
+            return v
+        if isinstance(v, str):
+            vv = v.strip()
+            if not vv:
+                return {}
+            try:
+                obj = json.loads(vv)
+                if not isinstance(obj, dict):
+                    raise ValueError("not object")
+                return obj
+            except Exception:
+                raise ValueError(f"{name} inválido (JSON esperado)")
+        raise ValueError(f"{name} inválido")
+
+    try:
+        base_url = str(payload.get("url") or "").strip()
+        if not base_url:
+            return jsonify({"ok": False, "error": tr("URL é obrigatória.", getattr(g, "lang", None))}), 400
+
+        headers = _parse_obj(payload.get("headers"), "headers")
+        use_auth_flow = bool(payload.get("use_auth_flow"))
+        auth_in = payload.get("auth_flow") if isinstance(payload.get("auth_flow"), dict) else {}
+
+        auth_flow: dict = {"enabled": False}
+        if use_auth_flow:
+            auth_url = str(auth_in.get("url") or "").strip()
+            auth_method = str(auth_in.get("method") or "POST").strip().upper()
+            if auth_method not in ("GET", "POST", "PUT", "PATCH"):
+                auth_method = "POST"
+            if not auth_url:
+                return jsonify({"ok": False, "error": tr("Fluxo de auth ativo sem URL de autenticação.", getattr(g, "lang", None))}), 400
+
+            auth_headers = _parse_obj(auth_in.get("headers"), "auth headers")
+            auth_body = _parse_obj(auth_in.get("body"), "auth body")
+
+            auth_flow = {
+                "enabled": True,
+                "url": auth_url,
+                "method": auth_method,
+                "headers": auth_headers,
+                "body": auth_body,
+                "token_json_path": str(auth_in.get("token_json_path") or "access_token").strip() or "access_token",
+                "token_header_name": str(auth_in.get("token_header_name") or "Authorization").strip() or "Authorization",
+                "token_prefix": str(auth_in.get("token_prefix") or "Bearer").strip() or "Bearer",
+            }
+
+        src.base_url = base_url
+        src.config_encrypted = encrypt_json({
+            "base_url": base_url,
+            "headers": headers,
+            "auth_flow": auth_flow,
+        })
+        _audit("bi.datasource.updated", {"id": src.id, "name": src.name, "type": "api", "from": "api_preview"})
+        db.session.commit()
+        return jsonify({"ok": True, "message": tr("Fonte API atualizada.", getattr(g, "lang", None))})
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    except Exception as e:  # noqa: BLE001
+        db.session.rollback()
+        return jsonify({"ok": False, "error": tr("Falha na requisição.", getattr(g, "lang", None)) + f" ({e})"}), 500
 
 
 @bp.route("/integrations")
@@ -2767,6 +2951,10 @@ def statistics_home():
         stats=None,
         ai=None,
         error=None,
+        selected_source_id=0,
+        selected_question_id=0,
+        sql_text_input="",
+        note_input="",
     )
 
 
@@ -2783,6 +2971,8 @@ def statistics_run():
     question_id = int(request.form.get("question_id") or 0)
     sql_text = (request.form.get("sql_text") or "").strip()
     note = (request.form.get("note") or "").strip()
+    selected_source_id = source_id
+    selected_question_id = question_id
 
     src = None
     q = None
@@ -2791,6 +2981,7 @@ def statistics_run():
         if q:
             src = DataSource.query.filter_by(id=q.source_id, tenant_id=g.tenant.id).first()
             sql_text = (q.sql_text or "").strip()
+            selected_source_id = src.id if src else selected_source_id
 
     if not src and source_id:
         src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first()
@@ -2805,6 +2996,10 @@ def statistics_run():
             stats=None,
             ai=None,
             error=tr("Selecione uma fonte (ou pergunta).", getattr(g, "lang", None)),
+            selected_source_id=selected_source_id,
+            selected_question_id=selected_question_id,
+            sql_text_input=sql_text,
+            note_input=note,
         )
 
     if not sql_text:
@@ -2817,6 +3012,10 @@ def statistics_run():
             stats=None,
             ai=None,
             error=tr("Informe um SQL (somente leitura) ou selecione uma pergunta.", getattr(g, "lang", None)),
+            selected_source_id=selected_source_id,
+            selected_question_id=selected_question_id,
+            sql_text_input=sql_text,
+            note_input=note,
         )
 
     # Run query (light sample for analysis)
@@ -2832,6 +3031,10 @@ def statistics_run():
             stats=None,
             ai=None,
             error=str(e),
+            selected_source_id=selected_source_id,
+            selected_question_id=selected_question_id,
+            sql_text_input=sql_text,
+            note_input=note,
         )
 
     # Keep the in-memory dataset bounded for UI + OpenAI
@@ -2882,6 +3085,10 @@ def statistics_run():
         stats=stats,
         ai=ai,
         error=None,
+        selected_source_id=selected_source_id,
+        selected_question_id=selected_question_id,
+        sql_text_input=sql_text,
+        note_input=note,
     )
 
 
@@ -2948,15 +3155,26 @@ def sql_editor():
     result = None
     error = None
     elapsed_ms = None
+    selected_source_id = 0
+    sql_text = ""
+    params_text = ""
 
     if request.method == "POST":
         source_id = int(request.form.get("source_id") or 0)
+        selected_source_id = source_id
         sql_text = request.form.get("sql_text", "")
         params_text = (request.form.get("params_json") or "").strip()
         src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first()
         if not src:
             flash(tr("Selecione uma fonte válida.", getattr(g, "lang", None)), "error")
-            return render_template("portal/sql_editor.html", tenant=g.tenant, sources=sources)
+            return render_template(
+                "portal/sql_editor.html",
+                tenant=g.tenant,
+                sources=sources,
+                source_id=selected_source_id,
+                sql_text=sql_text,
+                params_json=params_text,
+            )
 
         started = datetime.utcnow()
         qr = QueryRun(tenant_id=g.tenant.id, question_id=None, user_id=current_user.id, status="running")
@@ -2986,6 +3204,9 @@ def sql_editor():
                     result=None,
                     error=error,
                     elapsed_ms=elapsed_ms,
+                    source_id=selected_source_id,
+                    sql_text=sql_text,
+                    params_json=params_text,
                 )
 
         # Never let the client spoof tenant_id.
@@ -3013,6 +3234,9 @@ def sql_editor():
         result=result,
         error=error,
         elapsed_ms=elapsed_ms,
+        source_id=selected_source_id,
+        sql_text=sql_text,
+        params_json=params_text,
     )
 
 
@@ -3034,6 +3258,169 @@ def excel_ai():
         sources=sources,
         folders=folders,
     )
+
+
+@bp.route("/web-extract", methods=["GET", "POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def web_extract():
+    _require_tenant()
+    folders = FileFolder.query.filter_by(tenant_id=g.tenant.id).order_by(FileFolder.name.asc()).all()
+
+    url_input = (request.form.get("url") if request.method == "POST" else request.args.get("url") or "").strip()
+    schema_input = (request.form.get("schema") if request.method == "POST" else request.args.get("schema") or "").strip()
+    max_rows_input = (request.form.get("max_rows") if request.method == "POST" else request.args.get("max_rows") or "200").strip()
+    try:
+        max_rows = max(10, min(1000, int(max_rows_input or 200)))
+    except Exception:
+        max_rows = 200
+
+    result = None
+    error = None
+
+    if request.method == "POST":
+        if not url_input:
+            error = tr("Informe une URL.", getattr(g, "lang", None))
+        elif not re.match(r"^https?://", url_input, flags=re.I):
+            error = tr("URL inválida. Use http:// ou https://.", getattr(g, "lang", None))
+        else:
+            try:
+                extracted = extract_structured_table_from_web(
+                    url=url_input,
+                    schema_text=schema_input,
+                    lang=getattr(g, "lang", None),
+                    max_rows=max_rows,
+                )
+                result = {
+                    "columns": extracted.columns,
+                    "rows": extracted.rows,
+                    "source_url": extracted.source_url,
+                    "mode": extracted.mode,
+                }
+            except Exception as e:  # noqa: BLE001
+                error = str(e)
+
+    return render_template(
+        "portal/web_extract.html",
+        tenant=g.tenant,
+        folders=folders,
+        result=result,
+        error=error,
+        url_input=url_input,
+        schema_input=schema_input,
+        max_rows=max_rows,
+    )
+
+
+@bp.route("/web-extract/export.csv", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def web_extract_export_csv():
+    _require_tenant()
+    url_input = (request.form.get("url") or "").strip()
+    schema_input = (request.form.get("schema") or "").strip()
+    try:
+        max_rows = max(10, min(1000, int((request.form.get("max_rows") or "200").strip() or 200)))
+    except Exception:
+        max_rows = 200
+
+    if not url_input or not re.match(r"^https?://", url_input, flags=re.I):
+        flash(tr("URL inválida. Use http:// ou https://.", getattr(g, "lang", None)), "error")
+        return redirect(url_for("portal.web_extract"))
+
+    try:
+        extracted = extract_structured_table_from_web(
+            url=url_input,
+            schema_text=schema_input,
+            lang=getattr(g, "lang", None),
+            max_rows=max_rows,
+        )
+    except Exception as e:  # noqa: BLE001
+        flash(str(e), "error")
+        return redirect(url_for("portal.web_extract", url=url_input, schema=schema_input, max_rows=max_rows))
+
+    stream = io.StringIO()
+    writer = csv.writer(stream)
+    writer.writerow(extracted.columns)
+    for r in extracted.rows:
+        writer.writerow(r)
+
+    resp = make_response(stream.getvalue())
+    resp.headers["Content-Type"] = "text/csv; charset=utf-8"
+    resp.headers["Content-Disposition"] = 'attachment; filename="web_extract.csv"'
+    return resp
+
+
+@bp.route("/web-extract/save-file", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def web_extract_save_file():
+    _require_tenant()
+    url_input = (request.form.get("url") or "").strip()
+    schema_input = (request.form.get("schema") or "").strip()
+    file_name = (request.form.get("file_name") or "web_extract.csv").strip()
+    display_name = (request.form.get("display_name") or "").strip()
+    folder_id = (request.form.get("folder_id") or "").strip()
+
+    try:
+        max_rows = max(10, min(1000, int((request.form.get("max_rows") or "200").strip() or 200)))
+    except Exception:
+        max_rows = 200
+
+    if not url_input or not re.match(r"^https?://", url_input, flags=re.I):
+        flash(tr("URL inválida. Use http:// ou https://.", getattr(g, "lang", None)), "error")
+        return redirect(url_for("portal.web_extract"))
+
+    if not file_name.lower().endswith(".csv"):
+        file_name = f"{file_name}.csv"
+
+    folder = None
+    if folder_id:
+        try:
+            folder = FileFolder.query.filter_by(id=int(folder_id), tenant_id=g.tenant.id).first()
+        except Exception:
+            folder = None
+
+    try:
+        extracted = extract_structured_table_from_web(
+            url=url_input,
+            schema_text=schema_input,
+            lang=getattr(g, "lang", None),
+            max_rows=max_rows,
+        )
+
+        stream = io.StringIO()
+        writer = csv.writer(stream)
+        writer.writerow(extracted.columns)
+        for r in extracted.rows:
+            writer.writerow(r)
+        csv_bytes = stream.getvalue().encode("utf-8")
+
+        folder_rel = _folder_rel_path(folder)
+        stored = store_bytes(g.tenant.id, folder_rel, file_name, csv_bytes)
+
+        from ...services.file_introspect_service import infer_schema_for_asset
+
+        asset = FileAsset(
+            tenant_id=g.tenant.id,
+            folder_id=folder.id if folder else None,
+            name=display_name or stored.original_filename or file_name,
+            storage_path=stored.rel_path,
+            file_format=stored.file_format,
+            original_filename=stored.original_filename,
+            size_bytes=stored.size_bytes,
+            sha256=stored.sha256,
+            source_type="upload",
+        )
+        asset.schema_json = infer_schema_for_asset(asset)
+        db.session.add(asset)
+        db.session.commit()
+
+        flash(tr("Arquivo enviado.", getattr(g, "lang", None)), "success")
+        return redirect(url_for("portal.files_home", folder=folder.id if folder else ""))
+    except Exception as e:  # noqa: BLE001
+        flash(str(e), "error")
+        return redirect(url_for("portal.web_extract", url=url_input, schema=schema_input, max_rows=max_rows))
 # -----------------------------
 # Questions
 # -----------------------------
@@ -3054,19 +3441,25 @@ def questions_new():
     _require_tenant()
     sources = DataSource.query.filter_by(tenant_id=g.tenant.id).order_by(DataSource.name.asc()).all()
     if request.method == "POST":
+        form_data = {
+            "name": request.form.get("name", "").strip(),
+            "source_id": int(request.form.get("source_id") or 0),
+            "sql_text": request.form.get("sql_text", ""),
+            "params_json": request.form.get("params_json", "{}"),
+        }
         if not _bi_quota_check(1):
-            return render_template("portal/questions_new.html", tenant=g.tenant, sources=sources)
+            return render_template("portal/questions_new.html", tenant=g.tenant, sources=sources, form=form_data)
 
-        name = request.form.get("name", "").strip()
-        source_id = int(request.form.get("source_id") or 0)
-        sql_text = request.form.get("sql_text", "")
+        name = form_data["name"]
+        source_id = form_data["source_id"]
+        sql_text = form_data["sql_text"]
         if not name or not source_id or not sql_text.strip():
             flash(tr("Preencha nome, fonte e SQL.", getattr(g, "lang", None)), "error")
-            return render_template("portal/questions_new.html", tenant=g.tenant, sources=sources)
+            return render_template("portal/questions_new.html", tenant=g.tenant, sources=sources, form=form_data)
         src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first()
         if not src:
             flash(tr("Fonte inválida.", getattr(g, "lang", None)), "error")
-            return render_template("portal/questions_new.html", tenant=g.tenant, sources=sources)
+            return render_template("portal/questions_new.html", tenant=g.tenant, sources=sources, form=form_data)
 
         q = Question(
             tenant_id=g.tenant.id,
@@ -3085,7 +3478,7 @@ def questions_new():
         flash(tr("Pergunta criada.", getattr(g, "lang", None)), "success")
         return redirect(url_for("portal.questions_view", question_id=q.id))
 
-    return render_template("portal/questions_new.html", tenant=g.tenant, sources=sources)
+    return render_template("portal/questions_new.html", tenant=g.tenant, sources=sources, form={"params_json": "{}"})
 
 
 @bp.route("/api/questions/preview", methods=["POST"])
@@ -3154,6 +3547,11 @@ def questions_viz(question_id: int):
     _require_tenant()
     q = Question.query.filter_by(id=question_id, tenant_id=g.tenant.id).first_or_404()
     src = DataSource.query.filter_by(id=q.source_id, tenant_id=g.tenant.id).first_or_404()
+    dashboard_id = request.args.get("dashboard_id", type=int)
+    if dashboard_id:
+        dash_exists = Dashboard.query.filter_by(id=dashboard_id, tenant_id=g.tenant.id).first()
+        if not dash_exists:
+            dashboard_id = None
 
     if request.method == "POST":
         raw = request.form.get("viz_config_json", "{}")
@@ -3162,6 +3560,8 @@ def questions_viz(question_id: int):
         except Exception:
             cfg = {}
             flash(tr("Configuração inválida.", getattr(g, "lang", None)), "error")
+            if dashboard_id:
+                return redirect(url_for("portal.questions_viz", question_id=q.id, dashboard_id=dashboard_id))
             return redirect(url_for("portal.questions_viz", question_id=q.id))
 
         if not isinstance(cfg, dict):
@@ -3171,7 +3571,9 @@ def questions_viz(question_id: int):
         _audit("bi.question.viz.updated", {"id": q.id})
         db.session.commit()
         flash(tr("Visualização salva.", getattr(g, "lang", None)), "success")
-        return redirect(url_for("portal.questions_view", question_id=q.id))
+        if dashboard_id:
+            return redirect(url_for("portal.questions_viz", question_id=q.id, dashboard_id=dashboard_id))
+        return redirect(url_for("portal.questions_viz", question_id=q.id))
 
     # GET: run once to preview
     try:
@@ -3190,6 +3592,7 @@ def questions_viz(question_id: int):
         source=src,
         result=res,
         viz_config=q.viz_config_json or {},
+        dashboard_id=dashboard_id,
     )
 
 
@@ -3252,6 +3655,8 @@ def questions_run(question_id: int):
                 error=error,
                 elapsed_ms=elapsed_ms,
                 viz_config=q.viz_config_json or {},
+                sql_text=sql_text,
+                params_json=params_text,
             )
 
     user_params["tenant_id"] = g.tenant.id
@@ -4538,7 +4943,8 @@ def api_dashboard_layout(dashboard_id: int):
 def ai_chat():
     _require_tenant()
     qs = Question.query.filter_by(tenant_id=g.tenant.id).order_by(Question.updated_at.desc()).all()
-    return render_template("portal/ai_chat.html", tenant=g.tenant, questions=qs)
+    sources = DataSource.query.filter_by(tenant_id=g.tenant.id).order_by(DataSource.name.asc()).all()
+    return render_template("portal/ai_chat.html", tenant=g.tenant, questions=qs, sources=sources)
 
 
 @bp.route("/api/ai/chat", methods=["POST"])
@@ -4552,84 +4958,246 @@ def api_ai_chat():
     except Exception:
         question_id = 0
 
+    try:
+        source_id = int(payload.get("source_id") or 0)
+    except Exception:
+        source_id = 0
+
+    mode = str(payload.get("mode") or ("source" if source_id else "question")).strip().lower()
+    if mode not in {"question", "source"}:
+        mode = "question"
+
     message = (payload.get("message") or "").strip()
     history = payload.get("history") or []
     params = payload.get("params") or {}
 
-    if not question_id:
-        return jsonify({"error": "Selecione uma pergunta."}), 400
     if not message:
         return jsonify({"error": "Mensagem vazia."}), 400
-    if params and not isinstance(params, dict):
+    if mode == "question" and not question_id:
+        return jsonify({"error": "Selecione uma pergunta."}), 400
+    if mode == "source" and not source_id:
+        return jsonify({"error": tr("Selecione uma fonte.", getattr(g, "lang", None))}), 400
+    if mode == "question" and params and not isinstance(params, dict):
         return jsonify({"error": "Parâmetros devem ser um objeto JSON."}), 400
     if history and not isinstance(history, list):
         history = []
 
-    q = Question.query.filter_by(id=question_id, tenant_id=g.tenant.id).first_or_404()
-    src = DataSource.query.filter_by(id=q.source_id, tenant_id=g.tenant.id).first_or_404()
+    def _build_profile(cols: list, rows: list) -> dict:
+        profile = {"columns": [], "row_count": len(rows)}
+        for i, c in enumerate(cols):
+            col_vals = [r[i] for r in rows if isinstance(r, list) and i < len(r)]
+            non_null = [v for v in col_vals if v is not None]
+            sample = non_null[:10]
+            nums = []
+            for v in non_null[:500]:
+                try:
+                    nums.append(float(v))
+                except Exception:
+                    pass
+            col_info = {"name": str(c), "sample": sample}
+            if len(nums) >= max(3, int(0.6 * min(500, len(non_null) or 1))):
+                if nums:
+                    col_info.update({
+                        "type": "number",
+                        "min": min(nums),
+                        "max": max(nums),
+                        "avg": sum(nums) / len(nums),
+                    })
+            else:
+                col_info["type"] = "text"
+                counts = {}
+                for v in non_null[:1000]:
+                    sv = str(v)
+                    counts[sv] = counts.get(sv, 0) + 1
+                top = sorted(counts.items(), key=lambda x: x[1], reverse=True)[:8]
+                col_info["top"] = top
+            profile["columns"].append(col_info)
+        return profile
 
-    # Execute query (bounded)
-    user_params: dict = {}
-    if isinstance(params, dict):
-        user_params.update(params)
-    user_params["tenant_id"] = g.tenant.id
+    data_bundle: dict = {"lang": getattr(g, "lang", None)}
 
-    try:
-        res = execute_sql(src, q.sql_text, params=user_params)
-    except QueryExecutionError as e:
-        return jsonify({"error": str(e)}), 400
+    if mode == "question":
+        q = Question.query.filter_by(id=question_id, tenant_id=g.tenant.id).first_or_404()
+        src = DataSource.query.filter_by(id=q.source_id, tenant_id=g.tenant.id).first_or_404()
 
-    # Keep payload light
-    rows = res.get("rows") or []
-    cols = res.get("columns") or []
-    if len(rows) > 2000:
-        rows = rows[:2000]
+        user_params: dict = {}
+        if isinstance(params, dict):
+            user_params.update(params)
+        user_params["tenant_id"] = g.tenant.id
 
-    # Quick profile (no heavy deps)
-    profile = {"columns": [], "row_count": len(rows)}
-    for i, c in enumerate(cols):
-        col_vals = [r[i] for r in rows if isinstance(r, list) and i < len(r)]
-        non_null = [v for v in col_vals if v is not None]
-        sample = non_null[:10]
-        # numeric?
-        nums = []
-        for v in non_null[:500]:
-            try:
-                nums.append(float(v))
-            except Exception:
-                pass
-        col_info = {"name": str(c), "sample": sample}
-        if len(nums) >= max(3, int(0.6 * min(500, len(non_null) or 1))):
-            if nums:
-                col_info.update({
-                    "type": "number",
-                    "min": min(nums),
-                    "max": max(nums),
-                    "avg": sum(nums) / len(nums),
-                })
-        else:
-            col_info["type"] = "text"
-            # top values (light)
-            counts = {}
-            for v in non_null[:1000]:
-                sv = str(v)
-                counts[sv] = counts.get(sv, 0) + 1
-            top = sorted(counts.items(), key=lambda x: x[1], reverse=True)[:8]
-            col_info["top"] = top
-        profile["columns"].append(col_info)
+        try:
+            res = execute_sql(src, q.sql_text, params=user_params)
+        except QueryExecutionError as e:
+            return jsonify({"error": str(e)}), 400
 
-    data_bundle = {
-        "question": {"id": q.id, "name": q.name},
-        "sql": q.sql_text,
-        "params": {k: v for k, v in (params or {}).items()},
-        "result": {
-            "columns": cols,
-            "rows_sample": rows[:200],
-            "row_count": len(rows),
-        },
-        "profile": profile,
-        "lang": getattr(g, "lang", None),
-    }
+        rows = res.get("rows") or []
+        cols = res.get("columns") or []
+        if len(rows) > 2000:
+            rows = rows[:2000]
+
+        data_bundle.update({
+            "question": {"id": q.id, "name": q.name},
+            "source": {"id": src.id, "name": src.name, "type": src.type},
+            "sql": q.sql_text,
+            "params": {k: v for k, v in (params or {}).items()},
+            "result": {
+                "columns": cols,
+                "rows_sample": rows[:200],
+                "row_count": len(rows),
+            },
+            "profile": _build_profile(cols, rows),
+        })
+    else:
+        src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first_or_404()
+        try:
+            meta = introspect_source(src)
+        except Exception:
+            meta = {"schemas": []}
+
+        def _safe_ident_local(name: str) -> str:
+            s = str(name or "").strip()
+            if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", s):
+                raise ValueError("invalid identifier")
+            return s
+
+        def _find_sales_sql(schema_meta: dict, user_text: str) -> str | None:
+            txt = (user_text or "").lower()
+            asks_sales = any(k in txt for k in ["vend", "sale", "sales", "top", "best", "mais vendu", "plus vendu", "mais vend"])
+            asks_product = any(k in txt for k in ["product", "produto", "produit", "produtos", "produits", "item", "sku"])
+            if not (asks_sales or asks_product):
+                return None
+
+            candidates: list[dict] = []
+            for sch in (schema_meta.get("schemas") or []):
+                if not isinstance(sch, dict):
+                    continue
+                sch_name = str(sch.get("name") or "").strip()
+                for tbl in (sch.get("tables") or []):
+                    if not isinstance(tbl, dict):
+                        continue
+                    tname = str(tbl.get("name") or "").strip()
+                    if not tname:
+                        continue
+                    cols = []
+                    for c in (tbl.get("columns") or []):
+                        if isinstance(c, dict):
+                            nm = c.get("name")
+                            if nm:
+                                cols.append(str(nm))
+                        else:
+                            cols.append(str(c))
+                    t_low = tname.lower()
+                    score = 0
+                    if any(k in t_low for k in ["venda", "sale", "order", "pedido", "fact", "item", "produto", "product"]):
+                        score += 3
+                    if any(any(k in col.lower() for k in ["product", "produto", "sku", "item", "nome"]) for col in cols):
+                        score += 2
+                    if any(any(k in col.lower() for k in ["qty", "quant", "qtd", "amount", "total", "venda", "sale", "valor"]) for col in cols):
+                        score += 2
+                    candidates.append({"schema": sch_name, "table": tname, "cols": cols, "score": score})
+
+            candidates = [c for c in candidates if c.get("score", 0) >= 3]
+            candidates.sort(key=lambda x: x.get("score", 0), reverse=True)
+            if not candidates:
+                return None
+
+            best = candidates[0]
+            cols = best["cols"]
+
+            def _pick(keys: list[str]) -> str | None:
+                for key in keys:
+                    for col in cols:
+                        if key in col.lower():
+                            return col
+                return None
+
+            product_col = _pick(["product_name", "nome_prod", "produto", "product", "sku", "item", "description", "name"])
+            metric_col = _pick(["quantity", "qty", "quant", "qtd", "amount", "total", "venda", "sale", "valor"])
+            if not product_col:
+                return None
+
+            tname = _safe_ident_local(best["table"])
+            sch_name = str(best.get("schema") or "").strip()
+            full_name = f"{_safe_ident_local(sch_name)}.{tname}" if sch_name else tname
+            prod_ident = _safe_ident_local(product_col)
+            if metric_col:
+                metric_ident = _safe_ident_local(metric_col)
+                return (
+                    f"SELECT {prod_ident} AS product, SUM({metric_ident}) AS total "
+                    f"FROM {full_name} "
+                    f"GROUP BY {prod_ident} "
+                    f"ORDER BY total DESC LIMIT 20"
+                )
+            return (
+                f"SELECT {prod_ident} AS product, COUNT(*) AS total "
+                f"FROM {full_name} "
+                f"GROUP BY {prod_ident} "
+                f"ORDER BY total DESC LIMIT 20"
+            )
+
+        sql_text, warnings = generate_sql_from_nl(src, message, lang=getattr(g, "lang", None))
+        sql_text = (sql_text or "").strip()
+        if not sql_text:
+            return jsonify({"error": tr("Não foi possível gerar SQL para esta pergunta.", getattr(g, "lang", None))}), 400
+
+        sql_head = sql_text.lower().lstrip()
+        if not (sql_head.startswith("select") or sql_head.startswith("with")):
+            return jsonify({"error": tr("A IA deve gerar uma consulta SELECT em modo fonte.", getattr(g, "lang", None)), "sql": sql_text}), 400
+
+        used_fallback_sql = False
+        res = None
+        try:
+            res = execute_sql(src, sql_text, params={"tenant_id": g.tenant.id}, row_limit=2000)
+        except QueryExecutionError:
+            fallback_sql = _find_sales_sql(meta, message)
+            if fallback_sql:
+                sql_text = fallback_sql
+                used_fallback_sql = True
+                try:
+                    res = execute_sql(src, sql_text, params={"tenant_id": g.tenant.id}, row_limit=2000)
+                except QueryExecutionError as e2:
+                    return jsonify({"error": str(e2), "sql": sql_text, "warnings": warnings}), 400
+            else:
+                raise
+
+        if res is None:
+            return jsonify({"error": tr("Falha ao executar SQL da fonte.", getattr(g, "lang", None)), "sql": sql_text}), 400
+
+        rows = res.get("rows") or []
+        cols = res.get("columns") or []
+        if len(rows) > 2000:
+            rows = rows[:2000]
+
+        if (not rows or not cols or ("alembic_version" in " ".join([str(c).lower() for c in cols]))) and not used_fallback_sql:
+            fallback_sql = _find_sales_sql(meta, message)
+            if fallback_sql and fallback_sql.strip() != sql_text.strip():
+                try:
+                    fallback_res = execute_sql(src, fallback_sql, params={"tenant_id": g.tenant.id}, row_limit=2000)
+                    f_rows = fallback_res.get("rows") or []
+                    f_cols = fallback_res.get("columns") or []
+                    if f_rows and f_cols:
+                        sql_text = fallback_sql
+                        rows = f_rows[:2000]
+                        cols = f_cols
+                        used_fallback_sql = True
+                except QueryExecutionError:
+                    pass
+
+        data_bundle.update({
+            "question": {"id": None, "name": message},
+            "source": {"id": src.id, "name": src.name, "type": src.type},
+            "source_schema": meta,
+            "sql": sql_text,
+            "nlq_warnings": warnings,
+            "nlq_fallback_used": used_fallback_sql,
+            "params": {},
+            "result": {
+                "columns": cols,
+                "rows_sample": rows[:200],
+                "row_count": len(rows),
+            },
+            "profile": _build_profile(cols, rows),
+        })
 
     ai = analyze_with_ai(data_bundle, message, history=history, lang=getattr(g, "lang", None))
     return jsonify(ai)

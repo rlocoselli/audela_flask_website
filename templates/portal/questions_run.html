@@ -132,7 +132,7 @@
                         <option value="<">&lt;</option>
                         <option value="LIKE">LIKE</option>
                       </select>
-                      <input id="qb-filter-value" class="form-control" placeholder="value" style="min-width:180px;">
+                      <input id="qb-filter-value" class="form-control" placeholder="{{ _('value') }}" style="min-width:180px;">
                       <button type="button" class="btn btn-sm btn-outline-secondary" id="qb-add-filter">
                         {{ _('Adicionar filtro') }}
                       </button>
@@ -152,8 +152,8 @@
 
             <!-- SQL -->
             <div class="mb-3">
-              <label class="form-label">SQL</label>
-              <textarea name="sql_text" id="sql_text" class="form-control" rows="8" placeholder="SELECT ...">{{ sql_text or '' }}</textarea>
+              <label class="form-label">{{ _('SQL') }}</label>
+              <textarea name="sql_text" id="sql_text" class="form-control" rows="8" placeholder="{{ _('SELECT ...') }}">{{ sql_text or '' }}</textarea>
               <div class="form-text">
                 {{ _('Dica') }}: {{ _('Use Ctrl+Space para autocomplete. Ctrl+Enter para executar.') }}
               </div>

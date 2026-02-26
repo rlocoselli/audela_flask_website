@@ -8,6 +8,7 @@
 
 (function () {
   let _biModal = null;
+  const t = (window.t ? window.t : (s) => s);
 
   function ensureModal () {
     if (_biModal) return _biModal;
@@ -17,12 +18,12 @@
         <div class="modal-dialog modal-dialog-centered">
           <div class="modal-content">
             <div class="modal-header">
-              <h5 class="modal-title" id="biEditorModalTitle">Information</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              <h5 class="modal-title" id="biEditorModalTitle">${t('Information')}</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="${t('Fechar')}"></button>
             </div>
             <div class="modal-body" id="biEditorModalBody"></div>
             <div class="modal-footer">
-              <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+              <button type="button" class="btn btn-primary" data-bs-dismiss="modal">${t('OK')}</button>
             </div>
           </div>
         </div>
@@ -40,15 +41,60 @@
 
   function uiAlert (message, title) {
     const m = ensureModal();
-    m.title.textContent = title || 'Information';
+    m.title.textContent = title || t('Information');
     m.body.textContent = String(message || '');
     m.bs.show();
   }
 
+  let _loadingOverlay = null;
+  let _loadingTimer = null;
+  let _loadingStartedAt = 0;
+
+  function ensureLoadingOverlay () {
+    if (_loadingOverlay) return _loadingOverlay;
+    const host = document.createElement('div');
+    host.innerHTML = `
+      <div id="biLoadingOverlay" style="position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;">
+        <div style="background:#fff;border-radius:12px;padding:16px 18px;min-width:260px;box-shadow:0 8px 24px rgba(0,0,0,.2);text-align:center;">
+          <div class="spinner-border text-primary" role="status" aria-hidden="true"></div>
+          <div id="biLoadingText" style="margin-top:.75rem;font-weight:600;"></div>
+          <div id="biLoadingElapsed" style="margin-top:.2rem;color:#666;font-size:.9rem;"></div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(host.firstElementChild);
+    _loadingOverlay = {
+      root: document.getElementById('biLoadingOverlay'),
+      text: document.getElementById('biLoadingText'),
+      elapsed: document.getElementById('biLoadingElapsed')
+    };
+    return _loadingOverlay;
+  }
+
+  function showLoading (message) {
+    const ov = ensureLoadingOverlay();
+    _loadingStartedAt = Date.now();
+    ov.text.textContent = message || t('Carregando...');
+    ov.elapsed.textContent = '0s';
+    ov.root.style.display = 'flex';
+    if (_loadingTimer) clearInterval(_loadingTimer);
+    _loadingTimer = setInterval(() => {
+      const sec = Math.max(0, Math.floor((Date.now() - _loadingStartedAt) / 1000));
+      ov.elapsed.textContent = `${sec}s`;
+    }, 250);
+  }
+
+  function hideLoading () {
+    const ov = ensureLoadingOverlay();
+    ov.root.style.display = 'none';
+    if (_loadingTimer) {
+      clearInterval(_loadingTimer);
+      _loadingTimer = null;
+    }
+  }
+
   function qs (sel) { return document.querySelector(sel); }
   function qsa (sel) { return Array.from(document.querySelectorAll(sel)); }
-  const t = (window.t ? window.t : (s) => s);
-
   function getCsrfToken () {
     return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
   }
@@ -257,7 +303,7 @@ if (schemaEl) {
       const opt = sourceSel.options[sourceSel.selectedIndex];
       currentDbType = opt?.dataset?.dbtype || '';
 
-      schemaEl.innerHTML = '<em>Loading…</em>';
+      schemaEl.innerHTML = '<em>' + t('Carregando...') + '</em>';
       const resp = await fetch(`/app/api/sources/${sourceId}/schema`, { credentials: 'same-origin' });
       if (!resp.ok) {
         schemaEl.innerHTML = `<em>${t('Falha ao carregar schema.')}</em>`;
@@ -438,24 +484,29 @@ if (schemaEl) {
         const text = nlqText?.value || '';
         if (!sourceId) return;
         if (nlqWarn) nlqWarn.innerHTML = '';
-        const resp = await fetch('/app/api/nlq', {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(getCsrfToken() ? { 'X-CSRFToken': getCsrfToken() } : {})
-          },
-          body: JSON.stringify({ source_id: Number(sourceId), text })
-        });
-        const payload = await resp.json().catch(() => ({}));
-        if (!resp.ok) {
-          if (nlqWarn) nlqWarn.innerHTML = `<span style="color:#b00;">${payload.error || t('Erro')}</span>`;
-          return;
-        }
-        setEditorSql(payload.sql || '');
-        ensureParamsForSql(payload.sql || '');
-        if (nlqWarn && payload.warnings && payload.warnings.length) {
-          nlqWarn.innerHTML = payload.warnings.map(w => `<div style="color:#a60;">• ${String(w)}</div>`).join('');
+        showLoading(t('Carregando...'));
+        try {
+          const resp = await fetch('/app/api/nlq', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(getCsrfToken() ? { 'X-CSRFToken': getCsrfToken() } : {})
+            },
+            body: JSON.stringify({ source_id: Number(sourceId), text })
+          });
+          const payload = await resp.json().catch(() => ({}));
+          if (!resp.ok) {
+            if (nlqWarn) nlqWarn.innerHTML = `<span style="color:#b00;">${payload.error || t('Erro')}</span>`;
+            return;
+          }
+          setEditorSql(payload.sql || '');
+          ensureParamsForSql(payload.sql || '');
+          if (nlqWarn && payload.warnings && payload.warnings.length) {
+            nlqWarn.innerHTML = payload.warnings.map(w => `<div style="color:#a60;">• ${String(w)}</div>`).join('');
+          }
+        } finally {
+          hideLoading();
         }
       });
     }
@@ -499,6 +550,7 @@ if (schemaEl) {
         }
         previewBtn.disabled = true;
         previewBox.innerHTML = `<div class="text-muted small">${t('Carregando...')}</div>`;
+        showLoading(t('Carregando...'));
         try {
           const parsed = getParamsObject();
           if (parsed === null) {
@@ -524,6 +576,7 @@ if (schemaEl) {
           previewBox.innerHTML = `<div class="alert alert-danger mb-0">${t('Erro ao carregar preview.')}: ${String(err)}</div>`;
         } finally {
           previewBtn.disabled = false;
+          hideLoading();
         }
       });
     }
@@ -536,11 +589,12 @@ if (schemaEl) {
         if (parsed === null) {
           e.preventDefault();
           if (window.uiToast) window.uiToast(t('Parâmetros JSON inválidos. Corrija antes de executar.'), { variant: 'danger' });
-          else uiAlert(t('Parâmetros JSON inválidos. Corrija antes de executar.'), t('Validation'));
+          else uiAlert(t('Parâmetros JSON inválidos. Corrija antes de executar.'), t('Validação'));
           return;
         }
         // Keep params in sync with SQL placeholders
         ensureParamsForSql(cm.getValue());
+        showLoading(t('Carregando...'));
       });
     }
 

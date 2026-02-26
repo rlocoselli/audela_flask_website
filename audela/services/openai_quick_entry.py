@@ -6,6 +6,7 @@ from datetime import date
 from typing import Any, Dict, Optional
 
 import requests
+from .ai_runtime_config import resolve_ai_runtime_config
 
 
 class OpenAIQuickEntryError(RuntimeError):
@@ -95,12 +96,13 @@ def parse_quick_entry_text_via_openai(
     lang: Optional[str] = None,
     default_currency: str = "EUR",
 ) -> Dict[str, Any]:
-    api_key = _env("OPENAI_API_KEY")
+    runtime = resolve_ai_runtime_config(default_model="gpt-4o-mini")
+    api_key = runtime.get("api_key")
     if not api_key:
-        raise OpenAIQuickEntryError("OPENAI_API_KEY missing")
+        raise OpenAIQuickEntryError(f"{runtime.get('missing_key_env') or 'OPENAI_API_KEY'} missing")
 
-    model = _env("OPENAI_MODEL", "gpt-4o-mini")
-    base_url = _env("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    model = runtime.get("model") or "gpt-4o-mini"
+    base_url = runtime.get("base_url") or "https://api.openai.com/v1"
     timeout_s = int(_env("OPENAI_QUICK_ENTRY_TIMEOUT_SECONDS", "25") or 25)
 
     schema = _build_schema()

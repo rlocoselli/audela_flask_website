@@ -13,15 +13,34 @@
   <div class="col-12 col-lg-4">
     <div class="card border-0 shadow-sm" style="border-radius: 1rem;">
       <div class="card-body">
-        <label class="form-label">{{ _('Selecione uma pergunta') }}</label>
-        <select class="form-select" id="ai-question">
-          <option value="">--</option>
-          {% for q in questions %}
-            <option value="{{ q.id }}">{{ q.name }}</option>
-          {% endfor %}
+        <label class="form-label">{{ _('Chat context') }}</label>
+        <select class="form-select" id="ai-mode">
+          <option value="question">{{ _('By question') }}</option>
+          <option value="source">{{ _('By source') }}</option>
         </select>
+        <div class="form-text">{{ _('Choose whether the chat uses a specific question or the full data source.') }}</div>
 
-        <div class="mt-3">
+        <div class="mt-3" id="ai-question-wrap">
+          <label class="form-label">{{ _('Selecione uma pergunta') }}</label>
+          <select class="form-select" id="ai-question">
+            <option value="">--</option>
+            {% for q in questions %}
+              <option value="{{ q.id }}">{{ q.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="mt-3 d-none" id="ai-source-wrap">
+          <label class="form-label">{{ _('Selecione uma fonte') }}</label>
+          <select class="form-select" id="ai-source">
+            <option value="">--</option>
+            {% for s in sources %}
+              <option value="{{ s.id }}">{{ s.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="mt-3" id="ai-params-wrap">
           <label class="form-label">{{ _('Parâmetros (JSON)') }}</label>
           <textarea class="form-control" id="ai-params" rows="6" placeholder="{\n  \"from\": \"2025-01-01\"\n}"></textarea>
           <div class="form-text">{{ _('Use :nome_param no SQL e preencha valores aqui. tenant_id é aplicado automaticamente.') }}</div>
@@ -34,8 +53,8 @@
 
         <hr class="my-3" />
         <div class="small text-secondary">
-          <div><strong>OpenAI</strong>: configure <code>OPENAI_API_KEY</code> no servidor.</div>
-          <div>Opcional: <code>OPENAI_MODEL</code> e <code>OPENAI_BASE_URL</code>.</div>
+          <div><strong>OpenAI</strong>: {{ _('Configure OPENAI_API_KEY no servidor.') }}</div>
+          <div>{{ _('Opcional: OPENAI_MODEL e OPENAI_BASE_URL.') }}</div>
         </div>
       </div>
     </div>

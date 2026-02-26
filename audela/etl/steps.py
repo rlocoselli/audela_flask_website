@@ -10,6 +10,7 @@ from flask_mail import Message
 
 from audela.models.bi import DataSource
 from audela.services.datasource_service import get_engine
+from audela.services.web_extract_service import extract_structured_table_from_web
 
 from flask import current_app
 
@@ -126,6 +127,53 @@ def extract_http(config: Dict[str, Any], ctx, app=None):
     if isinstance(data, list):
         return data
     return [{"value": data}]
+
+
+@register("extract.web")
+def extract_web(config: Dict[str, Any], ctx, app=None):
+    url = str(config.get("url") or "").strip()
+    if not url:
+        raise ValueError("extract.web requires config.url")
+
+    schema_text = str(config.get("schema") or "").strip()
+    try:
+        max_rows = int(config.get("max_rows") or 200)
+    except Exception:
+        max_rows = 200
+    max_rows = max(10, min(max_rows, 1000))
+
+    lang = None
+    try:
+        from flask import g as flask_g
+        lang = getattr(flask_g, "lang", None)
+    except Exception:
+        lang = None
+
+    extracted = extract_structured_table_from_web(
+        url=url,
+        schema_text=schema_text,
+        lang=lang,
+        max_rows=max_rows,
+    )
+
+    cols = extracted.columns or []
+    out: list[dict[str, Any]] = []
+    for row in extracted.rows or []:
+        if isinstance(row, list):
+            rec = {}
+            for idx, col in enumerate(cols):
+                rec[str(col)] = row[idx] if idx < len(row) else None
+            out.append(rec)
+        elif isinstance(row, dict):
+            out.append(dict(row))
+
+    ctx.meta["web_extract"] = {
+        "url": extracted.source_url,
+        "mode": extracted.mode,
+        "columns": cols,
+        "rows": len(out),
+    }
+    return out
 
 
 @register("extract.sql")

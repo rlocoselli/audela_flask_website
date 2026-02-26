@@ -7,6 +7,7 @@ from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
+from .ai_runtime_config import resolve_ai_runtime_config
 
 from .bank_statement import (
     StatementImportError,
@@ -215,12 +216,13 @@ def parse_bank_statement_pdf_via_openai(
     where rows are dicts compatible with finance.statement_import.
     """
 
-    api_key = _env("OPENAI_API_KEY")
+    runtime = resolve_ai_runtime_config(default_model="gpt-4o-mini")
+    api_key = runtime.get("api_key")
     if not api_key:
-        raise OpenAIStatementError("OPENAI_API_KEY missing")
+        raise OpenAIStatementError(f"{runtime.get('missing_key_env') or 'OPENAI_API_KEY'} missing")
 
-    model = _env("OPENAI_MODEL", "gpt-4o-mini")
-    base_url = _env("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    model = runtime.get("model") or "gpt-4o-mini"
+    base_url = runtime.get("base_url") or "https://api.openai.com/v1"
 
     text, meta = _extract_text_with_optional_ocr(
         pdf_bytes,

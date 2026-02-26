@@ -1,6 +1,7 @@
 (function(){
   function qs(s){ return document.querySelector(s); }
   function qsa(s){ return Array.from(document.querySelectorAll(s)); }
+  const t = window.t ? window.t : (s) => s;
 
   let network = null;
   let currentNodeIds = [];
@@ -40,7 +41,7 @@
     host.innerHTML = '';
     const msg = document.createElement('div');
     msg.className = 'text-secondary';
-    msg.textContent = 'Select an entity to view properties.';
+    msg.textContent = t('Select an entity to view properties.');
     host.appendChild(msg);
   }
 
@@ -62,16 +63,16 @@
 
     const title = document.createElement('div');
     title.className = 'fw-semibold mb-2';
-    title.textContent = 'Entity properties';
+    title.textContent = t('Entity properties');
     host.appendChild(title);
 
     const tableBlock = document.createElement('div');
     tableBlock.className = 'mb-2';
     [
-      ['Table', tableName],
-      ['Schema', schemaName],
-      ['Full name', fullName],
-      ['Columns', String(columns.length)]
+      [t('Table'), tableName],
+      [t('Schema'), schemaName],
+      [t('Full name'), fullName],
+      [t('Columns'), String(columns.length)]
     ].forEach(([label, value]) => {
       const row = document.createElement('div');
       const strong = document.createElement('strong');
@@ -91,7 +92,7 @@
     if (!columns.length) {
       const empty = document.createElement('div');
       empty.className = 'text-secondary';
-      empty.textContent = 'No column metadata available.';
+      empty.textContent = t('No column metadata available.');
       listWrap.appendChild(empty);
     } else {
       columns.forEach((c) => {

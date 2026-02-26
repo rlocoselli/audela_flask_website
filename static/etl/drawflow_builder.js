@@ -62,6 +62,44 @@ function _showMessageModal(message, title) {
   m.bs.show();
 }
 
+function _showConfirmModal(message, title) {
+  return new Promise((resolve) => {
+    const m = _getUiModal();
+    if (!m) {
+      resolve(true);
+      return;
+    }
+
+    m.title.textContent = title || "Confirmation";
+    m.body.textContent = String(message || "");
+    m.footer.innerHTML = `
+      <button type="button" class="btn btn-outline-secondary" data-confirm="cancel">${t('Cancelar') || 'Cancel'}</button>
+      <button type="button" class="btn btn-primary" data-confirm="ok">OK</button>
+    `;
+
+    let done = false;
+    const finish = (val) => {
+      if (done) return;
+      done = true;
+      resolve(!!val);
+    };
+
+    const cancelBtn = m.footer.querySelector('[data-confirm="cancel"]');
+    const okBtn = m.footer.querySelector('[data-confirm="ok"]');
+    cancelBtn?.addEventListener('click', () => {
+      finish(false);
+      m.bs.hide();
+    }, { once: true });
+    okBtn?.addEventListener('click', () => {
+      finish(true);
+      m.bs.hide();
+    }, { once: true });
+
+    m.el.addEventListener('hidden.bs.modal', () => finish(false), { once: true });
+    m.bs.show();
+  });
+}
+
 function _safeJsonParse(val, fallback) {
   if (val === null || val === undefined) return fallback;
   const s = String(val).trim();
@@ -553,6 +591,7 @@ function _bindNotifyTestButton() {
 
 function _defaultConfig(type) {
   if (type === "extract.http") return { api_source_id: "", path: "", method: "GET", headers: {}, params: {}, timeout: 30 };
+  if (type === "extract.web") return { url: "", schema: "", max_rows: 200 };
   if (type === "extract.sql") return { query: "", db_source_id: "", result_mode: "rows", strict_scalar: true, scalar_key: "last_scalar" };
   if (type === "transform.mapping") return { fields: {} };
   if (type === "transform.cleaning_rules") return {
@@ -652,6 +691,221 @@ function addNode(type) {
     _nodeHtml(type)
   );
   console.log("Node added:", nodeId);
+  return nodeId;
+}
+
+function _addNodeAt(type, x, y, configOverride) {
+  const cfg = configOverride || _defaultConfig(type);
+  const outputs = (type === "transform.decision.scalar") ? 2 : 1;
+  return editor.addNode(
+    type,
+    1,
+    outputs,
+    Number.isFinite(Number(x)) ? Number(x) : 100,
+    Number.isFinite(Number(y)) ? Number(y) : 100,
+    type,
+    { type: type, config: cfg },
+    _nodeHtml(type)
+  );
+}
+
+async function _confirmReplaceForExample(label) {
+  const msg = t(`Créer l'exemple "${label}" ? Le canvas actuel sera remplacé.`);
+  return _showConfirmModal(msg, t("Confirmation") || "Confirmation");
+}
+
+function _setExampleHint(message) {
+  const previewEl = document.getElementById("etlPreview");
+  if (previewEl) previewEl.textContent = message;
+}
+
+async function createWebScrapingExample() {
+  if (!(await _confirmReplaceForExample("Web Scraping"))) return;
+
+  editor.clear();
+  setWorkflowName("web_scraping_etl");
+
+  const webCfg = {
+    url: "https://tcl.fr/sites/default/files/2025-08/Saone%20Beaujolais%20-%20v04%20-%20web.pdf",
+    schema: "ligne, arret, heure, direction",
+    max_rows: 200
+  };
+  const mapCfg = {
+    fields: {
+      name: "$.name",
+      value: "$.value",
+      date: "$.date",
+      text: "$.text"
+    }
+  };
+  const loadCfg = {
+    table: "web_extract",
+    table_prefix: "stg_",
+    schema: "staging",
+    run_suffix: true,
+    mode: "append",
+    create_table_if_missing: true,
+    add_columns_if_missing: true,
+    warehouse_source_id: "",
+    table_key: "staging"
+  };
+
+  const n1 = _addNodeAt("extract.web", 120, 120, webCfg);
+  const n2 = _addNodeAt("transform.mapping", 460, 120, mapCfg);
+  const n3 = _addNodeAt("load.staging_table", 820, 120, loadCfg);
+
+  try {
+    editor.addConnection(String(n1), String(n2), "output_1", "input_1");
+    editor.addConnection(String(n2), String(n3), "output_1", "input_1");
+  } catch (e) {
+    console.warn("Could not auto-connect sample nodes", e);
+  }
+
+  _setExampleHint(t("Exemple Web Scraping créé: configurez source/warehouse puis exécutez."));
+}
+
+async function createApiToStagingExample() {
+  if (!(await _confirmReplaceForExample("API vers Staging"))) return;
+
+  editor.clear();
+  setWorkflowName("api_to_staging_etl");
+
+  const extractCfg = {
+    api_source_id: "",
+    path: "",
+    method: "GET",
+    headers: {},
+    params: {},
+    timeout: 30
+  };
+  const cleanCfg = {
+    presets: ["basic_text"],
+    rules: [
+      { type: "trim" },
+      { type: "normalize_nulls" }
+    ],
+    deduplicate: { enabled: false, fields: [], keep: "first" }
+  };
+  const loadCfg = {
+    table: "api_raw",
+    table_prefix: "stg_",
+    schema: "staging",
+    run_suffix: true,
+    mode: "append",
+    create_table_if_missing: true,
+    add_columns_if_missing: true,
+    warehouse_source_id: "",
+    table_key: "staging"
+  };
+
+  const n1 = _addNodeAt("extract.http", 120, 120, extractCfg);
+  const n2 = _addNodeAt("transform.cleaning_rules", 460, 120, cleanCfg);
+  const n3 = _addNodeAt("load.staging_table", 820, 120, loadCfg);
+
+  try {
+    editor.addConnection(String(n1), String(n2), "output_1", "input_1");
+    editor.addConnection(String(n2), String(n3), "output_1", "input_1");
+  } catch (e) {
+    console.warn("Could not auto-connect API sample nodes", e);
+  }
+
+  _setExampleHint(t("Exemple API → Staging créé: configurez API source + warehouse source."));
+}
+
+async function createSqlDecisionExample() {
+  if (!(await _confirmReplaceForExample("SQL Décision"))) return;
+
+  editor.clear();
+  setWorkflowName("sql_decision_etl");
+
+  const sqlCfg = {
+    query: "SELECT COUNT(*) AS c FROM information_schema.tables",
+    db_source_id: "",
+    result_mode: "scalar",
+    strict_scalar: true,
+    scalar_key: "tables_count"
+  };
+  const decCfg = {
+    source: "meta_key",
+    scalar_key: "tables_count",
+    operator: "gt",
+    value: "0",
+    on_true: "continue",
+    on_false: "stop",
+    message: "DB accessibility check"
+  };
+  const notifyCfg = {
+    integration: "email",
+    enabled: true,
+    fail_on_error: false,
+    to: "",
+    sender: "",
+    as_html: false,
+    webhook_url: "",
+    headers: {},
+    payload: {},
+    subject: "ETL {{workflow}} decision",
+    message: "tables_count={{meta:last_scalar}}",
+    timeout: 15
+  };
+
+  const n1 = _addNodeAt("extract.sql", 120, 120, sqlCfg);
+  const n2 = _addNodeAt("transform.decision.scalar", 460, 120, decCfg);
+  const n3 = _addNodeAt("notify.integration", 820, 60, notifyCfg);
+
+  try {
+    editor.addConnection(String(n1), String(n2), "output_1", "input_1");
+    editor.addConnection(String(n2), String(n3), "output_1", "input_1");
+  } catch (e) {
+    console.warn("Could not auto-connect SQL decision sample nodes", e);
+  }
+
+  _setExampleHint(t("Exemple SQL Décision créé: configurez DB source et notification."));
+}
+
+async function createCleaningWarehouseExample() {
+  if (!(await _confirmReplaceForExample("Nettoyage Warehouse"))) return;
+
+  editor.clear();
+  setWorkflowName("cleaning_to_warehouse_etl");
+
+  const extractCfg = {
+    query: "SELECT * FROM your_table LIMIT 1000",
+    db_source_id: "",
+    result_mode: "rows",
+    strict_scalar: true,
+    scalar_key: "last_scalar"
+  };
+  const cleanCfg = {
+    presets: ["basic_text", "email_standardization"],
+    rules: [
+      { type: "trim" },
+      { type: "normalize_nulls" },
+      { type: "case", mode: "lower", fields: ["email"] }
+    ],
+    deduplicate: { enabled: true, fields: ["email"], keep: "first" }
+  };
+  const loadCfg = {
+    table: "fact_cleaned",
+    schema: "public",
+    mode: "append",
+    create_table_if_missing: true,
+    add_columns_if_missing: true,
+    warehouse_source_id: ""
+  };
+
+  const n1 = _addNodeAt("extract.sql", 120, 120, extractCfg);
+  const n2 = _addNodeAt("transform.cleaning_rules", 460, 120, cleanCfg);
+  const n3 = _addNodeAt("load.warehouse", 820, 120, loadCfg);
+
+  try {
+    editor.addConnection(String(n1), String(n2), "output_1", "input_1");
+    editor.addConnection(String(n2), String(n3), "output_1", "input_1");
+  } catch (e) {
+    console.warn("Could not auto-connect cleaning sample nodes", e);
+  }
+
+  _setExampleHint(t("Exemple Nettoyage → Warehouse créé: configurez sources SQL/warehouse."));
 }
 
 function _fetchJson(url, options) {
@@ -1546,6 +1800,25 @@ function openNodeConfig(nodeId) {
         <textarea class="form-control" id="cfg_params" rows="4" placeholder='{"q":"Grenoble"}'>${_jsonPretty(cfg.params || {})}</textarea>
       </div>
     `;
+  } else if (type === "extract.web") {
+    html += `
+      <div class="mb-3">
+        <label class="form-label">URL</label>
+        <input class="form-control" id="cfg_web_url" value="${_escapeHtml(cfg.url || "")}" placeholder="https://example.com/page-or.pdf">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Target columns (optional)</label>
+        <input class="form-control" id="cfg_web_schema" value="${_escapeHtml(cfg.schema || "")}" placeholder="name, price, category, date">
+        <div class="form-text">Comma, semicolon, or line-separated list.</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Max rows</label>
+        <input class="form-control" id="cfg_web_max_rows" type="number" min="10" max="1000" value="${Number(cfg.max_rows || 200)}">
+      </div>
+      <div class="alert alert-info py-2 small mb-0">
+        Supports HTML pages and PDF URLs. Output is normalized as list of rows.
+      </div>
+    `;
   
   } else if (type === "extract.sql") {
     html += `
@@ -2067,6 +2340,12 @@ function saveNodeConfig() {
     if (params === null) return _showMessageModal("Params JSON invalid", "Validation");
     cfg.headers = headers;
     cfg.params = params;
+  } else if (type === "extract.web") {
+    cfg.url = (document.getElementById("cfg_web_url")?.value || "").trim();
+    cfg.schema = (document.getElementById("cfg_web_schema")?.value || "").trim();
+    cfg.max_rows = parseInt(document.getElementById("cfg_web_max_rows")?.value || "200", 10);
+    if (!cfg.url) return _showMessageModal("URL is required", "Validation");
+    if (!(cfg.max_rows > 0)) cfg.max_rows = 200;
   } else if (type === "extract.sql") {
     const sel = document.getElementById("cfg_db_source");
     cfg.db_source_id = sel ? sel.value : "";

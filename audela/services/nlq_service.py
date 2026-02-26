@@ -11,6 +11,7 @@ import requests
 
 from ..i18n import tr
 from ..models.bi import DataSource
+from .ai_runtime_config import resolve_ai_runtime_config
 from .datasource_service import decrypt_config, get_engine, introspect_source
 
 
@@ -215,12 +216,13 @@ def _heuristic_generate_sql_from_nl(source: DataSource, text: str, lang: str | N
 
 def _openai_generate_sql_from_nl(source: DataSource, text: str, lang: str | None = None) -> tuple[str, list[str]]:
     """LLM-based NLQ -> SQL using OpenAI, grounded on schema."""
-    api_key = _env("OPENAI_API_KEY")
+    runtime = resolve_ai_runtime_config(default_model="gpt-4o-mini")
+    api_key = runtime.get("api_key")
     if not api_key:
-        raise RuntimeError("OPENAI_API_KEY missing")
+        raise RuntimeError(f"{runtime.get('missing_key_env') or 'OPENAI_API_KEY'} missing")
 
-    model = _env("OPENAI_MODEL", "gpt-4o-mini")
-    base_url = _env("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    model = runtime.get("model") or "gpt-4o-mini"
+    base_url = runtime.get("base_url") or "https://api.openai.com/v1"
 
     text = (text or "").strip()
     if not text:
@@ -329,10 +331,11 @@ def generate_sql_from_nl(source: DataSource, text: str, lang: str | None = None)
     """Natural language -> SQL.
 
     Behavior:
-    - If OPENAI_API_KEY is configured, use OpenAI grounded on schema.
+    - If an AI runtime API key is available, use LLM grounded on schema.
     - Otherwise, fall back to the existing heuristic generator.
     """
-    if _env("OPENAI_API_KEY"):
+    runtime = resolve_ai_runtime_config(default_model="gpt-4o-mini")
+    if runtime.get("api_key"):
         try:
             return _openai_generate_sql_from_nl(source, text, lang=lang)
         except Exception as e:  # noqa: BLE001
