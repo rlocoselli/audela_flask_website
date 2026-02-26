@@ -226,6 +226,9 @@ def download_from_s3(
     filename_hint: str | None = None,
     region: str | None = None,
     folder_rel: str | None = None,
+    access_key_id: str | None = None,
+    secret_access_key: str | None = None,
+    session_token: str | None = None,
 ) -> dict:
     """Download an S3 object and store under tenant root."""
     import os
@@ -240,7 +243,16 @@ def download_from_s3(
     if not max_bytes:
         max_bytes = 50 * 1024 * 1024  # 50MB default
 
-    client = boto3.client("s3", region_name=region) if region else boto3.client("s3")
+    client_kwargs = {}
+    if region:
+        client_kwargs["region_name"] = region
+    if access_key_id and secret_access_key:
+        client_kwargs["aws_access_key_id"] = access_key_id
+        client_kwargs["aws_secret_access_key"] = secret_access_key
+    if session_token:
+        client_kwargs["aws_session_token"] = session_token
+
+    client = boto3.client("s3", **client_kwargs)
     obj = client.get_object(Bucket=bucket, Key=key)
     body = obj["Body"]
 

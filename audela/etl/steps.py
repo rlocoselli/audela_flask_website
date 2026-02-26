@@ -141,6 +141,9 @@ def extract_web(config: Dict[str, Any], ctx, app=None):
     except Exception:
         max_rows = 200
     max_rows = max(10, min(max_rows, 1000))
+    table_selector = str(config.get("table_selector") or "").strip()
+    verify_ssl = bool(config.get("verify_ssl", True))
+    visual_actions = config.get("visual_actions") if isinstance(config.get("visual_actions"), list) else []
 
     lang = None
     try:
@@ -154,6 +157,8 @@ def extract_web(config: Dict[str, Any], ctx, app=None):
         schema_text=schema_text,
         lang=lang,
         max_rows=max_rows,
+        verify_ssl=verify_ssl,
+        table_selector=table_selector,
     )
 
     cols = extracted.columns or []
@@ -170,6 +175,8 @@ def extract_web(config: Dict[str, Any], ctx, app=None):
     ctx.meta["web_extract"] = {
         "url": extracted.source_url,
         "mode": extracted.mode,
+        "table_selector": table_selector,
+        "visual_actions_count": len(visual_actions),
         "columns": cols,
         "rows": len(out),
     }

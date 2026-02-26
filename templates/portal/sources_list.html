@@ -11,8 +11,25 @@
     </div>
     <div class="d-flex gap-2">
       <a class="btn btn-primary btn-sm" data-tip="{{ _('Créer une nouvelle connexion à une base, API ou source interne.') }}" href="{{ url_for('portal.sources_new') }}"><i class="bi bi-plus-lg"></i> {{ _('Nouvelle source') }}</a>
-      <a class="btn btn-outline-secondary btn-sm" data-tip="{{ _('Créer un workspace pour organiser sources, questions et dashboards.') }}" href="{{ url_for('portal.workspaces_new') }}">{{ _('Nouveau workspace') }}</a>
+      <a class="btn btn-outline-secondary btn-sm" data-tip="{{ _('Créer un workspace pour organiser sources, questions et dashboards.') }}" href="{{ url_for('portal.workspaces_new') }}">{{ _('Nouveau workspace') }} <span class="badge text-bg-info ms-1">{{ _('Recommandé pour Excel') }}</span></a>
       <a class="btn btn-outline-secondary btn-sm" data-tip="{{ _('Voir et administrer les workspaces existants.') }}" href="{{ url_for('portal.workspaces_list') }}">{{ _('Workspaces') }}</a>
+    </div>
+  </div>
+
+  <div class="card shadow-sm border-0 rounded-4 mb-3" data-tour="{{ _('Para usar arquivos Excel no BI, crie primeiro um workspace.') }}" data-tour-title="{{ _('Tutoriel Source') }}" data-tour-order="1">
+    <div class="card-body">
+      <div class="fw-semibold mb-1"><i class="bi bi-file-earmark-spreadsheet me-1"></i>{{ _('Para usar arquivos Excel no BI, crie primeiro um workspace.') }}</div>
+      <div class="small text-muted mb-2">{{ _('No workspace, você conecta arquivos (Excel/CSV/Parquet) e pode combinar com tabelas do banco.') }}</div>
+      <ol class="small mb-2">
+        <li>{{ _('Arquivos') }} → upload do Excel</li>
+        <li>{{ _('Criar workspace') }} → selecionar o arquivo</li>
+        <li>{{ _('Workspaces') }} → usar como fonte para SQL / dashboards</li>
+      </ol>
+      <div class="d-flex gap-2 flex-wrap">
+        <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.files_home') }}"><i class="bi bi-folder2-open me-1"></i>{{ _('Arquivos') }}</a>
+        <a class="btn btn-outline-primary btn-sm" href="{{ url_for('portal.workspaces_new') }}"><i class="bi bi-plus-circle me-1"></i>{{ _('Criar workspace') }}</a>
+        <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.workspaces_list') }}"><i class="bi bi-grid me-1"></i>{{ _('Ver workspaces') }}</a>
+      </div>
     </div>
   </div>
 

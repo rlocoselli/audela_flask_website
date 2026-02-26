@@ -591,7 +591,7 @@ function _bindNotifyTestButton() {
 
 function _defaultConfig(type) {
   if (type === "extract.http") return { api_source_id: "", path: "", method: "GET", headers: {}, params: {}, timeout: 30 };
-  if (type === "extract.web") return { url: "", schema: "", max_rows: 200 };
+  if (type === "extract.web") return { url: "", schema: "", max_rows: 200, verify_ssl: true, table_selector: "", visual_actions: [] };
   if (type === "extract.sql") return { query: "", db_source_id: "", result_mode: "rows", strict_scalar: true, scalar_key: "last_scalar" };
   if (type === "transform.mapping") return { fields: {} };
   if (type === "transform.cleaning_rules") return {
@@ -1806,14 +1806,31 @@ function openNodeConfig(nodeId) {
         <label class="form-label">URL</label>
         <input class="form-control" id="cfg_web_url" value="${_escapeHtml(cfg.url || "")}" placeholder="https://example.com/page-or.pdf">
       </div>
+      <div class="mb-3 d-flex flex-wrap gap-2">
+        <button class="btn btn-outline-primary btn-sm" type="button" id="cfg_web_open_visual">
+          <i class="bi bi-diagram-3 me-1"></i>Open visual mapper
+        </button>
+      </div>
       <div class="mb-3">
         <label class="form-label">Target columns (optional)</label>
         <input class="form-control" id="cfg_web_schema" value="${_escapeHtml(cfg.schema || "")}" placeholder="name, price, category, date">
         <div class="form-text">Comma, semicolon, or line-separated list.</div>
       </div>
       <div class="mb-3">
+        <label class="form-label">Table selector (optional)</label>
+        <input class="form-control" id="cfg_web_table_selector" value="${_escapeHtml(cfg.table_selector || "")}" placeholder="#products, .pricing-table, table:nth-of-type(2)">
+      </div>
+      <div class="mb-3">
         <label class="form-label">Max rows</label>
         <input class="form-control" id="cfg_web_max_rows" type="number" min="10" max="1000" value="${Number(cfg.max_rows || 200)}">
+      </div>
+      <div class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" id="cfg_web_verify_ssl" ${cfg.verify_ssl !== false ? "checked" : ""}>
+        <label class="form-check-label" for="cfg_web_verify_ssl">Validate SSL certificate</label>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Visual actions (JSON, optional)</label>
+        <textarea class="form-control" id="cfg_web_visual_actions" rows="4" placeholder='[{"type":"extract_table","selector":"#products"}]'>${_jsonPretty(Array.isArray(cfg.visual_actions) ? cfg.visual_actions : [])}</textarea>
       </div>
       <div class="alert alert-info py-2 small mb-0">
         Supports HTML pages and PDF URLs. Output is normalized as list of rows.
@@ -2279,6 +2296,23 @@ function openNodeConfig(nodeId) {
 
   if (type === "extract.sql") {
     _initExtractSqlUi();
+  } else if (type === "extract.web") {
+    const openVisualBtn = document.getElementById("cfg_web_open_visual");
+    openVisualBtn?.addEventListener("click", () => {
+      const url = (document.getElementById("cfg_web_url")?.value || "").trim();
+      const schema = (document.getElementById("cfg_web_schema")?.value || "").trim();
+      const maxRows = (document.getElementById("cfg_web_max_rows")?.value || "200").trim();
+      const tableSelector = (document.getElementById("cfg_web_table_selector")?.value || "").trim();
+      const verifySsl = document.getElementById("cfg_web_verify_ssl")?.checked ? "1" : "0";
+      const prefix = window.location.pathname.startsWith("/app/") || window.location.pathname === "/app" ? "/app" : "/portal";
+      const u = new URL(`${prefix}/web-extract/visual`, window.location.origin);
+      if (url) u.searchParams.set("url", url);
+      if (schema) u.searchParams.set("schema", schema);
+      if (maxRows) u.searchParams.set("max_rows", maxRows);
+      if (tableSelector) u.searchParams.set("table_selector", tableSelector);
+      u.searchParams.set("verify_ssl", verifySsl);
+      window.open(u.toString(), "_blank", "noopener");
+    });
   } else if (type === "transform.python_advanced" || type === "transform.cleaning_rules" || type === "notify.integration") {
     _setupAdvancedEditors(type);
     if (type === "transform.python_advanced") {
@@ -2343,7 +2377,12 @@ function saveNodeConfig() {
   } else if (type === "extract.web") {
     cfg.url = (document.getElementById("cfg_web_url")?.value || "").trim();
     cfg.schema = (document.getElementById("cfg_web_schema")?.value || "").trim();
+    cfg.table_selector = (document.getElementById("cfg_web_table_selector")?.value || "").trim();
     cfg.max_rows = parseInt(document.getElementById("cfg_web_max_rows")?.value || "200", 10);
+    cfg.verify_ssl = !!document.getElementById("cfg_web_verify_ssl")?.checked;
+    const visualActions = _safeJsonParse(document.getElementById("cfg_web_visual_actions")?.value || "[]", []);
+    if (visualActions === null || !Array.isArray(visualActions)) return _showMessageModal("Visual actions JSON invalid (array expected)", "Validation");
+    cfg.visual_actions = visualActions;
     if (!cfg.url) return _showMessageModal("URL is required", "Validation");
     if (!(cfg.max_rows > 0)) cfg.max_rows = 200;
   } else if (type === "extract.sql") {

@@ -246,6 +246,7 @@
 {% endblock %}
   {% block body_scripts %}
     {{ super() }}
+    <script src="{{ url_for('static', filename='portal/tts_reader.js') }}"></script>
     <script src="{{ url_for('static', filename='portal/theme_switcher.js') }}"></script>
     <script>
       window.onReady(function(){

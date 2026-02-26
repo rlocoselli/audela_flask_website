@@ -5,7 +5,7 @@ import os
 import sys
 
 from flask import Flask
-from flask import g, request, session
+from flask import g, request, session, redirect
 from jinja2 import ChoiceLoader, FileSystemLoader
 
 from .config import DevConfig, ProdConfig
@@ -142,6 +142,19 @@ def create_app() -> Flask:
     app.register_blueprint(finance_master_bp)
     app.register_blueprint(tenant_bp)
     app.register_blueprint(billing_bp)
+
+    # Legacy compatibility: previous links may still use /portal/*.
+    @app.route("/portal", methods=["GET"])
+    def _legacy_portal_root_redirect():  # noqa: ANN001
+        return redirect("/app", code=302)
+
+    @app.route("/portal/<path:subpath>", methods=["GET"])
+    def _legacy_portal_redirect(subpath: str):  # noqa: ANN001
+        qs = request.query_string.decode("utf-8") if request.query_string else ""
+        target = f"/app/{subpath}"
+        if qs:
+            target = f"{target}?{qs}"
+        return redirect(target, code=302)
 
     # Finance CLI Commands
     from .commands import init_finance_cli, init_celery_cli

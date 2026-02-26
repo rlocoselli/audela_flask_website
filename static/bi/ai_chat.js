@@ -74,7 +74,29 @@
 
   function renderMessage (log, role, text) {
     const msg = el('div', 'chat-msg ' + role);
-    msg.textContent = String(text || '');
+    const safeText = String(text || '');
+
+    if (role === 'assistant') {
+      msg.classList.add('d-flex', 'flex-column', 'gap-1');
+
+      const tools = el('div', 'd-flex justify-content-end');
+      const speakBtn = el('button', 'btn btn-outline-secondary btn-sm js-tts-speak');
+      speakBtn.type = 'button';
+      speakBtn.title = t('Ouvir explicação');
+      speakBtn.setAttribute('aria-label', t('Ouvir explicação'));
+      speakBtn.setAttribute('data-tts-text', safeText);
+      speakBtn.innerHTML = '<i class="bi bi-volume-up"></i>';
+      tools.appendChild(speakBtn);
+
+      const body = el('div');
+      body.textContent = safeText;
+
+      msg.appendChild(tools);
+      msg.appendChild(body);
+    } else {
+      msg.textContent = safeText;
+    }
+
     log.appendChild(msg);
     log.scrollTop = log.scrollHeight;
   }

@@ -9,6 +9,7 @@ import io
 
 import json
 import copy
+from typing import Any
 
 from flask import abort, flash, g, jsonify, make_response, redirect, render_template, request, url_for, send_file, session
 from flask_login import current_user, login_required
@@ -193,6 +194,65 @@ def _persist_integration_state(tenant: Tenant, state: dict) -> None:
     settings["integrations"] = integrations
     tenant.settings_json = copy.deepcopy(settings)
     flag_modified(tenant, "settings_json")
+
+
+def _web_extract_state_for_tenant(tenant: Tenant) -> dict:
+    settings = tenant.settings_json if isinstance(tenant.settings_json, dict) else {}
+    web_extract = settings.get("web_extract") if isinstance(settings.get("web_extract"), dict) else {}
+    configs_raw = web_extract.get("configs") if isinstance(web_extract.get("configs"), list) else []
+
+    configs: list[dict[str, Any]] = []
+    for item in configs_raw[:150]:
+        if not isinstance(item, dict):
+            continue
+        cfg_id = str(item.get("id") or "").strip()
+        cfg_name = str(item.get("name") or "").strip()
+        if not cfg_id or not cfg_name:
+            continue
+        visual_actions = item.get("visual_actions") if isinstance(item.get("visual_actions"), list) else []
+        configs.append(
+            {
+                "id": cfg_id,
+                "name": cfg_name,
+                "url": str(item.get("url") or "").strip(),
+                "schema": str(item.get("schema") or "").strip(),
+                "max_rows": int(item.get("max_rows") or 200),
+                "table_selector": str(item.get("table_selector") or "").strip(),
+                "verify_ssl": bool(item.get("verify_ssl", True)),
+                "visual_actions": visual_actions,
+                "updated_at": str(item.get("updated_at") or ""),
+            }
+        )
+
+    return {
+        "settings": settings,
+        "web_extract": web_extract,
+        "configs": configs,
+    }
+
+
+def _persist_web_extract_state(tenant: Tenant, state: dict) -> None:
+    settings = state.get("settings") if isinstance(state.get("settings"), dict) else {}
+    web_extract = state.get("web_extract") if isinstance(state.get("web_extract"), dict) else {}
+    configs = state.get("configs") if isinstance(state.get("configs"), list) else []
+    web_extract["configs"] = configs[:150]
+    settings["web_extract"] = web_extract
+    tenant.settings_json = copy.deepcopy(settings)
+    flag_modified(tenant, "settings_json")
+
+
+def _find_web_extract_config(configs: list[dict[str, Any]], cfg_id: str) -> dict[str, Any] | None:
+    key = str(cfg_id or "").strip()
+    if not key:
+        return None
+    for item in configs:
+        if str(item.get("id") or "") == key:
+            return item
+    return None
+
+
+def _new_web_extract_config_id() -> str:
+    return f"wex-{secrets.token_hex(5)}"
 
 
 def _hash_app_key(raw_key: str) -> str:
@@ -2534,6 +2594,9 @@ def files_from_s3():
     key = (request.form.get("key") or "").strip()
     filename = (request.form.get("filename") or "").strip()
     region = (request.form.get("region") or "").strip() or None
+    access_key_id = (request.form.get("access_key_id") or "").strip() or None
+    secret_access_key = (request.form.get("secret_access_key") or "").strip() or None
+    session_token = (request.form.get("session_token") or "").strip() or None
     display_name = (request.form.get("display_name") or "").strip()
     folder_id = request.form.get("folder_id")
 
@@ -2552,7 +2615,17 @@ def files_from_s3():
     from ...services.file_introspect_service import infer_schema_for_asset
 
     folder_rel = _folder_rel_path(folder)
-    stored = download_from_s3(g.tenant.id, bucket=bucket, key=key, filename_hint=filename, region=region, folder_rel=folder_rel)
+    stored = download_from_s3(
+        g.tenant.id,
+        bucket=bucket,
+        key=key,
+        filename_hint=filename,
+        region=region,
+        folder_rel=folder_rel,
+        access_key_id=access_key_id,
+        secret_access_key=secret_access_key,
+        session_token=session_token,
+    )
 
     asset = FileAsset(
         tenant_id=g.tenant.id,
@@ -3266,6 +3339,10 @@ def excel_ai():
 def web_extract():
     _require_tenant()
     folders = FileFolder.query.filter_by(tenant_id=g.tenant.id).order_by(FileFolder.name.asc()).all()
+    state = _web_extract_state_for_tenant(g.tenant)
+    web_extract_configs = state.get("configs") or []
+    selected_config_id = (request.form.get("config_id") if request.method == "POST" else request.args.get("config_id") or "").strip()
+    selected_config = _find_web_extract_config(web_extract_configs, selected_config_id)
 
     url_input = (request.form.get("url") if request.method == "POST" else request.args.get("url") or "").strip()
     schema_input = (request.form.get("schema") if request.method == "POST" else request.args.get("schema") or "").strip()
@@ -3274,6 +3351,22 @@ def web_extract():
         max_rows = max(10, min(1000, int(max_rows_input or 200)))
     except Exception:
         max_rows = 200
+    table_selector = (request.form.get("table_selector") if request.method == "POST" else request.args.get("table_selector") or "").strip()
+    verify_ssl_raw = request.form.get("verify_ssl") if request.method == "POST" else request.args.get("verify_ssl")
+    if request.method == "POST":
+        verify_ssl = (verify_ssl_raw or "0").strip().lower() in {"1", "true", "on", "yes"}
+    else:
+        verify_ssl = (verify_ssl_raw or "1").strip().lower() in {"1", "true", "on", "yes"}
+
+    if request.method != "POST" and selected_config:
+        url_input = str(selected_config.get("url") or "").strip()
+        schema_input = str(selected_config.get("schema") or "").strip()
+        try:
+            max_rows = max(10, min(1000, int(selected_config.get("max_rows") or 200)))
+        except Exception:
+            max_rows = 200
+        table_selector = str(selected_config.get("table_selector") or "").strip()
+        verify_ssl = bool(selected_config.get("verify_ssl", True))
 
     result = None
     error = None
@@ -3290,6 +3383,8 @@ def web_extract():
                     schema_text=schema_input,
                     lang=getattr(g, "lang", None),
                     max_rows=max_rows,
+                    verify_ssl=verify_ssl,
+                    table_selector=table_selector,
                 )
                 result = {
                     "columns": extracted.columns,
@@ -3309,7 +3404,122 @@ def web_extract():
         url_input=url_input,
         schema_input=schema_input,
         max_rows=max_rows,
+        table_selector=table_selector,
+        verify_ssl=verify_ssl,
+        web_extract_configs=web_extract_configs,
+        selected_config_id=selected_config_id,
     )
+
+
+@bp.route("/web-extract/configs/save", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def web_extract_config_save():
+    _require_tenant()
+    config_name = (request.form.get("config_name") or "").strip()
+    config_id = (request.form.get("config_id") or "").strip()
+    from_page = (request.form.get("from_page") or "standard").strip().lower()
+
+    url_input = (request.form.get("url") or "").strip()
+    schema_input = (request.form.get("schema") or "").strip()
+    table_selector = (request.form.get("table_selector") or "").strip()
+    verify_ssl = (request.form.get("verify_ssl") or "1").strip().lower() in {"1", "true", "on", "yes"}
+    try:
+        max_rows = max(10, min(1000, int((request.form.get("max_rows") or "200").strip() or 200)))
+    except Exception:
+        max_rows = 200
+
+    visual_actions: list[Any] = []
+    visual_actions_json = (request.form.get("visual_actions_json") or "").strip()
+    if visual_actions_json:
+        try:
+            parsed = json.loads(visual_actions_json)
+            if isinstance(parsed, list):
+                visual_actions = parsed
+        except Exception:
+            visual_actions = []
+
+    if not config_name:
+        flash(tr("Nom de configuration requis.", getattr(g, "lang", None)), "error")
+        dest = "portal.web_extract_visual" if from_page == "visual" else "portal.web_extract"
+        return redirect(url_for(dest, url=url_input, schema=schema_input, max_rows=max_rows, table_selector=table_selector, verify_ssl="1" if verify_ssl else "0"))
+
+    if not url_input or not re.match(r"^https?://", url_input, flags=re.I):
+        flash(tr("URL inválida. Use http:// ou https://.", getattr(g, "lang", None)), "error")
+        dest = "portal.web_extract_visual" if from_page == "visual" else "portal.web_extract"
+        return redirect(url_for(dest, url=url_input, schema=schema_input, max_rows=max_rows, table_selector=table_selector, verify_ssl="1" if verify_ssl else "0"))
+
+    state = _web_extract_state_for_tenant(g.tenant)
+    configs = state.get("configs") or []
+
+    existing = _find_web_extract_config(configs, config_id)
+    if existing:
+        target_id = str(existing.get("id") or "")
+    else:
+        target_id = _new_web_extract_config_id()
+
+    payload = {
+        "id": target_id,
+        "name": config_name[:120],
+        "url": url_input,
+        "schema": schema_input,
+        "max_rows": max_rows,
+        "table_selector": table_selector,
+        "verify_ssl": bool(verify_ssl),
+        "visual_actions": visual_actions,
+        "updated_at": datetime.utcnow().isoformat(),
+    }
+
+    out = []
+    replaced = False
+    for item in configs:
+        if str(item.get("id") or "") == target_id:
+            out.append(payload)
+            replaced = True
+        else:
+            out.append(item)
+    if not replaced:
+        out.insert(0, payload)
+
+    state["configs"] = out[:150]
+    _persist_web_extract_state(g.tenant, state)
+    db.session.commit()
+
+    flash(tr("Configuration sauvegardée.", getattr(g, "lang", None)), "success")
+    dest = "portal.web_extract_visual" if from_page == "visual" else "portal.web_extract"
+    return redirect(
+        url_for(
+            dest,
+            config_id=target_id,
+            url=url_input,
+            schema=schema_input,
+            max_rows=max_rows,
+            table_selector=table_selector,
+            verify_ssl="1" if verify_ssl else "0",
+        )
+    )
+
+
+@bp.route("/web-extract/configs/delete", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def web_extract_config_delete():
+    _require_tenant()
+    config_id = (request.form.get("config_id") or "").strip()
+    from_page = (request.form.get("from_page") or "standard").strip().lower()
+
+    state = _web_extract_state_for_tenant(g.tenant)
+    configs = state.get("configs") or []
+    before = len(configs)
+    state["configs"] = [c for c in configs if str(c.get("id") or "") != config_id]
+
+    if len(state["configs"]) < before:
+        _persist_web_extract_state(g.tenant, state)
+        db.session.commit()
+        flash(tr("Configuration supprimée.", getattr(g, "lang", None)), "success")
+
+    dest = "portal.web_extract_visual" if from_page == "visual" else "portal.web_extract"
+    return redirect(url_for(dest))
 
 
 @bp.route("/web-extract/export.csv", methods=["POST"])
@@ -3323,10 +3533,12 @@ def web_extract_export_csv():
         max_rows = max(10, min(1000, int((request.form.get("max_rows") or "200").strip() or 200)))
     except Exception:
         max_rows = 200
+    table_selector = (request.form.get("table_selector") or "").strip()
+    verify_ssl = (request.form.get("verify_ssl") or "1").strip().lower() in {"1", "true", "on", "yes"}
 
     if not url_input or not re.match(r"^https?://", url_input, flags=re.I):
         flash(tr("URL inválida. Use http:// ou https://.", getattr(g, "lang", None)), "error")
-        return redirect(url_for("portal.web_extract"))
+        return redirect(url_for("portal.web_extract", url=url_input, schema=schema_input, max_rows=max_rows, table_selector=table_selector, verify_ssl="1" if verify_ssl else "0"))
 
     try:
         extracted = extract_structured_table_from_web(
@@ -3334,10 +3546,12 @@ def web_extract_export_csv():
             schema_text=schema_input,
             lang=getattr(g, "lang", None),
             max_rows=max_rows,
+            verify_ssl=verify_ssl,
+            table_selector=table_selector,
         )
     except Exception as e:  # noqa: BLE001
         flash(str(e), "error")
-        return redirect(url_for("portal.web_extract", url=url_input, schema=schema_input, max_rows=max_rows))
+        return redirect(url_for("portal.web_extract", url=url_input, schema=schema_input, max_rows=max_rows, table_selector=table_selector, verify_ssl="1" if verify_ssl else "0"))
 
     stream = io.StringIO()
     writer = csv.writer(stream)
@@ -3361,6 +3575,8 @@ def web_extract_save_file():
     file_name = (request.form.get("file_name") or "web_extract.csv").strip()
     display_name = (request.form.get("display_name") or "").strip()
     folder_id = (request.form.get("folder_id") or "").strip()
+    table_selector = (request.form.get("table_selector") or "").strip()
+    verify_ssl = (request.form.get("verify_ssl") or "1").strip().lower() in {"1", "true", "on", "yes"}
 
     try:
         max_rows = max(10, min(1000, int((request.form.get("max_rows") or "200").strip() or 200)))
@@ -3369,7 +3585,7 @@ def web_extract_save_file():
 
     if not url_input or not re.match(r"^https?://", url_input, flags=re.I):
         flash(tr("URL inválida. Use http:// ou https://.", getattr(g, "lang", None)), "error")
-        return redirect(url_for("portal.web_extract"))
+        return redirect(url_for("portal.web_extract", url=url_input, schema=schema_input, max_rows=max_rows, table_selector=table_selector, verify_ssl="1" if verify_ssl else "0"))
 
     if not file_name.lower().endswith(".csv"):
         file_name = f"{file_name}.csv"
@@ -3387,6 +3603,8 @@ def web_extract_save_file():
             schema_text=schema_input,
             lang=getattr(g, "lang", None),
             max_rows=max_rows,
+            verify_ssl=verify_ssl,
+            table_selector=table_selector,
         )
 
         stream = io.StringIO()
@@ -3420,7 +3638,165 @@ def web_extract_save_file():
         return redirect(url_for("portal.files_home", folder=folder.id if folder else ""))
     except Exception as e:  # noqa: BLE001
         flash(str(e), "error")
-        return redirect(url_for("portal.web_extract", url=url_input, schema=schema_input, max_rows=max_rows))
+        return redirect(url_for("portal.web_extract", url=url_input, schema=schema_input, max_rows=max_rows, table_selector=table_selector, verify_ssl="1" if verify_ssl else "0"))
+
+
+@bp.route("/web-extract/visual", methods=["GET"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def web_extract_visual():
+    _require_tenant()
+    folders = FileFolder.query.filter_by(tenant_id=g.tenant.id).order_by(FileFolder.name.asc()).all()
+    state = _web_extract_state_for_tenant(g.tenant)
+    web_extract_configs = state.get("configs") or []
+    selected_config_id = (request.args.get("config_id") or "").strip()
+    selected_config = _find_web_extract_config(web_extract_configs, selected_config_id)
+    url_input = (request.args.get("url") or "").strip()
+    schema_input = (request.args.get("schema") or "").strip()
+    table_selector = (request.args.get("table_selector") or "").strip()
+    try:
+        max_rows = max(10, min(1000, int((request.args.get("max_rows") or "200").strip() or 200)))
+    except Exception:
+        max_rows = 200
+    verify_ssl = (request.args.get("verify_ssl") or "1").strip().lower() in {"1", "true", "on", "yes"}
+
+    if selected_config:
+        url_input = str(selected_config.get("url") or url_input).strip()
+        schema_input = str(selected_config.get("schema") or schema_input).strip()
+        table_selector = str(selected_config.get("table_selector") or table_selector).strip()
+        try:
+            max_rows = max(10, min(1000, int(selected_config.get("max_rows") or max_rows)))
+        except Exception:
+            max_rows = max_rows
+        verify_ssl = bool(selected_config.get("verify_ssl", verify_ssl))
+
+    return render_template(
+        "portal/web_extract_visual.html",
+        tenant=g.tenant,
+        folders=folders,
+        url_input=url_input,
+        schema_input=schema_input,
+        table_selector=table_selector,
+        max_rows=max_rows,
+        verify_ssl=verify_ssl,
+        web_extract_configs=web_extract_configs,
+        selected_config_id=selected_config_id,
+        selected_config=selected_config,
+    )
+
+
+@bp.route("/web-extract/visual/proxy", methods=["GET"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def web_extract_visual_proxy():
+    _require_tenant()
+    target_url = (request.args.get("url") or "").strip()
+    verify_ssl = (request.args.get("verify_ssl") or "1").strip().lower() in {"1", "true", "on", "yes"}
+
+    if not target_url or not re.match(r"^https?://", target_url, flags=re.I):
+        return make_response("<html><body style='font-family:sans-serif;padding:1rem;'>URL invalide.</body></html>", 400)
+
+    try:
+        import requests
+
+        resp = requests.get(
+            target_url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+                "Accept-Language": "en-US,en;q=0.9,fr;q=0.8,pt-BR;q=0.7",
+            },
+            timeout=25,
+            verify=verify_ssl,
+        )
+        resp.raise_for_status()
+        content_type = (resp.headers.get("Content-Type") or "").lower()
+        if "text/html" not in content_type and "application/xhtml" not in content_type:
+            return make_response(
+                "<html><body style='font-family:sans-serif;padding:1rem;'>"
+                "Contenu non HTML. Utilisez l'extraction standard pour PDF/API.</body></html>",
+                415,
+            )
+
+        html = resp.text or ""
+        if "<head" in html.lower() and "<base " not in html.lower():
+            html = re.sub(
+                r"<head([^>]*)>",
+                lambda m: f"<head{m.group(1)}><base href=\"{target_url}\">",
+                html,
+                count=1,
+                flags=re.I,
+            )
+
+        out = make_response(html)
+        out.headers["Content-Type"] = "text/html; charset=utf-8"
+        out.headers.pop("X-Frame-Options", None)
+        out.headers.pop("Content-Security-Policy", None)
+        return out
+    except Exception as e:  # noqa: BLE001
+        return make_response(f"<html><body style='font-family:sans-serif;padding:1rem;'>Erreur proxy: {str(e)}</body></html>", 500)
+
+
+@bp.route("/web-extract/visual/run", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+@csrf.exempt
+def web_extract_visual_run():
+    _require_tenant()
+    payload = request.get_json(silent=True) or {}
+    url_input = str(payload.get("url") or "").strip()
+    schema_input = str(payload.get("schema") or "").strip()
+    table_selector = str(payload.get("table_selector") or "").strip()
+    verify_ssl = str(payload.get("verify_ssl") if payload.get("verify_ssl") is not None else "1").strip().lower() in {
+        "1",
+        "true",
+        "on",
+        "yes",
+    }
+    actions = payload.get("actions") if isinstance(payload.get("actions"), list) else []
+    try:
+        max_rows = max(10, min(1000, int(str(payload.get("max_rows") or "200").strip() or 200)))
+    except Exception:
+        max_rows = 200
+
+    if not url_input or not re.match(r"^https?://", url_input, flags=re.I):
+        return jsonify({"ok": False, "error": "URL invalide"}), 400
+
+    try:
+        extracted = extract_structured_table_from_web(
+            url=url_input,
+            schema_text=schema_input,
+            lang=getattr(g, "lang", None),
+            max_rows=max_rows,
+            verify_ssl=verify_ssl,
+            table_selector=table_selector,
+        )
+
+        workflow_step = {
+            "type": "extract.web",
+            "config": {
+                "url": url_input,
+                "schema": schema_input,
+                "max_rows": max_rows,
+                "verify_ssl": bool(verify_ssl),
+                "table_selector": table_selector,
+                "visual_actions": actions,
+            },
+        }
+
+        return jsonify(
+            {
+                "ok": True,
+                "result": {
+                    "columns": extracted.columns,
+                    "rows": extracted.rows,
+                    "mode": extracted.mode,
+                    "source_url": extracted.source_url,
+                },
+                "workflow_step": workflow_step,
+            }
+        )
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"ok": False, "error": str(e)}), 500
 # -----------------------------
 # Questions
 # -----------------------------
@@ -5201,6 +5577,47 @@ def api_ai_chat():
 
     ai = analyze_with_ai(data_bundle, message, history=history, lang=getattr(g, "lang", None))
     return jsonify(ai)
+
+
+@bp.route("/api/tts", methods=["POST"])
+@login_required
+def api_tts():
+    _require_tenant()
+    payload = request.get_json(silent=True) or {}
+    text = str(payload.get("text") or "").strip()
+
+    if not text:
+        return jsonify({"error": _("Digite um texto para ouvir.")}), 400
+
+    # Keep payload bounded to avoid abuse / very long synthesis times.
+    if len(text) > 3000:
+        text = text[:3000]
+
+    lang_code = (getattr(g, "lang", DEFAULT_LANG) or DEFAULT_LANG).lower()
+    tts_lang = lang_code if lang_code in {"pt", "en", "fr", "es", "it", "de"} else "en"
+
+    try:
+        from gtts import gTTS
+    except Exception:
+        return jsonify({"error": _("Áudio indisponível no momento.")}), 503
+
+    try:
+        audio_fp = io.BytesIO()
+        tts = gTTS(text=text, lang=tts_lang, slow=False)
+        tts.write_to_fp(audio_fp)
+        audio_fp.seek(0)
+    except Exception:
+        return jsonify({"error": _("Não foi possível gerar áudio.")}), 500
+
+    response = send_file(
+        audio_fp,
+        mimetype="audio/mpeg",
+        as_attachment=False,
+        download_name="tts.mp3",
+        max_age=0,
+    )
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return response
 
 
 @bp.route("/api/help/chat", methods=["POST"])

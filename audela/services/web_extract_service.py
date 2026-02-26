@@ -19,12 +19,13 @@ def _norm(s: str) -> str:
 class _TableParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__()
-        self.tables: list[list[list[str]]] = []
+        self.tables: list[dict[str, Any]] = []
         self._in_table = False
         self._in_row = False
         self._in_cell = False
         self._cell_tag = ""
         self._current_table: list[list[str]] = []
+        self._current_table_attrs: dict[str, Any] = {}
         self._current_row: list[str] = []
         self._current_cell_parts: list[str] = []
 
@@ -32,6 +33,12 @@ class _TableParser(HTMLParser):
         if tag == "table":
             self._in_table = True
             self._current_table = []
+            attrs_dict = {str(k): str(v or "") for k, v in (attrs or [])}
+            classes = [c for c in (attrs_dict.get("class") or "").split() if c]
+            self._current_table_attrs = {
+                "id": attrs_dict.get("id") or "",
+                "class": classes,
+            }
         elif self._in_table and tag == "tr":
             self._in_row = True
             self._current_row = []
@@ -58,8 +65,14 @@ class _TableParser(HTMLParser):
             self._in_row = False
         elif self._in_table and tag == "table":
             if self._current_table:
-                self.tables.append(self._current_table)
+                self.tables.append(
+                    {
+                        "rows": self._current_table,
+                        "attrs": dict(self._current_table_attrs),
+                    }
+                )
             self._current_table = []
+            self._current_table_attrs = {}
             self._in_table = False
 
 
@@ -87,26 +100,19 @@ def _fetch_resource(url: str, timeout: int = 30, verify_ssl: bool = True) -> tup
     return final_url, content_type, (r.content or b"")
 
 
-def _best_table(html: str) -> tuple[list[str], list[list[str]]]:
-    p = _TableParser()
-    p.feed(html)
-    if not p.tables:
+def _table_to_headers_rows(table_rows: list[list[str]]) -> tuple[list[str], list[list[str]]]:
+    if not table_rows:
         return [], []
 
-    best = max(p.tables, key=lambda t: (len(t), max((len(r) for r in t), default=0)))
-    if not best:
-        return [], []
-
-    # Header heuristic: first row looks like labels
-    first = best[0]
+    first = table_rows[0]
     has_header = any(re.search(r"[A-Za-zÀ-ÿ]", c or "") for c in first)
     if has_header:
         headers = [(c or "").strip() or f"col_{i+1}" for i, c in enumerate(first)]
-        rows = best[1:]
+        rows = table_rows[1:]
     else:
-        width = max((len(r) for r in best), default=0)
+        width = max((len(r) for r in table_rows), default=0)
         headers = [f"col_{i+1}" for i in range(width)]
-        rows = best
+        rows = table_rows
 
     norm_rows: list[list[str]] = []
     for r in rows:
@@ -116,6 +122,61 @@ def _best_table(html: str) -> tuple[list[str], list[list[str]]]:
         norm_rows.append(out[: len(headers)])
 
     return headers, norm_rows
+
+
+def _match_table_selector(table_obj: dict[str, Any], selector: str) -> bool:
+    selector = (selector or "").strip()
+    if not selector:
+        return False
+    attrs = table_obj.get("attrs") if isinstance(table_obj.get("attrs"), dict) else {}
+    table_id = str(attrs.get("id") or "").strip()
+    classes = attrs.get("class") if isinstance(attrs.get("class"), list) else []
+
+    if selector.startswith("#"):
+        return table_id == selector[1:]
+    if selector.startswith("."):
+        cls = selector[1:]
+        return cls in classes
+
+    m_id = re.search(r"#([A-Za-z0-9_\-:.]+)", selector)
+    if m_id and table_id == m_id.group(1):
+        return True
+
+    m_class = re.search(r"\.([A-Za-z0-9_\-]+)", selector)
+    if m_class and m_class.group(1) in classes:
+        return True
+
+    return False
+
+
+def _best_table(html: str, table_selector: str | None = None) -> tuple[list[str], list[list[str]]]:
+    p = _TableParser()
+    p.feed(html)
+    if not p.tables:
+        return [], []
+
+    selector = (table_selector or "").strip()
+    if selector:
+        nth = re.search(r"table\s*:\s*nth-of-type\((\d+)\)", selector, flags=re.I)
+        if nth:
+            idx = max(1, int(nth.group(1))) - 1
+            if idx < len(p.tables):
+                return _table_to_headers_rows(p.tables[idx].get("rows") or [])
+
+        for t in p.tables:
+            if _match_table_selector(t, selector):
+                return _table_to_headers_rows(t.get("rows") or [])
+
+    best_obj = max(
+        p.tables,
+        key=lambda t: (
+            len(t.get("rows") or []),
+            max((len(r) for r in (t.get("rows") or [])), default=0),
+        ),
+    )
+    if not best_obj:
+        return [], []
+    return _table_to_headers_rows(best_obj.get("rows") or [])
 
 
 def _best_table_from_pdf(pdf_bytes: bytes, max_rows: int = 300) -> tuple[list[str], list[list[str]], str]:
@@ -295,6 +356,7 @@ def extract_structured_table_from_web(
     lang: str | None = None,
     max_rows: int = 300,
     verify_ssl: bool = True,
+    table_selector: str | None = None,
 ) -> ExtractResult:
     final_url, content_type, content = _fetch_resource(url, verify_ssl=verify_ssl)
     is_pdf = (
@@ -317,7 +379,7 @@ def extract_structured_table_from_web(
             src_rows = [[s] for s in snippets]
     else:
         html = content.decode("utf-8", errors="ignore")
-        src_cols, src_rows = _best_table(html)
+        src_cols, src_rows = _best_table(html, table_selector=table_selector)
         source_text_for_ai = _extract_plain_text(html, max_chars=12000)
 
         if not src_cols:

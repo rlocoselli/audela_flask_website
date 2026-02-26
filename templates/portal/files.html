@@ -413,6 +413,47 @@
           </div>
           <div class="row g-2 mt-2">
             <div class="col-md-6">
+              <label class="form-label">{{ _('Access Key ID (opcional)') }}</label>
+              <div class="input-group">
+                <input id="s3-access-key-id" class="form-control" type="password" name="access_key_id" autocomplete="off" />
+                <button
+                  class="btn btn-outline-secondary"
+                  type="button"
+                  data-toggle-password="#s3-access-key-id"
+                  data-show-label="{{ _('Mostrar') }}"
+                  data-hide-label="{{ _('Ocultar') }}"
+                >{{ _('Mostrar') }}</button>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ _('Secret Access Key (opcional)') }}</label>
+              <div class="input-group">
+                <input id="s3-secret-access-key" class="form-control" type="password" name="secret_access_key" autocomplete="off" />
+                <button
+                  class="btn btn-outline-secondary"
+                  type="button"
+                  data-toggle-password="#s3-secret-access-key"
+                  data-show-label="{{ _('Mostrar') }}"
+                  data-hide-label="{{ _('Ocultar') }}"
+                >{{ _('Mostrar') }}</button>
+              </div>
+            </div>
+          </div>
+          <div class="mt-2">
+            <label class="form-label">{{ _('Session Token (opcional)') }}</label>
+            <div class="input-group">
+              <input id="s3-session-token" class="form-control" type="password" name="session_token" autocomplete="off" />
+              <button
+                class="btn btn-outline-secondary"
+                type="button"
+                data-toggle-password="#s3-session-token"
+                data-show-label="{{ _('Mostrar') }}"
+                data-hide-label="{{ _('Ocultar') }}"
+              >{{ _('Mostrar') }}</button>
+            </div>
+          </div>
+          <div class="row g-2 mt-2">
+            <div class="col-md-6">
               <label class="form-label">{{ _('Nome do arquivo (opcional)') }}</label>
               <input class="form-control" name="filename" placeholder="meu_arquivo.parquet" />
             </div>
@@ -496,6 +537,32 @@
       moveFile: "{{ url_for('portal.files_move', file_id=0) }}",
       moveFolder: "{{ url_for('portal.folders_move', folder_id=0) }}"
     };
+
+    document.addEventListener('click', function (event) {
+      const button = event.target.closest('[data-toggle-password]');
+      if (!button) return;
+
+      const input = document.querySelector(button.getAttribute('data-toggle-password'));
+      if (!input) return;
+
+      const isPassword = input.type === 'password';
+      input.type = isPassword ? 'text' : 'password';
+      button.textContent = isPassword ? (button.dataset.hideLabel || 'Ocultar') : (button.dataset.showLabel || 'Mostrar');
+    });
+
+    document.addEventListener('DOMContentLoaded', function () {
+      const modalEl = document.getElementById('modalS3');
+      if (!modalEl) return;
+
+      modalEl.addEventListener('hidden.bs.modal', function () {
+        modalEl.querySelectorAll('[data-toggle-password]').forEach(function (button) {
+          const selector = button.getAttribute('data-toggle-password');
+          const input = selector ? document.querySelector(selector) : null;
+          if (input) input.type = 'password';
+          button.textContent = button.dataset.showLabel || 'Mostrar';
+        });
+      });
+    });
   </script>
   <script src="{{ url_for('static', filename='portal/files_explorer.js') }}"></script>
 {% endblock %}

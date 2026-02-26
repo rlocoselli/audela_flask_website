@@ -4,8 +4,27 @@
 {% block portal_content %}
 <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
   <div>
-    <h1 class="h4 mb-1">{{ _('Web Scraping IA') }}</h1>
+    <h1 class="h4 mb-1" data-tour="{{ _('Collectez et structurez des données web en quelques étapes.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="1">{{ _('Web Scraping IA') }}</h1>
     <div class="text-secondary">{{ _('Donnez une URL, structurez les données et affichez un tableau de colonnes.') }}</div>
+  </div>
+  <a class="btn btn-outline-primary" href="{{ url_for('portal.web_extract_visual', url=url_input or '', schema=schema_input or '', max_rows=max_rows or 200, table_selector=table_selector or '', verify_ssl='1' if verify_ssl else '0') }}" data-tour="{{ _('Passez en mode visuel pour capturer le sélecteur de table par clic.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="9">
+    <i class="bi bi-diagram-3 me-1"></i>{{ _('Mode visuel') }}
+  </a>
+</div>
+
+<div class="card border-0 shadow-sm rounded-4 mb-3" data-tour="{{ _('Suivez ces étapes pour créer une source Excel utilisable dans le BI.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="2">
+  <div class="card-body">
+    <div class="fw-semibold mb-1"><i class="bi bi-file-earmark-spreadsheet me-1"></i>{{ _('Comment créer une source Excel ?') }}</div>
+    <ol class="small mb-2">
+      <li>{{ _('1) Chargez d\'abord votre fichier Excel dans Files.') }}</li>
+      <li>{{ _('2) Créez un workspace et sélectionnez ce fichier.') }}</li>
+      <li>{{ _('3) Utilisez ce workspace comme source BI (SQL, Questions, Dashboards).') }}</li>
+    </ol>
+    <div class="d-flex gap-2 flex-wrap">
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.files_home') }}"><i class="bi bi-folder2-open me-1"></i>{{ _('Ouvrir Files') }}</a>
+      <a class="btn btn-outline-primary btn-sm" href="{{ url_for('portal.workspaces_new') }}"><i class="bi bi-plus-circle me-1"></i>{{ _('Créer workspace') }}</a>
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.workspaces_list') }}"><i class="bi bi-grid me-1"></i>{{ _('Voir workspaces') }}</a>
+    </div>
   </div>
 </div>
 
@@ -21,19 +40,58 @@
   <div class="alert alert-danger" role="alert">{{ error }}</div>
 {% endif %}
 
+<div class="card border-0 shadow-sm rounded-4 mb-3" data-tour="{{ _('Choisissez une configuration sauvegardée ou créez-en une nouvelle.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="2">
+  <div class="card-body">
+    <div class="row g-2 align-items-end">
+      <div class="col-12 col-lg-6">
+        <form method="get" action="{{ url_for('portal.web_extract') }}" class="row g-2">
+          <div class="col-12 col-md-8">
+            <label class="form-label">{{ _('Configuration') }}</label>
+            <select class="form-select" name="config_id">
+              <option value="">{{ _('Sélectionner...') }}</option>
+              {% for c in web_extract_configs or [] %}
+                <option value="{{ c.id }}" {% if selected_config_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12 col-md-4 d-flex align-items-end">
+            <button class="btn btn-outline-primary w-100" type="submit"><i class="bi bi-folder2-open me-1"></i>{{ _('Charger') }}</button>
+          </div>
+        </form>
+      </div>
+      <div class="col-12 col-lg-6">
+        <form method="post" action="{{ url_for('portal.web_extract_config_delete') }}" class="row g-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="from_page" value="standard">
+          <div class="col-12 col-md-8">
+            <label class="form-label">{{ _('Config sélectionnée') }}</label>
+            <input class="form-control" value="{% for c in web_extract_configs or [] %}{% if selected_config_id == c.id %}{{ c.name }}{% endif %}{% endfor %}" readonly>
+            <input type="hidden" name="config_id" value="{{ selected_config_id or '' }}">
+          </div>
+          <div class="col-12 col-md-4 d-flex align-items-end">
+            <button class="btn btn-outline-danger w-100" type="submit" {% if not selected_config_id %}disabled{% endif %}><i class="bi bi-trash me-1"></i>{{ _('Supprimer') }}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="card border-0 shadow-sm rounded-4 mb-3">
   <div class="card-body">
     <form method="post" action="{{ url_for('portal.web_extract') }}" class="row g-3">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="config_id" value="{{ selected_config_id or '' }}">
+      <input type="hidden" name="from_page" value="standard">
 
       <div class="col-12">
         <label class="form-label">{{ _('URL web') }}</label>
-        <input class="form-control" type="url" name="url" required placeholder="https://example.com/page" value="{{ url_input or '' }}">
+        <input class="form-control" type="url" name="url" required placeholder="https://example.com/page" value="{{ url_input or '' }}" data-tour="{{ _('Indiquez l\'URL à scrapper.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="3">
       </div>
 
       <div class="col-12 col-lg-8">
         <label class="form-label">{{ _('Colonnes souhaitées (optionnel)') }}</label>
-        <input class="form-control" type="text" name="schema" value="{{ schema_input or '' }}" placeholder="name, price, category, date">
+        <input class="form-control" type="text" name="schema" value="{{ schema_input or '' }}" placeholder="name, price, category, date" data-tour="{{ _('Définissez les colonnes attendues pour structurer les données.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="4">
         <div class="form-text">{{ _('Séparez par virgule, point-virgule ou ligne.') }}</div>
       </div>
 
@@ -46,8 +104,25 @@
         </select>
       </div>
 
+      <div class="col-12 col-lg-6">
+        <label class="form-label">{{ _('Sélecteur table (optionnel)') }}</label>
+        <input class="form-control" type="text" name="table_selector" value="{{ table_selector or '' }}" placeholder="#products, .pricing-table, table:nth-of-type(2)" data-tour="{{ _('Utilisez un sélecteur CSS pour cibler précisément la table.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="5">
+      </div>
+      <div class="col-12 col-lg-6 d-flex align-items-end">
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" value="1" id="verify-ssl" name="verify_ssl" {% if verify_ssl %}checked{% endif %}>
+          <label class="form-check-label" for="verify-ssl">{{ _('Valider certificat SSL') }}</label>
+        </div>
+      </div>
+
       <div class="col-12 d-flex gap-2 justify-content-end">
-        <button class="btn btn-primary" type="submit">
+        <div class="me-auto" style="min-width:260px;">
+          <input class="form-control" name="config_name" placeholder="{{ _('Nom de la config') }}" value="{% for c in web_extract_configs or [] %}{% if selected_config_id == c.id %}{{ c.name }}{% endif %}{% endfor %}">
+        </div>
+        <button class="btn btn-outline-success" type="submit" formaction="{{ url_for('portal.web_extract_config_save') }}" formmethod="post">
+          <i class="bi bi-bookmark-plus me-1"></i>{{ _('Salvar config') }}
+        </button>
+        <button class="btn btn-primary" type="submit" data-tour="{{ _('Lancez l\'extraction structurée.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="6">
           <i class="bi bi-globe2 me-1"></i>{{ _('Extraire et structurer') }}
         </button>
       </div>
@@ -56,7 +131,7 @@
 </div>
 
 {% if result %}
-  <div class="card border-0 shadow-sm rounded-4">
+  <div class="card border-0 shadow-sm rounded-4" data-tour="{{ _('Visualisez et exportez les résultats extraits.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="7">
     <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
       <div class="fw-semibold">
         <i class="bi bi-table me-1"></i>{{ _('Tableau structuré') }}
@@ -68,6 +143,8 @@
           <input type="hidden" name="url" value="{{ url_input }}">
           <input type="hidden" name="schema" value="{{ schema_input }}">
           <input type="hidden" name="max_rows" value="{{ max_rows }}">
+          <input type="hidden" name="table_selector" value="{{ table_selector or '' }}">
+          <input type="hidden" name="verify_ssl" value="{{ '1' if verify_ssl else '0' }}">
           <button class="btn btn-outline-secondary btn-sm" type="submit">
             <i class="bi bi-filetype-csv me-1"></i>{{ _('Exporter CSV') }}
           </button>
@@ -77,11 +154,13 @@
     <div class="card-body">
       <div class="small text-secondary mb-2">{{ _('Source') }}: {{ result.source_url }}</div>
 
-      <form method="post" action="{{ url_for('portal.web_extract_save_file') }}" class="row g-2 mb-3">
+      <form method="post" action="{{ url_for('portal.web_extract_save_file') }}" class="row g-2 mb-3" data-tour="{{ _('Enregistrez le résultat CSV dans vos fichiers.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="8">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="url" value="{{ url_input }}">
         <input type="hidden" name="schema" value="{{ schema_input }}">
         <input type="hidden" name="max_rows" value="{{ max_rows }}">
+        <input type="hidden" name="table_selector" value="{{ table_selector or '' }}">
+        <input type="hidden" name="verify_ssl" value="{{ '1' if verify_ssl else '0' }}">
 
         <div class="col-12 col-lg-3">
           <label class="form-label">{{ _('Dossier') }}</label>

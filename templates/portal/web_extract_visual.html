@@ -1,0 +1,390 @@
+{% extends "portal/layout.html" %}
+{% set title = _('Web Scraping IA - Mode visuel') %}
+
+{% block portal_content %}
+<div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+  <div>
+    <h1 class="h4 mb-1" data-tour="{{ _('Mode visuel pour capturer le sélecteur d\'une table et préparer un step ETL.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="1">{{ _('Web Scraping IA - Mode visuel') }}</h1>
+    <div class="text-secondary">{{ _('Cliquer une table, générer un workflow et prévisualiser les données.') }}</div>
+  </div>
+  <a class="btn btn-outline-secondary" href="{{ url_for('portal.web_extract', url=url_input or '', schema=schema_input or '', max_rows=max_rows or 200, table_selector=table_selector or '', verify_ssl='1' if verify_ssl else '0') }}">
+    <i class="bi bi-arrow-left me-1"></i>{{ _('Retour') }}
+  </a>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-xl-4">
+    <div class="card border-0 shadow-sm rounded-4 h-100">
+      <div class="card-body">
+        <div class="mb-2 fw-semibold">{{ _('Paramètres') }}</div>
+
+        <form method="get" action="{{ url_for('portal.web_extract_visual') }}" class="row g-2 mb-2" data-tour="{{ _('Chargez une configuration visuelle existante.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="2">
+          <div class="col-8">
+            <label class="form-label">{{ _('Configuration') }}</label>
+            <select class="form-select" name="config_id">
+              <option value="">{{ _('Sélectionner...') }}</option>
+              {% for c in web_extract_configs or [] %}
+                <option value="{{ c.id }}" {% if selected_config_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-4 d-flex align-items-end">
+            <button class="btn btn-outline-primary w-100" type="submit"><i class="bi bi-folder2-open me-1"></i>{{ _('Charger') }}</button>
+          </div>
+        </form>
+
+        <form id="vis-config-save-form" method="post" action="{{ url_for('portal.web_extract_config_save') }}" class="row g-2 mb-2" data-tour="{{ _('Sauvegardez votre configuration visuelle (URL, sélecteur, actions).') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="7">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="from_page" value="visual">
+          <input type="hidden" name="config_id" id="vis-config-id" value="{{ selected_config_id or '' }}">
+          <input type="hidden" name="url" id="vis-config-url" value="{{ url_input or '' }}">
+          <input type="hidden" name="schema" id="vis-config-schema" value="{{ schema_input or '' }}">
+          <input type="hidden" name="max_rows" id="vis-config-max-rows" value="{{ max_rows or 200 }}">
+          <input type="hidden" name="table_selector" id="vis-config-table-selector" value="{{ table_selector or '' }}">
+          <input type="hidden" name="verify_ssl" id="vis-config-verify-ssl" value="{{ '1' if verify_ssl else '0' }}">
+          <input type="hidden" name="visual_actions_json" id="vis-config-actions" value="[]">
+
+          <div class="col-8">
+            <label class="form-label">{{ _('Nom de la config') }}</label>
+            <input class="form-control" name="config_name" value="{{ selected_config.name if selected_config else '' }}" placeholder="{{ _('Nom de la config') }}">
+          </div>
+          <div class="col-4 d-flex align-items-end">
+            <button class="btn btn-outline-success w-100" type="submit"><i class="bi bi-bookmark-plus me-1"></i>{{ _('Salvar config') }}</button>
+          </div>
+        </form>
+
+        <form method="post" action="{{ url_for('portal.web_extract_config_delete') }}" class="mb-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="from_page" value="visual">
+          <input type="hidden" name="config_id" value="{{ selected_config_id or '' }}">
+          <button class="btn btn-outline-danger btn-sm w-100" type="submit" {% if not selected_config_id %}disabled{% endif %}><i class="bi bi-trash me-1"></i>{{ _('Supprimer') }}</button>
+        </form>
+
+        <div class="mb-2">
+          <label class="form-label">{{ _('URL web') }}</label>
+          <input id="vis-url" class="form-control" type="url" placeholder="https://example.com/page" value="{{ url_input or '' }}" data-tour="{{ _('Renseignez l\'URL cible à analyser.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="3">
+        </div>
+
+        <div class="row g-2">
+          <div class="col-8">
+            <label class="form-label">{{ _('Sélecteur table') }}</label>
+            <input id="vis-table-selector" class="form-control" type="text" placeholder="#id ou .class" value="{{ table_selector or '' }}">
+          </div>
+          <div class="col-4">
+            <label class="form-label">{{ _('Lignes max') }}</label>
+            <input id="vis-max-rows" class="form-control" type="number" min="10" max="1000" value="{{ max_rows or 200 }}">
+          </div>
+        </div>
+
+        <div class="mt-2">
+          <label class="form-label">{{ _('Colonnes souhaitées') }}</label>
+          <input id="vis-schema" class="form-control" type="text" placeholder="name, price, date" value="{{ schema_input or '' }}">
+        </div>
+
+        <div class="form-check mt-2">
+          <input id="vis-ssl" class="form-check-input" type="checkbox" {% if verify_ssl %}checked{% endif %}>
+          <label class="form-check-label" for="vis-ssl">{{ _('Valider certificat SSL') }}</label>
+        </div>
+
+        <div class="d-flex flex-wrap gap-2 mt-3">
+          <button id="vis-load" class="btn btn-outline-primary btn-sm" type="button" data-tour="{{ _('Chargez la page cible dans l\'iframe.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="4"><i class="bi bi-globe2 me-1"></i>{{ _('Charger la page') }}</button>
+          <button id="vis-preview" class="btn btn-primary btn-sm" type="button" data-tour="{{ _('Prévisualisez l\'extraction avant de sauvegarder.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="6"><i class="bi bi-play-circle me-1"></i>{{ _('Prévisualiser extraction') }}</button>
+          <button id="vis-copy-step" class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-clipboard me-1"></i>{{ _('Copier step ETL') }}</button>
+        </div>
+
+        <hr>
+        <div class="d-flex align-items-center justify-content-between">
+          <div class="fw-semibold">{{ _('Workflow visuel') }}</div>
+          <button id="vis-clear-actions" class="btn btn-outline-secondary btn-sm" type="button">{{ _('Vider') }}</button>
+        </div>
+        <div class="small text-secondary mb-2">{{ _('Cliquez dans la page: le sélecteur de la table est capturé automatiquement.') }}</div>
+        <div id="vis-actions-list" class="small" style="max-height:180px;overflow:auto;"></div>
+
+        <div class="mt-2">
+          <label class="form-label">{{ _('Step ETL (JSON)') }}</label>
+          <textarea id="vis-step-json" class="form-control" rows="7" readonly></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-xl-8">
+    <div class="card border-0 shadow-sm rounded-4 mb-3">
+      <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-2 fw-semibold">{{ _('Page cible (proxy)') }}</div>
+      <div class="card-body p-0" style="height:440px;" data-tour="{{ _('Cliquez une table dans la page pour capturer le sélecteur automatiquement.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="5">
+        <iframe id="vis-frame" title="visual web" style="width:100%;height:100%;border:0;background:#fff;"></iframe>
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-4" data-tour="{{ _('Le résultat s\'affiche ici et peut être sauvegardé en CSV.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="8">
+      <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-2 fw-semibold">{{ _('Résultat') }}</div>
+      <div class="card-body">
+        <div id="vis-error" class="alert alert-danger d-none"></div>
+        <div id="vis-meta" class="small text-secondary mb-2"></div>
+
+        <form id="vis-save-form" method="post" action="{{ url_for('portal.web_extract_save_file') }}" class="row g-2 mb-3">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="url" id="vis-save-url" value="{{ url_input or '' }}">
+          <input type="hidden" name="schema" id="vis-save-schema" value="{{ schema_input or '' }}">
+          <input type="hidden" name="max_rows" id="vis-save-max-rows" value="{{ max_rows or 200 }}">
+          <input type="hidden" name="table_selector" id="vis-save-table-selector" value="{{ table_selector or '' }}">
+          <input type="hidden" name="verify_ssl" id="vis-save-verify-ssl" value="{{ '1' if verify_ssl else '0' }}">
+
+          <div class="col-12 col-lg-3">
+            <label class="form-label">{{ _('Dossier') }}</label>
+            <select class="form-select" name="folder_id">
+              <option value="">{{ _('Racine') }}</option>
+              {% for f in folders or [] %}
+                <option value="{{ f.id }}">{{ f.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12 col-lg-3">
+            <label class="form-label">{{ _('Nom du fichier') }}</label>
+            <input class="form-control" name="file_name" value="web_extract.csv">
+          </div>
+          <div class="col-12 col-lg-4">
+            <label class="form-label">{{ _('Nom affiché') }}</label>
+            <input class="form-control" name="display_name" value="Web extract">
+          </div>
+          <div class="col-12 col-lg-2 d-flex align-items-end">
+            <button class="btn btn-success w-100" type="submit">
+              <i class="bi bi-save me-1"></i>{{ _('Salvar') }}
+            </button>
+          </div>
+        </form>
+
+        <div id="vis-table-wrap" class="table-responsive"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+{{ super() }}
+<script>
+(() => {
+  const urlEl = document.getElementById('vis-url');
+  const tableSelectorEl = document.getElementById('vis-table-selector');
+  const schemaEl = document.getElementById('vis-schema');
+  const maxRowsEl = document.getElementById('vis-max-rows');
+  const sslEl = document.getElementById('vis-ssl');
+  const frame = document.getElementById('vis-frame');
+  const errorEl = document.getElementById('vis-error');
+  const metaEl = document.getElementById('vis-meta');
+  const tableWrap = document.getElementById('vis-table-wrap');
+  const actionsListEl = document.getElementById('vis-actions-list');
+  const stepJsonEl = document.getElementById('vis-step-json');
+  const saveForm = document.getElementById('vis-save-form');
+  const saveUrlEl = document.getElementById('vis-save-url');
+  const saveSchemaEl = document.getElementById('vis-save-schema');
+  const saveMaxRowsEl = document.getElementById('vis-save-max-rows');
+  const saveTableSelectorEl = document.getElementById('vis-save-table-selector');
+  const saveVerifySslEl = document.getElementById('vis-save-verify-ssl');
+  const saveConfigForm = document.getElementById('vis-config-save-form');
+  const cfgUrlEl = document.getElementById('vis-config-url');
+  const cfgSchemaEl = document.getElementById('vis-config-schema');
+  const cfgMaxRowsEl = document.getElementById('vis-config-max-rows');
+  const cfgTableSelectorEl = document.getElementById('vis-config-table-selector');
+  const cfgVerifySslEl = document.getElementById('vis-config-verify-ssl');
+  const cfgActionsEl = document.getElementById('vis-config-actions');
+
+  let visualActions = [];
+  let latestStep = null;
+
+  const showError = (msg) => {
+    errorEl.textContent = msg || '';
+    errorEl.classList.toggle('d-none', !msg);
+  };
+
+  const toInt = (v, fallback) => {
+    const n = parseInt(v, 10);
+    return Number.isFinite(n) ? n : fallback;
+  };
+
+  const renderActions = () => {
+    if (!visualActions.length) {
+      actionsListEl.innerHTML = '<div class="text-secondary">{{ _('Aucune action.') }}</div>';
+      return;
+    }
+    actionsListEl.innerHTML = visualActions.map((a, i) => {
+      const selector = a.selector ? ` <span class="text-secondary">(${a.selector})</span>` : '';
+      return `<div class="border rounded-2 px-2 py-1 mb-1"><b>${i + 1}.</b> ${a.type}${selector}</div>`;
+    }).join('');
+  };
+
+  const buildStep = () => ({
+    type: 'extract.web',
+    config: {
+      url: (urlEl.value || '').trim(),
+      schema: (schemaEl.value || '').trim(),
+      max_rows: Math.max(10, Math.min(1000, toInt(maxRowsEl.value, 200))),
+      verify_ssl: !!sslEl.checked,
+      table_selector: (tableSelectorEl.value || '').trim(),
+      visual_actions: visualActions,
+    }
+  });
+
+  const refreshStepJson = () => {
+    latestStep = buildStep();
+    stepJsonEl.value = JSON.stringify(latestStep, null, 2);
+
+    if (saveUrlEl) saveUrlEl.value = latestStep.config.url || '';
+    if (saveSchemaEl) saveSchemaEl.value = latestStep.config.schema || '';
+    if (saveMaxRowsEl) saveMaxRowsEl.value = String(latestStep.config.max_rows || 200);
+    if (saveTableSelectorEl) saveTableSelectorEl.value = latestStep.config.table_selector || '';
+    if (saveVerifySslEl) saveVerifySslEl.value = latestStep.config.verify_ssl ? '1' : '0';
+
+    if (cfgUrlEl) cfgUrlEl.value = latestStep.config.url || '';
+    if (cfgSchemaEl) cfgSchemaEl.value = latestStep.config.schema || '';
+    if (cfgMaxRowsEl) cfgMaxRowsEl.value = String(latestStep.config.max_rows || 200);
+    if (cfgTableSelectorEl) cfgTableSelectorEl.value = latestStep.config.table_selector || '';
+    if (cfgVerifySslEl) cfgVerifySslEl.value = latestStep.config.verify_ssl ? '1' : '0';
+    if (cfgActionsEl) cfgActionsEl.value = JSON.stringify(Array.isArray(latestStep.config.visual_actions) ? latestStep.config.visual_actions : []);
+  };
+
+  const bestTableSelector = (el) => {
+    if (!el || !el.closest) return '';
+    const table = el.closest('table');
+    if (!table) return '';
+    if (table.id) return `#${table.id}`;
+    if (table.classList && table.classList.length) return `.${table.classList[0]}`;
+    const allTables = Array.from(table.ownerDocument.querySelectorAll('table'));
+    const idx = allTables.indexOf(table);
+    return idx >= 0 ? `table:nth-of-type(${idx + 1})` : 'table';
+  };
+
+  const loadFrame = () => {
+    const targetUrl = (urlEl.value || '').trim();
+    if (!/^https?:\/\//i.test(targetUrl)) {
+      showError('{{ _('URL inválida. Use http:// ou https://.') }}');
+      return;
+    }
+    showError('');
+    const proxyUrl = new URL('{{ url_for("portal.web_extract_visual_proxy") }}', window.location.origin);
+    proxyUrl.searchParams.set('url', targetUrl);
+    proxyUrl.searchParams.set('verify_ssl', sslEl.checked ? '1' : '0');
+    frame.src = proxyUrl.toString();
+  };
+
+  const installFrameClickCapture = () => {
+    try {
+      const doc = frame.contentDocument || (frame.contentWindow && frame.contentWindow.document);
+      if (!doc) return;
+      const onClick = (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const selector = bestTableSelector(ev.target);
+        if (!selector) {
+          showError('{{ _('Cliquez dans une table HTML.') }}');
+          return;
+        }
+        tableSelectorEl.value = selector;
+        visualActions.push({ type: 'extract_table', selector });
+        renderActions();
+        refreshStepJson();
+        showError('');
+      };
+      doc.addEventListener('click', onClick, true);
+    } catch (e) {
+      showError('{{ _('Impossible de capturer les clics pour cette page.') }}');
+    }
+  };
+
+  const renderResultTable = (columns, rows) => {
+    const cols = Array.isArray(columns) ? columns : [];
+    const rs = Array.isArray(rows) ? rows : [];
+    if (!cols.length) {
+      tableWrap.innerHTML = '<div class="text-secondary">{{ _('Aucune colonne détectée.') }}</div>';
+      return;
+    }
+    const th = cols.map((c) => `<th>${String(c || '')}</th>`).join('');
+    const body = rs.map((r) => {
+      const arr = Array.isArray(r) ? r : [];
+      return `<tr>${cols.map((_, i) => `<td>${String(arr[i] ?? '')}</td>`).join('')}</tr>`;
+    }).join('');
+    tableWrap.innerHTML = `<table class="table table-sm"><thead><tr>${th}</tr></thead><tbody>${body}</tbody></table>`;
+  };
+
+  const runPreview = async () => {
+    const payload = {
+      url: (urlEl.value || '').trim(),
+      schema: (schemaEl.value || '').trim(),
+      max_rows: Math.max(10, Math.min(1000, toInt(maxRowsEl.value, 200))),
+      verify_ssl: !!sslEl.checked,
+      table_selector: (tableSelectorEl.value || '').trim(),
+      actions: visualActions,
+    };
+
+    if (!/^https?:\/\//i.test(payload.url)) {
+      showError('{{ _('URL inválida. Use http:// ou https://.') }}');
+      return;
+    }
+
+    showError('');
+    metaEl.textContent = '{{ _('Chargement...') }}';
+
+    try {
+      const resp = await fetch('{{ url_for("portal.web_extract_visual_run") }}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': '{{ csrf_token() }}',
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        throw new Error(data.error || 'Erreur');
+      }
+      const result = data.result || {};
+      metaEl.textContent = `${result.mode || 'table'} • ${Array.isArray(result.rows) ? result.rows.length : 0} {{ _('lignes') }}`;
+      renderResultTable(result.columns || [], result.rows || []);
+      latestStep = data.workflow_step || buildStep();
+      stepJsonEl.value = JSON.stringify(latestStep, null, 2);
+    } catch (e) {
+      showError(e && e.message ? e.message : 'Erreur');
+      metaEl.textContent = '';
+      tableWrap.innerHTML = '';
+    }
+  };
+
+  document.getElementById('vis-load').addEventListener('click', loadFrame);
+  document.getElementById('vis-preview').addEventListener('click', runPreview);
+  document.getElementById('vis-clear-actions').addEventListener('click', () => {
+    visualActions = [];
+    renderActions();
+    refreshStepJson();
+  });
+  document.getElementById('vis-copy-step').addEventListener('click', async () => {
+    refreshStepJson();
+    try {
+      await navigator.clipboard.writeText(stepJsonEl.value || '');
+    } catch (_) {
+      stepJsonEl.select();
+      document.execCommand('copy');
+    }
+  });
+
+  saveForm?.addEventListener('submit', () => {
+    refreshStepJson();
+  });
+  saveConfigForm?.addEventListener('submit', () => {
+    refreshStepJson();
+  });
+
+  frame.addEventListener('load', installFrameClickCapture);
+  [urlEl, tableSelectorEl, schemaEl, maxRowsEl, sslEl].forEach((el) => {
+    el.addEventListener('change', refreshStepJson);
+    el.addEventListener('input', refreshStepJson);
+  });
+
+  renderActions();
+  refreshStepJson();
+  if ((urlEl.value || '').trim()) {
+    loadFrame();
+  }
+})();
+</script>
+{% endblock %}

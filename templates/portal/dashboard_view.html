@@ -73,6 +73,16 @@
   </div>
 
   <div class="d-flex align-items-center gap-2">
+    <button
+      class="btn btn-outline-secondary btn-sm js-tts-speak"
+      type="button"
+      title="{{ _('Ouvir explicação') }}"
+      aria-label="{{ _('Ouvir explicação') }}"
+      data-tts-text="{{ _('Este dashboard reúne cards de visualização. Use filtros, ajuste layout e acompanhe indicadores em tempo real.') }}"
+    >
+      <i class="bi bi-volume-up"></i>
+    </button>
+
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.dashboards_list') }}">
       <i class="bi bi-arrow-left"></i> {{ _('Voltar') }}
     </a>
