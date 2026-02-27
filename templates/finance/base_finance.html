@@ -5,34 +5,34 @@
     <div>
       <h1 class="h4 mb-1">{{ _('AUDELA Finance') }}</h1>
       <div class="text-secondary small">
-        {{ _('Empresa') }}: <span class="fw-semibold">{{ company.name if company else '' }}</span>
-        <a class="ms-2" href="{{ url_for('finance.companies') }}">{{ _('Mudar') }}</a>
+        {{ _('Entreprise') }}: <span class="fw-semibold">{{ company.name if company else '' }}</span>
+        <a class="ms-2" href="{{ url_for('finance.companies') }}">{{ _('Changer') }}</a>
       </div>
     </div>
 
-    <div class="d-flex align-items-center gap-2">
+    <div class="d-flex align-items-center gap-2 flex-wrap finance-page-actions">
       {% if transaction_usage %}
         <span class="badge text-bg-light border">
-          {{ _('Transações do mês') }}: {{ transaction_usage.current }}/{{ transaction_usage.max_label }}
+          {{ _('Transactions du mois') }}: {{ transaction_usage.current }}/{{ transaction_usage.max_label }}
         </span>
       {% endif %}
 
       <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.accounts_list') }}">
-        <i class="bi bi-journal-text me-1"></i>{{ _('Contas') }}
+        <i class="bi bi-journal-text me-1"></i>{{ _('Comptes') }}
       </a>
       <div class="dropdown">
         <button class="btn btn-primary btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" data-tour="{{ _('Créez rapidement une transaction depuis ce menu.') }}" data-tour-title="{{ _('Tutoriel') }}" data-tour-order="2">
-          <i class="bi bi-plus-lg me-1"></i>{{ _('Nova transação') }}
+          <i class="bi bi-plus-lg me-1"></i><span class="d-inline d-sm-none">{{ _('Nouvelle') }}</span><span class="d-none d-sm-inline">{{ _('Nouvelle transaction') }}</span>
         </button>
         <ul class="dropdown-menu dropdown-menu-end">
           <li>
             <a class="dropdown-item" href="{{ url_for('finance.transaction_new') }}">
-              <i class="bi bi-pencil-square me-2"></i>{{ _('Transação completa') }}
+              <i class="bi bi-pencil-square me-2"></i>{{ _('Transaction complète') }}
             </a>
           </li>
           <li>
             <a class="dropdown-item" href="{{ url_for('finance.quick_entry') }}">
-              <i class="bi bi-lightning-charge me-2"></i>{{ _('Entrada rápida') }}
+              <i class="bi bi-lightning-charge me-2"></i>{{ _('Entrée rapide') }}
             </a>
           </li>
           <li>
@@ -78,53 +78,93 @@
       class="form-select form-select-sm"
       onchange="if(this.value){ window.location.href = this.value; }"
     >
-      <option value="{{ url_for('finance.dashboard') }}" {% if active=='dashboard' %}selected{% endif %}>{{ _('Visão geral') }}</option>
-      <option value="{{ url_for('finance.accounts_list') }}" {% if active=='accounts' %}selected{% endif %}>{{ _('Contas') }}</option>
-      <option value="{{ url_for('finance.transactions_list') }}" {% if active=='transactions' %}selected{% endif %}>{{ _('Transações') }}</option>
-      <option value="{{ url_for('finance.quick_entry') }}" {% if active=='quick_entry' %}selected{% endif %}>{{ _('Entrada rápida') }}</option>
-      <option value="{{ url_for('finance.reports_transactions') }}" {% if active=='reports' %}selected{% endif %}>{{ _('Relatórios') }}</option>
+      <option value="{{ url_for('finance.dashboard') }}" {% if active=='dashboard' %}selected{% endif %}>{{ _('Vue d\'ensemble') }}</option>
+      <option value="{{ url_for('finance.accounts_list') }}" {% if active=='accounts' %}selected{% endif %}>{{ _('Comptes') }}</option>
+      <option value="{{ url_for('finance.transactions_list') }}" {% if active=='transactions' %}selected{% endif %}>{{ _('Transactions') }}</option>
+      <option value="{{ url_for('finance.quick_entry') }}" {% if active=='quick_entry' %}selected{% endif %}>{{ _('Entrée rapide') }}</option>
+      <option value="{{ url_for('finance.reports_transactions') }}" {% if active=='reports' %}selected{% endif %}>{{ _('Rapports') }}</option>
       <option value="{{ url_for('finance.reports_statistics') }}" {% if active=='stats' %}selected{% endif %}>{{ _('Statistiques') }}</option>
       <option value="{{ url_for('finance.reports_accounting') }}" {% if active=='reports' %}selected{% endif %}>{{ _('Rapport comptable') }}</option>
       <option value="{{ url_for('finance.pivot_page') }}" {% if active=='pivot' %}selected{% endif %}>{{ _('Pivot') }}</option>
-      <option value="{{ url_for('finance.invoices_list') }}" {% if active=='invoices' %}selected{% endif %}>{{ _('E-faturas') }}</option>
-      <option value="{{ url_for('finance.alerts_page') }}" {% if active=='alerts' %}selected{% endif %}>{{ _('Alertas') }}</option>
-      <option value="{{ url_for('finance.regulation_page') }}" {% if active=='regulation' %}selected{% endif %}>{{ _('Regulação') }}</option>
-      <option value="{{ url_for('finance.liabilities_list') }}" {% if active=='liabilities' %}selected{% endif %}>{{ _('Financiamentos') }}</option>
-      <option value="{{ url_for('finance.investments_list') }}" {% if active=='investments' %}selected{% endif %}>{{ _('Investimentos') }}</option>
-      <option value="{{ url_for('finance.recurring_list') }}" {% if active=='recurring' %}selected{% endif %}>{{ _('Recorrentes') }}</option>
+      <option value="{{ url_for('finance.invoices_list') }}" {% if active=='invoices' %}selected{% endif %}>{{ _('E-factures') }}</option>
+      <option value="{{ url_for('finance.alerts_page') }}" {% if active=='alerts' %}selected{% endif %}>{{ _('Alertes') }}</option>
+      <option value="{{ url_for('finance.regulation_page') }}" {% if active=='regulation' %}selected{% endif %}>{{ _('Régulation') }}</option>
+      <option value="{{ url_for('finance.liabilities_list') }}" {% if active=='liabilities' %}selected{% endif %}>{{ _('Financements') }}</option>
+      <option value="{{ url_for('finance.investments_list') }}" {% if active=='investments' %}selected{% endif %}>{{ _('Investissements') }}</option>
+      <option value="{{ url_for('finance.recurring_list') }}" {% if active=='recurring' %}selected{% endif %}>{{ _('Récurrents') }}</option>
       <option value="{{ url_for('finance.cashflow') }}" {% if active=='cashflow' %}selected{% endif %}>{{ _('Cashflow') }}</option>
       <option value="{{ url_for('finance.nii') }}" {% if active=='nii' %}selected{% endif %}>{{ _('NII') }}</option>
       <option value="{{ url_for('finance.gaps') }}" {% if active=='gaps' %}selected{% endif %}>{{ _('Gaps') }}</option>
-      <option value="{{ url_for('finance.liquidity') }}" {% if active=='liquidity' %}selected{% endif %}>{{ _('Liquidez') }}</option>
-      <option value="{{ url_for('finance.risk') }}" {% if active=='risk' %}selected{% endif %}>{{ _('Risco') }}</option>
-      <option value="{{ url_for('finance.settings_categories') }}" {% if active=='settings' %}selected{% endif %}>{{ _('Configurações') }}</option>
-      <option value="{{ url_for('finance.help_page') }}" {% if active=='help' %}selected{% endif %}>{{ _('Ajuda') }}</option>
+      <option value="{{ url_for('finance.liquidity') }}" {% if active=='liquidity' %}selected{% endif %}>{{ _('Liquidité') }}</option>
+      <option value="{{ url_for('finance.risk') }}" {% if active=='risk' %}selected{% endif %}>{{ _('Risque') }}</option>
+      <option value="{{ url_for('finance.settings_categories') }}" {% if active=='settings' %}selected{% endif %}>{{ _('Paramètres') }}</option>
+      <option value="{{ url_for('finance.help_page') }}" {% if active=='help' %}selected{% endif %}>{{ _('Aide') }}</option>
     </select>
   </div>
 
   <ul class="nav nav-pills d-none d-md-flex flex-wrap gap-1 mb-4">
-    <li class="nav-item"><a class="nav-link {% if active=='dashboard' %}active{% endif %}" href="{{ url_for('finance.dashboard') }}">{{ _('Visão geral') }}</a></li>
-    <li class="nav-item"><a class="nav-link {% if active=='accounts' %}active{% endif %}" href="{{ url_for('finance.accounts_list') }}">{{ _('Contas') }}</a></li>
-    <li class="nav-item"><a class="nav-link {% if active=='transactions' %}active{% endif %}" href="{{ url_for('finance.transactions_list') }}">{{ _('Transações') }}</a></li>
-    <li class="nav-item"><a class="nav-link {% if active=='quick_entry' %}active{% endif %}" href="{{ url_for('finance.quick_entry') }}">{{ _('Entrada rápida') }}</a></li>
-    <li class="nav-item"><a class="nav-link {% if active=='reports' %}active{% endif %}" href="{{ url_for('finance.reports_transactions') }}">{{ _('Relatórios') }}</a></li>
+    <li class="nav-item"><a class="nav-link {% if active=='dashboard' %}active{% endif %}" href="{{ url_for('finance.dashboard') }}">{{ _('Vue d\'ensemble') }}</a></li>
+    <li class="nav-item"><a class="nav-link {% if active=='accounts' %}active{% endif %}" href="{{ url_for('finance.accounts_list') }}">{{ _('Comptes') }}</a></li>
+    <li class="nav-item"><a class="nav-link {% if active=='transactions' %}active{% endif %}" href="{{ url_for('finance.transactions_list') }}">{{ _('Transactions') }}</a></li>
+    <li class="nav-item"><a class="nav-link {% if active=='quick_entry' %}active{% endif %}" href="{{ url_for('finance.quick_entry') }}">{{ _('Entrée rapide') }}</a></li>
+    <li class="nav-item"><a class="nav-link {% if active=='reports' %}active{% endif %}" href="{{ url_for('finance.reports_transactions') }}">{{ _('Rapports') }}</a></li>
     <li class="nav-item"><a class="nav-link {% if active=='stats' %}active{% endif %}" href="{{ url_for('finance.reports_statistics') }}">{{ _('Statistiques') }}</a></li>
     <li class="nav-item"><a class="nav-link {% if active=='reports' %}active{% endif %}" href="{{ url_for('finance.reports_accounting') }}">{{ _('Rapport comptable') }}</a></li>
     <li class="nav-item"><a class="nav-link {% if active=='pivot' %}active{% endif %}" href="{{ url_for('finance.pivot_page') }}">{{ _('Pivot') }}</a></li>
-    <li class="nav-item"><a class="nav-link {% if active=='invoices' %}active{% endif %}" href="{{ url_for('finance.invoices_list') }}">{{ _('E-faturas') }}</a></li>
-    <li class="nav-item"><a class="nav-link {% if active=='alerts' %}active{% endif %}" href="{{ url_for('finance.alerts_page') }}">{{ _('Alertas') }}</a></li>
-    <li class="nav-item"><a class="nav-link {% if active=='regulation' %}active{% endif %}" href="{{ url_for('finance.regulation_page') }}">{{ _('Regulação') }}</a></li>
-    <li class="nav-item"><a class="nav-link {% if active=='liabilities' %}active{% endif %}" href="{{ url_for('finance.liabilities_list') }}">{{ _('Financiamentos') }}</a></li>
-    <li class="nav-item"><a class="nav-link {% if active=='investments' %}active{% endif %}" href="{{ url_for('finance.investments_list') }}">{{ _('Investimentos') }}</a></li>
-    <li class="nav-item"><a class="nav-link {% if active=='recurring' %}active{% endif %}" href="{{ url_for('finance.recurring_list') }}">{{ _('Recorrentes') }}</a></li>
+    <li class="nav-item"><a class="nav-link {% if active=='invoices' %}active{% endif %}" href="{{ url_for('finance.invoices_list') }}">{{ _('E-factures') }}</a></li>
+    <li class="nav-item"><a class="nav-link {% if active=='alerts' %}active{% endif %}" href="{{ url_for('finance.alerts_page') }}">{{ _('Alertes') }}</a></li>
+    <li class="nav-item"><a class="nav-link {% if active=='regulation' %}active{% endif %}" href="{{ url_for('finance.regulation_page') }}">{{ _('Régulation') }}</a></li>
+    <li class="nav-item"><a class="nav-link {% if active=='liabilities' %}active{% endif %}" href="{{ url_for('finance.liabilities_list') }}">{{ _('Financements') }}</a></li>
+    <li class="nav-item"><a class="nav-link {% if active=='investments' %}active{% endif %}" href="{{ url_for('finance.investments_list') }}">{{ _('Investissements') }}</a></li>
+    <li class="nav-item"><a class="nav-link {% if active=='recurring' %}active{% endif %}" href="{{ url_for('finance.recurring_list') }}">{{ _('Récurrents') }}</a></li>
     <li class="nav-item"><a class="nav-link {% if active=='cashflow' %}active{% endif %}" href="{{ url_for('finance.cashflow') }}">{{ _('Cashflow') }}</a></li>
     <li class="nav-item"><a class="nav-link {% if active=='nii' %}active{% endif %}" href="{{ url_for('finance.nii') }}">{{ _('NII') }}</a></li>
     <li class="nav-item"><a class="nav-link {% if active=='gaps' %}active{% endif %}" href="{{ url_for('finance.gaps') }}">{{ _('Gaps') }}</a></li>
-    <li class="nav-item"><a class="nav-link {% if active=='liquidity' %}active{% endif %}" href="{{ url_for('finance.liquidity') }}">{{ _('Liquidez') }}</a></li>
-    <li class="nav-item"><a class="nav-link {% if active=='risk' %}active{% endif %}" href="{{ url_for('finance.risk') }}">{{ _('Risco') }}</a></li>
-    <li class="nav-item"><a class="nav-link {% if active=='settings' %}active{% endif %}" href="{{ url_for('finance.settings_categories') }}">{{ _('Configurações') }}</a></li>
-    <li class="nav-item"><a class="nav-link {% if active=='help' %}active{% endif %}" href="{{ url_for('finance.help_page') }}">{{ _('Ajuda') }}</a></li>
+    <li class="nav-item"><a class="nav-link {% if active=='liquidity' %}active{% endif %}" href="{{ url_for('finance.liquidity') }}">{{ _('Liquidité') }}</a></li>
+    <li class="nav-item"><a class="nav-link {% if active=='risk' %}active{% endif %}" href="{{ url_for('finance.risk') }}">{{ _('Risque') }}</a></li>
+    <li class="nav-item"><a class="nav-link {% if active=='settings' %}active{% endif %}" href="{{ url_for('finance.settings_categories') }}">{{ _('Paramètres') }}</a></li>
+    <li class="nav-item"><a class="nav-link {% if active=='help' %}active{% endif %}" href="{{ url_for('finance.help_page') }}">{{ _('Aide') }}</a></li>
   </ul>
 
   {% block finance_content %}{% endblock %}
+
+  <style>
+    @media (max-width: 767.98px) {
+      .finance-page-actions {
+        width: 100%;
+      }
+
+      .finance-page-actions .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1.2;
+      }
+
+      .finance-page-actions .btn i {
+        line-height: 1;
+      }
+
+      .finance-page-actions .badge {
+        width: 100%;
+        text-align: center;
+      }
+    }
+
+    @media (max-width: 359.98px) {
+      .finance-page-actions {
+        gap: .5rem !important;
+      }
+
+      .finance-page-actions > .btn,
+      .finance-page-actions > .dropdown {
+        flex: 1 1 calc(50% - .25rem);
+        min-width: 0;
+      }
+
+      .finance-page-actions > .dropdown > .btn {
+        width: 100%;
+      }
+    }
+  </style>
 {% endblock %}

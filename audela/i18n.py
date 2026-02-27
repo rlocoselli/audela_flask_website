@@ -8099,6 +8099,140 @@ for _lang, _mp in _I18N_TTS_20260226.items():
     TRANSLATIONS.setdefault(_lang, {}).update(_mp)
 
 
+_I18N_REPORT_TUTORIAL_20260226 = {
+    "pt": {
+        "Tutoriel Report": "Tutorial Report",
+        "Construisez votre rapport en glissant des composants dans les zones de page.": "Construa seu relatório arrastando componentes para as áreas da página.",
+        "Ouvrez l'explorateur de données pour insérer tables, champs et questions.": "Abra o explorador de dados para inserir tabelas, campos e perguntas.",
+        "Ajoutez des blocs de base (texte, markdown, image, question, champ) par glisser-déposer.": "Adicione blocos básicos (texto, markdown, imagem, pergunta, campo) com arrastar e soltar.",
+        "Insérez rapidement une question existante dans la zone Detail.": "Insira rapidamente uma pergunta existente na área Detail.",
+        "Insérez une image par URL pour votre logo ou illustration.": "Insira uma imagem por URL para seu logo ou ilustração.",
+        "Choisissez un modèle de document et un style global avant de finaliser.": "Escolha um modelo de documento e um estilo global antes de finalizar.",
+        "Déposez ici les éléments à afficher une seule fois au début du rapport.": "Solte aqui os elementos exibidos apenas uma vez no início do relatório.",
+        "Déposez ici les éléments répétés sur toutes les pages.": "Solte aqui os elementos repetidos em todas as páginas.",
+        "Déposez ici le contenu principal du rapport (tableaux, graphiques, champs).": "Solte aqui o conteúdo principal do relatório (tabelas, gráficos, campos).",
+        "Déposez ici les éléments répétés en bas de chaque page.": "Solte aqui os elementos repetidos no rodapé de cada página.",
+        "Déposez ici les éléments affichés uniquement à la fin du rapport.": "Solte aqui os elementos exibidos apenas no final do relatório.",
+        "Prévisualisez puis exportez en PDF lorsque la mise en page est prête.": "Visualize e depois exporte em PDF quando o layout estiver pronto.",
+    },
+    "en": {
+        "Tutoriel Report": "Report Tutorial",
+        "Construisez votre rapport en glissant des composants dans les zones de page.": "Build your report by dragging components into page sections.",
+        "Ouvrez l'explorateur de données pour insérer tables, champs et questions.": "Open the data explorer to insert tables, fields, and questions.",
+        "Ajoutez des blocs de base (texte, markdown, image, question, champ) par glisser-déposer.": "Add basic blocks (text, markdown, image, question, field) via drag and drop.",
+        "Insérez rapidement une question existante dans la zone Detail.": "Quickly insert an existing question into the Detail section.",
+        "Insérez une image par URL pour votre logo ou illustration.": "Insert an image by URL for your logo or illustration.",
+        "Choisissez un modèle de document et un style global avant de finaliser.": "Choose a document template and global style before finalizing.",
+        "Déposez ici les éléments à afficher une seule fois au début du rapport.": "Drop here elements shown only once at the start of the report.",
+        "Déposez ici les éléments répétés sur toutes les pages.": "Drop here elements repeated on all pages.",
+        "Déposez ici le contenu principal du rapport (tableaux, graphiques, champs).": "Drop here the main report content (tables, charts, fields).",
+        "Déposez ici les éléments répétés en bas de chaque page.": "Drop here elements repeated at the bottom of each page.",
+        "Déposez ici les éléments affichés uniquement à la fin du rapport.": "Drop here elements displayed only at the end of the report.",
+        "Prévisualisez puis exportez en PDF lorsque la mise en page est prête.": "Preview then export to PDF when the layout is ready.",
+    },
+    "fr": {
+        "Tutoriel Report": "Tutoriel Report",
+        "Construisez votre rapport en glissant des composants dans les zones de page.": "Construisez votre rapport en glissant des composants dans les zones de page.",
+        "Ouvrez l'explorateur de données pour insérer tables, champs et questions.": "Ouvrez l'explorateur de données pour insérer tables, champs et questions.",
+        "Ajoutez des blocs de base (texte, markdown, image, question, champ) par glisser-déposer.": "Ajoutez des blocs de base (texte, markdown, image, question, champ) par glisser-déposer.",
+        "Insérez rapidement une question existante dans la zone Detail.": "Insérez rapidement une question existante dans la zone Detail.",
+        "Insérez une image par URL pour votre logo ou illustration.": "Insérez une image par URL pour votre logo ou illustration.",
+        "Choisissez un modèle de document et un style global avant de finaliser.": "Choisissez un modèle de document et un style global avant de finaliser.",
+        "Déposez ici les éléments à afficher une seule fois au début du rapport.": "Déposez ici les éléments à afficher une seule fois au début du rapport.",
+        "Déposez ici les éléments répétés sur toutes les pages.": "Déposez ici les éléments répétés sur toutes les pages.",
+        "Déposez ici le contenu principal du rapport (tableaux, graphiques, champs).": "Déposez ici le contenu principal du rapport (tableaux, graphiques, champs).",
+        "Déposez ici les éléments répétés en bas de chaque page.": "Déposez ici les éléments répétés en bas de chaque page.",
+        "Déposez ici les éléments affichés uniquement à la fin du rapport.": "Déposez ici les éléments affichés uniquement à la fin du rapport.",
+        "Prévisualisez puis exportez en PDF lorsque la mise en page est prête.": "Prévisualisez puis exportez en PDF lorsque la mise en page est prête.",
+    },
+    "es": {
+        "Tutoriel Report": "Tutorial de reportes",
+        "Construisez votre rapport en glissant des composants dans les zones de page.": "Construye tu reporte arrastrando componentes a las zonas de página.",
+        "Ouvrez l'explorateur de données pour insérer tables, champs et questions.": "Abre el explorador de datos para insertar tablas, campos y preguntas.",
+        "Ajoutez des blocs de base (texte, markdown, image, question, champ) par glisser-déposer.": "Agrega bloques básicos (texto, markdown, imagen, pregunta, campo) con arrastrar y soltar.",
+        "Insérez rapidement une question existante dans la zone Detail.": "Inserta rápidamente una pregunta existente en la zona Detail.",
+        "Insérez une image par URL pour votre logo ou illustration.": "Inserta una imagen por URL para tu logo o ilustración.",
+        "Choisissez un modèle de document et un style global avant de finaliser.": "Elige una plantilla de documento y un estilo global antes de finalizar.",
+        "Déposez ici les éléments à afficher une seule fois au début du rapport.": "Suelta aquí los elementos que se muestran solo una vez al inicio del reporte.",
+        "Déposez ici les éléments répétés sur toutes les pages.": "Suelta aquí los elementos repetidos en todas las páginas.",
+        "Déposez ici le contenu principal du rapport (tableaux, graphiques, champs).": "Suelta aquí el contenido principal del reporte (tablas, gráficos, campos).",
+        "Déposez ici les éléments répétés en bas de chaque page.": "Suelta aquí los elementos repetidos al pie de cada página.",
+        "Déposez ici les éléments affichés uniquement à la fin du rapport.": "Suelta aquí los elementos mostrados solo al final del reporte.",
+        "Prévisualisez puis exportez en PDF lorsque la mise en page est prête.": "Previsualiza y luego exporta a PDF cuando el diseño esté listo.",
+    },
+    "it": {
+        "Tutoriel Report": "Tutorial report",
+        "Construisez votre rapport en glissant des composants dans les zones de page.": "Costruisci il report trascinando i componenti nelle aree della pagina.",
+        "Ouvrez l'explorateur de données pour insérer tables, champs et questions.": "Apri l'esploratore dati per inserire tabelle, campi e domande.",
+        "Ajoutez des blocs de base (texte, markdown, image, question, champ) par glisser-déposer.": "Aggiungi blocchi base (testo, markdown, immagine, domanda, campo) con drag and drop.",
+        "Insérez rapidement une question existante dans la zone Detail.": "Inserisci rapidamente una domanda esistente nella zona Detail.",
+        "Insérez une image par URL pour votre logo ou illustration.": "Inserisci un'immagine tramite URL per logo o illustrazione.",
+        "Choisissez un modèle de document et un style global avant de finaliser.": "Scegli un modello di documento e uno stile globale prima di finalizzare.",
+        "Déposez ici les éléments à afficher une seule fois au début du rapport.": "Trascina qui gli elementi da mostrare una sola volta all'inizio del report.",
+        "Déposez ici les éléments répétés sur toutes les pages.": "Trascina qui gli elementi ripetuti in tutte le pagine.",
+        "Déposez ici le contenu principal du rapport (tableaux, graphiques, champs).": "Trascina qui il contenuto principale del report (tabelle, grafici, campi).",
+        "Déposez ici les éléments répétés en bas de chaque page.": "Trascina qui gli elementi ripetuti a piè di pagina.",
+        "Déposez ici les éléments affichés uniquement à la fin du rapport.": "Trascina qui gli elementi mostrati solo alla fine del report.",
+        "Prévisualisez puis exportez en PDF lorsque la mise en page est prête.": "Anteprima e poi esporta in PDF quando il layout è pronto.",
+    },
+    "de": {
+        "Tutoriel Report": "Report-Tutorial",
+        "Construisez votre rapport en glissant des composants dans les zones de page.": "Erstellen Sie den Bericht, indem Sie Komponenten in die Seitenbereiche ziehen.",
+        "Ouvrez l'explorateur de données pour insérer tables, champs et questions.": "Öffnen Sie den Daten-Explorer, um Tabellen, Felder und Fragen einzufügen.",
+        "Ajoutez des blocs de base (texte, markdown, image, question, champ) par glisser-déposer.": "Fügen Sie Basisblöcke (Text, Markdown, Bild, Frage, Feld) per Drag-and-drop hinzu.",
+        "Insérez rapidement une question existante dans la zone Detail.": "Fügen Sie schnell eine vorhandene Frage in den Bereich Detail ein.",
+        "Insérez une image par URL pour votre logo ou illustration.": "Fügen Sie ein Bild per URL für Logo oder Illustration ein.",
+        "Choisissez un modèle de document et un style global avant de finaliser.": "Wählen Sie ein Dokumentvorlage und einen globalen Stil vor dem Finalisieren.",
+        "Déposez ici les éléments à afficher une seule fois au début du rapport.": "Legen Sie hier Elemente ab, die nur einmal am Anfang des Berichts angezeigt werden.",
+        "Déposez ici les éléments répétés sur toutes les pages.": "Legen Sie hier Elemente ab, die auf allen Seiten wiederholt werden.",
+        "Déposez ici le contenu principal du rapport (tableaux, graphiques, champs).": "Legen Sie hier den Hauptinhalt des Berichts ab (Tabellen, Diagramme, Felder).",
+        "Déposez ici les éléments répétés en bas de chaque page.": "Legen Sie hier Elemente ab, die unten auf jeder Seite wiederholt werden.",
+        "Déposez ici les éléments affichés uniquement à la fin du rapport.": "Legen Sie hier Elemente ab, die nur am Ende des Berichts angezeigt werden.",
+        "Prévisualisez puis exportez en PDF lorsque la mise en page est prête.": "Vorschau ansehen und dann als PDF exportieren, wenn das Layout fertig ist.",
+    },
+}
+
+
+_I18N_ADMIN_20260227 = {
+    "en": {
+        "Acesso negado.": "Access denied.",
+        "Login admin realizado com sucesso.": "Admin login successful.",
+        "Assinatura atualizada para {email}.": "Subscription updated for {email}.",
+        "A senha deve ter pelo menos 12 caracteres.": "Password must be at least 12 characters long.",
+    },
+    "fr": {
+        "Acesso negado.": "Accès refusé.",
+        "Login admin realizado com sucesso.": "Connexion administrateur réussie.",
+        "Assinatura atualizada para {email}.": "Abonnement mis à jour pour {email}.",
+        "A senha deve ter pelo menos 12 caracteres.": "Le mot de passe doit contenir au moins 12 caractères.",
+    },
+    "es": {
+        "Acesso negado.": "Acceso denegado.",
+        "Login admin realizado com sucesso.": "Inicio de sesión de administrador realizado con éxito.",
+        "Assinatura atualizada para {email}.": "Suscripción actualizada para {email}.",
+        "A senha deve ter pelo menos 12 caracteres.": "La contraseña debe tener al menos 12 caracteres.",
+    },
+    "it": {
+        "Acesso negado.": "Accesso negato.",
+        "Login admin realizado com sucesso.": "Accesso amministratore effettuato con successo.",
+        "Assinatura atualizada para {email}.": "Abbonamento aggiornato per {email}.",
+        "A senha deve ter pelo menos 12 caracteres.": "La password deve contenere almeno 12 caratteri.",
+    },
+    "de": {
+        "Acesso negado.": "Zugriff verweigert.",
+        "Login admin realizado com sucesso.": "Admin-Anmeldung erfolgreich.",
+        "Assinatura atualizada para {email}.": "Abonnement für {email} aktualisiert.",
+        "A senha deve ter pelo menos 12 caracteres.": "Das Passwort muss mindestens 12 Zeichen lang sein.",
+    },
+}
+
+for _lang, _mp in _I18N_ADMIN_20260227.items():
+    TRANSLATIONS.setdefault(_lang, {}).update(_mp)
+
+for _lang, _mp in _I18N_REPORT_TUTORIAL_20260226.items():
+    TRANSLATIONS.setdefault(_lang, {}).update(_mp)
+
+
 def tr(msgid: str, lang: str | None = None, **kwargs: Any) -> str:
     """Translate msgid using the configured dictionary.
 

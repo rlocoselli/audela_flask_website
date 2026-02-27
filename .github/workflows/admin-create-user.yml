@@ -1,0 +1,83 @@
+name: Admin - Create/Update Superuser
+
+on:
+  workflow_dispatch:
+    inputs:
+      identifier:
+        description: "Admin identifier (stored in users.email, e.g. admin_user)"
+        required: true
+        type: string
+      tenant_slug:
+        description: "Tenant slug for platform admin"
+        required: false
+        default: "platform-admin"
+        type: string
+      tenant_name:
+        description: "Tenant name for platform admin"
+        required: false
+        default: "Platform Admin"
+        type: string
+      update_existing:
+        description: "Update password if user already exists"
+        required: true
+        default: true
+        type: boolean
+
+jobs:
+  create-superuser:
+    runs-on: ubuntu-latest
+    environment: audeladesdonnees
+
+    steps:
+      - name: Create/Update superuser via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: root
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          command_timeout: 20m
+          script: |
+            set -e
+
+            cd /root/audela_flask_website
+
+            COMPOSE_CMD="docker compose"
+            if ! docker compose version >/dev/null 2>&1; then
+              COMPOSE_CMD="docker-compose"
+            fi
+
+            IDENTIFIER="${{ github.event.inputs.identifier }}"
+            TENANT_SLUG="${{ github.event.inputs.tenant_slug }}"
+            TENANT_NAME="${{ github.event.inputs.tenant_name }}"
+            UPDATE_EXISTING="${{ github.event.inputs.update_existing }}"
+            ADMIN_PASSWORD="${{ secrets.ADMIN_SUPERUSER_PASSWORD }}"
+
+            if [ -z "$IDENTIFIER" ]; then
+              echo "❌ identifier is required"
+              exit 1
+            fi
+
+            if [ -z "$ADMIN_PASSWORD" ]; then
+              echo "❌ Missing secret ADMIN_SUPERUSER_PASSWORD"
+              exit 1
+            fi
+
+            if [ "$UPDATE_EXISTING" = "true" ]; then
+              UPDATE_FLAG="--update-existing"
+            else
+              UPDATE_FLAG="--no-update-existing"
+            fi
+
+            # Ensure service is up before exec
+            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml up -d audela
+
+            # Non-interactive execution (stdin prompts: identifier, password, password confirmation)
+            printf "%s\n%s\n%s\n" "$IDENTIFIER" "$ADMIN_PASSWORD" "$ADMIN_PASSWORD" | \
+              $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela \
+              flask --app audela:create_app admin createsuperuser \
+              --tenant-slug "$TENANT_SLUG" \
+              --tenant-name "$TENANT_NAME" \
+              $UPDATE_FLAG
+
+            echo "✅ Superuser create/update finished for: $IDENTIFIER"

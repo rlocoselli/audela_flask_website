@@ -132,6 +132,7 @@ def create_app() -> Flask:
     from .blueprints.finance.finance_master_data import finance_master_bp
     from .blueprints.tenant import bp as tenant_bp
     from .blueprints.billing import bp as billing_bp
+    from .blueprints.admin import bp as admin_bp
 
     app.register_blueprint(public_bp)
     app.register_blueprint(auth_bp)
@@ -142,6 +143,7 @@ def create_app() -> Flask:
     app.register_blueprint(finance_master_bp)
     app.register_blueprint(tenant_bp)
     app.register_blueprint(billing_bp)
+    app.register_blueprint(admin_bp)
 
     # Legacy compatibility: previous links may still use /portal/*.
     @app.route("/portal", methods=["GET"])
@@ -157,9 +159,10 @@ def create_app() -> Flask:
         return redirect(target, code=302)
 
     # Finance CLI Commands
-    from .commands import init_finance_cli, init_celery_cli
+    from .commands import init_finance_cli, init_celery_cli, init_admin_cli
     init_finance_cli(app)
     init_celery_cli(app)
+    init_admin_cli(app)
 
     # Finance Auto-balance Updates (SQLAlchemy Event Listeners)
     from .services.bank_configuration_service import initialize_balance_updates

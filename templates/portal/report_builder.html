@@ -78,16 +78,16 @@
 {% block portal_content %}
 <div class="d-flex align-items-center justify-content-between mb-3">
   <div>
-    <h4 class="mb-0">{{ report.name }}</h4>
+    <h4 class="mb-0" data-tour="{{ _('Construisez votre rapport en glissant des composants dans les zones de page.') }}" data-tour-title="{{ _('Tutoriel Report') }}" data-tour-order="1">{{ report.name }}</h4>
     <div class="text-muted small">{{ _('Fonte') }}: {{ source.name }} ({{ source.type }})</div>
   </div>
   <div class="d-flex gap-2">
     <a class="btn btn-outline-secondary" href="{{ url_for('portal.reports_list') }}"><i class="bi bi-arrow-left me-1"></i>{{ _('Voltar') }}</a>
-    <button class="btn btn-outline-secondary" type="button" id="rb-floating-explorer-toggle"><i class="bi bi-layout-sidebar-inset-reverse me-1"></i>{{ _('Data Explorer') }}</button>
+    <button class="btn btn-outline-secondary" type="button" id="rb-floating-explorer-toggle" data-tour="{{ _('Ouvrez l\'explorateur de données pour insérer tables, champs et questions.') }}" data-tour-title="{{ _('Tutoriel Report') }}" data-tour-order="2"><i class="bi bi-layout-sidebar-inset-reverse me-1"></i>{{ _('Data Explorer') }}</button>
     <a class="btn btn-outline-secondary" target="_blank" href="{{ url_for('portal.report_view', report_id=report.id) }}">
       <i class="bi bi-eye me-1"></i>{{ _('Visualizar') }}
     </a>
-    <a class="btn btn-outline-secondary" href="{{ url_for('portal.report_pdf', report_id=report.id) }}">
+    <a class="btn btn-outline-secondary" href="{{ url_for('portal.report_pdf', report_id=report.id) }}" data-tour="{{ _('Prévisualisez puis exportez en PDF lorsque la mise en page est prête.') }}" data-tour-title="{{ _('Tutoriel Report') }}" data-tour-order="10">
       <i class="bi bi-filetype-pdf me-1"></i>{{ _('PDF') }}
     </a>
     <button class="btn btn-primary" id="rb-save"><i class="bi bi-save me-1"></i>{{ _('Salvar') }}</button>
@@ -97,7 +97,7 @@
 <div class="row g-4">
   <!-- Palette / Settings -->
   <div class="col-lg-4">
-    <div class="rb-panel p-3 mb-4">
+    <div class="rb-panel p-3 mb-4" data-tour="{{ _('Ajoutez des blocs de base (texte, markdown, image, question, champ) par glisser-déposer.') }}" data-tour-title="{{ _('Tutoriel Report') }}" data-tour-order="3">
       <div class="d-flex align-items-center justify-content-between mb-2">
         <div class="fw-semibold">{{ _('Componentes') }}</div>
         <span class="text-muted small">{{ _('Arraste e solte') }}</span>
@@ -162,7 +162,7 @@
 
       <hr>
 
-      <div class="fw-semibold mb-2">{{ _('Adicionar pergunta') }}</div>
+      <div class="fw-semibold mb-2" data-tour="{{ _('Insérez rapidement une question existante dans la zone Detail.') }}" data-tour-title="{{ _('Tutoriel Report') }}" data-tour-order="4">{{ _('Adicionar pergunta') }}</div>
       <div class="d-flex gap-2">
         <select id="rb-question" class="form-select">
           <option value="">--</option>
@@ -176,7 +176,7 @@
 
       <hr>
 
-      <div class="fw-semibold mb-2">{{ _('Adicionar imagem') }}</div>
+      <div class="fw-semibold mb-2" data-tour="{{ _('Insérez une image par URL pour votre logo ou illustration.') }}" data-tour-title="{{ _('Tutoriel Report') }}" data-tour-order="5">{{ _('Adicionar imagem') }}</div>
       <div class="d-flex gap-2">
         <input id="rb-image-url" class="form-control" placeholder="{{ _('URL (https://...)') }}" />
         <button class="btn btn-outline-primary" id="rb-add-image" type="button">{{ _('Inserir') }}</button>
@@ -191,7 +191,7 @@
 
     
 
-    <div class="rb-panel p-3 mb-4" id="rb-settings-panel">
+    <div class="rb-panel p-3 mb-4" id="rb-settings-panel" data-tour="{{ _('Choisissez un modèle de document et un style global avant de finaliser.') }}" data-tour-title="{{ _('Tutoriel Report') }}" data-tour-order="6">
       <div class="fw-semibold mb-2">{{ _('Configurações') }}</div>
       <div class="mb-3">
         <label class="form-label">{{ _('Templates de document') }}</label>
@@ -234,7 +234,7 @@
       <div class="row g-3">
 
         <div class="col-12">
-          <div class="rb-section">
+          <div class="rb-section" data-tour="{{ _('Déposez ici les éléments à afficher une seule fois au début du rapport.') }}" data-tour-title="{{ _('Tutoriel Report') }}" data-tour-order="7">
             <div class="d-flex align-items-center justify-content-between mb-2">
               <div class="rb-section-title">{{ _('Report Header') }}</div>
               <span class="text-muted small">{{ _('Apenas na 1ª página') }}</span>
@@ -246,7 +246,7 @@
         </div>
 
         <div class="col-12">
-          <div class="rb-section">
+          <div class="rb-section" data-tour="{{ _('Déposez ici les éléments répétés sur toutes les pages.') }}" data-tour-title="{{ _('Tutoriel Report') }}" data-tour-order="8">
             <div class="d-flex align-items-center justify-content-between mb-2">
               <div class="rb-section-title">{{ _('Page Header') }}</div>
               <span class="text-muted small">{{ _('Repete em todas as páginas') }}</span>
@@ -258,7 +258,7 @@
         </div>
 
         <div class="col-12">
-          <div class="rb-section">
+          <div class="rb-section" data-tour="{{ _('Déposez ici le contenu principal du rapport (tableaux, graphiques, champs).') }}" data-tour-title="{{ _('Tutoriel Report') }}" data-tour-order="9">
             <div class="d-flex align-items-center justify-content-between mb-2">
               <div class="rb-section-title">{{ _('Detail') }}</div>
               <span class="text-muted small">{{ _('Conteúdo principal') }}</span>
@@ -270,7 +270,7 @@
         </div>
 
         <div class="col-12">
-          <div class="rb-section">
+          <div class="rb-section" data-tour="{{ _('Déposez ici les éléments répétés en bas de chaque page.') }}" data-tour-title="{{ _('Tutoriel Report') }}" data-tour-order="11">
             <div class="d-flex align-items-center justify-content-between mb-2">
               <div class="rb-section-title">{{ _('Page Footer') }}</div>
               <span class="text-muted small">{{ _('Repete em todas as páginas') }}</span>
@@ -282,7 +282,7 @@
         </div>
 
         <div class="col-12">
-          <div class="rb-section">
+          <div class="rb-section" data-tour="{{ _('Déposez ici les éléments affichés uniquement à la fin du rapport.') }}" data-tour-title="{{ _('Tutoriel Report') }}" data-tour-order="12">
             <div class="d-flex align-items-center justify-content-between mb-2">
               <div class="rb-section-title">{{ _('Report Footer') }}</div>
               <span class="text-muted small">{{ _('Apenas na última página') }}</span>
