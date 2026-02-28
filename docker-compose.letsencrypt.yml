@@ -13,8 +13,6 @@ services:
       - --providers.file.filename=/etc/traefik/dynamic.yml
       - --providers.file.watch=true
       - --entrypoints.web.address=:80
-      - --entrypoints.web.http.redirections.entryPoint.to=websecure
-      - --entrypoints.web.http.redirections.entryPoint.scheme=https
       - --entrypoints.websecure.address=:443
       - --entrypoints.metrics.address=:8082
       - --metrics.prometheus=true

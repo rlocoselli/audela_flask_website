@@ -85,7 +85,7 @@ http:
       service: nutritiontracker-svc
 
     api-nutritiontracker-http:
-      rule: "Host(`api.nutritiontracker.fr`) || Host(`api.nutritracker.fr`)"
+      rule: "Host(`api.nutritiontracker.fr`)"
       entryPoints:
         - web
       middlewares:
@@ -93,15 +93,13 @@ http:
       service: nutritiontracker-api-svc
 
     api-nutritiontracker-https:
-      rule: "Host(`api.nutritiontracker.fr`) || Host(`api.nutritracker.fr`)"
+      rule: "Host(`api.nutritiontracker.fr`)"
       entryPoints:
         - websecure
       tls:
         certResolver: letsencrypt
         domains:
           - main: api.nutritiontracker.fr
-            sans:
-              - api.nutritracker.fr
       service: nutritiontracker-api-svc
 
     nutritiontracker-aliases-http:
