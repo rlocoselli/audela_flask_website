@@ -64,6 +64,66 @@ http:
               - www.bilieu.fr
       service: domusbiliacum-svc
 
+    nutritiontracker-http:
+      rule: "Host(`nutritiontracker.fr`) || Host(`www.nutritiontracker.fr`)"
+      entryPoints:
+        - web
+      middlewares:
+        - nutritiontracker-https-redirect
+      service: nutritiontracker-svc
+
+    nutritiontracker-https:
+      rule: "Host(`nutritiontracker.fr`) || Host(`www.nutritiontracker.fr`)"
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+        domains:
+          - main: nutritiontracker.fr
+            sans:
+              - www.nutritiontracker.fr
+      service: nutritiontracker-svc
+
+    api-nutritiontracker-http:
+      rule: "Host(`api.nutritiontracker.fr`) || Host(`api.nutritracker.fr`)"
+      entryPoints:
+        - web
+      middlewares:
+        - nutritiontracker-https-redirect
+      service: nutritiontracker-api-svc
+
+    api-nutritiontracker-https:
+      rule: "Host(`api.nutritiontracker.fr`) || Host(`api.nutritracker.fr`)"
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+        domains:
+          - main: api.nutritiontracker.fr
+            sans:
+              - api.nutritracker.fr
+      service: nutritiontracker-api-svc
+
+    nutritiontracker-aliases-http:
+      rule: "Host(`www.nutritracker.fr`) || Host(`nutricker.fr`)"
+      entryPoints:
+        - web
+      middlewares:
+        - nutritiontracker-https-redirect
+      service: nutritiontracker-svc
+
+    nutritiontracker-aliases-https:
+      rule: "Host(`www.nutritracker.fr`) || Host(`nutricker.fr`)"
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+        domains:
+          - main: www.nutritracker.fr
+            sans:
+              - nutricker.fr
+      service: nutritiontracker-svc
+
   middlewares:
     grenobleski-https-redirect:
       redirectScheme:
@@ -80,6 +140,11 @@ http:
         scheme: https
         permanent: true
 
+    nutritiontracker-https-redirect:
+      redirectScheme:
+        scheme: https
+        permanent: true
+
   services:
     grenobleski-svc:
       loadBalancer:
@@ -91,4 +156,16 @@ http:
       loadBalancer:
         servers:
           - url: "http://host.docker.internal:8082"
+        passHostHeader: true
+
+    nutritiontracker-svc:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:8085"
+        passHostHeader: true
+
+    nutritiontracker-api-svc:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:8090"
         passHostHeader: true
