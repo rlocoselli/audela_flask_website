@@ -161,7 +161,7 @@ http:
     nutritiontracker-svc:
       loadBalancer:
         servers:
-          - url: "http://host.docker.internal:8085"
+          - url: "http://host.docker.internal:8086"
         passHostHeader: true
 
     nutritiontracker-api-svc:
