@@ -1,6 +1,13 @@
 {% extends "base.html" %}
 
 {% block title %}{{ _('Produit BI') }} – AUDELA{% endblock %}
+{% block meta_description %}{{ _('Plateforme BI française pour analyse de données, tableaux de bord et gouvernance data. Connectez vos sources SQL/API et pilotez vos décisions métier avec confiance.') }}{% endblock %}
+{% block og_title %}{{ _('Produit BI') }} – AUDELA{% endblock %}
+{% block og_description %}{{ _('Plateforme BI française pour analyse de données, tableaux de bord et gouvernance data. Connectez vos sources SQL/API et pilotez vos décisions métier avec confiance.') }}{% endblock %}
+{% block twitter_title %}{{ _('Produit BI') }} – AUDELA{% endblock %}
+{% block twitter_description %}{{ _('Plateforme BI française pour analyse de données, tableaux de bord et gouvernance data. Connectez vos sources SQL/API et pilotez vos décisions métier avec confiance.') }}{% endblock %}
+{% block og_image %}{{ url_for('static', filename='images/audela-carousel-01.svg', _external=True) }}{% endblock %}
+{% block twitter_image %}{{ url_for('static', filename='images/audela-carousel-01.svg', _external=True) }}{% endblock %}
 
 {% block content %}
 <section id="main" class="wrapper style1">

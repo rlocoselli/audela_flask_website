@@ -1,6 +1,13 @@
 {% extends "base.html" %}
 
 {% block title %}{{ _('Produit Projet') }} – AUDELA{% endblock %}
+{% block meta_description %}{{ _('Outil de pilotage projet français pour PMO, DSI et équipes delivery : portefeuille, planning, risques, reporting et gouvernance opérationnelle en temps réel.') }}{% endblock %}
+{% block og_title %}{{ _('Produit Projet') }} – AUDELA{% endblock %}
+{% block og_description %}{{ _('Outil de pilotage projet français pour PMO, DSI et équipes delivery : portefeuille, planning, risques, reporting et gouvernance opérationnelle en temps réel.') }}{% endblock %}
+{% block twitter_title %}{{ _('Produit Projet') }} – AUDELA{% endblock %}
+{% block twitter_description %}{{ _('Outil de pilotage projet français pour PMO, DSI et équipes delivery : portefeuille, planning, risques, reporting et gouvernance opérationnelle en temps réel.') }}{% endblock %}
+{% block og_image %}{{ url_for('static', filename='images/audela-carousel-04.svg', _external=True) }}{% endblock %}
+{% block twitter_image %}{{ url_for('static', filename='images/audela-carousel-04.svg', _external=True) }}{% endblock %}
 
 {% block content %}
 <section id="main" class="wrapper style1">

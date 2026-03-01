@@ -1,6 +1,13 @@
 {% extends "base.html" %}
 
 {% block title %}{{ _('Produit Finance') }} – AUDELA{% endblock %}
+{% block meta_description %}{{ _('Solution Finance française pour pilotage de trésorerie, cashflow, conformité et auditabilité. Une plateforme claire pour directions financières, PME et cabinets comptables.') }}{% endblock %}
+{% block og_title %}{{ _('Produit Finance') }} – AUDELA{% endblock %}
+{% block og_description %}{{ _('Solution Finance française pour pilotage de trésorerie, cashflow, conformité et auditabilité. Une plateforme claire pour directions financières, PME et cabinets comptables.') }}{% endblock %}
+{% block twitter_title %}{{ _('Produit Finance') }} – AUDELA{% endblock %}
+{% block twitter_description %}{{ _('Solution Finance française pour pilotage de trésorerie, cashflow, conformité et auditabilité. Une plateforme claire pour directions financières, PME et cabinets comptables.') }}{% endblock %}
+{% block og_image %}{{ url_for('static', filename='images/audela-carousel-03.svg', _external=True) }}{% endblock %}
+{% block twitter_image %}{{ url_for('static', filename='images/audela-carousel-03.svg', _external=True) }}{% endblock %}
 
 {% block content %}
 <section id="main" class="wrapper style1">

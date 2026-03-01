@@ -1,5 +1,14 @@
 {% extends "base.html" %}
 
+{% block title %}{{ _('BI française, ERP & LegalTech – AUDELA') }}{% endblock %}
+{% block meta_description %}{{ _('AUDELA propose une plateforme BI française et des solutions ERP/LegalTech pour transformer vos données en décisions fiables, avec une approche pragmatique orientée résultats.') }}{% endblock %}
+{% block og_title %}{{ _('BI française, ERP & LegalTech – AUDELA') }}{% endblock %}
+{% block og_description %}{{ _('AUDELA propose une plateforme BI française et des solutions ERP/LegalTech pour transformer vos données en décisions fiables, avec une approche pragmatique orientée résultats.') }}{% endblock %}
+{% block twitter_title %}{{ _('BI française, ERP & LegalTech – AUDELA') }}{% endblock %}
+{% block twitter_description %}{{ _('AUDELA propose une plateforme BI française et des solutions ERP/LegalTech pour transformer vos données en décisions fiables, avec une approche pragmatique orientée résultats.') }}{% endblock %}
+{% block og_image %}{{ url_for('static', filename='images/audela-hero.svg', _external=True) }}{% endblock %}
+{% block twitter_image %}{{ url_for('static', filename='images/audela-hero.svg', _external=True) }}{% endblock %}
+
 {% block body_class %}is-preload landing{% endblock %}
 
 {% block head_extra %}

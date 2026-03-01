@@ -18,11 +18,11 @@
 		<meta property="og:title" content="{% block og_title %}{{ _('AUDELA – Data, BI, ERP, LegalTech & IA') }}{% endblock %}" />
 		<meta property="og:description" content="{% block og_description %}AUDELA - Data, BI, ERP, LegalTech et IA pour piloter votre activité, améliorer la performance et accélérer la décision.{% endblock %}" />
 		<meta property="og:url" content="{{ request.base_url }}" />
-		<meta property="og:image" content="{{ url_for('static', filename='images/audela-hero.svg', _external=True) }}" />
+		<meta property="og:image" content="{% block og_image %}{{ url_for('static', filename='images/audela-hero.svg', _external=True) }}{% endblock %}" />
 		<meta name="twitter:card" content="summary_large_image" />
 		<meta name="twitter:title" content="{% block twitter_title %}{{ _('AUDELA – Data, BI, ERP, LegalTech & IA') }}{% endblock %}" />
 		<meta name="twitter:description" content="{% block twitter_description %}AUDELA - Data, BI, ERP, LegalTech et IA pour piloter votre activité, améliorer la performance et accélérer la décision.{% endblock %}" />
-		<meta name="twitter:image" content="{{ url_for('static', filename='images/audela-hero.svg', _external=True) }}" />
+		<meta name="twitter:image" content="{% block twitter_image %}{{ url_for('static', filename='images/audela-hero.svg', _external=True) }}{% endblock %}" />
 		<script type="application/ld+json">
 			{{ {
 				"@context": "https://schema.org",
