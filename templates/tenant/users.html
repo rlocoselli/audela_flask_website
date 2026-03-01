@@ -162,7 +162,7 @@
                 <h5 class="modal-title">{{ _('Permissions utilisateur') }} · {{ user.email }}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Fermer') }}"></button>
               </div>
-              <div class="modal-body">
+              <div class="modal-body uam-modal-body-scroll">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
 
                 <div class="card mb-3">
@@ -251,6 +251,14 @@
 
 {% block body_scripts %}
   {{ super() }}
+  <style>
+    .uam-modal-body-scroll {
+      max-height: calc(100vh - 210px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+    }
+  </style>
   <script>
     window.onReady(function(){
       function toggleMenuCheckboxes(btn, checkedValue){
