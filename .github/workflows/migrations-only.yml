@@ -14,15 +14,18 @@ jobs:
     environment: audeladesdonnees
 
     steps:
-      - name: Run migrations via SSH (root)
+      - name: Run migrations via SSH (root, attempt 1)
+        id: migrate_ssh_1
+        continue-on-error: true
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
           username: root
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
+          timeout: 90s
           command_timeout: 40m
-          script: |
+          script: &migrate_script |
             set -e
             echo "🛠️ Migrations-only job started"
 
@@ -76,3 +79,22 @@ jobs:
             $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela python -c "from sqlalchemy import text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); exists=db.session.execute(text(\"SELECT to_regclass('public.finance_accounting_periods')\")).scalar(); assert exists, 'finance_accounting_periods table not found'; print('finance_accounting_periods table found:', exists); ctx.pop()"
 
             echo "✅ Migrations-only job completed"
+
+      - name: Run migrations via SSH (root, attempt 2)
+        id: migrate_ssh_2
+        if: steps.migrate_ssh_1.outcome == 'failure'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: root
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          timeout: 90s
+          command_timeout: 40m
+          script: *migrate_script
+
+      - name: Fail if migrations SSH failed twice
+        if: steps.migrate_ssh_1.outcome == 'failure' && steps.migrate_ssh_2.outcome == 'failure'
+        run: |
+          echo "❌ Migrations SSH failed twice (connection/handshake issue)."
+          exit 1
