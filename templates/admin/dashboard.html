@@ -32,6 +32,144 @@
   </div>
 
   <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-body d-flex flex-wrap align-items-center justify-content-between gap-2">
+      <strong>Contrôle financier abonnements</strong>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <a
+          class="btn btn-outline-secondary btn-sm"
+          href="{{ url_for('admin.export_subscription_report_csv', months=admin_finance.selected_months) }}"
+        >
+          <i class="bi bi-download me-1"></i>Exporter CSV
+        </a>
+        <a
+          class="btn btn-outline-secondary btn-sm"
+          href="{{ url_for('admin.export_subscription_report_xlsx', months=admin_finance.selected_months) }}"
+        >
+          <i class="bi bi-file-earmark-excel me-1"></i>Exporter XLSX
+        </a>
+        <form method="get" action="{{ url_for('admin.dashboard') }}" class="d-flex align-items-center gap-2">
+        <label class="small text-secondary" for="months">Période</label>
+        <select class="form-select form-select-sm" id="months" name="months" style="max-width: 180px;">
+          <option value="3" {% if admin_finance.selected_months == 3 %}selected{% endif %}>3 derniers mois</option>
+          <option value="6" {% if admin_finance.selected_months == 6 %}selected{% endif %}>6 derniers mois</option>
+          <option value="12" {% if admin_finance.selected_months == 12 %}selected{% endif %}>12 derniers mois</option>
+          <option value="24" {% if admin_finance.selected_months == 24 %}selected{% endif %}>24 derniers mois</option>
+          <option value="36" {% if admin_finance.selected_months == 36 %}selected{% endif %}>36 derniers mois</option>
+        </select>
+        <button class="btn btn-outline-primary btn-sm" type="submit">Actualiser</button>
+        </form>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="small text-secondary mb-3">
+        Période analysée : {{ admin_finance.period_start.strftime('%Y-%m') }} → {{ admin_finance.period_end.strftime('%Y-%m') }}
+      </div>
+      <div class="row g-3 mb-3">
+        <div class="col-12 col-md-6 col-lg-3">
+          <div class="border rounded p-3 h-100">
+            <div class="text-secondary small">MRR actuel</div>
+            <div class="h5 mb-0">{{ admin_finance.currency }} {{ '%.2f'|format(admin_finance.current_mrr) }}</div>
+          </div>
+        </div>
+        <div class="col-12 col-md-6 col-lg-3">
+          <div class="border rounded p-3 h-100">
+            <div class="text-secondary small">ARR estimé</div>
+            <div class="h5 mb-0">{{ admin_finance.currency }} {{ '%.2f'|format(admin_finance.arr_proxy) }}</div>
+          </div>
+        </div>
+        <div class="col-12 col-md-6 col-lg-3">
+          <div class="border rounded p-3 h-100">
+            <div class="text-secondary small">Revenu réalisé (période)</div>
+            <div class="h5 mb-0">{{ admin_finance.currency }} {{ '%.2f'|format(admin_finance.realized_revenue_period) }}</div>
+          </div>
+        </div>
+        <div class="col-12 col-md-6 col-lg-3">
+          <div class="border rounded p-3 h-100">
+            <div class="text-secondary small">Actifs / Trial / Suspendus</div>
+            <div class="h5 mb-0">{{ admin_finance.active_subscriptions }} / {{ admin_finance.trial_subscriptions }} / {{ admin_finance.suspended_subscriptions }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-12 col-xl-8">
+          <div class="border rounded p-2 p-md-3 mb-3">
+            <div class="small text-secondary mb-2">Évolution mensuelle</div>
+            <div id="adminSubscriptionChart" style="height: 320px;"></div>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Mois</th>
+                  <th class="text-end">Nouveaux</th>
+                  <th class="text-end">Annulations</th>
+                  <th class="text-end">Net</th>
+                  <th class="text-end">Nouveau MRR</th>
+                  <th class="text-end">Réalisé</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in admin_finance.monthly_report %}
+                  <tr>
+                    <td>{{ row.month_label }}</td>
+                    <td class="text-end">{{ row.new_subscriptions }}</td>
+                    <td class="text-end">{{ row.cancelled_subscriptions }}</td>
+                    <td class="text-end">{{ row.net_subscriptions }}</td>
+                    <td class="text-end">{{ admin_finance.currency }} {{ '%.2f'|format(row.new_mrr) }}</td>
+                    <td class="text-end">{{ admin_finance.currency }} {{ '%.2f'|format(row.realized_revenue) }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th>Total période</th>
+                  <th class="text-end">{{ admin_finance.period_new_subscriptions }}</th>
+                  <th class="text-end">{{ admin_finance.period_cancelled_subscriptions }}</th>
+                  <th class="text-end">{{ admin_finance.period_new_subscriptions - admin_finance.period_cancelled_subscriptions }}</th>
+                  <th class="text-end">-</th>
+                  <th class="text-end">{{ admin_finance.currency }} {{ '%.2f'|format(admin_finance.realized_revenue_period) }}</th>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        <div class="col-12 col-xl-4">
+          <div class="border rounded p-2 p-md-3 mb-3">
+            <div class="small text-secondary mb-2">Mix MRR par plan</div>
+            <div id="adminPlanMixChart" style="height: 320px;"></div>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Plan</th>
+                  <th class="text-end">Subs</th>
+                  <th class="text-end">MRR</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in admin_finance.plan_mix %}
+                  <tr>
+                    <td>{{ row.plan_name }}</td>
+                    <td class="text-end">{{ row.subscriptions }}</td>
+                    <td class="text-end">{{ admin_finance.currency }} {{ '%.2f'|format(row.mrr) }}</td>
+                  </tr>
+                {% else %}
+                  <tr>
+                    <td colspan="3" class="text-center text-secondary">Aucune donnée</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-4">
     <div class="card-header bg-body"><strong>Mettre à jour le mot de passe admin</strong></div>
     <div class="card-body">
       <form method="post" action="{{ url_for('admin.change_admin_password') }}" class="row g-2">
@@ -115,4 +253,89 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block body_scripts %}
+{{ super() }}
+<script>
+  onReady(function(){
+    const el = document.getElementById('adminSubscriptionChart');
+    const pieEl = document.getElementById('adminPlanMixChart');
+    if (!el || !pieEl || typeof echarts === 'undefined') return;
+
+    const labels = [{% for row in admin_finance.monthly_report %}'{{ row.month_label }}'{% if not loop.last %}, {% endif %}{% endfor %}];
+    const newMrr = [{% for row in admin_finance.monthly_report %}{{ '%.2f'|format(row.new_mrr) }}{% if not loop.last %}, {% endif %}{% endfor %}];
+    const realizedRevenue = [{% for row in admin_finance.monthly_report %}{{ '%.2f'|format(row.realized_revenue) }}{% if not loop.last %}, {% endif %}{% endfor %}];
+    const netSubscriptions = [{% for row in admin_finance.monthly_report %}{{ row.net_subscriptions }}{% if not loop.last %}, {% endif %}{% endfor %}];
+
+    const chart = echarts.init(el);
+    chart.setOption({
+      tooltip: { trigger: 'axis' },
+      legend: {
+        data: ['Nouveau MRR', 'Revenu réalisé', 'Net abonnements'],
+        top: 0,
+      },
+      grid: { left: 40, right: 40, top: 40, bottom: 40 },
+      xAxis: {
+        type: 'category',
+        data: labels,
+      },
+      yAxis: [
+        {
+          type: 'value',
+          name: '{{ admin_finance.currency }}',
+        },
+        {
+          type: 'value',
+          name: 'Subs',
+        }
+      ],
+      series: [
+        {
+          name: 'Nouveau MRR',
+          type: 'line',
+          smooth: true,
+          data: newMrr,
+          yAxisIndex: 0,
+        },
+        {
+          name: 'Revenu réalisé',
+          type: 'line',
+          smooth: true,
+          data: realizedRevenue,
+          yAxisIndex: 0,
+        },
+        {
+          name: 'Net abonnements',
+          type: 'bar',
+          data: netSubscriptions,
+          yAxisIndex: 1,
+        }
+      ]
+    });
+
+    const pieChart = echarts.init(pieEl);
+    pieChart.setOption({
+      tooltip: { trigger: 'item' },
+      legend: { bottom: 0 },
+      series: [
+        {
+          type: 'pie',
+          radius: ['45%', '72%'],
+          avoidLabelOverlap: true,
+          data: [
+            {% for row in admin_finance.plan_mix %}
+              { value: {{ '%.2f'|format(row.mrr) }}, name: {{ row.plan_name|tojson }} }{% if not loop.last %}, {% endif %}
+            {% endfor %}
+          ]
+        }
+      ]
+    });
+
+    window.addEventListener('resize', function(){
+      chart.resize();
+      pieChart.resize();
+    });
+  });
+</script>
 {% endblock %}

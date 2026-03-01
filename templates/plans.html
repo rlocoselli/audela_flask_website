@@ -41,6 +41,13 @@
                 <p>{{ plan.description }}</p>
               {% endif %}
 
+              {% set has_project = plan.features_json and plan.features_json.get('has_project') %}
+              <p>
+                {% if plan.has_finance %}<span class="badge">{{ _('Finance') }}</span>{% endif %}
+                {% if plan.has_bi %}<span class="badge">{{ _('BI') }}</span>{% endif %}
+                {% if has_project %}<span class="badge">{{ _('Projet') }}</span>{% endif %}
+              </p>
+
               <p><strong>{{ '%.2f'|format(plan.price_monthly or 0) }} {{ plan.currency or 'EUR' }} / {{ _('mois') }}</strong></p>
 
               <ul class="alt">

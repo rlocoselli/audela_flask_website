@@ -1,9 +1,16 @@
 from __future__ import annotations
 
+import csv
+from io import BytesIO
+from io import StringIO
+from collections import defaultdict
 from datetime import datetime
+from decimal import Decimal
 
-from flask import flash, g, redirect, render_template, request, url_for
+from flask import Response, flash, g, redirect, render_template, request, url_for
 from flask_login import current_user, login_user, logout_user
+from openpyxl import Workbook
+from openpyxl.chart import BarChart, LineChart, Reference
 
 from ...extensions import db
 from ...i18n import tr
@@ -13,6 +20,158 @@ from . import bp
 
 
 ALLOWED_BILLING_CYCLES = {"monthly", "yearly"}
+
+
+def _month_start(value: datetime) -> datetime:
+    return datetime(value.year, value.month, 1)
+
+
+def _add_months(value: datetime, months: int) -> datetime:
+    month_index = (value.month - 1) + months
+    year = value.year + (month_index // 12)
+    month = (month_index % 12) + 1
+    return datetime(year, month, 1)
+
+
+def _normalize_mrr(subscription: TenantSubscription | None) -> Decimal:
+    if not subscription or not subscription.plan:
+        return Decimal("0.00")
+    if subscription.billing_cycle == "yearly":
+        return Decimal(subscription.plan.price_yearly or 0) / Decimal("12")
+    return Decimal(subscription.plan.price_monthly or 0)
+
+
+def _build_admin_finance(subscriptions: list[TenantSubscription], selected_months_raw: str | None) -> dict:
+    try:
+        selected_months_int = int(selected_months_raw or "12")
+    except (TypeError, ValueError):
+        selected_months_int = 12
+    if selected_months_int < 1:
+        selected_months_int = 1
+    if selected_months_int > 36:
+        selected_months_int = 36
+
+    now = datetime.utcnow()
+    period_end_month = _month_start(now)
+    period_start_month = _add_months(period_end_month, -(selected_months_int - 1))
+    period_end_exclusive = _add_months(period_end_month, 1)
+
+    month_slots: list[datetime] = []
+    cursor = period_start_month
+    while cursor < period_end_exclusive:
+        month_slots.append(cursor)
+        cursor = _add_months(cursor, 1)
+
+    monthly_report_map = {
+        slot.strftime("%Y-%m"): {
+            "month_key": slot.strftime("%Y-%m"),
+            "month_label": slot.strftime("%m/%Y"),
+            "new_subscriptions": 0,
+            "cancelled_subscriptions": 0,
+            "new_mrr": Decimal("0.00"),
+            "realized_revenue": Decimal("0.00"),
+        }
+        for slot in month_slots
+    }
+
+    status_totals = defaultdict(int)
+    current_mrr = Decimal("0.00")
+    period_new_subscriptions = 0
+    period_cancelled_subscriptions = 0
+    plan_mix_map: dict[str, dict] = {}
+    currency_totals = defaultdict(int)
+
+    for sub in subscriptions:
+        status_key = (sub.status or "unknown").strip().lower()
+        status_totals[status_key] += 1
+
+        if sub.plan and sub.plan.currency:
+            currency_totals[sub.plan.currency] += 1
+
+        if status_key in {"active", "trial"} and sub.plan:
+            sub_mrr = _normalize_mrr(sub)
+            current_mrr += sub_mrr
+
+            plan_key = sub.plan.code
+            if plan_key not in plan_mix_map:
+                plan_mix_map[plan_key] = {
+                    "plan_code": sub.plan.code,
+                    "plan_name": sub.plan.name,
+                    "subscriptions": 0,
+                    "mrr": Decimal("0.00"),
+                }
+            plan_mix_map[plan_key]["subscriptions"] += 1
+            plan_mix_map[plan_key]["mrr"] += sub_mrr
+
+        created_ref = sub.created_at or sub.current_period_start or sub.trial_start_date
+        if created_ref and period_start_month <= created_ref < period_end_exclusive:
+            period_new_subscriptions += 1
+            created_key = created_ref.strftime("%Y-%m")
+            row = monthly_report_map.get(created_key)
+            if row is not None:
+                row["new_subscriptions"] += 1
+                row["new_mrr"] += _normalize_mrr(sub)
+
+        if sub.cancelled_at and period_start_month <= sub.cancelled_at < period_end_exclusive:
+            period_cancelled_subscriptions += 1
+            cancelled_key = sub.cancelled_at.strftime("%Y-%m")
+            row = monthly_report_map.get(cancelled_key)
+            if row is not None:
+                row["cancelled_subscriptions"] += 1
+
+    period_events = (
+        BillingEvent.query
+        .filter(
+            BillingEvent.created_at >= period_start_month,
+            BillingEvent.created_at < period_end_exclusive,
+            BillingEvent.amount.isnot(None),
+        )
+        .all()
+    )
+    realized_revenue_period = Decimal("0.00")
+    for event in period_events:
+        amount = Decimal(event.amount or 0)
+        if amount <= 0:
+            continue
+        realized_revenue_period += amount
+        if event.currency:
+            currency_totals[event.currency] += 1
+        event_key = event.created_at.strftime("%Y-%m") if event.created_at else None
+        row = monthly_report_map.get(event_key) if event_key else None
+        if row is not None:
+            row["realized_revenue"] += amount
+
+    default_currency = "EUR"
+    if currency_totals:
+        default_currency = sorted(currency_totals.items(), key=lambda item: item[1], reverse=True)[0][0]
+
+    monthly_subscription_report = list(monthly_report_map.values())
+    for row in monthly_subscription_report:
+        row["net_subscriptions"] = row["new_subscriptions"] - row["cancelled_subscriptions"]
+
+    plan_mix = sorted(
+        plan_mix_map.values(),
+        key=lambda item: (item["mrr"], item["subscriptions"]),
+        reverse=True,
+    )
+
+    return {
+        "selected_months": selected_months_int,
+        "currency": default_currency,
+        "period_start": period_start_month,
+        "period_end": _add_months(period_end_exclusive, -1),
+        "current_mrr": current_mrr,
+        "arr_proxy": current_mrr * Decimal("12"),
+        "realized_revenue_period": realized_revenue_period,
+        "period_new_subscriptions": period_new_subscriptions,
+        "period_cancelled_subscriptions": period_cancelled_subscriptions,
+        "active_subscriptions": status_totals.get("active", 0),
+        "trial_subscriptions": status_totals.get("trial", 0),
+        "suspended_subscriptions": status_totals.get("suspended", 0),
+        "cancelled_total": status_totals.get("cancelled", 0),
+        "monthly_report": monthly_subscription_report,
+        "plan_mix": plan_mix,
+    }
 
 
 def _is_platform_admin(user: User | None) -> bool:
@@ -102,6 +261,7 @@ def dashboard():
                 "plan_name": subscription.plan.name if subscription and subscription.plan else (tenant.plan if tenant else "-"),
             }
         )
+    admin_finance = _build_admin_finance(subscriptions, request.args.get("months", "12"))
 
     return render_template(
         "admin/dashboard.html",
@@ -109,6 +269,191 @@ def dashboard():
         tenants=tenants,
         users_view=users_view,
         subscriptions=subscriptions,
+        admin_finance=admin_finance,
+    )
+
+
+@bp.route("/subscription-report.csv")
+def export_subscription_report_csv():
+    guard = _admin_guard_redirect()
+    if guard is not None:
+        return guard
+
+    subscriptions = TenantSubscription.query.all()
+    admin_finance = _build_admin_finance(subscriptions, request.args.get("months", "12"))
+
+    csv_buffer = StringIO()
+    writer = csv.writer(csv_buffer)
+
+    writer.writerow(["report", "subscription_financial_control"])
+    writer.writerow(["period_months", admin_finance["selected_months"]])
+    writer.writerow(["period_start", admin_finance["period_start"].strftime("%Y-%m")])
+    writer.writerow(["period_end", admin_finance["period_end"].strftime("%Y-%m")])
+    writer.writerow(["currency", admin_finance["currency"]])
+    writer.writerow([])
+
+    writer.writerow(["kpi", "value"])
+    writer.writerow(["current_mrr", f"{admin_finance['current_mrr']:.2f}"])
+    writer.writerow(["arr_proxy", f"{admin_finance['arr_proxy']:.2f}"])
+    writer.writerow(["realized_revenue_period", f"{admin_finance['realized_revenue_period']:.2f}"])
+    writer.writerow(["active_subscriptions", admin_finance["active_subscriptions"]])
+    writer.writerow(["trial_subscriptions", admin_finance["trial_subscriptions"]])
+    writer.writerow(["suspended_subscriptions", admin_finance["suspended_subscriptions"]])
+    writer.writerow(["period_new_subscriptions", admin_finance["period_new_subscriptions"]])
+    writer.writerow(["period_cancelled_subscriptions", admin_finance["period_cancelled_subscriptions"]])
+    writer.writerow([])
+
+    writer.writerow(["monthly_report"])
+    writer.writerow(["month", "new_subscriptions", "cancelled_subscriptions", "net_subscriptions", "new_mrr", "realized_revenue"])
+    for row in admin_finance["monthly_report"]:
+        writer.writerow([
+            row["month_key"],
+            row["new_subscriptions"],
+            row["cancelled_subscriptions"],
+            row["net_subscriptions"],
+            f"{row['new_mrr']:.2f}",
+            f"{row['realized_revenue']:.2f}",
+        ])
+    writer.writerow([])
+
+    writer.writerow(["plan_mix"])
+    writer.writerow(["plan_code", "plan_name", "subscriptions", "mrr"])
+    for row in admin_finance["plan_mix"]:
+        writer.writerow([
+            row["plan_code"],
+            row["plan_name"],
+            row["subscriptions"],
+            f"{row['mrr']:.2f}",
+        ])
+
+    filename = f"admin_subscription_report_{admin_finance['period_start'].strftime('%Y%m')}_{admin_finance['period_end'].strftime('%Y%m')}.csv"
+    return Response(
+        csv_buffer.getvalue(),
+        mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@bp.route("/subscription-report.xlsx")
+def export_subscription_report_xlsx():
+    guard = _admin_guard_redirect()
+    if guard is not None:
+        return guard
+
+    subscriptions = TenantSubscription.query.all()
+    admin_finance = _build_admin_finance(subscriptions, request.args.get("months", "12"))
+
+    wb = Workbook()
+
+    ws_kpi = wb.active
+    ws_kpi.title = "KPI"
+    ws_kpi.append(["Metric", "Value"])
+    ws_kpi.append(["Period months", admin_finance["selected_months"]])
+    ws_kpi.append(["Period start", admin_finance["period_start"].strftime("%Y-%m")])
+    ws_kpi.append(["Period end", admin_finance["period_end"].strftime("%Y-%m")])
+    ws_kpi.append(["Currency", admin_finance["currency"]])
+    ws_kpi.append(["Current MRR", float(admin_finance["current_mrr"])])
+    ws_kpi.append(["ARR proxy", float(admin_finance["arr_proxy"])])
+    ws_kpi.append(["Realized revenue period", float(admin_finance["realized_revenue_period"])])
+    ws_kpi.append(["Active subscriptions", admin_finance["active_subscriptions"]])
+    ws_kpi.append(["Trial subscriptions", admin_finance["trial_subscriptions"]])
+    ws_kpi.append(["Suspended subscriptions", admin_finance["suspended_subscriptions"]])
+    ws_kpi.append(["New subscriptions period", admin_finance["period_new_subscriptions"]])
+    ws_kpi.append(["Cancelled subscriptions period", admin_finance["period_cancelled_subscriptions"]])
+    ws_kpi.column_dimensions["A"].width = 32
+    ws_kpi.column_dimensions["B"].width = 24
+
+    ws_monthly = wb.create_sheet(title="Mensuel")
+    ws_monthly.append(["Month", "New subscriptions", "Cancelled subscriptions", "Net subscriptions", "New MRR", "Realized revenue"])
+    for row in admin_finance["monthly_report"]:
+        ws_monthly.append([
+            row["month_key"],
+            row["new_subscriptions"],
+            row["cancelled_subscriptions"],
+            row["net_subscriptions"],
+            float(row["new_mrr"]),
+            float(row["realized_revenue"]),
+        ])
+    ws_monthly.column_dimensions["A"].width = 14
+    ws_monthly.column_dimensions["B"].width = 18
+    ws_monthly.column_dimensions["C"].width = 22
+    ws_monthly.column_dimensions["D"].width = 16
+    ws_monthly.column_dimensions["E"].width = 16
+    ws_monthly.column_dimensions["F"].width = 16
+
+    ws_plans = wb.create_sheet(title="Plans")
+    ws_plans.append(["Plan code", "Plan name", "Subscriptions", "MRR"])
+    for row in admin_finance["plan_mix"]:
+        ws_plans.append([
+            row["plan_code"],
+            row["plan_name"],
+            row["subscriptions"],
+            float(row["mrr"]),
+        ])
+    ws_plans.column_dimensions["A"].width = 20
+    ws_plans.column_dimensions["B"].width = 28
+    ws_plans.column_dimensions["C"].width = 14
+    ws_plans.column_dimensions["D"].width = 14
+
+    ws_summary = wb.create_sheet(title="Résumé")
+    ws_summary.append(["KPI", "Valeur"])
+    ws_summary.append(["Devise", admin_finance["currency"]])
+    ws_summary.append(["MRR actuel", float(admin_finance["current_mrr"])])
+    ws_summary.append(["ARR estimé", float(admin_finance["arr_proxy"])])
+    ws_summary.append(["Revenu réalisé (période)", float(admin_finance["realized_revenue_period"])])
+    ws_summary.append(["Actifs", admin_finance["active_subscriptions"]])
+    ws_summary.append(["Trials", admin_finance["trial_subscriptions"]])
+    ws_summary.append(["Suspendus", admin_finance["suspended_subscriptions"]])
+    ws_summary.append([])
+    ws_summary.append(["Mois", "Nouveaux abonnements", "Revenu réalisé"])
+
+    for row in admin_finance["monthly_report"]:
+        ws_summary.append([
+            row["month_key"],
+            row["new_subscriptions"],
+            float(row["realized_revenue"]),
+        ])
+
+    ws_summary.column_dimensions["A"].width = 26
+    ws_summary.column_dimensions["B"].width = 24
+    ws_summary.column_dimensions["C"].width = 20
+
+    chart_start_row = 11
+    chart_end_row = chart_start_row + len(admin_finance["monthly_report"]) - 1
+    if chart_end_row >= chart_start_row:
+        revenue_chart = BarChart()
+        revenue_chart.title = "Évolution mensuelle"
+        revenue_chart.y_axis.title = admin_finance["currency"]
+        revenue_chart.x_axis.title = "Mois"
+        revenue_chart.height = 8
+        revenue_chart.width = 16
+
+        revenue_values = Reference(ws_summary, min_col=3, min_row=10, max_col=3, max_row=chart_end_row)
+        categories = Reference(ws_summary, min_col=1, min_row=11, max_row=chart_end_row)
+        revenue_chart.add_data(revenue_values, titles_from_data=True)
+        revenue_chart.set_categories(categories)
+        revenue_chart.style = 10
+
+        subs_line = LineChart()
+        subs_line.y_axis.title = "Abonnements"
+        subs_line.y_axis.axId = 200
+        subs_line.y_axis.crosses = "max"
+        subs_line_values = Reference(ws_summary, min_col=2, min_row=10, max_col=2, max_row=chart_end_row)
+        subs_line.add_data(subs_line_values, titles_from_data=True)
+        subs_line.set_categories(categories)
+
+        revenue_chart += subs_line
+        ws_summary.add_chart(revenue_chart, "E2")
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    filename = f"admin_subscription_report_{admin_finance['period_start'].strftime('%Y%m')}_{admin_finance['period_end'].strftime('%Y%m')}.xlsx"
+    return Response(
+        output.getvalue(),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 
