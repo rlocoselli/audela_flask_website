@@ -2,6 +2,82 @@
 
 {% block body_class %}is-preload landing{% endblock %}
 
+{% block head_extra %}
+	{{ super() }}
+	<style>
+		.discover-modal {
+			position: fixed;
+			inset: 0;
+			display: none;
+			align-items: center;
+			justify-content: center;
+			z-index: 10000;
+		}
+		.discover-modal.is-open {
+			display: flex;
+		}
+		.discover-modal__backdrop {
+			position: absolute;
+			inset: 0;
+			background: rgba(0, 0, 0, 0.62);
+		}
+		.discover-modal__dialog {
+			position: relative;
+			width: min(92vw, 680px);
+			max-height: 90vh;
+			overflow: auto;
+			border-radius: 10px;
+			background: #fff;
+			color: #1f2937;
+			box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+		}
+		.discover-modal__header,
+		.discover-modal__body,
+		.discover-modal__footer {
+			padding: 1rem 1.25rem;
+		}
+		.discover-modal__header {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+		}
+		.discover-modal__title {
+			margin: 0;
+			font-size: 1.15rem;
+			color: #111827;
+		}
+		.discover-modal__close {
+			border: 0;
+			background: transparent;
+			font-size: 1.4rem;
+			line-height: 1;
+			cursor: pointer;
+		}
+		.discover-modal__body p {
+			margin: 0 0 .7rem;
+			color: #1f2937;
+		}
+		.discover-modal__body ol {
+			margin: 0;
+			padding-left: 1.2rem;
+			color: #1f2937;
+		}
+		.discover-modal__footer .button {
+			color: #111827;
+		}
+		.discover-modal__footer .button.primary {
+			color: #ffffff;
+		}
+		.discover-modal__footer {
+			display: flex;
+			justify-content: flex-end;
+			gap: .6rem;
+			border-top: 1px solid rgba(0, 0, 0, 0.12);
+		}
+	</style>
+{% endblock %}
+
 {% block content %}
 	<!-- Banner -->
 	<section id="banner">
@@ -12,11 +88,37 @@
 					{{ _('La technologie au service de la décision.') }}<br />
 					{{ _('Data, BI, ERP, LegalTech & IA — au cœur de vos opérations.') }}
 				</p>
+				<ul class="actions">
+					<li><a href="{{ url_for('tenant.login') }}" id="discover-free-btn" class="button primary">{{ _('Découvrir gratuitement') }}</a></li>
+				</ul>
 			</header>
 			<span class="image"><img src="{{ url_for('static', filename='images/audela-hero.svg') }}" alt="{{ _('Illustration AUDELA') }}" /></span>
 		</div>
 		<a href="#one" class="goto-next scrolly">{{ _('Next') }}</a>
 	</section>
+
+	<div id="discover-modal" class="discover-modal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="discover-modal-title">
+		<div class="discover-modal__backdrop" data-close-discover-modal="true"></div>
+		<div class="discover-modal__dialog" role="document">
+			<div class="discover-modal__header">
+				<h3 id="discover-modal-title" class="discover-modal__title">{{ _('Découvrir gratuitement') }}</h3>
+				<button type="button" class="discover-modal__close" aria-label="Close" data-close-discover-modal="true">&times;</button>
+			</div>
+			<div class="discover-modal__body">
+				<p>Instant access to the tenant admin space.</p>
+				<p>Create your account in a few steps:</p>
+				<ol>
+					<li>Click “Discover for free”</li>
+					<li>Select “Create an account”</li>
+					<li>Enter your organization, email, and password</li>
+				</ol>
+			</div>
+			<div class="discover-modal__footer">
+				<button type="button" class="button" data-close-discover-modal="true">Cancel</button>
+				<button type="button" class="button primary" id="discover-modal-confirm">OK</button>
+			</div>
+		</div>
+	</div>
 
 	<!-- One -->
 	<section id="one" class="spotlight style1 bottom">
@@ -258,4 +360,46 @@
 			</form>
 		</div>
 	</section>
+
+	<script>
+		document.addEventListener('DOMContentLoaded', function () {
+			var discoverBtn = document.getElementById('discover-free-btn');
+			var modal = document.getElementById('discover-modal');
+			var confirmBtn = document.getElementById('discover-modal-confirm');
+			if (!discoverBtn || !modal || !confirmBtn) return;
+
+			function openModal() {
+				modal.classList.add('is-open');
+				modal.setAttribute('aria-hidden', 'false');
+				document.body.style.overflow = 'hidden';
+			}
+
+			function closeModal() {
+				modal.classList.remove('is-open');
+				modal.setAttribute('aria-hidden', 'true');
+				document.body.style.overflow = '';
+			}
+
+			discoverBtn.addEventListener('click', function (event) {
+				event.preventDefault();
+				openModal();
+			});
+
+			modal.addEventListener('click', function (event) {
+				if (event.target && event.target.hasAttribute('data-close-discover-modal')) {
+					closeModal();
+				}
+			});
+
+			confirmBtn.addEventListener('click', function () {
+				window.location.href = discoverBtn.getAttribute('href');
+			});
+
+			document.addEventListener('keydown', function (event) {
+				if (event.key === 'Escape' && modal.classList.contains('is-open')) {
+					closeModal();
+				}
+			});
+		});
+	</script>
 {% endblock %}

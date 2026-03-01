@@ -8226,7 +8226,62 @@ _I18N_ADMIN_20260227 = {
     },
 }
 
+
+_I18N_HOME_CTA_20260301 = {
+    "pt": {
+        "Découvrir gratuitement": "Descobrir gratuitamente",
+        "Accès immédiat à l’espace tenant admin.": "Acesso imediato ao espaço tenant admin.",
+        "Créez votre compte en quelques étapes :": "Crie sua conta em poucos passos:",
+        "1) Cliquez sur « Découvrir gratuitement »": "1) Clique em « Descobrir gratuitamente »",
+        "2) Sélectionnez « Créer un compte »": "2) Selecione « Criar conta »",
+        "3) Renseignez votre organisation, votre e-mail et votre mot de passe": "3) Informe sua organização, seu e-mail e sua senha",
+    },
+    "en": {
+        "Découvrir gratuitement": "Discover for free",
+        "Accès immédiat à l’espace tenant admin.": "Instant access to the tenant admin space.",
+        "Créez votre compte en quelques étapes :": "Create your account in a few steps:",
+        "1) Cliquez sur « Découvrir gratuitement »": "1) Click “Discover for free”",
+        "2) Sélectionnez « Créer un compte »": "2) Select “Create an account”",
+        "3) Renseignez votre organisation, votre e-mail et votre mot de passe": "3) Enter your organization, email, and password",
+    },
+    "fr": {
+        "Découvrir gratuitement": "Découvrir gratuitement",
+        "Accès immédiat à l’espace tenant admin.": "Accès immédiat à l’espace tenant admin.",
+        "Créez votre compte en quelques étapes :": "Créez votre compte en quelques étapes :",
+        "1) Cliquez sur « Découvrir gratuitement »": "1) Cliquez sur « Découvrir gratuitement »",
+        "2) Sélectionnez « Créer un compte »": "2) Sélectionnez « Créer un compte »",
+        "3) Renseignez votre organisation, votre e-mail et votre mot de passe": "3) Renseignez votre organisation, votre e-mail et votre mot de passe",
+    },
+    "es": {
+        "Découvrir gratuitement": "Descubrir gratis",
+        "Accès immédiat à l’espace tenant admin.": "Acceso inmediato al espacio tenant admin.",
+        "Créez votre compte en quelques étapes :": "Crea tu cuenta en pocos pasos:",
+        "1) Cliquez sur « Découvrir gratuitement »": "1) Haz clic en « Descubrir gratis »",
+        "2) Sélectionnez « Créer un compte »": "2) Selecciona « Crear una cuenta »",
+        "3) Renseignez votre organisation, votre e-mail et votre mot de passe": "3) Indica tu organización, tu correo electrónico y tu contraseña",
+    },
+    "it": {
+        "Découvrir gratuitement": "Scopri gratuitamente",
+        "Accès immédiat à l’espace tenant admin.": "Accesso immediato all'area tenant admin.",
+        "Créez votre compte en quelques étapes :": "Crea il tuo account in pochi passaggi:",
+        "1) Cliquez sur « Découvrir gratuitement »": "1) Clicca su « Scopri gratuitamente »",
+        "2) Sélectionnez « Créer un compte »": "2) Seleziona « Crea un account »",
+        "3) Renseignez votre organisation, votre e-mail et votre mot de passe": "3) Inserisci la tua organizzazione, la tua e-mail e la tua password",
+    },
+    "de": {
+        "Découvrir gratuitement": "Kostenlos entdecken",
+        "Accès immédiat à l’espace tenant admin.": "Sofortiger Zugang zum Tenant-Admin-Bereich.",
+        "Créez votre compte en quelques étapes :": "Erstellen Sie Ihr Konto in wenigen Schritten:",
+        "1) Cliquez sur « Découvrir gratuitement »": "1) Klicken Sie auf « Kostenlos entdecken »",
+        "2) Sélectionnez « Créer un compte »": "2) Wählen Sie « Konto erstellen »",
+        "3) Renseignez votre organisation, votre e-mail et votre mot de passe": "3) Geben Sie Ihre Organisation, Ihre E-Mail und Ihr Passwort ein",
+    },
+}
+
 for _lang, _mp in _I18N_ADMIN_20260227.items():
+    TRANSLATIONS.setdefault(_lang, {}).update(_mp)
+
+for _lang, _mp in _I18N_HOME_CTA_20260301.items():
     TRANSLATIONS.setdefault(_lang, {}).update(_mp)
 
 for _lang, _mp in _I18N_REPORT_TUTORIAL_20260226.items():
