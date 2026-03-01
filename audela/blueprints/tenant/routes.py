@@ -611,6 +611,10 @@ def users_update_module_access(user_id: int):
     bi_enabled = str(request.form.get("bi_access") or "").lower() in ("1", "true", "on", "yes")
     project_enabled = str(request.form.get("project_access") or "").lower() in ("1", "true", "on", "yes")
 
+    if user.id == current_user.id and not any([finance_enabled, bi_enabled, project_enabled]):
+        flash(tr("Au moins un produit doit rester activé pour votre propre compte.", getattr(g, "lang", None)), "error")
+        return redirect(url_for("tenant.users"))
+
     menu_access = {}
     for product, keys in UAM_MENU_KEYS.items():
         selected = set(request.form.getlist(f"menu_{product}"))

@@ -25,16 +25,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Deploy via SSH as root
+      - name: Deploy via SSH as root (attempt 1)
+        id: deploy_ssh_1
+        continue-on-error: true
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
           username: root
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
+          timeout: 90s
           command_timeout: 40m
 
-          script: |
+          script: &deploy_script |
             set -e
             echo "🚀 Deploy started (root)"
 
@@ -249,3 +252,23 @@ jobs:
             fi
 
             echo "✅ Deploy completed"
+
+      - name: Deploy via SSH as root (attempt 2)
+        id: deploy_ssh_2
+        if: steps.deploy_ssh_1.outcome == 'failure'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: root
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          timeout: 90s
+          command_timeout: 40m
+          script: *deploy_script
+
+      - name: Fail if SSH deploy failed twice
+        if: steps.deploy_ssh_1.outcome == 'failure' && steps.deploy_ssh_2.outcome == 'failure'
+        run: |
+          echo "❌ SSH deploy failed twice (connection/handshake issue)."
+          echo "Check SSH daemon/fail2ban/network path and rerun workflow."
+          exit 1

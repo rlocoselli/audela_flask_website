@@ -135,12 +135,11 @@
                     {% endif %}
                   </td>
                   <td class="px-4">
-                    {% if user.id != current_user.id %}
-                      <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#uamModal-{{ user.id }}">
-                        <i class="bi bi-sliders me-1"></i>{{ _('Configurer') }}
-                      </button>
-                    {% else %}
-                      <span class="text-muted small">{{ _('Vous') }}</span>
+                    <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#uamModal-{{ user.id }}">
+                      <i class="bi bi-sliders me-1"></i>{{ _('Configurer') }}
+                    </button>
+                    {% if user.id == current_user.id %}
+                      <div class="text-muted small mt-1">{{ _('Vous') }}</div>
                     {% endif %}
                   </td>
                 </tr>
@@ -153,7 +152,6 @@
       </div>
 
       {% for user in users %}
-      {% if user.id != current_user.id %}
       {% set uam = user_module_access.get(user.id, {'finance': True, 'bi': True, 'project': True}) %}
       {% set menus = user_menu_access.get(user.id, {}) %}
       <div class="modal fade" id="uamModal-{{ user.id }}" tabindex="-1" aria-hidden="true">
@@ -223,7 +221,6 @@
           </div>
         </div>
       </div>
-      {% endif %}
       {% endfor %}
 
       {% if not can_add_user %}
