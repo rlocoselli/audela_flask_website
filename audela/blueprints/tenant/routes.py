@@ -27,7 +27,7 @@ from ...models.bi import AuditEvent
 from ...models.prospect import Prospect
 from ...services.tenant_service import TenantService
 from ...services.subscription_service import SubscriptionService
-from ...tenancy import CurrentTenant, set_current_tenant, clear_current_tenant, get_user_module_access
+from ...tenancy import CurrentTenant, set_current_tenant, clear_current_tenant, get_user_module_access, get_user_menu_access
 from ...i18n import tr
 from . import bp
 
@@ -42,6 +42,85 @@ AVATAR_CHOICES = [
     "lightning",
     "palette",
 ]
+
+
+UAM_MENU_KEYS: dict[str, list[str]] = {
+    "finance": [
+        "dashboard", "accounts", "transactions", "reports", "stats", "accounting", "pivot", "invoices",
+        "alerts", "regulation", "liabilities", "investments", "recurring", "cashflow", "nii", "gaps",
+        "liquidity", "risk", "settings", "imports", "help",
+    ],
+    "bi": [
+        "home", "sources", "api_sources", "web_extract", "integrations", "etl", "sources_diagram",
+        "sql_editor", "excel_ai", "questions", "dashboards", "reports", "files", "statistics", "explore",
+        "ai_chat", "runs", "audit",
+    ],
+    "project": [
+        "dashboard", "kanban", "gantt", "managers", "governance", "risks", "change", "reporting",
+        "security", "notifications", "productivity", "deliverables", "ceremonies",
+    ],
+}
+
+UAM_MENU_LABELS: dict[str, dict[str, str]] = {
+    "finance": {
+        "dashboard": "Vue d'ensemble",
+        "accounts": "Comptes",
+        "transactions": "Transactions",
+        "reports": "Rapports",
+        "stats": "Statistiques",
+        "accounting": "Rapport comptable",
+        "pivot": "Pivot",
+        "invoices": "E-factures",
+        "alerts": "Alertes",
+        "regulation": "Régulation",
+        "liabilities": "Financements",
+        "investments": "Investissements",
+        "recurring": "Récurrents",
+        "cashflow": "Cashflow",
+        "nii": "NII",
+        "gaps": "Gaps",
+        "liquidity": "Liquidité",
+        "risk": "Risque",
+        "settings": "Paramètres",
+        "imports": "Imports CSV",
+        "help": "Aide",
+    },
+    "bi": {
+        "home": "Accueil",
+        "sources": "Fontes",
+        "api_sources": "Fontes API",
+        "web_extract": "Web Scraping IA",
+        "integrations": "Integrações",
+        "etl": "ETL",
+        "sources_diagram": "Diagrama de fontes",
+        "sql_editor": "Editor SQL",
+        "excel_ai": "Excel IA",
+        "questions": "Perguntas",
+        "dashboards": "Dashboards",
+        "reports": "Relatórios",
+        "files": "Arquivos",
+        "statistics": "Estatísticas",
+        "explore": "Explorar",
+        "ai_chat": "Chat IA",
+        "runs": "Execuções",
+        "audit": "Auditoria",
+    },
+    "project": {
+        "dashboard": "Tableau Projet",
+        "kanban": "Kanban",
+        "gantt": "Gantt",
+        "managers": "Responsables",
+        "governance": "Cadrage PMO",
+        "risks": "Risques/Issues",
+        "change": "Changements",
+        "reporting": "Reporting",
+        "security": "Paramètres",
+        "notifications": "Notifications",
+        "productivity": "Productivité",
+        "deliverables": "Livrables",
+        "ceremonies": "Cérémonies",
+    },
+}
 
 
 def _tenant_user_profiles(tenant: Tenant) -> dict:
@@ -136,12 +215,25 @@ def _save_tenant_user_module_access(tenant: Tenant, user_id: int, module_access:
     settings = tenant.settings_json if isinstance(tenant.settings_json, dict) else {}
     uam = settings.get("uam") if isinstance(settings.get("uam"), dict) else {}
     rows = uam.get("module_access") if isinstance(uam.get("module_access"), dict) else {}
+    menu_rows = uam.get("menu_access") if isinstance(uam.get("menu_access"), dict) else {}
+    user_menu_access = module_access.get("menu_access") if isinstance(module_access.get("menu_access"), dict) else {}
+
     rows[str(int(user_id))] = {
         "finance": bool(module_access.get("finance", True)),
         "bi": bool(module_access.get("bi", True)),
+        "project": bool(module_access.get("project", True)),
         "updated_at": datetime.utcnow().isoformat(),
     }
+
+    normalized_menu_access: dict[str, dict[str, bool]] = {}
+    for product, keys in UAM_MENU_KEYS.items():
+        prod_values = user_menu_access.get(product) if isinstance(user_menu_access.get(product), dict) else {}
+        normalized_menu_access[product] = {k: bool(prod_values.get(k, True)) for k in keys}
+
+    menu_rows[str(int(user_id))] = normalized_menu_access
+
     uam["module_access"] = rows
+    uam["menu_access"] = menu_rows
     settings["uam"] = uam
     tenant.settings_json = settings
     flag_modified(tenant, "settings_json")
@@ -467,11 +559,17 @@ def users():
     tenant = Tenant.query.get(current_user.tenant_id)
     users = TenantService.list_users(current_user.tenant_id)
     user_module_access = {}
+    user_menu_access = {}
     for u in users:
         uid = u.get("id") if isinstance(u, dict) else getattr(u, "id", None)
         if uid is None:
             continue
         user_module_access[int(uid)] = get_user_module_access(tenant, int(uid))
+        user_menu_access[int(uid)] = {
+            "finance": get_user_menu_access(tenant, int(uid), "finance"),
+            "bi": get_user_menu_access(tenant, int(uid), "bi"),
+            "project": get_user_menu_access(tenant, int(uid), "project"),
+        }
     
     # Check if can add more users
     can_add, current_count, max_limit = SubscriptionService.check_limit(
@@ -486,6 +584,9 @@ def users():
         current_users=current_count,
         max_users=max_limit,
         user_module_access=user_module_access,
+        user_menu_access=user_menu_access,
+        uam_menu_keys=UAM_MENU_KEYS,
+        uam_menu_labels=UAM_MENU_LABELS,
     )
 
 
@@ -508,6 +609,12 @@ def users_update_module_access(user_id: int):
 
     finance_enabled = str(request.form.get("finance_access") or "").lower() in ("1", "true", "on", "yes")
     bi_enabled = str(request.form.get("bi_access") or "").lower() in ("1", "true", "on", "yes")
+    project_enabled = str(request.form.get("project_access") or "").lower() in ("1", "true", "on", "yes")
+
+    menu_access = {}
+    for product, keys in UAM_MENU_KEYS.items():
+        selected = set(request.form.getlist(f"menu_{product}"))
+        menu_access[product] = {k: (k in selected) for k in keys}
 
     _save_tenant_user_module_access(
         tenant,
@@ -515,6 +622,8 @@ def users_update_module_access(user_id: int):
         {
             "finance": finance_enabled,
             "bi": bi_enabled,
+            "project": project_enabled,
+            "menu_access": menu_access,
         },
     )
     db.session.commit()
@@ -628,6 +737,7 @@ def products():
         return redirect(url_for("billing.plans"))
     
     subscription = tenant.subscription
+    module_access = get_user_module_access(tenant, current_user.id)
     
     # Check access to products
     has_finance = SubscriptionService.check_feature_access(current_user.tenant_id, "finance")
@@ -645,6 +755,7 @@ def products():
         has_finance=has_finance,
         has_bi=has_bi,
         has_project=has_project,
+        module_access=module_access,
     )
 
 

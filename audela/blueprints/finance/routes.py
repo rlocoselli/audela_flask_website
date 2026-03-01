@@ -5,11 +5,13 @@ import time
 import uuid
 import os
 import random
+import csv
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 from io import BytesIO
 from decimal import Decimal
 import requests
+from pathlib import Path
 
 from flask import abort, flash, g, redirect, render_template, request, session, url_for, current_app, jsonify, send_file
 from flask_login import current_user, login_required
@@ -61,13 +63,15 @@ from ...services.finance_service import (
 )
 
 from ...services.einvoice_service import build_invoice_export_zip, compute_totals
+from ...services.einvoice_service import build_invoice_pdf_bytes
 from ...services.finance_projection import project_cash_balance, build_ui_alerts
 from ...services.regulation_exports import export_fec_csv, export_it_ledger_csv
 from ...services.einvoice_service import build_invoice_export_zip, compute_totals
 from ...services.finance_projection import project_cash_balance, build_ui_alerts, compute_starting_cash as proj_starting_cash
 from ...services.regulation_exports import export_fec_csv, export_it_ledger_csv
+from ...services.email_service import EmailService
 from ...services.subscription_service import SubscriptionService
-from ...tenancy import get_current_tenant_id, get_user_module_access
+from ...tenancy import get_current_tenant_id, get_user_module_access, get_user_menu_access
 
 from . import bp
 
@@ -172,12 +176,14 @@ def _require_tenant() -> None:
 def _finance_layout_context():
     tenant = getattr(g, "tenant", None)
     module_access = get_user_module_access(tenant, getattr(current_user, "id", None))
+    finance_menu_access = get_user_menu_access(tenant, getattr(current_user, "id", None), "finance")
     if not tenant or not getattr(tenant, "subscription", None):
-        return {"transaction_usage": None, "module_access": module_access}
+        return {"transaction_usage": None, "module_access": module_access, "finance_menu_access": finance_menu_access}
 
     _, current_count, max_limit = SubscriptionService.check_limit(tenant.id, "transactions")
     return {
         "module_access": module_access,
+        "finance_menu_access": finance_menu_access,
         "transaction_usage": {
             "current": int(current_count),
             "max": int(max_limit),
@@ -210,6 +216,42 @@ def _load_tenant_into_g() -> None:
         if not access.get("finance", True):
             flash(_("Acesso Finance desativado para seu usuário."), "warning")
             return redirect(url_for("tenant.dashboard"))
+
+        finance_menu_access = get_user_menu_access(g.tenant, current_user.id, "finance")
+        endpoint_menu_key = {
+            "finance.dashboard": "dashboard",
+            "finance.accounts_list": "accounts",
+            "finance.account_view": "accounts",
+            "finance.transactions_list": "transactions",
+            "finance.transaction_new": "transactions",
+            "finance.transaction_edit": "transactions",
+            "finance.quick_entry": "transactions",
+            "finance.reports_transactions": "reports",
+            "finance.reports_statistics": "stats",
+            "finance.reports_accounting": "accounting",
+            "finance.pivot_page": "pivot",
+            "finance.invoices_list": "invoices",
+            "finance.invoice_view": "invoices",
+            "finance.alerts_page": "alerts",
+            "finance.regulation_page": "regulation",
+            "finance.liabilities_list": "liabilities",
+            "finance.investments_list": "investments",
+            "finance.recurring_list": "recurring",
+            "finance.cashflow": "cashflow",
+            "finance.nii": "nii",
+            "finance.gaps": "gaps",
+            "finance.liquidity": "liquidity",
+            "finance.risk": "risk",
+            "finance.settings_categories": "settings",
+            "finance.settings_gl": "settings",
+            "finance.counterparties_settings": "settings",
+            "finance.master_data_import": "imports",
+            "finance.help_page": "help",
+        }
+        menu_key = endpoint_menu_key.get(request.endpoint)
+        if menu_key and not finance_menu_access.get(menu_key, True):
+            flash(_("Accès menu Finance désactivé pour votre utilisateur."), "warning")
+            return redirect(url_for("finance.dashboard"))
 
 
 def _get_company() -> FinanceCompany:
@@ -302,6 +344,219 @@ def _set_fin_setting(company: FinanceCompany, key: str, value: dict) -> None:
     else:
         s.value_json = value
     db.session.commit()
+
+
+_INVOICE_TEMPLATE_SETTING_KEY = "invoice_template"
+_INVOICE_TEMPLATE_LANGS = ["fr", "en", "pt", "es", "it", "de"]
+_GL_AUTO_RULES_SETTING_KEY = "gl_auto_rules"
+
+
+def _invoice_lang_label(code: str) -> str:
+    labels = {
+        "fr": "Français",
+        "en": "English",
+        "pt": "Português",
+        "es": "Español",
+        "it": "Italiano",
+        "de": "Deutsch",
+    }
+    return labels.get(code, code.upper())
+
+
+def _default_invoice_template_settings(company: FinanceCompany) -> dict:
+    localized_defaults = {
+        "fr": {
+            "email_subject_template": "Facture {invoice_number} - {company_name}",
+            "email_body_template": (
+                "Bonjour {client_name},\n\n"
+                "Veuillez trouver en pièce jointe la facture {invoice_number} d'un montant de {total} {currency}.\n"
+                "Date d'émission : {issue_date}."
+                "{due_line}\n\n"
+                "Cordialement,\n"
+                "{sender_name}"
+            ),
+        },
+        "en": {
+            "email_subject_template": "Invoice {invoice_number} - {company_name}",
+            "email_body_template": (
+                "Hello {client_name},\n\n"
+                "Please find attached invoice {invoice_number} for {total} {currency}.\n"
+                "Issue date: {issue_date}."
+                "{due_line}\n\n"
+                "Best regards,\n"
+                "{sender_name}"
+            ),
+        },
+        "pt": {
+            "email_subject_template": "Fatura {invoice_number} - {company_name}",
+            "email_body_template": (
+                "Olá {client_name},\n\n"
+                "Segue em anexo a fatura {invoice_number} no valor de {total} {currency}.\n"
+                "Data de emissão: {issue_date}."
+                "{due_line}\n\n"
+                "Atenciosamente,\n"
+                "{sender_name}"
+            ),
+        },
+        "es": {
+            "email_subject_template": "Factura {invoice_number} - {company_name}",
+            "email_body_template": (
+                "Hola {client_name},\n\n"
+                "Adjunto encontrará la factura {invoice_number} por un importe de {total} {currency}.\n"
+                "Fecha de emisión: {issue_date}."
+                "{due_line}\n\n"
+                "Saludos cordiales,\n"
+                "{sender_name}"
+            ),
+        },
+        "it": {
+            "email_subject_template": "Fattura {invoice_number} - {company_name}",
+            "email_body_template": (
+                "Ciao {client_name},\n\n"
+                "In allegato trovi la fattura {invoice_number} per un importo di {total} {currency}.\n"
+                "Data di emissione: {issue_date}."
+                "{due_line}\n\n"
+                "Cordiali saluti,\n"
+                "{sender_name}"
+            ),
+        },
+        "de": {
+            "email_subject_template": "Rechnung {invoice_number} - {company_name}",
+            "email_body_template": (
+                "Hallo {client_name},\n\n"
+                "Im Anhang finden Sie die Rechnung {invoice_number} über {total} {currency}.\n"
+                "Ausstellungsdatum: {issue_date}."
+                "{due_line}\n\n"
+                "Mit freundlichen Grüßen,\n"
+                "{sender_name}"
+            ),
+        },
+    }
+
+    defaults = {
+        "logo_url": "",
+        "email_subject_template": localized_defaults["fr"]["email_subject_template"],
+        "email_body_template": localized_defaults["fr"]["email_body_template"],
+        "sender_name": company.name or "",
+    }
+    defaults["localized_templates"] = {
+        lang: {
+            "email_subject_template": localized_defaults.get(lang, localized_defaults["fr"])["email_subject_template"],
+            "email_body_template": localized_defaults.get(lang, localized_defaults["fr"])["email_body_template"],
+        }
+        for lang in _INVOICE_TEMPLATE_LANGS
+    }
+    return defaults
+
+
+def _get_invoice_template_settings(company: FinanceCompany) -> dict:
+    defaults = _default_invoice_template_settings(company)
+    value = _get_fin_setting(company, _INVOICE_TEMPLATE_SETTING_KEY, defaults)
+    settings = defaults.copy()
+    settings.update(value if isinstance(value, dict) else {})
+    localized_templates = settings.get("localized_templates")
+    if not isinstance(localized_templates, dict):
+        localized_templates = {}
+    normalized_localized: dict = {}
+    for lang in _INVOICE_TEMPLATE_LANGS:
+        row = localized_templates.get(lang)
+        if not isinstance(row, dict):
+            row = {}
+        lang_defaults = defaults.get("localized_templates", {}).get(lang, {})
+        normalized_localized[lang] = {
+            "email_subject_template": str(row.get("email_subject_template") or lang_defaults.get("email_subject_template") or defaults["email_subject_template"]),
+            "email_body_template": str(row.get("email_body_template") or lang_defaults.get("email_body_template") or defaults["email_body_template"]),
+        }
+    settings["localized_templates"] = normalized_localized
+    return settings
+
+
+def _invoice_template_lang(settings: dict, requested_lang: str | None = None) -> str:
+    lang = (requested_lang or getattr(g, "lang", "fr") or "fr").strip().lower()
+    if lang not in _INVOICE_TEMPLATE_LANGS:
+        lang = "fr"
+    return lang
+
+
+def _invoice_template_texts(settings: dict, lang: str) -> tuple[str, str]:
+    localized_templates = settings.get("localized_templates") if isinstance(settings.get("localized_templates"), dict) else {}
+    row = localized_templates.get(lang) if isinstance(localized_templates.get(lang), dict) else {}
+    subject = str(row.get("email_subject_template") or settings.get("email_subject_template") or "")
+    body = str(row.get("email_body_template") or settings.get("email_body_template") or "")
+    return subject, body
+
+
+def _build_invoice_mail_tokens(inv: FinanceInvoice, company: FinanceCompany, lang: str = "fr") -> dict:
+    due_str = inv.due_date.isoformat() if inv.due_date else ""
+    total_str = f"{Decimal(str(inv.total_gross or 0)).quantize(Decimal('0.01'))}"
+    client_name = inv.counterparty.name if inv.counterparty else "Client"
+    due_line_labels = {
+        "fr": "Échéance",
+        "en": "Due date",
+        "pt": "Vencimento",
+        "es": "Vencimiento",
+        "it": "Scadenza",
+        "de": "Fällig am",
+    }
+    due_line_label = due_line_labels.get(lang, due_line_labels["fr"])
+    return {
+        "invoice_number": inv.invoice_number,
+        "company_name": company.name,
+        "client_name": client_name,
+        "currency": inv.currency,
+        "total": total_str,
+        "issue_date": inv.issue_date.isoformat() if inv.issue_date else "",
+        "due_date": due_str,
+        "due_line": f"\n{due_line_label}: {due_str}." if due_str else "",
+        "sender_name": company.name,
+    }
+
+
+def _render_invoice_text_template(template_text: str, tokens: dict) -> str:
+    if not template_text:
+        return ""
+    try:
+        return template_text.format(**tokens)
+    except Exception:
+        rendered = template_text
+        for key, value in tokens.items():
+            rendered = rendered.replace("{" + key + "}", str(value))
+        return rendered
+
+
+def _save_finance_logo_upload(tenant_id: int, company_id: int, file_storage) -> str | None:
+    if not file_storage or not getattr(file_storage, "filename", None):
+        return None
+    filename = secure_filename(file_storage.filename or "")
+    if not filename:
+        return None
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if ext not in {"png", "jpg", "jpeg", "webp", "gif"}:
+        raise ValueError("Unsupported logo format")
+
+    rel_dir = os.path.join("uploads", "finance_logos", f"tenant_{int(tenant_id)}", f"company_{int(company_id)}")
+    abs_dir = os.path.join(current_app.static_folder, rel_dir)
+    os.makedirs(abs_dir, exist_ok=True)
+    new_name = f"logo_{uuid.uuid4().hex}.{ext}"
+    abs_path = os.path.join(abs_dir, new_name)
+    file_storage.save(abs_path)
+    rel_path = os.path.join(rel_dir, new_name).replace("\\", "/")
+    return "/static/" + rel_path
+
+
+def _resolve_logo_static_path(logo_url: str | None) -> str | None:
+    if not logo_url:
+        return None
+    value = str(logo_url).strip()
+    if not value.startswith("/static/"):
+        return None
+    rel = value[len("/static/"):].strip("/")
+    if not rel:
+        return None
+    abs_path = Path(current_app.static_folder) / rel
+    if abs_path.exists() and abs_path.is_file():
+        return str(abs_path)
+    return None
 
 
 def _q_accounts(company: FinanceCompany):
@@ -542,6 +797,178 @@ def apply_category_rules(
                 continue
         return r.category_id
     return None
+
+
+def _normalize_gl_auto_rules(value: dict) -> list[dict]:
+    raw_rules = value.get("rules") if isinstance(value, dict) else []
+    if not isinstance(raw_rules, list):
+        return []
+
+    normalized: list[dict] = []
+    for row in raw_rules:
+        if not isinstance(row, dict):
+            continue
+        try:
+            gl_account_id = int(row.get("gl_account_id") or 0)
+        except Exception:
+            gl_account_id = 0
+        if gl_account_id <= 0:
+            continue
+
+        def _to_int(v):
+            try:
+                iv = int(v)
+                return iv if iv > 0 else None
+            except Exception:
+                return None
+
+        def _to_float(v):
+            if v in (None, ""):
+                return None
+            try:
+                return float(v)
+            except Exception:
+                return None
+
+        rule_id = str(row.get("id") or "").strip() or uuid.uuid4().hex[:12]
+        direction = str(row.get("direction") or "any").strip().lower()
+        if direction not in {"any", "inflow", "outflow"}:
+            direction = "any"
+
+        normalized.append(
+            {
+                "id": rule_id,
+                "name": str(row.get("name") or "").strip(),
+                "priority": int(row.get("priority") or 100),
+                "direction": direction,
+                "keywords": str(row.get("keywords") or "").strip(),
+                "counterparty_id": _to_int(row.get("counterparty_id")),
+                "category_id": _to_int(row.get("category_id")),
+                "min_amount": _to_float(row.get("min_amount")),
+                "max_amount": _to_float(row.get("max_amount")),
+                "gl_account_id": gl_account_id,
+            }
+        )
+
+    normalized.sort(key=lambda r: int(r.get("priority") or 100))
+    return normalized
+
+
+def _get_gl_auto_rules(company: FinanceCompany) -> list[dict]:
+    raw = _get_fin_setting(company, _GL_AUTO_RULES_SETTING_KEY, {"rules": []})
+    return _normalize_gl_auto_rules(raw if isinstance(raw, dict) else {"rules": []})
+
+
+def _set_gl_auto_rules(company: FinanceCompany, rules: list[dict]) -> None:
+    clean = _normalize_gl_auto_rules({"rules": rules})
+    _set_fin_setting(company, _GL_AUTO_RULES_SETTING_KEY, {"rules": clean})
+
+
+def _match_gl_auto_rule(
+    rule: dict,
+    *,
+    description: str,
+    counterparty_id: int | None,
+    counterparty_name: str | None,
+    category_id: int | None,
+    amount: float,
+    cp_name_by_id: dict[int, str],
+) -> bool:
+    direction = "inflow" if amount > 0 else "outflow" if amount < 0 else "any"
+    if rule.get("direction") not in (None, "", "any") and rule.get("direction") != direction:
+        return False
+
+    rule_cp_id = rule.get("counterparty_id")
+    if rule_cp_id:
+        if counterparty_id:
+            if int(rule_cp_id) != int(counterparty_id):
+                return False
+        elif counterparty_name:
+            cp_rule_name = cp_name_by_id.get(int(rule_cp_id), "")
+            if cp_rule_name != (counterparty_name or "").strip().lower():
+                return False
+        else:
+            return False
+
+    rule_cat_id = rule.get("category_id")
+    if rule_cat_id:
+        if not category_id or int(rule_cat_id) != int(category_id):
+            return False
+
+    abs_amount = abs(float(amount or 0))
+    min_amount = rule.get("min_amount")
+    max_amount = rule.get("max_amount")
+    if min_amount is not None and abs_amount < float(min_amount):
+        return False
+    if max_amount is not None and abs_amount > float(max_amount):
+        return False
+
+    keywords = [k.strip().lower() for k in str(rule.get("keywords") or "").split(",") if k.strip()]
+    if keywords:
+        haystack = (description or "").lower()
+        if not any(k in haystack for k in keywords):
+            return False
+
+    return True
+
+
+def select_gl_account_by_rules(company: FinanceCompany, txn: FinanceTransaction, rules: list[dict] | None = None) -> int | None:
+    current_rules = rules if rules is not None else _get_gl_auto_rules(company)
+    if not current_rules:
+        return None
+
+    cp_name_by_id: dict[int, str] = {
+        int(cp.id): (cp.name or "").strip().lower()
+        for cp in get_counterparties(company)
+        if cp.id and (cp.name or "").strip()
+    }
+
+    for rule in current_rules:
+        if _match_gl_auto_rule(
+            rule,
+            description=(txn.description or ""),
+            counterparty_id=txn.counterparty_id,
+            counterparty_name=txn.counterparty,
+            category_id=txn.category_id,
+            amount=float(txn.amount or 0),
+            cp_name_by_id=cp_name_by_id,
+        ):
+            return int(rule.get("gl_account_id") or 0) or None
+
+    return None
+
+
+def _apply_gl_auto_rules_on_transactions(
+    company: FinanceCompany,
+    txns: list[FinanceTransaction],
+    *,
+    only_missing_gl: bool = True,
+) -> tuple[int, int]:
+    rules = _get_gl_auto_rules(company)
+    if not rules:
+        return 0, 0
+
+    postable_ids = {int(gl.id) for gl in get_postable_gl_accounts(company)}
+
+    scanned = 0
+    updated = 0
+    for txn in txns:
+        scanned += 1
+        if txn.ledger_voucher_id:
+            continue
+        if only_missing_gl and txn.gl_account_id:
+            continue
+        gl_id = select_gl_account_by_rules(company, txn, rules)
+        if not gl_id:
+            continue
+        if int(gl_id) not in postable_ids:
+            continue
+        if txn.gl_account_id == int(gl_id):
+            continue
+        txn.gl_account_id = int(gl_id)
+        updated += 1
+
+    return updated, scanned
 
 
 
@@ -1176,6 +1603,48 @@ def transaction_edit(txn_id: int):
     )
 
 
+@bp.route("/transactions/<int:txn_id>/set-category", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def transaction_set_category(txn_id: int):
+    company = _get_company()
+    txn = FinanceTransaction.query.filter_by(id=txn_id, tenant_id=g.tenant.id, company_id=company.id).first_or_404()
+
+    next_url = (request.form.get("next") or "").strip()
+    if txn.ledger_voucher_id:
+        flash(_("Impossible de modifier la catégorie d'une transaction déjà comptabilisée."), "error")
+        if next_url.startswith("/") and not next_url.startswith("//"):
+            return redirect(next_url)
+        return redirect(url_for("finance.reports_transactions"))
+
+    category_raw = (request.form.get("category_id") or "").strip()
+    category_id = int(category_raw) if category_raw.isdigit() else None
+
+    category_obj = None
+    if category_id:
+        category_obj = FinanceCategory.query.filter_by(
+            id=category_id,
+            tenant_id=g.tenant.id,
+            company_id=company.id,
+        ).first()
+        if not category_obj:
+            flash(_("Categoria inválida."), "error")
+            if next_url.startswith("/") and not next_url.startswith("//"):
+                return redirect(next_url)
+            return redirect(url_for("finance.reports_transactions"))
+
+    txn.category_id = category_obj.id if category_obj else None
+    txn.category = category_obj.name if category_obj else None
+    if category_obj and category_obj.default_gl_account_id:
+        txn.gl_account_id = category_obj.default_gl_account_id
+    db.session.commit()
+
+    flash(_("Categoria da transação atualizada."), "success")
+    if next_url.startswith("/") and not next_url.startswith("//"):
+        return redirect(next_url)
+    return redirect(url_for("finance.reports_transactions"))
+
+
 @bp.route("/transactions/import", methods=["POST"])
 @login_required
 @require_roles("tenant_admin", "creator")
@@ -1696,22 +2165,24 @@ def statement_import(account_id: int):
             if cat_obj and cat_obj.default_gl_account_id:
                 gl_account_id = cat_obj.default_gl_account_id
 
-            db.session.add(
-                FinanceTransaction(
-                    tenant_id=g.tenant.id,
-                    company_id=company.id,
-                    account_id=acc.id,
-                    txn_date=r["txn_date"],
-                    amount=r["amount"],
-                    description=r.get("description"),
-                    category=r.get("category") or (cat_obj.name if cat_obj else None),
-                    category_id=cat_obj.id if cat_obj else None,
-                    gl_account_id=gl_account_id,
-                    counterparty_id=cp_obj.id if cp_obj else None,
-                    counterparty=None if cp_obj else (cp_name or None),
-                    reference=r.get("reference"),
-                )
+            txn_preview = FinanceTransaction(
+                tenant_id=g.tenant.id,
+                company_id=company.id,
+                account_id=acc.id,
+                txn_date=r["txn_date"],
+                amount=r["amount"],
+                description=r.get("description"),
+                category=r.get("category") or (cat_obj.name if cat_obj else None),
+                category_id=cat_obj.id if cat_obj else None,
+                gl_account_id=gl_account_id,
+                counterparty_id=cp_obj.id if cp_obj else None,
+                counterparty=None if cp_obj else (cp_name or None),
+                reference=r.get("reference"),
             )
+            if txn_preview.gl_account_id is None:
+                txn_preview.gl_account_id = select_gl_account_by_rules(company, txn_preview)
+
+            db.session.add(txn_preview)
             created += 1
             existing_sigs.add(sig)
 
@@ -1742,6 +2213,586 @@ def statement_import(account_id: int):
         company=company,
         account=acc,
         csv_mapping_preset=csv_mapping_preset,
+    )
+
+
+
+# -----------------
+# Master data CSV imports (products, counterparties, financings, investments, accounts)
+# -----------------
+
+
+def _master_import_entities() -> dict:
+    return {
+        "products": {
+            "label": "Produits",
+            "fields": [
+                {"key": "code", "label": "Code", "required": False, "sample": "PRD-001"},
+                {"key": "name", "label": "Nom", "required": True, "sample": "Conseil mensuel"},
+                {"key": "description", "label": "Description", "required": False, "sample": "Abonnement support"},
+                {"key": "product_type", "label": "Type produit", "required": False, "sample": "service"},
+                {"key": "unit_price", "label": "Prix unitaire", "required": False, "sample": "1200.00"},
+                {"key": "currency_code", "label": "Devise", "required": False, "sample": "EUR"},
+                {"key": "vat_rate", "label": "TVA %", "required": False, "sample": "20"},
+                {"key": "status", "label": "Statut", "required": False, "sample": "active"},
+                {"key": "notes", "label": "Notes", "required": False, "sample": ""},
+            ],
+        },
+        "counterparties": {
+            "label": "Contreparties",
+            "fields": [
+                {"key": "name", "label": "Nom", "required": True, "sample": "Client Alpha"},
+                {"key": "kind", "label": "Type", "required": False, "sample": "customer"},
+                {"key": "email", "label": "Email", "required": False, "sample": "finance@alpha.com"},
+                {"key": "phone", "label": "Téléphone", "required": False, "sample": "+33 1 00 00 00 00"},
+                {"key": "vat_number", "label": "TVA", "required": False, "sample": "FR12345678901"},
+                {"key": "tax_id", "label": "Tax ID", "required": False, "sample": "123456789"},
+                {"key": "address_line1", "label": "Adresse 1", "required": False, "sample": "1 rue de Paris"},
+                {"key": "address_line2", "label": "Adresse 2", "required": False, "sample": ""},
+                {"key": "postal_code", "label": "Code postal", "required": False, "sample": "75001"},
+                {"key": "city", "label": "Ville", "required": False, "sample": "Paris"},
+                {"key": "state", "label": "Région", "required": False, "sample": "Île-de-France"},
+                {"key": "country_code", "label": "Pays", "required": False, "sample": "FR"},
+                {"key": "sdi_code", "label": "SDI", "required": False, "sample": "0000000"},
+                {"key": "pec_email", "label": "PEC email", "required": False, "sample": ""},
+            ],
+        },
+        "financings": {
+            "label": "Financements",
+            "fields": [
+                {"key": "name", "label": "Nom", "required": True, "sample": "Prêt BPI 2026"},
+                {"key": "lender", "label": "Prêteur", "required": False, "sample": "Banque X"},
+                {"key": "currency_code", "label": "Devise", "required": False, "sample": "EUR"},
+                {"key": "principal_amount", "label": "Principal", "required": False, "sample": "100000"},
+                {"key": "outstanding_amount", "label": "Encours", "required": False, "sample": "92000"},
+                {"key": "interest_rate", "label": "Taux %", "required": False, "sample": "3.25"},
+                {"key": "start_date", "label": "Date début", "required": False, "sample": "2026-01-15"},
+                {"key": "maturity_date", "label": "Date échéance", "required": False, "sample": "2031-01-15"},
+                {"key": "payment_frequency", "label": "Fréquence", "required": False, "sample": "monthly"},
+                {"key": "installment_amount", "label": "Mensualité", "required": False, "sample": "1800"},
+                {"key": "next_payment_date", "label": "Prochain paiement", "required": False, "sample": "2026-04-15"},
+                {"key": "notes", "label": "Notes", "required": False, "sample": ""},
+            ],
+        },
+        "investments": {
+            "label": "Investissements",
+            "fields": [
+                {"key": "name", "label": "Nom", "required": True, "sample": "ETF World"},
+                {"key": "provider", "label": "Provider", "required": False, "sample": "stock_exchange"},
+                {"key": "instrument_code", "label": "Code instrument", "required": False, "sample": "EWLD.PA"},
+                {"key": "account_name", "label": "Compte", "required": False, "sample": "Banque principale"},
+                {"key": "currency_code", "label": "Devise", "required": False, "sample": "EUR"},
+                {"key": "invested_amount", "label": "Montant investi", "required": False, "sample": "5000"},
+                {"key": "current_value", "label": "Valeur actuelle", "required": False, "sample": "5200"},
+                {"key": "started_on", "label": "Date début", "required": False, "sample": "2026-02-01"},
+                {"key": "status", "label": "Statut", "required": False, "sample": "active"},
+                {"key": "notes", "label": "Notes", "required": False, "sample": ""},
+            ],
+        },
+        "accounts": {
+            "label": "Comptes (loan/deposit/credit line)",
+            "fields": [
+                {"key": "name", "label": "Nom", "required": True, "sample": "Ligne de crédit A"},
+                {"key": "account_type", "label": "Type compte", "required": False, "sample": "credit_line"},
+                {"key": "side", "label": "Side", "required": False, "sample": "liability"},
+                {"key": "currency", "label": "Devise", "required": False, "sample": "EUR"},
+                {"key": "balance", "label": "Solde", "required": False, "sample": "0"},
+                {"key": "limit_amount", "label": "Limite", "required": False, "sample": "20000"},
+                {"key": "counterparty", "label": "Contrepartie", "required": False, "sample": "Banque X"},
+                {"key": "iban", "label": "IBAN", "required": False, "sample": ""},
+                {"key": "bic", "label": "BIC", "required": False, "sample": ""},
+                {"key": "is_interest_bearing", "label": "Porte intérêt", "required": False, "sample": "true"},
+                {"key": "annual_rate", "label": "Taux annuel", "required": False, "sample": "0.035"},
+                {"key": "rate_type", "label": "Type taux", "required": False, "sample": "fixed"},
+                {"key": "repricing_date", "label": "Date repricing", "required": False, "sample": ""},
+                {"key": "maturity_date", "label": "Date échéance", "required": False, "sample": "2030-12-31"},
+                {"key": "notes", "label": "Notes", "required": False, "sample": ""},
+            ],
+        },
+    }
+
+
+def _master_import_setting_key(entity: str) -> str:
+    return f"master_import_template_{entity}"
+
+
+def _master_import_value(row: dict, mapping: dict, key: str) -> str:
+    col = str(mapping.get(key) or "").strip()
+    if not col:
+        return ""
+    return str(row.get(col) or "").strip()
+
+
+def _parse_csv_rows(file_bytes: bytes, delimiter_mode: str = "auto") -> tuple[list[str], list[dict], str]:
+    try:
+        text = file_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        text = file_bytes.decode("latin-1", errors="ignore")
+
+    sample = text[:4096]
+    delimiter_map = {
+        "comma": ",",
+        "semicolon": ";",
+        "tab": "\t",
+        "pipe": "|",
+    }
+    if delimiter_mode == "auto":
+        try:
+            sniff = csv.Sniffer().sniff(sample, delimiters=",;\t|")
+            delimiter = sniff.delimiter
+        except Exception:
+            delimiter = ","
+    else:
+        delimiter = delimiter_map.get(delimiter_mode, ",")
+
+    reader = csv.DictReader(text.splitlines(), delimiter=delimiter)
+    headers = [str(h or "").strip() for h in (reader.fieldnames or []) if str(h or "").strip()]
+    rows: list[dict] = []
+    for row in reader:
+        normalized = {str(k or "").strip(): str(v or "").strip() for k, v in row.items() if str(k or "").strip()}
+        if any(v for v in normalized.values()):
+            rows.append(normalized)
+    return headers, rows, delimiter
+
+
+def _parse_decimal_safe(value: str | None) -> Decimal | None:
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    return Decimal(raw.replace(",", "."))
+
+
+def _parse_date_safe(value: str | None) -> date | None:
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    return date.fromisoformat(raw)
+
+
+def _parse_bool_safe(value: str | None) -> bool | None:
+    raw = (value or "").strip().lower()
+    if not raw:
+        return None
+    if raw in {"1", "true", "yes", "y", "on", "oui", "vrai"}:
+        return True
+    if raw in {"0", "false", "no", "n", "off", "non", "faux"}:
+        return False
+    return None
+
+
+def _import_master_data_row(entity: str, company: FinanceCompany, row: dict, mapping: dict) -> str:
+    if entity == "products":
+        name = _master_import_value(row, mapping, "name")
+        code = _master_import_value(row, mapping, "code")
+        if not name:
+            raise ValueError("missing name")
+        product = None
+        if code:
+            product = (
+                FinanceProduct.query
+                .filter_by(tenant_id=g.tenant.id, company_id=company.id, code=code)
+                .first()
+            )
+        if not product:
+            product = (
+                FinanceProduct.query
+                .filter_by(tenant_id=g.tenant.id, company_id=company.id, name=name)
+                .first()
+            )
+        created = product is None
+        if created:
+            product = FinanceProduct(
+                tenant_id=g.tenant.id,
+                company_id=company.id,
+                name=name,
+                unit_price=Decimal("0"),
+                currency_code=company.base_currency or "EUR",
+            )
+            db.session.add(product)
+
+        product.code = code or product.code
+        product.name = name
+        product.description = _master_import_value(row, mapping, "description") or product.description
+        product.product_type = (_master_import_value(row, mapping, "product_type") or product.product_type or "service").lower()
+        product.currency_code = (_master_import_value(row, mapping, "currency_code") or product.currency_code or company.base_currency or "EUR").upper()
+        product.status = (_master_import_value(row, mapping, "status") or product.status or "active").lower()
+        product.notes = _master_import_value(row, mapping, "notes") or product.notes
+        up = _parse_decimal_safe(_master_import_value(row, mapping, "unit_price"))
+        if up is not None:
+            product.unit_price = up
+        vat = _parse_decimal_safe(_master_import_value(row, mapping, "vat_rate"))
+        if vat is not None:
+            product.vat_rate = vat
+            product.vat_applies = vat > 0
+        return "created" if created else "updated"
+
+    if entity == "counterparties":
+        name = _master_import_value(row, mapping, "name")
+        if not name:
+            raise ValueError("missing name")
+        cp = (
+            FinanceCounterparty.query
+            .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+            .filter(func.lower(FinanceCounterparty.name) == name.lower())
+            .first()
+        )
+        created = cp is None
+        if created:
+            cp = FinanceCounterparty(tenant_id=g.tenant.id, company_id=company.id, name=name, kind="other")
+            db.session.add(cp)
+
+        cp.name = name
+        cp.kind = (_master_import_value(row, mapping, "kind") or cp.kind or "other").lower()
+        cp.email = _master_import_value(row, mapping, "email") or cp.email
+        cp.phone = _master_import_value(row, mapping, "phone") or cp.phone
+        cp.vat_number = _master_import_value(row, mapping, "vat_number") or cp.vat_number
+        cp.tax_id = _master_import_value(row, mapping, "tax_id") or cp.tax_id
+        cp.address_line1 = _master_import_value(row, mapping, "address_line1") or cp.address_line1
+        cp.address_line2 = _master_import_value(row, mapping, "address_line2") or cp.address_line2
+        cp.postal_code = _master_import_value(row, mapping, "postal_code") or cp.postal_code
+        cp.city = _master_import_value(row, mapping, "city") or cp.city
+        cp.state = _master_import_value(row, mapping, "state") or cp.state
+        cc = (_master_import_value(row, mapping, "country_code") or cp.country_code or "").upper()
+        cp.country_code = cc[:2] if cc else cp.country_code
+        cp.sdi_code = _master_import_value(row, mapping, "sdi_code") or cp.sdi_code
+        cp.pec_email = _master_import_value(row, mapping, "pec_email") or cp.pec_email
+        return "created" if created else "updated"
+
+    if entity == "financings":
+        name = _master_import_value(row, mapping, "name")
+        if not name:
+            raise ValueError("missing name")
+        liability = (
+            FinanceLiability.query
+            .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+            .filter(func.lower(FinanceLiability.name) == name.lower())
+            .first()
+        )
+        created = liability is None
+        if created:
+            liability = FinanceLiability(tenant_id=g.tenant.id, company_id=company.id, name=name)
+            db.session.add(liability)
+
+        lender = _find_or_create_counterparty(company, _master_import_value(row, mapping, "lender"))
+        liability.name = name
+        liability.lender_counterparty_id = lender.id if lender else liability.lender_counterparty_id
+        liability.currency_code = (_master_import_value(row, mapping, "currency_code") or liability.currency_code or company.base_currency or "EUR").upper()
+        liability.notes = _master_import_value(row, mapping, "notes") or liability.notes
+        freq = (_master_import_value(row, mapping, "payment_frequency") or liability.payment_frequency or "monthly").lower()
+        liability.payment_frequency = freq if freq in {"monthly", "quarterly", "yearly", "other"} else "monthly"
+
+        principal = _parse_decimal_safe(_master_import_value(row, mapping, "principal_amount"))
+        if principal is not None:
+            liability.principal_amount = principal
+        outstanding = _parse_decimal_safe(_master_import_value(row, mapping, "outstanding_amount"))
+        if outstanding is not None:
+            liability.outstanding_amount = outstanding
+        rate = _parse_decimal_safe(_master_import_value(row, mapping, "interest_rate"))
+        if rate is not None:
+            liability.interest_rate = rate
+        installment = _parse_decimal_safe(_master_import_value(row, mapping, "installment_amount"))
+        if installment is not None:
+            liability.installment_amount = installment
+
+        start_dt = _parse_date_safe(_master_import_value(row, mapping, "start_date"))
+        if start_dt is not None:
+            liability.start_date = start_dt
+        maturity_dt = _parse_date_safe(_master_import_value(row, mapping, "maturity_date"))
+        if maturity_dt is not None:
+            liability.maturity_date = maturity_dt
+        next_pay_dt = _parse_date_safe(_master_import_value(row, mapping, "next_payment_date"))
+        if next_pay_dt is not None:
+            liability.next_payment_date = next_pay_dt
+        return "created" if created else "updated"
+
+    if entity == "investments":
+        name = _master_import_value(row, mapping, "name")
+        if not name:
+            raise ValueError("missing name")
+        if not _investments_table_available(company):
+            raise ValueError("investments table unavailable")
+
+        instrument_code = _master_import_value(row, mapping, "instrument_code")
+        investment = (
+            FinanceInvestment.query
+            .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+            .filter(func.lower(FinanceInvestment.name) == name.lower())
+            .first()
+        )
+        if not investment and instrument_code:
+            investment = (
+                FinanceInvestment.query
+                .filter_by(tenant_id=g.tenant.id, company_id=company.id, instrument_code=instrument_code)
+                .first()
+            )
+
+        created = investment is None
+        if created:
+            investment = FinanceInvestment(
+                tenant_id=g.tenant.id,
+                company_id=company.id,
+                name=name,
+                provider="stock_exchange",
+                invested_amount=Decimal("0"),
+                status="active",
+            )
+            db.session.add(investment)
+
+        account_name = _master_import_value(row, mapping, "account_name")
+        if account_name:
+            acc = (
+                FinanceAccount.query
+                .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+                .filter(func.lower(FinanceAccount.name) == account_name.lower())
+                .first()
+            )
+            if not acc:
+                raise ValueError(f"account not found: {account_name}")
+            investment.account_id = acc.id
+
+        investment.name = name
+        investment.instrument_code = instrument_code or investment.instrument_code
+        provider = (_master_import_value(row, mapping, "provider") or investment.provider or "stock_exchange").lower()
+        investment.provider = provider if provider in {"edf", "stock_exchange"} else "stock_exchange"
+        investment.currency_code = (_master_import_value(row, mapping, "currency_code") or investment.currency_code or company.base_currency or "EUR").upper()
+        investment.notes = _master_import_value(row, mapping, "notes") or investment.notes
+        status = (_master_import_value(row, mapping, "status") or investment.status or "active").lower()
+        investment.status = status if status in {"active", "closed"} else "active"
+
+        invested = _parse_decimal_safe(_master_import_value(row, mapping, "invested_amount"))
+        if invested is not None:
+            investment.invested_amount = abs(invested)
+        current_val = _parse_decimal_safe(_master_import_value(row, mapping, "current_value"))
+        if current_val is not None:
+            investment.current_value = current_val
+        started = _parse_date_safe(_master_import_value(row, mapping, "started_on"))
+        if started is not None:
+            investment.started_on = started
+
+        return "created" if created else "updated"
+
+    if entity == "accounts":
+        name = _master_import_value(row, mapping, "name")
+        if not name:
+            raise ValueError("missing name")
+        account = (
+            FinanceAccount.query
+            .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+            .filter(func.lower(FinanceAccount.name) == name.lower())
+            .first()
+        )
+        created = account is None
+        if created:
+            account = FinanceAccount(
+                tenant_id=g.tenant.id,
+                company_id=company.id,
+                name=name,
+                account_type="bank",
+                side="asset",
+                currency=company.base_currency or "EUR",
+                balance=Decimal("0"),
+            )
+            db.session.add(account)
+
+        account.name = name
+        acc_type = (_master_import_value(row, mapping, "account_type") or account.account_type or "bank").lower()
+        if acc_type not in {"cash", "bank", "loan", "deposit", "receivable", "payable", "credit_line", "other"}:
+            acc_type = "other"
+        account.account_type = acc_type
+
+        side = (_master_import_value(row, mapping, "side") or account.side or "asset").lower()
+        account.side = side if side in {"asset", "liability"} else "asset"
+        account.currency = (_master_import_value(row, mapping, "currency") or account.currency or company.base_currency or "EUR").upper()
+        account.notes = _master_import_value(row, mapping, "notes") or account.notes
+        account.iban = _master_import_value(row, mapping, "iban") or account.iban
+        account.bic = _master_import_value(row, mapping, "bic") or account.bic
+
+        cp_name = _master_import_value(row, mapping, "counterparty")
+        cp = _find_or_create_counterparty(company, cp_name)
+        if cp:
+            account.counterparty_id = cp.id
+
+        bal = _parse_decimal_safe(_master_import_value(row, mapping, "balance"))
+        if bal is not None:
+            account.balance = bal
+        lim = _parse_decimal_safe(_master_import_value(row, mapping, "limit_amount"))
+        if lim is not None:
+            account.limit_amount = lim
+        annual_rate = _parse_decimal_safe(_master_import_value(row, mapping, "annual_rate"))
+        if annual_rate is not None:
+            account.annual_rate = annual_rate
+
+        has_interest = _parse_bool_safe(_master_import_value(row, mapping, "is_interest_bearing"))
+        if has_interest is not None:
+            account.is_interest_bearing = has_interest
+
+        rate_type = (_master_import_value(row, mapping, "rate_type") or account.rate_type or "fixed").lower()
+        account.rate_type = rate_type if rate_type in {"fixed", "float"} else "fixed"
+
+        repricing_date = _parse_date_safe(_master_import_value(row, mapping, "repricing_date"))
+        if repricing_date is not None:
+            account.repricing_date = repricing_date
+        maturity_date = _parse_date_safe(_master_import_value(row, mapping, "maturity_date"))
+        if maturity_date is not None:
+            account.maturity_date = maturity_date
+
+        return "created" if created else "updated"
+
+    raise ValueError("unsupported entity")
+
+
+@bp.route("/imports/master-data", methods=["GET", "POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def master_data_import():
+    company = _get_company()
+    entities = _master_import_entities()
+    entity = (request.values.get("entity") or "products").strip().lower()
+    if entity not in entities:
+        entity = "products"
+
+    default_mapping = {f["key"]: f["key"] for f in entities[entity]["fields"]}
+    setting = _get_fin_setting(company, _master_import_setting_key(entity), {"mapping": default_mapping, "delimiter": "auto"})
+    mapping_preset = setting.get("mapping") if isinstance(setting.get("mapping"), dict) else default_mapping
+    delimiter_preset = str(setting.get("delimiter") or "auto").strip().lower()
+    if delimiter_preset not in {"auto", "comma", "semicolon", "tab", "pipe"}:
+        delimiter_preset = "auto"
+
+    result = None
+
+    if request.method == "POST":
+        fields = entities[entity]["fields"]
+        mapping = {f["key"]: (request.form.get(f"map_{f['key']}") or "").strip() for f in fields}
+        delimiter_mode = (request.form.get("csv_delimiter") or "auto").strip().lower()
+        save_template = (request.form.get("save_template") or "").strip() in {"1", "true", "on", "yes"}
+        file_obj = request.files.get("file")
+
+        missing_required = [f["label"] for f in fields if f.get("required") and not mapping.get(f["key"])]
+        if missing_required:
+            flash(_("Mapeamento obrigatório ausente: {fields}", fields=", ".join(missing_required)), "error")
+            return redirect(url_for("finance.master_data_import", entity=entity))
+
+        if not file_obj:
+            flash(_("Selecione um arquivo CSV."), "error")
+            return redirect(url_for("finance.master_data_import", entity=entity))
+
+        filename = secure_filename(file_obj.filename or "master_data.csv")
+        file_bytes = file_obj.read() or b""
+        if not file_bytes:
+            flash(_("Arquivo vazio."), "error")
+            return redirect(url_for("finance.master_data_import", entity=entity))
+
+        try:
+            headers, rows, detected_delimiter = _parse_csv_rows(file_bytes, delimiter_mode=delimiter_mode)
+        except Exception as e:
+            flash(_("Falha ao ler CSV: {msg}", msg=str(e)), "error")
+            return redirect(url_for("finance.master_data_import", entity=entity))
+
+        if save_template:
+            _set_fin_setting(
+                company,
+                _master_import_setting_key(entity),
+                {
+                    "mapping": mapping,
+                    "delimiter": delimiter_mode,
+                },
+            )
+
+        created = 0
+        updated = 0
+        skipped = 0
+        errors: list[str] = []
+
+        for idx, row in enumerate(rows, start=2):
+            try:
+                action = _import_master_data_row(entity, company, row, mapping)
+                if action == "created":
+                    created += 1
+                elif action == "updated":
+                    updated += 1
+                else:
+                    skipped += 1
+            except Exception as e:
+                skipped += 1
+                if len(errors) < 30:
+                    errors.append(f"L{idx}: {str(e)}")
+
+        db.session.commit()
+
+        result = {
+            "filename": filename,
+            "headers": headers,
+            "rows": len(rows),
+            "created": created,
+            "updated": updated,
+            "skipped": skipped,
+            "delimiter": detected_delimiter,
+            "errors": errors,
+        }
+
+        flash(
+            _(
+                "Import concluído ({entity}): {created} criados, {updated} atualizados, {skipped} ignorados.",
+                entity=entities[entity]["label"],
+                created=created,
+                updated=updated,
+                skipped=skipped,
+            ),
+            "success" if not errors else "warning",
+        )
+
+        mapping_preset = mapping
+        delimiter_preset = delimiter_mode
+
+    return render_template(
+        "finance/master_data_import.html",
+        tenant=g.tenant,
+        company=company,
+        active="imports",
+        entities=entities,
+        entity=entity,
+        entity_config=entities[entity],
+        mapping_preset=mapping_preset,
+        delimiter_preset=delimiter_preset,
+        result=result,
+    )
+
+
+@bp.route("/imports/master-data/template.csv")
+@login_required
+@require_roles("tenant_admin", "creator")
+def master_data_import_template_csv():
+    company = _get_company()
+    entities = _master_import_entities()
+    entity = (request.args.get("entity") or "products").strip().lower()
+    if entity not in entities:
+        entity = "products"
+
+    fields = entities[entity]["fields"]
+    output = []
+    header = [f["key"] for f in fields]
+    sample = [f.get("sample") or "" for f in fields]
+    output.append(header)
+    output.append(sample)
+
+    delimiter = ","
+    sio = []
+    for row in output:
+        escaped = []
+        for val in row:
+            cell = str(val or "")
+            if any(ch in cell for ch in ["\n", "\r", ",", '"']):
+                cell = '"' + cell.replace('"', '""') + '"'
+            escaped.append(cell)
+        sio.append(delimiter.join(escaped))
+    content = "\n".join(sio)
+
+    filename = f"master_import_template_{entity}_{company.slug}.csv"
+    return send_file(
+        BytesIO(content.encode("utf-8")),
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name=filename,
     )
 
 
@@ -2090,6 +3141,32 @@ def settings_categories():
     )
     gl_accounts = get_postable_gl_accounts(company)
     counterparties = get_counterparties(company)
+    gl_auto_rules = _get_gl_auto_rules(company)
+
+    gl_account_map = {int(gl.id): gl for gl in gl_accounts}
+    category_map = {int(c.id): c for c in categories}
+    counterparty_map = {int(cp.id): cp for cp in counterparties}
+    gl_auto_rules_view = []
+    for rule in gl_auto_rules:
+        gl_obj = gl_account_map.get(int(rule.get("gl_account_id") or 0))
+        cat_obj = category_map.get(int(rule.get("category_id") or 0)) if rule.get("category_id") else None
+        cp_obj = counterparty_map.get(int(rule.get("counterparty_id") or 0)) if rule.get("counterparty_id") else None
+        gl_auto_rules_view.append(
+            {
+                **rule,
+                "gl_account_label": f"{gl_obj.code} · {gl_obj.name}" if gl_obj else "",
+                "category_label": cat_obj.name if cat_obj else "",
+                "counterparty_label": cp_obj.name if cp_obj else "",
+            }
+        )
+
+    unassigned_gl_count = (
+        FinanceTransaction.query
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+        .filter(FinanceTransaction.gl_account_id.is_(None))
+        .filter(FinanceTransaction.ledger_voucher_id.is_(None))
+        .count()
+    )
 
     cp_chart_horizon = (request.args.get("cp_chart_horizon") or "90d").strip().lower()
     cp_start_date = date.today() - timedelta(days=90)
@@ -2139,8 +3216,10 @@ def settings_categories():
         company=company,
         categories=categories,
         rules=rules,
+        gl_auto_rules=gl_auto_rules_view,
         gl_accounts=gl_accounts,
         counterparties=counterparties,
+        unassigned_gl_count=unassigned_gl_count,
         cp_debit_chart=cp_debit_chart,
         cp_chart_horizon=cp_chart_horizon,
         cp_start_date=cp_start_date,
@@ -2204,6 +3283,184 @@ def rule_delete(rule_id: int):
     db.session.delete(rule)
     db.session.commit()
     flash(_("Regra removida."), "success")
+    return redirect(url_for("finance.settings_categories"))
+
+
+@bp.route("/settings/gl-rules", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def _parse_gl_rule_form(company: FinanceCompany, form) -> tuple[dict | None, str | None]:
+    gl_raw = (form.get("gl_account_id") or "").strip()
+    if not gl_raw.isdigit():
+        return None, _("Conta contábil inválida.")
+
+    gl_account_id = int(gl_raw)
+    if not _is_leaf_gl_account(gl_account_id, company):
+        return None, _("Somente contas contábeis de nível mais baixo podem receber transações.")
+
+    postable_ids = {int(gl.id) for gl in get_postable_gl_accounts(company)}
+    if gl_account_id not in postable_ids:
+        return None, _("Conta contábil inválida.")
+
+    direction = (form.get("direction") or "any").strip().lower()
+    if direction not in {"any", "inflow", "outflow"}:
+        direction = "any"
+
+    category_raw = (form.get("category_id") or "").strip()
+    category_id = int(category_raw) if category_raw.isdigit() else None
+    if category_id:
+        exists_cat = FinanceCategory.query.filter_by(id=category_id, tenant_id=g.tenant.id, company_id=company.id).first()
+        if not exists_cat:
+            return None, _("Categoria inválida.")
+
+    cp_raw = (form.get("counterparty_id") or "").strip()
+    cp_id = int(cp_raw) if cp_raw.isdigit() else None
+    if cp_id:
+        exists_cp = FinanceCounterparty.query.filter_by(id=cp_id, tenant_id=g.tenant.id, company_id=company.id).first()
+        if not exists_cp:
+            return None, _("Contraparte inválida.")
+
+    def _to_dec(v: str | None):
+        raw = (v or "").strip()
+        if not raw:
+            return None
+        return float(Decimal(raw.replace(",", ".")))
+
+    try:
+        min_amount = _to_dec(form.get("min_amount"))
+        max_amount = _to_dec(form.get("max_amount"))
+    except Exception:
+        return None, _("Montants invalides.")
+
+    if min_amount is not None and max_amount is not None and min_amount > max_amount:
+        return None, _("Faixa de valores inválida.")
+
+    name = (form.get("name") or "").strip()
+    keywords = (form.get("keywords") or "").strip()
+    priority_raw = (form.get("priority") or "100").strip()
+    priority = int(priority_raw) if priority_raw.isdigit() else 100
+
+    return {
+        "id": uuid.uuid4().hex[:12],
+        "name": name,
+        "priority": priority,
+        "direction": direction,
+        "keywords": keywords,
+        "counterparty_id": cp_id,
+        "category_id": category_id,
+        "min_amount": min_amount,
+        "max_amount": max_amount,
+        "gl_account_id": gl_account_id,
+    }, None
+
+
+@bp.route("/settings/gl-rules", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def gl_rule_create():
+    company = _get_company()
+    rules = _get_gl_auto_rules(company)
+
+    new_rule, err = _parse_gl_rule_form(company, request.form)
+    if err:
+        flash(err, "error")
+        return redirect(url_for("finance.settings_categories"))
+
+    rules.append(new_rule)
+    _set_gl_auto_rules(company, rules)
+    flash(_("Règle comptable automatique créée."), "success")
+    return redirect(url_for("finance.settings_categories"))
+
+
+@bp.route("/settings/gl-rules/preview", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def gl_rule_preview():
+    company = _get_company()
+
+    rule, err = _parse_gl_rule_form(company, request.form)
+    if err:
+        flash(err, "error")
+        return redirect(url_for("finance.settings_categories"))
+
+    txns = (
+        FinanceTransaction.query
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+        .filter(FinanceTransaction.gl_account_id.is_(None))
+        .filter(FinanceTransaction.ledger_voucher_id.is_(None))
+        .order_by(FinanceTransaction.txn_date.desc())
+        .all()
+    )
+
+    cp_name_by_id: dict[int, str] = {
+        int(cp.id): (cp.name or "").strip().lower()
+        for cp in get_counterparties(company)
+        if cp.id and (cp.name or "").strip()
+    }
+
+    matched: list[FinanceTransaction] = []
+    for txn in txns:
+        if _match_gl_auto_rule(
+            rule,
+            description=(txn.description or ""),
+            counterparty_id=txn.counterparty_id,
+            counterparty_name=txn.counterparty,
+            category_id=txn.category_id,
+            amount=float(txn.amount or 0),
+            cp_name_by_id=cp_name_by_id,
+        ):
+            matched.append(txn)
+
+    flash(
+        _("Prévisualisation: {matched} transaction(s) correspond(ent) sur {scanned} non affectée(s).", matched=len(matched), scanned=len(txns)),
+        "info",
+    )
+    if matched:
+        samples = [
+            f"{t.txn_date.isoformat()} | {float(t.amount or 0):.2f} | {(t.description or '').strip()[:48]}"
+            for t in matched[:5]
+        ]
+        flash(_("Exemples: {rows}", rows=" ; ".join(samples)), "info")
+
+    return redirect(url_for("finance.settings_categories"))
+
+
+@bp.route("/settings/gl-rules/<rule_id>/delete", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def gl_rule_delete(rule_id: str):
+    company = _get_company()
+    rules = _get_gl_auto_rules(company)
+    kept = [r for r in rules if str(r.get("id")) != str(rule_id)]
+    if len(kept) == len(rules):
+        flash(_("Règle introuvable."), "error")
+        return redirect(url_for("finance.settings_categories"))
+    _set_gl_auto_rules(company, kept)
+    flash(_("Règle comptable supprimée."), "success")
+    return redirect(url_for("finance.settings_categories"))
+
+
+@bp.route("/settings/gl-rules/apply-unassigned", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def gl_rules_apply_unassigned():
+    company = _get_company()
+    txns = (
+        FinanceTransaction.query
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+        .filter(FinanceTransaction.gl_account_id.is_(None))
+        .filter(FinanceTransaction.ledger_voucher_id.is_(None))
+        .all()
+    )
+
+    updated, scanned = _apply_gl_auto_rules_on_transactions(company, txns, only_missing_gl=True)
+    if updated:
+        db.session.commit()
+
+    flash(
+        _("Affectation comptable automatique: {updated} transaction(s) mise(s) à jour sur {scanned} analysée(s).", updated=updated, scanned=scanned),
+        "success" if updated else "info",
+    )
     return redirect(url_for("finance.settings_categories"))
 
 
@@ -2881,6 +4138,8 @@ def reports_transactions():
         .order_by(FinanceTransaction.txn_date.desc(), FinanceTransaction.id.desc())
         .all()
     )
+    categories = get_categories(company)
+    can_edit_categories = current_user.has_role("tenant_admin") or current_user.has_role("creator")
 
     inflow = Decimal("0")
     outflow = Decimal("0")
@@ -2913,11 +4172,14 @@ def reports_transactions():
         cp_name = (t.counterparty_ref.name if getattr(t, "counterparty_ref", None) else None) or (t.counterparty or "—")
         latest_rows.append(
             {
+                "id": t.id,
                 "txn_date": t.txn_date,
                 "description": t.description,
                 "category_name": cat_name,
+                "category_id": t.category_id,
                 "counterparty_name": cp_name,
                 "amount_fmt": _fmt_money(Decimal(str(t.amount or 0)), base_cur),
+                "is_locked": bool(t.ledger_voucher_id),
             }
         )
 
@@ -2955,6 +4217,9 @@ def reports_transactions():
         cp_pages=cp_pages,
         cp_total=cp_total,
         cp_per_page=cp_per_page,
+        categories=categories,
+        can_edit_categories=can_edit_categories,
+        current_path=request.full_path if request.query_string else request.path,
         latest=latest_rows,
     )
 
@@ -3371,12 +4636,10 @@ def reports_accounting():
     except Exception:
         end = today
 
-    gl_accounts = (
-        FinanceGLAccount.query
-        .filter_by(tenant_id=g.tenant.id, company_id=company.id)
-        .order_by(FinanceGLAccount.code.asc(), FinanceGLAccount.name.asc())
-        .all()
-    )
+    gl_accounts = get_gl_accounts(company)
+    gl_flat = _flatten_gl_accounts(gl_accounts)
+    children_map = _gl_children_map(gl_accounts)
+    leaf_ids = _leaf_gl_ids(gl_accounts)
 
     opening_rows = (
         db.session.query(
@@ -3430,30 +4693,96 @@ def reports_accounting():
     opening_map = {int(gl_id): (Decimal(str(deb or 0)) - Decimal(str(cred or 0))) for gl_id, deb, cred in opening_rows}
     period_map = {int(gl_id): (Decimal(str(deb or 0)), Decimal(str(cred or 0))) for gl_id, deb, cred in period_rows}
 
+    def _natural_closing(gl_kind: str, opening_amt: Decimal, debit_amt: Decimal, credit_amt: Decimal) -> Decimal:
+        signed = opening_amt + debit_amt - credit_amt
+        return signed if (gl_kind or "").lower() in {"asset", "expense"} else -signed
+
+    agg_cache: dict[int, dict] = {}
+
+    def _aggregate_gl(gl_id: int) -> dict:
+        cached = agg_cache.get(int(gl_id))
+        if cached is not None:
+            return cached
+
+        gl = next((acc for acc in gl_accounts if int(acc.id) == int(gl_id)), None)
+        if gl is None:
+            result = {
+                "opening": Decimal("0"),
+                "debit": Decimal("0"),
+                "credit": Decimal("0"),
+                "closing": Decimal("0"),
+            }
+            agg_cache[int(gl_id)] = result
+            return result
+
+        direct_opening = opening_map.get(int(gl.id), Decimal("0"))
+        direct_debit, direct_credit = period_map.get(int(gl.id), (Decimal("0"), Decimal("0")))
+
+        children = children_map.get(int(gl.id), [])
+        if not children:
+            result = {
+                "opening": direct_opening,
+                "debit": direct_debit,
+                "credit": direct_credit,
+                "closing": _natural_closing(gl.kind or "", direct_opening, direct_debit, direct_credit),
+            }
+            agg_cache[int(gl.id)] = result
+            return result
+
+        opening_total = direct_opening
+        debit_total = direct_debit
+        credit_total = direct_credit
+        closing_total = Decimal("0")
+
+        if direct_opening != 0 or direct_debit != 0 or direct_credit != 0:
+            closing_total += _natural_closing(gl.kind or "", direct_opening, direct_debit, direct_credit)
+
+        for child in children:
+            sub = _aggregate_gl(int(child.id))
+            opening_total += Decimal(str(sub["opening"]))
+            debit_total += Decimal(str(sub["debit"]))
+            credit_total += Decimal(str(sub["credit"]))
+            closing_total += Decimal(str(sub["closing"]))
+
+        result = {
+            "opening": opening_total,
+            "debit": debit_total,
+            "credit": credit_total,
+            "closing": closing_total,
+        }
+        agg_cache[int(gl.id)] = result
+        return result
+
     rows = []
     total_opening = Decimal("0")
     total_debit = Decimal("0")
     total_credit = Decimal("0")
     total_closing = Decimal("0")
-    for gl in gl_accounts:
-        opening = opening_map.get(int(gl.id), Decimal("0"))
-        p_debit, p_credit = period_map.get(int(gl.id), (Decimal("0"), Decimal("0")))
-        signed_closing = opening + p_debit - p_credit
-        natural_closing = signed_closing if (gl.kind or "").lower() in {"asset", "expense"} else -signed_closing
+
+    for gl, depth in gl_flat:
+        agg = _aggregate_gl(int(gl.id))
+        is_group = int(gl.id) not in leaf_ids
         rows.append({
             "gl_id": int(gl.id),
             "code": gl.code,
             "name": gl.name,
             "kind": gl.kind,
-            "opening": opening,
-            "debit": p_debit,
-            "credit": p_credit,
-            "closing": natural_closing,
+            "depth": int(depth),
+            "is_group": bool(is_group),
+            "opening": agg["opening"],
+            "debit": agg["debit"],
+            "credit": agg["credit"],
+            "closing": agg["closing"],
         })
-        total_opening += opening
-        total_debit += p_debit
-        total_credit += p_credit
-        total_closing += natural_closing
+
+    for gl in gl_accounts:
+        if int(gl.id) not in leaf_ids:
+            continue
+        leaf = _aggregate_gl(int(gl.id))
+        total_opening += Decimal(str(leaf["opening"]))
+        total_debit += Decimal(str(leaf["debit"]))
+        total_credit += Decimal(str(leaf["credit"]))
+        total_closing += Decimal(str(leaf["closing"]))
 
     investments = _safe_get_investments(company)
     invested_total = Decimal("0")
@@ -3522,6 +4851,7 @@ def reports_accounting():
         investment_summary=investment_summary,
         accounting_explain={
             "gl_accounts": len(gl_accounts),
+            "gl_groups": len(gl_accounts) - len(leaf_ids),
             "opening_line_count": int(opening_line_count),
             "period_line_count": int(period_line_count),
         },
@@ -3713,6 +5043,21 @@ def reports_accounting_source():
     if not gl:
         return jsonify({"error": "gl account not found"}), 404
 
+    descendant_ids: set[int] = set()
+    stack: list[int] = [int(gl.id)]
+    while stack:
+        node_id = stack.pop()
+        descendant_ids.add(node_id)
+        children = (
+            FinanceGLAccount.query
+            .filter_by(tenant_id=g.tenant.id, company_id=company.id, parent_id=node_id)
+            .all()
+        )
+        for child in children:
+            c_id = int(child.id)
+            if c_id not in descendant_ids:
+                stack.append(c_id)
+
     detail_query = (
         db.session.query(
             FinanceLedgerVoucher.voucher_date,
@@ -3725,7 +5070,7 @@ def reports_accounting_source():
         .join(FinanceLedgerVoucher, FinanceLedgerVoucher.id == FinanceLedgerLine.voucher_id)
         .filter(FinanceLedgerLine.tenant_id == g.tenant.id)
         .filter(FinanceLedgerLine.company_id == company.id)
-        .filter(FinanceLedgerLine.gl_account_id == gl_id)
+        .filter(FinanceLedgerLine.gl_account_id.in_(list(descendant_ids)))
         .filter(FinanceLedgerVoucher.voucher_date >= start)
         .filter(FinanceLedgerVoucher.voucher_date <= end)
         .order_by(FinanceLedgerVoucher.voucher_date.desc(), FinanceLedgerLine.id.desc())
@@ -5402,6 +6747,19 @@ def invoice_view(invoice_id: int):
         id=invoice_id, tenant_id=g.tenant.id, company_id=company.id
     ).first_or_404()
     accounts = _q_accounts(company).all()
+    template_settings = _get_invoice_template_settings(company)
+    selected_lang = _invoice_template_lang(template_settings)
+    subject_template, body_template = _invoice_template_texts(template_settings, selected_lang)
+    mail_tokens = _build_invoice_mail_tokens(inv, company, selected_lang)
+    mail_tokens["sender_name"] = str(template_settings.get("sender_name") or company.name)
+    email_subject = _render_invoice_text_template(
+        subject_template,
+        mail_tokens,
+    )
+    email_body = _render_invoice_text_template(
+        body_template,
+        mail_tokens,
+    )
     return render_template(
         "finance/invoice_view.html",
         tenant=g.tenant,
@@ -5409,6 +6767,10 @@ def invoice_view(invoice_id: int):
         active="invoices",
         invoice=inv,
         accounts=accounts,
+        invoice_template_settings=template_settings,
+        invoice_template_lang=selected_lang,
+        email_subject_default=email_subject,
+        email_body_default=email_body,
         today=date.today().isoformat(),
     )
 
@@ -5547,7 +6909,15 @@ def invoice_export(invoice_id: int):
     if country not in ("fr", "it"):
         country = "fr"
 
-    zip_name, zip_bytes = build_invoice_export_zip(inv=inv, company=company, cp=inv.counterparty, country=country)
+    template_settings = _get_invoice_template_settings(company)
+    logo_path = _resolve_logo_static_path(template_settings.get("logo_url"))
+    zip_name, zip_bytes = build_invoice_export_zip(
+        inv=inv,
+        company=company,
+        cp=inv.counterparty,
+        country=country,
+        logo_path=logo_path,
+    )
 
     return send_file(
         BytesIO(zip_bytes),
@@ -5555,3 +6925,170 @@ def invoice_export(invoice_id: int):
         as_attachment=True,
         download_name=zip_name,
     )
+
+
+@bp.route("/invoices/<int:invoice_id>/pdf")
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def invoice_pdf(invoice_id: int):
+    company = _get_company()
+    inv = FinanceInvoice.query.options(joinedload(FinanceInvoice.lines), joinedload(FinanceInvoice.counterparty)).filter_by(
+        id=invoice_id, tenant_id=g.tenant.id, company_id=company.id
+    ).first_or_404()
+    template_settings = _get_invoice_template_settings(company)
+    logo_path = _resolve_logo_static_path(template_settings.get("logo_url"))
+    pdf_bytes = build_invoice_pdf_bytes(inv=inv, company=company, cp=inv.counterparty, logo_path=logo_path)
+    return send_file(
+        BytesIO(pdf_bytes),
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=f"invoice_{inv.invoice_number}.pdf",
+    )
+
+
+@bp.route("/invoices/settings", methods=["GET", "POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def invoice_template_settings():
+    company = _get_company()
+    settings = _get_invoice_template_settings(company)
+    selected_lang = _invoice_template_lang(settings, request.values.get("lang"))
+
+    current_subject_template, current_body_template = _invoice_template_texts(settings, selected_lang)
+
+    preview_due_labels = {
+        "fr": "Échéance",
+        "en": "Due date",
+        "pt": "Vencimento",
+        "es": "Vencimiento",
+        "it": "Scadenza",
+        "de": "Fällig am",
+    }
+    preview_due_label = preview_due_labels.get(selected_lang, "Échéance")
+
+    preview_tokens = {
+        "invoice_number": "FAC-2026-001",
+        "company_name": company.name,
+        "client_name": "Client Démo",
+        "currency": company.base_currency or "EUR",
+        "total": "1250.00",
+        "issue_date": date.today().isoformat(),
+        "due_date": (date.today() + timedelta(days=30)).isoformat(),
+        "due_line": f"\n{preview_due_label}: {(date.today() + timedelta(days=30)).isoformat()}.",
+        "sender_name": str(settings.get("sender_name") or company.name),
+    }
+
+    if request.method == "POST":
+        selected_lang = _invoice_template_lang(settings, request.form.get("lang"))
+        logo_url = (request.form.get("logo_url") or "").strip()
+        sender_name = (request.form.get("sender_name") or "").strip()
+        email_subject_template = (request.form.get("email_subject_template") or "").strip()
+        email_body_template = (request.form.get("email_body_template") or "").strip()
+
+        upload = request.files.get("logo_file")
+        if upload and getattr(upload, "filename", ""):
+            try:
+                uploaded_logo = _save_finance_logo_upload(g.tenant.id, company.id, upload)
+                if uploaded_logo:
+                    logo_url = uploaded_logo
+            except ValueError:
+                flash(_("Format de logo non supporté."), "danger")
+                return redirect(url_for("finance.invoice_template_settings"))
+
+        localized_templates = settings.get("localized_templates") if isinstance(settings.get("localized_templates"), dict) else {}
+        current_row = localized_templates.get(selected_lang) if isinstance(localized_templates.get(selected_lang), dict) else {}
+        updated_row = {
+            "email_subject_template": email_subject_template or str(current_row.get("email_subject_template") or settings.get("email_subject_template") or _default_invoice_template_settings(company)["email_subject_template"]),
+            "email_body_template": email_body_template or str(current_row.get("email_body_template") or settings.get("email_body_template") or _default_invoice_template_settings(company)["email_body_template"]),
+        }
+        localized_templates[selected_lang] = updated_row
+
+        settings = {
+            "logo_url": logo_url,
+            "sender_name": sender_name,
+            "email_subject_template": str(settings.get("email_subject_template") or _default_invoice_template_settings(company)["email_subject_template"]),
+            "email_body_template": str(settings.get("email_body_template") or _default_invoice_template_settings(company)["email_body_template"]),
+            "localized_templates": localized_templates,
+        }
+        _set_fin_setting(company, _INVOICE_TEMPLATE_SETTING_KEY, settings)
+        flash(_("Template de facture mis à jour."), "success")
+        return redirect(url_for("finance.invoice_template_settings", lang=selected_lang))
+
+    preview_subject = _render_invoice_text_template(current_subject_template, preview_tokens)
+    preview_body = _render_invoice_text_template(current_body_template, preview_tokens)
+
+    return render_template(
+        "finance/invoice_template_settings.html",
+        tenant=g.tenant,
+        company=company,
+        active="invoices",
+        settings=settings,
+        selected_lang=selected_lang,
+        available_langs=[{"code": lang, "label": _invoice_lang_label(lang)} for lang in _INVOICE_TEMPLATE_LANGS],
+        email_subject_template=current_subject_template,
+        email_body_template=current_body_template,
+        preview_subject=preview_subject,
+        preview_body=preview_body,
+    )
+
+
+@bp.route("/invoices/<int:invoice_id>/send-email", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def invoice_send_email(invoice_id: int):
+    company = _get_company()
+    inv = FinanceInvoice.query.options(joinedload(FinanceInvoice.lines), joinedload(FinanceInvoice.counterparty)).filter_by(
+        id=invoice_id, tenant_id=g.tenant.id, company_id=company.id
+    ).first_or_404()
+
+    recipient = (request.form.get("recipient") or "").strip()
+    subject = (request.form.get("email_subject") or "").strip()
+    body = (request.form.get("email_body") or "").strip()
+
+    if not recipient:
+        recipient = (inv.counterparty.email if inv.counterparty else "") or ""
+
+    if not recipient:
+        flash(_("Defina um email do cliente para enviar a fatura."), "danger")
+        return redirect(url_for("finance.invoice_view", invoice_id=inv.id))
+
+    template_settings = _get_invoice_template_settings(company)
+    selected_lang = _invoice_template_lang(template_settings)
+    subject_template, body_template = _invoice_template_texts(template_settings, selected_lang)
+    tokens = _build_invoice_mail_tokens(inv, company, selected_lang)
+    tokens["sender_name"] = str(template_settings.get("sender_name") or company.name)
+    if not subject:
+        subject = _render_invoice_text_template(subject_template, tokens)
+    if not body:
+        body = _render_invoice_text_template(body_template, tokens)
+
+    if not subject:
+        subject = f"Facture {inv.invoice_number}"
+
+    logo_path = _resolve_logo_static_path(template_settings.get("logo_url"))
+    pdf_bytes = build_invoice_pdf_bytes(inv=inv, company=company, cp=inv.counterparty, logo_path=logo_path)
+    filename = f"invoice_{inv.invoice_number}.pdf"
+
+    sent = EmailService.send_email(
+        to=recipient,
+        subject=subject,
+        template=None,
+        body_text=body,
+        attachments=[
+            {
+                "filename": filename,
+                "content_type": "application/pdf",
+                "data": pdf_bytes,
+            }
+        ],
+    )
+
+    if sent:
+        if inv.status == "draft":
+            inv.status = "sent"
+            db.session.commit()
+        flash(_("Fatura enviada por email com sucesso."), "success")
+    else:
+        flash(_("Falha ao enviar o email da fatura."), "danger")
+
+    return redirect(url_for("finance.invoice_view", invoice_id=inv.id))

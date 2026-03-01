@@ -183,7 +183,26 @@
                 <tr>
                   <td>{{ t.txn_date }}</td>
                   <td>{{ t.description or '' }}</td>
-                  <td>{{ t.category_name }}</td>
+                  <td>
+                    {% if can_edit_categories and not t.is_locked %}
+                      <form method="post" action="{{ url_for('finance.transaction_set_category', txn_id=t.id) }}" class="d-flex gap-2 align-items-center">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                        <input type="hidden" name="next" value="{{ current_path }}" />
+                        <select class="form-select form-select-sm" name="category_id" style="min-width: 180px;">
+                          <option value="">{{ _('Sem categoria') }}</option>
+                          {% for c in categories %}
+                            <option value="{{ c.id }}" {% if c.id == t.category_id %}selected{% endif %}>{{ c.name }}</option>
+                          {% endfor %}
+                        </select>
+                        <button class="btn btn-outline-primary btn-sm" type="submit">{{ _('Salvar') }}</button>
+                      </form>
+                    {% else %}
+                      <span>{{ t.category_name }}</span>
+                      {% if t.is_locked %}
+                        <span class="badge text-bg-light border ms-1">{{ _('Comptabilisée') }}</span>
+                      {% endif %}
+                    {% endif %}
+                  </td>
                   <td>{{ t.counterparty_name }}</td>
                   <td class="text-end">{{ t.amount_fmt }}</td>
                 </tr>

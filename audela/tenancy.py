@@ -10,6 +10,73 @@ from flask_login import current_user
 from .i18n import tr
 
 
+_DEFAULT_MENU_ACCESS: dict[str, list[str]] = {
+    "finance": [
+        "dashboard",
+        "accounts",
+        "transactions",
+        "reports",
+        "stats",
+        "accounting",
+        "pivot",
+        "invoices",
+        "alerts",
+        "regulation",
+        "liabilities",
+        "investments",
+        "recurring",
+        "cashflow",
+        "nii",
+        "gaps",
+        "liquidity",
+        "risk",
+        "settings",
+        "imports",
+        "help",
+    ],
+    "bi": [
+        "home",
+        "sources",
+        "api_sources",
+        "web_extract",
+        "integrations",
+        "etl",
+        "sources_diagram",
+        "sql_editor",
+        "excel_ai",
+        "questions",
+        "dashboards",
+        "reports",
+        "files",
+        "statistics",
+        "explore",
+        "ai_chat",
+        "runs",
+        "audit",
+    ],
+    "project": [
+        "dashboard",
+        "kanban",
+        "gantt",
+        "managers",
+        "governance",
+        "risks",
+        "change",
+        "reporting",
+        "security",
+        "notifications",
+        "productivity",
+        "deliverables",
+        "ceremonies",
+    ],
+}
+
+
+def _normalize_bool_map(data: dict | None, keys: list[str], default_value: bool = True) -> dict[str, bool]:
+    src = data if isinstance(data, dict) else {}
+    return {k: bool(src.get(k, default_value)) for k in keys}
+
+
 @dataclass(frozen=True)
 class CurrentTenant:
     id: int
@@ -61,7 +128,7 @@ def get_user_module_access(tenant, user_id: int | None) -> dict:
         Defaults to full access when missing.
         """
         if not tenant or user_id is None:
-                return {"finance": True, "bi": True}
+            return {"finance": True, "bi": True, "project": True}
 
         settings = tenant.settings_json if isinstance(getattr(tenant, "settings_json", None), dict) else {}
         uam = settings.get("uam") if isinstance(settings.get("uam"), dict) else {}
@@ -73,7 +140,34 @@ def get_user_module_access(tenant, user_id: int | None) -> dict:
         return {
                 "finance": bool(row.get("finance", True)),
                 "bi": bool(row.get("bi", True)),
+                "project": bool(row.get("project", True)),
         }
+
+
+def get_user_menu_access(tenant, user_id: int | None, product: str) -> dict[str, bool]:
+    """Return menu-level permissions for a product and user.
+
+    Stored under tenant.settings_json:
+        settings_json["uam"]["menu_access"]["<user_id>"]["finance|bi|project"] = {
+            "menu_key": true/false
+        }
+
+    Missing config defaults to full menu access.
+    """
+    product_key = str(product or "").strip().lower()
+    defaults = _DEFAULT_MENU_ACCESS.get(product_key, [])
+    if not defaults:
+        return {}
+
+    if not tenant or user_id is None:
+        return {k: True for k in defaults}
+
+    settings = tenant.settings_json if isinstance(getattr(tenant, "settings_json", None), dict) else {}
+    uam = settings.get("uam") if isinstance(settings.get("uam"), dict) else {}
+    menu_access = uam.get("menu_access") if isinstance(uam.get("menu_access"), dict) else {}
+    by_user = menu_access.get(str(int(user_id))) if isinstance(menu_access.get(str(int(user_id))), dict) else {}
+    row = by_user.get(product_key) if isinstance(by_user.get(product_key), dict) else {}
+    return _normalize_bool_map(row, defaults, True)
 
 
 def require_tenant(func):

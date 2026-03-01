@@ -60,8 +60,8 @@
                   <th class="px-4">{{ _('Email') }}</th>
                   <th>{{ _('Rôles') }}</th>
                   <th>{{ _('Statut') }}</th>
-                  <th>{{ _('Finance') }}</th>
-                  <th>{{ _('BI') }}</th>
+                  <th>{{ _('Produits') }}</th>
+                  <th>{{ _('Menus autorisés') }}</th>
                   <th>{{ _('Créé le') }}</th>
                   <th>{{ _('Dernière connexion') }}</th>
                   <th class="px-4">{{ _('Actions') }}</th>
@@ -69,7 +69,8 @@
               </thead>
               <tbody>
                 {% for user in users %}
-                {% set uam = user_module_access.get(user.id, {'finance': True, 'bi': True}) %}
+                {% set uam = user_module_access.get(user.id, {'finance': True, 'bi': True, 'project': True}) %}
+                {% set menus = user_menu_access.get(user.id, {}) %}
                 <tr>
                   <td class="px-4">
                     <div class="d-flex align-items-center">
@@ -107,18 +108,23 @@
                     {% endif %}
                   </td>
                   <td>
-                    {% if uam.finance %}
-                      <span class="badge bg-success">{{ _('Oui') }}</span>
-                    {% else %}
-                      <span class="badge bg-secondary">{{ _('Non') }}</span>
-                    {% endif %}
+                    <div class="d-flex flex-wrap gap-1">
+                      <span class="badge {{ 'bg-success' if uam.finance else 'bg-secondary' }}">{{ _('Finance') }}</span>
+                      <span class="badge {{ 'bg-success' if uam.bi else 'bg-secondary' }}">{{ _('BI') }}</span>
+                      <span class="badge {{ 'bg-success' if uam.project else 'bg-secondary' }}">{{ _('Projet') }}</span>
+                    </div>
                   </td>
-                  <td>
-                    {% if uam.bi %}
-                      <span class="badge bg-success">{{ _('Oui') }}</span>
-                    {% else %}
-                      <span class="badge bg-secondary">{{ _('Non') }}</span>
-                    {% endif %}
+                  <td class="small text-muted">
+                    {% set ns = namespace(total=0, enabled=0) %}
+                    {% for product in ['finance','bi','project'] %}
+                      {% for key in uam_menu_keys[product] %}
+                        {% set ns.total = ns.total + 1 %}
+                        {% if menus.get(product, {}).get(key, True) %}
+                          {% set ns.enabled = ns.enabled + 1 %}
+                        {% endif %}
+                      {% endfor %}
+                    {% endfor %}
+                    {{ ns.enabled }}/{{ ns.total }}
                   </td>
                   <td>{{ user.created_at.strftime('%d/%m/%Y') }}</td>
                   <td>
@@ -129,29 +135,96 @@
                     {% endif %}
                   </td>
                   <td class="px-4">
-                    <form method="post" action="{{ url_for('tenant.users_update_module_access', user_id=user.id) }}" class="d-flex align-items-center gap-2 flex-wrap">
-                      <div class="form-check form-switch m-0">
-                        <input class="form-check-input" type="checkbox" name="finance_access" value="1" id="finance-{{ user.id }}" {% if uam.finance %}checked{% endif %} {% if user.id == current_user.id %}disabled{% endif %}>
-                        <label class="form-check-label small" for="finance-{{ user.id }}">{{ _('Finance') }}</label>
-                      </div>
-                      <div class="form-check form-switch m-0">
-                        <input class="form-check-input" type="checkbox" name="bi_access" value="1" id="bi-{{ user.id }}" {% if uam.bi %}checked{% endif %} {% if user.id == current_user.id %}disabled{% endif %}>
-                        <label class="form-check-label small" for="bi-{{ user.id }}">{{ _('BI') }}</label>
-                      </div>
-                      {% if user.id != current_user.id %}
-                        <button class="btn btn-sm btn-outline-primary" type="submit">{{ _('Enregistrer') }}</button>
-                      {% else %}
-                        <span class="text-muted small">{{ _('Vous') }}</span>
-                      {% endif %}
-                    </form>
+                    {% if user.id != current_user.id %}
+                      <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#uamModal-{{ user.id }}">
+                        <i class="bi bi-sliders me-1"></i>{{ _('Configurer') }}
+                      </button>
+                    {% else %}
+                      <span class="text-muted small">{{ _('Vous') }}</span>
+                    {% endif %}
                   </td>
                 </tr>
+
                 {% endfor %}
               </tbody>
             </table>
           </div>
         </div>
       </div>
+
+      {% for user in users %}
+      {% if user.id != current_user.id %}
+      {% set uam = user_module_access.get(user.id, {'finance': True, 'bi': True, 'project': True}) %}
+      {% set menus = user_menu_access.get(user.id, {}) %}
+      <div class="modal fade" id="uamModal-{{ user.id }}" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+          <div class="modal-content">
+            <form method="post" action="{{ url_for('tenant.users_update_module_access', user_id=user.id) }}">
+              <div class="modal-header">
+                <h5 class="modal-title">{{ _('Permissions utilisateur') }} · {{ user.email }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Fermer') }}"></button>
+              </div>
+              <div class="modal-body">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+                <div class="card mb-3">
+                  <div class="card-header fw-semibold">{{ _('Accès produits') }}</div>
+                  <div class="card-body d-flex flex-wrap gap-3">
+                    <div class="form-check form-switch m-0">
+                      <input class="form-check-input" type="checkbox" name="finance_access" value="1" id="finance-{{ user.id }}" {% if uam.finance %}checked{% endif %}>
+                      <label class="form-check-label" for="finance-{{ user.id }}">{{ _('Finance') }}</label>
+                    </div>
+                    <div class="form-check form-switch m-0">
+                      <input class="form-check-input" type="checkbox" name="bi_access" value="1" id="bi-{{ user.id }}" {% if uam.bi %}checked{% endif %}>
+                      <label class="form-check-label" for="bi-{{ user.id }}">{{ _('BI') }}</label>
+                    </div>
+                    <div class="form-check form-switch m-0">
+                      <input class="form-check-input" type="checkbox" name="project_access" value="1" id="project-{{ user.id }}" {% if uam.project %}checked{% endif %}>
+                      <label class="form-check-label" for="project-{{ user.id }}">{{ _('Projet') }}</label>
+                    </div>
+                  </div>
+                </div>
+
+                {% for product in ['finance', 'bi', 'project'] %}
+                <div class="card mb-3">
+                  <div class="card-header d-flex align-items-center justify-content-between">
+                    <span class="fw-semibold">{{ _('BI') if product == 'bi' else (_('Finance') if product == 'finance' else _('Projet')) }}</span>
+                    <div class="d-flex align-items-center gap-2">
+                      <span class="small text-muted">{{ _('Menus') }}</span>
+                      <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 js-uam-check-all" data-product="{{ product }}">{{ _('Tout cocher') }}</button>
+                      <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 js-uam-uncheck-all" data-product="{{ product }}">{{ _('Tout décocher') }}</button>
+                    </div>
+                  </div>
+                  <div class="card-body">
+                    <div class="row g-2">
+                      {% for key in uam_menu_keys[product] %}
+                        {% set checked = menus.get(product, {}).get(key, True) %}
+                        <div class="col-12 col-md-6 col-lg-4">
+                          <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="menu_{{ product }}" value="{{ key }}" id="{{ product }}-menu-{{ user.id }}-{{ key }}" {% if checked %}checked{% endif %}>
+                            <label class="form-check-label" for="{{ product }}-menu-{{ user.id }}-{{ key }}">
+                              {{ _(uam_menu_labels[product].get(key, key)) }}
+                            </label>
+                          </div>
+                        </div>
+                      {% endfor %}
+                    </div>
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ _('Annuler') }}</button>
+                <button class="btn btn-primary" type="submit">
+                  <i class="bi bi-check2-circle me-1"></i>{{ _('Enregistrer') }}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+      {% endfor %}
 
       {% if not can_add_user %}
       <div class="alert alert-warning mt-4">
@@ -177,4 +250,28 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script>
+    window.onReady(function(){
+      function toggleMenuCheckboxes(btn, checkedValue){
+        const product = btn.getAttribute('data-product');
+        if (!product) return;
+        const modal = btn.closest('.modal');
+        if (!modal) return;
+        modal.querySelectorAll('input[name="menu_' + product + '"]').forEach(function(input){
+          input.checked = checkedValue;
+        });
+      }
+
+      document.querySelectorAll('.js-uam-check-all').forEach(function(btn){
+        btn.addEventListener('click', function(){ toggleMenuCheckboxes(btn, true); });
+      });
+      document.querySelectorAll('.js-uam-uncheck-all').forEach(function(btn){
+        btn.addEventListener('click', function(){ toggleMenuCheckboxes(btn, false); });
+      });
+    });
+  </script>
 {% endblock %}

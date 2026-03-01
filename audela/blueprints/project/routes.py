@@ -10,7 +10,7 @@ from ...i18n import DEFAULT_LANG, tr
 from ...models.core import Tenant
 from ...models.project_management import ProjectWorkspace
 from ...services.subscription_service import SubscriptionService
-from ...tenancy import get_current_tenant_id
+from ...tenancy import get_current_tenant_id, get_user_module_access, get_user_menu_access
 from . import bp
 
 
@@ -90,6 +90,29 @@ def _load_tenant_into_g() -> None:
             tenant = Tenant.query.get(tenant_id)
             if tenant:
                 g.tenant = tenant
+
+    if (
+        request.endpoint
+        and request.endpoint.startswith("project.")
+        and current_user.is_authenticated
+        and getattr(g, "tenant", None)
+        and current_user.tenant_id == g.tenant.id
+    ):
+        access = get_user_module_access(g.tenant, current_user.id)
+        if not access.get("project", True):
+            flash(_("Accès Projet désactivé pour votre utilisateur."), "warning")
+            return redirect(url_for("tenant.dashboard"))
+
+
+@bp.app_context_processor
+def _project_layout_context():
+    tenant = getattr(g, "tenant", None)
+    module_access = get_user_module_access(tenant, getattr(current_user, "id", None))
+    project_menu_access = get_user_menu_access(tenant, getattr(current_user, "id", None), "project")
+    return {
+        "module_access": module_access,
+        "project_menu_access": project_menu_access,
+    }
 
 
 @bp.route("/")

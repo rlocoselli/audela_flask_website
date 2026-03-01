@@ -7,11 +7,25 @@
       <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
         <h5 class="mb-0">{{ _('Rapport comptable (Chart of Accounts)') }}</h5>
         <div class="d-flex gap-2 finance-row-actions">
+          <button class="btn btn-outline-secondary btn-sm" type="button" id="btn-collapse-all-groups">{{ _('Replier groupes') }}</button>
+          <button class="btn btn-outline-secondary btn-sm" type="button" id="btn-expand-all-groups">{{ _('Déplier groupes') }}</button>
+          <button class="btn btn-outline-secondary btn-sm" type="button" id="btn-reset-groups-view">{{ _('Réinitialiser la vue') }}</button>
           <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.reports_transactions') }}">{{ _('Relatórios') }}</a>
           <a class="btn btn-outline-primary btn-sm" href="{{ url_for('finance.reports_accounting_periods', company_id=company.id) }}">{{ _('Rapport par période') }}</a>
         </div>
       </div>
       <p class="text-secondary small mb-3">{{ _('Valeurs par compte comptable: solde d’ouverture, débits, crédits et solde de clôture sur la période.') }}</p>
+
+      <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1085;">
+        <div id="groups-view-reset-toast" class="toast align-items-center text-bg-success border-0" role="status" aria-live="polite" aria-atomic="true" data-bs-delay="1800">
+          <div class="d-flex">
+            <div class="toast-body py-2 px-3 small">
+              {{ _('Vue réinitialisée: tous les groupes sont dépliés.') }}
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+          </div>
+        </div>
+      </div>
 
       <form method="get" class="row g-2 align-items-end">
         <div class="col-12 col-md-3">
@@ -50,6 +64,7 @@
         <div>• {{ _('Investido (ativos)') }} / {{ _('Valor atual') }} = {{ _('somme des investissements actifs (montant investi / valeur courante)') }}</div>
         <div class="mt-1 text-secondary">
           {{ _('Périmètre actuel') }}: {{ accounting_explain.gl_accounts }} {{ _('comptes') }},
+          {{ accounting_explain.gl_groups or 0 }} {{ _('groupes') }},
           {{ accounting_explain.opening_line_count }} {{ _('lignes avant période') }},
           {{ accounting_explain.period_line_count }} {{ _('lignes dans la période') }}.
         </div>
@@ -104,9 +119,26 @@
           </thead>
           <tbody>
             {% for r in rows %}
-              <tr>
+              <tr class="{% if r.is_group %}table-light{% endif %} js-gl-row"
+                  data-depth="{{ r.depth or 0 }}"
+                  data-row-index="{{ loop.index0 }}"
+                  data-is-group="{{ '1' if r.is_group else '0' }}">
                 <td>{{ r.code }}</td>
-                <td>{{ r.name }}</td>
+                <td>
+                  <span style="padding-left: {{ (r.depth or 0) * 14 }}px; display: inline-block;">
+                    {% if r.is_group %}
+                      <button type="button"
+                              class="btn btn-link btn-sm p-0 me-1 text-decoration-none js-group-toggle"
+                              data-row-index="{{ loop.index0 }}"
+                              aria-label="{{ _('Replier/Déplier') }}"
+                              title="{{ _('Replier/Déplier') }}"
+                              style="line-height:1; vertical-align:baseline;">▾</button>
+                      <strong>{{ r.name }}</strong>
+                    {% else %}
+                      {{ r.name }}
+                    {% endif %}
+                  </span>
+                </td>
                 <td><span class="badge text-bg-light border">{{ r.kind }}</span></td>
                 <td class="text-end">{{ '%.2f'|format(r.opening or 0) }}</td>
                 <td class="text-end">{{ '%.2f'|format(r.debit or 0) }}</td>
@@ -116,8 +148,13 @@
                   <button class="btn btn-sm btn-outline-primary js-source-btn finance-action-btn" type="button"
                      data-gl-id="{{ r.gl_id }}"
                      data-gl-code="{{ r.code }}"
-                     data-gl-name="{{ r.name }}">
-                    {{ _('Voir les écritures source') }}
+                     data-gl-name="{{ r.name }}"
+                     data-gl-group="{{ '1' if r.is_group else '0' }}">
+                    {% if r.is_group %}
+                      {{ _('Voir les écritures du groupe') }}
+                    {% else %}
+                      {{ _('Voir les écritures source') }}
+                    {% endif %}
                   </button>
                 </td>
               </tr>
@@ -173,6 +210,147 @@
 
   <script>
     (function(){
+      const STORAGE_KEY = 'finance.accounting.collapsedGroups.v1';
+      const collapsedGroups = new Set();
+      const glRows = Array.from(document.querySelectorAll('.js-gl-row')).map((el) => ({
+        el,
+        index: Number(el.dataset.rowIndex || '0'),
+        depth: Number(el.dataset.depth || '0'),
+        isGroup: String(el.dataset.isGroup || '0') === '1',
+      }));
+      const resetToastEl = document.getElementById('groups-view-reset-toast');
+      let resetToastInstance = null;
+      let resetFeedbackTimer = null;
+
+      function showResetFeedback() {
+        if (window.bootstrap?.Toast && resetToastEl) {
+          resetToastInstance = window.bootstrap.Toast.getOrCreateInstance(resetToastEl);
+          resetToastInstance.show();
+          return;
+        }
+        if (!resetToastEl) return;
+        resetToastEl.classList.add('show');
+        resetToastEl.style.display = 'block';
+        if (resetFeedbackTimer) {
+          window.clearTimeout(resetFeedbackTimer);
+        }
+        resetFeedbackTimer = window.setTimeout(() => {
+          resetToastEl.classList.remove('show');
+          resetToastEl.style.display = 'none';
+        }, 1800);
+      }
+
+      function saveCollapsedGroups() {
+        try {
+          const payload = {
+            ids: Array.from(collapsedGroups).sort((a, b) => a - b),
+          };
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+        } catch (_err) {
+          // no-op
+        }
+      }
+
+      function loadCollapsedGroups() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return;
+          const parsed = JSON.parse(raw);
+          const ids = Array.isArray(parsed?.ids) ? parsed.ids : [];
+          const validIndexes = new Set(glRows.filter((r) => r.isGroup).map((r) => r.index));
+          collapsedGroups.clear();
+          for (const id of ids) {
+            const n = Number(id);
+            if (Number.isFinite(n) && validIndexes.has(n)) {
+              collapsedGroups.add(n);
+            }
+          }
+        } catch (_err) {
+          // no-op
+        }
+      }
+
+      function updateGroupToggleIcon(row) {
+        const btn = row.el.querySelector('.js-group-toggle');
+        if (!btn) return;
+        btn.textContent = collapsedGroups.has(row.index) ? '▸' : '▾';
+      }
+
+      function applyGroupVisibility() {
+        const collapsedStack = [];
+        for (const row of glRows) {
+          while (collapsedStack.length && row.depth <= collapsedStack[collapsedStack.length - 1]) {
+            collapsedStack.pop();
+          }
+          const hiddenByAncestor = collapsedStack.length > 0;
+          row.el.style.display = hiddenByAncestor ? 'none' : '';
+          if (row.isGroup && collapsedGroups.has(row.index)) {
+            collapsedStack.push(row.depth);
+          }
+          if (row.isGroup) {
+            updateGroupToggleIcon(row);
+          }
+        }
+      }
+
+      function collapseAllGroups() {
+        collapsedGroups.clear();
+        for (const row of glRows) {
+          if (row.isGroup) {
+            collapsedGroups.add(row.index);
+          }
+        }
+        saveCollapsedGroups();
+        applyGroupVisibility();
+      }
+
+      function expandAllGroups() {
+        collapsedGroups.clear();
+        saveCollapsedGroups();
+        applyGroupVisibility();
+      }
+
+      function resetGroupsView() {
+        collapsedGroups.clear();
+        try {
+          localStorage.removeItem(STORAGE_KEY);
+        } catch (_err) {
+          // no-op
+        }
+        applyGroupVisibility();
+        showResetFeedback();
+      }
+
+      document.querySelectorAll('.js-group-toggle').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const idx = Number(btn.dataset.rowIndex || '-1');
+          if (idx < 0) return;
+          if (collapsedGroups.has(idx)) {
+            collapsedGroups.delete(idx);
+          } else {
+            collapsedGroups.add(idx);
+          }
+          saveCollapsedGroups();
+          applyGroupVisibility();
+        });
+      });
+
+      const collapseAllBtn = document.getElementById('btn-collapse-all-groups');
+      const expandAllBtn = document.getElementById('btn-expand-all-groups');
+      const resetViewBtn = document.getElementById('btn-reset-groups-view');
+      if (collapseAllBtn) {
+        collapseAllBtn.addEventListener('click', collapseAllGroups);
+      }
+      if (expandAllBtn) {
+        expandAllBtn.addEventListener('click', expandAllGroups);
+      }
+      if (resetViewBtn) {
+        resetViewBtn.addEventListener('click', resetGroupsView);
+      }
+
+      loadCollapsedGroups();
+      applyGroupVisibility();
+
       const sourceUrl = "{{ url_for('finance.reports_accounting_source') }}";
       const startInput = document.querySelector('input[name="start"]');
       const endInput = document.querySelector('input[name="end"]');

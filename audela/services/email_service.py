@@ -5,11 +5,12 @@ Service pour envoyer des emails transactionnels (vérification, invitations, rec
 Supporte: Flask-Mail, templates Jinja2, queuing optionnel.
 """
 
-from typing import Optional, List
+from typing import Optional, List, Any
 from datetime import datetime, timedelta
 
 from flask import current_app, render_template, url_for, g, has_request_context
 from flask_mail import Message
+from markupsafe import escape
 
 from audela.extensions import db, mail
 from audela.models import User, EmailVerificationToken, UserInvitation
@@ -31,8 +32,11 @@ class EmailService:
     def send_email(
         to: str | List[str],
         subject: str,
-        template: str,
+        template: str | None,
         lang: str | None = None,
+        body_text: str | None = None,
+        body_html: str | None = None,
+        attachments: list[dict[str, Any]] | None = None,
         **context
     ) -> bool:
         """
@@ -56,17 +60,33 @@ class EmailService:
             template_context["current_lang"] = resolved_lang
             template_context["_"] = lambda msgid, **kwargs: tr(msgid, resolved_lang, **kwargs)
 
-            # Render HTML et text
-            html_body = render_template(f"emails/{template}.html", **template_context)
-            text_body = render_template(f"emails/{template}.txt", **template_context)
+            if template:
+                html_body_resolved = render_template(f"emails/{template}.html", **template_context)
+                text_body_resolved = render_template(f"emails/{template}.txt", **template_context)
+            else:
+                text_body_resolved = body_text or ""
+                if body_html is not None:
+                    html_body_resolved = body_html
+                elif text_body_resolved:
+                    html_body_resolved = f"<div style=\"white-space: pre-line; font-family: Arial, sans-serif;\">{escape(text_body_resolved)}</div>"
+                else:
+                    html_body_resolved = ""
             
             msg = Message(
                 subject=subject,
                 recipients=to,
-                html=html_body,
-                body=text_body,
+                html=html_body_resolved,
+                body=text_body_resolved,
                 sender=current_app.config.get('MAIL_DEFAULT_SENDER', 'noreply@audela.com')
             )
+
+            for attachment in attachments or []:
+                filename = str(attachment.get("filename") or "attachment.bin")
+                content_type = str(attachment.get("content_type") or "application/octet-stream")
+                data = attachment.get("data")
+                if data is None:
+                    continue
+                msg.attach(filename=filename, content_type=content_type, data=data)
 
             if current_app.config.get("MAIL_DEV_MODE", False):
                 current_app.logger.info(

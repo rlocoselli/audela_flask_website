@@ -50,7 +50,7 @@ from ...services.file_storage_service import (
 )
 from ...services.file_introspect_service import introspect_file_schema
 from ...services.subscription_service import SubscriptionService
-from ...tenancy import get_current_tenant_id, get_user_module_access
+from ...tenancy import get_current_tenant_id, get_user_module_access, get_user_menu_access
 
 from ...i18n import tr, DEFAULT_LANG
 
@@ -94,6 +94,41 @@ def load_tenant_into_g() -> None:
             flash(tr("Acesso BI desativado para seu usuário.", getattr(g, "lang", None)), "warning")
             return redirect(url_for("tenant.dashboard"))
 
+        bi_menu_access = get_user_menu_access(g.tenant, current_user.id, "bi")
+        endpoint_menu_key = {
+            "portal.home": "home",
+            "portal.sources_list": "sources",
+            "portal.sources_new": "sources",
+            "portal.sources_view": "sources",
+            "portal.sources_edit": "sources",
+            "portal.api_sources_list": "api_sources",
+            "portal.api_sources_new": "api_sources",
+            "portal.api_sources_edit": "api_sources",
+            "portal.web_extract": "web_extract",
+            "portal.web_extract_visual": "web_extract",
+            "portal.integrations_hub": "integrations",
+            "portal.etls_list": "etl",
+            "portal.sources_diagram": "sources_diagram",
+            "portal.sql_editor": "sql_editor",
+            "portal.excel_ai": "excel_ai",
+            "portal.questions_list": "questions",
+            "portal.questions_new": "questions",
+            "portal.dashboards_list": "dashboards",
+            "portal.dashboards_new": "dashboards",
+            "portal.reports_list": "reports",
+            "portal.reports_new": "reports",
+            "portal.files_home": "files",
+            "portal.statistics_home": "statistics",
+            "portal.explore": "explore",
+            "portal.ai_chat": "ai_chat",
+            "portal.runs_list": "runs",
+            "portal.audit_list": "audit",
+        }
+        menu_key = endpoint_menu_key.get(request.endpoint)
+        if menu_key and not bi_menu_access.get(menu_key, True):
+            flash(tr("Accès menu BI désactivé pour votre utilisateur.", getattr(g, "lang", None)), "warning")
+            return redirect(url_for("portal.home"))
+
 
 def _require_tenant() -> None:
     if not current_user.is_authenticated:
@@ -106,12 +141,14 @@ def _require_tenant() -> None:
 def _portal_layout_context():
     tenant = getattr(g, "tenant", None)
     module_access = get_user_module_access(tenant, getattr(current_user, "id", None))
+    bi_menu_access = get_user_menu_access(tenant, getattr(current_user, "id", None), "bi")
     if not tenant or not getattr(tenant, "subscription", None):
-        return {"transaction_usage": None, "module_access": module_access}
+        return {"transaction_usage": None, "module_access": module_access, "bi_menu_access": bi_menu_access}
 
     _, current_count, max_limit = SubscriptionService.check_limit(tenant.id, "transactions")
     return {
         "module_access": module_access,
+        "bi_menu_access": bi_menu_access,
         "transaction_usage": {
             "current": int(current_count),
             "max": int(max_limit),

@@ -9,6 +9,7 @@ import zipfile
 
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
 from xml.etree.ElementTree import Element, SubElement, tostring, register_namespace
@@ -48,7 +49,12 @@ def compute_totals(inv: FinanceInvoice) -> InvoiceTotals:
     return InvoiceTotals(net=net, tax=tax, gross=gross)
 
 
-def build_invoice_pdf_bytes(inv: FinanceInvoice, company: FinanceCompany, cp: FinanceCounterparty | None) -> bytes:
+def build_invoice_pdf_bytes(
+    inv: FinanceInvoice,
+    company: FinanceCompany,
+    cp: FinanceCounterparty | None,
+    logo_path: str | None = None,
+) -> bytes:
     """Generate a simple invoice PDF.
 
     This is not Factur-X PDF/A-3 compliant; it is a readable invoice PDF.
@@ -65,6 +71,13 @@ def build_invoice_pdf_bytes(inv: FinanceInvoice, company: FinanceCompany, cp: Fi
     c.drawString(20 * mm, h - 28 * mm, f"Issue date: {_iso(inv.issue_date)}")
     if inv.due_date:
         c.drawString(20 * mm, h - 34 * mm, f"Due date: {_iso(inv.due_date)}")
+
+    if logo_path:
+        try:
+            logo = ImageReader(logo_path)
+            c.drawImage(logo, 150 * mm, h - 36 * mm, width=40 * mm, height=14 * mm, preserveAspectRatio=True, anchor='n')
+        except Exception:
+            pass
 
     # Company block
     y = h - 50 * mm
@@ -406,9 +419,10 @@ def build_invoice_export_zip(
     company: FinanceCompany,
     cp: FinanceCounterparty | None,
     country: str,
+    logo_path: str | None = None,
 ) -> Tuple[str, bytes]:
     """Return (filename, zip_bytes). country in {'fr','it'}"""
-    pdf = build_invoice_pdf_bytes(inv, company, cp)
+    pdf = build_invoice_pdf_bytes(inv, company, cp, logo_path=logo_path)
     if country.lower() == "fr":
         xml = build_facturx_cii_xml_bytes(inv, company, cp)
         xml_name = f"invoice_{inv.invoice_number}_facturx.xml"

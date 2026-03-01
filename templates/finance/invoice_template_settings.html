@@ -1,0 +1,81 @@
+{% extends "finance/base_finance.html" %}
+
+{% block finance_content %}
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h4 class="mb-0">{{ _('Template de facture') }}</h4>
+      <div class="text-secondary small">{{ _('Personnalisez le logo et le message email des factures.') }}</div>
+    </div>
+    <a class="btn btn-outline-secondary" href="{{ url_for('finance.invoices_list') }}">{{ _('Voltar') }}</a>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <form method="post" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">{{ _('URL du logo') }}</label>
+            <input class="form-control" name="logo_url" value="{{ settings.logo_url if settings else '' }}" placeholder="/static/uploads/...">
+            <div class="form-text">{{ _('Vous pouvez aussi envoyer un fichier logo ci-dessous.') }}</div>
+          </div>
+            <div class="col-md-4">
+                <label class="form-label">{{ _('Langue du template') }}</label>
+                <select name="lang" class="form-select" onchange="window.location='{{ url_for('finance.invoice_template_settings') }}?lang=' + this.value">
+                    {% for lang in available_langs %}
+                    <option value="{{ lang.code }}" {% if lang.code == selected_lang %}selected{% endif %}>{{ lang.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+          <div class="col-md-6">
+            <label class="form-label">{{ _('Upload logo') }}</label>
+            <input class="form-control" type="file" name="logo_file" accept=".png,.jpg,.jpeg,.webp,.gif">
+          </div>
+
+          {% if settings and settings.logo_url %}
+            <div class="col-12">
+              <label class="form-label">{{ _('Prévisualisation logo') }}</label>
+              <div class="border rounded p-3 bg-light">
+                <img src="{{ settings.logo_url }}" alt="logo" style="max-height:64px; max-width:220px; object-fit:contain;">
+              </div>
+            </div>
+          {% endif %}
+
+          <div class="col-md-6">
+            <label class="form-label">{{ _('Nom expéditeur') }}</label>
+              <input class="form-control" name="email_subject_template" value="{{ email_subject_template }}">
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">{{ _('Sujet email (template)') }}</label>
+              <textarea class="form-control" name="email_body_template" rows="8">{{ email_body_template }}</textarea>
+          </div>
+            <div class="col-12">
+                <div class="card border-info">
+                    <div class="card-header bg-info-subtle text-info-emphasis">{{ _('Aperçu du template') }} ({{ selected_lang|upper }})</div>
+                    <div class="card-body">
+                        <p class="mb-2"><strong>{{ _('Objet') }}:</strong> {{ preview_subject }}</p>
+                        <hr>
+                        <pre class="mb-0" style="white-space: pre-wrap;">{{ preview_body }}</pre>
+                    </div>
+                </div>
+            </div>
+
+          <div class="col-12">
+            <label class="form-label">{{ _('Message email (template)') }}</label>
+            <textarea class="form-control" name="email_body_template" rows="8">{{ settings.email_body_template if settings else '' }}</textarea>
+            <div class="form-text">
+              {{ _('Variables disponibles: {invoice_number}, {company_name}, {client_name}, {total}, {currency}, {issue_date}, {due_date}, {sender_name}') }}
+            </div>
+          </div>
+        </div>
+
+        <div class="d-flex gap-2 mt-4">
+          <button class="btn btn-primary" type="submit">{{ _('Salvar') }}</button>
+          <a class="btn btn-outline-secondary" href="{{ url_for('finance.invoices_list') }}">{{ _('Annuler') }}</a>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock %}

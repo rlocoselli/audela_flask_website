@@ -1,0 +1,131 @@
+{% extends "finance/base_finance.html" %}
+
+{% block finance_content %}
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+        <h5 class="mb-0">{{ _('Import CSV des données de référence') }}</h5>
+        <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.master_data_import_template_csv', entity=entity) }}">
+          <i class="bi bi-download me-1"></i>{{ _('Télécharger template CSV') }}
+        </a>
+      </div>
+      <p class="text-secondary small mb-0">{{ _('Importez produits, contreparties, financements, investissements et comptes (loan/deposit/credit line) avec templates de mapping sauvegardables.') }}</p>
+
+      <form method="get" class="row g-2 align-items-end mt-2">
+        <div class="col-md-4">
+          <label class="form-label">{{ _('Type de données') }}</label>
+          <select class="form-select" name="entity">
+            {% for key, cfg in entities.items() %}
+              <option value="{{ key }}" {% if key == entity %}selected{% endif %}>{{ _(cfg.label) }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <button class="btn btn-outline-secondary w-100" type="submit">{{ _('Charger') }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <form method="post" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="entity" value="{{ entity }}">
+
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label">{{ _('Délimiteur CSV') }}</label>
+            <select class="form-select" name="csv_delimiter">
+              <option value="auto" {% if delimiter_preset == 'auto' %}selected{% endif %}>{{ _('Auto') }}</option>
+              <option value="comma" {% if delimiter_preset == 'comma' %}selected{% endif %}>,</option>
+              <option value="semicolon" {% if delimiter_preset == 'semicolon' %}selected{% endif %}>;</option>
+              <option value="tab" {% if delimiter_preset == 'tab' %}selected{% endif %}>TAB</option>
+              <option value="pipe" {% if delimiter_preset == 'pipe' %}selected{% endif %}>|</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">{{ _('Fichier CSV') }}</label>
+            <input class="form-control" type="file" name="file" accept=".csv,text/csv" required>
+          </div>
+        </div>
+
+        <hr class="my-4">
+
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h6 class="mb-0">{{ _('Template de mapping') }}</h6>
+          <div class="form-check mb-0">
+            <input class="form-check-input" type="checkbox" id="saveTemplate" name="save_template" value="1" checked>
+            <label class="form-check-label" for="saveTemplate">{{ _('Sauvegarder ce template') }}</label>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th>{{ _('Champ métier') }}</th>
+                <th>{{ _('Colonne CSV') }}</th>
+                <th>{{ _('Obligatoire') }}</th>
+                <th>{{ _('Exemple') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for f in entity_config.fields %}
+                <tr>
+                  <td>{{ _(f.label) }}</td>
+                  <td>
+                    <input class="form-control form-control-sm" name="map_{{ f.key }}" value="{{ mapping_preset.get(f.key, f.key) }}" placeholder="{{ f.key }}">
+                  </td>
+                  <td>
+                    {% if f.required %}
+                      <span class="badge text-bg-danger">{{ _('Oui') }}</span>
+                    {% else %}
+                      <span class="badge text-bg-light border">{{ _('Non') }}</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-secondary small">{{ f.sample }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="d-flex gap-2">
+          <button class="btn btn-primary" type="submit">
+            <i class="bi bi-upload me-1"></i>{{ _('Importer CSV') }}
+          </button>
+          <a class="btn btn-outline-secondary" href="{{ url_for('finance.master_data_import_template_csv', entity=entity) }}">
+            {{ _('Télécharger template CSV') }}
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {% if result %}
+    <div class="card shadow-sm mt-3">
+      <div class="card-body">
+        <h6 class="mb-2">{{ _('Résultat import') }}</h6>
+        <div class="row g-2 small">
+          <div class="col-md-3"><span class="text-secondary">{{ _('Fichier') }}:</span> {{ result.filename }}</div>
+          <div class="col-md-3"><span class="text-secondary">{{ _('Lignes lues') }}:</span> {{ result.rows }}</div>
+          <div class="col-md-2"><span class="text-secondary">{{ _('Créés') }}:</span> {{ result.created }}</div>
+          <div class="col-md-2"><span class="text-secondary">{{ _('Mis à jour') }}:</span> {{ result.updated }}</div>
+          <div class="col-md-2"><span class="text-secondary">{{ _('Ignorés') }}:</span> {{ result.skipped }}</div>
+        </div>
+
+        {% if result.errors %}
+          <div class="alert alert-warning mt-3 mb-0">
+            <div class="fw-semibold mb-1">{{ _('Erreurs (premières lignes)') }}</div>
+            <ul class="mb-0 small">
+              {% for err in result.errors %}
+                <li>{{ err }}</li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+{% endblock %}

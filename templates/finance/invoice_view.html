@@ -10,6 +10,7 @@
     </div>
     <div class="btn-group">
       <a class="btn btn-outline-secondary" href="{{ url_for('finance.invoice_edit', invoice_id=invoice.id) }}">{{ _('Editar') }}</a>
+      <a class="btn btn-outline-secondary" href="{{ url_for('finance.invoice_pdf', invoice_id=invoice.id) }}">{{ _('PDF') }}</a>
       <a class="btn btn-outline-primary" href="{{ url_for('finance.invoice_export', invoice_id=invoice.id, country='fr') }}">{{ _('Export FR (ZIP)') }}</a>
       <a class="btn btn-outline-primary" href="{{ url_for('finance.invoice_export', invoice_id=invoice.id, country='it') }}">{{ _('Export IT (ZIP)') }}</a>
     </div>
@@ -111,6 +112,31 @@
           <form method="post" action="{{ url_for('finance.invoice_delete', invoice_id=invoice.id) }}" class="js-confirm-form" data-confirm-message="{{ _('Remover fatura?') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn btn-outline-danger w-100" type="submit">{{ _('Remover') }}</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mt-3">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="card-title mb-0">{{ _('Envio por email') }}</h6>
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('finance.invoice_template_settings') }}">{{ _('Template') }}</a>
+          </div>
+          <form method="post" action="{{ url_for('finance.invoice_send_email', invoice_id=invoice.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="mb-2">
+              <label class="form-label">{{ _('Destinatário') }}</label>
+              <input class="form-control" name="recipient" type="email" value="{{ invoice.counterparty.email if invoice.counterparty and invoice.counterparty.email else '' }}" placeholder="cliente@exemplo.com">
+            </div>
+            <div class="mb-2">
+              <label class="form-label">{{ _('Assunto') }}</label>
+              <input class="form-control" name="email_subject" value="{{ email_subject_default }}">
+            </div>
+            <div class="mb-2">
+              <label class="form-label">{{ _('Mensagem') }}</label>
+              <textarea class="form-control" name="email_body" rows="6">{{ email_body_default }}</textarea>
+            </div>
+            <button class="btn btn-primary w-100" type="submit">{{ _('Enviar fatura') }}</button>
           </form>
         </div>
       </div>

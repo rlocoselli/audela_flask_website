@@ -9,6 +9,7 @@
     {% if current_user and current_user.is_authenticated %}
       <div class="d-flex gap-2">
         <a class="btn btn-outline-secondary" href="{{ url_for('finance.pivot_page') }}">{{ _('Pivot') }}</a>
+        <a class="btn btn-outline-secondary" href="{{ url_for('finance.invoice_template_settings') }}">{{ _('Template facture') }}</a>
         <a class="btn btn-primary" href="{{ url_for('finance.invoice_new') }}">{{ _('Nova fatura') }}</a>
       </div>
     {% endif %}

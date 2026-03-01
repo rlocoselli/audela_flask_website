@@ -15,19 +15,19 @@
 
     <div class="collapse navbar-collapse" id="projectTopNav">
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}">{{ _('Tableau Projet') }}</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-kanban">{{ _('Kanban') }}</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-gantt">{{ _('Gantt') }}</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-managers">{{ _('Responsables') }}</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-governance">{{ _('Cadrage PMO') }}</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-risks">{{ _('Risques/Issues') }}</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-change">{{ _('Changements') }}</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-reporting">{{ _('Reporting') }}</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-security">{{ _('Paramètres') }}</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-notifications">{{ _('Notifications') }}</a></li>
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-productivity">{{ _('Productivité') }}</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-deliverables">{{ _('Livrables') }}</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-ceremonies">{{ _('Cérémonies') }}</a></li>
+        {% if project_menu_access.dashboard %}<li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}">{{ _('Tableau Projet') }}</a></li>{% endif %}
+        {% if project_menu_access.kanban %}<li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-kanban">{{ _('Kanban') }}</a></li>{% endif %}
+        {% if project_menu_access.gantt %}<li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-gantt">{{ _('Gantt') }}</a></li>{% endif %}
+        {% if project_menu_access.managers %}<li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-managers">{{ _('Responsables') }}</a></li>{% endif %}
+        {% if project_menu_access.governance %}<li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-governance">{{ _('Cadrage PMO') }}</a></li>{% endif %}
+        {% if project_menu_access.risks %}<li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-risks">{{ _('Risques/Issues') }}</a></li>{% endif %}
+        {% if project_menu_access.change %}<li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-change">{{ _('Changements') }}</a></li>{% endif %}
+        {% if project_menu_access.reporting %}<li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-reporting">{{ _('Reporting') }}</a></li>{% endif %}
+        {% if project_menu_access.security %}<li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-security">{{ _('Paramètres') }}</a></li>{% endif %}
+        {% if project_menu_access.notifications %}<li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-notifications">{{ _('Notifications') }}</a></li>{% endif %}
+        {% if project_menu_access.productivity %}<li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-productivity">{{ _('Productivité') }}</a></li>{% endif %}
+        {% if project_menu_access.deliverables %}<li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-deliverables">{{ _('Livrables') }}</a></li>{% endif %}
+        {% if project_menu_access.ceremonies %}<li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-ceremonies">{{ _('Cérémonies') }}</a></li>{% endif %}
       </ul>
 
       <div class="d-flex align-items-center gap-2 project-top-actions flex-wrap">
@@ -76,15 +76,15 @@
 
 <div id="projectQuickActions" class="position-fixed end-0 p-3" style="bottom:72px; z-index:1081;">
   <div id="projectQuickActionsMenu" class="d-none mb-2 d-flex flex-column align-items-end gap-2">
-    <button type="button" class="btn btn-light border shadow-sm btn-sm rounded-pill" data-project-quick-action="new-project" title="{{ _('Créer un nouveau projet') }}">
+    {% if project_menu_access.dashboard %}<button type="button" class="btn btn-light border shadow-sm btn-sm rounded-pill" data-project-quick-action="new-project" title="{{ _('Créer un nouveau projet') }}">
       <i class="bi bi-kanban-fill me-1"></i>{{ _('Nouveau projet') }}
-    </button>
-    <button type="button" class="btn btn-light border shadow-sm btn-sm rounded-pill" data-project-quick-action="new-task" title="{{ _('Créer une nouvelle tâche') }}">
+    </button>{% endif %}
+    {% if project_menu_access.kanban %}<button type="button" class="btn btn-light border shadow-sm btn-sm rounded-pill" data-project-quick-action="new-task" title="{{ _('Créer une nouvelle tâche') }}">
       <i class="bi bi-list-task me-1"></i>{{ _('Nouvelle tâche') }}
-    </button>
-    <a class="btn btn-light border shadow-sm btn-sm rounded-pill" href="{{ url_for('project.dashboard') }}#pm-section-gantt" title="{{ _('Aller au Gantt') }}">
+    </button>{% endif %}
+    {% if project_menu_access.gantt %}<a class="btn btn-light border shadow-sm btn-sm rounded-pill" href="{{ url_for('project.dashboard') }}#pm-section-gantt" title="{{ _('Aller au Gantt') }}">
       <i class="bi bi-bar-chart-steps me-1"></i>{{ _('Gantt') }}
-    </a>
+    </a>{% endif %}
   </div>
   <button
     id="projectQuickActionsToggle"
