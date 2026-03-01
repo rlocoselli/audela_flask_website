@@ -8235,6 +8235,8 @@ _I18N_HOME_CTA_20260301 = {
         "1) Cliquez sur « Découvrir gratuitement »": "1) Clique em « Descobrir gratuitamente »",
         "2) Sélectionnez « Créer un compte »": "2) Selecione « Criar conta »",
         "3) Renseignez votre organisation, votre e-mail et votre mot de passe": "3) Informe sua organização, seu e-mail e sua senha",
+        "Annuler": "Cancelar",
+        "Continuer": "Continuar",
     },
     "en": {
         "Découvrir gratuitement": "Discover for free",
@@ -8243,6 +8245,8 @@ _I18N_HOME_CTA_20260301 = {
         "1) Cliquez sur « Découvrir gratuitement »": "1) Click “Discover for free”",
         "2) Sélectionnez « Créer un compte »": "2) Select “Create an account”",
         "3) Renseignez votre organisation, votre e-mail et votre mot de passe": "3) Enter your organization, email, and password",
+        "Annuler": "Cancel",
+        "Continuer": "Continue",
     },
     "fr": {
         "Découvrir gratuitement": "Découvrir gratuitement",
@@ -8251,6 +8255,8 @@ _I18N_HOME_CTA_20260301 = {
         "1) Cliquez sur « Découvrir gratuitement »": "1) Cliquez sur « Découvrir gratuitement »",
         "2) Sélectionnez « Créer un compte »": "2) Sélectionnez « Créer un compte »",
         "3) Renseignez votre organisation, votre e-mail et votre mot de passe": "3) Renseignez votre organisation, votre e-mail et votre mot de passe",
+        "Annuler": "Annuler",
+        "Continuer": "Continuer",
     },
     "es": {
         "Découvrir gratuitement": "Descubrir gratis",
@@ -8259,6 +8265,8 @@ _I18N_HOME_CTA_20260301 = {
         "1) Cliquez sur « Découvrir gratuitement »": "1) Haz clic en « Descubrir gratis »",
         "2) Sélectionnez « Créer un compte »": "2) Selecciona « Crear una cuenta »",
         "3) Renseignez votre organisation, votre e-mail et votre mot de passe": "3) Indica tu organización, tu correo electrónico y tu contraseña",
+        "Annuler": "Cancelar",
+        "Continuer": "Continuar",
     },
     "it": {
         "Découvrir gratuitement": "Scopri gratuitamente",
@@ -8267,6 +8275,8 @@ _I18N_HOME_CTA_20260301 = {
         "1) Cliquez sur « Découvrir gratuitement »": "1) Clicca su « Scopri gratuitamente »",
         "2) Sélectionnez « Créer un compte »": "2) Seleziona « Crea un account »",
         "3) Renseignez votre organisation, votre e-mail et votre mot de passe": "3) Inserisci la tua organizzazione, la tua e-mail e la tua password",
+        "Annuler": "Annulla",
+        "Continuer": "Continua",
     },
     "de": {
         "Découvrir gratuitement": "Kostenlos entdecken",
@@ -8275,6 +8285,8 @@ _I18N_HOME_CTA_20260301 = {
         "1) Cliquez sur « Découvrir gratuitement »": "1) Klicken Sie auf « Kostenlos entdecken »",
         "2) Sélectionnez « Créer un compte »": "2) Wählen Sie « Konto erstellen »",
         "3) Renseignez votre organisation, votre e-mail et votre mot de passe": "3) Geben Sie Ihre Organisation, Ihre E-Mail und Ihr Passwort ein",
+        "Annuler": "Abbrechen",
+        "Continuer": "Weiter",
     },
 }
 

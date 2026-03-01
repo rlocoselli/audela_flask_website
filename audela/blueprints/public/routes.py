@@ -1,6 +1,7 @@
 from datetime import date, datetime
+from urllib.parse import urljoin
 
-from flask import redirect, render_template, request, session, url_for, flash
+from flask import Response, current_app, redirect, render_template, request, session, url_for, flash
 from flask_login import current_user
 
 from ...extensions import db
@@ -206,3 +207,57 @@ def no_sidebar():
 @bp.route("/elements")
 def elements():
     return render_template("elements.html")
+
+
+@bp.route("/sitemap.xml")
+def sitemap_xml():
+    site_url = (current_app.config.get("SITE_URL") or "").rstrip("/")
+
+    def _abs(endpoint: str) -> str:
+        path = url_for(endpoint, _external=False)
+        if site_url:
+            return urljoin(site_url + "/", path.lstrip("/"))
+        return url_for(endpoint, _external=True)
+
+    today = date.today().isoformat()
+    entries = [
+        (_abs("public.index"), "weekly", "1.0"),
+        (_abs("public.plans"), "weekly", "0.9"),
+        (_abs("public.product_finance"), "weekly", "0.9"),
+        (_abs("public.product_bi"), "weekly", "0.9"),
+        (_abs("public.product_project"), "weekly", "0.9"),
+        (_abs("public.metabase"), "monthly", "0.7"),
+        (_abs("public.belegal"), "monthly", "0.7"),
+        (_abs("public.projects_mobile"), "monthly", "0.6"),
+        (_abs("public.projects_iot"), "monthly", "0.6"),
+        (_abs("public.projects_management"), "monthly", "0.6"),
+        (_abs("public.legal_terms"), "yearly", "0.3"),
+        (_abs("public.legal_privacy"), "yearly", "0.3"),
+        (_abs("public.legal_cookies"), "yearly", "0.3"),
+        (_abs("public.legal_retention"), "yearly", "0.3"),
+        (_abs("public.legal_notice"), "yearly", "0.3"),
+    ]
+
+    urls = "".join(
+        f"<url><loc>{loc}</loc><lastmod>{today}</lastmod><changefreq>{changefreq}</changefreq><priority>{priority}</priority></url>"
+        for loc, changefreq, priority in entries
+    )
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+        f"{urls}"
+        "</urlset>"
+    )
+    return Response(xml, mimetype="application/xml")
+
+
+@bp.route("/robots.txt")
+def robots_txt():
+    site_url = (current_app.config.get("SITE_URL") or "").rstrip("/")
+    sitemap_url = f"{site_url}/sitemap.xml" if site_url else url_for("public.sitemap_xml", _external=True)
+    lines = [
+        "User-agent: *",
+        "Allow: /",
+        f"Sitemap: {sitemap_url}",
+    ]
+    return Response("\n".join(lines) + "\n", mimetype="text/plain")

@@ -4,11 +4,40 @@
 	html5up.net | @ajlkn
 	Free for personal and commercial use under the CCA 3.0 license (html5up.net/license)
 -->
-<html>
+<html lang="{{ current_lang|default('fr') }}">
 	<head>
 		<title>{% block title %}{{ _('AUDELA – Data, BI, ERP, LegalTech & IA') }}{% endblock %}</title>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+		<meta name="description" content="{% block meta_description %}AUDELA - Data, BI, ERP, LegalTech et IA pour piloter votre activité, améliorer la performance et accélérer la décision.{% endblock %}" />
+		<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
+		<link rel="canonical" href="{% block canonical_url %}{{ request.base_url }}{% endblock %}" />
+		<meta property="og:type" content="website" />
+		<meta property="og:site_name" content="AUDELA" />
+		<meta property="og:locale" content="{{ current_lang|default('fr') }}" />
+		<meta property="og:title" content="{% block og_title %}{{ _('AUDELA – Data, BI, ERP, LegalTech & IA') }}{% endblock %}" />
+		<meta property="og:description" content="{% block og_description %}AUDELA - Data, BI, ERP, LegalTech et IA pour piloter votre activité, améliorer la performance et accélérer la décision.{% endblock %}" />
+		<meta property="og:url" content="{{ request.base_url }}" />
+		<meta property="og:image" content="{{ url_for('static', filename='images/audela-hero.svg', _external=True) }}" />
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:title" content="{% block twitter_title %}{{ _('AUDELA – Data, BI, ERP, LegalTech & IA') }}{% endblock %}" />
+		<meta name="twitter:description" content="{% block twitter_description %}AUDELA - Data, BI, ERP, LegalTech et IA pour piloter votre activité, améliorer la performance et accélérer la décision.{% endblock %}" />
+		<meta name="twitter:image" content="{{ url_for('static', filename='images/audela-hero.svg', _external=True) }}" />
+		<script type="application/ld+json">
+			{{ {
+				"@context": "https://schema.org",
+				"@type": "Organization",
+				"name": "AUDELA",
+				"url": request.url_root,
+				"logo": url_for('static', filename='images/audela-logo.svg', _external=True),
+				"contactPoint": [{
+					"@type": "ContactPoint",
+					"telephone": "+33 07 64 14 20 31",
+					"contactType": "customer support",
+					"email": "admin@audeladedonees.fr"
+				}]
+			} | tojson }}
+		</script>
 				<meta name="csrf-token" content="{{ csrf_token() }}" />
 <link rel="stylesheet" href="{{ url_for('static', filename='assets/css/main.css') }}" />
 		<link rel="stylesheet" href="{{ url_for('static', filename='assets/css/custom.css') }}" />
