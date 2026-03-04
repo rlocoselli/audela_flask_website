@@ -45,6 +45,14 @@ from ...services.bank_bridge import BridgeClient, BridgeError
 from ...services.bank_statement import import_bank_statement, StatementImportError
 from ...services.openai_statement import parse_bank_statement_pdf_via_openai, OpenAIStatementError
 from ...services.openai_quick_entry import parse_quick_entry_text_via_openai, OpenAIQuickEntryError
+from ...services.finance_ratio_service import (
+    compute_ratio_value,
+    execute_scalar_sql,
+    generate_scalar_indicator_from_nl,
+    normalize_ratio_config,
+    normalize_ratio_labels,
+    validate_scalar_sql,
+)
 from ...services.finance_service import (
     compute_basic_risk,
     compute_risk_metrics,
@@ -228,6 +236,12 @@ def _load_tenant_into_g() -> None:
             "finance.quick_entry": "transactions",
             "finance.reports_transactions": "reports",
             "finance.reports_statistics": "stats",
+            "finance.ratios_page": "stats",
+            "finance.ratios_indicator_create": "stats",
+            "finance.ratios_indicator_delete": "stats",
+            "finance.ratios_create": "stats",
+            "finance.ratios_delete": "stats",
+            "finance.ratios_ai_generate": "stats",
             "finance.reports_accounting": "accounting",
             "finance.pivot_page": "pivot",
             "finance.invoices_list": "invoices",
@@ -349,6 +363,34 @@ def _set_fin_setting(company: FinanceCompany, key: str, value: dict) -> None:
 _INVOICE_TEMPLATE_SETTING_KEY = "invoice_template"
 _INVOICE_TEMPLATE_LANGS = ["fr", "en", "pt", "es", "it", "de"]
 _GL_AUTO_RULES_SETTING_KEY = "gl_auto_rules"
+_RATIO_MODULE_SETTING_KEY = "ratio_module"
+
+
+def _get_ratio_module_config(company: FinanceCompany) -> dict:
+    defaults = {"indicators": [], "ratios": []}
+    raw = _get_fin_setting(company, _RATIO_MODULE_SETTING_KEY, defaults)
+    return normalize_ratio_config(raw)
+
+
+def _set_ratio_module_config(company: FinanceCompany, payload: dict) -> dict:
+    normalized = normalize_ratio_config(payload)
+    _set_fin_setting(company, _RATIO_MODULE_SETTING_KEY, normalized)
+    return normalized
+
+
+def _ratio_label(entry: dict, lang: str | None = None) -> str:
+    labels = entry.get("labels") if isinstance(entry.get("labels"), dict) else {}
+    selected_lang = (lang or getattr(g, "lang", "fr") or "fr").strip().lower()
+    if labels.get(selected_lang):
+        return str(labels[selected_lang])
+    if labels.get("fr"):
+        return str(labels["fr"])
+    return str(entry.get("name") or "")
+
+
+def _indicator_sql_uses_period(sql_text: str) -> bool:
+    text = str(sql_text or "")
+    return ":start_date" in text and ":end_date" in text
 
 
 def _invoice_lang_label(code: str) -> str:
@@ -4618,6 +4660,314 @@ def reports_statistics():
         },
         granularity=granularity,
     )
+
+
+@bp.route("/ratios")
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def ratios_page():
+    company = _get_company()
+    today = date.today()
+    focus = (request.args.get("focus") or "").strip().lower()
+    if focus not in {"indicator", "ratio"}:
+        focus = ""
+
+    try:
+        start = datetime.strptime((request.args.get("start") or date(today.year, today.month, 1).isoformat()), "%Y-%m-%d").date()
+    except Exception:
+        start = date(today.year, today.month, 1)
+    try:
+        end = datetime.strptime((request.args.get("end") or today.isoformat()), "%Y-%m-%d").date()
+    except Exception:
+        end = today
+    if end < start:
+        start, end = end, start
+
+    cfg = _get_ratio_module_config(company)
+    indicators = cfg.get("indicators") if isinstance(cfg.get("indicators"), list) else []
+    ratios = cfg.get("ratios") if isinstance(cfg.get("ratios"), list) else []
+    show_period_filters = any(_indicator_sql_uses_period(item.get("sql")) for item in indicators if isinstance(item, dict))
+
+    indicator_values: dict[str, Decimal] = {}
+    indicator_errors: dict[str, str] = {}
+    params = {
+        "tenant_id": g.tenant.id,
+        "company_id": company.id,
+        "start_date": start,
+        "end_date": end,
+    }
+
+    def _fmt_num(value: Decimal, precision: int = 2) -> str:
+        try:
+            return f"{float(value):,.{precision}f}"
+        except Exception:
+            return str(value)
+
+    for indicator in indicators:
+        indicator_id = str(indicator.get("id") or "").strip()
+        sql_text = str(indicator.get("sql") or "").strip()
+        if not indicator_id or not sql_text:
+            continue
+        try:
+            value = execute_scalar_sql(sql_text, params)
+            indicator_values[indicator_id] = value
+        except Exception as exc:
+            indicator_errors[indicator_id] = str(exc)
+
+    indicator_rows: list[dict] = []
+    for indicator in indicators:
+        indicator_id = str(indicator.get("id") or "").strip()
+        value = indicator_values.get(indicator_id)
+        indicator_rows.append(
+            {
+                **indicator,
+                "label": _ratio_label(indicator),
+                "value": value,
+                "value_display": _fmt_num(value, 2) if value is not None else "—",
+                "error": indicator_errors.get(indicator_id),
+            }
+        )
+
+    ratio_rows: list[dict] = []
+    indicator_by_id = {str(ind.get("id") or ""): ind for ind in indicators}
+    for ratio in ratios:
+        numerator_id = str(ratio.get("numerator_id") or "").strip()
+        denominator_id = str(ratio.get("denominator_id") or "").strip()
+        numerator_value = indicator_values.get(numerator_id)
+        denominator_value = indicator_values.get(denominator_id)
+        numerator_error = indicator_errors.get(numerator_id)
+        denominator_error = indicator_errors.get(denominator_id)
+
+        ratio_value = None
+        ratio_error = None
+        if numerator_error or denominator_error:
+            ratio_error = numerator_error or denominator_error
+        elif numerator_value is None or denominator_value is None:
+            ratio_error = _("Indicateur indisponible pour le ratio.")
+        else:
+            ratio_value = compute_ratio_value(
+                numerator_value,
+                denominator_value,
+                float(ratio.get("multiplier") or 100.0),
+            )
+            if ratio_value is None:
+                ratio_error = _("Dénominateur nul.")
+
+        precision = int(ratio.get("precision") or 2)
+        ratio_rows.append(
+            {
+                **ratio,
+                "label": _ratio_label(ratio),
+                "numerator_label": _ratio_label(indicator_by_id.get(numerator_id) or {"name": numerator_id}),
+                "denominator_label": _ratio_label(indicator_by_id.get(denominator_id) or {"name": denominator_id}),
+                "ratio_value": ratio_value,
+                "ratio_value_display": _fmt_num(ratio_value, precision) if ratio_value is not None else "—",
+                "ratio_error": ratio_error,
+            }
+        )
+
+    return render_template(
+        "finance/ratios.html",
+        tenant=g.tenant,
+        company=company,
+        start=start,
+        end=end,
+        focus=focus,
+        show_period_filters=show_period_filters,
+        indicators=indicator_rows,
+        ratios=ratio_rows,
+    )
+
+
+@bp.route("/ratios/indicators/create", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def ratios_indicator_create():
+    company = _get_company()
+    cfg = _get_ratio_module_config(company)
+
+    name = (request.form.get("name") or "").strip()
+    sql_text = (request.form.get("sql") or "").strip()
+    description = (request.form.get("description") or "").strip()
+
+    if not name:
+        flash(_("Le nom de l'indicateur est obligatoire."), "error")
+        return redirect(url_for("finance.ratios_page"))
+    if not sql_text:
+        flash(_("La requête SQL est obligatoire."), "error")
+        return redirect(url_for("finance.ratios_page"))
+
+    try:
+        validate_scalar_sql(sql_text)
+    except Exception as exc:
+        flash(_("Requête invalide: {msg}", msg=str(exc)), "error")
+        return redirect(url_for("finance.ratios_page"))
+
+    labels_raw = {
+        "fr": (request.form.get("label_fr") or "").strip(),
+        "en": (request.form.get("label_en") or "").strip(),
+        "pt": (request.form.get("label_pt") or "").strip(),
+        "es": (request.form.get("label_es") or "").strip(),
+        "it": (request.form.get("label_it") or "").strip(),
+        "de": (request.form.get("label_de") or "").strip(),
+    }
+
+    cfg.setdefault("indicators", []).append(
+        {
+            "id": uuid.uuid4().hex,
+            "name": name,
+            "description": description,
+            "labels": normalize_ratio_labels(labels_raw, name),
+            "sql": sql_text,
+            "created_at": datetime.utcnow().isoformat(),
+        }
+    )
+
+    _set_ratio_module_config(company, cfg)
+    flash(_("Indicateur enregistré."), "success")
+    return redirect(url_for("finance.ratios_page"))
+
+
+@bp.route("/ratios/indicators/<string:indicator_id>/delete", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def ratios_indicator_delete(indicator_id: str):
+    company = _get_company()
+    cfg = _get_ratio_module_config(company)
+    indicator_id = (indicator_id or "").strip()
+
+    indicators = cfg.get("indicators") if isinstance(cfg.get("indicators"), list) else []
+    ratios = cfg.get("ratios") if isinstance(cfg.get("ratios"), list) else []
+
+    before_count = len(indicators)
+    indicators = [item for item in indicators if str(item.get("id") or "").strip() != indicator_id]
+    ratios = [
+        item
+        for item in ratios
+        if str(item.get("numerator_id") or "").strip() != indicator_id
+        and str(item.get("denominator_id") or "").strip() != indicator_id
+    ]
+
+    cfg["indicators"] = indicators
+    cfg["ratios"] = ratios
+    _set_ratio_module_config(company, cfg)
+
+    if len(indicators) == before_count:
+        flash(_("Indicateur introuvable."), "warning")
+    else:
+        flash(_("Indicateur supprimé."), "success")
+
+    return redirect(url_for("finance.ratios_page"))
+
+
+@bp.route("/ratios/create", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def ratios_create():
+    company = _get_company()
+    cfg = _get_ratio_module_config(company)
+
+    name = (request.form.get("name") or "").strip()
+    numerator_id = (request.form.get("numerator_id") or "").strip()
+    denominator_id = (request.form.get("denominator_id") or "").strip()
+    description = (request.form.get("description") or "").strip()
+    suffix = (request.form.get("suffix") or "%").strip() or "%"
+
+    try:
+        multiplier = float(request.form.get("multiplier") or "100")
+    except Exception:
+        multiplier = 100.0
+    try:
+        precision = int(request.form.get("precision") or "2")
+    except Exception:
+        precision = 2
+    precision = max(0, min(6, precision))
+
+    if not name or not numerator_id or not denominator_id:
+        flash(_("Nom, numérateur et dénominateur sont requis."), "error")
+        return redirect(url_for("finance.ratios_page"))
+
+    indicators = cfg.get("indicators") if isinstance(cfg.get("indicators"), list) else []
+    valid_ids = {str(item.get("id") or "").strip() for item in indicators}
+    if numerator_id not in valid_ids or denominator_id not in valid_ids:
+        flash(_("Sélection numérateur/dénominateur invalide."), "error")
+        return redirect(url_for("finance.ratios_page"))
+
+    labels_raw = {
+        "fr": (request.form.get("label_fr") or "").strip(),
+        "en": (request.form.get("label_en") or "").strip(),
+        "pt": (request.form.get("label_pt") or "").strip(),
+        "es": (request.form.get("label_es") or "").strip(),
+        "it": (request.form.get("label_it") or "").strip(),
+        "de": (request.form.get("label_de") or "").strip(),
+    }
+
+    cfg.setdefault("ratios", []).append(
+        {
+            "id": uuid.uuid4().hex,
+            "name": name,
+            "description": description,
+            "labels": normalize_ratio_labels(labels_raw, name),
+            "numerator_id": numerator_id,
+            "denominator_id": denominator_id,
+            "multiplier": multiplier,
+            "precision": precision,
+            "suffix": suffix,
+            "created_at": datetime.utcnow().isoformat(),
+        }
+    )
+
+    _set_ratio_module_config(company, cfg)
+    flash(_("Ratio enregistré."), "success")
+    return redirect(url_for("finance.ratios_page"))
+
+
+@bp.route("/ratios/<string:ratio_id>/delete", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def ratios_delete(ratio_id: str):
+    company = _get_company()
+    cfg = _get_ratio_module_config(company)
+    ratio_id = (ratio_id or "").strip()
+
+    ratios = cfg.get("ratios") if isinstance(cfg.get("ratios"), list) else []
+    before_count = len(ratios)
+    ratios = [item for item in ratios if str(item.get("id") or "").strip() != ratio_id]
+    cfg["ratios"] = ratios
+    _set_ratio_module_config(company, cfg)
+
+    if len(ratios) == before_count:
+        flash(_("Ratio introuvable."), "warning")
+    else:
+        flash(_("Ratio supprimé."), "success")
+
+    return redirect(url_for("finance.ratios_page"))
+
+
+@bp.route("/ratios/ai/generate", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def ratios_ai_generate():
+    _get_company()
+    data = request.get_json(silent=True) or {}
+    prompt = (data.get("text") or "").strip()
+    if not prompt:
+        return jsonify({"ok": False, "error": _("Texte vide.")}), 400
+
+    try:
+        generated = generate_scalar_indicator_from_nl(prompt, lang=getattr(g, "lang", "fr"))
+        name = str(generated.get("name") or _("Indicateur scalaire")).strip()
+        sql_text = str(generated.get("sql") or "").strip()
+        validate_scalar_sql(sql_text)
+        warnings = generated.get("warnings") if isinstance(generated.get("warnings"), list) else []
+        return jsonify({
+            "ok": True,
+            "name": name,
+            "sql": sql_text,
+            "warnings": [str(w) for w in warnings[:8]],
+        })
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
 
 
 @bp.route("/reports/accounting")

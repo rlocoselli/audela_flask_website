@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, date, timedelta
+from decimal import Decimal, InvalidOperation
 import hashlib
 import secrets
 import re
@@ -29,6 +30,8 @@ from ...models.bi import (
 )
 from ...models.core import Tenant
 from ...models.core import User, Role
+from ...models.finance import FinanceCompany
+from ...models.finance_invoices import FinanceSetting
 from ...models.project_management import ProjectWorkspace
 from ...security import require_roles
 from ...services.query_service import QueryExecutionError, execute_sql
@@ -40,6 +43,7 @@ from ...services.ai_service import analyze_with_ai
 from ...services.statistics_service import run_statistics_analysis, stats_report_to_pdf_bytes
 from ...services.report_render_service import report_to_pdf_bytes
 from ...services.web_extract_service import extract_structured_table_from_web
+from ...services.alerting_dispatch import dispatch_alerting_for_result
 from ...services.file_storage_service import (
     delete_folder_tree,
     delete_stored_file,
@@ -49,6 +53,14 @@ from ...services.file_storage_service import (
     store_stream,
 )
 from ...services.file_introspect_service import introspect_file_schema
+from ...services.finance_ratio_service import (
+    compute_ratio_value,
+    execute_scalar_sql,
+    generate_scalar_indicator_from_nl,
+    normalize_ratio_config,
+    normalize_ratio_labels,
+    validate_scalar_sql,
+)
 from ...services.subscription_service import SubscriptionService
 from ...tenancy import get_current_tenant_id, get_user_module_access, get_user_menu_access
 
@@ -119,6 +131,16 @@ def load_tenant_into_g() -> None:
             "portal.reports_new": "reports",
             "portal.files_home": "files",
             "portal.statistics_home": "statistics",
+            "portal.ratios": "ratios",
+            "portal.ratios_indicator_create": "ratio_indicator_create",
+            "portal.ratios_indicator_create_submit": "ratio_indicator_create",
+            "portal.ratios_indicator_delete": "ratio_indicator_create",
+            "portal.ratios_create": "ratio_create",
+            "portal.ratios_delete": "ratio_create",
+            "portal.ratios_ai_generate": "ratios",
+            "portal.alerting_settings": "alerting",
+            "portal.what_if": "what_if",
+            "portal.api_what_if_scenarios": "what_if",
             "portal.explore": "explore",
             "portal.ai_chat": "ai_chat",
             "portal.runs_list": "runs",
@@ -274,6 +296,530 @@ def _persist_web_extract_state(tenant: Tenant, state: dict) -> None:
     configs = state.get("configs") if isinstance(state.get("configs"), list) else []
     web_extract["configs"] = configs[:150]
     settings["web_extract"] = web_extract
+    tenant.settings_json = copy.deepcopy(settings)
+    flag_modified(tenant, "settings_json")
+
+
+def _to_int(value: Any, default: int, min_value: int | None = None, max_value: int | None = None) -> int:
+    try:
+        out = int(value)
+    except Exception:
+        out = int(default)
+    if min_value is not None:
+        out = max(int(min_value), out)
+    if max_value is not None:
+        out = min(int(max_value), out)
+    return out
+
+
+def _to_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except Exception:
+        return float(default)
+
+
+def _to_number(value: Any) -> float | None:
+    try:
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return float(int(value))
+        if isinstance(value, (int, float)):
+            out = float(value)
+            return out if out == out else None
+        txt = str(value).strip()
+        if not txt:
+            return None
+        txt = txt.replace(" ", "")
+        txt = txt.replace("€", "").replace("$", "").replace("£", "").replace("%", "")
+        has_comma = "," in txt
+        has_dot = "." in txt
+        if has_comma and has_dot:
+            if txt.rfind(",") > txt.rfind("."):
+                txt = txt.replace(".", "").replace(",", ".")
+            else:
+                txt = txt.replace(",", "")
+        elif has_comma:
+            txt = txt.replace(",", ".")
+        out = float(txt)
+        return out if out == out else None
+    except Exception:
+        return None
+
+
+def _to_date_value(value: Any) -> date | None:
+    try:
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, date):
+            return value
+
+        txt = str(value).strip()
+        if not txt:
+            return None
+
+        normalized = txt.replace("Z", "+00:00")
+        try:
+            return datetime.fromisoformat(normalized).date()
+        except Exception:
+            pass
+
+        probe = txt[:10]
+        for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%d/%m/%Y", "%d-%m-%Y"):
+            try:
+                return datetime.strptime(probe, fmt).date()
+            except Exception:
+                continue
+        return None
+    except Exception:
+        return None
+
+
+def _numeric_metric_fields(columns: list[Any], rows: list[Any]) -> list[str]:
+    metric_fields: list[str] = []
+    for idx, col in enumerate(columns):
+        seen = 0
+        all_numeric = True
+        for row in rows:
+            if not isinstance(row, (list, tuple)) or idx >= len(row):
+                continue
+            val = row[idx]
+            if val is None or str(val).strip() == "":
+                continue
+            seen += 1
+            if _to_number(val) is None:
+                all_numeric = False
+                break
+        if seen > 0 and all_numeric:
+            metric_fields.append(str(col))
+    return metric_fields
+
+
+def _date_fields(columns: list[Any], rows: list[Any]) -> list[str]:
+    out: list[str] = []
+    sample_rows = rows[:300] if isinstance(rows, list) else []
+    for idx, col in enumerate(columns):
+        seen = 0
+        parsed = 0
+        for row in sample_rows:
+            if not isinstance(row, (list, tuple)) or idx >= len(row):
+                continue
+            val = row[idx]
+            if val is None or str(val).strip() == "":
+                continue
+            seen += 1
+            if _to_date_value(val) is not None:
+                parsed += 1
+        if seen > 0 and (parsed / seen) >= 0.8:
+            out.append(str(col))
+    return out
+
+
+def _normalize_alerting_agg(value: Any) -> str:
+    raw = str(value or "AVG").strip().upper()
+    aliases = {
+        "MEAN": "AVG",
+        "STD": "STDDEV",
+        "STDDEV_SAMP": "STDDEV",
+    }
+    normalized = aliases.get(raw, raw)
+    return normalized if normalized in {"SUM", "AVG", "COUNT", "MIN", "MAX", "STDDEV"} else "AVG"
+
+
+def _normalize_alerting_horizon(value: Any) -> str:
+    raw = str(value or "last_days").strip().lower()
+    return raw if raw in {"last_days", "last_months", "current_year", "custom_range"} else "last_days"
+
+
+def _ratio_indicator_label(entry: dict[str, Any]) -> str:
+    labels = entry.get("labels") if isinstance(entry.get("labels"), dict) else {}
+    selected_lang = (getattr(g, "lang", "fr") or "fr").strip().lower()
+    for code in (selected_lang, "fr", "en", "pt", "es", "it", "de"):
+        value = labels.get(code)
+        if value:
+            return str(value)
+    return str(entry.get("name") or "").strip()
+
+
+def _finance_indicator_options_for_alerting(tenant_id: int) -> list[dict[str, Any]]:
+    options: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    settings_rows = (
+        FinanceSetting.query
+        .filter_by(tenant_id=int(tenant_id), key="ratio_module")
+        .order_by(FinanceSetting.company_id.asc())
+        .all()
+    )
+
+    for row in settings_rows:
+        payload = row.value_json if isinstance(row.value_json, dict) else {}
+        indicators = payload.get("indicators") if isinstance(payload.get("indicators"), list) else []
+        for indicator in indicators:
+            if not isinstance(indicator, dict):
+                continue
+            indicator_id = str(indicator.get("id") or "").strip()
+            sql_text = str(indicator.get("sql") or "").strip()
+            if not indicator_id or not sql_text:
+                continue
+
+            ref = f"{int(row.company_id)}:{indicator_id}"
+            if ref in seen:
+                continue
+            seen.add(ref)
+
+            label = _ratio_indicator_label(indicator) or indicator_id
+            options.append(
+                {
+                    "ref": ref,
+                    "company_id": int(row.company_id),
+                    "indicator_id": indicator_id,
+                    "label": f"[{int(row.company_id)}] {label}",
+                }
+            )
+
+    options.sort(key=lambda item: str(item.get("label") or "").lower())
+    return options[:1000]
+
+
+def _finance_ratio_options_for_dashboard(tenant_id: int) -> list[dict[str, Any]]:
+    options: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    settings_rows = (
+        FinanceSetting.query
+        .filter_by(tenant_id=int(tenant_id), key=_RATIO_MODULE_SETTING_KEY)
+        .order_by(FinanceSetting.company_id.asc())
+        .all()
+    )
+
+    for row in settings_rows:
+        payload = normalize_ratio_config(row.value_json if isinstance(row.value_json, dict) else {})
+        ratios = payload.get("ratios") if isinstance(payload.get("ratios"), list) else []
+        for ratio in ratios:
+            if not isinstance(ratio, dict):
+                continue
+            ratio_id = str(ratio.get("id") or "").strip()
+            if not ratio_id:
+                continue
+
+            ref = f"{int(row.company_id)}:{ratio_id}"
+            if ref in seen:
+                continue
+            seen.add(ref)
+
+            label = _ratio_indicator_label(ratio) or ratio_id
+            options.append(
+                {
+                    "ref": ref,
+                    "company_id": int(row.company_id),
+                    "ratio_id": ratio_id,
+                    "label": f"[{int(row.company_id)}] {label}",
+                }
+            )
+
+    options.sort(key=lambda item: str(item.get("label") or "").lower())
+    return options[:1000]
+
+
+_RATIO_MODULE_SETTING_KEY = "ratio_module"
+
+
+def _resolve_bi_ratio_company() -> FinanceCompany | None:
+    requested_company_id = _to_int(request.values.get("company_id"), 0, 0, 2_000_000_000)
+    if requested_company_id > 0:
+        company = FinanceCompany.query.filter_by(id=requested_company_id, tenant_id=g.tenant.id).first()
+        if company:
+            session["finance_company_id"] = int(company.id)
+            return company
+
+    session_company_id = _to_int(session.get("finance_company_id"), 0, 0, 2_000_000_000)
+    if session_company_id > 0:
+        company = FinanceCompany.query.filter_by(id=session_company_id, tenant_id=g.tenant.id).first()
+        if company:
+            return company
+
+    company = (
+        FinanceCompany.query
+        .filter_by(tenant_id=g.tenant.id)
+        .order_by(FinanceCompany.name.asc(), FinanceCompany.id.asc())
+        .first()
+    )
+    if company:
+        session["finance_company_id"] = int(company.id)
+    return company
+
+
+def _get_bi_ratio_module_config(company: FinanceCompany) -> dict:
+    defaults = {"indicators": [], "ratios": []}
+    row = FinanceSetting.query.filter_by(
+        tenant_id=g.tenant.id,
+        company_id=company.id,
+        key=_RATIO_MODULE_SETTING_KEY,
+    ).first()
+    raw = row.value_json if row and isinstance(row.value_json, dict) else defaults
+    return normalize_ratio_config(raw)
+
+
+def _set_bi_ratio_module_config(company: FinanceCompany, payload: dict) -> dict:
+    normalized = normalize_ratio_config(payload)
+    row = FinanceSetting.query.filter_by(
+        tenant_id=g.tenant.id,
+        company_id=company.id,
+        key=_RATIO_MODULE_SETTING_KEY,
+    ).first()
+    if not row:
+        row = FinanceSetting(
+            tenant_id=g.tenant.id,
+            company_id=company.id,
+            key=_RATIO_MODULE_SETTING_KEY,
+            value_json=normalized,
+        )
+        db.session.add(row)
+    else:
+        row.value_json = normalized
+    db.session.commit()
+    return normalized
+
+
+def _ratio_redirect_query(focus: str | None = None) -> dict[str, Any]:
+    query: dict[str, Any] = {}
+    if focus:
+        query["focus"] = focus
+
+    start = str(request.values.get("start") or "").strip()
+    end = str(request.values.get("end") or "").strip()
+    if start:
+        query["start"] = start[:10]
+    if end:
+        query["end"] = end[:10]
+    return query
+
+
+def _indicator_sql_uses_period(sql_text: str) -> bool:
+    text = str(sql_text or "")
+    return ":start_date" in text and ":end_date" in text
+
+
+def _is_readonly_bi_indicator_sql(sql_text: str) -> bool:
+    text = str(sql_text or "").strip()
+    if not text or ";" in text:
+        return False
+    cleaned = re.sub(r"--.*?\n", "\n", text)
+    cleaned = re.sub(r"/\*.*?\*/", " ", cleaned, flags=re.S)
+    first = cleaned.strip().lstrip("(").strip().split(None, 1)[0].lower() if cleaned.strip() else ""
+    if first not in {"select", "with", "show", "describe", "explain"}:
+        return False
+    if re.search(r"\b(insert|update|delete|drop|alter|truncate|create|grant|revoke)\b", cleaned, flags=re.I):
+        return False
+    return True
+
+
+def _to_scalar_decimal(value: Any) -> Decimal:
+    if value is None:
+        return Decimal("0")
+    if isinstance(value, Decimal):
+        return value
+    if isinstance(value, bool):
+        return Decimal(int(value))
+    if isinstance(value, int):
+        return Decimal(value)
+    if isinstance(value, float):
+        return Decimal(str(value))
+    txt = str(value).strip()
+    if not txt:
+        return Decimal("0")
+    try:
+        return Decimal(txt)
+    except (InvalidOperation, ValueError):
+        raise ValueError(tr("Valeur non numérique retournée par la source BI.", getattr(g, "lang", None)))
+
+
+def _alerting_state_for_tenant(tenant: Tenant) -> dict:
+    settings = tenant.settings_json if isinstance(tenant.settings_json, dict) else {}
+    raw = settings.get("alerting") if isinstance(settings.get("alerting"), dict) else {}
+
+    limits_raw = raw.get("limits") if isinstance(raw.get("limits"), dict) else {}
+    sla_raw = raw.get("sla") if isinstance(raw.get("sla"), dict) else {}
+    channels_raw = raw.get("channels") if isinstance(raw.get("channels"), dict) else {}
+    messages_raw = raw.get("messages") if isinstance(raw.get("messages"), dict) else {}
+    rules_raw = raw.get("rules") if isinstance(raw.get("rules"), list) else []
+
+    email_raw = channels_raw.get("email") if isinstance(channels_raw.get("email"), dict) else {}
+    slack_raw = channels_raw.get("slack") if isinstance(channels_raw.get("slack"), dict) else {}
+    teams_raw = channels_raw.get("teams") if isinstance(channels_raw.get("teams"), dict) else {}
+
+    rules: list[dict[str, Any]] = []
+    allowed_ops = {">", ">=", "<", "<=", "==", "!="}
+    allowed_sev = {"info", "low", "medium", "high", "critical"}
+    allowed_channels = {"email", "slack", "teams"}
+
+    for item in rules_raw[:80]:
+        if not isinstance(item, dict):
+            continue
+        channels = item.get("channels") if isinstance(item.get("channels"), list) else []
+        norm_channels = [str(c).strip().lower() for c in channels if str(c).strip().lower() in allowed_channels]
+        source_kind_raw = str(item.get("source_kind") or "").strip().lower()
+        indicator_ref = str(item.get("indicator_ref") or "").strip()
+        source_kind = "indicator" if source_kind_raw in {"indicator", "finance_indicator"} or indicator_ref else "question"
+        question_id = _to_int(item.get("question_id"), 0, 0, 2_000_000_000)
+        metric_field = str(item.get("metric_field") or "").strip()
+        agg_func = _normalize_alerting_agg(item.get("agg_func"))
+        date_field = str(item.get("date_field") or "").strip()
+        horizon_mode = _normalize_alerting_horizon(item.get("horizon_mode"))
+        horizon_days = _to_int(item.get("horizon_days"), 30, 1, 3650)
+        horizon_months = _to_int(item.get("horizon_months"), 3, 1, 240)
+        horizon_start = str(item.get("horizon_start") or "").strip()[:10]
+        horizon_end = str(item.get("horizon_end") or "").strip()[:10]
+
+        if source_kind == "indicator":
+            question_id = 0
+            metric_field = "value"
+            agg_func = "AVG"
+            date_field = ""
+            horizon_mode = "last_days"
+            horizon_days = 30
+            horizon_months = 3
+            horizon_start = ""
+            horizon_end = ""
+        rules.append(
+            {
+                "id": str(item.get("id") or secrets.token_hex(4)),
+                "enabled": bool(item.get("enabled", True)),
+                "name": str(item.get("name") or "").strip(),
+                "source_kind": source_kind,
+                "question_id": question_id,
+                "indicator_ref": indicator_ref if source_kind == "indicator" else "",
+                "metric_field": metric_field,
+                "agg_func": agg_func,
+                "date_field": date_field,
+                "horizon_mode": horizon_mode,
+                "horizon_days": horizon_days,
+                "horizon_months": horizon_months,
+                "horizon_start": horizon_start,
+                "horizon_end": horizon_end,
+                "operator": str(item.get("operator") or ">=").strip() if str(item.get("operator") or ">=").strip() in allowed_ops else ">=",
+                "threshold": _to_float(item.get("threshold"), 0.0),
+                "sla_minutes": _to_int(item.get("sla_minutes"), 60, 1, 43200),
+                "severity": str(item.get("severity") or "medium").strip().lower() if str(item.get("severity") or "medium").strip().lower() in allowed_sev else "medium",
+                "channels": norm_channels,
+                "message_template": str(item.get("message_template") or "").strip(),
+            }
+        )
+
+    default_template = (
+        "[{{severity}}] {{rule_name}}\n"
+        "{{metric_field}} {{operator}} {{threshold}} | observed={{observed}}\n"
+        "tenant={{tenant_name}} | {{timestamp}}"
+    )
+
+    alerting = {
+        "limits": {
+            "evaluation_window_minutes": _to_int(limits_raw.get("evaluation_window_minutes"), 5, 1, 1440),
+            "cooldown_minutes": _to_int(limits_raw.get("cooldown_minutes"), 30, 0, 10080),
+            "max_alerts_per_run": _to_int(limits_raw.get("max_alerts_per_run"), 25, 1, 5000),
+        },
+        "sla": {
+            "default_target_minutes": _to_int(sla_raw.get("default_target_minutes"), 60, 1, 43200),
+            "warn_before_minutes": _to_int(sla_raw.get("warn_before_minutes"), 10, 0, 43200),
+        },
+        "channels": {
+            "email": {
+                "enabled": bool(email_raw.get("enabled", False)),
+                "recipients": str(email_raw.get("recipients") or "").strip(),
+                "subject_prefix": str(email_raw.get("subject_prefix") or "[AUDELA ALERT]").strip() or "[AUDELA ALERT]",
+            },
+            "slack": {
+                "enabled": bool(slack_raw.get("enabled", False)),
+                "webhook_url": str(slack_raw.get("webhook_url") or "").strip(),
+                "channel": str(slack_raw.get("channel") or "").strip(),
+            },
+            "teams": {
+                "enabled": bool(teams_raw.get("enabled", False)),
+                "webhook_url": str(teams_raw.get("webhook_url") or "").strip(),
+            },
+        },
+        "messages": {
+            "default_language": str(messages_raw.get("default_language") or "auto").strip().lower() or "auto",
+            "default_template": str(messages_raw.get("default_template") or default_template).strip() or default_template,
+        },
+        "rules": rules,
+    }
+    if alerting["messages"]["default_language"] not in {"auto", "pt", "en", "fr", "es", "it", "de"}:
+        alerting["messages"]["default_language"] = "auto"
+
+    return {
+        "settings": settings,
+        "alerting": alerting,
+    }
+
+
+def _persist_alerting_state(tenant: Tenant, state: dict) -> None:
+    settings = state.get("settings") if isinstance(state.get("settings"), dict) else {}
+    settings["alerting"] = state.get("alerting") if isinstance(state.get("alerting"), dict) else {}
+    tenant.settings_json = copy.deepcopy(settings)
+    flag_modified(tenant, "settings_json")
+
+
+def _sanitize_what_if_scenario_config(item: dict[str, Any]) -> dict[str, Any]:
+    payload = item if isinstance(item, dict) else {}
+    method = str(payload.get("method") or "deterministic").strip().lower()
+    if method not in {"deterministic", "stress", "montecarlo"}:
+        method = "deterministic"
+
+    dist = str(payload.get("dist") or "normal").strip().lower()
+    if dist not in {"normal", "uniform", "triangular"}:
+        dist = "normal"
+
+    sort = str(payload.get("sort") or "impact_desc").strip().lower()
+    if sort not in {"impact_desc", "base_desc", "sim_desc", "key_asc"}:
+        sort = "impact_desc"
+
+    return {
+        "question": str(payload.get("question") or "").strip()[:40],
+        "metric": str(payload.get("metric") or "").strip()[:120],
+        "dim": str(payload.get("dim") or "").strip()[:120],
+        "params": str(payload.get("params") or "{}").strip()[:6000],
+        "pct": _to_float(payload.get("pct"), 0.0),
+        "delta": _to_float(payload.get("delta"), 0.0),
+        "method": method,
+        "dist": dist,
+        "vol": _to_float(payload.get("vol"), 10.0),
+        "runs": _to_int(payload.get("runs"), 1000, 100, 5000),
+        "stressJson": str(payload.get("stressJson") or "").strip()[:12000],
+        "hypothesis": bool(payload.get("hypothesis", True)),
+        "sort": sort,
+    }
+
+
+def _what_if_state_for_tenant(tenant: Tenant) -> dict:
+    settings = tenant.settings_json if isinstance(tenant.settings_json, dict) else {}
+    raw = settings.get("what_if") if isinstance(settings.get("what_if"), dict) else {}
+    scenarios_raw = raw.get("scenarios") if isinstance(raw.get("scenarios"), dict) else {}
+
+    scenarios: dict[str, dict[str, Any]] = {}
+    for idx, (name_raw, cfg_raw) in enumerate(scenarios_raw.items()):
+        if idx >= 100:
+            break
+        name = str(name_raw or "").strip()[:80]
+        if not name:
+            continue
+        scenarios[name] = _sanitize_what_if_scenario_config(cfg_raw if isinstance(cfg_raw, dict) else {})
+
+    return {
+        "settings": settings,
+        "what_if": {
+            "scenarios": scenarios,
+        },
+    }
+
+
+def _persist_what_if_state(tenant: Tenant, state: dict) -> None:
+    settings = state.get("settings") if isinstance(state.get("settings"), dict) else {}
+    settings["what_if"] = state.get("what_if") if isinstance(state.get("what_if"), dict) else {}
     tenant.settings_json = copy.deepcopy(settings)
     flag_modified(tenant, "settings_json")
 
@@ -3068,6 +3614,755 @@ def statistics_home():
     )
 
 
+@bp.route("/ratios", methods=["GET"])
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def ratios():
+    """BI-native ratios module (scalar indicators + numerator/denominator ratios)."""
+    _require_tenant()
+    today = date.today()
+    focus = (request.args.get("focus") or "").strip().lower()
+    if focus not in {"indicator", "ratio"}:
+        focus = ""
+
+    try:
+        start = datetime.strptime((request.args.get("start") or date(today.year, today.month, 1).isoformat()), "%Y-%m-%d").date()
+    except Exception:
+        start = date(today.year, today.month, 1)
+    try:
+        end = datetime.strptime((request.args.get("end") or today.isoformat()), "%Y-%m-%d").date()
+    except Exception:
+        end = today
+    if end < start:
+        start, end = end, start
+
+    bi_sources = (
+        DataSource.query
+        .filter_by(tenant_id=g.tenant.id)
+        .order_by(DataSource.name.asc())
+        .all()
+    )
+    bi_sources_by_id = {int(src.id): src for src in bi_sources}
+
+    company = _resolve_bi_ratio_company()
+    if not company:
+        flash(tr("Aucune société n'est configurée pour les ratios.", getattr(g, "lang", None)), "warning")
+        return render_template(
+            "portal/ratios.html",
+            tenant=g.tenant,
+            company=None,
+            bi_sources=bi_sources,
+            start=start,
+            end=end,
+            focus=focus,
+            show_period_filters=False,
+            indicators=[],
+            ratios=[],
+        )
+
+    cfg = _get_bi_ratio_module_config(company)
+    indicators = cfg.get("indicators") if isinstance(cfg.get("indicators"), list) else []
+    ratios_cfg = cfg.get("ratios") if isinstance(cfg.get("ratios"), list) else []
+    show_period_filters = any(_indicator_sql_uses_period(item.get("sql")) for item in indicators if isinstance(item, dict))
+    cfg_changed = False
+    single_bi_source_id = int(bi_sources[0].id) if len(bi_sources) == 1 else 0
+
+    indicator_values: dict[str, Any] = {}
+    indicator_errors: dict[str, str] = {}
+    params = {
+        "tenant_id": g.tenant.id,
+        "company_id": company.id,
+        "start_date": start,
+        "end_date": end,
+    }
+
+    def _fmt_num(value: Any, precision: int = 2) -> str:
+        try:
+            return f"{float(value):,.{precision}f}"
+        except Exception:
+            return str(value)
+
+    for indicator in indicators:
+        indicator_id = str(indicator.get("id") or "").strip()
+        sql_text = str(indicator.get("sql") or "").strip()
+        if not indicator_id or not sql_text:
+            continue
+        source_id = _to_int(indicator.get("source_id"), 0, 0, 2_000_000_000)
+        if source_id <= 0 and single_bi_source_id > 0 and ":company_id" not in sql_text:
+            source_id = single_bi_source_id
+            indicator["source_id"] = source_id
+            cfg_changed = True
+        try:
+            if source_id > 0:
+                source = bi_sources_by_id.get(source_id)
+                if not source:
+                    raise ValueError(tr("Source BI introuvable pour cet indicateur.", getattr(g, "lang", None)))
+                res = execute_sql(
+                    source,
+                    sql_text,
+                    params={
+                        "tenant_id": g.tenant.id,
+                        "start_date": start,
+                        "end_date": end,
+                    },
+                    row_limit=1,
+                )
+                rows = res.get("rows") if isinstance(res.get("rows"), list) else []
+                raw_value = None
+                if rows and isinstance(rows[0], (list, tuple)) and rows[0]:
+                    raw_value = rows[0][0]
+                indicator_values[indicator_id] = _to_scalar_decimal(raw_value)
+            else:
+                if ":company_id" not in sql_text:
+                    raise ValueError(
+                        tr(
+                            "Cet indicateur BI n'a pas de source associée. Sélectionnez une source BI et enregistrez-le à nouveau.",
+                            getattr(g, "lang", None),
+                        )
+                    )
+                indicator_values[indicator_id] = execute_scalar_sql(sql_text, params)
+        except Exception as exc:
+            indicator_errors[indicator_id] = str(exc)
+
+    if cfg_changed:
+        _set_bi_ratio_module_config(company, cfg)
+
+    indicator_rows: list[dict[str, Any]] = []
+    for indicator in indicators:
+        indicator_id = str(indicator.get("id") or "").strip()
+        value = indicator_values.get(indicator_id)
+        indicator_rows.append(
+            {
+                **indicator,
+                "label": _ratio_indicator_label(indicator),
+                "source_label": (
+                    str(bi_sources_by_id.get(_to_int(indicator.get("source_id"), 0, 0, 2_000_000_000)).name)
+                    if _to_int(indicator.get("source_id"), 0, 0, 2_000_000_000) in bi_sources_by_id
+                    else tr("Finance interne", getattr(g, "lang", None))
+                ),
+                "value": value,
+                "value_display": _fmt_num(value, 2) if value is not None else "—",
+                "error": indicator_errors.get(indicator_id),
+            }
+        )
+
+    ratio_rows: list[dict[str, Any]] = []
+    indicator_by_id = {str(ind.get("id") or ""): ind for ind in indicators}
+    for ratio in ratios_cfg:
+        numerator_id = str(ratio.get("numerator_id") or "").strip()
+        denominator_id = str(ratio.get("denominator_id") or "").strip()
+        numerator_value = indicator_values.get(numerator_id)
+        denominator_value = indicator_values.get(denominator_id)
+        numerator_error = indicator_errors.get(numerator_id)
+        denominator_error = indicator_errors.get(denominator_id)
+
+        ratio_value = None
+        ratio_error = None
+        if numerator_error or denominator_error:
+            ratio_error = numerator_error or denominator_error
+        elif numerator_value is None or denominator_value is None:
+            ratio_error = tr("Indicateur indisponible pour le ratio.", getattr(g, "lang", None))
+        else:
+            ratio_value = compute_ratio_value(
+                numerator_value,
+                denominator_value,
+                float(ratio.get("multiplier") or 100.0),
+            )
+            if ratio_value is None:
+                ratio_error = tr("Dénominateur nul.", getattr(g, "lang", None))
+
+        precision = _to_int(ratio.get("precision"), 2, 0, 6)
+        ratio_rows.append(
+            {
+                **ratio,
+                "label": _ratio_indicator_label(ratio),
+                "numerator_label": _ratio_indicator_label(indicator_by_id.get(numerator_id) or {"name": numerator_id}),
+                "denominator_label": _ratio_indicator_label(indicator_by_id.get(denominator_id) or {"name": denominator_id}),
+                "ratio_value": ratio_value,
+                "ratio_value_display": _fmt_num(ratio_value, precision) if ratio_value is not None else "—",
+                "ratio_error": ratio_error,
+            }
+        )
+
+    return render_template(
+        "portal/ratios.html",
+        tenant=g.tenant,
+        company=company,
+        bi_sources=bi_sources,
+        start=start,
+        end=end,
+        focus=focus,
+        show_period_filters=show_period_filters,
+        indicators=indicator_rows,
+        ratios=ratio_rows,
+    )
+
+
+@bp.route("/ratios/indicator/create", methods=["GET"])
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def ratios_indicator_create():
+    """BI shortcut to indicator creation section in ratios page."""
+    _require_tenant()
+    return redirect(url_for("portal.ratios", **_ratio_redirect_query("indicator")))
+
+
+@bp.route("/ratios/indicators/create", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def ratios_indicator_create_submit():
+    _require_tenant()
+    company = _resolve_bi_ratio_company()
+    if not company:
+        flash(tr("Aucune société n'est configurée pour les ratios.", getattr(g, "lang", None)), "error")
+        return redirect(url_for("portal.ratios"))
+
+    cfg = _get_bi_ratio_module_config(company)
+
+    name = (request.form.get("name") or "").strip()
+    sql_text = (request.form.get("sql") or "").strip()
+    description = (request.form.get("description") or "").strip()
+    source_id = _to_int(request.form.get("source_id"), 0, 0, 2_000_000_000)
+    bi_source = None
+    if source_id > 0:
+        bi_source = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first()
+        if not bi_source:
+            flash(tr("Source BI invalide.", getattr(g, "lang", None)), "error")
+            return redirect(url_for("portal.ratios", **_ratio_redirect_query("indicator")))
+
+    if not name:
+        flash(tr("Le nom de l'indicateur est obligatoire.", getattr(g, "lang", None)), "error")
+        return redirect(url_for("portal.ratios", **_ratio_redirect_query("indicator")))
+    if not sql_text:
+        flash(tr("La requête SQL est obligatoire.", getattr(g, "lang", None)), "error")
+        return redirect(url_for("portal.ratios", **_ratio_redirect_query("indicator")))
+
+    if bi_source:
+        if not _is_readonly_bi_indicator_sql(sql_text):
+            flash(tr("Requête BI invalide: SELECT/WITH uniquement.", getattr(g, "lang", None)), "error")
+            return redirect(url_for("portal.ratios", **_ratio_redirect_query("indicator")))
+    else:
+        try:
+            validate_scalar_sql(sql_text)
+        except Exception as exc:
+            message = str(exc)
+            if ":tenant_id" in message and ":company_id" in message:
+                message = tr(
+                    "Ajoutez :tenant_id et :company_id (mode finance interne) ou sélectionnez une source BI.",
+                    getattr(g, "lang", None),
+                )
+            flash(tr("Requête invalide: {msg}", getattr(g, "lang", None), msg=message), "error")
+            return redirect(url_for("portal.ratios", **_ratio_redirect_query("indicator")))
+
+    labels_raw = {
+        "fr": (request.form.get("label_fr") or "").strip(),
+        "en": (request.form.get("label_en") or "").strip(),
+        "pt": (request.form.get("label_pt") or "").strip(),
+        "es": (request.form.get("label_es") or "").strip(),
+        "it": (request.form.get("label_it") or "").strip(),
+        "de": (request.form.get("label_de") or "").strip(),
+    }
+
+    cfg.setdefault("indicators", []).append(
+        {
+            "id": secrets.token_hex(16),
+            "name": name,
+            "description": description,
+            "labels": normalize_ratio_labels(labels_raw, name),
+            "sql": sql_text,
+            "source_id": int(bi_source.id) if bi_source else None,
+            "created_at": datetime.utcnow().isoformat(),
+        }
+    )
+
+    _set_bi_ratio_module_config(company, cfg)
+    flash(tr("Indicateur enregistré.", getattr(g, "lang", None)), "success")
+    return redirect(url_for("portal.ratios", **_ratio_redirect_query("indicator")))
+
+
+@bp.route("/ratios/indicators/<string:indicator_id>/delete", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def ratios_indicator_delete(indicator_id: str):
+    _require_tenant()
+    company = _resolve_bi_ratio_company()
+    if not company:
+        flash(tr("Aucune société n'est configurée pour les ratios.", getattr(g, "lang", None)), "error")
+        return redirect(url_for("portal.ratios"))
+
+    cfg = _get_bi_ratio_module_config(company)
+    indicator_id = (indicator_id or "").strip()
+
+    indicators = cfg.get("indicators") if isinstance(cfg.get("indicators"), list) else []
+    ratios_cfg = cfg.get("ratios") if isinstance(cfg.get("ratios"), list) else []
+
+    before_count = len(indicators)
+    indicators = [item for item in indicators if str(item.get("id") or "").strip() != indicator_id]
+    ratios_cfg = [
+        item
+        for item in ratios_cfg
+        if str(item.get("numerator_id") or "").strip() != indicator_id
+        and str(item.get("denominator_id") or "").strip() != indicator_id
+    ]
+
+    cfg["indicators"] = indicators
+    cfg["ratios"] = ratios_cfg
+    _set_bi_ratio_module_config(company, cfg)
+
+    if len(indicators) == before_count:
+        flash(tr("Indicateur introuvable.", getattr(g, "lang", None)), "warning")
+    else:
+        flash(tr("Indicateur supprimé.", getattr(g, "lang", None)), "success")
+
+    return redirect(url_for("portal.ratios", **_ratio_redirect_query("indicator")))
+
+
+@bp.route("/ratios/create", methods=["GET", "POST"])
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def ratios_create():
+    """BI ratio create shortcut (GET) and create handler (POST)."""
+    _require_tenant()
+    company = _resolve_bi_ratio_company()
+
+    if request.method == "GET":
+        return redirect(url_for("portal.ratios", **_ratio_redirect_query("ratio")))
+
+    if not company:
+        flash(tr("Aucune société n'est configurée pour les ratios.", getattr(g, "lang", None)), "error")
+        return redirect(url_for("portal.ratios"))
+
+    cfg = _get_bi_ratio_module_config(company)
+
+    name = (request.form.get("name") or "").strip()
+    numerator_id = (request.form.get("numerator_id") or "").strip()
+    denominator_id = (request.form.get("denominator_id") or "").strip()
+    description = (request.form.get("description") or "").strip()
+    suffix = (request.form.get("suffix") or "%").strip() or "%"
+
+    try:
+        multiplier = float(request.form.get("multiplier") or "100")
+    except Exception:
+        multiplier = 100.0
+    try:
+        precision = int(request.form.get("precision") or "2")
+    except Exception:
+        precision = 2
+    precision = max(0, min(6, precision))
+
+    if not name or not numerator_id or not denominator_id:
+        flash(tr("Nom, numérateur et dénominateur sont requis.", getattr(g, "lang", None)), "error")
+        return redirect(url_for("portal.ratios", **_ratio_redirect_query("ratio")))
+
+    indicators = cfg.get("indicators") if isinstance(cfg.get("indicators"), list) else []
+    valid_ids = {str(item.get("id") or "").strip() for item in indicators}
+    if numerator_id not in valid_ids or denominator_id not in valid_ids:
+        flash(tr("Sélection numérateur/dénominateur invalide.", getattr(g, "lang", None)), "error")
+        return redirect(url_for("portal.ratios", **_ratio_redirect_query("ratio")))
+
+    labels_raw = {
+        "fr": (request.form.get("label_fr") or "").strip(),
+        "en": (request.form.get("label_en") or "").strip(),
+        "pt": (request.form.get("label_pt") or "").strip(),
+        "es": (request.form.get("label_es") or "").strip(),
+        "it": (request.form.get("label_it") or "").strip(),
+        "de": (request.form.get("label_de") or "").strip(),
+    }
+
+    cfg.setdefault("ratios", []).append(
+        {
+            "id": secrets.token_hex(16),
+            "name": name,
+            "description": description,
+            "labels": normalize_ratio_labels(labels_raw, name),
+            "numerator_id": numerator_id,
+            "denominator_id": denominator_id,
+            "multiplier": multiplier,
+            "precision": precision,
+            "suffix": suffix,
+            "created_at": datetime.utcnow().isoformat(),
+        }
+    )
+
+    _set_bi_ratio_module_config(company, cfg)
+    flash(tr("Ratio enregistré.", getattr(g, "lang", None)), "success")
+    return redirect(url_for("portal.ratios", **_ratio_redirect_query("ratio")))
+
+
+@bp.route("/ratios/<string:ratio_id>/delete", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def ratios_delete(ratio_id: str):
+    _require_tenant()
+    company = _resolve_bi_ratio_company()
+    if not company:
+        flash(tr("Aucune société n'est configurée pour les ratios.", getattr(g, "lang", None)), "error")
+        return redirect(url_for("portal.ratios"))
+
+    cfg = _get_bi_ratio_module_config(company)
+    ratio_id = (ratio_id or "").strip()
+
+    ratios_cfg = cfg.get("ratios") if isinstance(cfg.get("ratios"), list) else []
+    before_count = len(ratios_cfg)
+    ratios_cfg = [item for item in ratios_cfg if str(item.get("id") or "").strip() != ratio_id]
+    cfg["ratios"] = ratios_cfg
+    _set_bi_ratio_module_config(company, cfg)
+
+    if len(ratios_cfg) == before_count:
+        flash(tr("Ratio introuvable.", getattr(g, "lang", None)), "warning")
+    else:
+        flash(tr("Ratio supprimé.", getattr(g, "lang", None)), "success")
+
+    return redirect(url_for("portal.ratios", **_ratio_redirect_query("ratio")))
+
+
+@bp.route("/ratios/ai/generate", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def ratios_ai_generate():
+    _require_tenant()
+    company = _resolve_bi_ratio_company()
+    if not company:
+        return jsonify({"ok": False, "error": tr("Aucune société n'est configurée pour les ratios.", getattr(g, "lang", None))}), 400
+
+    data = request.get_json(silent=True) or {}
+    prompt = (data.get("text") or "").strip()
+    source_hint = (data.get("source") or "").strip().lower()
+    source_id = _to_int(data.get("source_id"), 0, 0, 2_000_000_000)
+    if not prompt:
+        return jsonify({"ok": False, "error": tr("Texte vide.", getattr(g, "lang", None))}), 400
+
+    try:
+        warnings: list[str] = []
+        if source_id > 0:
+            source = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first()
+            if not source:
+                return jsonify({"ok": False, "error": tr("Source BI invalide.", getattr(g, "lang", None))}), 400
+
+            scalar_prompt = (
+                f"{prompt}\n\n"
+                "Return a scalar SQL query with one numeric column aliased as value. "
+                "Avoid GROUP BY unless absolutely necessary."
+            )
+            sql_text, warnings = generate_sql_from_nl(source, scalar_prompt, lang=getattr(g, "lang", "fr"))
+            sql_text = re.sub(r"\bAS\s+total\b", "AS value", sql_text, flags=re.I)
+            if not _is_readonly_bi_indicator_sql(sql_text):
+                return jsonify({"ok": False, "error": tr("Requête BI générée invalide.", getattr(g, "lang", None))}), 400
+            name = str(tr("Indicateur BI", getattr(g, "lang", None))).strip()
+        else:
+            generated = generate_scalar_indicator_from_nl(
+                prompt,
+                lang=getattr(g, "lang", "fr"),
+                source_hint=source_hint,
+            )
+            name = str(generated.get("name") or tr("Indicateur scalaire", getattr(g, "lang", None))).strip()
+            sql_text = str(generated.get("sql") or "").strip()
+            validate_scalar_sql(sql_text)
+            warnings = generated.get("warnings") if isinstance(generated.get("warnings"), list) else []
+
+        return jsonify(
+            {
+                "ok": True,
+                "name": name,
+                "sql": sql_text,
+                "warnings": [str(w) for w in warnings[:8]],
+            }
+        )
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@bp.route("/what_if", methods=["GET"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def what_if():
+    """What-if simulations from an existing BI question result set."""
+    _require_tenant()
+    questions = Question.query.filter_by(tenant_id=g.tenant.id).order_by(Question.updated_at.desc()).all()
+    return render_template(
+        "portal/what_if.html",
+        tenant=g.tenant,
+        questions=questions,
+    )
+
+
+@bp.route("/api/what_if/scenarios", methods=["GET", "POST", "DELETE"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def api_what_if_scenarios():
+    _require_tenant()
+    state = _what_if_state_for_tenant(g.tenant)
+    scenarios = state.get("what_if", {}).get("scenarios", {}) if isinstance(state.get("what_if"), dict) else {}
+
+    if request.method == "GET":
+        return jsonify({"ok": True, "scenarios": scenarios})
+
+    payload = request.get_json(silent=True) or {}
+    name = str(payload.get("name") or "").strip()[:80]
+    if not name:
+        return jsonify({"ok": False, "error": tr("Nom de scénario invalide.", getattr(g, "lang", None))}), 400
+
+    if request.method == "DELETE":
+        if name in scenarios:
+            del scenarios[name]
+        state["what_if"] = {"scenarios": scenarios}
+        _persist_what_if_state(g.tenant, state)
+        _audit("bi.what_if.scenario.deleted", {"name": name})
+        db.session.commit()
+        return jsonify({"ok": True, "scenarios": scenarios})
+
+    config_in = payload.get("config")
+    if not isinstance(config_in, dict):
+        return jsonify({"ok": False, "error": tr("Configuração de cenário inválida.", getattr(g, "lang", None))}), 400
+
+    if name not in scenarios and len(scenarios) >= 100:
+        return jsonify({"ok": False, "error": tr("Limite de cenários atingido (100).", getattr(g, "lang", None))}), 400
+
+    scenarios[name] = _sanitize_what_if_scenario_config(config_in)
+    state["what_if"] = {"scenarios": scenarios}
+    _persist_what_if_state(g.tenant, state)
+    _audit("bi.what_if.scenario.saved", {"name": name})
+    db.session.commit()
+    return jsonify({"ok": True, "scenarios": scenarios, "name": name})
+
+
+@bp.route("/alerting", methods=["GET", "POST"])
+@login_required
+@require_roles("tenant_admin")
+def alerting_settings():
+    """Centralized alerting configuration (limits, SLA, channels, rules)."""
+    _require_tenant()
+    questions = Question.query.filter_by(tenant_id=g.tenant.id).order_by(Question.name.asc()).all()
+    finance_indicators = _finance_indicator_options_for_alerting(g.tenant.id)
+    state = _alerting_state_for_tenant(g.tenant)
+
+    if request.method == "POST":
+        payload = request.form
+        valid_question_ids = {int(q.id) for q in questions}
+
+        rules_in = payload.get("rules_json") or "[]"
+        try:
+            raw_rules = json.loads(rules_in)
+        except Exception:
+            raw_rules = None
+        if not isinstance(raw_rules, list):
+            flash(tr("Regras inválidas.", getattr(g, "lang", None)), "error")
+            return redirect(url_for("portal.alerting_settings"))
+
+        allowed_ops = {">", ">=", "<", "<=", "==", "!="}
+        allowed_sev = {"info", "low", "medium", "high", "critical"}
+        allowed_channels = {"email", "slack", "teams"}
+        allowed_aggs = {"SUM", "AVG", "COUNT", "MIN", "MAX", "STDDEV"}
+        allowed_horizons = {"last_days", "last_months", "current_year", "custom_range"}
+        clean_rules: list[dict[str, Any]] = []
+        question_map = {int(q.id): q for q in questions}
+        valid_indicator_refs = {str(item.get("ref") or "").strip() for item in finance_indicators}
+        fields_cache: dict[int, tuple[set[str], set[str]]] = {}
+
+        def _fields_for_question(qid: int) -> tuple[set[str], set[str]]:
+            if qid in fields_cache:
+                return fields_cache[qid]
+            qq = question_map.get(qid)
+            if not qq:
+                fields_cache[qid] = (set(), set())
+                return fields_cache[qid]
+            src = DataSource.query.filter_by(id=qq.source_id, tenant_id=g.tenant.id).first()
+            if not src:
+                fields_cache[qid] = (set(), set())
+                return fields_cache[qid]
+            try:
+                res = execute_sql(src, qq.sql_text or "", params={"tenant_id": g.tenant.id}, row_limit=200)
+                cols = [str(c) for c in (res.get("columns") or [])]
+                rows = res.get("rows") or []
+                fields_cache[qid] = (set(_numeric_metric_fields(cols, rows)), set(_date_fields(cols, rows)))
+            except Exception:
+                fields_cache[qid] = (set(), set())
+            return fields_cache[qid]
+
+        for item in raw_rules[:80]:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name") or "").strip()
+            if not name:
+                continue
+            channels = item.get("channels") if isinstance(item.get("channels"), list) else []
+            enabled = bool(item.get("enabled", True))
+            source_kind_raw = str(item.get("source_kind") or "").strip().lower()
+            indicator_ref = str(item.get("indicator_ref") or "").strip()
+            source_kind = "indicator" if source_kind_raw in {"indicator", "finance_indicator"} else "question"
+            question_id = _to_int(item.get("question_id"), 0, 0, 2_000_000_000)
+            metric_field = str(item.get("metric_field") or "").strip()[:120]
+            agg_func = _normalize_alerting_agg(item.get("agg_func"))
+            date_field = str(item.get("date_field") or "").strip()[:120]
+            horizon_mode = _normalize_alerting_horizon(item.get("horizon_mode"))
+            horizon_days = _to_int(item.get("horizon_days"), 30, 1, 3650)
+            horizon_months = _to_int(item.get("horizon_months"), 3, 1, 240)
+            horizon_start = str(item.get("horizon_start") or "").strip()[:10]
+            horizon_end = str(item.get("horizon_end") or "").strip()[:10]
+
+            if source_kind == "indicator":
+                question_id = 0
+                metric_field = "value"
+                agg_func = "AVG"
+                date_field = ""
+                horizon_mode = "last_days"
+                horizon_days = 30
+                horizon_months = 3
+                horizon_start = ""
+                horizon_end = ""
+
+            if enabled and source_kind == "question" and question_id <= 0:
+                flash(tr("Selecione uma pergunta em cada regra ativa.", getattr(g, "lang", None)), "error")
+                return redirect(url_for("portal.alerting_settings"))
+            if enabled and source_kind == "question" and question_id not in valid_question_ids:
+                flash(tr("Pergunta inválida em regra de alerting.", getattr(g, "lang", None)), "error")
+                return redirect(url_for("portal.alerting_settings"))
+            if enabled and source_kind == "question" and not metric_field:
+                flash(tr("Selecione o campo métrico em cada regra ativa.", getattr(g, "lang", None)), "error")
+                return redirect(url_for("portal.alerting_settings"))
+            if enabled and source_kind == "question" and agg_func not in allowed_aggs:
+                flash(tr("Selecione a agregação da métrica em cada regra ativa.", getattr(g, "lang", None)), "error")
+                return redirect(url_for("portal.alerting_settings"))
+            if enabled and source_kind == "question":
+                question_metrics, question_date_fields = _fields_for_question(question_id)
+                if metric_field not in question_metrics:
+                    flash(tr("Campo métrico deve ser numérico para agregação.", getattr(g, "lang", None)), "error")
+                    return redirect(url_for("portal.alerting_settings"))
+                if date_field:
+                    if date_field not in question_date_fields:
+                        flash(tr("Campo de data inválido para a pergunta.", getattr(g, "lang", None)), "error")
+                        return redirect(url_for("portal.alerting_settings"))
+                    if horizon_mode not in allowed_horizons:
+                        flash(tr("Selecione o modo de horizonte temporal em cada regra com campo de data.", getattr(g, "lang", None)), "error")
+                        return redirect(url_for("portal.alerting_settings"))
+                    if horizon_mode == "last_days" and horizon_days <= 0:
+                        flash(tr("Informe os dias do horizonte temporal.", getattr(g, "lang", None)), "error")
+                        return redirect(url_for("portal.alerting_settings"))
+                    if horizon_mode == "last_months" and horizon_months <= 0:
+                        flash(tr("Informe os meses do horizonte temporal.", getattr(g, "lang", None)), "error")
+                        return redirect(url_for("portal.alerting_settings"))
+                    if horizon_mode == "custom_range":
+                        start_day = _to_date_value(horizon_start)
+                        end_day = _to_date_value(horizon_end)
+                        if not start_day or not end_day or end_day < start_day:
+                            flash(tr("Informe início e fim válidos para o intervalo customizado.", getattr(g, "lang", None)), "error")
+                            return redirect(url_for("portal.alerting_settings"))
+            if enabled and source_kind == "indicator" and not indicator_ref:
+                flash(tr("Selecione um indicador em cada regra ativa.", getattr(g, "lang", None)), "error")
+                return redirect(url_for("portal.alerting_settings"))
+            if enabled and source_kind == "indicator" and indicator_ref not in valid_indicator_refs:
+                flash(tr("Indicador inválido em regra de alerting.", getattr(g, "lang", None)), "error")
+                return redirect(url_for("portal.alerting_settings"))
+
+            clean_rules.append(
+                {
+                    "id": str(item.get("id") or secrets.token_hex(4)),
+                    "enabled": enabled,
+                    "name": name[:120],
+                    "source_kind": source_kind,
+                    "question_id": question_id,
+                    "indicator_ref": indicator_ref if source_kind == "indicator" else "",
+                    "metric_field": metric_field,
+                    "agg_func": agg_func,
+                    "date_field": date_field,
+                    "horizon_mode": horizon_mode,
+                    "horizon_days": horizon_days,
+                    "horizon_months": horizon_months,
+                    "horizon_start": horizon_start,
+                    "horizon_end": horizon_end,
+                    "operator": str(item.get("operator") or ">=").strip() if str(item.get("operator") or ">=").strip() in allowed_ops else ">=",
+                    "threshold": _to_float(item.get("threshold"), 0.0),
+                    "sla_minutes": _to_int(item.get("sla_minutes"), 60, 1, 43200),
+                    "severity": str(item.get("severity") or "medium").strip().lower() if str(item.get("severity") or "medium").strip().lower() in allowed_sev else "medium",
+                    "channels": [str(c).strip().lower() for c in channels if str(c).strip().lower() in allowed_channels],
+                    "message_template": str(item.get("message_template") or "").strip()[:2000],
+                }
+            )
+
+        state["alerting"] = {
+            "limits": {
+                "evaluation_window_minutes": _to_int(payload.get("evaluation_window_minutes"), 5, 1, 1440),
+                "cooldown_minutes": _to_int(payload.get("cooldown_minutes"), 30, 0, 10080),
+                "max_alerts_per_run": _to_int(payload.get("max_alerts_per_run"), 25, 1, 5000),
+            },
+            "sla": {
+                "default_target_minutes": _to_int(payload.get("default_target_minutes"), 60, 1, 43200),
+                "warn_before_minutes": _to_int(payload.get("warn_before_minutes"), 10, 0, 43200),
+            },
+            "channels": {
+                "email": {
+                    "enabled": bool(payload.get("email_enabled")),
+                    "recipients": str(payload.get("email_recipients") or "").strip()[:500],
+                    "subject_prefix": str(payload.get("email_subject_prefix") or "[AUDELA ALERT]").strip()[:120] or "[AUDELA ALERT]",
+                },
+                "slack": {
+                    "enabled": bool(payload.get("slack_enabled")),
+                    "webhook_url": str(payload.get("slack_webhook_url") or "").strip()[:1000],
+                    "channel": str(payload.get("slack_channel") or "").strip()[:120],
+                },
+                "teams": {
+                    "enabled": bool(payload.get("teams_enabled")),
+                    "webhook_url": str(payload.get("teams_webhook_url") or "").strip()[:1000],
+                },
+            },
+            "messages": {
+                "default_language": str(payload.get("default_language") or "auto").strip().lower() if str(payload.get("default_language") or "auto").strip().lower() in {"auto", "pt", "en", "fr", "es", "it", "de"} else "auto",
+                "default_template": str(payload.get("default_template") or "").strip()[:4000],
+            },
+            "rules": clean_rules,
+        }
+
+        _persist_alerting_state(g.tenant, state)
+        _audit("bi.alerting.updated", {"rules": len(clean_rules)})
+        db.session.commit()
+        flash(tr("Configuração de alerting atualizada.", getattr(g, "lang", None)), "success")
+        return redirect(url_for("portal.alerting_settings"))
+
+    return render_template(
+        "portal/alerting_settings.html",
+        tenant=g.tenant,
+        alerting=state.get("alerting") or {},
+        questions=questions,
+        finance_indicators=finance_indicators,
+    )
+
+
+@bp.get("/api/questions/<int:question_id>/metric_fields")
+@login_required
+@require_roles("tenant_admin")
+def api_alerting_question_metric_fields(question_id: int):
+    _require_tenant()
+
+    q = Question.query.filter_by(id=question_id, tenant_id=g.tenant.id).first_or_404()
+    src = DataSource.query.filter_by(id=q.source_id, tenant_id=g.tenant.id).first()
+    if not src:
+        return jsonify({"error": tr("Fonte inválida.", getattr(g, "lang", None))}), 404
+
+    try:
+        res = execute_sql(src, q.sql_text or "", params={"tenant_id": g.tenant.id}, row_limit=200)
+    except QueryExecutionError as e:
+        return jsonify({"error": str(e)}), 400
+
+    columns = [str(c) for c in (res.get("columns") or [])]
+    rows = res.get("rows") or []
+
+    metric_fields = _numeric_metric_fields(columns, rows)
+    date_fields = _date_fields(columns, rows)
+
+    return jsonify(
+        {
+            "ok": True,
+            "question_id": q.id,
+            "columns": columns,
+            "metric_fields": metric_fields,
+            "scalar_metric_fields": metric_fields,
+            "date_fields": date_fields,
+            "aggregations": ["SUM", "AVG", "COUNT", "MIN", "MAX", "STDDEV"],
+            "horizons": ["last_days", "last_months", "current_year", "custom_range"],
+        }
+    )
+
+
 @bp.route("/statistics/run", methods=["POST"])
 @login_required
 @require_roles("tenant_admin", "creator")
@@ -3152,6 +4447,29 @@ def statistics_run():
         res["rows"] = res["rows"][:2000]
 
     stats = run_statistics_analysis(res)
+
+    try:
+        alerting_result = dispatch_alerting_for_result(
+            g.tenant,
+            res,
+            source="statistics_run",
+            question_id=q.id if q else None,
+            lang=getattr(g, "lang", None),
+        )
+        if alerting_result.get("sent", 0) > 0:
+            _audit(
+                "bi.alerting.dispatched",
+                {
+                    "source": "statistics_run",
+                    "question_id": q.id if q else None,
+                    "triggered": int(alerting_result.get("triggered", 0)),
+                    "sent": int(alerting_result.get("sent", 0)),
+                },
+            )
+        if alerting_result.get("state_changed") or alerting_result.get("sent", 0) > 0:
+            db.session.commit()
+    except Exception:
+        db.session.rollback()
 
     # Ask OpenAI for an interpreted report (optional)
     ai = None
@@ -3891,7 +5209,12 @@ def questions_new():
         flash(tr("Pergunta criada.", getattr(g, "lang", None)), "success")
         return redirect(url_for("portal.questions_view", question_id=q.id))
 
-    return render_template("portal/questions_new.html", tenant=g.tenant, sources=sources, form={"params_json": "{}"})
+    return render_template(
+        "portal/questions_new.html",
+        tenant=g.tenant,
+        sources=sources,
+        form={"name": "", "source_id": "", "sql_text": "", "params_json": "{}"},
+    )
 
 
 @bp.route("/api/questions/preview", methods=["POST"])
@@ -3961,10 +5284,25 @@ def questions_viz(question_id: int):
     q = Question.query.filter_by(id=question_id, tenant_id=g.tenant.id).first_or_404()
     src = DataSource.query.filter_by(id=q.source_id, tenant_id=g.tenant.id).first_or_404()
     dashboard_id = request.args.get("dashboard_id", type=int)
+    card_id = request.args.get("card_id", type=int)
+    card_ctx = None
     if dashboard_id:
         dash_exists = Dashboard.query.filter_by(id=dashboard_id, tenant_id=g.tenant.id).first()
         if not dash_exists:
             dashboard_id = None
+            card_id = None
+    else:
+        card_id = None
+
+    if dashboard_id and card_id:
+        card_ctx = DashboardCard.query.filter_by(
+            id=card_id,
+            dashboard_id=dashboard_id,
+            tenant_id=g.tenant.id,
+            question_id=q.id,
+        ).first()
+        if not card_ctx:
+            card_id = None
 
     if request.method == "POST":
         raw = request.form.get("viz_config_json", "{}")
@@ -3974,17 +5312,28 @@ def questions_viz(question_id: int):
             cfg = {}
             flash(tr("Configuração inválida.", getattr(g, "lang", None)), "error")
             if dashboard_id:
+                if card_id:
+                    return redirect(url_for("portal.questions_viz", question_id=q.id, dashboard_id=dashboard_id, card_id=card_id))
                 return redirect(url_for("portal.questions_viz", question_id=q.id, dashboard_id=dashboard_id))
             return redirect(url_for("portal.questions_viz", question_id=q.id))
 
         if not isinstance(cfg, dict):
             cfg = {}
 
-        q.viz_config_json = cfg
-        _audit("bi.question.viz.updated", {"id": q.id})
+        if card_ctx:
+            card_ctx.viz_config_json = cfg
+            _audit(
+                "bi.dashboard.card.viz.updated",
+                {"dashboard_id": dashboard_id, "card_id": card_ctx.id, "question_id": q.id},
+            )
+        else:
+            q.viz_config_json = cfg
+            _audit("bi.question.viz.updated", {"id": q.id})
         db.session.commit()
         flash(tr("Visualização salva.", getattr(g, "lang", None)), "success")
         if dashboard_id:
+            if card_id:
+                return redirect(url_for("portal.questions_viz", question_id=q.id, dashboard_id=dashboard_id, card_id=card_id))
             return redirect(url_for("portal.questions_viz", question_id=q.id, dashboard_id=dashboard_id))
         return redirect(url_for("portal.questions_viz", question_id=q.id))
 
@@ -3998,14 +5347,19 @@ def questions_viz(question_id: int):
     if isinstance(res.get("rows"), list) and len(res["rows"]) > 1000:
         res["rows"] = res["rows"][:1000]
 
+    viz_cfg = q.viz_config_json or {}
+    if card_ctx and isinstance(card_ctx.viz_config_json, dict):
+        viz_cfg = card_ctx.viz_config_json or {}
+
     return render_template(
         "portal/questions_viz.html",
         tenant=g.tenant,
         question=q,
         source=src,
         result=res,
-        viz_config=q.viz_config_json or {},
+        viz_config=viz_cfg,
         dashboard_id=dashboard_id,
+        card_id=card_id,
     )
 
 
@@ -5060,9 +6414,165 @@ def dashboard_view(dashboard_id: int):
         .order_by(Question.updated_at.desc())
         .all()
     )
+    all_ratios = _finance_ratio_options_for_dashboard(g.tenant.id)
+
+    today = date.today()
+    try:
+        start = datetime.strptime((request.args.get("start") or date(today.year, today.month, 1).isoformat()), "%Y-%m-%d").date()
+    except Exception:
+        start = date(today.year, today.month, 1)
+    try:
+        end = datetime.strptime((request.args.get("end") or today.isoformat()), "%Y-%m-%d").date()
+    except Exception:
+        end = today
+    if end < start:
+        start, end = end, start
+
+    bi_sources = DataSource.query.filter_by(tenant_id=g.tenant.id).all()
+    bi_sources_by_id = {int(src.id): src for src in bi_sources}
+
+    ratio_company_cache: dict[int, tuple[FinanceCompany | None, dict[str, Any]]] = {}
+    ratio_indicator_cache: dict[tuple[int, str], tuple[Decimal | None, str | None]] = {}
+
+    def _ratio_ref_parts(value: Any) -> tuple[int, str]:
+        raw = str(value or "").strip()
+        if not raw:
+            return 0, ""
+        if ":" in raw:
+            left, right = raw.split(":", 1)
+            return _to_int(left, 0, 0, 2_000_000_000), str(right or "").strip()
+        fallback_company = _resolve_bi_ratio_company()
+        return (int(fallback_company.id), raw) if fallback_company else (0, raw)
+
+    def _company_ratio_data(company_id: int) -> tuple[FinanceCompany | None, dict[str, Any]]:
+        if company_id in ratio_company_cache:
+            return ratio_company_cache[company_id]
+        company = FinanceCompany.query.filter_by(id=company_id, tenant_id=g.tenant.id).first()
+        cfg = _get_bi_ratio_module_config(company) if company else {"indicators": [], "ratios": []}
+        ratio_company_cache[company_id] = (company, cfg)
+        return ratio_company_cache[company_id]
+
+    def _indicator_value(company: FinanceCompany, indicator: dict[str, Any]) -> tuple[Decimal | None, str | None]:
+        indicator_id = str(indicator.get("id") or "").strip()
+        cache_key = (int(company.id), indicator_id)
+        if cache_key in ratio_indicator_cache:
+            return ratio_indicator_cache[cache_key]
+
+        sql_text = str(indicator.get("sql") or "").strip()
+        if not sql_text:
+            ratio_indicator_cache[cache_key] = (None, tr("SQL indicateur manquant.", getattr(g, "lang", None)))
+            return ratio_indicator_cache[cache_key]
+
+        source_id = _to_int(indicator.get("source_id"), 0, 0, 2_000_000_000)
+        try:
+            if source_id > 0:
+                source = bi_sources_by_id.get(source_id)
+                if not source:
+                    raise ValueError(tr("Source BI introuvable pour cet indicateur.", getattr(g, "lang", None)))
+                res = execute_sql(
+                    source,
+                    sql_text,
+                    params={
+                        "tenant_id": g.tenant.id,
+                        "start_date": start,
+                        "end_date": end,
+                    },
+                    row_limit=1,
+                )
+                rows = res.get("rows") if isinstance(res.get("rows"), list) else []
+                raw_value = rows[0][0] if rows and isinstance(rows[0], (list, tuple)) and rows[0] else None
+                value = _to_scalar_decimal(raw_value)
+            else:
+                value = execute_scalar_sql(
+                    sql_text,
+                    {
+                        "tenant_id": g.tenant.id,
+                        "company_id": company.id,
+                        "start_date": start,
+                        "end_date": end,
+                    },
+                )
+
+            ratio_indicator_cache[cache_key] = (value, None)
+            return ratio_indicator_cache[cache_key]
+        except Exception as exc:
+            ratio_indicator_cache[cache_key] = (None, str(exc))
+            return ratio_indicator_cache[cache_key]
 
     rendered_cards = []
     for c in cards:
+        card_cfg = getattr(c, "viz_config_json", None)
+        card_cfg = card_cfg if isinstance(card_cfg, dict) else {}
+        source_kind = str(card_cfg.get("source_kind") or "question").strip().lower()
+
+        if source_kind in {"ratio", "finance_ratio"}:
+            ratio_ref = str(card_cfg.get("ratio_ref") or "").strip()
+            company_id, ratio_id = _ratio_ref_parts(ratio_ref)
+            card_title = tr("Ratio BI", getattr(g, "lang", None))
+            ratio_result: dict[str, Any] = {"columns": ["value"], "rows": []}
+
+            if not company_id or not ratio_id:
+                ratio_result["error"] = tr("Ratio BI invalide.", getattr(g, "lang", None))
+            else:
+                company, cfg = _company_ratio_data(company_id)
+                ratios_cfg = cfg.get("ratios") if isinstance(cfg.get("ratios"), list) else []
+                indicators_cfg = cfg.get("indicators") if isinstance(cfg.get("indicators"), list) else []
+                ratio = next((item for item in ratios_cfg if str(item.get("id") or "").strip() == ratio_id), None)
+                indicator_by_id = {
+                    str(item.get("id") or "").strip(): item
+                    for item in indicators_cfg
+                    if isinstance(item, dict)
+                }
+
+                if not company:
+                    ratio_result["error"] = tr("Société introuvable pour ce ratio.", getattr(g, "lang", None))
+                elif not ratio:
+                    ratio_result["error"] = tr("Ratio introuvable.", getattr(g, "lang", None))
+                else:
+                    card_title = _ratio_indicator_label(ratio)
+                    numerator_id = str(ratio.get("numerator_id") or "").strip()
+                    denominator_id = str(ratio.get("denominator_id") or "").strip()
+                    numerator = indicator_by_id.get(numerator_id)
+                    denominator = indicator_by_id.get(denominator_id)
+                    if not numerator or not denominator:
+                        ratio_result["error"] = tr("Indicateurs du ratio introuvables.", getattr(g, "lang", None))
+                    else:
+                        num_value, num_error = _indicator_value(company, numerator)
+                        den_value, den_error = _indicator_value(company, denominator)
+                        if num_error or den_error:
+                            ratio_result["error"] = num_error or den_error
+                        elif num_value is None or den_value is None:
+                            ratio_result["error"] = tr("Indicateur indisponible pour le ratio.", getattr(g, "lang", None))
+                        else:
+                            ratio_value = compute_ratio_value(
+                                num_value,
+                                den_value,
+                                float(ratio.get("multiplier") or 100.0),
+                            )
+                            if ratio_value is None:
+                                ratio_result["error"] = tr("Dénominateur nul.", getattr(g, "lang", None))
+                            else:
+                                precision = _to_int(ratio.get("precision"), 2, 0, 6)
+                                ratio_result["rows"] = [[round(float(ratio_value), precision)]]
+
+            viz_cfg = {
+                "type": "gauge",
+                "metric": "value",
+                "source_kind": "ratio",
+                "ratio_ref": ratio_ref,
+            }
+            viz_cfg.update(card_cfg)
+            rendered_cards.append(
+                {
+                    "card": c,
+                    "question": None,
+                    "card_title": card_title,
+                    "result": ratio_result,
+                    "viz_config": viz_cfg,
+                }
+            )
+            continue
+
         q = Question.query.filter_by(id=c.question_id, tenant_id=g.tenant.id).first()
         if not q:
             continue
@@ -5073,24 +6583,19 @@ def dashboard_view(dashboard_id: int):
             res = execute_sql(src, q.sql_text, params={"tenant_id": g.tenant.id})
         except QueryExecutionError as e:
             res = {"columns": [], "rows": [], "error": str(e)}
-        
+
         # Determine visualization config with intelligent fallback
         viz_cfg = {"type": "table"}
-        
+
         # Use question-level config as base
         if isinstance(getattr(q, "viz_config_json", None), dict) and q.viz_config_json:
             viz_cfg = q.viz_config_json.copy() if isinstance(q.viz_config_json, dict) else {}
-        
-        # Card-level config overrides, but only if it specifies more than just type
-        card_cfg = getattr(c, "viz_config_json", None)
-        if isinstance(card_cfg, dict) and card_cfg and len(card_cfg) > 1:
-            # Card has meaningful overrides beyond just type
-            viz_cfg = card_cfg
-        elif isinstance(card_cfg, dict) and card_cfg and card_cfg.get("type") not in [None, "table"]:
-            # Card specifies a non-table type, use it but merge with question config
+
+        # Card-level config always overrides question-level config for this card only
+        if card_cfg:
             viz_cfg.update(card_cfg)
 
-        rendered_cards.append({"card": c, "question": q, "result": res, "viz_config": viz_cfg})
+        rendered_cards.append({"card": c, "question": q, "card_title": q.name, "result": res, "viz_config": viz_cfg})
 
     _audit("bi.dashboard.viewed", {"id": dash.id})
     db.session.commit()
@@ -5100,6 +6605,7 @@ def dashboard_view(dashboard_id: int):
         dashboard=dash,
         cards=rendered_cards,
         all_questions=all_questions,
+        all_ratios=all_ratios,
         embed_mode=embed_mode,
     )
 
@@ -5185,6 +6691,30 @@ def api_question_data(question_id: int):
     rows = res.get("rows") or []
     if len(rows) > 5000:
         res["rows"] = rows[:5000]
+
+    try:
+        alerting_result = dispatch_alerting_for_result(
+            g.tenant,
+            res,
+            source="question_data",
+            question_id=q.id,
+            lang=getattr(g, "lang", None),
+        )
+        if alerting_result.get("sent", 0) > 0:
+            _audit(
+                "bi.alerting.dispatched",
+                {
+                    "source": "question_data",
+                    "question_id": q.id,
+                    "triggered": int(alerting_result.get("triggered", 0)),
+                    "sent": int(alerting_result.get("sent", 0)),
+                },
+            )
+        if alerting_result.get("state_changed") or alerting_result.get("sent", 0) > 0:
+            db.session.commit()
+    except Exception:
+        db.session.rollback()
+
     return jsonify(res)
 
 
@@ -5211,16 +6741,58 @@ def api_dashboard_add_card(dashboard_id: int):
     _require_tenant()
     dash = Dashboard.query.filter_by(id=dashboard_id, tenant_id=g.tenant.id).first_or_404()
     payload = request.get_json(silent=True) or {}
+    source_kind = str(payload.get("source_kind") or "question").strip().lower()
+    if source_kind not in {"question", "ratio", "finance_ratio"}:
+        source_kind = "question"
+
     try:
         qid = int(payload.get("question_id") or 0)
     except Exception:
         qid = 0
-    if not qid:
-        return jsonify({"error": "Pergunta inválida."}), 400
-    q = Question.query.filter_by(id=qid, tenant_id=g.tenant.id).first_or_404()
+
+    q = None
+    ratio_ref = ""
+    if source_kind in {"ratio", "finance_ratio"}:
+        ratio_ref = str(payload.get("ratio_ref") or "").strip()
+        if not ratio_ref:
+            return jsonify({"error": tr("Ratio BI inválido.", getattr(g, "lang", None))}), 400
+
+        company_id = 0
+        ratio_id = ""
+        if ":" in ratio_ref:
+            left, right = ratio_ref.split(":", 1)
+            company_id = _to_int(left, 0, 0, 2_000_000_000)
+            ratio_id = str(right or "").strip()
+        if company_id <= 0 or not ratio_id:
+            return jsonify({"error": tr("Ratio BI inválido.", getattr(g, "lang", None))}), 400
+
+        company = FinanceCompany.query.filter_by(id=company_id, tenant_id=g.tenant.id).first()
+        if not company:
+            return jsonify({"error": tr("Société introuvable pour le ratio.", getattr(g, "lang", None))}), 400
+        cfg_company = _get_bi_ratio_module_config(company)
+        ratios_cfg = cfg_company.get("ratios") if isinstance(cfg_company.get("ratios"), list) else []
+        if not any(str(item.get("id") or "").strip() == ratio_id for item in ratios_cfg if isinstance(item, dict)):
+            return jsonify({"error": tr("Ratio introuvable.", getattr(g, "lang", None))}), 400
+
+        q = Question.query.filter_by(tenant_id=g.tenant.id).order_by(Question.id.asc()).first()
+        if not q:
+            return jsonify({"error": tr("Créez d'abord une question BI pour initialiser le dashboard.", getattr(g, "lang", None))}), 400
+    else:
+        if not qid:
+            return jsonify({"error": "Pergunta inválida."}), 400
+        q = Question.query.filter_by(id=qid, tenant_id=g.tenant.id).first_or_404()
+
     cfg = payload.get("viz_config") or {}
     if cfg and not isinstance(cfg, dict):
         return jsonify({"error": "viz_config inválido."}), 400
+    if source_kind in {"ratio", "finance_ratio"}:
+        cfg = cfg.copy()
+        cfg["source_kind"] = "ratio"
+        cfg["ratio_ref"] = ratio_ref
+        if str(cfg.get("type") or "").strip().lower() not in {"kpi", "gauge"}:
+            cfg["type"] = "gauge"
+        if not str(cfg.get("metric") or "").strip():
+            cfg["metric"] = "value"
 
     # place at bottom (roughly)
     cards = DashboardCard.query.filter_by(dashboard_id=dash.id, tenant_id=g.tenant.id).all()
@@ -5242,7 +6814,16 @@ def api_dashboard_add_card(dashboard_id: int):
         viz_config_json=cfg or {},
     )
     db.session.add(card)
-    _audit("bi.dashboard.card.created", {"dashboard_id": dash.id, "card_id": None, "question_id": q.id})
+    _audit(
+        "bi.dashboard.card.created",
+        {
+            "dashboard_id": dash.id,
+            "card_id": None,
+            "question_id": q.id,
+            "source_kind": "ratio" if source_kind in {"ratio", "finance_ratio"} else "question",
+            "ratio_ref": ratio_ref if source_kind in {"ratio", "finance_ratio"} else "",
+        },
+    )
     db.session.commit()
     return jsonify({"ok": True, "card_id": card.id})
 

@@ -160,10 +160,17 @@
   </div>
   <div class="offcanvas-body">
     <div class="mb-2">
+      <label class="form-label">{{ _('Source') }}</label>
+      <select class="form-select" id="addcard-source">
+        <option value="question">{{ _('Pergunta BI') }}</option>
+        <option value="ratio">{{ _('Ratio BI') }}</option>
+      </select>
+    </div>
+    <div class="mb-2" id="addcard-search-wrap">
       <label class="form-label">{{ _('Buscar pergunta') }}</label>
       <input class="form-control" id="addcard-search" placeholder="{{ _('Digite para filtrar...') }}" />
     </div>
-    <div class="mb-2">
+    <div class="mb-2" id="addcard-question-wrap">
       <label class="form-label">{{ _('Pergunta') }}</label>
       <select class="form-select" id="addcard-question">
         <option value="">--</option>
@@ -171,6 +178,20 @@
           <option value="{{ q.id }}">{{ q.name }}</option>
         {% endfor %}
       </select>
+    </div>
+    <div class="mb-2" id="addcard-ratio-search-wrap" style="display:none;">
+      <label class="form-label">{{ _('Buscar ratio') }}</label>
+      <input class="form-control" id="addcard-ratio-search" placeholder="{{ _('Digite para filtrar...') }}" />
+    </div>
+    <div class="mb-2" id="addcard-ratio-wrap" style="display:none;">
+      <label class="form-label">{{ _('Ratio BI') }}</label>
+      <select class="form-select" id="addcard-ratio">
+        <option value="">--</option>
+        {% for ratio in all_ratios %}
+          <option value="{{ ratio.ref }}">{{ ratio.label }}</option>
+        {% endfor %}
+      </select>
+      <div class="form-text">{{ _('Les ratios se visualisent en KPI ou Gauge.') }}</div>
     </div>
     <div class="mb-2">
       <label class="form-label">{{ _('Visualização') }}</label>
@@ -182,11 +203,39 @@
         <option value="pie">{{ _('Pie') }}</option>
         <option value="scatter">{{ _('Scatter') }}</option>
         <option value="gauge">{{ _('Gauge') }}</option>
+        <option value="kpi">{{ _('KPI') }}</option>
         <option value="pivot">{{ _('Pivot') }}</option>
       </select>
       <div class="form-text">{{ _('Você pode refinar depois em Configurar visualização.') }}</div>
     </div>
-    <div class="mb-2">
+    <div class="row g-2 mb-2">
+      <div class="col-12 col-md-6" id="addcard-dim-wrap">
+        <label class="form-label">{{ _('Dimensão') }}</label>
+        <select class="form-select" id="addcard-dim">
+          <option value="">{{ _('Auto') }}</option>
+        </select>
+      </div>
+      <div class="col-12 col-md-6" id="addcard-met-wrap">
+        <label class="form-label">{{ _('Métrica') }}</label>
+        <select class="form-select" id="addcard-met">
+          <option value="">{{ _('Auto') }}</option>
+        </select>
+      </div>
+      <div class="col-12 col-md-6" id="addcard-agg-wrap">
+        <label class="form-label">{{ _('Agregação') }}</label>
+        <select class="form-select" id="addcard-agg">
+          <option value="">{{ _('Auto') }}</option>
+          <option value="COUNT_ROWS">{{ _('Contagem de linhas') }}</option>
+          <option value="SUM">{{ _('Soma') }}</option>
+          <option value="AVG">{{ _('Média') }}</option>
+          <option value="COUNT">{{ _('Contagem') }}</option>
+          <option value="MIN">{{ _('Mínimo') }}</option>
+          <option value="MAX">{{ _('Máximo') }}</option>
+          <option value="STDDEV">{{ _('Desvio padrão') }}</option>
+        </select>
+      </div>
+    </div>
+    <div class="mb-2" id="addcard-params-wrap">
       <label class="form-label">{{ _('Parâmetros (JSON)') }}</label>
       <textarea class="form-control" id="addcard-params" rows="4" placeholder="{\n  \"from\": \"2025-01-01\"\n}"></textarea>
     </div>
@@ -209,13 +258,15 @@
             {% if not embed_mode %}
             <i class="bi bi-ui-checks" style="opacity:.65"></i>
             {% endif %}
-            <div class="card-title">{{ item.question.name }}</div>
+            <div class="card-title">{{ item.card_title }}</div>
           </div>
           {% if not embed_mode %}
           <div class="d-flex gap-1">
-            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.questions_viz', question_id=item.question.id, dashboard_id=dashboard.id) }}" title="{{ _('Configurar visualização') }}">
+            {% if item.question %}
+            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.questions_viz', question_id=item.question.id, dashboard_id=dashboard.id, card_id=item.card.id) }}" title="{{ _('Configurar visualização') }}">
               <i class="bi bi-sliders"></i>
             </a>
+            {% endif %}
             <button class="btn btn-outline-danger btn-sm d-none" data-card-remove="1" title="{{ _('Remover card') }}">
               <i class="bi bi-trash"></i>
             </button>

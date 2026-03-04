@@ -253,18 +253,82 @@
 
       const catData = {{ top_expense_categories|tojson }};
       const flowData = {{ cashflow_simple|tojson }};
+      const rootStyles = getComputedStyle(document.documentElement);
+      const currencyFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 });
+
+      function cssVar(name, fallback) {
+        const value = (rootStyles.getPropertyValue(name) || '').trim();
+        return value || fallback;
+      }
+
+      function formatAmount(value) {
+        return currencyFmt.format(Number(value || 0));
+      }
+
+      const palette = {
+        text: cssVar('--bs-body-color', '#212529'),
+        muted: cssVar('--bs-secondary-color', '#6c757d'),
+        border: cssVar('--bs-border-color', '#dee2e6'),
+        primary: cssVar('--bs-primary', '#0d6efd'),
+        success: cssVar('--bs-success', '#198754'),
+        danger: cssVar('--bs-danger', '#dc3545')
+      };
+
+      function baseChartOption() {
+        return {
+          animationDuration: 400,
+          textStyle: { color: palette.text },
+          grid: { left: 16, right: 18, top: 24, bottom: 12, containLabel: true },
+          tooltip: {
+            confine: true,
+            backgroundColor: 'rgba(255,255,255,0.95)',
+            borderColor: palette.border,
+            borderWidth: 1,
+            textStyle: { color: palette.text }
+          }
+        };
+      }
 
       const catEl = document.getElementById('chart-expense-categories');
       if (catEl) {
         const chart = echarts.init(catEl);
         chart.setOption({
-          tooltip: { trigger: 'axis' },
-          xAxis: { type: 'value' },
-          yAxis: { type: 'category', data: (catData || []).map(x => x.name) },
+          ...baseChartOption(),
+          tooltip: {
+            ...baseChartOption().tooltip,
+            trigger: 'axis',
+            axisPointer: { type: 'shadow' },
+            formatter: function (params) {
+              const item = (params && params[0]) || null;
+              if (!item) return '';
+              return `<strong>${item.name}</strong><br>${formatAmount(item.value)}`;
+            }
+          },
+          xAxis: {
+            type: 'value',
+            axisLabel: { color: palette.muted },
+            splitLine: { lineStyle: { color: palette.border, type: 'dashed', opacity: 0.9 } }
+          },
+          yAxis: {
+            type: 'category',
+            data: (catData || []).map(x => x.name),
+            axisTick: { show: false },
+            axisLine: { show: false },
+            axisLabel: {
+              color: palette.muted,
+              width: 140,
+              overflow: 'truncate'
+            }
+          },
           series: [{
             type: 'bar',
             data: (catData || []).map(x => x.value),
             barMaxWidth: 24,
+            itemStyle: {
+              color: palette.primary,
+              borderRadius: [0, 8, 8, 0]
+            },
+            emphasis: { itemStyle: { opacity: 0.9 } }
           }]
         });
         window.addEventListener('resize', function(){ try { chart.resize(); } catch (_e) {} });
@@ -277,14 +341,59 @@
           return Number(v || 0) - Number((flowData.outflows || [])[i] || 0);
         });
         chart.setOption({
-          tooltip: { trigger: 'axis' },
-          legend: { data: [window.t('Entrées'), window.t('Sorties'), window.t('Net')] },
-          xAxis: { type: 'category', data: flowData.labels || [] },
-          yAxis: { type: 'value', scale: true },
+          ...baseChartOption(),
+          color: [palette.success, palette.danger, palette.primary],
+          tooltip: {
+            ...baseChartOption().tooltip,
+            trigger: 'axis',
+            axisPointer: { type: 'cross' },
+            valueFormatter: function (v) { return formatAmount(v); }
+          },
+          legend: {
+            top: 0,
+            data: [window.t('Entrées'), window.t('Sorties'), window.t('Net')],
+            textStyle: { color: palette.muted }
+          },
+          grid: { left: 16, right: 18, top: 44, bottom: 18, containLabel: true },
+          xAxis: {
+            type: 'category',
+            data: flowData.labels || [],
+            axisTick: { show: false },
+            axisLabel: { color: palette.muted }
+          },
+          yAxis: {
+            type: 'value',
+            scale: true,
+            axisLabel: {
+              color: palette.muted,
+              formatter: function (v) { return formatAmount(v); }
+            },
+            splitLine: { lineStyle: { color: palette.border, type: 'dashed', opacity: 0.9 } }
+          },
           series: [
-            { name: window.t('Entrées'), type: 'bar', barMaxWidth: 24, data: flowData.inflows || [] },
-            { name: window.t('Sorties'), type: 'bar', barMaxWidth: 24, data: flowData.outflows || [] },
-            { name: window.t('Net'), type: 'line', smooth: true, showSymbol: false, data: netSeries },
+            {
+              name: window.t('Entrées'),
+              type: 'bar',
+              barMaxWidth: 20,
+              itemStyle: { borderRadius: [4, 4, 0, 0] },
+              data: flowData.inflows || []
+            },
+            {
+              name: window.t('Sorties'),
+              type: 'bar',
+              barMaxWidth: 20,
+              itemStyle: { borderRadius: [4, 4, 0, 0] },
+              data: flowData.outflows || []
+            },
+            {
+              name: window.t('Net'),
+              type: 'line',
+              smooth: true,
+              showSymbol: false,
+              lineStyle: { width: 3 },
+              areaStyle: { opacity: 0.1 },
+              data: netSeries
+            },
           ]
         });
         window.addEventListener('resize', function(){ try { chart.resize(); } catch (_e) {} });

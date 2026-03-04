@@ -71,6 +71,7 @@
                 <option value="pie">{{ _('Pie') }}</option>
                 <option value="scatter">{{ _('Scatter') }}</option>
                 <option value="gauge">{{ _('Gauge') }}</option>
+                <option value="kpi">{{ _('KPI') }}</option>
                 <option value="pivot">{{ _('Pivot') }}</option>
               </select>
             </div>
@@ -93,6 +94,19 @@
                     <option value="{{ c }}">{{ c }}</option>
                   {% endfor %}
                 </select>
+                <div class="mt-2">
+                  <label class="form-label">{{ _('Agregação') }}</label>
+                  <select class="form-select" id="viz_agg_func">
+                    <option value="">—</option>
+                    <option value="COUNT_ROWS">{{ _('Contagem de linhas') }}</option>
+                    <option value="SUM">{{ _('Soma') }}</option>
+                    <option value="AVG">{{ _('Média') }}</option>
+                    <option value="COUNT">{{ _('Contagem') }}</option>
+                    <option value="MIN">{{ _('Mínimo') }}</option>
+                    <option value="MAX">{{ _('Máximo') }}</option>
+                    <option value="STDDEV">{{ _('Desvio padrão') }}</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -105,6 +119,26 @@
                 {% endfor %}
               </select>
               <div class="form-text">{{ _('Clique em um ponto/barra para filtrar o dashboard por esse valor.') }}</div>
+            </div>
+
+            <div class="row g-2 mt-1">
+              <div class="col-12 col-md-6">
+                <label class="form-label">{{ _('Mode drill-down') }}</label>
+                <select class="form-select" id="viz_drill_mode">
+                  <option value="filter">{{ _('Filtrer') }}</option>
+                  <option value="details">{{ _('Table de détails') }}</option>
+                  <option value="both">{{ _('Filtrer + Table de détails') }}</option>
+                </select>
+              </div>
+              <div class="col-12 col-md-6" id="viz-drill-detail-wrap">
+                <label class="form-label">{{ _('Granularité détail') }}</label>
+                <select class="form-select" id="viz_drill_detail">
+                  <option value="">{{ _('Lignes brutes') }}</option>
+                  {% for c in result.columns %}
+                    <option value="{{ c }}">{{ c }}</option>
+                  {% endfor %}
+                </select>
+              </div>
             </div>
 
             <hr class="my-3" />

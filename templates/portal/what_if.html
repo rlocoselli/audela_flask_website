@@ -1,0 +1,247 @@
+{% extends "portal/layout.html" %}
+{% set title = _('What-if') %}
+
+{% block portal_content %}
+<div class="container-fluid px-0" id="whatIfPage" data-question-url-template="{{ url_for('portal.api_question_data', question_id=0) }}" data-scenarios-url="{{ url_for('portal.api_what_if_scenarios') }}" data-csrf-token="{{ csrf_token() }}">
+  <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+    <div>
+      <h1 class="h4 mb-1">{{ _('What-if') }}</h1>
+      <div class="text-secondary">{{ _('Simulações de cenário sobre uma pergunta BI.') }}</div>
+    </div>
+  </div>
+
+  <div id="whatIfError" class="alert alert-danger d-none" role="alert"></div>
+
+  <div class="card border-0 shadow-sm rounded-4 mb-3">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-12 col-xl-4">
+          <label class="form-label">{{ _('Pergunta') }}</label>
+          <select id="wf-question" class="form-select">
+            <option value="">—</option>
+            {% for q in questions %}
+              <option value="{{ q.id }}">{{ q.name }}</option>
+            {% endfor %}
+          </select>
+          <div class="form-text">{{ _('Escolha a pergunta BI usada como base da simulação.') }}</div>
+        </div>
+
+        <div class="col-12 col-xl-4">
+          <label class="form-label">{{ _('Métrica numérica') }}</label>
+          <select id="wf-metric" class="form-select" disabled></select>
+          <div class="form-text">{{ _('Selecione a coluna numérica sobre a qual aplicar variação e delta.') }}</div>
+        </div>
+
+        <div class="col-12 col-xl-4">
+          <label class="form-label">{{ _('Dimensão (opcional)') }}</label>
+          <select id="wf-dim" class="form-select" disabled></select>
+          <div class="form-text">{{ _('Agrupa os resultados por uma coluna (ex.: país, produto, canal).') }}</div>
+        </div>
+
+        <div class="col-12 col-xl-6">
+          <label class="form-label">{{ _('Parâmetros (JSON)') }}</label>
+          <textarea id="wf-params" class="form-control" rows="4" placeholder='{"ano": 2026}'>{}</textarea>
+          <div class="form-text">{{ _('Use um objeto JSON para filtros da pergunta.') }}</div>
+        </div>
+
+        <div class="col-12 col-sm-6 col-xl-2">
+          <label class="form-label">{{ _('Variação (%)') }}</label>
+          <input id="wf-pct" type="number" step="0.1" class="form-control" value="10">
+          <div class="form-text">{{ _('10 aumenta 10% cada valor; -10 reduz 10%.') }}</div>
+        </div>
+
+        <div class="col-12 col-sm-6 col-xl-2">
+          <label class="form-label">{{ _('Delta por linha') }}</label>
+          <input id="wf-delta" type="number" step="any" class="form-control" value="0">
+          <div class="form-text">{{ _('Valor fixo somado a cada linha após aplicar a variação.') }}</div>
+        </div>
+
+        <div class="col-12 col-sm-6 col-xl-2">
+          <label class="form-label">{{ _('Méthode') }}</label>
+          <select id="wf-method" class="form-select">
+            <option value="deterministic">{{ _('Déterministe') }}</option>
+            <option value="stress">{{ _('Stress test (probabilisé)') }}</option>
+            <option value="montecarlo">{{ _('Monte Carlo') }}</option>
+          </select>
+          <div class="form-text">{{ _('Choisissez le type de simulation avancée.') }}</div>
+        </div>
+
+        <div class="col-12 col-sm-6 col-xl-2">
+          <label class="form-label">{{ _('Distribution (Monte Carlo)') }}</label>
+          <select id="wf-dist" class="form-select">
+            <option value="normal">{{ _('Normale') }}</option>
+            <option value="uniform">{{ _('Uniforme') }}</option>
+            <option value="triangular">{{ _('Triangulaire') }}</option>
+          </select>
+          <div class="form-text">{{ _('Loi utilisée pour tirer les chocs aléatoires.') }}</div>
+        </div>
+
+        <div class="col-12 col-sm-6 col-xl-2">
+          <label class="form-label">{{ _('Volatilité (%)') }}</label>
+          <input id="wf-vol" type="number" step="0.1" class="form-control" value="10">
+          <div class="form-text">{{ _('Amplitude du choc aléatoire autour du scénario central.') }}</div>
+        </div>
+
+        <div class="col-12 col-sm-6 col-xl-2">
+          <label class="form-label">{{ _('Runs Monte Carlo') }}</label>
+          <input id="wf-runs" type="number" min="100" max="5000" step="100" class="form-control" value="1000">
+          <div class="form-text">{{ _('Nombre de tirages pour estimer la distribution.') }}</div>
+        </div>
+
+        <div class="col-12 col-xl-6">
+          <label class="form-label">{{ _('Scénarios stress (JSON)') }}</label>
+          <textarea id="wf-stress-json" class="form-control" rows="4">[
+  {"name":"Adverse","pct":-20,"prob":0.25},
+  {"name":"Central","pct":0,"prob":0.5},
+  {"name":"Optimiste","pct":15,"prob":0.25}
+]</textarea>
+          <div class="form-text">{{ _('Liste des scénarios: nom, choc %, probabilité. Les probabilités sont normalisées automatiquement.') }}</div>
+        </div>
+
+        <div class="col-12 col-xl-6">
+          <label class="form-label">{{ _('Scénarios enregistrés') }}</label>
+          <div class="row g-2">
+            <div class="col-12 col-md-5">
+              <input id="wf-scenario-name" type="text" class="form-control" placeholder="{{ _('Nom du scénario') }}">
+            </div>
+            <div class="col-12 col-md-7 d-flex gap-2">
+              <button id="wf-save-scenario" class="btn btn-outline-primary flex-fill" type="button">{{ _('Sauvegarder') }}</button>
+              <button id="wf-load-scenario" class="btn btn-outline-secondary flex-fill" type="button">{{ _('Charger') }}</button>
+              <button id="wf-delete-scenario" class="btn btn-outline-danger flex-fill" type="button">{{ _('Supprimer') }}</button>
+            </div>
+            <div class="col-12">
+              <select id="wf-saved-scenarios" class="form-select">
+                <option value="">—</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-text">{{ _('Sauvegarde locale navigateur (profil utilisateur).') }}</div>
+        </div>
+
+        <div class="col-12">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="wf-hypothesis" checked>
+            <label class="form-check-label" for="wf-hypothesis">
+              {{ _('Activer le test d’hypothèse (différence de moyenne)') }}
+            </label>
+          </div>
+        </div>
+
+        <div class="col-12 col-xl-2 d-flex align-items-end gap-2 justify-content-end">
+          <button id="wf-load" class="btn btn-outline-secondary" type="button">{{ _('Carregar dados') }}</button>
+          <button id="wf-run" class="btn btn-primary" type="button">{{ _('Executar simulação') }}</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-4 d-none" id="wf-results-card">
+    <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-3">
+      <div class="fw-semibold"><i class="bi bi-sliders me-1"></i>{{ _('Resultados da simulação') }}</div>
+    </div>
+    <div class="card-body">
+      <div class="row g-3 mb-3">
+        <div class="col-12 col-md-3">
+          <div class="border rounded-3 p-2">
+            <div class="text-secondary small">{{ _('Base') }}</div>
+            <div class="h5 mb-0" id="wf-kpi-base">0</div>
+          </div>
+        </div>
+        <div class="col-12 col-md-3">
+          <div class="border rounded-3 p-2">
+            <div class="text-secondary small">{{ _('Simulado') }}</div>
+            <div class="h5 mb-0" id="wf-kpi-sim">0</div>
+          </div>
+        </div>
+        <div class="col-12 col-md-3">
+          <div class="border rounded-3 p-2">
+            <div class="text-secondary small">{{ _('Diferença') }}</div>
+            <div class="h5 mb-0" id="wf-kpi-diff">0</div>
+          </div>
+        </div>
+        <div class="col-12 col-md-3">
+          <div class="border rounded-3 p-2">
+            <div class="text-secondary small">{{ _('Diferença %') }}</div>
+            <div class="h5 mb-0" id="wf-kpi-diff-pct">0%</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-end mb-2">
+        <div style="min-width: 280px;">
+          <label class="form-label mb-1" for="wf-sort">{{ _('Ordenação') }}</label>
+          <select id="wf-sort" class="form-select form-select-sm">
+            <option value="impact_desc">{{ _('Impacto (|diferença|) desc') }}</option>
+            <option value="base_desc">{{ _('Valor base desc') }}</option>
+            <option value="sim_desc">{{ _('Valor simulado desc') }}</option>
+            <option value="key_asc">{{ _('Dimensão A→Z') }}</option>
+          </select>
+          <div class="form-text">{{ _('Controla como a tabela de grupos é ordenada.') }}</div>
+        </div>
+      </div>
+
+      <div class="alert alert-info py-2" id="wf-explanation"></div>
+
+      <div class="table-responsive">
+        <table class="table table-sm align-middle" id="wf-table">
+          <thead>
+            <tr>
+              <th id="wf-th-dim">{{ _('Dimensão') }}</th>
+              <th class="text-end">{{ _('Linhas') }}</th>
+              <th class="text-end">{{ _('Valor base') }}</th>
+              <th class="text-end">{{ _('Valor simulado') }}</th>
+              <th class="text-end">{{ _('Diferença') }}</th>
+            </tr>
+          </thead>
+          <tbody id="wf-tbody"></tbody>
+        </table>
+      </div>
+      <div class="small text-secondary d-none" id="wf-limit-note">{{ _('Apenas as primeiras 300 linhas são exibidas.') }}</div>
+
+      <div class="mt-3">
+        <div class="fw-semibold mb-2">{{ _('Analyse avancée') }}</div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle" id="wf-advanced-table">
+            <thead>
+              <tr>
+                <th>{{ _('Élément') }}</th>
+                <th class="text-end">{{ _('Valeur') }}</th>
+                <th class="text-end">{{ _('Détails') }}</th>
+              </tr>
+            </thead>
+            <tbody id="wf-advanced-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="mt-3 d-none" id="wf-mc-hist-box">
+        <div class="fw-semibold mb-2">{{ _('Distribution Monte Carlo') }}</div>
+        <div id="wf-mc-hist-wrap" class="position-relative">
+          <canvas id="wf-mc-hist-canvas" style="width:100%; height:220px;"></canvas>
+          <div
+            id="wf-mc-hist-tooltip"
+            class="position-absolute small px-2 py-1 border rounded bg-body shadow-sm d-none"
+            style="pointer-events:none; z-index:2; max-width: 260px;"
+          ></div>
+        </div>
+        <div class="small text-secondary mt-1" id="wf-mc-hist-meta"></div>
+      </div>
+
+      <div class="mt-3" id="wf-hypothesis-box">
+        <div class="fw-semibold mb-2">{{ _('Test d’hypothèse') }}</div>
+        <div class="small text-secondary mb-2" id="wf-hypothesis-summary"></div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <tbody id="wf-hypothesis-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='bi/bi_what_if.js', v='20260304a') }}"></script>
+{% endblock %}

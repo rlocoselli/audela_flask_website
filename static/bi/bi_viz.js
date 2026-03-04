@@ -47,6 +47,15 @@ window.BI = window.BI || {};
     m.bs.show();
   }
 
+  function escHtml(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   function safeJsonParse(elId, fallback) {
     const el = document.getElementById(elId);
     if (!el) return fallback;
@@ -399,6 +408,160 @@ window.BI = window.BI || {};
     });
   }
 
+  function normalizeAggFunc(func) {
+    const f = String(func || '').toUpperCase();
+    if (f === 'STDDEV_SAMP') return 'STDDEV';
+    if (f === 'ROW_COUNT') return 'COUNT_ROWS';
+    return ['COUNT_ROWS', 'SUM', 'AVG', 'COUNT', 'MIN', 'MAX', 'STDDEV'].includes(f) ? f : '';
+  }
+
+  function aggDisplayName(func) {
+    const f = normalizeAggFunc(func);
+    if (f === 'COUNT_ROWS') return t('Contagem de linhas');
+    if (f === 'SUM') return t('Soma');
+    if (f === 'AVG') return t('Média');
+    if (f === 'COUNT') return t('Contagem');
+    if (f === 'MIN') return t('Mínimo');
+    if (f === 'MAX') return t('Máximo');
+    if (f === 'STDDEV') return t('Desvio padrão');
+    return String(func || '');
+  }
+
+  function createAggRecord() {
+    return {
+      rowCount: 0,
+      notNullCount: 0,
+      numCount: 0,
+      sum: 0,
+      sumSq: 0,
+      min: null,
+      max: null
+    };
+  }
+
+  function accumulateAgg(rec, value) {
+    rec.rowCount += 1;
+    if (value === null || value === undefined || value === '') return;
+    rec.notNullCount += 1;
+    const n = Number(value);
+    if (!Number.isFinite(n)) return;
+    rec.numCount += 1;
+    rec.sum += n;
+    rec.sumSq += (n * n);
+    rec.min = (rec.min === null) ? n : Math.min(rec.min, n);
+    rec.max = (rec.max === null) ? n : Math.max(rec.max, n);
+  }
+
+  function finalizeAgg(rec, func) {
+    const f = normalizeAggFunc(func) || 'SUM';
+    if (f === 'COUNT_ROWS') return rec.rowCount;
+    if (f === 'COUNT') return rec.notNullCount;
+    if (f === 'SUM') return rec.sum;
+    if (f === 'AVG') return rec.numCount > 0 ? (rec.sum / rec.numCount) : 0;
+    if (f === 'MIN') return rec.min == null ? 0 : rec.min;
+    if (f === 'MAX') return rec.max == null ? 0 : rec.max;
+    if (f === 'STDDEV') {
+      if (rec.numCount <= 1) return 0;
+      const variance = (rec.sumSq - ((rec.sum * rec.sum) / rec.numCount)) / (rec.numCount - 1);
+      return Number.isFinite(variance) && variance > 0 ? Math.sqrt(variance) : 0;
+    }
+    return rec.sum;
+  }
+
+  function aggregateByDimension(rows, dimIdx, metIdx, func) {
+    const grouped = new Map();
+    for (const r of rows) {
+      if (!r || dimIdx < 0 || dimIdx >= r.length) continue;
+      const key = String(r[dimIdx] ?? '');
+      if (!grouped.has(key)) grouped.set(key, createAggRecord());
+      const rec = grouped.get(key);
+      const val = (metIdx >= 0 && metIdx < r.length) ? r[metIdx] : null;
+      accumulateAgg(rec, val);
+    }
+    const x = [];
+    const y = [];
+    for (const [k, rec] of grouped.entries()) {
+      x.push(k);
+      y.push(finalizeAgg(rec, func));
+    }
+    return { x, y };
+  }
+
+  function aggregateSingleValue(rows, metIdx, func) {
+    const rec = createAggRecord();
+    for (const r of rows) {
+      if (!r) continue;
+      const val = (metIdx >= 0 && metIdx < r.length) ? r[metIdx] : null;
+      accumulateAgg(rec, val);
+    }
+    return finalizeAgg(rec, func);
+  }
+
+  function buildDrillDetailsDataset(data, cfg, drillField, clickedVal) {
+    const cols = data.columns || [];
+    const rows = data.rows || [];
+    const drillIdx = indexOfCol(cols, drillField);
+    if (drillIdx < 0) return null;
+
+    const filtered = rows.filter(r => r && drillIdx < r.length && String(r[drillIdx]) === String(clickedVal));
+    const detailField = String(cfg.drill_detail || '').trim();
+    const detailIdx = indexOfCol(cols, detailField);
+    const metricIdx = indexOfCol(cols, cfg.metric);
+
+    if (detailField && detailIdx >= 0 && detailField !== drillField) {
+      const grp = new Map();
+      for (const r of filtered) {
+        const key = String(r[detailIdx] == null ? '' : r[detailIdx]);
+        if (!grp.has(key)) grp.set(key, { cnt: 0, sum: 0, hasNum: false });
+        const rec = grp.get(key);
+        rec.cnt += 1;
+        if (metricIdx >= 0 && metricIdx < r.length) {
+          const n = Number(r[metricIdx]);
+          if (Number.isFinite(n)) {
+            rec.sum += n;
+            rec.hasNum = true;
+          }
+        }
+      }
+      const outCols = [detailField, t('Count')];
+      if (metricIdx >= 0) outCols.push(`SUM(${String(cols[metricIdx])})`);
+      const outRows = Array.from(grp.entries()).map(([k, rec]) => {
+        const row = [k, rec.cnt];
+        if (metricIdx >= 0) row.push(rec.hasNum ? Number(rec.sum.toFixed(6)) : 0);
+        return row;
+      });
+      outRows.sort((a, b) => Number(b[1] || 0) - Number(a[1] || 0));
+      return { columns: outCols, rows: outRows, totalRows: filtered.length, grouped: true, detailField };
+    }
+
+    return { columns: cols, rows: filtered, totalRows: filtered.length, grouped: false, detailField: '' };
+  }
+
+  function showDrillDetailsModal(drillField, clickedVal, dataset) {
+    if (!dataset) return;
+    const m = ensureModal();
+    m.title.textContent = t('Table de détails');
+
+    const maxRows = 300;
+    const rows = (dataset.rows || []).slice(0, maxRows);
+    const cols = dataset.columns || [];
+    let html = '';
+    html += `<div class="small text-secondary mb-2">${escHtml(String(drillField))} = <strong>${escHtml(String(clickedVal))}</strong></div>`;
+    html += `<div class="small text-secondary mb-2">${escHtml(String(dataset.totalRows || 0))} ${escHtml(t('Linhas'))}</div>`;
+    html += '<div style="max-height:60vh;overflow:auto;"><table class="table table-sm align-middle">';
+    html += '<thead><tr>' + cols.map(c => `<th>${escHtml(c)}</th>`).join('') + '</tr></thead><tbody>';
+    for (const r of rows) {
+      html += '<tr>' + (r || []).map(v => `<td>${escHtml(v)}</td>`).join('') + '</tr>';
+    }
+    html += '</tbody></table></div>';
+    if ((dataset.rows || []).length > maxRows) {
+      html += `<div class="small text-secondary mt-2">${escHtml(t('Affichage limité à 300 lignes.'))}</div>`;
+    }
+
+    m.body.innerHTML = html;
+    m.bs.show();
+  }
+
   function renderTable(container, data) {
     const cols = data.columns || [];
     const srcRows = data.rows || [];
@@ -688,6 +851,9 @@ window.BI = window.BI || {};
     const type = cfg.type || 'table';
     const dim = cfg.dim;
     const metric = cfg.metric;
+    const drillMode = String(cfg.drill_mode || 'filter').toLowerCase();
+    const aggCfg = (cfg && cfg.agg && typeof cfg.agg === 'object') ? cfg.agg : null;
+    const aggFunc = normalizeAggFunc(aggCfg ? aggCfg.func : '');
     const mapLevel = cfg.map_level || 'points';
     const dimIdx = indexOfCol(cols, dim);
     const metIdx = indexOfCol(cols, metric);
@@ -698,7 +864,11 @@ window.BI = window.BI || {};
 
     const x = [];
     const y = [];
-    if (dimIdx >= 0 && metIdx >= 0) {
+    if (aggFunc && dimIdx >= 0 && (metIdx >= 0 || aggFunc === 'COUNT_ROWS') && ['bar', 'line', 'area', 'pie', 'scatter'].includes(type)) {
+      const grouped = aggregateByDimension(rows, dimIdx, metIdx, aggFunc);
+      x.push(...grouped.x);
+      y.push(...grouped.y);
+    } else if (dimIdx >= 0 && metIdx >= 0) {
       for (const r of rows) {
         x.push(r[dimIdx]);
         y.push(Number(r[metIdx]));
@@ -743,7 +913,14 @@ window.BI = window.BI || {};
       chart.dispose();
       let value = null;
       let label = metric || t('Métrica');
-      if (rows.length) {
+      if (aggFunc && (metIdx >= 0 || aggFunc === 'COUNT_ROWS')) {
+        value = aggregateSingleValue(rows, metIdx, aggFunc);
+        if (aggFunc === 'COUNT_ROWS') {
+          label = t('Contagem de linhas');
+        } else {
+          label = `${aggDisplayName(aggFunc)}(${label})`;
+        }
+      } else if (rows.length) {
         if (metIdx >= 0) {
           value = rows[0][metIdx];
           label = cols[metIdx] || label;
@@ -1030,7 +1207,36 @@ window.BI = window.BI || {};
         if (clickedVal === undefined || clickedVal === null || clickedVal === '') {
           clickedVal = params?.value;
         }
-        onDrill(drillField, clickedVal);
+        const details = (drillMode === 'details' || drillMode === 'both')
+          ? buildDrillDetailsDataset(data, cfg, drillField, clickedVal)
+          : null;
+
+        if (drillMode === 'details') {
+          showDrillDetailsModal(drillField, clickedVal, details);
+          return;
+        }
+        if (drillMode === 'both') {
+          showDrillDetailsModal(drillField, clickedVal, details);
+        }
+
+        onDrill(drillField, clickedVal, { mode: drillMode, details: details });
+      });
+    } else if (drillField && (drillMode === 'details' || drillMode === 'both') && (dimIdx >= 0 || type === 'map')) {
+      chart.off('click');
+      chart.on('click', params => {
+        let clickedVal = params?.name;
+        if (type === 'map') {
+          clickedVal = params?.data?.label || params?.data?.name || clickedVal;
+        }
+        if ((clickedVal === undefined || clickedVal === null || clickedVal === '') && Array.isArray(params?.value)) {
+          const idx = Number(params.value[0]);
+          if (Number.isInteger(idx) && idx >= 0 && idx < x.length) clickedVal = x[idx];
+        }
+        if (clickedVal === undefined || clickedVal === null || clickedVal === '') {
+          clickedVal = params?.value;
+        }
+        const details = buildDrillDetailsDataset(data, cfg, drillField, clickedVal);
+        showDrillDetailsModal(drillField, clickedVal, details);
       });
     }
   }
@@ -1239,7 +1445,11 @@ window.BI = window.BI || {};
     const elType = document.getElementById('viz_type');
     const elDim = document.getElementById('viz_dim');
     const elMet = document.getElementById('viz_metric');
+    const elAgg = document.getElementById('viz_agg_func');
     const elDrill = document.getElementById('viz_drill');
+    const elDrillMode = document.getElementById('viz_drill_mode');
+    const elDrillDetail = document.getElementById('viz_drill_detail');
+    const elDrillDetailWrap = document.getElementById('viz-drill-detail-wrap');
     const elPR = document.getElementById('pivot_rows');
     const elPC = document.getElementById('pivot_cols');
     const elPV = document.getElementById('pivot_val');
@@ -1252,21 +1462,44 @@ window.BI = window.BI || {};
     setIf(elType, savedCfg.type);
     setIf(elDim, savedCfg.dim);
     setIf(elMet, savedCfg.metric);
+    setIf(elAgg, savedCfg.agg && savedCfg.agg.func ? savedCfg.agg.func : '');
     setIf(elDrill, savedCfg.drill);
+    setIf(elDrillMode, savedCfg.drill_mode || 'filter');
+    setIf(elDrillDetail, savedCfg.drill_detail || '');
     setIf(elPR, savedCfg.pivot_rows);
     setIf(elPC, savedCfg.pivot_cols);
     setIf(elPV, savedCfg.pivot_val);
 
+    function syncDrillUi() {
+      const mode = String(elDrillMode ? elDrillMode.value : 'filter').toLowerCase();
+      const showDetail = (mode === 'details' || mode === 'both');
+      if (elDrillDetailWrap) elDrillDetailWrap.style.display = showDetail ? '' : 'none';
+    }
+
     function currentCfg() {
-      return {
-        type: elType ? elType.value : 'table',
+      const type = elType ? elType.value : 'table';
+      const metric = elMet ? elMet.value : '';
+      let aggFunc = elAgg ? String(elAgg.value || '').toUpperCase() : '';
+      if (type === 'kpi' && !aggFunc) aggFunc = metric ? 'SUM' : 'COUNT_ROWS';
+      const cfg = {
+        type: type,
         dim: elDim ? elDim.value : '',
-        metric: elMet ? elMet.value : '',
+        metric: metric,
         drill: elDrill ? elDrill.value : '',
+        drill_mode: elDrillMode ? elDrillMode.value : 'filter',
+        drill_detail: elDrillDetail ? elDrillDetail.value : '',
         pivot_rows: elPR ? elPR.value : '',
         pivot_cols: elPC ? elPC.value : '',
         pivot_val: elPV ? elPV.value : ''
       };
+      if (aggFunc && (metric || aggFunc === 'COUNT_ROWS')) {
+        cfg.agg = {
+          func: aggFunc,
+          metric: metric,
+          dim: elDim ? (elDim.value || '') : ''
+        };
+      }
+      return cfg;
     }
 
     function render() {
@@ -1281,10 +1514,11 @@ window.BI = window.BI || {};
         renderChart(previewEl, data, cfg, null);
       }
       if (hidden) hidden.value = JSON.stringify(cfg);
+      syncDrillUi();
     }
 
     ['change', 'keyup'].forEach(evt => {
-      [elType, elDim, elMet, elDrill, elPR, elPC, elPV].forEach(el => {
+      [elType, elDim, elMet, elAgg, elDrill, elDrillMode, elDrillDetail, elPR, elPC, elPV].forEach(el => {
         if (el) el.addEventListener(evt, render);
       });
     });
@@ -1297,6 +1531,7 @@ window.BI = window.BI || {};
       });
     }
 
+    syncDrillUi();
     render();
   }
 

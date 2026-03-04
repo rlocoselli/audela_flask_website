@@ -1,0 +1,440 @@
+{% extends "portal/layout.html" %}
+
+{% block portal_content %}
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+        <h2 class="h5 mb-0">{{ _('Module ratios') }}</h2>
+        <span class="badge text-bg-light border">{{ _('Indicateurs scalaires: SQL + numérateur/dénominateur') }}</span>
+      </div>
+      <form method="get" class="row g-2 align-items-end">
+        <div id="ratio-period-start-wrap" class="col-12 col-md-4{% if not show_period_filters %} d-none{% endif %}">
+          <label class="form-label">{{ _('Date début') }}</label>
+          <input type="date" class="form-control" name="start" value="{{ start.isoformat() }}" />
+        </div>
+        <div id="ratio-period-end-wrap" class="col-12 col-md-4{% if not show_period_filters %} d-none{% endif %}">
+          <label class="form-label">{{ _('Date fin') }}</label>
+          <input type="date" class="form-control" name="end" value="{{ end.isoformat() }}" />
+        </div>
+        <div id="ratio-period-recalc-wrap" class="col-12{% if show_period_filters %} col-md-4{% endif %}">
+          <button class="btn btn-outline-secondary w-100">{{ _('Recalculer') }}</button>
+        </div>
+        <div id="ratio-period-note" class="col-12 small text-secondary{% if show_period_filters %} d-none{% endif %}">
+          {{ _('La période est pilotée par le SQL de l’indicateur (si présent).') }}
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-xl-7">
+      <div class="card h-100" id="create-indicator">
+        <div class="card-body">
+          <h3 class="h6 mb-3">{{ _('Créer un indicateur') }}</h3>
+
+          <div class="border rounded p-2 mb-3 bg-body-tertiary">
+            <label class="form-label mb-1">{{ _('Assistant langage naturel') }}</label>
+            <div class="mb-2">
+              <label class="form-label mb-1 small">{{ _('Source de données') }}</label>
+              <select id="ratio-nl-source-id" class="form-select form-select-sm" {% if not bi_sources %}disabled{% endif %}>
+                <option value="">{{ _('Sélectionner une source BI') }}</option>
+                {% for src in (bi_sources or []) %}
+                  <option value="{{ src.id }}">{{ src.name }} ({{ src.type }})</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="input-group">
+              <input id="ratio-nl-input" type="text" class="form-control" placeholder="{{ _('Ex: total des dépenses sur la période') }}" />
+              <button id="ratio-nl-generate" type="button" class="btn btn-outline-primary">{{ _('Générer SQL') }}</button>
+            </div>
+            <div id="ratio-nl-warnings" class="small text-secondary mt-2 d-none"></div>
+          </div>
+
+          <form method="post" action="{{ url_for('portal.ratios_indicator_create_submit') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <input type="hidden" name="start" value="{{ start.isoformat() }}" />
+            <input type="hidden" name="end" value="{{ end.isoformat() }}" />
+            <div class="row g-2">
+              <div class="col-12">
+                <label class="form-label">{{ _('Source BI pour la requête') }}</label>
+                <select id="ratio-indicator-source-id" name="source_id" class="form-select" {% if not bi_sources %}disabled{% endif %}>
+                  <option value="">{{ _('Aucune (mode finance interne)') }}</option>
+                  {% for src in (bi_sources or []) %}
+                    <option value="{{ src.id }}">{{ src.name }} ({{ src.type }})</option>
+                  {% endfor %}
+                </select>
+                <div class="form-text">{{ _('Choisissez une source BI pour générer/exécuter la requête sur cette source.') }}</div>
+              </div>
+
+              <div class="col-12 col-md-6">
+                <label class="form-label">{{ _('Nom interne') }}</label>
+                <input type="text" name="name" class="form-control" required {% if not company %}disabled{% endif %} />
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label">{{ _('Description') }}</label>
+                <input type="text" name="description" class="form-control" {% if not company %}disabled{% endif %} />
+              </div>
+
+              <div class="col-12 col-md-4">
+                <label class="form-label">FR</label>
+                <input type="text" name="label_fr" class="form-control" {% if not company %}disabled{% endif %} />
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label">EN</label>
+                <input type="text" name="label_en" class="form-control" {% if not company %}disabled{% endif %} />
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label">PT</label>
+                <input type="text" name="label_pt" class="form-control" {% if not company %}disabled{% endif %} />
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label">ES</label>
+                <input type="text" name="label_es" class="form-control" {% if not company %}disabled{% endif %} />
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label">IT</label>
+                <input type="text" name="label_it" class="form-control" {% if not company %}disabled{% endif %} />
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label">DE</label>
+                <input type="text" name="label_de" class="form-control" {% if not company %}disabled{% endif %} />
+              </div>
+
+              <div class="col-12">
+                <label class="form-label">{{ _('SQL scalaire') }}</label>
+                <textarea id="ratio-indicator-sql" name="sql" class="form-control" rows="7" required {% if not company %}disabled{% endif %} placeholder="SELECT COALESCE(SUM(...), 0) AS value&#10;FROM public.votre_table&#10;WHERE tenant_id = :tenant_id&#10;  -- mode finance interne: ajouter aussi :company_id&#10;  -- optionnel: :start_date et :end_date"></textarea>
+                <div class="form-text">{{ _('La requête doit retourner une seule valeur numérique (alias conseillé: value).') }}</div>
+              </div>
+
+              <div class="col-12 text-end">
+                <button type="submit" class="btn btn-primary" {% if not company %}disabled{% endif %}>{{ _('Enregistrer indicateur') }}</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-xl-5">
+      <div class="card h-100" id="create-ratio">
+        <div class="card-body">
+          <h3 class="h6 mb-3">{{ _('Créer un ratio') }}</h3>
+          <form method="post" action="{{ url_for('portal.ratios_create') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <input type="hidden" name="start" value="{{ start.isoformat() }}" />
+            <input type="hidden" name="end" value="{{ end.isoformat() }}" />
+            <div class="row g-2">
+              <div class="col-12">
+                <label class="form-label">{{ _('Nom interne') }}</label>
+                <input type="text" name="name" class="form-control" required {% if not company %}disabled{% endif %} />
+              </div>
+              <div class="col-12">
+                <label class="form-label">{{ _('Description') }}</label>
+                <input type="text" name="description" class="form-control" {% if not company %}disabled{% endif %} />
+              </div>
+
+              <div class="col-12 col-md-6">
+                <label class="form-label">{{ _('Numérateur') }}</label>
+                <select name="numerator_id" class="form-select" required {% if not company %}disabled{% endif %}>
+                  <option value="">{{ _('Sélectionner') }}</option>
+                  {% for item in indicators %}
+                    <option value="{{ item.id }}">{{ item.label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label">{{ _('Dénominateur') }}</label>
+                <select name="denominator_id" class="form-select" required {% if not company %}disabled{% endif %}>
+                  <option value="">{{ _('Sélectionner') }}</option>
+                  {% for item in indicators %}
+                    <option value="{{ item.id }}">{{ item.label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div class="col-12 col-md-4">
+                <label class="form-label">{{ _('Multiplicateur') }}</label>
+                <input type="number" name="multiplier" step="0.01" value="100" class="form-control" {% if not company %}disabled{% endif %} />
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label">{{ _('Décimales') }}</label>
+                <input type="number" name="precision" min="0" max="6" value="2" class="form-control" {% if not company %}disabled{% endif %} />
+              </div>
+              <div class="col-12 col-md-4">
+                <label class="form-label">{{ _('Suffixe') }}</label>
+                <input type="text" name="suffix" value="%" class="form-control" {% if not company %}disabled{% endif %} />
+              </div>
+
+              <div class="col-12 col-md-6">
+                <label class="form-label">FR</label>
+                <input type="text" name="label_fr" class="form-control" {% if not company %}disabled{% endif %} />
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label">EN</label>
+                <input type="text" name="label_en" class="form-control" {% if not company %}disabled{% endif %} />
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label">PT</label>
+                <input type="text" name="label_pt" class="form-control" {% if not company %}disabled{% endif %} />
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label">ES</label>
+                <input type="text" name="label_es" class="form-control" {% if not company %}disabled{% endif %} />
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label">IT</label>
+                <input type="text" name="label_it" class="form-control" {% if not company %}disabled{% endif %} />
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label">DE</label>
+                <input type="text" name="label_de" class="form-control" {% if not company %}disabled{% endif %} />
+              </div>
+
+              <div class="col-12 text-end">
+                <button type="submit" class="btn btn-primary" {% if not company %}disabled{% endif %}>{{ _('Enregistrer ratio') }}</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <h3 class="h6 mb-3">{{ _('Indicateurs configurés') }}</h3>
+      {% if indicators %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th>{{ _('Indicateur') }}</th>
+                <th>{{ _('Valeur') }}</th>
+                <th>{{ _('SQL') }}</th>
+                <th class="text-end">{{ _('Actions') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in indicators %}
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ item.label }}</div>
+                    {% if item.description %}<div class="text-secondary small">{{ item.description }}</div>{% endif %}
+                    <div class="small text-secondary">{{ _('Source') }}: {{ item.source_label }}</div>
+                  </td>
+                  <td>{{ item.value_display }}</td>
+                  <td>
+                    {% if item.error %}
+                      <span class="badge text-bg-danger">{{ _('Erreur') }}</span>
+                      <div class="small text-danger mt-1">{{ item.error }}</div>
+                    {% else %}
+                      <span class="badge text-bg-success">{{ _('OK') }}</span>
+                    {% endif %}
+                  </td>
+                  <td><pre class="small mb-0" style="white-space: pre-wrap; max-width: 560px;">{{ item.sql }}</pre></td>
+                  <td class="text-end">
+                    <form method="post" action="{{ url_for('portal.ratios_indicator_delete', indicator_id=item.id) }}" onsubmit="return confirm('{{ _('Supprimer cet indicateur ?') }}');">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                      <input type="hidden" name="start" value="{{ start.isoformat() }}" />
+                      <input type="hidden" name="end" value="{{ end.isoformat() }}" />
+                      <button type="submit" class="btn btn-outline-danger btn-sm">{{ _('Supprimer') }}</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="text-secondary">{{ _('Aucun indicateur configuré.') }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <h3 class="h6 mb-3">{{ _('Ratios configurés') }}</h3>
+      {% if ratios %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th>{{ _('Ratio') }}</th>
+                <th>{{ _('Numérateur') }}</th>
+                <th>{{ _('Dénominateur') }}</th>
+                <th>{{ _('Valeur') }}</th>
+                <th class="text-end">{{ _('Actions') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in ratios %}
+                <tr>
+                  <td>
+                    <div class="fw-semibold">{{ item.label }}</div>
+                    {% if item.description %}<div class="text-secondary small">{{ item.description }}</div>{% endif %}
+                  </td>
+                  <td>{{ item.numerator_label }}</td>
+                  <td>{{ item.denominator_label }}</td>
+                  <td>
+                    {% if item.ratio_error %}
+                      <span class="badge text-bg-danger">{{ item.ratio_error }}</span>
+                    {% else %}
+                      <span class="fw-semibold">{{ item.ratio_value_display }}{{ item.suffix }}</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-end">
+                    <form method="post" action="{{ url_for('portal.ratios_delete', ratio_id=item.id) }}" onsubmit="return confirm('{{ _('Supprimer ce ratio ?') }}');">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                      <input type="hidden" name="start" value="{{ start.isoformat() }}" />
+                      <input type="hidden" name="end" value="{{ end.isoformat() }}" />
+                      <button type="submit" class="btn btn-outline-danger btn-sm">{{ _('Supprimer') }}</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="text-secondary">{{ _('Aucun ratio configuré.') }}</div>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script>
+    (window.onReady || function(fn){ window.addEventListener('load', fn); })(function(){
+      const getCsrfToken = function(){
+        return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+      };
+      const parseServerError = function(rawText){
+        const txt = String(rawText || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        return txt || window.t('Erreur de génération.');
+      };
+      const generateBtn = document.getElementById('ratio-nl-generate');
+      const nlInput = document.getElementById('ratio-nl-input');
+      const sourceSelect = document.getElementById('ratio-nl-source-id');
+      const indicatorSourceSelect = document.getElementById('ratio-indicator-source-id');
+      const sqlArea = document.getElementById('ratio-indicator-sql');
+      const periodStartWrap = document.getElementById('ratio-period-start-wrap');
+      const periodEndWrap = document.getElementById('ratio-period-end-wrap');
+      const periodRecalcWrap = document.getElementById('ratio-period-recalc-wrap');
+      const periodNote = document.getElementById('ratio-period-note');
+      const warningsEl = document.getElementById('ratio-nl-warnings');
+      const nameInput = document.querySelector('#create-indicator input[name="name"]');
+      const focusTarget = '{{ focus or "" }}';
+      const hasPeriodFromConfiguredIndicators = {{ 'true' if show_period_filters else 'false' }};
+
+      const togglePeriodFilters = function(){
+        const sqlText = String(sqlArea?.value || '').toLowerCase();
+        const hasPeriodInEditor = sqlText.includes(':start_date') && sqlText.includes(':end_date');
+        const show = hasPeriodFromConfiguredIndicators || hasPeriodInEditor;
+
+        if (periodStartWrap) periodStartWrap.classList.toggle('d-none', !show);
+        if (periodEndWrap) periodEndWrap.classList.toggle('d-none', !show);
+        if (periodNote) periodNote.classList.toggle('d-none', show);
+
+        if (periodRecalcWrap) {
+          periodRecalcWrap.classList.remove('col-md-4');
+          if (show) periodRecalcWrap.classList.add('col-md-4');
+        }
+      };
+
+      if (sourceSelect && indicatorSourceSelect) {
+        sourceSelect.addEventListener('change', function(){
+          indicatorSourceSelect.value = sourceSelect.value || '';
+        });
+      }
+
+      if (sqlArea) {
+        sqlArea.addEventListener('input', togglePeriodFilters);
+        sqlArea.addEventListener('change', togglePeriodFilters);
+      }
+
+      if (focusTarget === 'indicator') {
+        document.getElementById('create-indicator')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else if (focusTarget === 'ratio') {
+        document.getElementById('create-ratio')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+
+      togglePeriodFilters();
+
+      if (!generateBtn || !nlInput || !sqlArea || !warningsEl) return;
+
+      generateBtn.addEventListener('click', async function(){
+        const text = (nlInput.value || '').trim();
+        const selectedSourceId = (sourceSelect?.value || '').trim();
+        if (!text) {
+          warningsEl.classList.remove('d-none');
+          warningsEl.classList.add('text-danger');
+          warningsEl.textContent = window.t('Veuillez saisir une demande en langage naturel.');
+          return;
+        }
+        if (!selectedSourceId) {
+          warningsEl.classList.remove('d-none');
+          warningsEl.classList.add('text-danger');
+          warningsEl.textContent = window.t('Sélectionnez une source BI.');
+          return;
+        }
+
+        warningsEl.classList.remove('text-danger');
+        warningsEl.classList.add('d-none');
+        warningsEl.textContent = '';
+        generateBtn.disabled = true;
+
+        try {
+          const csrf = getCsrfToken();
+          const r = await fetch('{{ url_for("portal.ratios_ai_generate") }}', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(csrf ? { 'X-CSRFToken': csrf } : {})
+            },
+            body: JSON.stringify({ text, source_id: selectedSourceId })
+          });
+          const raw = await r.text();
+          let payload = {};
+          try {
+            payload = raw ? JSON.parse(raw) : {};
+          } catch (e) {
+            payload = {};
+          }
+
+          if (!r.ok) {
+            warningsEl.classList.remove('d-none');
+            warningsEl.classList.add('text-danger');
+            warningsEl.textContent = payload.error || parseServerError(raw);
+            return;
+          }
+
+          if (!payload.ok) {
+            warningsEl.classList.remove('d-none');
+            warningsEl.classList.add('text-danger');
+            warningsEl.textContent = payload.error || window.t('Erreur de génération.');
+            return;
+          }
+
+          sqlArea.value = payload.sql || '';
+          if (nameInput && (!nameInput.value || !nameInput.value.trim())) {
+            nameInput.value = payload.name || '';
+          }
+
+          const warnings = Array.isArray(payload.warnings) ? payload.warnings : [];
+          if (warnings.length) {
+            warningsEl.classList.remove('d-none');
+            warningsEl.classList.remove('text-danger');
+            warningsEl.textContent = warnings.join(' · ');
+          }
+        } catch (e) {
+          warningsEl.classList.remove('d-none');
+          warningsEl.classList.add('text-danger');
+          warningsEl.textContent = window.t('Erreur réseau pendant la génération.');
+        } finally {
+          generateBtn.disabled = false;
+        }
+      });
+    });
+  </script>
+{% endblock %}

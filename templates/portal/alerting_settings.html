@@ -1,0 +1,166 @@
+{% extends "portal/layout.html" %}
+{% set title = _('Alerting') %}
+
+{% block portal_content %}
+<div class="container-fluid px-0">
+  <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+    <div>
+      <h1 class="h4 mb-1">{{ _('Alerting') }}</h1>
+      <div class="text-secondary">{{ _('Configuração centralizada de limites, SLA e canais (e-mail, Slack, Teams).') }}</div>
+    </div>
+  </div>
+
+  <form method="post" id="alerting-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <input type="hidden" name="rules_json" id="rules_json" value="[]" />
+
+    <div class="row g-3">
+      <div class="col-12 col-xl-4">
+        <div class="card border-0 shadow-sm rounded-4 h-100">
+          <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-3">
+            <div class="fw-semibold"><i class="bi bi-speedometer2 me-1"></i>{{ _('Limites') }}</div>
+          </div>
+          <div class="card-body">
+            <label class="form-label">{{ _('Janela de avaliação (min)') }}</label>
+            <input class="form-control" type="number" min="1" max="1440" name="evaluation_window_minutes" value="{{ alerting.limits.evaluation_window_minutes }}">
+
+            <label class="form-label mt-3">{{ _('Cooldown entre alertas (min)') }}</label>
+            <input class="form-control" type="number" min="0" max="10080" name="cooldown_minutes" value="{{ alerting.limits.cooldown_minutes }}">
+
+            <label class="form-label mt-3">{{ _('Máximo de alertas por execução') }}</label>
+            <input class="form-control" type="number" min="1" max="5000" name="max_alerts_per_run" value="{{ alerting.limits.max_alerts_per_run }}">
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-xl-4">
+        <div class="card border-0 shadow-sm rounded-4 h-100">
+          <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-3">
+            <div class="fw-semibold"><i class="bi bi-clock-history me-1"></i>{{ _('SLA') }}</div>
+          </div>
+          <div class="card-body">
+            <label class="form-label">{{ _('SLA alvo padrão (min)') }}</label>
+            <input class="form-control" type="number" min="1" max="43200" name="default_target_minutes" value="{{ alerting.sla.default_target_minutes }}">
+
+            <label class="form-label mt-3">{{ _('Avisar antes do SLA (min)') }}</label>
+            <input class="form-control" type="number" min="0" max="43200" name="warn_before_minutes" value="{{ alerting.sla.warn_before_minutes }}">
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12 col-xl-4">
+        <div class="card border-0 shadow-sm rounded-4 h-100">
+          <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-3">
+            <div class="fw-semibold"><i class="bi bi-send-check me-1"></i>{{ _('Canais') }}</div>
+          </div>
+          <div class="card-body">
+            <div class="border rounded-3 p-2 mb-3">
+              <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" id="email_enabled" name="email_enabled" {% if alerting.channels.email.enabled %}checked{% endif %}>
+                <label class="form-check-label" for="email_enabled">{{ _('Ativar e-mail') }}</label>
+              </div>
+              <label class="form-label small mb-1">{{ _('Destinatários (CSV)') }}</label>
+              <input class="form-control form-control-sm" type="text" name="email_recipients" value="{{ alerting.channels.email.recipients }}" placeholder="ops@empresa.com, sla@empresa.com">
+              <label class="form-label small mb-1 mt-2">{{ _('Prefixo de assunto') }}</label>
+              <input class="form-control form-control-sm" type="text" name="email_subject_prefix" value="{{ alerting.channels.email.subject_prefix }}">
+              <div class="form-text">{{ _('Use vírgula para separar e-mails.') }}</div>
+            </div>
+
+            <div class="border rounded-3 p-2 mb-3">
+              <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" id="slack_enabled" name="slack_enabled" {% if alerting.channels.slack.enabled %}checked{% endif %}>
+                <label class="form-check-label" for="slack_enabled">{{ _('Ativar Slack') }}</label>
+              </div>
+              <label class="form-label small mb-1">{{ _('Webhook Slack') }}</label>
+              <input class="form-control form-control-sm" type="url" name="slack_webhook_url" value="{{ alerting.channels.slack.webhook_url }}" placeholder="https://hooks.slack.com/services/...">
+              <label class="form-label small mb-1 mt-2">{{ _('Canal Slack (opcional)') }}</label>
+              <input class="form-control form-control-sm" type="text" name="slack_channel" value="{{ alerting.channels.slack.channel }}" placeholder="#alerts">
+            </div>
+
+            <div class="border rounded-3 p-2">
+              <div class="form-check form-switch mb-2">
+                <input class="form-check-input" type="checkbox" id="teams_enabled" name="teams_enabled" {% if alerting.channels.teams.enabled %}checked{% endif %}>
+                <label class="form-check-label" for="teams_enabled">{{ _('Ativar Teams') }}</label>
+              </div>
+              <label class="form-label small mb-1">{{ _('Webhook Teams') }}</label>
+              <input class="form-control form-control-sm" type="url" name="teams_webhook_url" value="{{ alerting.channels.teams.webhook_url }}" placeholder="https://.../webhook/...">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <div class="card border-0 shadow-sm rounded-4">
+          <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-3">
+            <div class="fw-semibold"><i class="bi bi-chat-left-text me-1"></i>{{ _('Mensagens') }}</div>
+          </div>
+          <div class="card-body">
+            <div class="row g-3">
+              <div class="col-12 col-lg-3">
+                <label class="form-label">{{ _('Idioma padrão') }}</label>
+                <select class="form-select" name="default_language">
+                  <option value="auto" {% if alerting.messages.default_language == 'auto' %}selected{% endif %}>{{ _('Auto') }}</option>
+                  <option value="pt" {% if alerting.messages.default_language == 'pt' %}selected{% endif %}>Português</option>
+                  <option value="en" {% if alerting.messages.default_language == 'en' %}selected{% endif %}>English</option>
+                  <option value="fr" {% if alerting.messages.default_language == 'fr' %}selected{% endif %}>Français</option>
+                  <option value="es" {% if alerting.messages.default_language == 'es' %}selected{% endif %}>Español</option>
+                  <option value="it" {% if alerting.messages.default_language == 'it' %}selected{% endif %}>Italiano</option>
+                  <option value="de" {% if alerting.messages.default_language == 'de' %}selected{% endif %}>Deutsch</option>
+                </select>
+              </div>
+              <div class="col-12 col-lg-9">
+                <label class="form-label">{{ _('Template padrão') }}</label>
+                <textarea class="form-control" rows="4" name="default_template">{{ alerting.messages.default_template }}</textarea>
+                <div class="form-text">{{ _('Mensagem usada quando a regra não possui template específico.') }}</div>
+                <div class="small text-secondary mt-2">{{ _('Placeholders: {{tenant_name}}, {{rule_name}}, {{metric_field}}, {{operator}}, {{threshold}}, {{observed}}, {{severity}}, {{timestamp}}.') }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12">
+        <div class="card border-0 shadow-sm rounded-4">
+          <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-3 d-flex justify-content-between align-items-center">
+            <div class="fw-semibold"><i class="bi bi-bell me-1"></i>{{ _('Regras de alerta') }}</div>
+            <button class="btn btn-outline-primary btn-sm" type="button" id="alerting-add-rule">
+              <i class="bi bi-plus-lg"></i> {{ _('Adicionar regra') }}
+            </button>
+          </div>
+          <div class="card-body">
+            <div id="alerting-rules-list" class="d-flex flex-column gap-2"></div>
+            <div id="alerting-empty" class="text-secondary small d-none">{{ _('Nenhuma regra configurada.') }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-end mt-3">
+      <button class="btn btn-primary" type="submit"><i class="bi bi-save"></i> {{ _('Salvar configuração') }}</button>
+    </div>
+  </form>
+
+  <script type="application/json" id="alerting-rules-data">{{ (alerting.rules or [])|tojson }}</script>
+  <script type="application/json" id="alerting-metrics-url-template">{{ url_for('portal.api_alerting_question_metric_fields', question_id=0)|tojson }}</script>
+  <select id="alerting-question-options" class="d-none" aria-hidden="true" tabindex="-1">
+    {% for q in (questions or []) %}
+      <option value="{{ q.id }}">{{ q.name }}</option>
+    {% endfor %}
+  </select>
+  <select id="alerting-indicator-options" class="d-none" aria-hidden="true" tabindex="-1">
+    {% for indicator in (finance_indicators or []) %}
+      <option value="{{ indicator.ref }}">{{ indicator.label }}</option>
+    {% endfor %}
+  </select>
+  <select id="alerting-ratio-options" class="d-none" aria-hidden="true" tabindex="-1">
+    {% for ratio in (finance_ratios or []) %}
+      <option value="{{ ratio.ref }}">{{ ratio.label }}</option>
+    {% endfor %}
+  </select>
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='bi/bi_alerting_settings.js') }}"></script>
+{% endblock %}

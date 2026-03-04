@@ -52,7 +52,7 @@ UAM_MENU_KEYS: dict[str, list[str]] = {
     ],
     "bi": [
         "home", "sources", "api_sources", "web_extract", "integrations", "etl", "sources_diagram",
-        "sql_editor", "excel_ai", "questions", "dashboards", "reports", "files", "statistics", "explore",
+        "sql_editor", "excel_ai", "questions", "dashboards", "reports", "files", "statistics", "ratios", "ratio_indicator_create", "ratio_create", "alerting", "what_if", "explore",
         "ai_chat", "runs", "audit",
     ],
     "project": [
@@ -100,6 +100,11 @@ UAM_MENU_LABELS: dict[str, dict[str, str]] = {
         "reports": "Relatórios",
         "files": "Arquivos",
         "statistics": "Estatísticas",
+        "ratios": "Ratios",
+        "ratio_indicator_create": "Créer indicateur",
+        "ratio_create": "Créer ratio",
+        "alerting": "Alerting",
+        "what_if": "What-if",
         "explore": "Explorar",
         "ai_chat": "Chat IA",
         "runs": "Execuções",
