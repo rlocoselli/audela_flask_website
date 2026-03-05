@@ -167,6 +167,30 @@ jobs:
               credit_approvals \
               credit_documents
 
+            # Clean up partial credit reference data if migration failed due to NOT NULL constraint
+            cleanup_credit_ref_data () {
+              echo "🧹 Cleaning up partial credit reference data..."
+              for table in credit_countries credit_sectors credit_ratings credit_facility_types credit_collateral_types credit_guarantee_types; do
+                $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela python -c "
+from sqlalchemy import text
+from audela import create_app
+from audela.extensions import db
+app = create_app()
+ctx = app.app_context()
+ctx.push()
+try:
+    db.session.execute(text('TRUNCATE TABLE $table CASCADE'))
+    db.session.commit()
+    print(f'Truncated {$table}')
+except Exception as e:
+    print(f'Could not truncate {$table}: {e}')
+    db.session.rollback()
+finally:
+    ctx.pop()
+                " 2>/dev/null || true
+              done
+            }
+
             # Retry migrations to handle transient startup race conditions
             MIG_OK=0
             for i in $(seq 1 5); do
@@ -184,6 +208,14 @@ jobs:
                 break
               fi
               echo "$MIG_OUT"
+
+              # Handle NOT NULL constraint violations on reference tables
+              if echo "$MIG_OUT" | grep -Eqi "NotNullViolation.*created_at.*credit_"; then
+                echo "⚠️ NOT NULL violation on credit reference tables detected -> cleaning and retrying"
+                cleanup_credit_ref_data
+                sleep 2
+                continue
+              fi
 
               if echo "$MIG_OUT" | grep -Eqi "DuplicateTable|already exists"; then
                 if echo "$MIG_OUT" | grep -Eqi "project_workspaces"; then

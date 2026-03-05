@@ -7,6 +7,7 @@ Create Date: 2026-03-05
 
 from alembic import op
 import sqlalchemy as sa
+from datetime import datetime
 
 
 # revision identifiers, used by Alembic.
@@ -160,47 +161,53 @@ def upgrade():
         "credit_countries",
         sa.column("iso_code", sa.String),
         sa.column("name", sa.String),
+        sa.column("created_at", sa.DateTime),
     )
     sectors_tbl = sa.table(
         "credit_sectors",
         sa.column("code", sa.String),
         sa.column("name", sa.String),
+        sa.column("created_at", sa.DateTime),
     )
     ratings_tbl = sa.table(
         "credit_ratings",
         sa.column("code", sa.String),
         sa.column("rank_order", sa.Integer),
+        sa.column("created_at", sa.DateTime),
     )
     facility_types_tbl = sa.table(
         "credit_facility_types",
         sa.column("code", sa.String),
         sa.column("label", sa.String),
+        sa.column("created_at", sa.DateTime),
     )
     collateral_types_tbl = sa.table(
         "credit_collateral_types",
         sa.column("code", sa.String),
         sa.column("label", sa.String),
+        sa.column("created_at", sa.DateTime),
     )
     guarantee_types_tbl = sa.table(
         "credit_guarantee_types",
         sa.column("code", sa.String),
         sa.column("label", sa.String),
+        sa.column("created_at", sa.DateTime),
     )
 
     if _table_empty(bind, "credit_countries"):
         op.bulk_insert(
             countries_tbl,
             [
-                {"iso_code": "FR", "name": "France"},
-                {"iso_code": "PT", "name": "Portugal"},
-                {"iso_code": "ES", "name": "Spain"},
-                {"iso_code": "IT", "name": "Italy"},
-                {"iso_code": "DE", "name": "Germany"},
-                {"iso_code": "BE", "name": "Belgium"},
-                {"iso_code": "CH", "name": "Switzerland"},
-                {"iso_code": "LU", "name": "Luxembourg"},
-                {"iso_code": "MA", "name": "Morocco"},
-                {"iso_code": "SN", "name": "Senegal"},
+                {"iso_code": "FR", "name": "France", "created_at": datetime.utcnow()},
+                {"iso_code": "PT", "name": "Portugal", "created_at": datetime.utcnow()},
+                {"iso_code": "ES", "name": "Spain", "created_at": datetime.utcnow()},
+                {"iso_code": "IT", "name": "Italy", "created_at": datetime.utcnow()},
+                {"iso_code": "DE", "name": "Germany", "created_at": datetime.utcnow()},
+                {"iso_code": "BE", "name": "Belgium", "created_at": datetime.utcnow()},
+                {"iso_code": "CH", "name": "Switzerland", "created_at": datetime.utcnow()},
+                {"iso_code": "LU", "name": "Luxembourg", "created_at": datetime.utcnow()},
+                {"iso_code": "MA", "name": "Morocco", "created_at": datetime.utcnow()},
+                {"iso_code": "SN", "name": "Senegal", "created_at": datetime.utcnow()},
             ],
         )
 
@@ -208,16 +215,16 @@ def upgrade():
         op.bulk_insert(
             sectors_tbl,
             [
-                {"code": "agri_food", "name": "Agri-food"},
-                {"code": "transport", "name": "Transport"},
-                {"code": "hospitality", "name": "Hospitality"},
-                {"code": "manufacturing", "name": "Manufacturing"},
-                {"code": "retail", "name": "Retail"},
-                {"code": "energy", "name": "Energy"},
-                {"code": "healthcare", "name": "Healthcare"},
-                {"code": "construction", "name": "Construction"},
-                {"code": "services", "name": "Services"},
-                {"code": "technology", "name": "Technology"},
+                {"code": "agri_food", "name": "Agri-food", "created_at": datetime.utcnow()},
+                {"code": "transport", "name": "Transport", "created_at": datetime.utcnow()},
+                {"code": "hospitality", "name": "Hospitality", "created_at": datetime.utcnow()},
+                {"code": "manufacturing", "name": "Manufacturing", "created_at": datetime.utcnow()},
+                {"code": "retail", "name": "Retail", "created_at": datetime.utcnow()},
+                {"code": "energy", "name": "Energy", "created_at": datetime.utcnow()},
+                {"code": "healthcare", "name": "Healthcare", "created_at": datetime.utcnow()},
+                {"code": "construction", "name": "Construction", "created_at": datetime.utcnow()},
+                {"code": "services", "name": "Services", "created_at": datetime.utcnow()},
+                {"code": "technology", "name": "Technology", "created_at": datetime.utcnow()},
             ],
         )
 
@@ -225,13 +232,13 @@ def upgrade():
         op.bulk_insert(
             ratings_tbl,
             [
-                {"code": "AAA", "rank_order": 1},
-                {"code": "AA", "rank_order": 2},
-                {"code": "A", "rank_order": 3},
-                {"code": "BBB", "rank_order": 4},
-                {"code": "BB", "rank_order": 5},
-                {"code": "B", "rank_order": 6},
-                {"code": "CCC", "rank_order": 7},
+                {"code": "AAA", "rank_order": 1, "created_at": datetime.utcnow()},
+                {"code": "AA", "rank_order": 2, "created_at": datetime.utcnow()},
+                {"code": "A", "rank_order": 3, "created_at": datetime.utcnow()},
+                {"code": "BBB", "rank_order": 4, "created_at": datetime.utcnow()},
+                {"code": "BB", "rank_order": 5, "created_at": datetime.utcnow()},
+                {"code": "B", "rank_order": 6, "created_at": datetime.utcnow()},
+                {"code": "CCC", "rank_order": 7, "created_at": datetime.utcnow()},
             ],
         )
 
@@ -239,11 +246,11 @@ def upgrade():
         op.bulk_insert(
             facility_types_tbl,
             [
-                {"code": "term_loan", "label": "Term loan"},
-                {"code": "revolving_line", "label": "Revolving line"},
-                {"code": "bridge_loan", "label": "Bridge loan"},
-                {"code": "capex_lease", "label": "Capex lease"},
-                {"code": "overdraft", "label": "Overdraft"},
+                {"code": "term_loan", "label": "Term loan", "created_at": datetime.utcnow()},
+                {"code": "revolving_line", "label": "Revolving line", "created_at": datetime.utcnow()},
+                {"code": "bridge_loan", "label": "Bridge loan", "created_at": datetime.utcnow()},
+                {"code": "capex_lease", "label": "Capex lease", "created_at": datetime.utcnow()},
+                {"code": "overdraft", "label": "Overdraft", "created_at": datetime.utcnow()},
             ],
         )
 
@@ -251,12 +258,12 @@ def upgrade():
         op.bulk_insert(
             collateral_types_tbl,
             [
-                {"code": "real_estate", "label": "Real estate"},
-                {"code": "receivables", "label": "Receivables"},
-                {"code": "equipment", "label": "Equipment"},
-                {"code": "cash_pledge", "label": "Cash pledge"},
-                {"code": "inventory", "label": "Inventory"},
-                {"code": "other", "label": "Other"},
+                {"code": "real_estate", "label": "Real estate", "created_at": datetime.utcnow()},
+                {"code": "receivables", "label": "Receivables", "created_at": datetime.utcnow()},
+                {"code": "equipment", "label": "Equipment", "created_at": datetime.utcnow()},
+                {"code": "cash_pledge", "label": "Cash pledge", "created_at": datetime.utcnow()},
+                {"code": "inventory", "label": "Inventory", "created_at": datetime.utcnow()},
+                {"code": "other", "label": "Other", "created_at": datetime.utcnow()},
             ],
         )
 
@@ -264,10 +271,10 @@ def upgrade():
         op.bulk_insert(
             guarantee_types_tbl,
             [
-                {"code": "personal", "label": "Personal guarantee"},
-                {"code": "corporate", "label": "Corporate guarantee"},
-                {"code": "joint", "label": "Joint guarantee"},
-                {"code": "limited", "label": "Limited guarantee"},
+                {"code": "personal", "label": "Personal guarantee", "created_at": datetime.utcnow()},
+                {"code": "corporate", "label": "Corporate guarantee", "created_at": datetime.utcnow()},
+                {"code": "joint", "label": "Joint guarantee", "created_at": datetime.utcnow()},
+                {"code": "limited", "label": "Limited guarantee", "created_at": datetime.utcnow()},
             ],
         )
 
