@@ -14,6 +14,8 @@ from .ai_runtime_config import resolve_ai_runtime_config
 
 
 SUPPORTED_RATIO_LANGS: tuple[str, ...] = ("fr", "en", "pt", "es", "it", "de")
+DEFAULT_RATIO_SUFFIX = "%"
+SUPPORTED_RATIO_SUFFIXES: tuple[str, ...] = ("", "%", "‰", "bps", "x")
 _READONLY_PREFIXES = ("select", "with", "show", "describe", "explain")
 _FORBIDDEN_SQL_RE = re.compile(r"\b(insert|update|delete|drop|alter|truncate|create|grant|revoke)\b", flags=re.I)
 _SOURCE_TABLE_MAP: dict[str, str] = {
@@ -107,6 +109,17 @@ def normalize_ratio_labels(labels: Any, fallback_name: str) -> dict[str, str]:
     return out
 
 
+def normalize_ratio_suffix(raw_suffix: Any, default: str = DEFAULT_RATIO_SUFFIX) -> str:
+    if raw_suffix is None:
+        return default if default in SUPPORTED_RATIO_SUFFIXES else DEFAULT_RATIO_SUFFIX
+
+    value = str(raw_suffix).strip()
+    if value in SUPPORTED_RATIO_SUFFIXES:
+        return value
+
+    return default if default in SUPPORTED_RATIO_SUFFIXES else DEFAULT_RATIO_SUFFIX
+
+
 def normalize_ratio_config(raw: Any) -> dict[str, list[dict[str, Any]]]:
     raw = raw if isinstance(raw, dict) else {}
     indicators_raw = raw.get("indicators") if isinstance(raw.get("indicators"), list) else []
@@ -185,7 +198,10 @@ def normalize_ratio_config(raw: Any) -> dict[str, list[dict[str, Any]]]:
                 "denominator_id": denominator_id,
                 "multiplier": multiplier,
                 "precision": precision,
-                "suffix": str(item.get("suffix") or "%").strip() or "%",
+                "suffix": normalize_ratio_suffix(
+                    item.get("suffix") if "suffix" in item else None,
+                    default=DEFAULT_RATIO_SUFFIX,
+                ),
                 "created_at": str(item.get("created_at") or ""),
             }
         )

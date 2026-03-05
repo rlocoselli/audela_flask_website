@@ -47,10 +47,12 @@ from ...services.openai_statement import parse_bank_statement_pdf_via_openai, Op
 from ...services.openai_quick_entry import parse_quick_entry_text_via_openai, OpenAIQuickEntryError
 from ...services.finance_ratio_service import (
     compute_ratio_value,
+    DEFAULT_RATIO_SUFFIX,
     execute_scalar_sql,
     generate_scalar_indicator_from_nl,
     normalize_ratio_config,
     normalize_ratio_labels,
+    normalize_ratio_suffix,
     validate_scalar_sql,
 )
 from ...services.finance_service import (
@@ -240,6 +242,7 @@ def _load_tenant_into_g() -> None:
             "finance.ratios_indicator_create": "stats",
             "finance.ratios_indicator_delete": "stats",
             "finance.ratios_create": "stats",
+            "finance.ratios_edit": "stats",
             "finance.ratios_delete": "stats",
             "finance.ratios_ai_generate": "stats",
             "finance.reports_accounting": "accounting",
@@ -4871,7 +4874,7 @@ def ratios_create():
     numerator_id = (request.form.get("numerator_id") or "").strip()
     denominator_id = (request.form.get("denominator_id") or "").strip()
     description = (request.form.get("description") or "").strip()
-    suffix = (request.form.get("suffix") or "%").strip() or "%"
+    suffix = normalize_ratio_suffix(request.form.get("suffix"), default=DEFAULT_RATIO_SUFFIX)
 
     try:
         multiplier = float(request.form.get("multiplier") or "100")
@@ -4920,6 +4923,110 @@ def ratios_create():
     _set_ratio_module_config(company, cfg)
     flash(_("Ratio enregistré."), "success")
     return redirect(url_for("finance.ratios_page"))
+
+
+@bp.route("/ratios/<string:ratio_id>/edit", methods=["GET", "POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def ratios_edit(ratio_id: str):
+    company = _get_company()
+    cfg = _get_ratio_module_config(company)
+    ratio_id = (ratio_id or "").strip()
+
+    ratios = cfg.get("ratios") if isinstance(cfg.get("ratios"), list) else []
+    ratio = next((item for item in ratios if str(item.get("id") or "").strip() == ratio_id), None)
+    if not ratio:
+        flash(_("Ratio introuvable."), "warning")
+        return redirect(url_for("finance.ratios_page"))
+
+    indicators = cfg.get("indicators") if isinstance(cfg.get("indicators"), list) else []
+    valid_ids = {str(item.get("id") or "").strip() for item in indicators}
+
+    if request.method == "POST":
+        name = (request.form.get("name") or "").strip()
+        numerator_id = (request.form.get("numerator_id") or "").strip()
+        denominator_id = (request.form.get("denominator_id") or "").strip()
+        description = (request.form.get("description") or "").strip()
+        suffix = normalize_ratio_suffix(request.form.get("suffix"), default=DEFAULT_RATIO_SUFFIX)
+
+        try:
+            multiplier = float(request.form.get("multiplier") or "100")
+        except Exception:
+            multiplier = 100.0
+        try:
+            precision = int(request.form.get("precision") or "2")
+        except Exception:
+            precision = 2
+        precision = max(0, min(6, precision))
+
+        if not name or not numerator_id or not denominator_id:
+            flash(_("Nom, numérateur et dénominateur sont requis."), "error")
+            return redirect(url_for("finance.ratios_edit", ratio_id=ratio_id))
+
+        if numerator_id not in valid_ids or denominator_id not in valid_ids:
+            flash(_("Sélection numérateur/dénominateur invalide."), "error")
+            return redirect(url_for("finance.ratios_edit", ratio_id=ratio_id))
+
+        labels_raw = {
+            "fr": (request.form.get("label_fr") or "").strip(),
+            "en": (request.form.get("label_en") or "").strip(),
+            "pt": (request.form.get("label_pt") or "").strip(),
+            "es": (request.form.get("label_es") or "").strip(),
+            "it": (request.form.get("label_it") or "").strip(),
+            "de": (request.form.get("label_de") or "").strip(),
+        }
+
+        ratio.update(
+            {
+                "name": name,
+                "description": description,
+                "labels": normalize_ratio_labels(labels_raw, name),
+                "numerator_id": numerator_id,
+                "denominator_id": denominator_id,
+                "multiplier": multiplier,
+                "precision": precision,
+                "suffix": suffix,
+            }
+        )
+        _set_ratio_module_config(company, cfg)
+        flash(_("Ratio mis à jour."), "success")
+        return redirect(url_for("finance.ratios_page"))
+
+    labels = ratio.get("labels") if isinstance(ratio.get("labels"), dict) else {}
+    try:
+        ratio_precision = int(ratio.get("precision") or 2)
+    except Exception:
+        ratio_precision = 2
+
+    ratio_form = {
+        "id": ratio_id,
+        "name": str(ratio.get("name") or ""),
+        "description": str(ratio.get("description") or ""),
+        "numerator_id": str(ratio.get("numerator_id") or ""),
+        "denominator_id": str(ratio.get("denominator_id") or ""),
+        "multiplier": ratio.get("multiplier") if ratio.get("multiplier") is not None else 100,
+        "precision": max(0, min(6, ratio_precision)),
+        "suffix": normalize_ratio_suffix(ratio.get("suffix"), default=DEFAULT_RATIO_SUFFIX),
+        "label_fr": str(labels.get("fr") or ""),
+        "label_en": str(labels.get("en") or ""),
+        "label_pt": str(labels.get("pt") or ""),
+        "label_es": str(labels.get("es") or ""),
+        "label_it": str(labels.get("it") or ""),
+        "label_de": str(labels.get("de") or ""),
+    }
+    indicator_options = [
+        {"id": str(item.get("id") or ""), "label": _ratio_label(item)}
+        for item in indicators
+        if str(item.get("id") or "").strip()
+    ]
+
+    return render_template(
+        "finance/ratio_edit.html",
+        tenant=g.tenant,
+        company=company,
+        ratio=ratio_form,
+        indicators=indicator_options,
+    )
 
 
 @bp.route("/ratios/<string:ratio_id>/delete", methods=["POST"])

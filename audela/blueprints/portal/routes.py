@@ -55,10 +55,12 @@ from ...services.file_storage_service import (
 from ...services.file_introspect_service import introspect_file_schema
 from ...services.finance_ratio_service import (
     compute_ratio_value,
+    DEFAULT_RATIO_SUFFIX,
     execute_scalar_sql,
     generate_scalar_indicator_from_nl,
     normalize_ratio_config,
     normalize_ratio_labels,
+    normalize_ratio_suffix,
     validate_scalar_sql,
 )
 from ...services.subscription_service import SubscriptionService
@@ -136,6 +138,7 @@ def load_tenant_into_g() -> None:
             "portal.ratios_indicator_create_submit": "ratio_indicator_create",
             "portal.ratios_indicator_delete": "ratio_indicator_create",
             "portal.ratios_create": "ratio_create",
+            "portal.ratios_edit": "ratio_create",
             "portal.ratios_delete": "ratio_create",
             "portal.ratios_ai_generate": "ratios",
             "portal.alerting_settings": "alerting",
@@ -3938,7 +3941,7 @@ def ratios_create():
     numerator_id = (request.form.get("numerator_id") or "").strip()
     denominator_id = (request.form.get("denominator_id") or "").strip()
     description = (request.form.get("description") or "").strip()
-    suffix = (request.form.get("suffix") or "%").strip() or "%"
+    suffix = normalize_ratio_suffix(request.form.get("suffix"), default=DEFAULT_RATIO_SUFFIX)
 
     try:
         multiplier = float(request.form.get("multiplier") or "100")
@@ -3987,6 +3990,114 @@ def ratios_create():
     _set_bi_ratio_module_config(company, cfg)
     flash(tr("Ratio enregistré.", getattr(g, "lang", None)), "success")
     return redirect(url_for("portal.ratios", **_ratio_redirect_query("ratio")))
+
+
+@bp.route("/ratios/<string:ratio_id>/edit", methods=["GET", "POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def ratios_edit(ratio_id: str):
+    _require_tenant()
+    company = _resolve_bi_ratio_company()
+    if not company:
+        flash(tr("Aucune société n'est configurée pour les ratios.", getattr(g, "lang", None)), "error")
+        return redirect(url_for("portal.ratios"))
+
+    cfg = _get_bi_ratio_module_config(company)
+    ratio_id = (ratio_id or "").strip()
+    ratios_cfg = cfg.get("ratios") if isinstance(cfg.get("ratios"), list) else []
+    ratio = next((item for item in ratios_cfg if str(item.get("id") or "").strip() == ratio_id), None)
+    if not ratio:
+        flash(tr("Ratio introuvable.", getattr(g, "lang", None)), "warning")
+        return redirect(url_for("portal.ratios", **_ratio_redirect_query("ratio")))
+
+    indicators = cfg.get("indicators") if isinstance(cfg.get("indicators"), list) else []
+    valid_ids = {str(item.get("id") or "").strip() for item in indicators}
+
+    if request.method == "POST":
+        name = (request.form.get("name") or "").strip()
+        numerator_id = (request.form.get("numerator_id") or "").strip()
+        denominator_id = (request.form.get("denominator_id") or "").strip()
+        description = (request.form.get("description") or "").strip()
+        suffix = normalize_ratio_suffix(request.form.get("suffix"), default=DEFAULT_RATIO_SUFFIX)
+
+        try:
+            multiplier = float(request.form.get("multiplier") or "100")
+        except Exception:
+            multiplier = 100.0
+        try:
+            precision = int(request.form.get("precision") or "2")
+        except Exception:
+            precision = 2
+        precision = max(0, min(6, precision))
+
+        if not name or not numerator_id or not denominator_id:
+            flash(tr("Nom, numérateur et dénominateur sont requis.", getattr(g, "lang", None)), "error")
+            return redirect(url_for("portal.ratios_edit", ratio_id=ratio_id, **_ratio_redirect_query("ratio")))
+
+        if numerator_id not in valid_ids or denominator_id not in valid_ids:
+            flash(tr("Sélection numérateur/dénominateur invalide.", getattr(g, "lang", None)), "error")
+            return redirect(url_for("portal.ratios_edit", ratio_id=ratio_id, **_ratio_redirect_query("ratio")))
+
+        labels_raw = {
+            "fr": (request.form.get("label_fr") or "").strip(),
+            "en": (request.form.get("label_en") or "").strip(),
+            "pt": (request.form.get("label_pt") or "").strip(),
+            "es": (request.form.get("label_es") or "").strip(),
+            "it": (request.form.get("label_it") or "").strip(),
+            "de": (request.form.get("label_de") or "").strip(),
+        }
+
+        ratio.update(
+            {
+                "name": name,
+                "description": description,
+                "labels": normalize_ratio_labels(labels_raw, name),
+                "numerator_id": numerator_id,
+                "denominator_id": denominator_id,
+                "multiplier": multiplier,
+                "precision": precision,
+                "suffix": suffix,
+            }
+        )
+        _set_bi_ratio_module_config(company, cfg)
+        flash(tr("Ratio mis à jour.", getattr(g, "lang", None)), "success")
+        return redirect(url_for("portal.ratios", **_ratio_redirect_query("ratio")))
+
+    labels = ratio.get("labels") if isinstance(ratio.get("labels"), dict) else {}
+    ratio_form = {
+        "id": ratio_id,
+        "name": str(ratio.get("name") or ""),
+        "description": str(ratio.get("description") or ""),
+        "numerator_id": str(ratio.get("numerator_id") or ""),
+        "denominator_id": str(ratio.get("denominator_id") or ""),
+        "multiplier": ratio.get("multiplier") if ratio.get("multiplier") is not None else 100,
+        "precision": _to_int(ratio.get("precision"), 2, 0, 6),
+        "suffix": normalize_ratio_suffix(ratio.get("suffix"), default=DEFAULT_RATIO_SUFFIX),
+        "label_fr": str(labels.get("fr") or ""),
+        "label_en": str(labels.get("en") or ""),
+        "label_pt": str(labels.get("pt") or ""),
+        "label_es": str(labels.get("es") or ""),
+        "label_it": str(labels.get("it") or ""),
+        "label_de": str(labels.get("de") or ""),
+    }
+
+    indicator_options = [
+        {"id": str(item.get("id") or ""), "label": _ratio_indicator_label(item)}
+        for item in indicators
+        if str(item.get("id") or "").strip()
+    ]
+    return_start = (request.args.get("start") or "").strip()
+    return_end = (request.args.get("end") or "").strip()
+
+    return render_template(
+        "portal/ratio_edit.html",
+        tenant=g.tenant,
+        company=company,
+        ratio=ratio_form,
+        indicators=indicator_options,
+        return_start=return_start,
+        return_end=return_end,
+    )
 
 
 @bp.route("/ratios/<string:ratio_id>/delete", methods=["POST"])

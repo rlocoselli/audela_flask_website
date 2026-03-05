@@ -1,0 +1,94 @@
+{% extends "portal/layout.html" %}
+
+{% block portal_content %}
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="h5 mb-0">{{ _('Modifier un ratio') }}</h2>
+        <a href="{{ url_for('portal.ratios', start=return_start, end=return_end, focus='ratio') }}" class="btn btn-outline-secondary btn-sm">{{ _('Retour') }}</a>
+      </div>
+
+      <form method="post" action="{{ url_for('portal.ratios_edit', ratio_id=ratio.id, start=return_start, end=return_end) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <div class="row g-2">
+          <div class="col-12">
+            <label class="form-label">{{ _('Nom interne') }}</label>
+            <input type="text" name="name" class="form-control" required value="{{ ratio.name }}" {% if not company %}disabled{% endif %} />
+          </div>
+          <div class="col-12">
+            <label class="form-label">{{ _('Description') }}</label>
+            <input type="text" name="description" class="form-control" value="{{ ratio.description }}" {% if not company %}disabled{% endif %} />
+          </div>
+
+          <div class="col-12 col-md-6">
+            <label class="form-label">{{ _('Numérateur') }}</label>
+            <select name="numerator_id" class="form-select" required {% if not company %}disabled{% endif %}>
+              <option value="">{{ _('Sélectionner') }}</option>
+              {% for item in indicators %}
+                <option value="{{ item.id }}" {% if item.id == ratio.numerator_id %}selected{% endif %}>{{ item.label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">{{ _('Dénominateur') }}</label>
+            <select name="denominator_id" class="form-select" required {% if not company %}disabled{% endif %}>
+              <option value="">{{ _('Sélectionner') }}</option>
+              {% for item in indicators %}
+                <option value="{{ item.id }}" {% if item.id == ratio.denominator_id %}selected{% endif %}>{{ item.label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-12 col-md-4">
+            <label class="form-label">{{ _('Multiplicateur') }}</label>
+            <input type="number" name="multiplier" step="0.01" class="form-control" value="{{ ratio.multiplier }}" {% if not company %}disabled{% endif %} />
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label">{{ _('Décimales') }}</label>
+            <input type="number" name="precision" min="0" max="6" class="form-control" value="{{ ratio.precision }}" {% if not company %}disabled{% endif %} />
+          </div>
+          <div class="col-12 col-md-4">
+            <label class="form-label">{{ _('Suffixe') }}</label>
+            <select name="suffix" class="form-select" {% if not company %}disabled{% endif %}>
+              <option value="%" {% if ratio.suffix == '%' %}selected{% endif %}>%</option>
+              <option value="" {% if ratio.suffix == '' %}selected{% endif %}>{{ _('Aucun') }}</option>
+              <option value="‰" {% if ratio.suffix == '‰' %}selected{% endif %}>‰</option>
+              <option value="bps" {% if ratio.suffix == 'bps' %}selected{% endif %}>bps</option>
+              <option value="x" {% if ratio.suffix == 'x' %}selected{% endif %}>x</option>
+            </select>
+          </div>
+
+          <div class="col-12 col-md-6">
+            <label class="form-label">FR</label>
+            <input type="text" name="label_fr" class="form-control" value="{{ ratio.label_fr }}" {% if not company %}disabled{% endif %} />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">EN</label>
+            <input type="text" name="label_en" class="form-control" value="{{ ratio.label_en }}" {% if not company %}disabled{% endif %} />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">PT</label>
+            <input type="text" name="label_pt" class="form-control" value="{{ ratio.label_pt }}" {% if not company %}disabled{% endif %} />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">ES</label>
+            <input type="text" name="label_es" class="form-control" value="{{ ratio.label_es }}" {% if not company %}disabled{% endif %} />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">IT</label>
+            <input type="text" name="label_it" class="form-control" value="{{ ratio.label_it }}" {% if not company %}disabled{% endif %} />
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">DE</label>
+            <input type="text" name="label_de" class="form-control" value="{{ ratio.label_de }}" {% if not company %}disabled{% endif %} />
+          </div>
+
+          <div class="col-12 d-flex justify-content-end gap-2 mt-2">
+            <a href="{{ url_for('portal.ratios', start=return_start, end=return_end, focus='ratio') }}" class="btn btn-outline-secondary">{{ _('Annuler') }}</a>
+            <button type="submit" class="btn btn-primary" {% if not company %}disabled{% endif %}>{{ _('Enregistrer modifications') }}</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+{% endblock %}

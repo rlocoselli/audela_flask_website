@@ -162,7 +162,13 @@
               </div>
               <div class="col-12 col-md-4">
                 <label class="form-label">{{ _('Suffixe') }}</label>
-                <input type="text" name="suffix" value="%" class="form-control" {% if not company %}disabled{% endif %} />
+                <select name="suffix" class="form-select" {% if not company %}disabled{% endif %}>
+                  <option value="%" selected>%</option>
+                  <option value="">{{ _('Aucun') }}</option>
+                  <option value="‰">‰</option>
+                  <option value="bps">bps</option>
+                  <option value="x">x</option>
+                </select>
               </div>
 
               <div class="col-12 col-md-6">
@@ -283,12 +289,15 @@
                     {% endif %}
                   </td>
                   <td class="text-end">
-                    <form method="post" action="{{ url_for('portal.ratios_delete', ratio_id=item.id) }}" onsubmit="return confirm('{{ _('Supprimer ce ratio ?') }}');">
-                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                      <input type="hidden" name="start" value="{{ start.isoformat() }}" />
-                      <input type="hidden" name="end" value="{{ end.isoformat() }}" />
-                      <button type="submit" class="btn btn-outline-danger btn-sm">{{ _('Supprimer') }}</button>
-                    </form>
+                    <div class="d-inline-flex gap-1">
+                      <a href="{{ url_for('portal.ratios_edit', ratio_id=item.id, start=start.isoformat(), end=end.isoformat()) }}" class="btn btn-outline-secondary btn-sm">{{ _('Éditer') }}</a>
+                      <form method="post" action="{{ url_for('portal.ratios_delete', ratio_id=item.id) }}" onsubmit="return confirm('{{ _('Supprimer ce ratio ?') }}');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                        <input type="hidden" name="start" value="{{ start.isoformat() }}" />
+                        <input type="hidden" name="end" value="{{ end.isoformat() }}" />
+                        <button type="submit" class="btn btn-outline-danger btn-sm">{{ _('Supprimer') }}</button>
+                      </form>
+                    </div>
                   </td>
                 </tr>
               {% endfor %}
