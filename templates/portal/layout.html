@@ -18,6 +18,7 @@
 
     <nav class="nav flex-column gap-1">
       {% if bi_menu_access.home %}<a class="nav-link" href="{{ url_for('portal.home') }}"><i class="bi bi-house me-2"></i>{{ _('Início') }}</a>{% endif %}
+      {% if bi_menu_access.credit_origination %}<a class="nav-link" href="{{ url_for('credit.overview') }}"><i class="bi bi-bank2 me-2"></i>{{ _('Audela Credit') }}</a>{% endif %}
       {% if bi_menu_access.ratios %}<a class="nav-link" href="{{ url_for('portal.ratios') }}"><i class="bi bi-percent me-2"></i>{{ _('Ratios') }}</a>{% endif %}
       {% if bi_menu_access.sources %}<a class="nav-link" href="{{ url_for('portal.sources_list') }}"><i class="bi bi-database me-2"></i>{{ _('Fontes') }}</a>{% endif %}
       {% if bi_menu_access.api_sources %}<a class="nav-link" href="{{ url_for('portal.api_sources_list') }}"><i class="bi bi-plug me-2"></i>{{ _('Fontes API') }}</a>{% endif %}
@@ -220,6 +221,7 @@
   <div class="offcanvas-body">
     <div class="nav flex-column gap-1">
       {% if bi_menu_access.home %}<a class="nav-link" href="{{ url_for('portal.home') }}">{{ _('Início') }}</a>{% endif %}
+      {% if bi_menu_access.credit_origination %}<a class="nav-link" href="{{ url_for('credit.overview') }}">{{ _('Audela Credit') }}</a>{% endif %}
       {% if bi_menu_access.ratios %}<a class="nav-link" href="{{ url_for('portal.ratios') }}">{{ _('Ratios') }}</a>{% endif %}
       {% if bi_menu_access.sources %}<a class="nav-link" href="{{ url_for('portal.sources_list') }}">{{ _('Fontes') }}</a>{% endif %}
       {% if bi_menu_access.web_extract %}<a class="nav-link" href="{{ url_for('portal.web_extract') }}">{{ _('Web Scraping IA') }}</a>{% endif %}

@@ -155,6 +155,18 @@ jobs:
               finance_gocardless_connections \
               finance_gocardless_sync_logs
 
+            pre_stamp_if_all_tables_exist 20260305_add_credit_module_tables \
+              credit_borrowers \
+              credit_deals \
+              credit_facilities \
+              credit_collaterals \
+              credit_guarantors \
+              credit_financial_statements \
+              credit_ratio_snapshots \
+              credit_memos \
+              credit_approvals \
+              credit_documents
+
             # Retry migrations to handle transient startup race conditions
             MIG_OK=0
             for i in $(seq 1 5); do
@@ -216,7 +228,7 @@ jobs:
             fi
 
             echo "🔎 Verify migration objects"
-            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela python -c "from sqlalchemy import text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); exists=db.session.execute(text(\"SELECT to_regclass('public.finance_accounting_periods')\")).scalar(); assert exists, 'finance_accounting_periods table not found'; print('finance_accounting_periods table found:', exists); ctx.pop()"
+            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela python -c "from sqlalchemy import inspect, text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); exists=db.session.execute(text(\"SELECT to_regclass('public.finance_accounting_periods')\")).scalar(); assert exists, 'finance_accounting_periods table not found'; ci=inspect(db.engine); assert 'credit_borrowers' in ci.get_table_names(), 'credit_borrowers table not found'; assert 'credit_countries' in ci.get_table_names(), 'credit_countries table not found'; cols={c['name'] for c in ci.get_columns('credit_borrowers')}; assert 'sector_id' in cols and 'country_id' in cols and 'rating_id' in cols, 'credit_borrowers FK columns missing'; print('finance_accounting_periods table found:', exists); print('credit_borrowers and credit references verified'); ctx.pop()"
 
             echo "🔄 Restart service"
             systemctl restart audeladedonnees

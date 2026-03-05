@@ -1,0 +1,55 @@
+{% extends "credit/page_base.html" %}
+{% set title = _('Audela Credit Facilities') %}
+{% set active_page = 'facilities' %}
+
+{% block credit_page_content %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary">{{ _('New facility') }}</div>
+  <div class="card-body">
+    <form method="post" class="row g-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-md-3">
+        <select class="form-select" name="deal_id" required>
+          <option value="">{{ _('Deal') }}</option>
+          {% for d in deals %}<option value="{{ d.id }}">{{ d.code }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <select class="form-select" name="facility_type_id" required>
+          <option value="">{{ _('Facility type') }}</option>
+          {% for t in facility_types %}<option value="{{ t.id }}">{{ t.display_label(current_lang) }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2"><input class="form-control" name="approved_amount" placeholder="{{ _('Approved amount') }}"></div>
+      <div class="col-md-2"><input class="form-control" name="tenor_months" placeholder="{{ _('Tenor months') }}"></div>
+      <div class="col-md-1"><input class="form-control" name="interest_rate" placeholder="%"></div>
+      <div class="col-md-2">
+        <select class="form-select" name="status">
+          <option value="draft">{{ _('Draft') }}</option>
+          <option value="approved">{{ _('Approved') }}</option>
+          <option value="booked">{{ _('Booked') }}</option>
+        </select>
+      </div>
+      <div class="col-12"><button class="btn btn-primary" type="submit">{{ _('Save') }}</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-body-tertiary">{{ _('Facilities') }}</div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>{{ _('Deal') }}</th><th>{{ _('Type') }}</th><th>{{ _('Amount') }}</th><th>{{ _('Tenor') }}</th><th>{{ _('Rate') }}</th><th>{{ _('Status') }}</th></tr></thead>
+        <tbody>
+          {% for f in facilities %}
+          <tr><td>{{ f.deal.code if f.deal else '-' }}</td><td>{{ f.facility_type_ref.display_label(current_lang) if f.facility_type_ref else f.facility_type }}</td><td>{{ '%.2f'|format(f.approved_amount or 0) }}</td><td>{{ f.tenor_months or '-' }}</td><td>{{ f.interest_rate or '-' }}</td><td>{{ f.status }}</td></tr>
+          {% else %}
+          <tr><td colspan="6" class="text-secondary">{{ _('No facilities yet.') }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

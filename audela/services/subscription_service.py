@@ -25,7 +25,7 @@ class SubscriptionService:
         return {
             "free": {
                 "name": "Gratuit",
-                "description": "Plan d'essai gratuit de 30 jours",
+                "description": "Plan gratuit avec decouverte Audela Credit",
                 "price_monthly": "0.00",
                 "price_yearly": "0.00",
                 "trial_days": 30,
@@ -34,6 +34,10 @@ class SubscriptionService:
                 "max_users": 1,
                 "max_companies": 1,
                 "max_transactions_per_month": 100,
+                "features_json": {
+                    "premium_support": False,
+                    "has_credit": True,
+                },
                 "display_order": 1,
             },
             "finance_starter": {
@@ -68,9 +72,43 @@ class SubscriptionService:
                 },
                 "display_order": 3,
             },
+            "credit_starter": {
+                "name": "Audela Credit Starter",
+                "description": "Origination de credit pour petites equipes bancaires",
+                "price_monthly": "24.00",
+                "price_yearly": "240.00",
+                "trial_days": 30,
+                "has_finance": False,
+                "has_bi": False,
+                "max_users": 3,
+                "max_companies": 5,
+                "max_transactions_per_month": -1,
+                "features_json": {
+                    "premium_support": False,
+                    "has_credit": True,
+                },
+                "display_order": 4,
+            },
+            "credit_pro": {
+                "name": "Audela Credit Pro",
+                "description": "Origination de credit avancee avec workflow complet",
+                "price_monthly": "59.00",
+                "price_yearly": "590.00",
+                "trial_days": 30,
+                "has_finance": False,
+                "has_bi": False,
+                "max_users": 12,
+                "max_companies": 20,
+                "max_transactions_per_month": -1,
+                "features_json": {
+                    "premium_support": False,
+                    "has_credit": True,
+                },
+                "display_order": 5,
+            },
             "bi_starter": {
                 "name": "BI Starter",
-                "description": "Business Intelligence basique",
+                "description": "Business Intelligence basique + Audela Credit",
                 "price_monthly": "39.00",
                 "price_yearly": "390.00",
                 "trial_days": 30,
@@ -81,12 +119,13 @@ class SubscriptionService:
                 "max_transactions_per_month": -1,
                 "features_json": {
                     "premium_support": False,
+                    "has_credit": True,
                 },
-                "display_order": 4,
+                "display_order": 6,
             },
             "bi_pro": {
                 "name": "BI Pro",
-                "description": "Business Intelligence avancé",
+                "description": "Business Intelligence avance + Audela Credit",
                 "price_monthly": "99.00",
                 "price_yearly": "990.00",
                 "trial_days": 30,
@@ -97,8 +136,9 @@ class SubscriptionService:
                 "max_transactions_per_month": -1,
                 "features_json": {
                     "premium_support": False,
+                    "has_credit": True,
                 },
-                "display_order": 5,
+                "display_order": 7,
             },
             "project_start": {
                 "name": "Project Start",
@@ -115,7 +155,7 @@ class SubscriptionService:
                     "premium_support": False,
                     "has_project": True,
                 },
-                "display_order": 6,
+                "display_order": 8,
             },
             "project_team": {
                 "name": "Project Team",
@@ -132,11 +172,11 @@ class SubscriptionService:
                     "premium_support": False,
                     "has_project": True,
                 },
-                "display_order": 7,
+                "display_order": 9,
             },
             "all_in_one_starter": {
                 "name": "All-in-One Starter",
-                "description": "Finance + BI + Projet pour équipes en croissance",
+                "description": "Finance + BI + Audela Credit + Projet pour equipes en croissance",
                 "price_monthly": "129.00",
                 "price_yearly": "1290.00",
                 "trial_days": 30,
@@ -148,12 +188,13 @@ class SubscriptionService:
                 "features_json": {
                     "premium_support": False,
                     "has_project": True,
+                    "has_credit": True,
                 },
-                "display_order": 8,
+                "display_order": 10,
             },
             "all_in_one_pro": {
                 "name": "All-in-One Pro",
-                "description": "Suite complète Finance + BI + Projet pour organisations avancées",
+                "description": "Suite complete Finance + BI + Audela Credit + Projet pour organisations avancees",
                 "price_monthly": "169.00",
                 "price_yearly": "1690.00",
                 "trial_days": 30,
@@ -165,12 +206,13 @@ class SubscriptionService:
                 "features_json": {
                     "premium_support": True,
                     "has_project": True,
+                    "has_credit": True,
                 },
-                "display_order": 9,
+                "display_order": 11,
             },
             "enterprise": {
                 "name": "Enterprise",
-                "description": "Toutes les fonctionnalités",
+                "description": "Toutes les fonctionnalites, incluant Audela Credit",
                 "price_monthly": "199.00",
                 "price_yearly": "1990.00",
                 "trial_days": 30,
@@ -182,8 +224,9 @@ class SubscriptionService:
                 "features_json": {
                     "premium_support": True,
                     "has_project": True,
+                    "has_credit": True,
                 },
-                "display_order": 10,
+                "display_order": 12,
             },
         }
 
@@ -227,6 +270,40 @@ class SubscriptionService:
                 continue
 
             changed = False
+            desired_monthly = Decimal(data["price_monthly"])
+            desired_yearly = Decimal(data["price_yearly"])
+            if Decimal(plan.price_monthly or 0) != desired_monthly:
+                plan.price_monthly = desired_monthly
+                changed = True
+            if Decimal(plan.price_yearly or 0) != desired_yearly:
+                plan.price_yearly = desired_yearly
+                changed = True
+
+            if str(plan.name or "") != str(data["name"]):
+                plan.name = str(data["name"])
+                changed = True
+            if str(plan.description or "") != str(data["description"]):
+                plan.description = str(data["description"])
+                changed = True
+            if bool(plan.has_finance) != bool(data["has_finance"]):
+                plan.has_finance = bool(data["has_finance"])
+                changed = True
+            if bool(plan.has_bi) != bool(data["has_bi"]):
+                plan.has_bi = bool(data["has_bi"])
+                changed = True
+            if int(plan.max_users or 0) != int(data["max_users"]):
+                plan.max_users = int(data["max_users"])
+                changed = True
+            if int(plan.max_companies or 0) != int(data["max_companies"]):
+                plan.max_companies = int(data["max_companies"])
+                changed = True
+            if int(plan.trial_days or 0) != int(data["trial_days"]):
+                plan.trial_days = int(data["trial_days"])
+                changed = True
+            if int(plan.display_order or 0) != int(data["display_order"]):
+                plan.display_order = int(data["display_order"])
+                changed = True
+
             desired_tx = int(data["max_transactions_per_month"])
             if int(plan.max_transactions_per_month or 0) != desired_tx:
                 plan.max_transactions_per_month = desired_tx
@@ -464,6 +541,9 @@ class SubscriptionService:
             return plan.has_finance
         elif feature == "bi":
             return plan.has_bi
+        elif feature == "credit":
+            features = plan.features_json if isinstance(plan.features_json, dict) else {}
+            return bool(features.get("has_credit", (plan.code == "free" or plan.has_bi)))
         elif feature == "project":
             features = plan.features_json if isinstance(plan.features_json, dict) else {}
             return bool(features.get("has_project", False))

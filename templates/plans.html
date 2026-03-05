@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %}{{ _('Plans BI, Finance et Projet – AUDELA') }}{% endblock %}
-{% block meta_description %}{{ _('Découvrez les plans AUDELA pour BI française, finance et gestion de projet. Comparez les offres, fonctionnalités et choisissez la solution adaptée à votre organisation.') }}{% endblock %}
-{% block og_title %}{{ _('Plans BI, Finance et Projet – AUDELA') }}{% endblock %}
-{% block og_description %}{{ _('Découvrez les plans AUDELA pour BI française, finance et gestion de projet. Comparez les offres, fonctionnalités et choisissez la solution adaptée à votre organisation.') }}{% endblock %}
-{% block twitter_title %}{{ _('Plans BI, Finance et Projet – AUDELA') }}{% endblock %}
-{% block twitter_description %}{{ _('Découvrez les plans AUDELA pour BI française, finance et gestion de projet. Comparez les offres, fonctionnalités et choisissez la solution adaptée à votre organisation.') }}{% endblock %}
+{% block title %}{{ _('Plans Audela Credit, BI, Finance et Projet – AUDELA') }}{% endblock %}
+{% block meta_description %}{{ _('Découvrez les plans AUDELA pour Audela Credit, BI française, finance et gestion de projet. Comparez les offres, fonctionnalités et choisissez la solution adaptée à votre organisation.') }}{% endblock %}
+{% block og_title %}{{ _('Plans Audela Credit, BI, Finance et Projet – AUDELA') }}{% endblock %}
+{% block og_description %}{{ _('Découvrez les plans AUDELA pour Audela Credit, BI française, finance et gestion de projet. Comparez les offres, fonctionnalités et choisissez la solution adaptée à votre organisation.') }}{% endblock %}
+{% block twitter_title %}{{ _('Plans Audela Credit, BI, Finance et Projet – AUDELA') }}{% endblock %}
+{% block twitter_description %}{{ _('Découvrez les plans AUDELA pour Audela Credit, BI française, finance et gestion de projet. Comparez les offres, fonctionnalités et choisissez la solution adaptée à votre organisation.') }}{% endblock %}
 {% block og_image %}{{ url_for('static', filename='images/banner.jpg', _external=True) }}{% endblock %}
 {% block twitter_image %}{{ url_for('static', filename='images/banner.jpg', _external=True) }}{% endblock %}
 
@@ -25,6 +25,10 @@
       <div class="box" style="margin-bottom:1rem;">
         <strong>{{ _('Filtre actif : BI') }}</strong>
       </div>
+    {% elif selected_product == 'credit' %}
+      <div class="box" style="margin-bottom:1rem;">
+        <strong>{{ _('Filtre actif : Audela Credit') }}</strong>
+      </div>
     {% elif selected_product == 'project' %}
       <div class="box" style="margin-bottom:1rem;">
         <strong>{{ _('Filtre actif : Projet') }}</strong>
@@ -42,9 +46,11 @@
               {% endif %}
 
               {% set has_project = plan.features_json and plan.features_json.get('has_project') %}
+              {% set has_credit = (plan.features_json and plan.features_json.get('has_credit')) or plan.code == 'free' %}
               <p>
                 {% if plan.has_finance %}<span class="badge">{{ _('Finance') }}</span>{% endif %}
                 {% if plan.has_bi %}<span class="badge">{{ _('BI') }}</span>{% endif %}
+                {% if has_credit %}<span class="badge">{{ _('Audela Credit') }}</span>{% endif %}
                 {% if has_project %}<span class="badge">{{ _('Projet') }}</span>{% endif %}
               </p>
 

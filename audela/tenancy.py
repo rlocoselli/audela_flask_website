@@ -36,6 +36,7 @@ _DEFAULT_MENU_ACCESS: dict[str, list[str]] = {
     ],
     "bi": [
         "home",
+        "credit_origination",
         "sources",
         "api_sources",
         "web_extract",

@@ -53,7 +53,15 @@
   <div class="card border-0 shadow-sm mb-4">
     <div class="card-body">
       <h5 class="mb-3">{{ _('Utilisation') }}</h5>
+      {% set features = subscription.plan.features_json if subscription and subscription.plan and subscription.plan.features_json else {} %}
+      {% set has_credit = features.get('has_credit', (subscription.plan.code == 'free' or subscription.plan.has_bi)) if subscription and subscription.plan else false %}
       <ul class="list-unstyled mb-0">
+        <li>{{ _('Produits') }}:
+          {% if subscription.plan.has_finance %}{{ _('Finance') }} {% endif %}
+          {% if subscription.plan.has_bi %}{{ _('BI') }} {% endif %}
+          {% if has_credit %}{{ _('Audela Credit') }} {% endif %}
+          {% if features.get('has_project') %}{{ _('Projet') }}{% endif %}
+        </li>
         <li>{{ _('Utilisateurs') }}: {{ stats.usage.users.current }} / {{ '∞' if stats.usage.users.max == -1 else stats.usage.users.max }}</li>
         <li>{{ _('Entreprises') }}: {{ stats.usage.companies.current }} / {{ '∞' if stats.usage.companies.max == -1 else stats.usage.companies.max }}</li>
         <li>{{ _('Transactions') }}: {{ stats.usage.transactions.current }} / {{ '∞' if stats.usage.transactions.max == -1 else stats.usage.transactions.max }}</li>

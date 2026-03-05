@@ -1,0 +1,52 @@
+{% extends "credit/page_base.html" %}
+{% set title = _('Audela Credit Borrowers') %}
+{% set active_page = 'borrowers' %}
+
+{% block credit_page_content %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary">{{ _('New borrower') }}</div>
+  <div class="card-body">
+    <form method="post" class="row g-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-md-4"><input class="form-control" name="name" placeholder="{{ _('Name') }}" required></div>
+      <div class="col-md-3">
+        <select class="form-select" name="sector_id">
+          <option value="">{{ _('Sector') }}</option>
+          {% for s in sectors %}<option value="{{ s.id }}">{{ s.display_name(current_lang) }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <select class="form-select" name="country_id">
+          <option value="">{{ _('Country') }}</option>
+          {% for c in countries %}<option value="{{ c.id }}">{{ c.display_name(current_lang) }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <select class="form-select" name="rating_id">
+          <option value="">{{ _('Rating') }}</option>
+          {% for r in ratings %}<option value="{{ r.id }}">{{ r.display_label(current_lang) }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-12"><button class="btn btn-primary" type="submit">{{ _('Save') }}</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-body-tertiary">{{ _('Borrowers') }}</div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>{{ _('Name') }}</th><th>{{ _('Sector') }}</th><th>{{ _('Country') }}</th><th>{{ _('Rating') }}</th><th>{{ _('Created') }}</th></tr></thead>
+        <tbody>
+          {% for b in borrowers %}
+          <tr><td>{{ b.name }}</td><td>{{ b.sector_ref.display_name(current_lang) if b.sector_ref else (b.sector or '-') }}</td><td>{{ b.country_ref.display_name(current_lang) if b.country_ref else (b.country or '-') }}</td><td>{{ b.rating_ref.display_label(current_lang) if b.rating_ref else (b.internal_rating or '-') }}</td><td>{{ b.created_at.strftime('%Y-%m-%d') if b.created_at else '' }}</td></tr>
+          {% else %}
+          <tr><td colspan="5" class="text-secondary">{{ _('No borrowers yet.') }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,249 @@
+{% extends "credit/page_base.html" %}
+{% set title = _('Audela Credit Approval Workflow') %}
+{% set active_page = 'approval_workflow' %}
+
+{% block credit_page_content %}
+<div class="row g-3 mb-3">
+  <div class="col-12 col-xl-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-body-tertiary">{{ _('Create analyst group') }}</div>
+      <div class="card-body">
+        <form method="post" class="row g-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="create_group">
+          <div class="col-12">
+            <label class="form-label">{{ _('Group name') }}</label>
+            <input class="form-control" name="name" placeholder="{{ _('Credit Analysts') }}" required>
+          </div>
+          <div class="col-12">
+            <label class="form-label">{{ _('Description') }}</label>
+            <input class="form-control" name="description" placeholder="{{ _('Regional underwriting team') }}">
+          </div>
+          <div class="col-12"><button class="btn btn-primary" type="submit">{{ _('Save') }}</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-xl-8">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-body-tertiary">{{ _('Analyst groups and functions') }}</div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead>
+              <tr><th>{{ _('Group') }}</th><th>{{ _('Description') }}</th><th>{{ _('Members') }}</th><th class="text-end">{{ _('Actions') }}</th></tr>
+            </thead>
+            <tbody>
+              {% for group in groups %}
+              <tr>
+                <td class="fw-semibold">{{ group.name }}</td>
+                <td>{{ group.description or '-' }}</td>
+                <td>
+                  {% for member in group.members %}
+                    <span class="badge text-bg-light border me-1 mb-1">{{ member.user.email if member.user else '-' }} · {{ member.function_ref.label if member.function_ref else member.function_name }}</span>
+                  {% else %}
+                    <span class="text-secondary">{{ _('No members yet.') }}</span>
+                  {% endfor %}
+                </td>
+                <td class="text-end">
+                  <form method="post" class="d-inline" onsubmit="return confirm('{{ _('Delete this group?') }}');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="delete_group">
+                    <input type="hidden" name="group_id" value="{{ group.id }}">
+                    <button class="btn btn-outline-danger btn-sm" type="submit">{{ _('Delete') }}</button>
+                  </form>
+                </td>
+              </tr>
+              <tr>
+                <td colspan="4" class="bg-body-tertiary">
+                  <form method="post" class="row g-2 align-items-end">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="add_member">
+                    <input type="hidden" name="group_id" value="{{ group.id }}">
+                    <div class="col-md-5">
+                      <label class="form-label">{{ _('User') }}</label>
+                      <select class="form-select" name="user_id" required>
+                        <option value="">{{ _('Select user') }}</option>
+                        {% for u in users %}
+                        <option value="{{ u.id }}">{{ u.email }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label">{{ _('Function') }}</label>
+                      <input class="form-control" name="function_name" placeholder="analyst / risk_manager / committee" required>
+                    </div>
+                    <div class="col-md-3">
+                      <button class="btn btn-outline-primary w-100" type="submit">{{ _('Add member') }}</button>
+                    </div>
+                  </form>
+                  <div class="mt-2 d-flex flex-wrap gap-1">
+                    {% for member in group.members %}
+                    <form method="post" class="d-inline">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <input type="hidden" name="action" value="remove_member">
+                      <input type="hidden" name="member_id" value="{{ member.id }}">
+                      <button class="btn btn-outline-secondary btn-sm" type="submit">{{ member.user.email if member.user else '-' }} · {{ member.function_ref.label if member.function_ref else member.function_name }} ×</button>
+                    </form>
+                    {% endfor %}
+                  </div>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="4" class="text-secondary">{{ _('No groups yet.') }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary">{{ _('Function register') }}</div>
+  <div class="card-body">
+    <form method="post" class="row g-2 align-items-end mb-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="create_function">
+      <div class="col-md-4">
+        <label class="form-label">{{ _('Function code') }}</label>
+        <input class="form-control" name="code" placeholder="risk_manager" required>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">{{ _('Function label') }}</label>
+        <input class="form-control" name="label" placeholder="{{ _('Risk manager') }}" required>
+      </div>
+      <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">{{ _('Add function') }}</button></div>
+    </form>
+
+    <div class="d-flex flex-wrap gap-2">
+      {% for fn in functions %}
+      <span class="badge text-bg-light border">
+        {{ fn.label }} ({{ fn.code }})
+        <form method="post" class="d-inline ms-1" onsubmit="return confirm('{{ _('Delete this function?') }}');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="delete_function">
+          <input type="hidden" name="function_id" value="{{ fn.id }}">
+          <button class="btn btn-link p-0 text-danger text-decoration-none" type="submit">×</button>
+        </form>
+      </span>
+      {% else %}
+      <span class="text-secondary">{{ _('No functions yet.') }}</span>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary">{{ _('Add workflow step') }}</div>
+  <div class="card-body">
+    <form method="post" class="row g-2 align-items-end">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="add_step">
+      <div class="col-md-2">
+        <label class="form-label">{{ _('Order') }}</label>
+                      <select class="form-select" name="function_id" required>
+                        <option value="">{{ _('Select function') }}</option>
+                        {% for fn in functions %}
+                        <option value="{{ fn.id }}">{{ fn.label }} ({{ fn.code }})</option>
+                        {% endfor %}
+                      </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ _('Stage') }}</label>
+        <select class="form-select" name="stage">
+          {% for code, label in stage_options %}
+          <option value="{{ code }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ _('Step name') }}</label>
+        <input class="form-control" name="step_name" placeholder="{{ _('Analyst review') }}" required>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ _('Group') }}</label>
+        <select class="form-select" name="group_id">
+          <option value="">{{ _('None') }}</option>
+          {% for group in groups %}
+          <option value="{{ group.id }}">{{ group.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ _('Function') }}</label>
+        <select class="form-select" name="function_id">
+          <option value="">{{ _('None') }}</option>
+          {% for fn in functions %}
+          <option value="{{ fn.id }}">{{ fn.label }} ({{ fn.code }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-1">
+        <label class="form-label">{{ _('SLA days') }}</label>
+        <input class="form-control" name="sla_days" type="number" min="1" placeholder="3">
+        <div class="form-text">{{ _('Tip: 1 day = 24 hours.') }}</div>
+      </div>
+      <div class="col-md-1">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="is_required" checked id="wfRequired">
+          <label class="form-check-label" for="wfRequired">{{ _('Required') }}</label>
+        </div>
+      </div>
+      <div class="col-12"><button class="btn btn-primary" type="submit">{{ _('Add step') }}</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-body-tertiary">{{ _('Approval workflow steps') }}</div>
+  <div class="card-body border-bottom">
+    <div class="d-flex flex-wrap align-items-center gap-2">
+      {% for step in steps %}
+      <span class="badge text-bg-primary p-2">#{{ step.step_order }} · {{ step.step_name }}</span>
+      {% if not loop.last %}<i class="bi bi-arrow-right text-secondary"></i>{% endif %}
+      {% else %}
+      <span class="text-secondary">{{ _('No workflow steps yet.') }}</span>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>#</th><th>{{ _('Step') }}</th><th>{{ _('Stage') }}</th><th>{{ _('Group') }}</th><th>{{ _('Function') }}</th><th>{{ _('SLA days') }}</th><th>{{ _('Required') }}</th><th class="text-end">{{ _('Actions') }}</th></tr></thead>
+        <tbody>
+          {% for step in steps %}
+          <tr>
+            <td>{{ step.step_order }}</td>
+            <td>{{ step.step_name }}</td>
+            <td>{{ step.stage }}</td>
+            <td>{{ step.group.name if step.group else '-' }}</td>
+            <td>{{ step.function_ref.label if step.function_ref else (step.function_name or '-') }}</td>
+            <td>
+              {% if step.sla_days %}
+                {{ step.sla_days }} {{ _('days') }} ({{ step.sla_days * 24 }} {{ _('hours') }})
+              {% else %}
+                -
+              {% endif %}
+            </td>
+            <td>{{ _('Yes') if step.is_required else _('No') }}</td>
+            <td class="text-end">
+              <form method="post" class="d-inline" onsubmit="return confirm('{{ _('Delete this workflow step?') }}');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="delete_step">
+                <input type="hidden" name="step_id" value="{{ step.id }}">
+                <button class="btn btn-outline-danger btn-sm" type="submit">{{ _('Delete') }}</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="8" class="text-secondary">{{ _('No workflow steps yet.') }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

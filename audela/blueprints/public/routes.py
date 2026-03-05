@@ -111,10 +111,16 @@ def plans():
         features = plan.features_json if isinstance(plan.features_json, dict) else {}
         return bool(features.get("has_project", False))
 
+    def _has_credit(plan) -> bool:
+        features = plan.features_json if isinstance(plan.features_json, dict) else {}
+        return bool(features.get("has_credit", (plan.code == "free" or plan.has_bi)))
+
     if selected_product == "finance":
         plans = [plan for plan in plans if plan.has_finance]
     elif selected_product == "bi":
         plans = [plan for plan in plans if plan.has_bi]
+    elif selected_product == "credit":
+        plans = [plan for plan in plans if _has_credit(plan)]
     elif selected_product == "project":
         plans = [plan for plan in plans if _has_project(plan)]
     else:
@@ -142,6 +148,11 @@ def product_finance():
 @bp.route("/produits/bi")
 def product_bi():
     return render_template("products/bi.html")
+
+
+@bp.route("/produits/credit")
+def product_credit():
+    return render_template("products/credit.html")
 
 
 @bp.route("/produits/projet")

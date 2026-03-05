@@ -1,0 +1,55 @@
+{% extends "credit/page_base.html" %}
+{% set title = _('Audela Credit Memos') %}
+{% set active_page = 'memos' %}
+
+{% block credit_page_content %}
+<div class="row g-3 mb-3">
+  <div class="col-12 col-xl-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-body-tertiary">{{ _('New credit memo') }}</div>
+      <div class="card-body">
+        <form method="post" class="row g-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="col-md-6"><select class="form-select" name="borrower_id"><option value="">{{ _('Borrower') }}</option>{% for b in borrowers %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}</select></div>
+          <div class="col-md-6"><select class="form-select" name="deal_id"><option value="">{{ _('Deal') }}</option>{% for d in deals %}<option value="{{ d.id }}">{{ d.code }}</option>{% endfor %}</select></div>
+          <div class="col-md-6"><input class="form-control" name="title" placeholder="{{ _('Title') }}"></div>
+          <div class="col-md-6"><select class="form-select" name="recommendation"><option value="review">{{ _('Review') }}</option><option value="approve">{{ _('Approve') }}</option><option value="approve_with_conditions">{{ _('Approve with conditions') }}</option><option value="reject">{{ _('Reject') }}</option></select></div>
+          <div class="col-12"><textarea class="form-control" name="summary_text" rows="5" placeholder="{{ _('Summary') }}" required></textarea></div>
+          <div class="col-12"><button class="btn btn-primary" type="submit">{{ _('Save') }}</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-xl-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-body-tertiary">{{ _('AI credit memo draft') }}</div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('credit.memos_ai_draft') }}" class="row g-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="col-12"><select class="form-select" name="deal_id" required><option value="">{{ _('Deal') }}</option>{% for d in deals %}<option value="{{ d.id }}">{{ d.code }} - {{ d.borrower.name if d.borrower else '' }}</option>{% endfor %}</select></div>
+          <div class="col-12"><textarea class="form-control" name="guidance" rows="4" placeholder="{{ _('Optional analyst guidance for AI.') }}"></textarea></div>
+          <div class="col-12"><button class="btn btn-outline-primary" type="submit">{{ _('Generate with AI') }}</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-body-tertiary">{{ _('Credit memos') }}</div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>{{ _('Title') }}</th><th>{{ _('Deal') }}</th><th>{{ _('Recommendation') }}</th><th>AI</th><th>{{ _('Updated') }}</th></tr></thead>
+        <tbody>
+          {% for m in memos %}
+          <tr><td>{{ m.title }}</td><td>{{ m.deal.code if m.deal else '-' }}</td><td>{{ m.recommendation }}</td><td>{{ _('Yes') if m.ai_generated else _('No') }}</td><td>{{ m.updated_at.strftime('%Y-%m-%d %H:%M') if m.updated_at else '' }}</td></tr>
+          {% else %}
+          <tr><td colspan="5" class="text-secondary">{{ _('No memos yet.') }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

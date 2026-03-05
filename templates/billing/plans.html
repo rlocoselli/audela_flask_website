@@ -35,6 +35,10 @@
   <div class="alert alert-info">
     <i class="bi bi-graph-up"></i> {{ _('Plans BI disponibles') }}
   </div>
+  {% elif selected_product == 'credit' %}
+  <div class="alert alert-info">
+    <i class="bi bi-bank2"></i> {{ _('Plans Audela Credit disponibles') }}
+  </div>
   {% elif selected_product == 'project' %}
   <div class="alert alert-info">
     <i class="bi bi-kanban"></i> {{ _('Plans Projet disponibles') }}
@@ -59,9 +63,11 @@
           {% endif %}
 
           {% set has_project = plan.features_json and plan.features_json.get('has_project') %}
+          {% set has_credit = (plan.features_json and plan.features_json.get('has_credit')) or plan.code == 'free' %}
           <div class="mb-3 d-flex flex-wrap gap-1">
             {% if plan.has_finance %}<span class="badge text-bg-success">{{ _('Finance') }}</span>{% endif %}
             {% if plan.has_bi %}<span class="badge text-bg-info">{{ _('BI') }}</span>{% endif %}
+            {% if has_credit %}<span class="badge text-bg-warning">{{ _('Audela Credit') }}</span>{% endif %}
             {% if has_project %}<span class="badge text-bg-primary">{{ _('Projet') }}</span>{% endif %}
           </div>
 

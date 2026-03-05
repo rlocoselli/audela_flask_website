@@ -111,6 +111,7 @@ def load_tenant_into_g() -> None:
         bi_menu_access = get_user_menu_access(g.tenant, current_user.id, "bi")
         endpoint_menu_key = {
             "portal.home": "home",
+            "portal.credit_origination": "credit_origination",
             "portal.sources_list": "sources",
             "portal.sources_new": "sources",
             "portal.sources_view": "sources",
@@ -918,6 +919,14 @@ def home():
         main = None
     dashes = Dashboard.query.filter_by(tenant_id=g.tenant.id).order_by(Dashboard.updated_at.desc()).all()
     return render_template("portal/home.html", tenant=g.tenant, dashboards=dashes, main_dashboard=main)
+
+
+@bp.route("/credit-origination")
+@login_required
+def credit_origination():
+    """Legacy endpoint kept for backward compatibility with old links."""
+    _require_tenant()
+    return redirect(url_for("credit.overview"))
 
 
 # -----------------------------

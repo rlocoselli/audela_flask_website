@@ -1,0 +1,126 @@
+{% extends "portal/base_portal.html" %}
+
+{% block title %}{% if title %}{{ title }} – {% endif %}{{ _('Audela Credit') }}{% endblock %}
+
+{% block content %}
+<div class="portal-shell d-flex">
+  <aside class="sidebar border-end bg-body-tertiary p-3 d-none d-lg-flex flex-column">
+    <div class="d-flex align-items-center gap-2 mb-3">
+      <i class="bi bi-bank2"></i>
+      <span class="brand">AUDELA CREDIT</span>
+    </div>
+
+    <nav class="nav flex-column gap-1">
+      <a class="nav-link" href="{{ url_for('credit.overview') }}"><i class="bi bi-speedometer2 me-2"></i>{{ _('Overview') }}</a>
+      <a class="nav-link" href="{{ url_for('credit.borrowers') }}"><i class="bi bi-people me-2"></i>{{ _('Borrowers') }}</a>
+      <a class="nav-link" href="{{ url_for('credit.deals') }}"><i class="bi bi-briefcase me-2"></i>{{ _('Deals') }}</a>
+      <a class="nav-link" href="{{ url_for('credit.facilities') }}"><i class="bi bi-diagram-3 me-2"></i>{{ _('Facilities') }}</a>
+      <a class="nav-link" href="{{ url_for('credit.collateral') }}"><i class="bi bi-shield-lock me-2"></i>{{ _('Collateral') }}</a>
+      <a class="nav-link" href="{{ url_for('credit.guarantors') }}"><i class="bi bi-person-badge me-2"></i>{{ _('Guarantors') }}</a>
+      <a class="nav-link" href="{{ url_for('credit.financials') }}"><i class="bi bi-file-earmark-bar-graph me-2"></i>{{ _('Financials & Spreading') }}</a>
+      <a class="nav-link" href="{{ url_for('credit.ratios') }}"><i class="bi bi-percent me-2"></i>{{ _('Ratio Snapshot') }}</a>
+      <a class="nav-link" href="{{ url_for('credit.memos') }}"><i class="bi bi-journal-richtext me-2"></i>{{ _('Credit Memo') }}</a>
+      <a class="nav-link" href="{{ url_for('credit.approvals') }}"><i class="bi bi-check2-square me-2"></i>{{ _('Approvals') }}</a>
+      <a class="nav-link" href="{{ url_for('credit.documents') }}"><i class="bi bi-folder2-open me-2"></i>{{ _('Documents') }}</a>
+      <a class="nav-link" href="{{ url_for('credit.references') }}"><i class="bi bi-list-check me-2"></i>{{ _('References') }}</a>
+      <a class="nav-link" href="{{ url_for('credit.reports') }}"><i class="bi bi-file-earmark-richtext me-2"></i>{{ _('Reports') }}</a>
+    </nav>
+
+    <div class="mt-auto pt-3 small-muted">
+      <div class="fw-semibold">{{ tenant.name if tenant else '' }}</div>
+      <div>{{ _('Usuário') }}: {{ current_user.email }}</div>
+    </div>
+  </aside>
+
+  <div class="main-area d-flex flex-column">
+    <div class="topbar border-bottom">
+      <div class="container-fluid py-2 d-flex align-items-center justify-content-between gap-2 flex-wrap portal-topbar-row">
+        <div class="d-flex align-items-center gap-2 portal-topbar-left">
+          <button class="btn btn-outline-secondary btn-sm d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileCreditNav">
+            <i class="bi bi-list"></i>
+          </button>
+          <div class="fw-semibold text-nowrap">{{ _('Audela Credit') }}</div>
+          <span class="small-muted text-truncate d-none d-sm-inline">· {{ tenant.name if tenant else '' }}</span>
+        </div>
+
+        <div class="d-flex align-items-center gap-2 portal-topbar-right">
+          <a class="btn btn-outline-primary btn-sm" href="{{ url_for('tenant.dashboard') }}">
+            <i class="bi bi-arrow-left-circle me-1"></i>
+            <span class="d-none d-md-inline">{{ _('Retour au dashboard tenant') }}</span>
+          </a>
+
+          <div class="dropdown">
+            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+              {{ lang_label(current_lang) }}
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              {% for code, info in supported_langs.items() %}
+                <li><a class="dropdown-item" href="{{ url_for('public.set_language', lang_code=code, next=request.full_path) }}">{{ info.label }}</a></li>
+              {% endfor %}
+            </ul>
+          </div>
+
+          <button class="btn btn-outline-secondary btn-sm" type="button" onclick="__toggleTheme()" title="{{ _('Tema') }}">
+            <i class="bi bi-moon-stars"></i>
+          </button>
+
+          <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('auth.change_password') }}">
+            <i class="bi bi-key"></i>
+            <span class="ms-1 d-none d-md-inline">{{ _('Alterar senha') }}</span>
+          </a>
+
+          <a class="btn btn-outline-danger btn-sm" href="{{ url_for('auth.logout') }}">
+            <i class="bi bi-box-arrow-right"></i>
+            <span class="ms-1 d-none d-md-inline">{{ _('Sair') }}</span>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <div class="container-fluid pt-3">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ 'danger' if category in ['error', 'danger'] else ('success' if category in ['success'] else 'secondary') }}" role="alert">
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+    </div>
+
+    <div class="container-fluid pb-4">
+      {% block credit_content %}{% endblock %}
+    </div>
+  </div>
+</div>
+
+<div class="offcanvas offcanvas-start" tabindex="-1" id="mobileCreditNav">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title">AUDELA CREDIT</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body">
+    <div class="nav flex-column gap-1">
+      <a class="nav-link" href="{{ url_for('credit.overview') }}">{{ _('Overview') }}</a>
+      <a class="nav-link" href="{{ url_for('credit.borrowers') }}">{{ _('Borrowers') }}</a>
+      <a class="nav-link" href="{{ url_for('credit.deals') }}">{{ _('Deals') }}</a>
+      <a class="nav-link" href="{{ url_for('credit.facilities') }}">{{ _('Facilities') }}</a>
+      <a class="nav-link" href="{{ url_for('credit.collateral') }}">{{ _('Collateral') }}</a>
+      <a class="nav-link" href="{{ url_for('credit.guarantors') }}">{{ _('Guarantors') }}</a>
+      <a class="nav-link" href="{{ url_for('credit.financials') }}">{{ _('Financials & Spreading') }}</a>
+      <a class="nav-link" href="{{ url_for('credit.ratios') }}">{{ _('Ratio Snapshot') }}</a>
+      <a class="nav-link" href="{{ url_for('credit.memos') }}">{{ _('Credit Memo') }}</a>
+      <a class="nav-link" href="{{ url_for('credit.approvals') }}">{{ _('Approvals') }}</a>
+      <a class="nav-link" href="{{ url_for('credit.documents') }}">{{ _('Documents') }}</a>
+      <a class="nav-link" href="{{ url_for('credit.references') }}">{{ _('References') }}</a>
+      <a class="nav-link" href="{{ url_for('credit.reports') }}">{{ _('Reports') }}</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script src="{{ url_for('static', filename='portal/theme_switcher.js') }}"></script>
+{% endblock %}

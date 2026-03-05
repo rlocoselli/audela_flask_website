@@ -1,0 +1,28 @@
+{% extends "portal/layout_credit.html" %}
+
+{% block credit_content %}
+<div class="container-fluid px-0">
+  <div class="card border-0 shadow-sm rounded-4 mb-3">
+    <div class="card-body py-3">
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+        <a class="btn btn-sm {% if active_page == 'overview' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.overview') }}">{{ _('Overview') }}</a>
+        <a class="btn btn-sm {% if active_page == 'borrowers' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.borrowers') }}">{{ _('Borrowers') }}</a>
+        <a class="btn btn-sm {% if active_page == 'deals' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.deals') }}">{{ _('Deals') }}</a>
+        <a class="btn btn-sm {% if active_page == 'facilities' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.facilities') }}">{{ _('Facilities') }}</a>
+        <a class="btn btn-sm {% if active_page == 'collateral' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.collateral') }}">{{ _('Collateral') }}</a>
+        <a class="btn btn-sm {% if active_page == 'guarantors' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.guarantors') }}">{{ _('Guarantors') }}</a>
+        <a class="btn btn-sm {% if active_page == 'financials' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.financials') }}">{{ _('Financials') }}</a>
+        <a class="btn btn-sm {% if active_page == 'ratios' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.ratios') }}">{{ _('Ratios') }}</a>
+        <a class="btn btn-sm {% if active_page == 'memos' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.memos') }}">{{ _('Credit Memo') }}</a>
+        <a class="btn btn-sm {% if active_page == 'approvals' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.approvals') }}">{{ _('Approvals') }}</a>
+        <a class="btn btn-sm {% if active_page == 'approval_workflow' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.approval_workflow') }}">{{ _('Approval Workflow') }}</a>
+        <a class="btn btn-sm {% if active_page == 'documents' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.documents') }}">{{ _('Documents') }}</a>
+        <a class="btn btn-sm {% if active_page == 'references' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.references') }}">{{ _('References') }}</a>
+        <a class="btn btn-sm {% if active_page == 'reports' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.reports') }}">{{ _('Reports') }}</a>
+      </div>
+    </div>
+  </div>
+
+  {% block credit_page_content %}{% endblock %}
+</div>
+{% endblock %}

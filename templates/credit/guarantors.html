@@ -1,0 +1,38 @@
+{% extends "credit/page_base.html" %}
+{% set title = _('Audela Credit Guarantors') %}
+{% set active_page = 'guarantors' %}
+
+{% block credit_page_content %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary">{{ _('New guarantor') }}</div>
+  <div class="card-body">
+    <form method="post" class="row g-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-md-3"><select class="form-select" name="borrower_id" required><option value="">{{ _('Borrower') }}</option>{% for b in borrowers %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}</select></div>
+      <div class="col-md-2"><select class="form-select" name="deal_id"><option value="">{{ _('Deal (optional)') }}</option>{% for d in deals %}<option value="{{ d.id }}">{{ d.code }}</option>{% endfor %}</select></div>
+      <div class="col-md-2"><input class="form-control" name="name" placeholder="{{ _('Name') }}" required></div>
+      <div class="col-md-2"><select class="form-select" name="guarantee_type_id" required><option value="">{{ _('Guarantee type') }}</option>{% for t in guarantee_types %}<option value="{{ t.id }}">{{ t.display_label(current_lang) }}</option>{% endfor %}</select></div>
+      <div class="col-md-2"><input class="form-control" name="amount" placeholder="{{ _('Amount') }}"></div>
+      <div class="col-md-1"><button class="btn btn-primary w-100" type="submit">+</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-body-tertiary">{{ _('Guarantors') }}</div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>{{ _('Borrower') }}</th><th>{{ _('Deal') }}</th><th>{{ _('Name') }}</th><th>{{ _('Type') }}</th><th>{{ _('Amount') }}</th></tr></thead>
+        <tbody>
+          {% for g_row in guarantors %}
+          <tr><td>{{ g_row.borrower.name if g_row.borrower else '-' }}</td><td>{{ g_row.deal.code if g_row.deal else '-' }}</td><td>{{ g_row.name }}</td><td>{{ g_row.guarantee_type_ref.display_label(current_lang) if g_row.guarantee_type_ref else g_row.guarantee_type }}</td><td>{{ '%.2f'|format(g_row.amount or 0) }}</td></tr>
+          {% else %}
+          <tr><td colspan="5" class="text-secondary">{{ _('No guarantors yet.') }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

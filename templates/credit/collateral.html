@@ -1,0 +1,39 @@
+{% extends "credit/page_base.html" %}
+{% set title = _('Audela Credit Collateral') %}
+{% set active_page = 'collateral' %}
+
+{% block credit_page_content %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary">{{ _('New collateral') }}</div>
+  <div class="card-body">
+    <form method="post" class="row g-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-md-3"><select class="form-select" name="borrower_id" required><option value="">{{ _('Borrower') }}</option>{% for b in borrowers %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}</select></div>
+      <div class="col-md-2"><select class="form-select" name="deal_id"><option value="">{{ _('Deal (optional)') }}</option>{% for d in deals %}<option value="{{ d.id }}">{{ d.code }}</option>{% endfor %}</select></div>
+      <div class="col-md-2"><select class="form-select" name="collateral_type_id" required><option value="">{{ _('Type') }}</option>{% for t in collateral_types %}<option value="{{ t.id }}">{{ t.display_label(current_lang) }}</option>{% endfor %}</select></div>
+      <div class="col-md-2"><input class="form-control" name="market_value" placeholder="{{ _('Market value') }}"></div>
+      <div class="col-md-1"><input class="form-control" name="haircut_pct" placeholder="%"></div>
+      <div class="col-md-2"><input class="form-control" name="description" placeholder="{{ _('Description') }}"></div>
+      <div class="col-12"><button class="btn btn-primary" type="submit">{{ _('Save') }}</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-body-tertiary">{{ _('Collateral') }}</div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>{{ _('Borrower') }}</th><th>{{ _('Deal') }}</th><th>{{ _('Type') }}</th><th>{{ _('Market value') }}</th><th>{{ _('Haircut') }}</th><th>{{ _('Description') }}</th></tr></thead>
+        <tbody>
+          {% for c in collateral %}
+          <tr><td>{{ c.borrower.name if c.borrower else '-' }}</td><td>{{ c.deal.code if c.deal else '-' }}</td><td>{{ c.collateral_type_ref.display_label(current_lang) if c.collateral_type_ref else c.collateral_type }}</td><td>{{ '%.2f'|format(c.market_value or 0) }}</td><td>{{ c.haircut_pct or 0 }}%</td><td>{{ c.description or '-' }}</td></tr>
+          {% else %}
+          <tr><td colspan="6" class="text-secondary">{{ _('No collateral yet.') }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

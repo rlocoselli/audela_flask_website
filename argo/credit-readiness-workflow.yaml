@@ -1,0 +1,96 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: audela-credit-readiness-
+  labels:
+    app.kubernetes.io/name: audela-credit-readiness
+    app.kubernetes.io/part-of: audela
+spec:
+  entrypoint: credit-readiness
+  arguments:
+    parameters:
+      - name: repo-path
+        value: /workspace
+  templates:
+    - name: credit-readiness
+      dag:
+        tasks:
+          - name: static-checks
+            template: run-validator
+            arguments:
+              parameters:
+                - name: mode
+                  value: static
+          - name: smoke-checks
+            dependencies: [static-checks]
+            template: run-validator
+            arguments:
+              parameters:
+                - name: mode
+                  value: smoke
+
+    - name: run-validator
+      inputs:
+        parameters:
+          - name: mode
+      container:
+        image: python:3.10-slim
+        workingDir: "{{workflow.parameters.repo-path}}"
+        command: [sh, -c]
+        args:
+          - |
+            set -e
+            pip install --no-cache-dir -r requirements.txt
+            python validate_credit_readiness.py --mode "{{inputs.parameters.mode}}"
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: audela-credit-readiness-daily
+  labels:
+    app.kubernetes.io/name: audela-credit-readiness
+    app.kubernetes.io/part-of: audela
+spec:
+  schedule: "0 5 * * *"
+  timezone: "UTC"
+  concurrencyPolicy: "Forbid"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  workflowSpec:
+    entrypoint: credit-readiness
+    arguments:
+      parameters:
+        - name: repo-path
+          value: /workspace
+    templates:
+      - name: credit-readiness
+        dag:
+          tasks:
+            - name: static-checks
+              template: run-validator
+              arguments:
+                parameters:
+                  - name: mode
+                    value: static
+            - name: smoke-checks
+              dependencies: [static-checks]
+              template: run-validator
+              arguments:
+                parameters:
+                  - name: mode
+                    value: smoke
+
+      - name: run-validator
+        inputs:
+          parameters:
+            - name: mode
+        container:
+          image: python:3.10-slim
+          workingDir: "{{workflow.parameters.repo-path}}"
+          command: [sh, -c]
+          args:
+            - |
+              set -e
+              pip install --no-cache-dir -r requirements.txt
+              python validate_credit_readiness.py --mode "{{inputs.parameters.mode}}"

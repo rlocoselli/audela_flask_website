@@ -1,0 +1,286 @@
+{% extends "credit/page_base.html" %}
+{% set title = _('Audela Credit References') %}
+{% set active_page = 'references' %}
+
+{% block credit_page_content %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary">{{ _('Reference data') }}</div>
+  <div class="card-body">
+    <p class="text-secondary mb-0">{{ _('Manage country, sector, rating and type lists with multilingual labels.') }}</p>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-12" id="countries">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-body-tertiary">{{ _('Countries') }}</div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('credit.references_save', ref_kind='countries') }}" class="row g-2 mb-3">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="id" value="{{ edit_row.id if edit_kind == 'countries' and edit_row else '' }}">
+          <div class="col-md-2"><input class="form-control" name="iso_code" maxlength="2" placeholder="ISO" value="{{ edit_row.iso_code if edit_kind == 'countries' and edit_row else '' }}"></div>
+          <div class="col-md-2"><input class="form-control" name="name_fr" placeholder="FR" value="{{ edit_row.name_fr if edit_kind == 'countries' and edit_row else '' }}"></div>
+          <div class="col-md-2"><input class="form-control" name="name_en" placeholder="EN" value="{{ edit_row.name_en if edit_kind == 'countries' and edit_row else '' }}"></div>
+          <div class="col-md-2"><input class="form-control" name="name_pt" placeholder="PT" value="{{ edit_row.name_pt if edit_kind == 'countries' and edit_row else '' }}"></div>
+          <div class="col-md-2"><input class="form-control" name="name_es" placeholder="ES" value="{{ edit_row.name_es if edit_kind == 'countries' and edit_row else '' }}"></div>
+          <div class="col-md-1"><input class="form-control" name="name_it" placeholder="IT" value="{{ edit_row.name_it if edit_kind == 'countries' and edit_row else '' }}"></div>
+          <div class="col-md-1"><input class="form-control" name="name_de" placeholder="DE" value="{{ edit_row.name_de if edit_kind == 'countries' and edit_row else '' }}"></div>
+          <div class="col-12 d-flex gap-2">
+            <button class="btn btn-primary btn-sm" type="submit">{{ _('Update') if edit_kind == 'countries' and edit_row else _('Save') }}</button>
+            {% if edit_kind == 'countries' and edit_row %}
+            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.references') }}#countries">{{ _('Cancel') }}</a>
+            {% endif %}
+          </div>
+        </form>
+
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead><tr><th>{{ _('ISO') }}</th><th>{{ _('Name') }}</th><th class="text-end">{{ _('Actions') }}</th></tr></thead>
+            <tbody>
+              {% for row in countries %}
+              <tr>
+                <td>{{ row.iso_code }}</td>
+                <td>{{ row.display_name(current_lang) }}</td>
+                <td class="text-end">
+                  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.references', edit_kind='countries', edit_id=row.id) }}#countries">{{ _('Edit') }}</a>
+                  <form method="post" action="{{ url_for('credit.references_delete', ref_kind='countries', row_id=row.id) }}" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-outline-danger btn-sm" type="submit">{{ _('Delete') }}</button>
+                  </form>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="3" class="text-secondary">{{ _('No rows.') }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12" id="sectors">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-body-tertiary">{{ _('Sectors') }}</div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('credit.references_save', ref_kind='sectors') }}" class="row g-2 mb-3">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="id" value="{{ edit_row.id if edit_kind == 'sectors' and edit_row else '' }}">
+          <div class="col-md-2"><input class="form-control" name="code" placeholder="Code" value="{{ edit_row.code if edit_kind == 'sectors' and edit_row else '' }}"></div>
+          <div class="col-md-2"><input class="form-control" name="name_fr" placeholder="FR" value="{{ edit_row.name_fr if edit_kind == 'sectors' and edit_row else '' }}"></div>
+          <div class="col-md-2"><input class="form-control" name="name_en" placeholder="EN" value="{{ edit_row.name_en if edit_kind == 'sectors' and edit_row else '' }}"></div>
+          <div class="col-md-2"><input class="form-control" name="name_pt" placeholder="PT" value="{{ edit_row.name_pt if edit_kind == 'sectors' and edit_row else '' }}"></div>
+          <div class="col-md-2"><input class="form-control" name="name_es" placeholder="ES" value="{{ edit_row.name_es if edit_kind == 'sectors' and edit_row else '' }}"></div>
+          <div class="col-md-1"><input class="form-control" name="name_it" placeholder="IT" value="{{ edit_row.name_it if edit_kind == 'sectors' and edit_row else '' }}"></div>
+          <div class="col-md-1"><input class="form-control" name="name_de" placeholder="DE" value="{{ edit_row.name_de if edit_kind == 'sectors' and edit_row else '' }}"></div>
+          <div class="col-12 d-flex gap-2">
+            <button class="btn btn-primary btn-sm" type="submit">{{ _('Update') if edit_kind == 'sectors' and edit_row else _('Save') }}</button>
+            {% if edit_kind == 'sectors' and edit_row %}
+            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.references') }}#sectors">{{ _('Cancel') }}</a>
+            {% endif %}
+          </div>
+        </form>
+
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead><tr><th>{{ _('Code') }}</th><th>{{ _('Name') }}</th><th class="text-end">{{ _('Actions') }}</th></tr></thead>
+            <tbody>
+              {% for row in sectors %}
+              <tr>
+                <td>{{ row.code }}</td>
+                <td>{{ row.display_name(current_lang) }}</td>
+                <td class="text-end">
+                  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.references', edit_kind='sectors', edit_id=row.id) }}#sectors">{{ _('Edit') }}</a>
+                  <form method="post" action="{{ url_for('credit.references_delete', ref_kind='sectors', row_id=row.id) }}" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-outline-danger btn-sm" type="submit">{{ _('Delete') }}</button>
+                  </form>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="3" class="text-secondary">{{ _('No rows.') }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12" id="ratings">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-body-tertiary">{{ _('Ratings') }}</div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('credit.references_save', ref_kind='ratings') }}" class="row g-2 mb-3">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="id" value="{{ edit_row.id if edit_kind == 'ratings' and edit_row else '' }}">
+          <div class="col-md-2"><input class="form-control" name="code" placeholder="Code" value="{{ edit_row.code if edit_kind == 'ratings' and edit_row else '' }}"></div>
+          <div class="col-md-2"><input class="form-control" name="rank_order" type="number" placeholder="Rank" value="{{ edit_row.rank_order if edit_kind == 'ratings' and edit_row else '' }}"></div>
+          <div class="col-md-2"><input class="form-control" name="label_fr" placeholder="FR" value="{{ edit_row.label_fr if edit_kind == 'ratings' and edit_row else '' }}"></div>
+          <div class="col-md-2"><input class="form-control" name="label_en" placeholder="EN" value="{{ edit_row.label_en if edit_kind == 'ratings' and edit_row else '' }}"></div>
+          <div class="col-md-2"><input class="form-control" name="label_pt" placeholder="PT" value="{{ edit_row.label_pt if edit_kind == 'ratings' and edit_row else '' }}"></div>
+          <div class="col-md-2"><input class="form-control" name="label_es" placeholder="ES" value="{{ edit_row.label_es if edit_kind == 'ratings' and edit_row else '' }}"></div>
+          <div class="col-md-1"><input class="form-control" name="label_it" placeholder="IT" value="{{ edit_row.label_it if edit_kind == 'ratings' and edit_row else '' }}"></div>
+          <div class="col-md-1"><input class="form-control" name="label_de" placeholder="DE" value="{{ edit_row.label_de if edit_kind == 'ratings' and edit_row else '' }}"></div>
+          <div class="col-12 d-flex gap-2">
+            <button class="btn btn-primary btn-sm" type="submit">{{ _('Update') if edit_kind == 'ratings' and edit_row else _('Save') }}</button>
+            {% if edit_kind == 'ratings' and edit_row %}
+            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.references') }}#ratings">{{ _('Cancel') }}</a>
+            {% endif %}
+          </div>
+        </form>
+
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead><tr><th>{{ _('Code') }}</th><th>{{ _('Rank') }}</th><th>{{ _('Label') }}</th><th class="text-end">{{ _('Actions') }}</th></tr></thead>
+            <tbody>
+              {% for row in ratings %}
+              <tr>
+                <td>{{ row.code }}</td>
+                <td>{{ row.rank_order }}</td>
+                <td>{{ row.display_label(current_lang) }}</td>
+                <td class="text-end">
+                  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.references', edit_kind='ratings', edit_id=row.id) }}#ratings">{{ _('Edit') }}</a>
+                  <form method="post" action="{{ url_for('credit.references_delete', ref_kind='ratings', row_id=row.id) }}" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-outline-danger btn-sm" type="submit">{{ _('Delete') }}</button>
+                  </form>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="4" class="text-secondary">{{ _('No rows.') }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-xl-4" id="facility_types">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-body-tertiary">{{ _('Facility types') }}</div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('credit.references_save', ref_kind='facility_types') }}" class="row g-2 mb-3">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="id" value="{{ edit_row.id if edit_kind == 'facility_types' and edit_row else '' }}">
+          <div class="col-12"><input class="form-control" name="code" placeholder="Code" value="{{ edit_row.code if edit_kind == 'facility_types' and edit_row else '' }}"></div>
+          <div class="col-6"><input class="form-control" name="label_fr" placeholder="FR" value="{{ edit_row.label_fr if edit_kind == 'facility_types' and edit_row else '' }}"></div>
+          <div class="col-6"><input class="form-control" name="label_en" placeholder="EN" value="{{ edit_row.label_en if edit_kind == 'facility_types' and edit_row else '' }}"></div>
+          <div class="col-6"><input class="form-control" name="label_pt" placeholder="PT" value="{{ edit_row.label_pt if edit_kind == 'facility_types' and edit_row else '' }}"></div>
+          <div class="col-6"><input class="form-control" name="label_es" placeholder="ES" value="{{ edit_row.label_es if edit_kind == 'facility_types' and edit_row else '' }}"></div>
+          <div class="col-6"><input class="form-control" name="label_it" placeholder="IT" value="{{ edit_row.label_it if edit_kind == 'facility_types' and edit_row else '' }}"></div>
+          <div class="col-6"><input class="form-control" name="label_de" placeholder="DE" value="{{ edit_row.label_de if edit_kind == 'facility_types' and edit_row else '' }}"></div>
+          <div class="col-12 d-flex gap-2">
+            <button class="btn btn-primary btn-sm" type="submit">{{ _('Update') if edit_kind == 'facility_types' and edit_row else _('Save') }}</button>
+            {% if edit_kind == 'facility_types' and edit_row %}
+            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.references') }}#facility_types">{{ _('Cancel') }}</a>
+            {% endif %}
+          </div>
+        </form>
+
+        <ul class="list-group list-group-flush">
+          {% for row in facility_types %}
+          <li class="list-group-item d-flex justify-content-between align-items-center gap-2">
+            <span>{{ row.code }} <span class="text-secondary">{{ row.display_label(current_lang) }}</span></span>
+            <span>
+              <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.references', edit_kind='facility_types', edit_id=row.id) }}#facility_types">{{ _('Edit') }}</a>
+              <form method="post" action="{{ url_for('credit.references_delete', ref_kind='facility_types', row_id=row.id) }}" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-outline-danger btn-sm" type="submit">{{ _('Delete') }}</button>
+              </form>
+            </span>
+          </li>
+          {% else %}
+          <li class="list-group-item text-secondary">{{ _('No rows.') }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-xl-4" id="collateral_types">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-body-tertiary">{{ _('Collateral types') }}</div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('credit.references_save', ref_kind='collateral_types') }}" class="row g-2 mb-3">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="id" value="{{ edit_row.id if edit_kind == 'collateral_types' and edit_row else '' }}">
+          <div class="col-12"><input class="form-control" name="code" placeholder="Code" value="{{ edit_row.code if edit_kind == 'collateral_types' and edit_row else '' }}"></div>
+          <div class="col-6"><input class="form-control" name="label_fr" placeholder="FR" value="{{ edit_row.label_fr if edit_kind == 'collateral_types' and edit_row else '' }}"></div>
+          <div class="col-6"><input class="form-control" name="label_en" placeholder="EN" value="{{ edit_row.label_en if edit_kind == 'collateral_types' and edit_row else '' }}"></div>
+          <div class="col-6"><input class="form-control" name="label_pt" placeholder="PT" value="{{ edit_row.label_pt if edit_kind == 'collateral_types' and edit_row else '' }}"></div>
+          <div class="col-6"><input class="form-control" name="label_es" placeholder="ES" value="{{ edit_row.label_es if edit_kind == 'collateral_types' and edit_row else '' }}"></div>
+          <div class="col-6"><input class="form-control" name="label_it" placeholder="IT" value="{{ edit_row.label_it if edit_kind == 'collateral_types' and edit_row else '' }}"></div>
+          <div class="col-6"><input class="form-control" name="label_de" placeholder="DE" value="{{ edit_row.label_de if edit_kind == 'collateral_types' and edit_row else '' }}"></div>
+          <div class="col-12 d-flex gap-2">
+            <button class="btn btn-primary btn-sm" type="submit">{{ _('Update') if edit_kind == 'collateral_types' and edit_row else _('Save') }}</button>
+            {% if edit_kind == 'collateral_types' and edit_row %}
+            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.references') }}#collateral_types">{{ _('Cancel') }}</a>
+            {% endif %}
+          </div>
+        </form>
+
+        <ul class="list-group list-group-flush">
+          {% for row in collateral_types %}
+          <li class="list-group-item d-flex justify-content-between align-items-center gap-2">
+            <span>{{ row.code }} <span class="text-secondary">{{ row.display_label(current_lang) }}</span></span>
+            <span>
+              <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.references', edit_kind='collateral_types', edit_id=row.id) }}#collateral_types">{{ _('Edit') }}</a>
+              <form method="post" action="{{ url_for('credit.references_delete', ref_kind='collateral_types', row_id=row.id) }}" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-outline-danger btn-sm" type="submit">{{ _('Delete') }}</button>
+              </form>
+            </span>
+          </li>
+          {% else %}
+          <li class="list-group-item text-secondary">{{ _('No rows.') }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-xl-4" id="guarantee_types">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-body-tertiary">{{ _('Guarantee types') }}</div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('credit.references_save', ref_kind='guarantee_types') }}" class="row g-2 mb-3">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="id" value="{{ edit_row.id if edit_kind == 'guarantee_types' and edit_row else '' }}">
+          <div class="col-12"><input class="form-control" name="code" placeholder="Code" value="{{ edit_row.code if edit_kind == 'guarantee_types' and edit_row else '' }}"></div>
+          <div class="col-6"><input class="form-control" name="label_fr" placeholder="FR" value="{{ edit_row.label_fr if edit_kind == 'guarantee_types' and edit_row else '' }}"></div>
+          <div class="col-6"><input class="form-control" name="label_en" placeholder="EN" value="{{ edit_row.label_en if edit_kind == 'guarantee_types' and edit_row else '' }}"></div>
+          <div class="col-6"><input class="form-control" name="label_pt" placeholder="PT" value="{{ edit_row.label_pt if edit_kind == 'guarantee_types' and edit_row else '' }}"></div>
+          <div class="col-6"><input class="form-control" name="label_es" placeholder="ES" value="{{ edit_row.label_es if edit_kind == 'guarantee_types' and edit_row else '' }}"></div>
+          <div class="col-6"><input class="form-control" name="label_it" placeholder="IT" value="{{ edit_row.label_it if edit_kind == 'guarantee_types' and edit_row else '' }}"></div>
+          <div class="col-6"><input class="form-control" name="label_de" placeholder="DE" value="{{ edit_row.label_de if edit_kind == 'guarantee_types' and edit_row else '' }}"></div>
+          <div class="col-12 d-flex gap-2">
+            <button class="btn btn-primary btn-sm" type="submit">{{ _('Update') if edit_kind == 'guarantee_types' and edit_row else _('Save') }}</button>
+            {% if edit_kind == 'guarantee_types' and edit_row %}
+            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.references') }}#guarantee_types">{{ _('Cancel') }}</a>
+            {% endif %}
+          </div>
+        </form>
+
+        <ul class="list-group list-group-flush">
+          {% for row in guarantee_types %}
+          <li class="list-group-item d-flex justify-content-between align-items-center gap-2">
+            <span>{{ row.code }} <span class="text-secondary">{{ row.display_label(current_lang) }}</span></span>
+            <span>
+              <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.references', edit_kind='guarantee_types', edit_id=row.id) }}#guarantee_types">{{ _('Edit') }}</a>
+              <form method="post" action="{{ url_for('credit.references_delete', ref_kind='guarantee_types', row_id=row.id) }}" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-outline-danger btn-sm" type="submit">{{ _('Delete') }}</button>
+              </form>
+            </span>
+          </li>
+          {% else %}
+          <li class="list-group-item text-secondary">{{ _('No rows.') }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -44,6 +44,28 @@ from .subscription import (
 )
 from .prospect import Prospect
 from .project_management import ProjectWorkspace
+from .credit import (
+    CreditCountry,
+    CreditSector,
+    CreditRating,
+    CreditFacilityType,
+    CreditCollateralType,
+    CreditGuaranteeType,
+    CreditBorrower,
+    CreditDeal,
+    CreditFacility,
+    CreditCollateral,
+    CreditGuarantor,
+    CreditFinancialStatement,
+    CreditRatioSnapshot,
+    CreditMemo,
+    CreditAnalystFunction,
+    CreditAnalystGroup,
+    CreditAnalystGroupMember,
+    CreditApprovalWorkflowStep,
+    CreditApproval,
+    CreditDocument,
+)
 
 __all__ = [
     "Tenant",
@@ -96,5 +118,25 @@ __all__ = [
     "BillingEvent",
     "Prospect",
     "ProjectWorkspace",
+    "CreditCountry",
+    "CreditSector",
+    "CreditRating",
+    "CreditFacilityType",
+    "CreditCollateralType",
+    "CreditGuaranteeType",
+    "CreditBorrower",
+    "CreditDeal",
+    "CreditFacility",
+    "CreditCollateral",
+    "CreditGuarantor",
+    "CreditFinancialStatement",
+    "CreditRatioSnapshot",
+    "CreditMemo",
+    "CreditAnalystFunction",
+    "CreditAnalystGroup",
+    "CreditAnalystGroupMember",
+    "CreditApprovalWorkflowStep",
+    "CreditApproval",
+    "CreditDocument",
 ]
 from .etl_catalog import ETLConnection  # noqa: F401

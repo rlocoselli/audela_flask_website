@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}{{ _('Produit Audela Credit') }} – AUDELA{% endblock %}
+{% block meta_description %}{{ _('Solution Audela Credit pour l origination bancaire: borrowers, deals, facilities, collateraux, garants, ratios, credit memo et workflow d approbation.') }}{% endblock %}
+{% block og_title %}{{ _('Produit Audela Credit') }} – AUDELA{% endblock %}
+{% block og_description %}{{ _('Solution Audela Credit pour l origination bancaire: borrowers, deals, facilities, collateraux, garants, ratios, credit memo et workflow d approbation.') }}{% endblock %}
+{% block twitter_title %}{{ _('Produit Audela Credit') }} – AUDELA{% endblock %}
+{% block twitter_description %}{{ _('Solution Audela Credit pour l origination bancaire: borrowers, deals, facilities, collateraux, garants, ratios, credit memo et workflow d approbation.') }}{% endblock %}
+{% block og_image %}{{ url_for('static', filename='images/audela-carousel-01.svg', _external=True) }}{% endblock %}
+{% block twitter_image %}{{ url_for('static', filename='images/audela-carousel-01.svg', _external=True) }}{% endblock %}
+
+{% block content %}
+<section id="main" class="wrapper style1">
+  <div class="container">
+    <header class="major">
+      <h2>{{ _('Produit Audela Credit') }}</h2>
+      <p class="muted">{{ _('Origination de credit pour petites banques, de l analyse au comite de decision.') }}</p>
+    </header>
+
+    <div class="legal-content">
+      <h3>{{ _('Ce produit inclut :') }}</h3>
+      <ul>
+        <li>{{ _('Gestion des borrowers, deals, facilities et collateraux.') }}</li>
+        <li>{{ _('Gestion des garants, documents, memos et workflow d approbation.') }}</li>
+        <li>{{ _('Spreading des etats financiers et ratio snapshot.') }}</li>
+        <li>{{ _('Reporting dedie pour credit committee et suivi SLA.') }}</li>
+      </ul>
+
+      <h3>{{ _('Pour qui ?') }}</h3>
+      <p>{{ _('Analystes credit, risk managers et comites de credit des banques de proximite.') }}</p>
+
+      <ul class="actions">
+        <li><a href="{{ url_for('public.plans', product='credit') }}" class="button primary">{{ _('Découvrir les plans Audela Credit') }}</a></li>
+        <li><a href="{{ url_for('public.index') }}#five" class="button">{{ _('Contact') }}</a></li>
+      </ul>
+    </div>
+  </div>
+</section>
+{% endblock %}

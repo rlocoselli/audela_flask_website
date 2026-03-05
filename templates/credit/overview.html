@@ -1,0 +1,207 @@
+{% extends "credit/page_base.html" %}
+{% set title = _('Audela Credit Overview') %}
+{% set active_page = 'overview' %}
+
+{% block credit_page_content %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary">{{ _('Filters') }}</div>
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-12 col-md-2">
+        <label class="form-label">{{ _('From') }}</label>
+        <input type="date" class="form-control" name="date_from" value="{{ filters.date_from_raw or '' }}">
+      </div>
+      <div class="col-12 col-md-2">
+        <label class="form-label">{{ _('To') }}</label>
+        <input type="date" class="form-control" name="date_to" value="{{ filters.date_to_raw or '' }}">
+      </div>
+      <div class="col-12 col-md-2">
+        <label class="form-label">{{ _('Borrower') }}</label>
+        <select class="form-select" name="borrower_id">
+          <option value="">{{ _('All') }}</option>
+          {% for b in filter_options.borrowers %}
+          <option value="{{ b.id }}" {% if filters.borrower_id == b.id %}selected{% endif %}>{{ b.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-md-2">
+        <label class="form-label">{{ _('Deal status') }}</label>
+        <select class="form-select" name="deal_status">
+          <option value="">{{ _('All') }}</option>
+          {% for s in filter_options.deal_statuses %}
+          <option value="{{ s }}" {% if filters.deal_status == s %}selected{% endif %}>{{ filter_labels.deal_status.get(s, s) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-md-2">
+        <label class="form-label">{{ _('Approval stage') }}</label>
+        <select class="form-select" name="approval_stage">
+          <option value="">{{ _('All') }}</option>
+          {% for s in filter_options.approval_stages %}
+          <option value="{{ s }}" {% if filters.approval_stage == s %}selected{% endif %}>{{ filter_labels.approval_stage.get(s, s) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-md-2">
+        <label class="form-label">{{ _('Decision') }}</label>
+        <select class="form-select" name="approval_decision">
+          <option value="">{{ _('All') }}</option>
+          {% for s in filter_options.approval_decisions %}
+          <option value="{{ s }}" {% if filters.approval_decision == s %}selected{% endif %}>{{ filter_labels.approval_decision.get(s, s) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button class="btn btn-primary" type="submit">{{ _('Apply filters') }}</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('credit.overview') }}">{{ _('Reset') }}</a>
+      </div>
+      <div class="col-12">
+        <div class="small text-secondary mb-1">{{ _('Active filters') }}</div>
+        <div class="d-flex flex-wrap gap-2">
+          {% for tag in active_filter_tags %}
+          <span class="badge text-bg-light border">{{ tag }}</span>
+          {% else %}
+          <span class="text-secondary small">{{ _('No active filters.') }}</span>
+          {% endfor %}
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-12 col-md-6 col-xl-3">
+    <div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-secondary">{{ _('Borrowers') }}</div><div class="h4 mb-0">{{ metrics.borrowers_count }}</div></div></div>
+  </div>
+  <div class="col-12 col-md-6 col-xl-3">
+    <div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-secondary">{{ _('Deals') }}</div><div class="h4 mb-0">{{ metrics.deals_count }}</div></div></div>
+  </div>
+  <div class="col-12 col-md-6 col-xl-3">
+    <div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-secondary">{{ _('Pending approvals') }}</div><div class="h4 mb-0">{{ metrics.pending_approvals }}</div></div></div>
+  </div>
+  <div class="col-12 col-md-6 col-xl-3">
+    <div class="card border-0 shadow-sm"><div class="card-body"><div class="small text-secondary">{{ _('Pipeline amount') }}</div><div class="h4 mb-0">{{ '%.2f'|format(metrics.pipeline_amount) }} EUR</div></div></div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-12 col-xl-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-body-tertiary">{{ _('Deals by status') }}</div>
+      <div class="card-body"><div id="creditDealsStatusChart" style="height: 280px;"></div></div>
+    </div>
+  </div>
+  <div class="col-12 col-xl-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-body-tertiary">{{ _('Approvals by stage') }}</div>
+      <div class="card-body"><div id="creditApprovalsStageChart" style="height: 280px;"></div></div>
+    </div>
+  </div>
+  <div class="col-12 col-xl-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-body-tertiary">{{ _('Deals trend (6 months)') }}</div>
+      <div class="card-body"><div id="creditDealsTrendChart" style="height: 280px;"></div></div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-xl-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-body-tertiary">{{ _('Latest deals') }}</div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead><tr><th>{{ _('Code') }}</th><th>{{ _('Borrower') }}</th><th>{{ _('Amount') }}</th><th>{{ _('Status') }}</th></tr></thead>
+            <tbody>
+              {% for d in latest_deals %}
+              <tr><td>{{ d.code }}</td><td>{{ d.borrower.name if d.borrower else '-' }}</td><td>{{ '%.2f'|format(d.requested_amount or 0) }}</td><td>{{ filter_labels.deal_status.get(d.status, d.status) }}</td></tr>
+              {% else %}
+              <tr><td colspan="4" class="text-secondary">{{ _('No deals yet.') }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-xl-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-body-tertiary">{{ _('Latest credit memos') }}</div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead><tr><th>{{ _('Title') }}</th><th>{{ _('Recommendation') }}</th><th>{{ _('AI') }}</th><th>{{ _('Updated') }}</th></tr></thead>
+            <tbody>
+              {% for m in latest_memos %}
+              <tr><td>{{ m.title }}</td><td>{{ m.recommendation }}</td><td>{{ _('Yes') if m.ai_generated else _('No') }}</td><td>{{ m.updated_at.strftime('%Y-%m-%d %H:%M') if m.updated_at else '' }}</td></tr>
+              {% else %}
+              <tr><td colspan="4" class="text-secondary">{{ _('No memos yet.') }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script>
+    window.onReady(function () {
+      if (!window.echarts) return;
+
+      const data = {{ chart_data|tojson }};
+      const filterLabels = {{ filter_labels|tojson }};
+      const statusEl = document.getElementById('creditDealsStatusChart');
+      const stageEl = document.getElementById('creditApprovalsStageChart');
+      const trendEl = document.getElementById('creditDealsTrendChart');
+      if (!statusEl || !stageEl || !trendEl) return;
+
+      const statusChart = echarts.init(statusEl);
+      statusChart.setOption({
+        tooltip: { trigger: 'item' },
+        series: [{
+          type: 'pie',
+          radius: ['38%', '70%'],
+          data: (data.deal_status.labels || []).map(function (label, idx) {
+            const display = (filterLabels.deal_status || {})[label] || label;
+            return { name: display, value: (data.deal_status.counts || [])[idx] || 0 };
+          })
+        }]
+      });
+
+      const stageChart = echarts.init(stageEl);
+      stageChart.setOption({
+        tooltip: { trigger: 'axis' },
+        grid: { top: 20, right: 12, bottom: 40, left: 32 },
+        xAxis: {
+          type: 'category',
+          data: (data.approval_stage.labels || []).map(function (v) {
+            return (filterLabels.approval_stage || {})[v] || v;
+          }),
+          axisLabel: { rotate: 25 }
+        },
+        yAxis: { type: 'value' },
+        series: [{ type: 'bar', data: data.approval_stage.counts || [], barMaxWidth: 42 }]
+      });
+
+      const trendChart = echarts.init(trendEl);
+      trendChart.setOption({
+        tooltip: { trigger: 'axis' },
+        grid: { top: 20, right: 12, bottom: 28, left: 32 },
+        xAxis: { type: 'category', data: data.deals_trend.labels || [] },
+        yAxis: { type: 'value' },
+        series: [{ type: 'line', smooth: true, areaStyle: { opacity: 0.18 }, data: data.deals_trend.counts || [] }]
+      });
+
+      window.addEventListener('resize', function () {
+        statusChart.resize();
+        stageChart.resize();
+        trendChart.resize();
+      });
+    });
+  </script>
+{% endblock %}

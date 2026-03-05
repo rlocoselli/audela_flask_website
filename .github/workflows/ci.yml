@@ -80,3 +80,17 @@ jobs:
         run: |
           flask --app app db upgrade --sql > /tmp/migrations.sql
           test -s /tmp/migrations.sql
+
+      - name: Apply migrations in CI DB
+        env:
+          DATABASE_URL: ${{ env.CI_DATABASE_URL }}
+          AUTO_CREATE_DB: "false"
+        run: |
+          flask --app app db upgrade
+
+      - name: Credit readiness validation
+        env:
+          DATABASE_URL: ${{ env.CI_DATABASE_URL }}
+          AUTO_CREATE_DB: "false"
+        run: |
+          python validate_credit_readiness.py --mode all

@@ -1,0 +1,58 @@
+{% extends "credit/page_base.html" %}
+{% set title = _('Audela Credit Approvals') %}
+{% set active_page = 'approvals' %}
+
+{% block credit_page_content %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center">
+    <span>{{ _('Record approval decision') }}</span>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.approval_workflow') }}">
+      <i class="bi bi-diagram-3 me-1"></i>{{ _('Configure workflow') }}
+    </a>
+  </div>
+  <div class="card-body">
+    <form method="post" class="row g-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-md-4"><select class="form-select" name="memo_id" required><option value="">{{ _('Credit memo') }}</option>{% for m in memos %}<option value="{{ m.id }}">{{ m.title }}</option>{% endfor %}</select></div>
+      <div class="col-md-3">
+        <select class="form-select" name="workflow_step_id">
+          <option value="">{{ _('Manual stage') }}</option>
+          {% for step in workflow_steps %}
+          <option value="{{ step.id }}">#{{ step.step_order }} · {{ step.step_name }} {% if step.group %}· {{ step.group.name }}{% endif %}{% if step.function_ref %} · {{ step.function_ref.label }}{% elif step.function_name %} · {{ step.function_name }}{% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2"><select class="form-select" name="stage">{% for code, label in stage_options %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></div>
+      <div class="col-md-2"><select class="form-select" name="decision"><option value="pending">{{ _('Pending') }}</option><option value="approved">{{ _('Approved') }}</option><option value="rejected">{{ _('Rejected') }}</option></select></div>
+      <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">{{ _('Save') }}</button></div>
+      <div class="col-12"><textarea class="form-control" name="comments" rows="2" placeholder="{{ _('Comments') }}"></textarea></div>
+    </form>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-body-tertiary">{{ _('Approvals') }}</div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>{{ _('Memo') }}</th><th>{{ _('Stage') }}</th><th>{{ _('Group') }}</th><th>{{ _('Function') }}</th><th>{{ _('Decision') }}</th><th>{{ _('Comments') }}</th><th>{{ _('Date') }}</th></tr></thead>
+        <tbody>
+          {% for a in approvals %}
+          <tr>
+            <td>{{ a.memo.title if a.memo else '-' }}</td>
+            <td>{{ a.workflow_step.step_name if a.workflow_step else a.stage }}</td>
+            <td>{{ a.analyst_group.name if a.analyst_group else '-' }}</td>
+            <td>{{ a.analyst_function_ref.label if a.analyst_function_ref else (a.analyst_function or '-') }}</td>
+            <td>{{ a.decision }}</td>
+            <td>{{ a.comments or '-' }}</td>
+            <td>{{ a.decided_at.strftime('%Y-%m-%d %H:%M') if a.decided_at else '-' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7" class="text-secondary">{{ _('No approvals yet.') }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

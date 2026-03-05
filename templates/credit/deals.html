@@ -1,0 +1,50 @@
+{% extends "credit/page_base.html" %}
+{% set title = _('Audela Credit Deals') %}
+{% set active_page = 'deals' %}
+
+{% block credit_page_content %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary">{{ _('New deal') }}</div>
+  <div class="card-body">
+    <form method="post" class="row g-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-md-3">
+        <select class="form-select" name="borrower_id" required>
+          <option value="">{{ _('Borrower') }}</option>
+          {% for b in borrowers %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2"><input class="form-control" name="code" placeholder="{{ _('Code') }}" required></div>
+      <div class="col-md-3"><input class="form-control" name="purpose" placeholder="{{ _('Purpose') }}"></div>
+      <div class="col-md-2"><input class="form-control" name="requested_amount" placeholder="{{ _('Amount') }}"></div>
+      <div class="col-md-2">
+        <select class="form-select" name="status">
+          <option value="in_review">{{ _('In review') }}</option>
+          <option value="memo">{{ _('Credit memo') }}</option>
+          <option value="approved">{{ _('Approved') }}</option>
+          <option value="rejected">{{ _('Rejected') }}</option>
+        </select>
+      </div>
+      <div class="col-12"><button class="btn btn-primary" type="submit">{{ _('Save') }}</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-body-tertiary">{{ _('Deals') }}</div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>{{ _('Code') }}</th><th>{{ _('Borrower') }}</th><th>{{ _('Purpose') }}</th><th>{{ _('Amount') }}</th><th>{{ _('Status') }}</th></tr></thead>
+        <tbody>
+          {% for d in deals %}
+          <tr><td>{{ d.code }}</td><td>{{ d.borrower.name if d.borrower else '-' }}</td><td>{{ d.purpose or '-' }}</td><td>{{ '%.2f'|format(d.requested_amount or 0) }}</td><td>{{ d.status }}</td></tr>
+          {% else %}
+          <tr><td colspan="5" class="text-secondary">{{ _('No deals yet.') }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

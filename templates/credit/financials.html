@@ -1,0 +1,100 @@
+{% extends "credit/page_base.html" %}
+{% set title = _('Audela Credit Financials') %}
+{% set active_page = 'financials' %}
+
+{% block credit_page_content %}
+<div class="row g-3 mb-3">
+  <div class="col-12 col-xl-8">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-body-tertiary">{{ _('New financial statement') }}</div>
+      <div class="card-body">
+        <form method="post" class="row g-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="col-md-3"><select class="form-select" name="borrower_id" required><option value="">{{ _('Borrower') }}</option>{% for b in borrowers %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}</select></div>
+          <div class="col-md-2"><input class="form-control" name="period_label" value="FY" placeholder="{{ _('Period') }}"></div>
+          <div class="col-md-1"><input class="form-control" name="fiscal_year" value="{{ current_year }}"></div>
+          <div class="col-md-2"><input class="form-control" name="revenue" placeholder="{{ _('Revenue') }}"></div>
+          <div class="col-md-2"><input class="form-control" name="ebitda" placeholder="{{ _('EBITDA') }}"></div>
+          <div class="col-md-2"><input class="form-control" name="total_debt" placeholder="{{ _('Total debt') }}"></div>
+          <div class="col-md-2"><input class="form-control" name="cash" placeholder="{{ _('Cash') }}"></div>
+          <div class="col-md-2"><input class="form-control" name="net_income" placeholder="{{ _('Net income') }}"></div>
+          <div class="col-md-2"><select class="form-select" name="spreading_status"><option value="in_progress">{{ _('In progress') }}</option><option value="completed">{{ _('Completed') }}</option><option value="needs_review">{{ _('Needs review') }}</option></select></div>
+          <div class="col-md-3">
+            <select class="form-select" name="analyst_user_id">
+              <option value="">{{ _('Analyst user (optional)') }}</option>
+              {% for u in users %}<option value="{{ u.id }}">{{ u.email }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-md-3">
+            <select class="form-select" name="analyst_function_id">
+              <option value="">{{ _('Analyst function (optional)') }}</option>
+              {% for fn in functions %}<option value="{{ fn.id }}">{{ fn.label }} ({{ fn.code }})</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">{{ _('Save') }}</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-xl-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-body-tertiary">{{ _('Import financial statements (CSV)') }}</div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('credit.financials_import') }}" enctype="multipart/form-data" class="row g-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="col-12">
+            <label class="form-label">CSV</label>
+            <input class="form-control" type="file" name="file" accept=".csv" required>
+          </div>
+          <div class="col-12">
+            <select class="form-select" name="analyst_user_id">
+              <option value="">{{ _('Default analyst user (optional)') }}</option>
+              {% for u in users %}<option value="{{ u.id }}">{{ u.email }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-12">
+            <select class="form-select" name="analyst_function_id">
+              <option value="">{{ _('Default analyst function (optional)') }}</option>
+              {% for fn in functions %}<option value="{{ fn.id }}">{{ fn.label }} ({{ fn.code }})</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-12 small text-secondary">
+            {{ _('Required CSV columns: borrower_id, period_label, fiscal_year, revenue, ebitda, total_debt, cash, net_income.') }}
+          </div>
+          <div class="col-12"><button class="btn btn-outline-primary w-100" type="submit">{{ _('Import') }}</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-body-tertiary">{{ _('Financial statements') }}</div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>{{ _('Borrower') }}</th><th>{{ _('Period') }}</th><th>{{ _('Revenue') }}</th><th>{{ _('EBITDA') }}</th><th>{{ _('Debt') }}</th><th>{{ _('Cash') }}</th><th>{{ _('Status') }}</th><th>{{ _('Analyst') }}</th><th>{{ _('Function') }}</th><th>{{ _('Source') }}</th></tr></thead>
+        <tbody>
+          {% for f in financials %}
+          <tr>
+            <td>{{ f.borrower.name if f.borrower else '-' }}</td>
+            <td>{{ f.period_label }} {{ f.fiscal_year }}</td>
+            <td>{{ '%.2f'|format(f.revenue or 0) }}</td>
+            <td>{{ '%.2f'|format(f.ebitda or 0) }}</td>
+            <td>{{ '%.2f'|format(f.total_debt or 0) }}</td>
+            <td>{{ '%.2f'|format(f.cash or 0) }}</td>
+            <td>{{ f.spreading_status }}</td>
+            <td>{{ f.analyst_user.email if f.analyst_user else '-' }}</td>
+            <td>{{ f.analyst_function_ref.label if f.analyst_function_ref else '-' }}</td>
+            <td>{{ f.import_source or 'manual' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="10" class="text-secondary">{{ _('No financial statements yet.') }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -51,7 +51,7 @@ UAM_MENU_KEYS: dict[str, list[str]] = {
         "liquidity", "risk", "settings", "imports", "help",
     ],
     "bi": [
-        "home", "sources", "api_sources", "web_extract", "integrations", "etl", "sources_diagram",
+        "home", "credit_origination", "sources", "api_sources", "web_extract", "integrations", "etl", "sources_diagram",
         "sql_editor", "excel_ai", "questions", "dashboards", "reports", "files", "statistics", "ratios", "ratio_indicator_create", "ratio_create", "alerting", "what_if", "explore",
         "ai_chat", "runs", "audit",
     ],
@@ -87,6 +87,7 @@ UAM_MENU_LABELS: dict[str, dict[str, str]] = {
     },
     "bi": {
         "home": "Accueil",
+        "credit_origination": "Audela Credit",
         "sources": "Fontes",
         "api_sources": "Fontes API",
         "web_extract": "Web Scraping IA",
@@ -751,9 +752,10 @@ def products():
     # Check access to products
     has_finance = SubscriptionService.check_feature_access(current_user.tenant_id, "finance")
     has_bi = SubscriptionService.check_feature_access(current_user.tenant_id, "bi")
+    has_credit = SubscriptionService.check_feature_access(current_user.tenant_id, "credit")
     has_project = SubscriptionService.check_feature_access(current_user.tenant_id, "project")
     
-    if not has_finance and not has_bi and not has_project:
+    if not has_finance and not has_bi and not has_credit and not has_project:
         flash(tr("No products available. Please upgrade your subscription.", getattr(g, "lang", None)), "warning")
         return redirect(url_for("billing.plans"))
     
@@ -763,6 +765,7 @@ def products():
         subscription=subscription,
         has_finance=has_finance,
         has_bi=has_bi,
+        has_credit=has_credit,
         has_project=has_project,
         module_access=module_access,
     )

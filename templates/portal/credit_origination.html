@@ -1,0 +1,499 @@
+{% extends "portal/layout_credit.html" %}
+
+{% set title = _('Audela Credit') %}
+
+{% block head_extra %}
+  {{ super() }}
+  <style>
+    .credit-kpi {
+      border: 1px solid var(--bs-border-color);
+      border-radius: 1rem;
+      background: linear-gradient(145deg, rgba(13, 110, 253, 0.08), rgba(13, 110, 253, 0.02));
+    }
+
+    .credit-kpi .value {
+      font-size: 1.6rem;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+
+    .credit-block {
+      border-radius: 1rem;
+      border: 1px solid var(--bs-border-color);
+      background: var(--bs-body-bg);
+    }
+
+    .credit-chart {
+      min-height: 310px;
+    }
+
+    .workflow-lane {
+      min-height: 220px;
+      border: 1px dashed var(--bs-border-color);
+      border-radius: 0.9rem;
+      background: rgba(108, 117, 125, 0.04);
+    }
+
+    .memo-box {
+      border-left: 4px solid rgba(25, 135, 84, 0.8);
+      background: rgba(25, 135, 84, 0.08);
+      border-radius: 0.8rem;
+    }
+  </style>
+{% endblock %}
+
+{% block credit_content %}
+<div class="container-fluid px-0" id="overview">
+  <div class="card border-0 shadow-sm rounded-4 mb-3">
+    <div class="card-body py-4">
+      <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
+        <div>
+          <h1 class="h4 mb-1"><i class="bi bi-bank2 me-2"></i>{{ _('Audela Credit') }}</h1>
+          <p class="text-secondary mb-0">{{ _('Unified underwriting workspace for small-bank origination teams.') }}</p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+          <span class="badge text-bg-light border"><i class="bi bi-calendar-event me-1"></i>{{ _('Snapshot') }}: {{ snapshot_date }}</span>
+          <button class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-person-plus me-1"></i>{{ _('New borrower') }}</button>
+          <button class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-briefcase me-1"></i>{{ _('New deal') }}</button>
+          <button class="btn btn-primary btn-sm" type="button"><i class="bi bi-journal-check me-1"></i>{{ _('Create credit memo') }}</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3" id="borrowers">
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="p-3 credit-kpi h-100">
+        <div class="small text-secondary">{{ _('Active borrowers') }}</div>
+        <div class="value" id="kpiBorrowers">0</div>
+        <div class="small text-success"><i class="bi bi-arrow-up"></i> {{ _('MoM +8%') }}</div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="p-3 credit-kpi h-100">
+        <div class="small text-secondary">{{ _('Open deals') }}</div>
+        <div class="value" id="kpiDeals">0</div>
+        <div class="small text-success"><i class="bi bi-arrow-up"></i> {{ _('MoM +5%') }}</div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="p-3 credit-kpi h-100">
+        <div class="small text-secondary">{{ _('Pending approvals') }}</div>
+        <div class="value" id="kpiApprovals">0</div>
+        <div class="small text-warning"><i class="bi bi-hourglass-split"></i> {{ _('Focus queue') }}</div>
+      </div>
+    </div>
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="p-3 credit-kpi h-100">
+        <div class="small text-secondary">{{ _('Pipeline amount (EUR M)') }}</div>
+        <div class="value" id="kpiPipeline">0.0</div>
+        <div class="small text-secondary">{{ _('Average decision SLA') }}: <span id="kpiSla">0</span> {{ _('days') }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3" id="deals-facilities">
+    <div class="col-12 col-xl-7">
+      <div class="credit-block p-3 h-100">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h2 class="h6 mb-0"><i class="bi bi-funnel me-1"></i>{{ _('Origination funnel') }}</h2>
+          <span class="badge text-bg-light border">{{ _('Borrower -> Deal -> Facility -> Approval') }}</span>
+        </div>
+        <div id="funnelChart" class="credit-chart"></div>
+      </div>
+    </div>
+    <div class="col-12 col-xl-5">
+      <div class="credit-block p-3 h-100">
+        <h2 class="h6 mb-3"><i class="bi bi-clock-history me-1"></i>{{ _('Approval SLA trend') }}</h2>
+        <div id="slaChart" class="credit-chart"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3" id="collateral">
+    <div class="col-12 col-xl-8">
+      <div class="credit-block p-3 h-100">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h2 class="h6 mb-0"><i class="bi bi-people me-1"></i>{{ _('Borrowers and deals') }}</h2>
+          <span class="small text-secondary">{{ _('Top exposures under review') }}</span>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th>{{ _('Borrower') }}</th>
+                <th>{{ _('Sector') }}</th>
+                <th>{{ _('Deal') }}</th>
+                <th>{{ _('Facility') }}</th>
+                <th class="text-end">{{ _('Exposure (EUR)') }}</th>
+                <th>{{ _('Status') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Alpina Foods SAS</td>
+                <td>{{ _('Agri-food') }}</td>
+                <td>DL-2026-014</td>
+                <td>{{ _('Term loan') }}</td>
+                <td class="text-end">2,400,000</td>
+                <td><span class="badge text-bg-warning">{{ _('In review') }}</span></td>
+              </tr>
+              <tr>
+                <td>Mercure Logistics SARL</td>
+                <td>{{ _('Transport') }}</td>
+                <td>DL-2026-011</td>
+                <td>{{ _('Revolving line') }}</td>
+                <td class="text-end">1,150,000</td>
+                <td><span class="badge text-bg-info">{{ _('Credit memo') }}</span></td>
+              </tr>
+              <tr>
+                <td>Hotel du Lac SAS</td>
+                <td>{{ _('Hospitality') }}</td>
+                <td>DL-2026-009</td>
+                <td>{{ _('Bridge loan') }}</td>
+                <td class="text-end">3,000,000</td>
+                <td><span class="badge text-bg-primary">{{ _('Approval committee') }}</span></td>
+              </tr>
+              <tr>
+                <td>TechNord Industrie</td>
+                <td>{{ _('Manufacturing') }}</td>
+                <td>DL-2026-018</td>
+                <td>{{ _('Capex lease') }}</td>
+                <td class="text-end">840,000</td>
+                <td><span class="badge text-bg-success">{{ _('Approved') }}</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-xl-4">
+      <div class="credit-block p-3 h-100">
+        <h2 class="h6 mb-3"><i class="bi bi-shield-lock me-1"></i>{{ _('Collateral coverage') }}</h2>
+        <div id="collateralChart" class="credit-chart"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-xl-6" id="guarantors">
+      <div class="credit-block p-3 h-100">
+        <h2 class="h6 mb-3"><i class="bi bi-building-lock me-1"></i>{{ _('Collateral register') }}</h2>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead>
+              <tr>
+                <th>{{ _('Collateral type') }}</th>
+                <th>{{ _('Linked facility') }}</th>
+                <th class="text-end">{{ _('Market value (EUR)') }}</th>
+                <th>{{ _('Haircut') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>{{ _('Real estate') }}</td><td>DL-2026-014-A</td><td class="text-end">3,900,000</td><td>25%</td></tr>
+              <tr><td>{{ _('Receivables') }}</td><td>DL-2026-011-B</td><td class="text-end">1,480,000</td><td>35%</td></tr>
+              <tr><td>{{ _('Equipment') }}</td><td>DL-2026-018-C</td><td class="text-end">620,000</td><td>40%</td></tr>
+              <tr><td>{{ _('Cash pledge') }}</td><td>DL-2026-009-A</td><td class="text-end">300,000</td><td>0%</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-xl-6">
+      <div class="credit-block p-3 h-100">
+        <h2 class="h6 mb-3"><i class="bi bi-person-badge me-1"></i>{{ _('Guarantors') }}</h2>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead>
+              <tr>
+                <th>{{ _('Guarantor') }}</th>
+                <th>{{ _('Deal') }}</th>
+                <th>{{ _('Guarantee type') }}</th>
+                <th class="text-end">{{ _('Amount (EUR)') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>Jean Martin</td><td>DL-2026-014</td><td>{{ _('Personal guarantee') }}</td><td class="text-end">1,200,000</td></tr>
+              <tr><td>Nord Holdings SA</td><td>DL-2026-011</td><td>{{ _('Corporate guarantee') }}</td><td class="text-end">750,000</td></tr>
+              <tr><td>Claire Dubois</td><td>DL-2026-009</td><td>{{ _('Joint guarantee') }}</td><td class="text-end">950,000</td></tr>
+              <tr><td>Arve Invest</td><td>DL-2026-018</td><td>{{ _('Limited guarantee') }}</td><td class="text-end">300,000</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3" id="financials">
+    <div class="col-12 col-xl-6" id="ratios">
+      <div class="credit-block p-3 h-100">
+        <h2 class="h6 mb-3"><i class="bi bi-file-earmark-bar-graph me-1"></i>{{ _('Financial statements and spreading') }}</h2>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead>
+              <tr>
+                <th>{{ _('Borrower') }}</th>
+                <th>{{ _('Statement period') }}</th>
+                <th>{{ _('Spreading status') }}</th>
+                <th>{{ _('Analyst') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>Alpina Foods SAS</td><td>FY 2025</td><td><span class="badge text-bg-success">{{ _('Completed') }}</span></td><td>R. Lefevre</td></tr>
+              <tr><td>Mercure Logistics SARL</td><td>Q4 2025</td><td><span class="badge text-bg-warning">{{ _('Needs review') }}</span></td><td>A. Bernard</td></tr>
+              <tr><td>Hotel du Lac SAS</td><td>FY 2024</td><td><span class="badge text-bg-info">{{ _('In progress') }}</span></td><td>C. Rossi</td></tr>
+              <tr><td>TechNord Industrie</td><td>Q1 2026</td><td><span class="badge text-bg-success">{{ _('Completed') }}</span></td><td>P. Weber</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-xl-6">
+      <div class="credit-block p-3 h-100">
+        <h2 class="h6 mb-3"><i class="bi bi-speedometer2 me-1"></i>{{ _('Ratio snapshot') }}</h2>
+        <div class="table-responsive mb-3">
+          <table class="table table-sm mb-0">
+            <thead>
+              <tr>
+                <th>{{ _('Borrower') }}</th>
+                <th class="text-end">{{ _('Debt service coverage') }}</th>
+                <th class="text-end">{{ _('Leverage') }}</th>
+                <th class="text-end">{{ _('Liquidity') }}</th>
+                <th>{{ _('Risk grade') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>Alpina Foods SAS</td><td class="text-end">1.32x</td><td class="text-end">2.8x</td><td class="text-end">1.12x</td><td><span class="badge text-bg-success">A-</span></td></tr>
+              <tr><td>Mercure Logistics SARL</td><td class="text-end">1.08x</td><td class="text-end">3.4x</td><td class="text-end">0.98x</td><td><span class="badge text-bg-warning">BBB</span></td></tr>
+              <tr><td>Hotel du Lac SAS</td><td class="text-end">0.94x</td><td class="text-end">4.1x</td><td class="text-end">0.85x</td><td><span class="badge text-bg-danger">BB-</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="ratioChart" style="height: 180px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-xl-4" id="credit-memo">
+      <div class="credit-block p-3 h-100">
+        <h2 class="h6 mb-2"><i class="bi bi-journal-richtext me-1"></i>{{ _('Credit memo') }}</h2>
+        <div class="memo-box p-3 mb-2">
+          <div class="fw-semibold">DL-2026-014</div>
+          <div class="small">{{ _('Memo recommendation') }}: <strong>{{ _('Approve with covenants') }}</strong></div>
+          <div class="small text-secondary">{{ _('Prepared by') }} R. Lefevre, {{ _('dated') }} 2026-03-03</div>
+        </div>
+        <div class="memo-box p-3">
+          <div class="fw-semibold">DL-2026-011</div>
+          <div class="small">{{ _('Memo recommendation') }}: <strong>{{ _('Conditional approval') }}</strong></div>
+          <div class="small text-secondary">{{ _('Prepared by') }} A. Bernard, {{ _('dated') }} 2026-03-04</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-xl-4" id="workflow">
+      <div class="credit-block p-3 h-100">
+        <h2 class="h6 mb-2"><i class="bi bi-diagram-3 me-1"></i>{{ _('Approvals workflow') }}</h2>
+        <div class="row g-2">
+          <div class="col-12">
+            <div class="workflow-lane p-2">
+              <div class="fw-semibold small mb-2">{{ _('Analyst review') }}</div>
+              <div class="badge text-bg-light border mb-2">DL-2026-014</div>
+              <div class="badge text-bg-light border mb-2">DL-2026-021</div>
+            </div>
+          </div>
+          <div class="col-12">
+            <div class="workflow-lane p-2">
+              <div class="fw-semibold small mb-2">{{ _('Risk manager') }}</div>
+              <div class="badge text-bg-light border mb-2">DL-2026-011</div>
+              <div class="badge text-bg-light border mb-2">DL-2026-017</div>
+            </div>
+          </div>
+          <div class="col-12">
+            <div class="workflow-lane p-2">
+              <div class="fw-semibold small mb-2">{{ _('Credit committee') }}</div>
+              <div class="badge text-bg-light border mb-2">DL-2026-009</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-xl-4" id="documents">
+      <div class="credit-block p-3 h-100">
+        <h2 class="h6 mb-3"><i class="bi bi-folder-check me-1"></i>{{ _('Documents checklist') }}</h2>
+        <ul class="list-group list-group-flush">
+          <li class="list-group-item d-flex justify-content-between px-0"><span>{{ _('KYC package') }}</span><span class="badge text-bg-success">{{ _('Complete') }}</span></li>
+          <li class="list-group-item d-flex justify-content-between px-0"><span>{{ _('Last audited financials') }}</span><span class="badge text-bg-success">{{ _('Complete') }}</span></li>
+          <li class="list-group-item d-flex justify-content-between px-0"><span>{{ _('Management accounts') }}</span><span class="badge text-bg-warning">{{ _('Pending') }}</span></li>
+          <li class="list-group-item d-flex justify-content-between px-0"><span>{{ _('Collateral valuation report') }}</span><span class="badge text-bg-info">{{ _('In progress') }}</span></li>
+          <li class="list-group-item d-flex justify-content-between px-0"><span>{{ _('Guarantee forms') }}</span><span class="badge text-bg-warning">{{ _('Pending') }}</span></li>
+          <li class="list-group-item d-flex justify-content-between px-0"><span>{{ _('Signed term sheet') }}</span><span class="badge text-bg-light border">{{ _('Not started') }}</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3" id="reports">
+    <div class="col-12">
+      <div class="credit-block p-3">
+        <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-2 mb-3">
+          <h2 class="h6 mb-0"><i class="bi bi-file-earmark-richtext me-1"></i>{{ _('Reports') }}</h2>
+          <div class="d-flex gap-2">
+            {% if bi_menu_access.reports %}
+            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.reports_list') }}">
+              <i class="bi bi-kanban me-1"></i>{{ _('Reports Hub') }}
+            </a>
+            <a class="btn btn-primary btn-sm" href="{{ url_for('portal.reports_new') }}">
+              <i class="bi bi-plus-circle me-1"></i>{{ _('New report') }}
+            </a>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th>{{ _('Report') }}</th>
+                <th>{{ _('Type') }}</th>
+                <th>{{ _('Frequency') }}</th>
+                <th>{{ _('Last run') }}</th>
+                <th>{{ _('Owner') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>{{ _('Credit committee weekly pack') }}</td><td>PDF</td><td>{{ _('Weekly') }}</td><td>2026-03-05 07:15</td><td>R. Lefevre</td></tr>
+              <tr><td>{{ _('Collateral watchlist') }}</td><td>XLSX</td><td>{{ _('Daily') }}</td><td>2026-03-05 06:02</td><td>A. Bernard</td></tr>
+              <tr><td>{{ _('Approvals SLA dashboard export') }}</td><td>PDF</td><td>{{ _('Daily') }}</td><td>2026-03-04 20:30</td><td>C. Rossi</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script>
+    window.onReady(function () {
+      const data = {
+        activeBorrowers: 128,
+        openDeals: 54,
+        pendingApprovals: 12,
+        pipelineAmountM: 18.4,
+        avgSlaDays: 6.2,
+        funnel: [
+          { name: window.t('Borrowers'), value: 128 },
+          { name: window.t('Deals'), value: 54 },
+          { name: window.t('Facilities'), value: 83 },
+          { name: window.t('Credit memo'), value: 31 },
+          { name: window.t('Approved'), value: 19 }
+        ],
+        slaTrend: {
+          months: ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar'],
+          values: [8.4, 8.0, 7.2, 6.9, 6.5, 6.2]
+        },
+        collateralCoverage: [
+          { name: window.t('Real estate'), value: 9.8 },
+          { name: window.t('Receivables'), value: 4.4 },
+          { name: window.t('Equipment'), value: 2.7 },
+          { name: window.t('Cash pledge'), value: 1.3 }
+        ],
+        ratioGrades: {
+          labels: ['A', 'BBB', 'BB', 'B'],
+          values: [14, 21, 12, 7]
+        }
+      };
+
+      document.getElementById('kpiBorrowers').textContent = String(data.activeBorrowers);
+      document.getElementById('kpiDeals').textContent = String(data.openDeals);
+      document.getElementById('kpiApprovals').textContent = String(data.pendingApprovals);
+      document.getElementById('kpiPipeline').textContent = data.pipelineAmountM.toFixed(1);
+      document.getElementById('kpiSla').textContent = data.avgSlaDays.toFixed(1);
+
+      const commonGrid = { top: 28, right: 20, bottom: 26, left: 42 };
+
+      const funnelEl = document.getElementById('funnelChart');
+      const slaEl = document.getElementById('slaChart');
+      const collateralEl = document.getElementById('collateralChart');
+      const ratioEl = document.getElementById('ratioChart');
+      if (!window.echarts || !funnelEl || !slaEl || !collateralEl || !ratioEl) return;
+
+      const funnelChart = echarts.init(funnelEl);
+      funnelChart.setOption({
+        tooltip: { trigger: 'item' },
+        series: [
+          {
+            type: 'funnel',
+            top: 20,
+            bottom: 20,
+            left: 10,
+            width: '85%',
+            minSize: '35%',
+            maxSize: '100%',
+            label: { show: true, position: 'inside' },
+            itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 1 },
+            data: data.funnel
+          }
+        ]
+      });
+
+      const slaChart = echarts.init(slaEl);
+      slaChart.setOption({
+        tooltip: { trigger: 'axis' },
+        grid: commonGrid,
+        xAxis: { type: 'category', data: data.slaTrend.months },
+        yAxis: { type: 'value', name: window.t('Days') },
+        series: [
+          {
+            type: 'line',
+            data: data.slaTrend.values,
+            smooth: true,
+            areaStyle: { opacity: 0.2 },
+            lineStyle: { width: 3 },
+            symbolSize: 8
+          }
+        ]
+      });
+
+      const collateralChart = echarts.init(collateralEl);
+      collateralChart.setOption({
+        tooltip: { trigger: 'item', valueFormatter: (v) => v + 'M EUR' },
+        series: [
+          {
+            type: 'pie',
+            radius: ['38%', '70%'],
+            label: { formatter: '{b}\n{d}%' },
+            data: data.collateralCoverage
+          }
+        ]
+      });
+
+      const ratioChart = echarts.init(ratioEl);
+      ratioChart.setOption({
+        tooltip: { trigger: 'axis' },
+        grid: { top: 18, right: 10, bottom: 20, left: 35 },
+        xAxis: { type: 'category', data: data.ratioGrades.labels },
+        yAxis: { type: 'value' },
+        series: [
+          {
+            type: 'bar',
+            data: data.ratioGrades.values,
+            barMaxWidth: 42,
+            itemStyle: { borderRadius: [8, 8, 0, 0] }
+          }
+        ]
+      });
+
+      function resizeCharts() {
+        funnelChart.resize();
+        slaChart.resize();
+        collateralChart.resize();
+        ratioChart.resize();
+      }
+
+      window.addEventListener('resize', resizeCharts);
+    });
+  </script>
+{% endblock %}

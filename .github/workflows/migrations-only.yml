@@ -72,11 +72,45 @@ jobs:
             echo "🧭 Alembic heads"
             $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db heads || true
 
+            pre_stamp_if_all_tables_exist () {
+              local rev="$1"
+              shift
+              local all_exist="1"
+              local tbl
+              local exists
+
+              for tbl in "$@"; do
+                exists="$($COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela python -c "from sqlalchemy import text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); e=db.session.execute(text(\"SELECT to_regclass('public.${tbl}')\")).scalar(); print('1' if e else '0'); ctx.pop()" 2>/dev/null || echo 0)"
+                if [ "$exists" != "1" ]; then
+                  all_exist="0"
+                  echo "ℹ️ ${tbl} missing -> not stamping ${rev}"
+                  break
+                fi
+              done
+
+              if [ "$all_exist" = "1" ]; then
+                echo "ℹ️ all target tables exist -> pre-stamp ${rev}"
+                $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db stamp "$rev" || true
+              fi
+            }
+
+            pre_stamp_if_all_tables_exist 20260305_add_credit_module_tables \
+              credit_borrowers \
+              credit_deals \
+              credit_facilities \
+              credit_collaterals \
+              credit_guarantors \
+              credit_financial_statements \
+              credit_ratio_snapshots \
+              credit_memos \
+              credit_approvals \
+              credit_documents
+
             echo "⬆️ Apply migrations"
             $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db upgrade
 
             echo "✅ Verify finance_accounting_periods exists"
-            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela python -c "from sqlalchemy import text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); exists=db.session.execute(text(\"SELECT to_regclass('public.finance_accounting_periods')\")).scalar(); assert exists, 'finance_accounting_periods table not found'; print('finance_accounting_periods table found:', exists); ctx.pop()"
+            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela python -c "from sqlalchemy import inspect, text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); exists=db.session.execute(text(\"SELECT to_regclass('public.finance_accounting_periods')\")).scalar(); assert exists, 'finance_accounting_periods table not found'; ci=inspect(db.engine); assert 'credit_borrowers' in ci.get_table_names(), 'credit_borrowers table not found'; cols={c['name'] for c in ci.get_columns('credit_borrowers')}; assert 'sector_id' in cols and 'country_id' in cols and 'rating_id' in cols, 'credit_borrowers FK columns missing'; print('finance_accounting_periods table found:', exists); print('credit_borrowers schema verified'); ctx.pop()"
 
             echo "✅ Migrations-only job completed"
 

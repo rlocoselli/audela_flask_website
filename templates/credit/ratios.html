@@ -1,0 +1,23 @@
+{% extends "credit/page_base.html" %}
+{% set title = _('Audela Credit Ratios') %}
+{% set active_page = 'ratios' %}
+
+{% block credit_page_content %}
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-body-tertiary">{{ _('Ratio snapshots') }}</div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>{{ _('Date') }}</th><th>{{ _('Borrower') }}</th><th>{{ _('DSCR') }}</th><th>{{ _('Leverage') }}</th><th>{{ _('Liquidity') }}</th><th>{{ _('Risk grade') }}</th></tr></thead>
+        <tbody>
+          {% for r in ratios %}
+          <tr><td>{{ r.snapshot_date }}</td><td>{{ r.borrower.name if r.borrower else '-' }}</td><td>{{ r.dscr or '-' }}</td><td>{{ r.leverage or '-' }}</td><td>{{ r.liquidity or '-' }}</td><td>{{ r.risk_grade or '-' }}</td></tr>
+          {% else %}
+          <tr><td colspan="6" class="text-secondary">{{ _('No ratio snapshots yet.') }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
