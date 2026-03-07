@@ -14,6 +14,7 @@ from typing import Any
 
 from flask import abort, flash, g, jsonify, make_response, redirect, render_template, request, url_for, send_file, session
 from flask_login import current_user, login_required
+from sqlalchemy import inspect, text
 from sqlalchemy.orm.attributes import flag_modified
 
 from ...extensions import db, csrf
@@ -77,6 +78,53 @@ from ...i18n import tr
 from . import bp
 
 
+_DATA_SOURCES_SCHEMA_READY = False
+
+
+def _ensure_data_sources_schema_compat() -> None:
+    """Backfill legacy SQLite schema for data_sources missing newer columns.
+
+    Some local/dev DB files were created before `base_url` and `method` existed.
+    Querying DataSource would fail with OperationalError until migration runs.
+    """
+    global _DATA_SOURCES_SCHEMA_READY
+    if _DATA_SOURCES_SCHEMA_READY:
+        return
+
+    bind = db.session.get_bind()
+    if bind is None:
+        return
+
+    if bind.dialect.name != "sqlite":
+        _DATA_SOURCES_SCHEMA_READY = True
+        return
+
+    try:
+        insp = inspect(bind)
+        table_names = set(insp.get_table_names())
+        if "data_sources" not in table_names:
+            _DATA_SOURCES_SCHEMA_READY = True
+            return
+
+        existing_cols = {str(col.get("name")) for col in insp.get_columns("data_sources")}
+        ddl: list[str] = []
+        if "base_url" not in existing_cols:
+            ddl.append("ALTER TABLE data_sources ADD COLUMN base_url VARCHAR(300)")
+        if "method" not in existing_cols:
+            ddl.append("ALTER TABLE data_sources ADD COLUMN method VARCHAR(300)")
+
+        for stmt in ddl:
+            db.session.execute(text(stmt))
+        if ddl:
+            db.session.commit()
+
+        _DATA_SOURCES_SCHEMA_READY = True
+    except Exception:
+        db.session.rollback()
+        # Keep runtime resilient even if schema auto-fix cannot run.
+        _DATA_SOURCES_SCHEMA_READY = False
+
+
 @bp.before_app_request
 def load_tenant_into_g() -> None:
     """Load current tenant from session.
@@ -97,6 +145,7 @@ def load_tenant_into_g() -> None:
         and g.tenant
         and current_user.tenant_id == g.tenant.id
     ):
+        _ensure_data_sources_schema_compat()
         if request.endpoint in {
             "portal.projects_hub",
             "portal.project_workspace_get",

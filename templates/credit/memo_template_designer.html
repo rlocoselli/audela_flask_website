@@ -1,0 +1,691 @@
+{% extends "credit/page_base.html" %}
+{% set title = _('Credit Memo Template Creator') %}
+{% set active_page = 'memo_templates' %}
+
+{% block credit_page_content %}
+<style>
+  .memo-designer-grid {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr) 320px;
+    gap: 12px;
+  }
+  .designer-pane {
+    background: #fff;
+    border: 1px solid #d9e2ec;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .designer-pane-header {
+    padding: 10px 12px;
+    font-weight: 600;
+    border-bottom: 1px solid #e4e7eb;
+    background: #f8fbff;
+  }
+  .designer-pane-body {
+    padding: 12px;
+    max-height: 70vh;
+    overflow: auto;
+  }
+  .component-pill {
+    border: 1px solid #bcccdc;
+    border-radius: 10px;
+    padding: 7px 10px;
+    background: #f0f4f8;
+    margin-bottom: 8px;
+    cursor: grab;
+    font-size: 13px;
+  }
+  .data-field-item {
+    font-size: 12px;
+    color: #334e68;
+    margin-bottom: 5px;
+    cursor: pointer;
+  }
+  .memo-canvas {
+    min-height: 520px;
+    background: linear-gradient(180deg, #f8fbff, #f0f4f8);
+    border: 1px dashed #9fb3c8;
+    border-radius: 12px;
+    padding: 12px;
+  }
+  .memo-block {
+    background: #fff;
+    border: 1px solid #bcccdc;
+    border-radius: 10px;
+    padding: 10px;
+    margin-bottom: 10px;
+    position: relative;
+  }
+  .memo-block.selected {
+    border-color: #0b4f6c;
+    box-shadow: 0 0 0 2px rgba(11, 79, 108, 0.15);
+  }
+  .memo-block-title {
+    font-weight: 600;
+    font-size: 14px;
+    color: #102a43;
+  }
+  .memo-block-meta {
+    font-size: 12px;
+    color: #627d98;
+  }
+  #floatingBlockMenu {
+    position: fixed;
+    display: none;
+    z-index: 50;
+    background: #102a43;
+    color: #fff;
+    border-radius: 8px;
+    padding: 6px;
+    box-shadow: 0 8px 24px rgba(16, 42, 67, 0.25);
+  }
+  #floatingBlockMenu .btn {
+    --bs-btn-padding-y: .15rem;
+    --bs-btn-padding-x: .35rem;
+    --bs-btn-font-size: .72rem;
+  }
+  .preview-box {
+    background: #fff;
+    border: 1px solid #d9e2ec;
+    border-radius: 12px;
+    padding: 0;
+    overflow: hidden;
+  }
+  .preview-frame {
+    width: 100%;
+    min-height: 520px;
+    border: 0;
+    background: #fff;
+  }
+  @media (max-width: 1200px) {
+    .memo-designer-grid { grid-template-columns: 1fr; }
+    .designer-pane-body { max-height: none; }
+  }
+</style>
+
+<form method="post" id="designerForm" class="mb-3">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="action" id="designerAction" value="save">
+  <input type="hidden" name="definition_json" id="definitionJsonInput" value='{{ working_definition_json|safe }}'>
+  <input type="hidden" name="snippet_id" id="snippetIdInput" value="">
+  <input type="hidden" name="snippet_name" id="snippetNameInput" value="">
+  <input type="hidden" name="snippet_content" id="snippetContentInput" value="">
+  <input type="hidden" id="i18nNoSections" value="{{ _('No sections yet.') }}">
+  <input type="hidden" id="i18nEnterRule" value="{{ _('Enter visibility rule') }}">
+
+  <div class="card border-0 shadow-sm mb-3">
+    <div class="card-body d-flex flex-wrap gap-2 align-items-center">
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.memo_templates') }}">{{ _('Open template') }}</a>
+      <select class="form-select form-select-sm" style="max-width: 220px;" onchange="if(this.value){ window.location.href=this.value; }">
+        <option value="">{{ _('Open version') }}</option>
+        {% for v in versions %}
+        <option value="{{ url_for('credit.memo_template_designer', template_id=template_row.id, version_id=v.id, test_deal_id=selected_deal_id) }}" {% if current_version and current_version.id == v.id %}selected{% endif %}>v{{ v.version_no }} - {{ v.status }}</option>
+        {% endfor %}
+      </select>
+      <select class="form-select form-select-sm" style="max-width: 260px;" name="compare_version_id" onchange="this.form.submit()">
+        <option value="">{{ _('Compare with version...') }}</option>
+        {% for v in versions %}
+        <option value="{{ v.id }}" {% if compare_version_id == v.id %}selected{% endif %}>{{ _('Compare A') }} v{{ current_version.version_no if current_version else '-' }} {{ _('vs B') }} v{{ v.version_no }}</option>
+        {% endfor %}
+      </select>
+      {% if can_edit_templates %}
+      <button class="btn btn-primary btn-sm" type="button" data-action="save">{{ _('Save') }}</button>
+      <button class="btn btn-outline-primary btn-sm" type="button" data-action="save_version">{{ _('Save as new version') }}</button>
+      {% endif %}
+      {% if can_publish_templates %}
+      <button class="btn btn-success btn-sm" type="button" data-action="publish">{{ _('Publish') }}</button>
+      {% endif %}
+      <button class="btn btn-outline-secondary btn-sm" type="button" data-action="preview">{{ _('Preview') }}</button>
+      <button class="btn btn-outline-secondary btn-sm" type="button" data-action="validate">{{ _('Validate template') }}</button>
+
+      <div class="vr mx-1"></div>
+      <label class="small text-secondary mb-0">{{ _('Test with sample deal') }}</label>
+      <select class="form-select form-select-sm" style="max-width: 260px;" name="test_deal_id" onchange="this.form.submit()">
+        <option value="">{{ _('Latest available deal') }}</option>
+        {% for d in deals %}
+        <option value="{{ d.id }}" {% if selected_deal_id == d.id %}selected{% endif %}>{{ d.code }} - {{ d.borrower.name if d.borrower else '' }}</option>
+        {% endfor %}
+      </select>
+
+      <select class="form-select form-select-sm" style="max-width: 130px;" name="export_format">
+        <option value="html">HTML</option>
+        <option value="word">Word</option>
+        <option value="pdf">PDF</option>
+      </select>
+      <button class="btn btn-outline-dark btn-sm" type="button" data-action="export">{{ _('Export') }}</button>
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.memo_template_designer_export', template_id=template_row.id, version_id=(current_version.id if current_version else None), test_deal_id=selected_deal_id, format='html') }}">HTML</a>
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.memo_template_designer_export', template_id=template_row.id, version_id=(current_version.id if current_version else None), test_deal_id=selected_deal_id, format='doc') }}">DOC</a>
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.memo_template_designer_export', template_id=template_row.id, version_id=(current_version.id if current_version else None), test_deal_id=selected_deal_id, format='pdf') }}" target="_blank" rel="noopener">PDF</a>
+      <a class="btn btn-outline-success btn-sm" href="{{ url_for('credit.memos', mode='add', template_id=template_row.id) }}">{{ _('Generate final memo') }}</a>
+
+      <span class="badge text-bg-light ms-auto">{{ template_row.name }} / {{ template_row.status }}</span>
+    </div>
+  </div>
+
+  <div class="memo-designer-grid mb-3">
+    <div class="designer-pane">
+      <div class="designer-pane-header">{{ _('Component toolbox') }}</div>
+      <div class="designer-pane-body">
+        {% for comp_type, comp_label in toolbox_components %}
+        <div class="component-pill" draggable="true" data-component-type="{{ comp_type }}">{{ _(comp_label) }}</div>
+        {% endfor %}
+
+        <hr>
+        <div class="fw-semibold mb-2">{{ _('Data Explorer') }}</div>
+        <input class="form-control form-control-sm mb-2" id="fieldSearch" placeholder="{{ _('Search fields') }}">
+        {% for group, fields in data_explorer %}
+        <div class="small text-secondary text-uppercase mt-2">{{ _(group) }}</div>
+        {% for field in fields %}
+        <div class="data-field-item" data-field-path="{{ field }}">{{ field }}</div>
+        {% endfor %}
+        {% endfor %}
+
+        <hr>
+        <div class="fw-semibold mb-2">{{ _('Reusable snippets') }}</div>
+        <div class="small text-secondary mb-2">{{ _('Save common blocks and reuse them across templates.') }}</div>
+        <button class="btn btn-outline-primary btn-sm mb-2" type="button" id="saveSnippetBtn">{{ _('Save selected block as snippet') }}</button>
+        <div id="snippetList" class="d-grid gap-2">
+          {% for sn in snippets %}
+          <div class="border rounded p-2">
+            <div class="fw-semibold small mb-1">{{ sn.name }}</div>
+            <div class="small text-secondary mb-2" style="max-height:54px;overflow:hidden;">{{ sn.content }}</div>
+            <div class="d-flex gap-1">
+              <button class="btn btn-light btn-sm snippet-apply" type="button" data-snippet-content="{{ sn.content|e }}">{{ _('Apply') }}</button>
+              <button class="btn btn-outline-danger btn-sm snippet-delete" type="button" data-snippet-id="{{ sn.id }}">{{ _('Delete') }}</button>
+            </div>
+          </div>
+          {% else %}
+          <div class="small text-secondary">{{ _('No snippets yet.') }}</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="designer-pane">
+      <div class="designer-pane-header d-flex justify-content-between align-items-center">
+        <span>{{ _('Design canvas') }}</span>
+        <span class="small text-secondary">{{ _('Drag and drop sections and controls') }}</span>
+      </div>
+      <div class="designer-pane-body">
+        <div id="memoCanvas" class="memo-canvas"></div>
+      </div>
+    </div>
+
+    <div class="designer-pane">
+      <div class="designer-pane-header">{{ _('Properties') }}</div>
+      <div class="designer-pane-body">
+        <div class="small text-secondary mb-2">{{ _('Selected block properties') }}</div>
+        <div class="mb-2">
+          <label class="form-label small">{{ _('Name') }}</label>
+          <input class="form-control form-control-sm" id="propName">
+        </div>
+        <div class="mb-2">
+          <label class="form-label small">{{ _('Label') }}</label>
+          <input class="form-control form-control-sm" id="propTitle">
+        </div>
+        <div class="mb-2">
+          <label class="form-label small">{{ _('Type') }}</label>
+          <input class="form-control form-control-sm" id="propType" readonly>
+        </div>
+        <div class="mb-2">
+          <label class="form-label small">{{ _('Binding') }}</label>
+          <input class="form-control form-control-sm" id="propBinding" placeholder="Deal.RequestedAmount">
+        </div>
+        <div class="mb-2">
+          <label class="form-label small">{{ _('Visibility rules') }}</label>
+          <input class="form-control form-control-sm" id="propRule" placeholder="Deal.RequestedAmount > 5000000 AND Ratios.DSCR >= 1.2">
+        </div>
+        <div class="mb-2">
+          <label class="form-label small">{{ _('Content') }}</label>
+          <textarea class="form-control form-control-sm" id="propContent" rows="5"></textarea>
+        </div>
+        <div class="row g-2">
+          <div class="col-4">
+            <label class="form-label small">{{ _('Font') }}</label>
+            <input class="form-control form-control-sm" id="propFontSize" type="number" min="8" max="32">
+          </div>
+          <div class="col-4">
+            <label class="form-label small">{{ _('Color') }}</label>
+            <input class="form-control form-control-sm" id="propColor" type="color" value="#243b53">
+          </div>
+          <div class="col-4">
+            <label class="form-label small">{{ _('Alignment') }}</label>
+            <select class="form-select form-select-sm" id="propAlign">
+              <option value="left">left</option>
+              <option value="center">center</option>
+              <option value="right">right</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-check mt-2">
+          <input class="form-check-input" type="checkbox" id="propMandatory">
+          <label class="form-check-label small" for="propMandatory">{{ _('Mandatory section') }}</label>
+        </div>
+        <div class="form-check mt-1">
+          <input class="form-check-input" type="checkbox" id="propLocked">
+          <label class="form-check-label small" for="propLocked">{{ _('Lock section') }}</label>
+        </div>
+        <div class="form-check mt-1">
+          <input class="form-check-input" type="checkbox" id="propPageBreak">
+          <label class="form-check-label small" for="propPageBreak">{{ _('Page break') }}</label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-xl-7">
+      <div class="preview-box shadow-sm">
+        <div class="p-2 border-bottom bg-body-tertiary d-flex justify-content-between align-items-center">
+          <strong>{{ _('Final print preview') }}</strong>
+          <span class="small text-secondary">{{ _('Rendered with selected sample deal data') }}</span>
+        </div>
+        <iframe class="preview-frame" srcdoc="{{ preview_html|e }}"></iframe>
+      </div>
+    </div>
+    <div class="col-12 col-xl-5">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-body-tertiary">{{ _('Validation results') }}</div>
+        <div class="card-body">
+          {% for finding in validation_findings %}
+          <div class="alert py-2 px-3 mb-2 {% if finding.severity == 'error' %}alert-danger{% elif finding.severity == 'warning' %}alert-warning{% else %}alert-info{% endif %}">
+            <strong>{{ finding.severity|upper }}</strong> - {{ finding.message }}
+          </div>
+          {% else %}
+          <div class="text-secondary">{{ _('No validation findings.') }}</div>
+          {% endfor %}
+
+          <hr>
+          <div class="small text-secondary mb-1">{{ _('Outline') }}</div>
+          <div id="outlineTree" class="small"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if compare_preview_html and compare_summary %}
+  <div class="row g-3 mt-1">
+    <div class="col-12">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center">
+          <strong>{{ _('Visual compare A/B') }}</strong>
+          <span class="small text-secondary">{{ _('A = selected version, B = compare version') }}</span>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-12 col-xl-6">
+              <div class="small text-secondary mb-1">{{ _('Version A') }}: v{{ current_version.version_no if current_version else '-' }}</div>
+              <iframe class="preview-frame" srcdoc="{{ preview_html|e }}"></iframe>
+            </div>
+            <div class="col-12 col-xl-6">
+              <div class="small text-secondary mb-1">{{ _('Version B') }}: v{{ compare_version.version_no if compare_version else '-' }}</div>
+              <iframe class="preview-frame" srcdoc="{{ compare_preview_html|e }}"></iframe>
+            </div>
+          </div>
+          <hr>
+          <div class="small text-secondary mb-1">
+            {{ _('Sections A:') }} {{ compare_summary.count_a }} | {{ _('Sections B:') }} {{ compare_summary.count_b }} | {{ _('Changed:') }} {{ compare_summary.changed|length }} | {{ _('Added:') }} {{ compare_summary.added|length }} | {{ _('Removed:') }} {{ compare_summary.removed|length }}
+          </div>
+          {% if compare_summary.changed %}
+          <div class="small"><strong>{{ _('Changed sections') }}</strong>: {% for c in compare_summary.changed %}{{ c.title_b or c.id }}{% if not loop.last %}, {% endif %}{% endfor %}</div>
+          {% endif %}
+          {% if compare_summary.added %}
+          <div class="small"><strong>{{ _('Added in B') }}</strong>: {% for c in compare_summary.added %}{{ c.title or c.id }}{% if not loop.last %}, {% endif %}{% endfor %}</div>
+          {% endif %}
+          {% if compare_summary.removed %}
+          <div class="small"><strong>{{ _('Removed from B') }}</strong>: {% for c in compare_summary.removed %}{{ c.title or c.id }}{% if not loop.last %}, {% endif %}{% endfor %}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</form>
+
+<div id="floatingBlockMenu" class="d-flex gap-1">
+  <button class="btn btn-light btn-sm" type="button" data-float-action="duplicate">{{ _('Duplicate') }}</button>
+  <button class="btn btn-light btn-sm" type="button" data-float-action="move_up">{{ _('Move up') }}</button>
+  <button class="btn btn-light btn-sm" type="button" data-float-action="move_down">{{ _('Move down') }}</button>
+  <button class="btn btn-warning btn-sm" type="button" data-float-action="add_condition">{{ _('Add condition') }}</button>
+  <button class="btn btn-danger btn-sm" type="button" data-float-action="delete">{{ _('Delete') }}</button>
+</div>
+
+<script>
+  (() => {
+    const defaultDefinition = JSON.parse(document.getElementById('definitionJsonInput').value || '{}');
+    const i18nNoSections = document.getElementById('i18nNoSections').value || 'No sections yet.';
+    const i18nEnterRule = document.getElementById('i18nEnterRule').value || 'Enter visibility rule';
+    const canvas = document.getElementById('memoCanvas');
+    const outlineTree = document.getElementById('outlineTree');
+    const floating = document.getElementById('floatingBlockMenu');
+    const form = document.getElementById('designerForm');
+    const actionInput = document.getElementById('designerAction');
+    const jsonInput = document.getElementById('definitionJsonInput');
+    const snippetIdInput = document.getElementById('snippetIdInput');
+    const snippetNameInput = document.getElementById('snippetNameInput');
+    const snippetContentInput = document.getElementById('snippetContentInput');
+
+    let state = {
+      meta: defaultDefinition.meta || {},
+      sections: Array.isArray(defaultDefinition.sections) ? defaultDefinition.sections : []
+    };
+    let selectedId = null;
+    let draggedId = null;
+
+    const byId = (id) => state.sections.find((s) => s.id === id);
+
+    const normalizeSection = (raw, idx) => {
+      const safeId = (raw.id || `sec-${Date.now()}-${idx}`).toString();
+      return {
+        id: safeId,
+        name: (raw.name || raw.title || safeId).toString(),
+        type: (raw.type || 'text_block').toString(),
+        title: (raw.title || 'Untitled section').toString(),
+        content: (raw.content || '').toString(),
+        binding: (raw.binding || '').toString(),
+        visibility_rule: (raw.visibility_rule || '').toString(),
+        mandatory: !!raw.mandatory,
+        locked: !!raw.locked,
+        page_break: !!raw.page_break,
+        inherited: !!raw.inherited,
+        style: {
+          font_size: Number(raw.style?.font_size || 12),
+          align: (raw.style?.align || 'left').toString(),
+          color: (raw.style?.color || '#243b53').toString()
+        }
+      };
+    };
+
+    state.sections = state.sections.map((s, idx) => normalizeSection(s, idx));
+
+    const persistState = () => {
+      jsonInput.value = JSON.stringify({ meta: state.meta || {}, sections: state.sections });
+      renderOutline();
+    };
+
+    const renderOutline = () => {
+      outlineTree.innerHTML = '';
+      if (!state.sections.length) {
+        outlineTree.textContent = i18nNoSections;
+        return;
+      }
+      state.sections.forEach((sec, idx) => {
+        const row = document.createElement('div');
+        row.className = 'mb-1';
+        row.textContent = `${idx + 1}. ${sec.title} [${sec.type}]`;
+        outlineTree.appendChild(row);
+      });
+    };
+
+    const hideFloating = () => {
+      floating.style.display = 'none';
+    };
+
+    const showFloating = (el) => {
+      const box = el.getBoundingClientRect();
+      floating.style.display = 'flex';
+      const menuWidth = Math.max(280, floating.offsetWidth || 280);
+      const safeLeft = Math.max(12, Math.min(window.innerWidth - menuWidth - 12, box.right - menuWidth + 18));
+      const safeTop = Math.max(12, Math.min(window.innerHeight - 52, box.top - 38));
+      floating.style.left = `${safeLeft}px`;
+      floating.style.top = `${safeTop}px`;
+    };
+
+    const renderCanvas = () => {
+      canvas.innerHTML = '';
+      state.sections.forEach((sec) => {
+        const block = document.createElement('div');
+        block.className = `memo-block ${selectedId === sec.id ? 'selected' : ''}`;
+        block.dataset.sectionId = sec.id;
+        block.draggable = true;
+        block.innerHTML = `
+          <div class="d-flex justify-content-between align-items-center gap-2">
+            <div class="memo-block-title">${sec.title || '(untitled)'}</div>
+            <div class="memo-block-meta">${sec.type}${sec.inherited ? ' • inherited' : ''}</div>
+          </div>
+          <div class="memo-block-meta mt-1">${sec.binding || '-'}${sec.visibility_rule ? ' | ' + sec.visibility_rule : ''}</div>
+        `;
+
+        block.addEventListener('click', (evt) => {
+          selectedId = sec.id;
+          renderCanvas();
+          bindProperties(sec);
+          showFloating(block);
+          evt.stopPropagation();
+        });
+
+        block.addEventListener('dragstart', () => {
+          draggedId = sec.id;
+          block.classList.add('opacity-50');
+        });
+
+        block.addEventListener('dragend', () => {
+          draggedId = null;
+          block.classList.remove('opacity-50');
+        });
+
+        block.addEventListener('dragover', (evt) => evt.preventDefault());
+        block.addEventListener('drop', (evt) => {
+          evt.preventDefault();
+          if (!draggedId || draggedId === sec.id) return;
+          const fromIdx = state.sections.findIndex((x) => x.id === draggedId);
+          const toIdx = state.sections.findIndex((x) => x.id === sec.id);
+          if (fromIdx < 0 || toIdx < 0) return;
+          const moved = state.sections.splice(fromIdx, 1)[0];
+          state.sections.splice(toIdx, 0, moved);
+          persistState();
+          renderCanvas();
+        });
+
+        canvas.appendChild(block);
+      });
+      persistState();
+    };
+
+    const bindProperties = (sec) => {
+      document.getElementById('propName').value = sec.name || '';
+      document.getElementById('propTitle').value = sec.title || '';
+      document.getElementById('propType').value = sec.type || '';
+      document.getElementById('propBinding').value = sec.binding || '';
+      document.getElementById('propRule').value = sec.visibility_rule || '';
+      document.getElementById('propContent').value = sec.content || '';
+      document.getElementById('propFontSize').value = sec.style?.font_size || 12;
+      document.getElementById('propColor').value = sec.style?.color || '#243b53';
+      document.getElementById('propAlign').value = sec.style?.align || 'left';
+      document.getElementById('propMandatory').checked = !!sec.mandatory;
+      document.getElementById('propLocked').checked = !!sec.locked;
+      document.getElementById('propPageBreak').checked = !!sec.page_break;
+    };
+
+    const applyProperties = () => {
+      const sec = byId(selectedId);
+      if (!sec) return;
+      sec.name = document.getElementById('propName').value;
+      sec.title = document.getElementById('propTitle').value;
+      sec.binding = document.getElementById('propBinding').value;
+      sec.visibility_rule = document.getElementById('propRule').value;
+      sec.content = document.getElementById('propContent').value;
+      sec.style = sec.style || {};
+      sec.style.font_size = Number(document.getElementById('propFontSize').value || 12);
+      sec.style.color = document.getElementById('propColor').value || '#243b53';
+      sec.style.align = document.getElementById('propAlign').value || 'left';
+      sec.mandatory = document.getElementById('propMandatory').checked;
+      sec.locked = document.getElementById('propLocked').checked;
+      sec.page_break = document.getElementById('propPageBreak').checked;
+      renderCanvas();
+    };
+
+    ['propName', 'propTitle', 'propBinding', 'propRule', 'propContent', 'propFontSize', 'propColor', 'propAlign', 'propMandatory', 'propLocked', 'propPageBreak']
+      .forEach((id) => {
+        const el = document.getElementById(id);
+        const evt = id.includes('Mandatory') || id.includes('Locked') || id.includes('PageBreak') || id === 'propAlign' || id === 'propColor' ? 'change' : 'input';
+        el.addEventListener(evt, applyProperties);
+      });
+
+    document.querySelectorAll('.component-pill').forEach((el) => {
+      el.addEventListener('dragstart', (evt) => {
+        evt.dataTransfer.setData('componentType', el.dataset.componentType || 'text_block');
+      });
+      el.addEventListener('dblclick', () => {
+        const type = el.dataset.componentType || 'text_block';
+        addSection(type);
+      });
+    });
+
+    canvas.addEventListener('dragover', (evt) => evt.preventDefault());
+    canvas.addEventListener('drop', (evt) => {
+      evt.preventDefault();
+      const type = evt.dataTransfer.getData('componentType');
+      if (!type) return;
+      addSection(type);
+    });
+
+    const addSection = (type) => {
+      const ts = Date.now();
+      const sec = normalizeSection({
+        id: `sec-${ts}`,
+        name: `Section ${state.sections.length + 1}`,
+        title: `Section ${state.sections.length + 1}`,
+        type,
+        content: '',
+        binding: '',
+        visibility_rule: '',
+        mandatory: false,
+        locked: false,
+        page_break: false,
+        style: { font_size: 12, align: 'left', color: '#243b53' }
+      }, state.sections.length + 1);
+      state.sections.push(sec);
+      selectedId = sec.id;
+      renderCanvas();
+      bindProperties(sec);
+    };
+
+    document.querySelectorAll('[data-float-action]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const sec = byId(selectedId);
+        if (!sec) return;
+        const action = btn.dataset.floatAction;
+        const idx = state.sections.findIndex((x) => x.id === sec.id);
+        if (idx < 0) return;
+
+        if (action === 'duplicate') {
+          const copy = normalizeSection({ ...sec, id: `sec-${Date.now()}-copy`, inherited: false }, idx + 1);
+          state.sections.splice(idx + 1, 0, copy);
+          selectedId = copy.id;
+        } else if (action === 'delete') {
+          state.sections.splice(idx, 1);
+          selectedId = state.sections[idx]?.id || state.sections[idx - 1]?.id || null;
+        } else if (action === 'move_up' && idx > 0) {
+          const tmp = state.sections[idx - 1];
+          state.sections[idx - 1] = state.sections[idx];
+          state.sections[idx] = tmp;
+        } else if (action === 'move_down' && idx < state.sections.length - 1) {
+          const tmp = state.sections[idx + 1];
+          state.sections[idx + 1] = state.sections[idx];
+          state.sections[idx] = tmp;
+        } else if (action === 'add_condition') {
+          const rule = prompt(i18nEnterRule, sec.visibility_rule || '');
+          if (rule !== null) sec.visibility_rule = rule;
+        }
+
+        renderCanvas();
+        const next = byId(selectedId);
+        if (next) bindProperties(next);
+      });
+    });
+
+    document.querySelectorAll('[data-action]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        persistState();
+        actionInput.value = btn.dataset.action || 'save';
+        form.submit();
+      });
+    });
+
+    document.getElementById('fieldSearch').addEventListener('input', (evt) => {
+      const q = (evt.target.value || '').toLowerCase().trim();
+      document.querySelectorAll('.data-field-item').forEach((item) => {
+        const txt = (item.dataset.fieldPath || '').toLowerCase();
+        item.style.display = !q || txt.includes(q) ? '' : 'none';
+      });
+    });
+
+    document.querySelectorAll('.data-field-item').forEach((el) => {
+      el.addEventListener('click', () => {
+        const sec = byId(selectedId);
+        if (!sec) return;
+        const token = `{${el.dataset.fieldPath}}`;
+        if ((sec.content || '').length) {
+          sec.content += ` ${token}`;
+        } else {
+          sec.content = token;
+        }
+        bindProperties(sec);
+        renderCanvas();
+      });
+    });
+
+    document.getElementById('saveSnippetBtn').addEventListener('click', () => {
+      const sec = byId(selectedId);
+      if (!sec) return;
+      const defaultName = sec.title || sec.name || 'Snippet';
+      const snippetName = prompt('Snippet name', defaultName);
+      if (snippetName === null) return;
+      const snippetContent = (sec.content || '').trim();
+      if (!snippetContent) return;
+      persistState();
+      snippetIdInput.value = '';
+      snippetNameInput.value = snippetName;
+      snippetContentInput.value = snippetContent;
+      actionInput.value = 'save_snippet';
+      form.submit();
+    });
+
+    document.querySelectorAll('.snippet-apply').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const sec = byId(selectedId);
+        if (!sec) return;
+        const snippetContent = btn.dataset.snippetContent || '';
+        if (!snippetContent.trim()) return;
+        sec.content = (sec.content || '').trim() ? `${sec.content}\n\n${snippetContent}` : snippetContent;
+        bindProperties(sec);
+        renderCanvas();
+      });
+    });
+
+    document.querySelectorAll('.snippet-delete').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const snippetId = btn.dataset.snippetId || '';
+        if (!snippetId) return;
+        persistState();
+        snippetIdInput.value = snippetId;
+        snippetNameInput.value = '';
+        snippetContentInput.value = '';
+        actionInput.value = 'delete_snippet';
+        form.submit();
+      });
+    });
+
+    document.addEventListener('click', (evt) => {
+      if (!evt.target.closest('.memo-block') && !evt.target.closest('#floatingBlockMenu')) {
+        hideFloating();
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      const selected = selectedId ? document.querySelector(`.memo-block[data-section-id="${selectedId}"]`) : null;
+      if (selected && floating.style.display !== 'none') {
+        showFloating(selected);
+      }
+    });
+
+    renderCanvas();
+    if (state.sections[0]) {
+      selectedId = state.sections[0].id;
+      bindProperties(state.sections[0]);
+      renderCanvas();
+    }
+  })();
+</script>
+{% endblock %}

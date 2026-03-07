@@ -1,8 +1,18 @@
 {% extends "credit/page_base.html" %}
 {% set title = _('Audela Credit Borrowers') %}
 {% set active_page = 'borrowers' %}
+{% set credit_mode = request.args.get('mode', 'search') %}
 
 {% block credit_page_content %}
+<div class="d-flex gap-2 mb-3">
+  <a class="btn btn-sm {% if credit_mode != 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.borrowers', mode='search') }}">{{ _('Search and list') }}</a>
+  <a class="btn btn-sm {% if credit_mode == 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.borrowers', mode='add') }}">{{ _('Add new') }}</a>
+  {% if edit_borrower %}
+  <a class="btn btn-sm {% if credit_mode == 'edit' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.borrowers', mode='edit', borrower_id=edit_borrower.id) }}">{{ _('Edit') }}</a>
+  {% endif %}
+</div>
+
+{% if credit_mode == 'add' %}
 <div class="card border-0 shadow-sm mb-3">
   <div class="card-header bg-body-tertiary">{{ _('New borrower') }}</div>
   <div class="card-body">
@@ -31,22 +41,93 @@
     </form>
   </div>
 </div>
+{% endif %}
 
+{% if credit_mode == 'edit' and edit_borrower %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary">{{ _('Edit borrower') }} · {{ edit_borrower.name }}</div>
+  <div class="card-body">
+    <form method="post" class="row g-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="update">
+      <input type="hidden" name="borrower_id" value="{{ edit_borrower.id }}">
+      <div class="col-md-4"><input class="form-control" name="name" value="{{ edit_borrower.name }}" placeholder="{{ _('Name') }}" required></div>
+      <div class="col-md-3">
+        <select class="form-select" name="sector_id">
+          <option value="">{{ _('Sector') }}</option>
+          {% for s in sectors %}<option value="{{ s.id }}" {% if edit_borrower.sector_id == s.id %}selected{% endif %}>{{ s.display_name(current_lang) }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <select class="form-select" name="country_id">
+          <option value="">{{ _('Country') }}</option>
+          {% for c in countries %}<option value="{{ c.id }}" {% if edit_borrower.country_id == c.id %}selected{% endif %}>{{ c.display_name(current_lang) }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <select class="form-select" name="rating_id">
+          <option value="">{{ _('Rating') }}</option>
+          {% for r in ratings %}<option value="{{ r.id }}" {% if edit_borrower.rating_id == r.id %}selected{% endif %}>{{ r.display_label(current_lang) }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button class="btn btn-primary" type="submit">{{ _('Save') }}</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('credit.borrowers', mode='search') }}">{{ _('Cancel') }}</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+{% if credit_mode != 'add' %}
 <div class="card border-0 shadow-sm">
+  <div class="card-header bg-body-tertiary border-bottom-0 pb-0">
+    <form method="get" class="row g-2 align-items-end">
+      <input type="hidden" name="mode" value="search">
+      <div class="col-12 col-lg-3">
+        <label class="form-label mb-1">{{ _('Search') }}</label>
+        <input class="form-control" name="q" value="{{ search_name or '' }}" placeholder="{{ _('Borrower name') }}">
+      </div>
+      <div class="col-12 col-lg-3">
+        <label class="form-label mb-1">{{ _('Sector') }}</label>
+        <select class="form-select" name="sector_id">
+          <option value="">{{ _('All') }}</option>
+          {% for s in sectors %}<option value="{{ s.id }}" {% if selected_sector_id == s.id %}selected{% endif %}>{{ s.display_name(current_lang) }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-lg-2">
+        <label class="form-label mb-1">{{ _('Country') }}</label>
+        <select class="form-select" name="country_id">
+          <option value="">{{ _('All') }}</option>
+          {% for c in countries %}<option value="{{ c.id }}" {% if selected_country_id == c.id %}selected{% endif %}>{{ c.display_name(current_lang) }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-lg-2">
+        <label class="form-label mb-1">{{ _('Rating') }}</label>
+        <select class="form-select" name="rating_id">
+          <option value="">{{ _('All') }}</option>
+          {% for r in ratings %}<option value="{{ r.id }}" {% if selected_rating_id == r.id %}selected{% endif %}>{{ r.display_label(current_lang) }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-lg-1"><button class="btn btn-primary w-100" type="submit">{{ _('Apply filters') }}</button></div>
+      <div class="col-6 col-lg-1"><a class="btn btn-outline-secondary w-100" href="{{ url_for('credit.borrowers', mode='search') }}">{{ _('Reset') }}</a></div>
+    </form>
+  </div>
   <div class="card-header bg-body-tertiary">{{ _('Borrowers') }}</div>
   <div class="card-body p-0">
     <div class="table-responsive">
       <table class="table table-sm mb-0">
-        <thead><tr><th>{{ _('Name') }}</th><th>{{ _('Sector') }}</th><th>{{ _('Country') }}</th><th>{{ _('Rating') }}</th><th>{{ _('Created') }}</th></tr></thead>
+        <thead><tr><th>{{ _('Name') }}</th><th>{{ _('Sector') }}</th><th>{{ _('Country') }}</th><th>{{ _('Rating') }}</th><th>{{ _('Created') }}</th><th>{{ _('Actions') }}</th></tr></thead>
         <tbody>
           {% for b in borrowers %}
-          <tr><td>{{ b.name }}</td><td>{{ b.sector_ref.display_name(current_lang) if b.sector_ref else (b.sector or '-') }}</td><td>{{ b.country_ref.display_name(current_lang) if b.country_ref else (b.country or '-') }}</td><td>{{ b.rating_ref.display_label(current_lang) if b.rating_ref else (b.internal_rating or '-') }}</td><td>{{ b.created_at.strftime('%Y-%m-%d') if b.created_at else '' }}</td></tr>
+          <tr><td>{{ b.name }}</td><td>{{ b.sector_ref.display_name(current_lang) if b.sector_ref else (b.sector or '-') }}</td><td>{{ b.country_ref.display_name(current_lang) if b.country_ref else (b.country or '-') }}</td><td>{{ b.rating_ref.display_label(current_lang) if b.rating_ref else (b.internal_rating or '-') }}</td><td>{{ b.created_at.strftime('%Y-%m-%d') if b.created_at else '' }}</td><td><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.borrowers', mode='edit', borrower_id=b.id) }}">{{ _('Edit') }}</a></td></tr>
           {% else %}
-          <tr><td colspan="5" class="text-secondary">{{ _('No borrowers yet.') }}</td></tr>
+          <tr><td colspan="6" class="text-secondary">{{ _('No borrowers yet.') }}</td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
   </div>
 </div>
+{% endif %}
 {% endblock %}

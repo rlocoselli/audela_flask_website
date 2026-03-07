@@ -1,0 +1,237 @@
+{% extends "credit/page_base.html" %}
+{% set title = _('Audela Credit Backlog') %}
+{% set active_page = 'backlog' %}
+{% set credit_mode = request.args.get('mode', 'search') %}
+
+{% block credit_page_content %}
+<div class="d-flex gap-2 mb-3">
+  <a class="btn btn-sm {% if credit_mode != 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.backlog', mode='search', scope=scope, status=status_filter, borrower_id=selected_borrower_id) if (status_filter or selected_borrower_id) else url_for('credit.backlog', mode='search', scope=scope) }}">{{ _('Search and list') }}</a>
+  <a class="btn btn-sm {% if credit_mode == 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.backlog', mode='add') }}">{{ _('Add new') }}</a>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-12 col-xl-7">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center gap-2 flex-wrap">
+        <span>{{ _('Approval backlog') }}</span>
+        <div class="d-flex align-items-center gap-2">
+          <form method="get" class="d-flex gap-2">
+            <input type="hidden" name="mode" value="search">
+            <input type="hidden" name="scope" value="{{ scope }}">
+            <input type="hidden" name="status" value="{{ status_filter or '' }}">
+            <select class="form-select form-select-sm" name="borrower_id">
+              <option value="" {% if not selected_borrower_id %}selected{% endif %}>{{ _('All borrowers') }}</option>
+              {% for b in borrowers %}
+              <option value="{{ b.id }}" {% if selected_borrower_id == b.id %}selected{% endif %}>{{ b.name }}</option>
+              {% endfor %}
+            </select>
+            <button class="btn btn-sm btn-outline-secondary" type="submit">{{ _('Apply filters') }}</button>
+          </form>
+          <span class="badge text-bg-light border">{{ pending_approvals|length }}</span>
+        </div>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead><tr><th>{{ _('Memo') }}</th><th>{{ _('Borrower') }}</th><th>{{ _('Stage') }}</th><th>{{ _('Group') }}</th><th>{{ _('Function') }}</th><th>{{ _('Date') }}</th><th>{{ _('Actions') }}</th></tr></thead>
+            <tbody>
+              {% for a in pending_approvals %}
+              <tr>
+                <td>{{ a.memo.title if a.memo else '-' }}</td>
+                <td>{{ a.memo.borrower.name if a.memo and a.memo.borrower else '-' }}</td>
+                <td>{{ a.workflow_step.step_name if a.workflow_step else a.stage }}</td>
+                <td>{{ a.analyst_group.name if a.analyst_group else '-' }}</td>
+                <td>{{ a.analyst_function_ref.label if a.analyst_function_ref else (a.analyst_function or '-') }}</td>
+                <td>{{ a.created_at.strftime('%Y-%m-%d %H:%M') if a.created_at else '-' }}</td>
+                <td>
+                  {% if can_esign_by_approval.get(a.id) %}
+                  <form method="post" class="d-flex flex-column gap-1">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="approve_esign">
+                    <input type="hidden" name="approval_id" value="{{ a.id }}">
+                    <input type="hidden" name="scope" value="{{ scope }}">
+                    <input type="hidden" name="status" value="{{ status_filter or '' }}">
+                    <input type="hidden" name="borrower_id" value="{{ selected_borrower_id or '' }}">
+                    <input class="form-control form-control-sm" name="signature_value" placeholder="{{ _('Type your email to e-sign') }}" required>
+                    <button class="btn btn-success btn-sm" type="submit">{{ _('Approve & e-sign') }}</button>
+                  </form>
+                  {% else %}
+                  <div class="small text-secondary">{{ _('Expected') }}: {{ expected_step_name_by_approval.get(a.id, '-') }}</div>
+                  <div class="small text-secondary">{{ _('Not signable for your workflow scope.') }}</div>
+                  {% endif %}
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="7" class="text-secondary">{{ _('No pending approvals for your scope.') }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if credit_mode == 'add' %}
+  <div class="col-12 col-xl-5">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-body-tertiary">{{ _('Create backlog task') }}</div>
+      <div class="card-body">
+        {% if not can_create_task %}
+        <div class="alert alert-warning">{{ _('You do not have permission to create backlog tasks.') }}</div>
+        {% endif %}
+        <form method="post" class="row g-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="create_task">
+          <div class="col-12"><input class="form-control" name="title" placeholder="{{ _('Task title') }}" required {% if not can_create_task %}disabled{% endif %}></div>
+          <div class="col-12"><textarea class="form-control" name="description" rows="2" placeholder="{{ _('Description') }}" {% if not can_create_task %}disabled{% endif %}></textarea></div>
+          <div class="col-md-6">
+            <select class="form-select" name="memo_id" {% if not can_create_task %}disabled{% endif %}>
+              <option value="">{{ _('Credit memo') }}</option>
+              {% for m in memos %}
+              <option value="{{ m.id }}">{{ m.title }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6">
+            <select class="form-select" name="workflow_step_id" {% if not can_create_task %}disabled{% endif %}>
+              <option value="">{{ _('Workflow step') }}</option>
+              {% for step in workflow_steps %}
+              <option value="{{ step.id }}">#{{ step.step_order }} · {{ step.step_name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6">
+            <select class="form-select" name="deal_id" {% if not can_create_task %}disabled{% endif %}>
+              <option value="">{{ _('Deal') }}</option>
+              {% for d in deals %}
+              <option value="{{ d.id }}">{{ d.code }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6">
+            <select class="form-select" name="borrower_id" {% if not can_create_task %}disabled{% endif %}>
+              <option value="">{{ _('Borrower') }}</option>
+              {% for b in borrowers %}
+              <option value="{{ b.id }}">{{ b.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6">
+            <select class="form-select" name="assigned_user_id" {% if not can_create_task %}disabled{% endif %}>
+              <option value="">{{ _('Assigned user') }}</option>
+              {% for u in users %}
+              <option value="{{ u.id }}">{{ u.email }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6">
+            <select class="form-select" name="assigned_group_id" {% if not can_create_task %}disabled{% endif %}>
+              <option value="">{{ _('Assigned group') }}</option>
+              {% for group in groups %}
+              <option value="{{ group.id }}">{{ group.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <select class="form-select" name="status" {% if not can_create_task %}disabled{% endif %}>
+              <option value="todo">{{ _('To do') }}</option>
+              <option value="in_progress">{{ _('In progress') }}</option>
+              <option value="done">{{ _('Done') }}</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <select class="form-select" name="priority" {% if not can_create_task %}disabled{% endif %}>
+              <option value="low">{{ _('Low') }}</option>
+              <option value="normal" selected>{{ _('Normal') }}</option>
+              <option value="high">{{ _('High') }}</option>
+              <option value="critical">{{ _('Critical') }}</option>
+            </select>
+          </div>
+          <div class="col-md-4"><input class="form-control" type="date" name="due_date" {% if not can_create_task %}disabled{% endif %}></div>
+          <div class="col-12"><button class="btn btn-primary" type="submit" {% if not can_create_task %}disabled{% endif %}>{{ _('Create task') }}</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+{% if credit_mode != 'add' %}
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center gap-2 flex-wrap">
+    <span>{{ _('Backoffice tasks') }}</span>
+    <form method="get" class="d-flex gap-2">
+      <select class="form-select form-select-sm" name="scope">
+        <option value="my" {% if scope == 'my' %}selected{% endif %}>{{ _('My scope') }}</option>
+        {% if is_backoffice_admin %}
+        <option value="open" {% if scope == 'open' %}selected{% endif %}>{{ _('Open tasks') }}</option>
+        <option value="all" {% if scope == 'all' %}selected{% endif %}>{{ _('All tasks') }}</option>
+        {% endif %}
+      </select>
+      <select class="form-select form-select-sm" name="status">
+        <option value="" {% if not status_filter %}selected{% endif %}>{{ _('All statuses') }}</option>
+        <option value="todo" {% if status_filter == 'todo' %}selected{% endif %}>{{ _('To do') }}</option>
+        <option value="in_progress" {% if status_filter == 'in_progress' %}selected{% endif %}>{{ _('In progress') }}</option>
+        <option value="done" {% if status_filter == 'done' %}selected{% endif %}>{{ _('Done') }}</option>
+        <option value="cancelled" {% if status_filter == 'cancelled' %}selected{% endif %}>{{ _('Cancelled') }}</option>
+      </select>
+      <select class="form-select form-select-sm" name="borrower_id">
+        <option value="" {% if not selected_borrower_id %}selected{% endif %}>{{ _('All borrowers') }}</option>
+        {% for b in borrowers %}
+        <option value="{{ b.id }}" {% if selected_borrower_id == b.id %}selected{% endif %}>{{ b.name }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn btn-sm btn-outline-secondary" type="submit">{{ _('Apply filters') }}</button>
+      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('credit.backlog', mode='search', scope=scope) }}">{{ _('Reset') }}</a>
+    </form>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>{{ _('Task') }}</th><th>{{ _('Scope') }}</th><th>{{ _('Priority') }}</th><th>{{ _('Status') }}</th><th>{{ _('Due date') }}</th><th>{{ _('Actions') }}</th></tr></thead>
+        <tbody>
+          {% for task in tasks %}
+          <tr>
+            <td>
+              <div class="fw-semibold">{{ task.title }}</div>
+              <div class="small text-secondary">{{ task.description or '-' }}</div>
+              <div class="small text-secondary">
+                {{ _('Memo') }}: {{ task.memo.title if task.memo else '-' }} · {{ _('Deal') }}: {{ task.deal.code if task.deal else '-' }} · {{ _('Borrower') }}: {{ task.borrower.name if task.borrower else '-' }}
+              </div>
+            </td>
+            <td>
+              {% if task.assigned_user %}
+                <div>{{ task.assigned_user.email }}</div>
+              {% endif %}
+              {% if task.assigned_group %}
+                <div class="small text-secondary">{{ task.assigned_group.name }}</div>
+              {% endif %}
+              {% if not task.assigned_user and not task.assigned_group %}-{% endif %}
+            </td>
+            <td>{{ task.priority }}</td>
+            <td>{{ task.status }}</td>
+            <td>{{ task.due_date.strftime('%Y-%m-%d') if task.due_date else '-' }}</td>
+            <td>
+              <div class="d-flex gap-1 flex-wrap">
+                {% for st, label in [('todo', _('To do')), ('in_progress', _('In progress')), ('done', _('Done')), ('cancelled', _('Cancelled'))] %}
+                <form method="post" class="d-inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="action" value="set_status">
+                  <input type="hidden" name="task_id" value="{{ task.id }}">
+                  <input type="hidden" name="status" value="{{ st }}">
+                  <button class="btn btn-outline-secondary btn-sm" type="submit">{{ label }}</button>
+                </form>
+                {% endfor %}
+              </div>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="text-secondary">{{ _('No tasks for this scope.') }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

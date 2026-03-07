@@ -284,6 +284,63 @@ class CreditMemo(db.Model):
     prepared_by = db.relationship("User")
 
 
+class CreditMemoTemplate(db.Model):
+    __tablename__ = "credit_memo_templates"
+
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = db.Column(db.String(180), nullable=False)
+    memo_type = db.Column(db.String(64), nullable=False, default="full_credit_memo", index=True)
+    description = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(32), nullable=False, default="draft", index=True)
+    base_template_id = db.Column(db.Integer, db.ForeignKey("credit_memo_templates.id", ondelete="SET NULL"), nullable=True)
+    published_version_no = db.Column(db.Integer, nullable=True)
+    is_locked = db.Column(db.Boolean, nullable=False, default=False)
+    theme_json = db.Column(db.JSON, nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    approved_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    published_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    base_template = db.relationship("CreditMemoTemplate", remote_side=[id], uselist=False)
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    approved_by = db.relationship("User", foreign_keys=[approved_by_user_id])
+
+
+class CreditMemoTemplateVersion(db.Model):
+    __tablename__ = "credit_memo_template_versions"
+    __table_args__ = (
+        UniqueConstraint("template_id", "version_no", name="uq_credit_memo_template_version"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    template_id = db.Column(db.Integer, db.ForeignKey("credit_memo_templates.id", ondelete="CASCADE"), nullable=False, index=True)
+    version_no = db.Column(db.Integer, nullable=False)
+    status = db.Column(db.String(32), nullable=False, default="draft", index=True)
+    definition_json = db.Column(db.JSON, nullable=True)
+    validation_json = db.Column(db.JSON, nullable=True)
+    change_notes = db.Column(db.Text, nullable=True)
+    effective_date = db.Column(db.Date, nullable=True)
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    approved_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    published_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    template = db.relationship(
+        "CreditMemoTemplate",
+        backref=db.backref(
+            "versions",
+            lazy="dynamic",
+            cascade="all, delete-orphan",
+            order_by="CreditMemoTemplateVersion.version_no.desc()",
+        ),
+    )
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+    approved_by = db.relationship("User", foreign_keys=[approved_by_user_id])
+
+
 class CreditAnalystFunction(db.Model):
     __tablename__ = "credit_analyst_functions"
     __table_args__ = (
@@ -389,3 +446,43 @@ class CreditDocument(db.Model):
     deal = db.relationship("CreditDeal", backref=db.backref("documents", lazy="dynamic"))
     memo = db.relationship("CreditMemo", backref=db.backref("documents", lazy="dynamic"))
     uploaded_by = db.relationship("User")
+
+
+class CreditBacklogTask(db.Model):
+    __tablename__ = "credit_backlog_tasks"
+
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    memo_id = db.Column(db.Integer, db.ForeignKey("credit_memos.id", ondelete="SET NULL"), nullable=True, index=True)
+    deal_id = db.Column(db.Integer, db.ForeignKey("credit_deals.id", ondelete="SET NULL"), nullable=True, index=True)
+    borrower_id = db.Column(db.Integer, db.ForeignKey("credit_borrowers.id", ondelete="SET NULL"), nullable=True, index=True)
+    workflow_step_id = db.Column(
+        db.Integer,
+        db.ForeignKey("credit_approval_workflow_steps.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    title = db.Column(db.String(180), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(32), nullable=False, default="todo", index=True)
+    priority = db.Column(db.String(16), nullable=False, default="normal", index=True)
+    due_date = db.Column(db.Date, nullable=True)
+    assigned_user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    assigned_group_id = db.Column(
+        db.Integer,
+        db.ForeignKey("credit_analyst_groups.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    created_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    memo = db.relationship("CreditMemo")
+    deal = db.relationship("CreditDeal")
+    borrower = db.relationship("CreditBorrower")
+    workflow_step = db.relationship("CreditApprovalWorkflowStep")
+    assigned_user = db.relationship("User", foreign_keys=[assigned_user_id])
+    assigned_group = db.relationship("CreditAnalystGroup")
+    created_by = db.relationship("User", foreign_keys=[created_by_user_id])

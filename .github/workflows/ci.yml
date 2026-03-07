@@ -6,6 +6,10 @@ on:
       - main
   pull_request:
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   tests-and-migrations:
     runs-on: ubuntu-latest
@@ -42,13 +46,17 @@ jobs:
       - name: Install system deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y unixodbc-dev
+          sudo apt-get install -y unixodbc-dev postgresql-client
 
       - name: Install Python deps
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pytest
+
+      - name: Validate installed packages
+        run: |
+          pip check
 
       - name: i18n lint (non-blocking)
         run: |
@@ -73,6 +81,14 @@ jobs:
         run: |
           flask --app app db heads
 
+      - name: Ensure a single Alembic head
+        env:
+          DATABASE_URL: ${{ env.CI_DATABASE_URL }}
+          AUTO_CREATE_DB: "false"
+        run: |
+          HEAD_COUNT=$(flask --app app db heads | awk '/^[0-9a-f]+/ {c++} END {print c+0}')
+          test "$HEAD_COUNT" -eq 1
+
       - name: Dry-run migrations SQL (no apply)
         env:
           DATABASE_URL: ${{ env.CI_DATABASE_URL }}
@@ -86,6 +102,15 @@ jobs:
           DATABASE_URL: ${{ env.CI_DATABASE_URL }}
           AUTO_CREATE_DB: "false"
         run: |
+          flask --app app db upgrade
+
+      - name: Validate migration state
+        env:
+          DATABASE_URL: ${{ env.CI_DATABASE_URL }}
+          AUTO_CREATE_DB: "false"
+        run: |
+          flask --app app db current
+          flask --app app db check
           flask --app app db upgrade
 
       - name: Credit readiness validation

@@ -19,6 +19,29 @@ from audela.services.subscription_service import SubscriptionService
 from audela.services.email_service import EmailService, EmailVerificationService
 
 
+_SYSTEM_ROLE_CATALOG: dict[str, str] = {
+    "platform_admin": "Admin da plataforma",
+    "tenant_admin": "Admin do tenant",
+    "creator": "Criador",
+    "viewer": "Visualizador",
+    "credit_admin": "Administration credit et workflow",
+    "credit_analyst": "Analyste credit",
+    "credit_approver": "Approbateur credit",
+    "credit_viewer": "Lecture seule credit",
+}
+
+
+def _ensure_roles_exist(role_codes: list[str]) -> None:
+    for code in role_codes:
+        if not code:
+            continue
+        row = Role.query.filter_by(code=code).first()
+        if row:
+            continue
+        db.session.add(Role(code=code, description=_SYSTEM_ROLE_CATALOG.get(code)))
+    db.session.flush()
+
+
 def dict_to_obj(d: Any) -> Any:
     """
     Convertir récursivement un dict en objet avec accès par attributs.
@@ -137,6 +160,7 @@ class TenantService:
         db.session.flush()
         
         # Assigner rôles
+        _ensure_roles_exist(role_codes)
         for code in role_codes:
             role = Role.query.filter_by(code=code).first()
             if role:
@@ -259,6 +283,7 @@ class TenantService:
         UserRole.query.filter_by(user_id=user_id).delete()
         
         # Ajouter nouveaux rôles
+        _ensure_roles_exist(role_codes)
         for code in role_codes:
             role = Role.query.filter_by(code=code).first()
             if role:

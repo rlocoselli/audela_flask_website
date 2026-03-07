@@ -3,9 +3,19 @@
 {% block title %}{% if title %}{{ title }} – {% endif %}{{ _('Portal BI') }}{% endblock %}
 
 {% block content %}
-<div class="portal-shell d-flex">
+<style>
+  .bi-shell.menu-right {
+    flex-direction: row-reverse;
+  }
+  .bi-shell.menu-hidden .sidebar {
+    display: none !important;
+  }
+</style>
+
+<div id="biShell" class="portal-shell d-flex bi-shell">
   <!-- Sidebar -->
   <aside
+    id="biSidebar"
     class="sidebar border-end bg-body-tertiary p-3 d-none d-lg-flex flex-column"
     data-tour="{{ _('Navigation principale vers les modules BI et Finance.') }}"
     data-tour-title="{{ _('Tutoriel') }}"
@@ -18,7 +28,6 @@
 
     <nav class="nav flex-column gap-1">
       {% if bi_menu_access.home %}<a class="nav-link" href="{{ url_for('portal.home') }}"><i class="bi bi-house me-2"></i>{{ _('Início') }}</a>{% endif %}
-      {% if bi_menu_access.credit_origination %}<a class="nav-link" href="{{ url_for('credit.overview') }}"><i class="bi bi-bank2 me-2"></i>{{ _('Audela Credit') }}</a>{% endif %}
       {% if bi_menu_access.ratios %}<a class="nav-link" href="{{ url_for('portal.ratios') }}"><i class="bi bi-percent me-2"></i>{{ _('Ratios') }}</a>{% endif %}
       {% if bi_menu_access.sources %}<a class="nav-link" href="{{ url_for('portal.sources_list') }}"><i class="bi bi-database me-2"></i>{{ _('Fontes') }}</a>{% endif %}
       {% if bi_menu_access.api_sources %}<a class="nav-link" href="{{ url_for('portal.api_sources_list') }}"><i class="bi bi-plug me-2"></i>{{ _('Fontes API') }}</a>{% endif %}
@@ -59,6 +68,14 @@
           <button class="btn btn-outline-secondary btn-sm d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileNav">
             <i class="bi bi-list"></i>
           </button>
+          <div class="btn-group btn-group-sm d-none d-lg-inline-flex" role="group" aria-label="BI sidebar controls">
+            <button id="biSidebarToggleBtn" class="btn btn-outline-secondary" type="button" title="{{ _('Hide menu') }}">
+              <i class="bi bi-layout-sidebar-inset"></i>
+            </button>
+            <button id="biSidebarMoveBtn" class="btn btn-outline-secondary" type="button" title="{{ _('Move menu') }}">
+              <i class="bi bi-arrow-left-right"></i>
+            </button>
+          </div>
           <div class="fw-semibold text-nowrap">{{ _('Portal BI') }}</div>
           <span class="small-muted text-truncate d-none d-sm-inline">· {{ tenant.name if tenant else '' }}</span>
         </div>
@@ -221,7 +238,6 @@
   <div class="offcanvas-body">
     <div class="nav flex-column gap-1">
       {% if bi_menu_access.home %}<a class="nav-link" href="{{ url_for('portal.home') }}">{{ _('Início') }}</a>{% endif %}
-      {% if bi_menu_access.credit_origination %}<a class="nav-link" href="{{ url_for('credit.overview') }}">{{ _('Audela Credit') }}</a>{% endif %}
       {% if bi_menu_access.ratios %}<a class="nav-link" href="{{ url_for('portal.ratios') }}">{{ _('Ratios') }}</a>{% endif %}
       {% if bi_menu_access.sources %}<a class="nav-link" href="{{ url_for('portal.sources_list') }}">{{ _('Fontes') }}</a>{% endif %}
       {% if bi_menu_access.web_extract %}<a class="nav-link" href="{{ url_for('portal.web_extract') }}">{{ _('Web Scraping IA') }}</a>{% endif %}
@@ -251,6 +267,45 @@
     <script src="{{ url_for('static', filename='portal/theme_switcher.js') }}"></script>
     <script>
       window.onReady(function(){
+        const biShell = document.getElementById('biShell');
+        const biSidebar = document.getElementById('biSidebar');
+        const biSidebarToggleBtn = document.getElementById('biSidebarToggleBtn');
+        const biSidebarMoveBtn = document.getElementById('biSidebarMoveBtn');
+
+        if (biShell && biSidebar && biSidebarToggleBtn && biSidebarMoveBtn) {
+          const KEY_VISIBLE = 'audela_bi_sidebar_visible';
+          const KEY_SIDE = 'audela_bi_sidebar_side';
+
+          const readVisible = () => localStorage.getItem(KEY_VISIBLE) !== '0';
+          const readSide = () => (localStorage.getItem(KEY_SIDE) === 'right' ? 'right' : 'left');
+
+          const applySidebarState = () => {
+            const visible = readVisible();
+            const side = readSide();
+
+            biShell.classList.toggle('menu-hidden', !visible);
+            biShell.classList.toggle('menu-right', side === 'right');
+
+            biSidebarToggleBtn.innerHTML = visible
+              ? '<i class="bi bi-layout-sidebar-inset"></i>'
+              : '<i class="bi bi-layout-sidebar"></i>';
+            biSidebarToggleBtn.title = visible ? window.t('Hide menu') : window.t('Show menu');
+            biSidebarMoveBtn.title = side === 'left' ? window.t('Move menu to right') : window.t('Move menu to left');
+          };
+
+          biSidebarToggleBtn.addEventListener('click', () => {
+            localStorage.setItem(KEY_VISIBLE, readVisible() ? '0' : '1');
+            applySidebarState();
+          });
+
+          biSidebarMoveBtn.addEventListener('click', () => {
+            localStorage.setItem(KEY_SIDE, readSide() === 'left' ? 'right' : 'left');
+            applySidebarState();
+          });
+
+          applySidebarState();
+        }
+
         function normText(el){
           const t = (el.getAttribute('data-bi-tip') || el.getAttribute('data-tip') || el.getAttribute('title') || el.getAttribute('aria-label') || el.textContent || '').trim();
           return t.replace(/\s+/g, ' ').trim();

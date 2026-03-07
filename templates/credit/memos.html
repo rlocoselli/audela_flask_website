@@ -1,8 +1,16 @@
 {% extends "credit/page_base.html" %}
 {% set title = _('Audela Credit Memos') %}
 {% set active_page = 'memos' %}
+{% set credit_mode = request.args.get('mode', 'search') %}
 
 {% block credit_page_content %}
+<div class="d-flex gap-2 mb-3">
+  <a class="btn btn-sm {% if credit_mode != 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.memos', mode='search') }}">{{ _('Search and list') }}</a>
+  <a class="btn btn-sm {% if credit_mode == 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.memos', mode='add') }}">{{ _('Add and import') }}</a>
+  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('credit.memo_templates') }}">{{ _('Memo templates') }}</a>
+</div>
+
+{% if credit_mode == 'add' %}
 <div class="row g-3 mb-3">
   <div class="col-12 col-xl-6">
     <div class="card border-0 shadow-sm h-100">
@@ -35,21 +43,103 @@
   </div>
 </div>
 
+<div class="row g-3 mb-3">
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-body-tertiary">{{ _('Generate final memo from published template') }}</div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('credit.memos_generate_from_template') }}" class="row g-2 align-items-end">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="col-12 col-xl-3">
+            <label class="form-label">{{ _('Published template') }}</label>
+            <select class="form-select" name="template_id" required>
+              <option value="">{{ _('Select template') }}</option>
+              {% for t in published_templates %}
+              <option value="{{ t.id }}" {% if selected_template_id == t.id %}selected{% endif %}>{{ t.name }} (v{{ t.published_version_no or '-' }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12 col-xl-3">
+            <label class="form-label">{{ _('Deal') }}</label>
+            <select class="form-select" name="deal_id" required>
+              <option value="">{{ _('Select deal') }}</option>
+              {% for d in deals %}
+              <option value="{{ d.id }}" {% if selected_deal_id == d.id %}selected{% endif %}>{{ d.code }} - {{ d.borrower.name if d.borrower else '' }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12 col-xl-3">
+            <label class="form-label">{{ _('Memo title') }}</label>
+            <input class="form-control" name="title" placeholder="{{ _('Optional custom title') }}">
+          </div>
+          <div class="col-12 col-xl-2">
+            <label class="form-label">{{ _('Recommendation') }}</label>
+            <select class="form-select" name="recommendation">
+              <option value="review">{{ _('Review') }}</option>
+              <option value="approve">{{ _('Approve') }}</option>
+              <option value="approve_with_conditions">{{ _('Approve with conditions') }}</option>
+              <option value="reject">{{ _('Reject') }}</option>
+            </select>
+          </div>
+          <div class="col-12 col-xl-1">
+            <button class="btn btn-success w-100" type="submit">{{ _('Generate') }}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if credit_mode != 'add' %}
+{% if focus_memo_id %}
+<div class="alert alert-success d-flex justify-content-between align-items-center">
+  <span>{{ _('Generated memo ready.') }}</span>
+  <a class="btn btn-sm btn-outline-success" href="#memo-row-{{ focus_memo_id }}">{{ _('Open generated memo') }}</a>
+</div>
+{% endif %}
 <div class="card border-0 shadow-sm">
   <div class="card-header bg-body-tertiary">{{ _('Credit memos') }}</div>
   <div class="card-body p-0">
     <div class="table-responsive">
       <table class="table table-sm mb-0">
-        <thead><tr><th>{{ _('Title') }}</th><th>{{ _('Deal') }}</th><th>{{ _('Recommendation') }}</th><th>AI</th><th>{{ _('Updated') }}</th></tr></thead>
+        <thead><tr><th>{{ _('Title') }}</th><th>{{ _('Deal') }}</th><th>{{ _('Recommendation') }}</th><th>{{ _('Source') }}</th><th>AI</th><th>{{ _('Updated') }}</th><th>{{ _('Actions') }}</th></tr></thead>
         <tbody>
           {% for m in memos %}
-          <tr><td>{{ m.title }}</td><td>{{ m.deal.code if m.deal else '-' }}</td><td>{{ m.recommendation }}</td><td>{{ _('Yes') if m.ai_generated else _('No') }}</td><td>{{ m.updated_at.strftime('%Y-%m-%d %H:%M') if m.updated_at else '' }}</td></tr>
+          <tr id="memo-row-{{ m.id }}" {% if focus_memo_id == m.id %}class="table-success"{% endif %}>
+            <td>{{ m.title }}</td>
+            <td>{{ m.deal.code if m.deal else '-' }}</td>
+            <td>{{ m.recommendation }}</td>
+            <td>
+              {% if m.ai_response_json and m.ai_response_json.generated_from_template %}
+              {{ m.ai_response_json.generated_from_template.template_name }} (v{{ m.ai_response_json.generated_from_template.template_version_no }})
+              {% else %}
+              -
+              {% endif %}
+            </td>
+            <td>{{ _('Yes') if m.ai_generated else _('No') }}</td>
+            <td>{{ m.updated_at.strftime('%Y-%m-%d %H:%M') if m.updated_at else '' }}</td>
+            <td>
+              <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.memo_pdf', memo_id=m.id) }}" target="_blank" rel="noopener">PDF</a>
+            </td>
+          </tr>
           {% else %}
-          <tr><td colspan="5" class="text-secondary">{{ _('No memos yet.') }}</td></tr>
+          <tr><td colspan="7" class="text-secondary">{{ _('No memos yet.') }}</td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
   </div>
 </div>
+{% if focus_memo_id %}
+<script>
+  (function () {
+    const row = document.getElementById('memo-row-{{ focus_memo_id }}');
+    if (row) {
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  })();
+</script>
+{% endif %}
+{% endif %}
 {% endblock %}

@@ -1,8 +1,15 @@
 {% extends "credit/page_base.html" %}
 {% set title = _('Audela Credit Approvals') %}
 {% set active_page = 'approvals' %}
+{% set credit_mode = request.args.get('mode', 'search') %}
 
 {% block credit_page_content %}
+<div class="d-flex gap-2 mb-3">
+  <a class="btn btn-sm {% if credit_mode != 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.approvals', mode='search') }}">{{ _('Search and list') }}</a>
+  <a class="btn btn-sm {% if credit_mode == 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.approvals', mode='add') }}">{{ _('Add new') }}</a>
+</div>
+
+{% if credit_mode == 'add' %}
 <div class="card border-0 shadow-sm mb-3">
   <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center">
     <span>{{ _('Record approval decision') }}</span>
@@ -11,25 +18,31 @@
     </a>
   </div>
   <div class="card-body">
+    {% if not can_submit %}
+    <div class="alert alert-warning mb-3">{{ _('You do not have permission to record approval decisions.') }}</div>
+    {% endif %}
     <form method="post" class="row g-2">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div class="col-md-4"><select class="form-select" name="memo_id" required><option value="">{{ _('Credit memo') }}</option>{% for m in memos %}<option value="{{ m.id }}">{{ m.title }}</option>{% endfor %}</select></div>
+      <div class="col-md-4"><select class="form-select" name="memo_id" id="memoSelect" required><option value="">{{ _('Credit memo') }}</option>{% for m in memos %}<option value="{{ m.id }}">{{ m.title }}</option>{% endfor %}</select></div>
       <div class="col-md-3">
-        <select class="form-select" name="workflow_step_id">
-          <option value="">{{ _('Manual stage') }}</option>
+        <select class="form-select" name="workflow_step_id" id="workflowStepSelect" required>
+          <option value="">{{ _('Select workflow step') }}</option>
           {% for step in workflow_steps %}
           <option value="{{ step.id }}">#{{ step.step_order }} · {{ step.step_name }} {% if step.group %}· {{ step.group.name }}{% endif %}{% if step.function_ref %} · {{ step.function_ref.label }}{% elif step.function_name %} · {{ step.function_name }}{% endif %}</option>
           {% endfor %}
         </select>
       </div>
-      <div class="col-md-2"><select class="form-select" name="stage">{% for code, label in stage_options %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></div>
+      <div class="col-md-2"><select class="form-select" name="stage" disabled>{% for code, label in stage_options %}<option value="{{ code }}">{{ label }}</option>{% endfor %}</select></div>
       <div class="col-md-2"><select class="form-select" name="decision"><option value="pending">{{ _('Pending') }}</option><option value="approved">{{ _('Approved') }}</option><option value="rejected">{{ _('Rejected') }}</option></select></div>
-      <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">{{ _('Save') }}</button></div>
+      <div class="col-md-2"><button class="btn btn-primary w-100" type="submit" {% if not can_submit %}disabled{% endif %}>{{ _('Save') }}</button></div>
+      <div class="col-12 small text-secondary" id="workflowHint">{{ _('Workflow enforcement is active. Only the expected next step is allowed per memo.') }}</div>
       <div class="col-12"><textarea class="form-control" name="comments" rows="2" placeholder="{{ _('Comments') }}"></textarea></div>
     </form>
   </div>
 </div>
+{% endif %}
 
+{% if credit_mode != 'add' %}
 <div class="card border-0 shadow-sm">
   <div class="card-header bg-body-tertiary">{{ _('Approvals') }}</div>
   <div class="card-body p-0">
@@ -55,4 +68,57 @@
     </div>
   </div>
 </div>
+{% endif %}
+
+{% if credit_mode == 'add' %}
+<script>
+  (function () {
+    const memoSelect = document.getElementById('memoSelect');
+    const workflowStepSelect = document.getElementById('workflowStepSelect');
+    const hint = document.getElementById('workflowHint');
+    if (!memoSelect || !workflowStepSelect) return;
+
+    const expectedByMemo = {{ expected_step_by_memo|tojson }};
+    const stateByMemo = {{ workflow_state_by_memo|tojson }};
+    const defaultHint = {{ _('Workflow enforcement is active. Only the expected next step is allowed per memo.')|tojson }};
+    const expectedPrefix = {{ _('Expected step:')|tojson }};
+
+    const updateExpected = () => {
+      const memoId = Number(memoSelect.value || 0);
+      const options = Array.from(workflowStepSelect.options || []);
+      if (!memoId) {
+        workflowStepSelect.value = '';
+        options.forEach((opt) => {
+          if (!opt.value) return;
+          opt.disabled = false;
+        });
+        if (hint) hint.textContent = defaultHint;
+        return;
+      }
+
+      const expectedStepId = Number(expectedByMemo[String(memoId)] || expectedByMemo[memoId] || 0);
+      if (expectedStepId) {
+        options.forEach((opt) => {
+          if (!opt.value) return;
+          opt.disabled = Number(opt.value) !== expectedStepId;
+        });
+        workflowStepSelect.value = String(expectedStepId);
+        const selectedOption = workflowStepSelect.options[workflowStepSelect.selectedIndex];
+        const expectedLabel = selectedOption ? selectedOption.textContent.trim() : String(expectedStepId);
+        if (hint) hint.textContent = `${expectedPrefix} ${expectedLabel}`;
+      } else {
+        options.forEach((opt) => {
+          if (!opt.value) return;
+          opt.disabled = true;
+        });
+        workflowStepSelect.value = '';
+        if (hint) hint.textContent = stateByMemo[String(memoId)] || stateByMemo[memoId] || defaultHint;
+      }
+    };
+
+    memoSelect.addEventListener('change', updateExpected);
+    updateExpected();
+  })();
+</script>
+{% endif %}
 {% endblock %}

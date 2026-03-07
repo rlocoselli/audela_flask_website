@@ -209,6 +209,10 @@ def bootstrap():
             ("tenant_admin", "Admin do tenant"),
             ("creator", "Criador"),
             ("viewer", "Visualizador"),
+            ("credit_admin", "Administration credit et workflow"),
+            ("credit_analyst", "Analyste credit"),
+            ("credit_approver", "Approbateur credit"),
+            ("credit_viewer", "Lecture seule credit"),
         ]:
             if not Role.query.filter_by(code=code).first():
                 db.session.add(Role(code=code, description=desc))

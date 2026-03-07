@@ -1,20 +1,26 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
+from copy import deepcopy
 import csv
 import io
 import calendar
+import json
+import re
 from urllib.parse import urlencode
+from html import escape as html_escape
+from html import unescape as html_unescape
 
 from flask import abort, flash, g, jsonify, make_response, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
-from sqlalchemy import func
+from markupsafe import escape
+from sqlalchemy import false, func, or_
 from sqlalchemy.exc import IntegrityError
 
 from ...extensions import db
 from ...i18n import DEFAULT_LANG, tr
-from ...models.core import Tenant, User
+from ...models.core import Role, Tenant, User
 from ...models.bi import FileAsset, FileFolder
 from ...models.credit import (
     CreditApproval,
@@ -34,6 +40,9 @@ from ...models.credit import (
     CreditGuaranteeType,
     CreditGuarantor,
     CreditMemo,
+    CreditMemoTemplate,
+    CreditMemoTemplateVersion,
+    CreditBacklogTask,
     CreditRating,
     CreditRatioSnapshot,
     CreditSector,
@@ -68,6 +77,1403 @@ def _to_int(value: str | None) -> int | None:
     except Exception:
         return None
     return out if out > 0 else None
+
+
+def _to_decimal_loose(value: str | None, default: str = "0") -> Decimal:
+    raw = str(value or "").strip()
+    if not raw:
+        return Decimal(default)
+
+    cleaned = raw.replace(" ", "").replace("\u00a0", "")
+    # Handle both 1,234.56 and 1.234,56 forms.
+    if "," in cleaned and "." in cleaned:
+        if cleaned.rfind(",") > cleaned.rfind("."):
+            cleaned = cleaned.replace(".", "").replace(",", ".")
+        else:
+            cleaned = cleaned.replace(",", "")
+    else:
+        cleaned = cleaned.replace(",", ".")
+
+    try:
+        return Decimal(cleaned)
+    except Exception:
+        return Decimal(default)
+
+
+_FINANCIAL_CSV_FIELDS: tuple[str, ...] = (
+    "borrower_id",
+    "period_label",
+    "fiscal_year",
+    "revenue",
+    "ebitda",
+    "total_debt",
+    "cash",
+    "net_income",
+    "spreading_status",
+)
+
+
+_CREDIT_IMPLEMENTATION_PHASES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    (
+        "Phase 1 - MVP",
+        (
+            "Deal Intake",
+            "Workflow & Case Management",
+            "Customer & Counterparty Management",
+            "Deal Modelling",
+            "Financial Spreading",
+            "Credit Risk Analysis",
+            "Approvals & Credit Committee",
+            "Reporting, Audit & Administration",
+        ),
+    ),
+    (
+        "Phase 2",
+        (
+            "Collateral & Covenant Management",
+            "Pricing & Profitability",
+            "Limits, Compliance & Controls",
+            "Documentation & Conditions Precedent",
+            "Booking & Core Banking Integration",
+        ),
+    ),
+    (
+        "Phase 3",
+        (
+            "Monitoring, Amendments & Renewals",
+            "Deal Modelling - Advanced Scenarios",
+            "Documentation & Conditions Precedent - Advanced Generation",
+            "Reporting, Audit & Administration - Advanced Analytics",
+        ),
+    ),
+)
+
+
+_CREDIT_IMPLEMENTATION_EPICS: tuple[dict[str, object], ...] = (
+    {
+        "code": "deal_intake",
+        "title": "Deal Intake",
+        "objective": "Capture new requests quickly and consistently.",
+        "priority": "high",
+        "stories": (
+            "Create deal from scratch with mandatory fields by product type.",
+            "Attach financials, KYC and business plan files.",
+            "Save draft and resume later.",
+        ),
+    },
+    {
+        "code": "workflow_case",
+        "title": "Workflow & Case Management",
+        "objective": "Control routing, SLA and traceability across review stages.",
+        "priority": "very_high",
+        "stories": (
+            "Assign tasks automatically on submission.",
+            "Support reassignment, escalations and reminders.",
+            "Show full workflow history and approval timeline.",
+        ),
+    },
+    {
+        "code": "customer_counterparty",
+        "title": "Customer & Counterparty Management",
+        "objective": "Centralize borrower, related-party and group exposure data.",
+        "priority": "high",
+        "stories": (
+            "Link multiple obligors to one credit case.",
+            "Aggregate exposure by group hierarchy.",
+            "Display KYC and AML flags in the credit file.",
+        ),
+    },
+    {
+        "code": "deal_modelling",
+        "title": "Deal Modelling",
+        "objective": "Model single and multi-facility transactions accurately.",
+        "priority": "very_high",
+        "stories": (
+            "Model tranches, tenors, repayment profiles and utilization assumptions.",
+            "Support fees, floating/fixed rates and multi-currency terms.",
+            "Compare alternative structures for same borrower.",
+        ),
+    },
+    {
+        "code": "financial_spreading",
+        "title": "Financial Spreading",
+        "objective": "Standardize and version borrower financial statements.",
+        "priority": "very_high",
+        "stories": (
+            "Spread 3-5 years with raw vs adjusted views.",
+            "Map borrower chart labels to bank standard line items.",
+            "Import from template, CSV and PDF with mapping validation.",
+        ),
+    },
+    {
+        "code": "credit_risk_analysis",
+        "title": "Credit Risk Analysis",
+        "objective": "Generate consistent risk assessment and memo recommendations.",
+        "priority": "very_high",
+        "stories": (
+            "Auto-calculate ratios from spread data.",
+            "Run rating scorecards with override reasons.",
+            "Compare base, downside and stress scenarios.",
+        ),
+    },
+    {
+        "code": "collateral_covenants",
+        "title": "Collateral & Covenant Management",
+        "objective": "Capture mitigants and contractual monitoring rules.",
+        "priority": "high",
+        "stories": (
+            "Register collateral and apply haircut policies.",
+            "Link collateral to one or more facilities.",
+            "Define and test covenant thresholds.",
+        ),
+    },
+    {
+        "code": "pricing_profitability",
+        "title": "Pricing & Profitability",
+        "objective": "Validate deal economics against policy hurdles.",
+        "priority": "high",
+        "stories": (
+            "Compute expected revenue and profitability metrics.",
+            "Evaluate risk-based pricing and FTP impacts.",
+            "Capture and approve pricing exceptions.",
+        ),
+    },
+    {
+        "code": "approvals_committee",
+        "title": "Approvals & Credit Committee",
+        "objective": "Formalize decisions, conditions and delegation controls.",
+        "priority": "very_high",
+        "stories": (
+            "Apply approval matrix by amount, risk and product.",
+            "Generate committee pack automatically.",
+            "Record conditional decisions and policy exceptions.",
+        ),
+    },
+    {
+        "code": "documentation_cp",
+        "title": "Documentation & Conditions Precedent",
+        "objective": "Control legal readiness before booking and disbursement.",
+        "priority": "high",
+        "stories": (
+            "Track product and jurisdiction checklists.",
+            "Monitor missing documents and CP blockers.",
+            "Track signature and legal review status.",
+        ),
+    },
+    {
+        "code": "limits_compliance_controls",
+        "title": "Limits, Compliance & Controls",
+        "objective": "Prevent policy and regulatory breaches in workflow.",
+        "priority": "very_high",
+        "stories": (
+            "Run limit checks by borrower, group, country and sector.",
+            "Block progression when mandatory controls fail.",
+            "Log and approve policy exceptions with traceability.",
+        ),
+    },
+    {
+        "code": "booking_integration",
+        "title": "Booking & Core Banking Integration",
+        "objective": "Push approved deals downstream and reconcile outcomes.",
+        "priority": "high",
+        "stories": (
+            "Send approved facilities to core systems.",
+            "Track booking success/failure and references.",
+            "Support reconciliation between origination and core records.",
+        ),
+    },
+    {
+        "code": "monitoring_amendments_renewals",
+        "title": "Monitoring, Amendments & Renewals",
+        "objective": "Manage full lifecycle changes after origination.",
+        "priority": "medium_high",
+        "stories": (
+            "Launch amendment and renewal workflows from existing facilities.",
+            "Compare approved terms versus amended terms.",
+            "Handle waivers, breaches and restructuring cases.",
+        ),
+    },
+    {
+        "code": "reporting_audit_admin",
+        "title": "Reporting, Audit & Administration",
+        "objective": "Provide operational oversight, governance and admin controls.",
+        "priority": "high",
+        "stories": (
+            "Publish SLA and approval turnaround dashboards.",
+            "Expose full audit trail for data and decisions.",
+            "Manage roles, products, workflows and reference data.",
+        ),
+    },
+)
+
+
+_BACKLOG_PRIORITY_TO_TASK: dict[str, str] = {
+    "very_high": "critical",
+    "high": "high",
+    "medium_high": "normal",
+}
+
+
+def _seed_credit_implementation_backlog(tenant_id: int, actor_user_id: int | None) -> tuple[int, int]:
+    created = 0
+    skipped = 0
+    existing_titles = {
+        str(t[0])
+        for t in db.session.query(CreditBacklogTask.title)
+        .filter(CreditBacklogTask.tenant_id == tenant_id)
+        .all()
+        if t and t[0]
+    }
+
+    for epic in _CREDIT_IMPLEMENTATION_EPICS:
+        title = f"[EPIC] {epic['title']}"
+        if title in existing_titles:
+            skipped += 1
+            continue
+
+        stories = epic.get("stories") if isinstance(epic.get("stories"), tuple) else ()
+        stories_block = "\n".join([f"- {s}" for s in stories])
+        description = (
+            f"Objective: {epic['objective']}\n"
+            f"Priority: {epic['priority']}\n"
+            "Key backlog items:\n"
+            f"{stories_block}"
+        )
+
+        db.session.add(
+            CreditBacklogTask(
+                tenant_id=tenant_id,
+                title=title,
+                description=description,
+                status="todo",
+                priority=_BACKLOG_PRIORITY_TO_TASK.get(str(epic["priority"]), "normal"),
+                created_by_user_id=actor_user_id,
+            )
+        )
+        created += 1
+
+    if created:
+        db.session.commit()
+    return created, skipped
+
+
+def _default_financial_csv_mapping() -> dict[str, str]:
+    return {field: field for field in _FINANCIAL_CSV_FIELDS}
+
+
+def _get_credit_settings(tenant: Tenant | None) -> dict:
+    base = tenant.settings_json if tenant and isinstance(getattr(tenant, "settings_json", None), dict) else {}
+    credit = base.get("credit") if isinstance(base.get("credit"), dict) else {}
+    return {k: v for k, v in credit.items()}
+
+
+def _save_credit_settings(tenant: Tenant, payload: dict) -> None:
+    root = tenant.settings_json if isinstance(getattr(tenant, "settings_json", None), dict) else {}
+    new_root = dict(root)
+    new_root["credit"] = payload
+    tenant.settings_json = new_root
+
+
+def _credit_function_scopes(tenant: Tenant | None) -> dict[str, dict[str, list[int]]]:
+    cfg = _get_credit_settings(tenant)
+    raw = cfg.get("function_scopes") if isinstance(cfg.get("function_scopes"), dict) else {}
+    out: dict[str, dict[str, list[int]]] = {}
+    def _ints(values) -> list[int]:
+        parsed: list[int] = []
+        for v in (values or []):
+            try:
+                iv = int(v)
+            except Exception:
+                continue
+            if iv > 0:
+                parsed.append(iv)
+        return sorted(set(parsed))
+
+    for code, row in raw.items():
+        code_key = str(code or "").strip().lower()
+        if not code_key or not isinstance(row, dict):
+            continue
+        out[code_key] = {
+            "sector_ids": _ints(row.get("sector_ids")),
+            "country_ids": _ints(row.get("country_ids")),
+            "rating_ids": _ints(row.get("rating_ids")),
+        }
+    return out
+
+
+def _save_credit_function_scope(
+    tenant: Tenant,
+    function_code: str,
+    sector_ids: list[int],
+    country_ids: list[int],
+    rating_ids: list[int],
+) -> None:
+    code_key = str(function_code or "").strip().lower()
+    if not code_key:
+        return
+
+    cfg = _get_credit_settings(tenant)
+    scopes = cfg.get("function_scopes") if isinstance(cfg.get("function_scopes"), dict) else {}
+    new_scopes = dict(scopes)
+    new_scopes[code_key] = {
+        "sector_ids": sorted({int(v) for v in sector_ids if int(v) > 0}),
+        "country_ids": sorted({int(v) for v in country_ids if int(v) > 0}),
+        "rating_ids": sorted({int(v) for v in rating_ids if int(v) > 0}),
+    }
+    cfg["function_scopes"] = new_scopes
+    _save_credit_settings(tenant, cfg)
+
+
+def _borrower_matches_scope(borrower: CreditBorrower | None, scope: dict[str, list[int]] | None) -> bool:
+    if not borrower or not isinstance(scope, dict):
+        return True
+
+    sector_ids = [int(v) for v in (scope.get("sector_ids") or []) if int(v) > 0]
+    country_ids = [int(v) for v in (scope.get("country_ids") or []) if int(v) > 0]
+    rating_ids = [int(v) for v in (scope.get("rating_ids") or []) if int(v) > 0]
+
+    if sector_ids and int(borrower.sector_id or 0) not in sector_ids:
+        return False
+    if country_ids and int(borrower.country_id or 0) not in country_ids:
+        return False
+    if rating_ids and int(borrower.rating_id or 0) not in rating_ids:
+        return False
+    return True
+
+
+def _borrower_visible_for_user(tenant: Tenant, user_id: int, borrower: CreditBorrower | None) -> bool:
+    if not borrower:
+        return False
+    if _can_manage_credit_backoffice():
+        return True
+
+    _, function_codes = _credit_user_group_scope(tenant.id, user_id)
+    if not function_codes:
+        return True
+
+    scopes = _credit_function_scopes(tenant)
+    active_scopes = [scopes.get(str(code).strip().lower()) for code in function_codes if scopes.get(str(code).strip().lower())]
+    if not active_scopes:
+        return True
+
+    return any(_borrower_matches_scope(borrower, scope) for scope in active_scopes)
+
+
+def _financial_csv_templates(tenant: Tenant | None) -> list[dict[str, object]]:
+    cfg = _get_credit_settings(tenant)
+    raw = cfg.get("financial_csv_templates") if isinstance(cfg.get("financial_csv_templates"), list) else []
+
+    out: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        if not name:
+            continue
+        key = name.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        mapping = item.get("mapping") if isinstance(item.get("mapping"), dict) else {}
+        cleaned_mapping: dict[str, str] = {}
+        for fld in _FINANCIAL_CSV_FIELDS:
+            val = str(mapping.get(fld) or "").strip()
+            if val:
+                cleaned_mapping[fld] = val
+        out.append({"name": name, "mapping": cleaned_mapping})
+    return out
+
+
+def _save_financial_csv_templates(tenant: Tenant, templates: list[dict[str, object]]) -> None:
+    cfg = _get_credit_settings(tenant)
+    cfg["financial_csv_templates"] = templates
+    _save_credit_settings(tenant, cfg)
+
+
+def _find_financial_csv_template(tenant: Tenant, template_name: str | None) -> dict[str, str] | None:
+    key = str(template_name or "").strip().lower()
+    if not key:
+        return None
+    for item in _financial_csv_templates(tenant):
+        name = str(item.get("name") or "").strip().lower()
+        if name == key:
+            mapping = item.get("mapping") if isinstance(item.get("mapping"), dict) else {}
+            return {k: str(v) for k, v in mapping.items()}
+    return None
+
+
+def _memo_template_snippets(tenant: Tenant | None) -> list[dict[str, str]]:
+    cfg = _get_credit_settings(tenant)
+    raw = cfg.get("memo_template_snippets") if isinstance(cfg.get("memo_template_snippets"), list) else []
+    out: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        content = str(item.get("content") or "").strip()
+        snippet_id = str(item.get("id") or "").strip() or f"snip-{len(out) + 1}"
+        if not name or not content:
+            continue
+        key = snippet_id.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({"id": snippet_id[:64], "name": name[:120], "content": content[:8000]})
+    return out
+
+
+def _save_memo_template_snippets(tenant: Tenant, snippets: list[dict[str, str]]) -> None:
+    cfg = _get_credit_settings(tenant)
+    cfg["memo_template_snippets"] = snippets
+    _save_credit_settings(tenant, cfg)
+
+
+def _definition_section_fingerprint(definition: dict[str, object]) -> list[dict[str, str]]:
+    sections = definition.get("sections") if isinstance(definition.get("sections"), list) else []
+    out: list[dict[str, str]] = []
+    for sec in sections:
+        if not isinstance(sec, dict):
+            continue
+        sec_id = str(sec.get("id") or "")
+        title = str(sec.get("title") or "")
+        sec_type = str(sec.get("type") or "")
+        binding = str(sec.get("binding") or "")
+        visibility_rule = str(sec.get("visibility_rule") or "")
+        content = str(sec.get("content") or "")
+        signature = "|".join([title, sec_type, binding, visibility_rule, content])
+        out.append({"id": sec_id, "title": title, "type": sec_type, "signature": signature})
+    return out
+
+
+def _memo_template_compare_summary(a: dict[str, object], b: dict[str, object]) -> dict[str, object]:
+    a_fp = _definition_section_fingerprint(a)
+    b_fp = _definition_section_fingerprint(b)
+
+    a_by_id = {x["id"]: x for x in a_fp if x.get("id")}
+    b_by_id = {x["id"]: x for x in b_fp if x.get("id")}
+
+    a_ids = set(a_by_id.keys())
+    b_ids = set(b_by_id.keys())
+    added_ids = sorted(list(b_ids - a_ids))
+    removed_ids = sorted(list(a_ids - b_ids))
+
+    changed: list[dict[str, str]] = []
+    for sec_id in sorted(list(a_ids & b_ids)):
+        if a_by_id[sec_id].get("signature") != b_by_id[sec_id].get("signature"):
+            changed.append(
+                {
+                    "id": sec_id,
+                    "title_a": str(a_by_id[sec_id].get("title") or ""),
+                    "title_b": str(b_by_id[sec_id].get("title") or ""),
+                }
+            )
+
+    return {
+        "count_a": len(a_fp),
+        "count_b": len(b_fp),
+        "added": [{"id": i, "title": str(b_by_id.get(i, {}).get("title") or i)} for i in added_ids[:12]],
+        "removed": [{"id": i, "title": str(a_by_id.get(i, {}).get("title") or i)} for i in removed_ids[:12]],
+        "changed": changed[:20],
+    }
+
+
+def _html_to_text(src: str) -> str:
+    # First unescape entities so encoded HTML like &lt;div&gt; can be cleaned as tags.
+    raw = html_unescape(str(src or ""))
+    no_style = re.sub(r"<style[\s\S]*?</style>", "", raw, flags=re.IGNORECASE)
+    no_script = re.sub(r"<script[\s\S]*?</script>", "", no_style, flags=re.IGNORECASE)
+    with_breaks = re.sub(r"<(br|/p|/div|/section|/h1|/h2|/h3|/h4|/h5|/h6|/li|/tr)\s*/?>", "\n", no_script, flags=re.IGNORECASE)
+    no_tags = re.sub(r"<[^>]+>", "", with_breaks)
+    text = html_unescape(no_tags)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def _mapping_from_form(form, prefix: str = "map_") -> dict[str, str]:
+    out: dict[str, str] = {}
+    for field in _FINANCIAL_CSV_FIELDS:
+        val = str(form.get(f"{prefix}{field}") or "").strip()
+        if val:
+            out[field] = val
+    return out
+
+
+def _extract_pdf_text(pdf_bytes: bytes, max_chars: int = 24000) -> str:
+    try:
+        import pdfplumber
+    except Exception:
+        return ""
+
+    chunks: list[str] = []
+    try:
+        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+            for page in pdf.pages[:30]:
+                txt = (page.extract_text() or "").strip()
+                if txt:
+                    chunks.append(txt)
+                if sum(len(c) for c in chunks) >= max_chars:
+                    break
+    except Exception:
+        return ""
+
+    out = "\n".join(chunks)
+    return out[:max_chars]
+
+
+def _parse_first_json_object(text: str) -> dict | None:
+    if not text:
+        return None
+    s = str(text).strip()
+    try:
+        parsed = json.loads(s)
+        return parsed if isinstance(parsed, dict) else None
+    except Exception:
+        pass
+
+    start = s.find("{")
+    end = s.rfind("}")
+    if start >= 0 and end > start:
+        try:
+            parsed = json.loads(s[start : end + 1])
+            return parsed if isinstance(parsed, dict) else None
+        except Exception:
+            return None
+    return None
+
+
+def _ai_extract_financial_payload(pdf_text: str, lang: str | None = None) -> dict | None:
+    if not pdf_text.strip():
+        return None
+
+    prompt = (
+        "Extract one annual financial statement from the document text. "
+        "Return ONLY one compact JSON object with keys: "
+        "period_label, fiscal_year, revenue, ebitda, total_debt, cash, net_income, spreading_status, confidence. "
+        "Use numeric values only (no currency symbols), spreading_status in [in_progress, completed, needs_review]. "
+        "If uncertain, keep best estimate and set confidence below 0.7."
+    )
+    ai = analyze_with_ai(
+        data_bundle={
+            "question": "credit_pdf_spreading",
+            "source": "credit_financial_statement_pdf",
+            "result": {"pdf_text": pdf_text[:18000]},
+        },
+        user_message=prompt,
+        lang=lang,
+    )
+    if not isinstance(ai, dict):
+        return None
+
+    parsed = _parse_first_json_object(str(ai.get("analysis") or ""))
+    if parsed:
+        return parsed
+
+    raw = _parse_first_json_object(str(ai.get("raw") or ""))
+    return raw if isinstance(raw, dict) else None
+
+
+_CREDIT_SYSTEM_ROLES: tuple[tuple[str, str], ...] = (
+    ("credit_admin", "Administration credit et workflow"),
+    ("credit_analyst", "Analyste credit"),
+    ("credit_approver", "Approbateur credit"),
+    ("credit_viewer", "Lecture seule credit"),
+)
+
+
+def _seed_credit_system_roles() -> None:
+    changed = False
+    for code, description in _CREDIT_SYSTEM_ROLES:
+        if Role.query.filter_by(code=code).first():
+            continue
+        db.session.add(Role(code=code, description=description))
+        changed = True
+    if changed:
+        db.session.commit()
+
+
+def _has_credit_role(*codes: str) -> bool:
+    for code in codes:
+        if current_user.has_role(code):
+            return True
+    return False
+
+
+def _can_manage_credit_backoffice() -> bool:
+    return _has_credit_role("tenant_admin", "credit_admin")
+
+
+def _can_record_approval_decisions() -> bool:
+    return _has_credit_role("tenant_admin", "credit_admin", "credit_approver")
+
+
+def _can_create_credit_task() -> bool:
+    return _has_credit_role("tenant_admin", "credit_admin", "credit_analyst", "credit_approver")
+
+
+def _can_edit_memo_templates() -> bool:
+    return _has_credit_role("tenant_admin", "credit_admin", "credit_analyst")
+
+
+def _can_publish_memo_templates() -> bool:
+    return _has_credit_role("tenant_admin", "credit_admin", "credit_approver")
+
+
+def _can_view_memo_templates() -> bool:
+    return _has_credit_role("tenant_admin", "credit_admin", "credit_analyst", "credit_approver", "credit_viewer")
+
+
+_MEMO_TEMPLATE_TYPES: tuple[tuple[str, str], ...] = (
+    ("full_credit_memo", "Full credit memo"),
+    ("short_form_note", "Short-form credit note"),
+    ("annual_review_memo", "Annual review memo"),
+    ("amendment_waiver_memo", "Amendment / waiver memo"),
+    ("committee_summary_pack", "Committee summary pack"),
+    ("covenant_breach_memo", "Covenant breach memo"),
+    ("collateral_summary", "Collateral summary"),
+    ("deal_approval_cover_sheet", "Deal approval cover sheet"),
+)
+
+_MEMO_TOOLBOX_COMPONENTS: tuple[tuple[str, str], ...] = (
+    ("heading", "Title / heading"),
+    ("paragraph", "Paragraph"),
+    ("text_block", "Text block"),
+    ("data_field", "Data field"),
+    ("table", "Table"),
+    ("repeating_list", "Repeating list"),
+    ("section", "Section container"),
+    ("approval_block", "Approval block"),
+    ("conditional", "Conditional block"),
+    ("divider", "Divider"),
+    ("page_break", "Page break"),
+    ("comment", "Comment / instruction block"),
+)
+
+_MEMO_DATA_EXPLORER: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("Deal", ("Deal.Code", "Deal.ProductType", "Deal.Currency", "Deal.RequestedAmount", "Deal.Purpose", "Deal.Status")),
+    ("Borrower", ("Borrower.Name", "Borrower.Country", "Borrower.Sector", "Borrower.InternalRating")),
+    ("Financials", ("Financials.Period", "Financials.FiscalYear", "Financials.Revenue", "Financials.EBITDA", "Financials.TotalDebt", "Financials.Cash", "Financials.NetIncome")),
+    ("Ratios", ("Ratios.DSCR", "Ratios.Leverage", "Ratios.Liquidity", "Ratios.RiskGrade")),
+    ("Workflow", ("Workflow.ApproverName", "Workflow.CurrentStage", "Workflow.LastDecision", "Workflow.DecidedAt")),
+)
+
+
+def _default_memo_template_definition() -> dict[str, object]:
+    return {
+        "meta": {
+            "layout": "grid",
+            "page": {"size": "A4", "margin": 24, "header": "", "footer": ""},
+            "theme": {"font": "Source Sans Pro", "primaryColor": "#0b4f6c"},
+        },
+        "sections": [
+            {
+                "id": "sec-exec-summary",
+                "name": "Executive Summary",
+                "type": "paragraph",
+                "title": "Executive Summary",
+                "content": "The borrower {Borrower.Name} requests {Deal.Currency} {Deal.RequestedAmount} for {Deal.Purpose}.",
+                "binding": "",
+                "visibility_rule": "",
+                "mandatory": True,
+                "locked": False,
+                "page_break": False,
+                "style": {"font_size": 14, "align": "left", "color": "#102a43"},
+            },
+            {
+                "id": "sec-fin-analysis",
+                "name": "Financial Analysis",
+                "type": "table",
+                "title": "Financial Analysis",
+                "content": "",
+                "binding": "Financials",
+                "visibility_rule": "",
+                "mandatory": True,
+                "locked": False,
+                "page_break": False,
+                "style": {"font_size": 12, "align": "left", "color": "#243b53"},
+            },
+            {
+                "id": "sec-recommendation",
+                "name": "Recommendation",
+                "type": "paragraph",
+                "title": "Recommendation",
+                "content": "Recommendation: review",
+                "binding": "",
+                "visibility_rule": "",
+                "mandatory": True,
+                "locked": False,
+                "page_break": False,
+                "style": {"font_size": 13, "align": "left", "color": "#102a43"},
+            },
+        ],
+    }
+
+
+def _sanitize_memo_template_definition(raw: object) -> dict[str, object]:
+    src = raw if isinstance(raw, dict) else {}
+    meta = src.get("meta") if isinstance(src.get("meta"), dict) else {}
+    sections_raw = src.get("sections") if isinstance(src.get("sections"), list) else []
+
+    sections: list[dict[str, object]] = []
+    for idx, item in enumerate(sections_raw, start=1):
+        if not isinstance(item, dict):
+            continue
+        section_id = str(item.get("id") or f"sec-{idx}").strip() or f"sec-{idx}"
+        section_type = str(item.get("type") or "text_block").strip().lower()
+        if section_type not in {
+            "heading",
+            "paragraph",
+            "text_block",
+            "data_field",
+            "table",
+            "repeating_list",
+            "section",
+            "approval_block",
+            "conditional",
+            "divider",
+            "page_break",
+            "comment",
+        }:
+            section_type = "text_block"
+
+        style = item.get("style") if isinstance(item.get("style"), dict) else {}
+        sections.append(
+            {
+                "id": section_id[:120],
+                "name": str(item.get("name") or item.get("title") or section_id).strip()[:180],
+                "type": section_type,
+                "title": str(item.get("title") or "").strip()[:180],
+                "content": str(item.get("content") or "")[:12000],
+                "binding": str(item.get("binding") or "").strip()[:180],
+                "visibility_rule": str(item.get("visibility_rule") or "").strip()[:500],
+                "mandatory": bool(item.get("mandatory")),
+                "locked": bool(item.get("locked")),
+                "page_break": bool(item.get("page_break")),
+                "style": {
+                    "font_size": int(style.get("font_size") or 12),
+                    "align": str(style.get("align") or "left")[:20],
+                    "color": str(style.get("color") or "#243b53")[:20],
+                },
+            }
+        )
+
+    if not sections:
+        return _default_memo_template_definition()
+
+    return {
+        "meta": {
+            "layout": str(meta.get("layout") or "grid"),
+            "page": meta.get("page") if isinstance(meta.get("page"), dict) else {"size": "A4", "margin": 24},
+            "theme": meta.get("theme") if isinstance(meta.get("theme"), dict) else {"font": "Source Sans Pro", "primaryColor": "#0b4f6c"},
+        },
+        "sections": sections,
+    }
+
+
+def _latest_memo_template_version(template_id: int, tenant_id: int) -> CreditMemoTemplateVersion | None:
+    return (
+        CreditMemoTemplateVersion.query.filter_by(template_id=template_id, tenant_id=tenant_id)
+        .order_by(CreditMemoTemplateVersion.version_no.desc(), CreditMemoTemplateVersion.id.desc())
+        .first()
+    )
+
+
+def _resolve_memo_template_definition(
+    template: CreditMemoTemplate,
+    version: CreditMemoTemplateVersion | None,
+) -> dict[str, object]:
+    current = _sanitize_memo_template_definition((version.definition_json if version else None) or _default_memo_template_definition())
+    if not template.base_template_id:
+        return current
+
+    base = CreditMemoTemplate.query.filter_by(id=template.base_template_id, tenant_id=template.tenant_id).first()
+    if not base:
+        return current
+
+    base_version = None
+    if base.published_version_no:
+        base_version = CreditMemoTemplateVersion.query.filter_by(
+            tenant_id=template.tenant_id,
+            template_id=base.id,
+            version_no=base.published_version_no,
+        ).first()
+    if not base_version:
+        base_version = _latest_memo_template_version(base.id, template.tenant_id)
+    if not base_version:
+        return current
+
+    base_def = _sanitize_memo_template_definition(base_version.definition_json or _default_memo_template_definition())
+    merged = deepcopy(base_def)
+    merged_sections = [dict(s, inherited=True) for s in base_def.get("sections", []) if isinstance(s, dict)]
+    merged_sections.extend([dict(s, inherited=False) for s in current.get("sections", []) if isinstance(s, dict)])
+    merged["sections"] = merged_sections
+    return merged
+
+
+def _memo_preview_context(tenant_id: int, deal_id: int | None = None) -> dict[str, object]:
+    deal = None
+    if deal_id:
+        deal = CreditDeal.query.filter_by(id=deal_id, tenant_id=tenant_id).first()
+    if not deal:
+        deal = CreditDeal.query.filter_by(tenant_id=tenant_id).order_by(CreditDeal.updated_at.desc()).first()
+
+    borrower = (
+        CreditBorrower.query.filter_by(id=deal.borrower_id, tenant_id=tenant_id).first()
+        if deal and deal.borrower_id
+        else CreditBorrower.query.filter_by(tenant_id=tenant_id).order_by(CreditBorrower.updated_at.desc()).first()
+    )
+
+    statement = None
+    ratio = None
+    if borrower:
+        statement = (
+            CreditFinancialStatement.query.filter_by(tenant_id=tenant_id, borrower_id=borrower.id)
+            .order_by(CreditFinancialStatement.created_at.desc())
+            .first()
+        )
+        ratio = (
+            CreditRatioSnapshot.query.filter_by(tenant_id=tenant_id, borrower_id=borrower.id)
+            .order_by(CreditRatioSnapshot.created_at.desc())
+            .first()
+        )
+
+    latest_approval = CreditApproval.query.filter_by(tenant_id=tenant_id).order_by(CreditApproval.created_at.desc()).first()
+
+    return {
+        "Deal": {
+            "Code": getattr(deal, "code", "DEAL-001"),
+            "ProductType": getattr(deal, "product_type", "Term Loan"),
+            "Currency": getattr(deal, "currency", "EUR"),
+            "RequestedAmount": float(getattr(deal, "requested_amount", 0) or 0),
+            "Purpose": getattr(deal, "purpose", "Working capital"),
+            "Status": getattr(deal, "status", "pipeline"),
+        },
+        "Borrower": {
+            "Name": getattr(borrower, "name", "Sample Borrower"),
+            "Country": getattr(borrower, "country", "FR"),
+            "Sector": getattr(borrower, "sector", "General"),
+            "InternalRating": getattr(borrower, "internal_rating", "BBB"),
+        },
+        "Financials": {
+            "Period": getattr(statement, "period_label", "FY"),
+            "FiscalYear": getattr(statement, "fiscal_year", date.today().year),
+            "Revenue": float(getattr(statement, "revenue", 0) or 0),
+            "EBITDA": float(getattr(statement, "ebitda", 0) or 0),
+            "TotalDebt": float(getattr(statement, "total_debt", 0) or 0),
+            "Cash": float(getattr(statement, "cash", 0) or 0),
+            "NetIncome": float(getattr(statement, "net_income", 0) or 0),
+        },
+        "Ratios": {
+            "DSCR": float(getattr(ratio, "dscr", 0) or 0),
+            "Leverage": float(getattr(ratio, "leverage", 0) or 0),
+            "Liquidity": float(getattr(ratio, "liquidity", 0) or 0),
+            "RiskGrade": getattr(ratio, "risk_grade", "BB"),
+        },
+        "Workflow": {
+            "ApproverName": getattr(getattr(latest_approval, "actor_user", None), "email", "n/a"),
+            "CurrentStage": getattr(latest_approval, "stage", "analyst_review"),
+            "LastDecision": getattr(latest_approval, "decision", "pending"),
+            "DecidedAt": str(getattr(latest_approval, "decided_at", "") or ""),
+        },
+    }
+
+
+def _resolve_context_value(payload: dict[str, object], path: str) -> object:
+    cur: object = payload
+    for chunk in [p for p in str(path or "").split(".") if p]:
+        if isinstance(cur, dict) and chunk in cur:
+            cur = cur.get(chunk)
+        else:
+            return None
+    return cur
+
+
+def _replace_tokens(text: str, payload: dict[str, object]) -> str:
+    def _rep(match: re.Match[str]) -> str:
+        key = (match.group(1) or "").strip()
+        value = _resolve_context_value(payload, key)
+        if value is None:
+            return ""
+        if isinstance(value, float):
+            return f"{value:,.2f}"
+        return str(value)
+
+    return re.sub(r"\{([A-Za-z0-9_.]+)\}", _rep, text or "")
+
+
+def _to_num(value: object) -> Decimal | None:
+    try:
+        return Decimal(str(value))
+    except Exception:
+        return None
+
+
+def _eval_visibility(rule: str, payload: dict[str, object]) -> bool:
+    src = str(rule or "").strip()
+    if not src:
+        return True
+
+    parts = re.split(r"\s+(AND|OR)\s+", src, flags=re.IGNORECASE)
+
+    def _eval_atom(expr: str) -> bool:
+        m = re.match(
+            r"^\s*([A-Za-z0-9_.]+)\s*(==|!=|>=|<=|>|<|contains|not contains|is empty|is not empty)\s*(.*?)\s*$",
+            expr,
+            flags=re.IGNORECASE,
+        )
+        if not m:
+            return False
+        key, op, rhs = m.group(1), m.group(2).lower(), m.group(3)
+        left = _resolve_context_value(payload, key)
+        rhs_clean = rhs.strip().strip("\"").strip("'")
+
+        if op == "is empty":
+            return left in (None, "", [], {})
+        if op == "is not empty":
+            return left not in (None, "", [], {})
+        if op == "contains":
+            return rhs_clean.lower() in str(left or "").lower()
+        if op == "not contains":
+            return rhs_clean.lower() not in str(left or "").lower()
+
+        if op in {">", ">=", "<", "<="}:
+            left_num = _to_num(left)
+            right_num = _to_num(rhs_clean)
+            if left_num is None or right_num is None:
+                return False
+            if op == ">":
+                return left_num > right_num
+            if op == ">=":
+                return left_num >= right_num
+            if op == "<":
+                return left_num < right_num
+            return left_num <= right_num
+
+        if op == "==":
+            return str(left or "").strip().lower() == rhs_clean.lower()
+        if op == "!=":
+            return str(left or "").strip().lower() != rhs_clean.lower()
+        return False
+
+    outcome = _eval_atom(parts[0]) if parts else True
+    i = 1
+    while i + 1 < len(parts):
+        connector = str(parts[i]).upper()
+        right = _eval_atom(parts[i + 1])
+        outcome = (outcome and right) if connector == "AND" else (outcome or right)
+        i += 2
+    return outcome
+
+
+def _validate_memo_template_definition(definition: dict[str, object], payload: dict[str, object]) -> list[dict[str, str]]:
+    findings: list[dict[str, str]] = []
+    sections = definition.get("sections") if isinstance(definition.get("sections"), list) else []
+    if not sections:
+        findings.append({"severity": "error", "message": _("Template has no sections.")})
+        return findings
+
+    ids: set[str] = set()
+    for idx, sec in enumerate(sections, start=1):
+        if not isinstance(sec, dict):
+            findings.append({"severity": "error", "message": _("Invalid section object at position {idx}.", idx=idx)})
+            continue
+
+        sec_id = str(sec.get("id") or "")
+        if sec_id and sec_id in ids:
+            findings.append({"severity": "warning", "message": _("Duplicate section id: {id}", id=sec_id)})
+        ids.add(sec_id)
+
+        title = str(sec.get("title") or "")
+        if not title:
+            findings.append({"severity": "warning", "message": _("Section {idx} has no title.", idx=idx)})
+
+        binding = str(sec.get("binding") or "").strip()
+        if binding and _resolve_context_value(payload, binding) is None:
+            findings.append({"severity": "warning", "message": _("Unknown binding: {binding}", binding=binding)})
+
+        rule = str(sec.get("visibility_rule") or "").strip()
+        if rule and not _eval_visibility(rule, payload):
+            findings.append({"severity": "info", "message": _("Section hidden by rule: {rule}", rule=rule)})
+
+        if bool(sec.get("mandatory")) and not str(sec.get("content") or "").strip() and not binding:
+            findings.append({"severity": "warning", "message": _("Mandatory section {idx} has no content or binding.", idx=idx)})
+
+    return findings
+
+
+def _render_memo_template_html(
+    template_name: str,
+    definition: dict[str, object],
+    payload: dict[str, object],
+) -> str:
+    sections = definition.get("sections") if isinstance(definition.get("sections"), list) else []
+    blocks: list[str] = []
+
+    for sec in sections:
+        if not isinstance(sec, dict):
+            continue
+        if not _eval_visibility(str(sec.get("visibility_rule") or ""), payload):
+            continue
+
+        title = html_escape(str(sec.get("title") or ""), quote=True)
+        section_type = str(sec.get("type") or "text_block")
+        binding = str(sec.get("binding") or "")
+        raw_content = str(sec.get("content") or "")
+        content = _replace_tokens(raw_content, payload)
+
+        if section_type == "table" and binding == "Financials":
+            f = payload.get("Financials") if isinstance(payload.get("Financials"), dict) else {}
+            table_html = (
+                "<table class='memo-table'><thead><tr><th>Period</th><th>Revenue</th><th>EBITDA</th><th>Total Debt</th><th>Cash</th><th>Net Income</th></tr></thead>"
+                f"<tbody><tr><td>{html_escape(str(f.get('Period', '')), quote=True)} {html_escape(str(f.get('FiscalYear', '')), quote=True)}</td>"
+                f"<td>{html_escape(str(f.get('Revenue', '')), quote=True)}</td>"
+                f"<td>{html_escape(str(f.get('EBITDA', '')), quote=True)}</td>"
+                f"<td>{html_escape(str(f.get('TotalDebt', '')), quote=True)}</td>"
+                f"<td>{html_escape(str(f.get('Cash', '')), quote=True)}</td>"
+                f"<td>{html_escape(str(f.get('NetIncome', '')), quote=True)}</td></tr></tbody></table>"
+            )
+            blocks.append(f"<section class='memo-section'><h3>{title}</h3>{table_html}</section>")
+            continue
+
+        if section_type == "data_field" and binding:
+            val = _resolve_context_value(payload, binding)
+            body = html_escape(str(val if val is not None else ""), quote=True)
+        elif section_type == "divider":
+            body = "<hr>"
+        elif section_type == "approval_block":
+            wf = payload.get("Workflow") if isinstance(payload.get("Workflow"), dict) else {}
+            body = (
+                "<div class='approval-block'>"
+                f"<div><strong>Approver:</strong> {html_escape(str(wf.get('ApproverName', '')), quote=True)}</div>"
+                f"<div><strong>Stage:</strong> {html_escape(str(wf.get('CurrentStage', '')), quote=True)}</div>"
+                f"<div><strong>Decision:</strong> {html_escape(str(wf.get('LastDecision', '')), quote=True)}</div>"
+                "</div>"
+            )
+        else:
+            body = html_escape(content, quote=True).replace("\n", "<br>")
+
+        blocks.append(f"<section class='memo-section'><h3>{title}</h3><div>{body}</div></section>")
+        if bool(sec.get("page_break")):
+            blocks.append("<div class='page-break'></div>")
+
+    body_html = "\n".join(blocks) if blocks else "<p>No visible sections.</p>"
+    return (
+        "<!doctype html><html><head><meta charset='utf-8'><title>"
+        + html_escape(template_name, quote=True)
+        + "</title><style>body{font-family:Arial,sans-serif;padding:28px;color:#102a43;}"
+        ".memo-section{margin:0 0 18px 0;padding:14px;border:1px solid #d9e2ec;border-radius:8px;background:#fff;}"
+        ".memo-section h3{margin:0 0 10px 0;font-size:18px;color:#0b4f6c;}"
+        ".memo-table{width:100%;border-collapse:collapse;}"
+        ".memo-table th,.memo-table td{border:1px solid #bcccdc;padding:6px 8px;font-size:12px;}"
+        ".memo-table th{background:#f0f4f8;text-align:left;}"
+        ".approval-block{display:grid;gap:4px;}"
+        ".page-break{page-break-after:always;height:1px;}"
+        "</style></head><body>"
+        + body_html
+        + "</body></html>"
+    )
+
+
+def _memo_template_export_response(title: str, html: str, fmt: str):
+    format_key = str(fmt or "html").strip().lower()
+    if format_key == "doc":
+        format_key = "word"
+    safe_name = re.sub(r"[^a-zA-Z0-9_-]+", "_", title or "credit_memo_template")
+
+    if format_key == "word":
+        resp = make_response(html)
+        resp.headers["Content-Type"] = "application/msword"
+        resp.headers["Content-Disposition"] = f"attachment; filename={safe_name}.doc"
+        return resp
+
+    if format_key == "pdf":
+        payload = None
+        try:
+            from weasyprint import HTML  # type: ignore
+
+            payload = HTML(string=html).write_pdf()
+        except Exception:
+            payload = _pdf_bytes_from_html(title or "Credit memo", html)
+
+        resp = make_response(payload)
+        resp.headers["Content-Type"] = "application/pdf"
+        resp.headers["Content-Disposition"] = f"inline; filename={safe_name}.pdf"
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        resp.headers["Pragma"] = "no-cache"
+        resp.headers["Expires"] = "0"
+        return resp
+
+    resp = make_response(html)
+    resp.headers["Content-Type"] = "text/html; charset=utf-8"
+    resp.headers["Content-Disposition"] = f"attachment; filename={safe_name}.html"
+    return resp
+
+
+def _pdf_bytes_from_html(title: str, html_src: str) -> bytes:
+    """Create a styled PDF from memo HTML with section/table support."""
+    try:
+        from io import BytesIO
+        from xml.sax.saxutils import escape as xml_escape
+        from reportlab.lib import colors
+        from reportlab.lib.enums import TA_LEFT
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+        html = str(html_src or "")
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            leftMargin=36,
+            rightMargin=36,
+            topMargin=34,
+            bottomMargin=30,
+            title=title or "Credit memo",
+        )
+
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle(
+            "MemoTitle",
+            parent=styles["Heading1"],
+            fontName="Helvetica-Bold",
+            fontSize=17,
+            leading=21,
+            alignment=TA_LEFT,
+            textColor=colors.HexColor("#0b4f6c"),
+            spaceAfter=10,
+        )
+        h3_style = ParagraphStyle(
+            "MemoH3",
+            parent=styles["Heading3"],
+            fontName="Helvetica-Bold",
+            fontSize=12.5,
+            leading=15,
+            textColor=colors.HexColor("#102a43"),
+            spaceAfter=6,
+            spaceBefore=5,
+        )
+        body_style = ParagraphStyle(
+            "MemoBody",
+            parent=styles["BodyText"],
+            fontName="Helvetica",
+            fontSize=10,
+            leading=14,
+            textColor=colors.HexColor("#243b53"),
+            spaceAfter=8,
+        )
+
+        def _to_para_text(raw_html: str) -> str:
+            plain = _html_to_text(raw_html)
+            if not plain.strip():
+                return ""
+            return xml_escape(plain).replace("\n", "<br/>")
+
+        story = [Paragraph(xml_escape(title or "Credit memo"), title_style), Spacer(1, 6)]
+
+        page_break_pattern = re.compile(
+            r"<div[^>]*class=['\"]?[^'\">]*page-break[^'\">]*['\"]?[^>]*>\s*</div>",
+            flags=re.IGNORECASE,
+        )
+        section_pattern = re.compile(r"<section[^>]*>([\s\S]*?)</section>", flags=re.IGNORECASE)
+        h3_pattern = re.compile(r"<h3[^>]*>([\s\S]*?)</h3>", flags=re.IGNORECASE)
+        div_pattern = re.compile(r"<div[^>]*>([\s\S]*?)</div>", flags=re.IGNORECASE)
+        table_pattern = re.compile(r"<table[^>]*>([\s\S]*?)</table>", flags=re.IGNORECASE)
+        row_pattern = re.compile(r"<tr[^>]*>([\s\S]*?)</tr>", flags=re.IGNORECASE)
+        cell_pattern = re.compile(r"<t[dh][^>]*>([\s\S]*?)</t[dh]>", flags=re.IGNORECASE)
+
+        parts = re.split(page_break_pattern, html)
+        for idx, part in enumerate(parts):
+            part = str(part or "")
+            section_matches = list(section_pattern.finditer(part))
+            if not section_matches:
+                fallback_text = _to_para_text(part)
+                if fallback_text:
+                    story.append(Paragraph(fallback_text, body_style))
+            else:
+                for sec in section_matches:
+                    sec_html = sec.group(1)
+                    title_match = h3_pattern.search(sec_html)
+                    sec_title = _html_to_text(title_match.group(1) if title_match else "")
+                    if sec_title:
+                        story.append(Paragraph(xml_escape(sec_title), h3_style))
+
+                    body_match = div_pattern.search(sec_html)
+                    body_html = body_match.group(1) if body_match else sec_html
+
+                    table_match = table_pattern.search(body_html)
+                    if table_match:
+                        table_html = table_match.group(1)
+                        rows: list[list[str]] = []
+                        for row_match in row_pattern.finditer(table_html):
+                            row_html = row_match.group(1)
+                            cells: list[str] = []
+                            for cell_match in cell_pattern.finditer(row_html):
+                                cell_txt = _html_to_text(cell_match.group(1)).replace("\n", " ").strip()
+                                cells.append(cell_txt)
+                            if cells:
+                                rows.append(cells)
+
+                        if rows:
+                            max_cols = max(len(r) for r in rows)
+                            normalized = [r + [""] * (max_cols - len(r)) for r in rows]
+                            col_width = (A4[0] - doc.leftMargin - doc.rightMargin) / max(1, max_cols)
+                            table = Table(normalized, colWidths=[col_width] * max_cols, repeatRows=1)
+                            table.setStyle(
+                                TableStyle(
+                                    [
+                                        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f0f4f8")),
+                                        ("TEXTCOLOR", (0, 0), (-1, 0), colors.HexColor("#102a43")),
+                                        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                                        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+                                        ("FONTSIZE", (0, 0), (-1, -1), 9),
+                                        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#bcccdc")),
+                                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                                        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                                        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                                        ("TOPPADDING", (0, 0), (-1, -1), 4),
+                                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                                    ]
+                                )
+                            )
+                            story.append(table)
+                            story.append(Spacer(1, 8))
+
+                        body_without_table = table_pattern.sub("", body_html)
+                        body_text = _to_para_text(body_without_table)
+                        if body_text:
+                            story.append(Paragraph(body_text, body_style))
+                    else:
+                        body_text = _to_para_text(body_html)
+                        if body_text:
+                            story.append(Paragraph(body_text, body_style))
+                    story.append(Spacer(1, 4))
+
+            if idx < len(parts) - 1 and len(story) > 1:
+                story.append(PageBreak())
+
+        doc.build(story)
+        payload = buffer.getvalue()
+        buffer.close()
+        if payload.startswith(b"%PDF"):
+            return payload
+    except Exception:
+        pass
+
+    return _pdf_bytes_from_text(title, _html_to_text(html_src))
+
+
+def _pdf_bytes_from_text(title: str, text_src: str) -> bytes:
+    """Create a valid PDF payload from plain text with robust fallbacks."""
+    # Try ReportLab first for multi-page rendering.
+    try:
+        from io import BytesIO
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.utils import simpleSplit
+        from reportlab.pdfgen import canvas
+
+        lines = [ln.strip() for ln in str(text_src or "").splitlines()]
+        if not any(lines):
+            lines = [title or "Credit memo"]
+
+        buffer = BytesIO()
+        pdf = canvas.Canvas(buffer, pagesize=A4)
+        width, height = A4
+        margin = 40
+        y = height - margin
+
+        pdf.setTitle(title or "Credit memo")
+        pdf.setFont("Helvetica-Bold", 13)
+        for tline in simpleSplit(title or "Credit memo", "Helvetica-Bold", 13, width - (2 * margin)):
+            if y < margin:
+                pdf.showPage()
+                y = height - margin
+                pdf.setFont("Helvetica-Bold", 13)
+            pdf.drawString(margin, y, tline)
+            y -= 16
+
+        y -= 6
+        pdf.setFont("Helvetica", 10)
+        for line in lines:
+            wrapped = simpleSplit(line or " ", "Helvetica", 10, width - (2 * margin)) or [" "]
+            for chunk in wrapped:
+                if y < margin:
+                    pdf.showPage()
+                    y = height - margin
+                    pdf.setFont("Helvetica", 10)
+                pdf.drawString(margin, y, chunk)
+                y -= 13
+
+        pdf.save()
+        payload = buffer.getvalue()
+        buffer.close()
+        if payload.startswith(b"%PDF"):
+            return payload
+    except Exception:
+        pass
+
+    # Last-resort pure-Python single-page PDF builder.
+    lines = [ln.strip() for ln in str(text_src or "").splitlines()]
+    if not any(lines):
+        lines = [title or "Credit memo"]
+
+    def _esc(s: str) -> str:
+        return s.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+    commands = ["BT", "/F1 12 Tf", "50 800 Td", f"({_esc(title or 'Credit memo')}) Tj", "0 -20 Td", "/F1 10 Tf"]
+    for line in lines[:120]:
+        commands.append(f"({_esc(line or ' ')}) Tj")
+        commands.append("0 -13 Td")
+    commands.append("ET")
+    stream_text = "\n".join(commands).encode("latin-1", errors="replace")
+
+    objects = [
+        b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+        b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
+        b"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n",
+        b"4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
+        (f"5 0 obj\n<< /Length {len(stream_text)} >>\nstream\n".encode("ascii") + stream_text + b"\nendstream\nendobj\n"),
+    ]
+
+    out = bytearray(b"%PDF-1.4\n")
+    offsets = [0]
+    for obj in objects:
+        offsets.append(len(out))
+        out.extend(obj)
+
+    xref_pos = len(out)
+    out.extend(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
+    out.extend(b"0000000000 65535 f \n")
+    for off in offsets[1:]:
+        out.extend(f"{off:010d} 00000 n \n".encode("ascii"))
+    out.extend(
+        (
+            f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\n"
+            f"startxref\n{xref_pos}\n%%EOF\n"
+        ).encode("ascii")
+    )
+    return bytes(out)
+
+
+def _credit_user_group_scope(tenant_id: int, user_id: int) -> tuple[list[int], list[str]]:
+    rows = (
+        CreditAnalystGroupMember.query.join(CreditAnalystGroup)
+        .filter(
+            CreditAnalystGroup.tenant_id == tenant_id,
+            CreditAnalystGroupMember.user_id == user_id,
+        )
+        .all()
+    )
+    group_ids = sorted({int(r.group_id) for r in rows if r.group_id})
+    function_codes = sorted(
+        {
+            str(r.function_ref.code if r.function_ref else r.function_name)
+            for r in rows
+            if (r.function_ref and r.function_ref.code) or r.function_name
+        }
+    )
+    return group_ids, function_codes
 
 
 _ML_LANGS = ("fr", "en", "pt", "es", "it", "de")
@@ -256,8 +1662,9 @@ def _load_tenant_into_g() -> None:
         and getattr(g, "tenant", None)
         and current_user.tenant_id == g.tenant.id
     ):
+        _seed_credit_system_roles()
         module_access = get_user_module_access(g.tenant, current_user.id)
-        if not module_access.get("bi", True):
+        if not module_access.get("credit", module_access.get("bi", True)):
             flash(_("Accès Audela Credit désactivé pour votre utilisateur."), "warning")
             return redirect(url_for("tenant.dashboard"))
 
@@ -554,6 +1961,228 @@ def _approval_stage_options() -> list[tuple[str, str]]:
     ]
 
 
+def _maybe_create_backlog_task_for_pending_approval(approval: CreditApproval) -> None:
+    if approval.decision != "pending" or not approval.memo:
+        return
+
+    workflow_step = approval.workflow_step
+    if not workflow_step and approval.workflow_step_id:
+        workflow_step = CreditApprovalWorkflowStep.query.filter_by(
+            id=approval.workflow_step_id,
+            tenant_id=approval.tenant_id,
+        ).first()
+
+    assigned_group_id = approval.analyst_group_id or getattr(workflow_step, "group_id", None)
+    assigned_user_id = _assignee_user_for_workflow_step(
+        approval.tenant_id,
+        workflow_step,
+        approval.memo.borrower if approval.memo else None,
+    )
+
+    existing = (
+        CreditBacklogTask.query.filter_by(
+            tenant_id=approval.tenant_id,
+            memo_id=approval.memo_id,
+            workflow_step_id=approval.workflow_step_id,
+            assigned_group_id=assigned_group_id,
+            assigned_user_id=assigned_user_id,
+        )
+        .filter(CreditBacklogTask.status.in_(["todo", "in_progress"]))
+        .first()
+    )
+    if existing:
+        return
+
+    due_date = None
+    if workflow_step and workflow_step.sla_days and int(workflow_step.sla_days) > 0:
+        due_date = date.today() + timedelta(days=int(workflow_step.sla_days))
+
+    db.session.add(
+        CreditBacklogTask(
+            tenant_id=approval.tenant_id,
+            memo_id=approval.memo_id,
+            deal_id=approval.memo.deal_id,
+            borrower_id=approval.memo.borrower_id,
+            workflow_step_id=approval.workflow_step_id,
+            title=_("Approval pending for memo: {title}", title=approval.memo.title),
+            description=approval.comments,
+            status="todo",
+            priority="high",
+            due_date=due_date,
+            assigned_user_id=assigned_user_id,
+            assigned_group_id=assigned_group_id,
+            created_by_user_id=approval.actor_user_id,
+        )
+    )
+
+
+def _deal_status_is_analysis(status: str | None) -> bool:
+    return (str(status or "").strip().lower() or "in_review") in {
+        "in_review",
+        "analysis",
+        "analyst_review",
+    }
+
+
+def _analysis_workflow_step_for_tenant(tenant_id: int) -> CreditApprovalWorkflowStep | None:
+    steps = _workflow_steps_ordered(tenant_id)
+    if not steps:
+        return None
+
+    for step in steps:
+        stage = str(step.stage or "").strip().lower()
+        if stage in {"analyst_review", "analysis", "in_review"}:
+            return step
+    return steps[0]
+
+
+def _assignee_user_for_workflow_step(
+    tenant_id: int,
+    step: CreditApprovalWorkflowStep | None,
+    borrower: CreditBorrower | None = None,
+) -> int | None:
+    if not step or not step.group_id:
+        return None
+
+    tenant = Tenant.query.get(tenant_id)
+    function_scopes = _credit_function_scopes(tenant)
+
+    base_q = (
+        CreditAnalystGroupMember.query.join(CreditAnalystGroup)
+        .filter(
+            CreditAnalystGroup.tenant_id == tenant_id,
+            CreditAnalystGroupMember.group_id == step.group_id,
+        )
+        .order_by(CreditAnalystGroupMember.id.asc())
+    )
+
+    scoped_q = base_q
+    if step.function_id:
+        scoped_q = scoped_q.filter(CreditAnalystGroupMember.function_id == step.function_id)
+    elif step.function_name:
+        scoped_q = scoped_q.filter(CreditAnalystGroupMember.function_name == step.function_name)
+
+    members = scoped_q.all() or base_q.all()
+    if not members:
+        return None
+
+    if borrower:
+        for member in members:
+            fn_code = str(member.function_ref.code if member.function_ref else member.function_name or "").strip().lower()
+            scope = function_scopes.get(fn_code) if fn_code else None
+            if _borrower_matches_scope(borrower, scope):
+                return int(member.user_id) if member.user_id else None
+
+    first = members[0]
+    return int(first.user_id) if first and first.user_id else None
+
+
+def _create_analysis_backlog_task(
+    tenant_id: int,
+    deal_id: int | None,
+    borrower_id: int | None,
+    memo_id: int | None,
+    title: str,
+    description: str,
+    actor_user_id: int | None,
+    workflow_step: CreditApprovalWorkflowStep | None = None,
+) -> None:
+    step = workflow_step or _analysis_workflow_step_for_tenant(tenant_id)
+    if not step:
+        return
+
+    borrower = CreditBorrower.query.filter_by(id=borrower_id, tenant_id=tenant_id).first() if borrower_id else None
+    assigned_group_id = step.group_id
+    assigned_user_id = _assignee_user_for_workflow_step(tenant_id, step, borrower)
+    existing = (
+        CreditBacklogTask.query.filter_by(
+            tenant_id=tenant_id,
+            memo_id=memo_id,
+            deal_id=deal_id,
+            borrower_id=borrower_id,
+            workflow_step_id=step.id,
+            assigned_group_id=assigned_group_id,
+            assigned_user_id=assigned_user_id,
+        )
+        .filter(CreditBacklogTask.status.in_(["todo", "in_progress"]))
+        .first()
+    )
+    if existing:
+        return
+
+    due_date = None
+    if step.sla_days and int(step.sla_days) > 0:
+        due_date = date.today() + timedelta(days=int(step.sla_days))
+
+    db.session.add(
+        CreditBacklogTask(
+            tenant_id=tenant_id,
+            memo_id=memo_id,
+            deal_id=deal_id,
+            borrower_id=borrower_id,
+            workflow_step_id=step.id,
+            title=title,
+            description=description,
+            status="todo",
+            priority="high",
+            due_date=due_date,
+            assigned_user_id=assigned_user_id,
+            assigned_group_id=assigned_group_id,
+            created_by_user_id=actor_user_id,
+        )
+    )
+
+
+def _maybe_create_backlog_task_for_new_deal_analysis(deal: CreditDeal, actor_user_id: int | None) -> None:
+    if not _deal_status_is_analysis(deal.status):
+        return
+
+    _create_analysis_backlog_task(
+        tenant_id=deal.tenant_id,
+        deal_id=deal.id,
+        borrower_id=deal.borrower_id,
+        memo_id=None,
+        title=_("Deal analysis task: {deal_code}", deal_code=deal.code),
+        description=_("Auto-created from deal creation for workflow analysis step."),
+        actor_user_id=actor_user_id,
+    )
+
+
+def _maybe_create_backlog_task_for_new_facility_analysis(facility: CreditFacility, actor_user_id: int | None) -> None:
+    status = (str(facility.status or "").strip().lower() or "draft")
+    if status not in {"draft", "analysis", "in_review"}:
+        return
+
+    deal = facility.deal
+    if not deal:
+        return
+
+    _create_analysis_backlog_task(
+        tenant_id=facility.tenant_id,
+        deal_id=facility.deal_id,
+        borrower_id=deal.borrower_id,
+        memo_id=None,
+        title=_("Facility analysis task: {deal_code}", deal_code=deal.code),
+        description=_("Auto-created from facility creation for workflow analysis step."),
+        actor_user_id=actor_user_id,
+    )
+
+
+def _maybe_create_backlog_task_for_new_memo_analysis(memo: CreditMemo, actor_user_id: int | None) -> None:
+    if not memo:
+        return
+
+    _create_analysis_backlog_task(
+        tenant_id=memo.tenant_id,
+        deal_id=memo.deal_id,
+        borrower_id=memo.borrower_id,
+        memo_id=memo.id,
+        title=_("Memo analysis task: {memo_title}", memo_title=(memo.title or _("Credit Memo"))),
+        description=_("Auto-created from memo creation for workflow analysis step."),
+        actor_user_id=actor_user_id,
+    )
+
+
 def _seed_default_analyst_functions(tenant_id: int) -> None:
     defaults = [
         ("analyst", _("Analyst")),
@@ -605,6 +2234,107 @@ def _seed_default_approval_workflow(tenant_id: int) -> None:
             )
         )
     db.session.commit()
+
+
+def _workflow_steps_ordered(tenant_id: int) -> list[CreditApprovalWorkflowStep]:
+    return (
+        CreditApprovalWorkflowStep.query.filter_by(tenant_id=tenant_id)
+        .order_by(CreditApprovalWorkflowStep.step_order.asc(), CreditApprovalWorkflowStep.id.asc())
+        .all()
+    )
+
+
+def _workflow_step_for_approval(
+    approval: CreditApproval,
+    ordered_steps: list[CreditApprovalWorkflowStep],
+) -> CreditApprovalWorkflowStep | None:
+    if approval.workflow_step_id:
+        for step in ordered_steps:
+            if step.id == approval.workflow_step_id:
+                return step
+    for step in ordered_steps:
+        if step.stage == approval.stage:
+            return step
+    return None
+
+
+def _expected_workflow_step_for_memo(
+    tenant_id: int,
+    memo_id: int,
+    ordered_steps: list[CreditApprovalWorkflowStep],
+) -> tuple[CreditApprovalWorkflowStep | None, str | None]:
+    if not ordered_steps:
+        return None, _("No approval workflow is configured.")
+
+    approvals = (
+        CreditApproval.query.filter_by(tenant_id=tenant_id, memo_id=memo_id)
+        .order_by(CreditApproval.created_at.asc(), CreditApproval.id.asc())
+        .all()
+    )
+    if not approvals:
+        return ordered_steps[0], None
+
+    last = approvals[-1]
+    if last.decision == "rejected":
+        return None, _("Workflow is closed for this memo (already rejected).")
+
+    last_step = _workflow_step_for_approval(last, ordered_steps)
+    if not last_step:
+        return ordered_steps[0], _("Previous approval is not mapped to current workflow. Restart from first step.")
+
+    if last.decision == "pending":
+        return last_step, None
+
+    try:
+        idx = next(i for i, step in enumerate(ordered_steps) if step.id == last_step.id)
+    except StopIteration:
+        return ordered_steps[0], _("Previous approval is not mapped to current workflow. Restart from first step.")
+
+    next_idx = idx + 1
+    if next_idx >= len(ordered_steps):
+        return None, _("Workflow is already completed for this memo.")
+
+    return ordered_steps[next_idx], None
+
+
+def _user_can_sign_pending_approval(
+    tenant: Tenant,
+    user_id: int,
+    workflow_step: CreditApprovalWorkflowStep | None,
+    borrower: CreditBorrower | None,
+) -> bool:
+    if not workflow_step:
+        return False
+
+    q = (
+        CreditAnalystGroupMember.query.join(CreditAnalystGroup)
+        .filter(
+            CreditAnalystGroup.tenant_id == tenant.id,
+            CreditAnalystGroupMember.user_id == user_id,
+        )
+    )
+
+    if workflow_step.group_id:
+        q = q.filter(CreditAnalystGroupMember.group_id == workflow_step.group_id)
+    if workflow_step.function_id:
+        q = q.filter(CreditAnalystGroupMember.function_id == workflow_step.function_id)
+    elif workflow_step.function_name:
+        q = q.filter(CreditAnalystGroupMember.function_name == workflow_step.function_name)
+
+    matches = q.all()
+    if not matches:
+        return False
+
+    function_scopes = _credit_function_scopes(tenant)
+    if not borrower:
+        return True
+
+    for member in matches:
+        fn_code = str(member.function_ref.code if member.function_ref else member.function_name or "").strip().lower()
+        scope = function_scopes.get(fn_code) if fn_code else None
+        if _borrower_matches_scope(borrower, scope):
+            return True
+    return False
 
 
 def _overview_chart_data(tenant_id: int, filter_predicates: dict | None = None) -> dict:
@@ -747,8 +2477,72 @@ def borrowers():
     countries = CreditCountry.query.order_by(CreditCountry.name.asc()).all()
     sectors = CreditSector.query.order_by(CreditSector.name.asc()).all()
     ratings = CreditRating.query.order_by(CreditRating.rank_order.asc()).all()
+    selected_sector_id = _to_int(request.args.get("sector_id"))
+    selected_country_id = _to_int(request.args.get("country_id"))
+    selected_rating_id = _to_int(request.args.get("rating_id"))
+    search_name = (request.args.get("q") or "").strip()
+    edit_borrower_id = _to_int(request.args.get("borrower_id"))
+
+    sector_ids = {s.id for s in sectors}
+    country_ids = {c.id for c in countries}
+    rating_ids = {r.id for r in ratings}
+
+    if selected_sector_id and selected_sector_id not in sector_ids:
+        selected_sector_id = None
+        flash(_("Secteur invalide."), "warning")
+    if selected_country_id and selected_country_id not in country_ids:
+        selected_country_id = None
+        flash(_("Pays invalide."), "warning")
+    if selected_rating_id and selected_rating_id not in rating_ids:
+        selected_rating_id = None
+        flash(_("Rating invalide."), "warning")
 
     if request.method == "POST":
+        action = (request.form.get("action") or "create").strip().lower()
+
+        if action == "update":
+            borrower_id = _to_int(request.form.get("borrower_id"))
+            borrower = CreditBorrower.query.filter_by(id=borrower_id, tenant_id=g.tenant.id).first() if borrower_id else None
+            if not borrower:
+                flash(_("Borrower invalide."), "warning")
+                return redirect(url_for("credit.borrowers"))
+            if not _borrower_visible_for_user(g.tenant, current_user.id, borrower):
+                flash(_("Borrower out of your UAM scope."), "warning")
+                return redirect(url_for("credit.borrowers", mode="search"))
+
+            country_id = _to_int(request.form.get("country_id"))
+            sector_id = _to_int(request.form.get("sector_id"))
+            rating_id = _to_int(request.form.get("rating_id"))
+
+            country = CreditCountry.query.filter_by(id=country_id).first() if country_id else None
+            sector = CreditSector.query.filter_by(id=sector_id).first() if sector_id else None
+            rating = CreditRating.query.filter_by(id=rating_id).first() if rating_id else None
+
+            if country_id and not country:
+                flash(_("Pays invalide."), "warning")
+                return redirect(url_for("credit.borrowers", mode="edit", borrower_id=borrower.id))
+            if sector_id and not sector:
+                flash(_("Secteur invalide."), "warning")
+                return redirect(url_for("credit.borrowers", mode="edit", borrower_id=borrower.id))
+            if rating_id and not rating:
+                flash(_("Rating invalide."), "warning")
+                return redirect(url_for("credit.borrowers", mode="edit", borrower_id=borrower.id))
+
+            borrower.name = (request.form.get("name") or "").strip()
+            borrower.sector_id = getattr(sector, "id", None)
+            borrower.country_id = getattr(country, "id", None)
+            borrower.rating_id = getattr(rating, "id", None)
+            borrower.sector = sector.display_name(getattr(g, "lang", DEFAULT_LANG)) if sector else None
+            borrower.country = country.display_name(getattr(g, "lang", DEFAULT_LANG)) if country else None
+            borrower.internal_rating = getattr(rating, "code", None)
+            if not borrower.name:
+                flash(_("Nom du borrower requis."), "warning")
+                return redirect(url_for("credit.borrowers", mode="edit", borrower_id=borrower.id))
+
+            db.session.commit()
+            flash(_("Borrower modifié."), "success")
+            return redirect(url_for("credit.borrowers", mode="search"))
+
         country_id = _to_int(request.form.get("country_id"))
         sector_id = _to_int(request.form.get("sector_id"))
         rating_id = _to_int(request.form.get("rating_id"))
@@ -785,7 +2579,22 @@ def borrowers():
         flash(_("Borrower ajouté."), "success")
         return redirect(url_for("credit.borrowers"))
 
-    rows = CreditBorrower.query.filter_by(tenant_id=g.tenant.id).order_by(CreditBorrower.created_at.desc()).all()
+    query = CreditBorrower.query.filter_by(tenant_id=g.tenant.id)
+    if selected_sector_id:
+        query = query.filter(CreditBorrower.sector_id == selected_sector_id)
+    if selected_country_id:
+        query = query.filter(CreditBorrower.country_id == selected_country_id)
+    if selected_rating_id:
+        query = query.filter(CreditBorrower.rating_id == selected_rating_id)
+    if search_name:
+        query = query.filter(CreditBorrower.name.ilike(f"%{search_name}%"))
+
+    rows = query.order_by(CreditBorrower.created_at.desc()).all()
+    rows = [b for b in rows if _borrower_visible_for_user(g.tenant, current_user.id, b)]
+    edit_borrower = CreditBorrower.query.filter_by(id=edit_borrower_id, tenant_id=g.tenant.id).first() if edit_borrower_id else None
+    if edit_borrower and not _borrower_visible_for_user(g.tenant, current_user.id, edit_borrower):
+        edit_borrower = None
+
     return render_template(
         "credit/borrowers.html",
         tenant=g.tenant,
@@ -793,6 +2602,11 @@ def borrowers():
         countries=countries,
         sectors=sectors,
         ratings=ratings,
+        selected_sector_id=selected_sector_id,
+        selected_country_id=selected_country_id,
+        selected_rating_id=selected_rating_id,
+        search_name=search_name,
+        edit_borrower=edit_borrower,
     )
 
 
@@ -821,16 +2635,38 @@ def deals():
             flash(_("Code deal requis."), "warning")
             return redirect(url_for("credit.deals"))
         db.session.add(deal)
+        db.session.flush()
+        _maybe_create_backlog_task_for_new_deal_analysis(deal, getattr(current_user, "id", None))
         db.session.commit()
         flash(_("Deal ajouté."), "success")
         return redirect(url_for("credit.deals"))
 
-    rows = (
-        CreditDeal.query.filter_by(tenant_id=g.tenant.id)
-        .order_by(CreditDeal.updated_at.desc())
-        .all()
+    selected_borrower_id = _to_int(request.args.get("borrower_id"))
+    selected_status = (request.args.get("status") or "").strip().lower()
+    allowed_statuses = {"in_review", "memo", "approved", "rejected"}
+
+    borrower_ids = {b.id for b in borrowers}
+    if selected_borrower_id and selected_borrower_id not in borrower_ids:
+        selected_borrower_id = None
+        flash(_("Borrower invalide."), "warning")
+    if selected_status and selected_status not in allowed_statuses:
+        selected_status = ""
+
+    query = CreditDeal.query.filter_by(tenant_id=g.tenant.id)
+    if selected_borrower_id:
+        query = query.filter(CreditDeal.borrower_id == selected_borrower_id)
+    if selected_status:
+        query = query.filter(CreditDeal.status == selected_status)
+
+    rows = query.order_by(CreditDeal.updated_at.desc()).all()
+    return render_template(
+        "credit/deals.html",
+        tenant=g.tenant,
+        deals=rows,
+        borrowers=borrowers,
+        selected_borrower_id=selected_borrower_id,
+        selected_status=selected_status,
     )
-    return render_template("credit/deals.html", tenant=g.tenant, deals=rows, borrowers=borrowers)
 
 
 @bp.route("/facilities", methods=["GET", "POST"])
@@ -865,17 +2701,46 @@ def facilities():
             status=(request.form.get("status") or "draft").strip(),
         )
         db.session.add(row)
+        db.session.flush()
+        _maybe_create_backlog_task_for_new_facility_analysis(row, getattr(current_user, "id", None))
         db.session.commit()
         flash(_("Facility ajoutée."), "success")
         return redirect(url_for("credit.facilities"))
 
-    rows = CreditFacility.query.filter_by(tenant_id=g.tenant.id).order_by(CreditFacility.created_at.desc()).all()
+    selected_deal_id = _to_int(request.args.get("deal_id"))
+    selected_type_id = _to_int(request.args.get("facility_type_id"))
+    selected_status = (request.args.get("status") or "").strip().lower()
+    allowed_statuses = {"draft", "approved", "booked"}
+
+    deal_ids = {d.id for d in deals}
+    type_ids = {t.id for t in facility_types}
+    if selected_deal_id and selected_deal_id not in deal_ids:
+        selected_deal_id = None
+        flash(_("Deal invalide."), "warning")
+    if selected_type_id and selected_type_id not in type_ids:
+        selected_type_id = None
+        flash(_("Type de facility invalide."), "warning")
+    if selected_status and selected_status not in allowed_statuses:
+        selected_status = ""
+
+    query = CreditFacility.query.filter_by(tenant_id=g.tenant.id)
+    if selected_deal_id:
+        query = query.filter(CreditFacility.deal_id == selected_deal_id)
+    if selected_type_id:
+        query = query.filter(CreditFacility.facility_type_id == selected_type_id)
+    if selected_status:
+        query = query.filter(CreditFacility.status == selected_status)
+
+    rows = query.order_by(CreditFacility.created_at.desc()).all()
     return render_template(
         "credit/facilities.html",
         tenant=g.tenant,
         facilities=rows,
         deals=deals,
         facility_types=facility_types,
+        selected_deal_id=selected_deal_id,
+        selected_type_id=selected_type_id,
+        selected_status=selected_status,
     )
 
 
@@ -917,7 +2782,33 @@ def collateral():
         flash(_("Collateral ajouté."), "success")
         return redirect(url_for("credit.collateral"))
 
-    rows = CreditCollateral.query.filter_by(tenant_id=g.tenant.id).order_by(CreditCollateral.created_at.desc()).all()
+    selected_borrower_id = _to_int(request.args.get("borrower_id"))
+    selected_deal_id = _to_int(request.args.get("deal_id"))
+    selected_type_id = _to_int(request.args.get("collateral_type_id"))
+
+    borrower_ids = {b.id for b in borrowers}
+    deal_ids = {d.id for d in deals}
+    type_ids = {t.id for t in collateral_types}
+
+    if selected_borrower_id and selected_borrower_id not in borrower_ids:
+        selected_borrower_id = None
+        flash(_("Borrower invalide."), "warning")
+    if selected_deal_id and selected_deal_id not in deal_ids:
+        selected_deal_id = None
+        flash(_("Deal invalide."), "warning")
+    if selected_type_id and selected_type_id not in type_ids:
+        selected_type_id = None
+        flash(_("Type de collatéral invalide."), "warning")
+
+    query = CreditCollateral.query.filter_by(tenant_id=g.tenant.id)
+    if selected_borrower_id:
+        query = query.filter(CreditCollateral.borrower_id == selected_borrower_id)
+    if selected_deal_id:
+        query = query.filter(CreditCollateral.deal_id == selected_deal_id)
+    if selected_type_id:
+        query = query.filter(CreditCollateral.collateral_type_id == selected_type_id)
+
+    rows = query.order_by(CreditCollateral.created_at.desc()).all()
     return render_template(
         "credit/collateral.html",
         tenant=g.tenant,
@@ -925,6 +2816,9 @@ def collateral():
         borrowers=borrowers,
         deals=deals,
         collateral_types=collateral_types,
+        selected_borrower_id=selected_borrower_id,
+        selected_deal_id=selected_deal_id,
+        selected_type_id=selected_type_id,
     )
 
 
@@ -968,7 +2862,33 @@ def guarantors():
         flash(_("Garant ajouté."), "success")
         return redirect(url_for("credit.guarantors"))
 
-    rows = CreditGuarantor.query.filter_by(tenant_id=g.tenant.id).order_by(CreditGuarantor.created_at.desc()).all()
+    selected_borrower_id = _to_int(request.args.get("borrower_id"))
+    selected_deal_id = _to_int(request.args.get("deal_id"))
+    selected_type_id = _to_int(request.args.get("guarantee_type_id"))
+
+    borrower_ids = {b.id for b in borrowers}
+    deal_ids = {d.id for d in deals}
+    type_ids = {t.id for t in guarantee_types}
+
+    if selected_borrower_id and selected_borrower_id not in borrower_ids:
+        selected_borrower_id = None
+        flash(_("Borrower invalide."), "warning")
+    if selected_deal_id and selected_deal_id not in deal_ids:
+        selected_deal_id = None
+        flash(_("Deal invalide."), "warning")
+    if selected_type_id and selected_type_id not in type_ids:
+        selected_type_id = None
+        flash(_("Type de garantie invalide."), "warning")
+
+    query = CreditGuarantor.query.filter_by(tenant_id=g.tenant.id)
+    if selected_borrower_id:
+        query = query.filter(CreditGuarantor.borrower_id == selected_borrower_id)
+    if selected_deal_id:
+        query = query.filter(CreditGuarantor.deal_id == selected_deal_id)
+    if selected_type_id:
+        query = query.filter(CreditGuarantor.guarantee_type_id == selected_type_id)
+
+    rows = query.order_by(CreditGuarantor.created_at.desc()).all()
     return render_template(
         "credit/guarantors.html",
         tenant=g.tenant,
@@ -976,6 +2896,9 @@ def guarantors():
         borrowers=borrowers,
         deals=deals,
         guarantee_types=guarantee_types,
+        selected_borrower_id=selected_borrower_id,
+        selected_deal_id=selected_deal_id,
+        selected_type_id=selected_type_id,
     )
 
 
@@ -1016,6 +2939,7 @@ def financials():
     borrowers = CreditBorrower.query.filter_by(tenant_id=g.tenant.id).order_by(CreditBorrower.name.asc()).all()
     users = User.query.filter_by(tenant_id=g.tenant.id).order_by(User.email.asc()).all()
     functions = CreditAnalystFunction.query.filter_by(tenant_id=g.tenant.id).order_by(CreditAnalystFunction.label.asc()).all()
+    csv_templates = _financial_csv_templates(g.tenant)
 
     if request.method == "POST":
         borrower_id = int(request.form.get("borrower_id") or 0)
@@ -1062,16 +2986,79 @@ def financials():
         flash(_("États financiers et snapshot ratios enregistrés."), "success")
         return redirect(url_for("credit.financials"))
 
-    rows = CreditFinancialStatement.query.filter_by(tenant_id=g.tenant.id).order_by(CreditFinancialStatement.created_at.desc()).all()
+    selected_borrower_id = _to_int(request.args.get("borrower_id"))
+    borrower_ids = {b.id for b in borrowers}
+    if selected_borrower_id and selected_borrower_id not in borrower_ids:
+        selected_borrower_id = None
+        flash(_("Borrower invalide."), "warning")
+
+    query = CreditFinancialStatement.query.filter_by(tenant_id=g.tenant.id)
+    if selected_borrower_id:
+        query = query.filter(CreditFinancialStatement.borrower_id == selected_borrower_id)
+
+    rows = query.order_by(CreditFinancialStatement.created_at.desc()).all()
     return render_template(
         "credit/financials.html",
         tenant=g.tenant,
         financials=rows,
         borrowers=borrowers,
+        selected_borrower_id=selected_borrower_id,
         users=users,
         functions=functions,
+        csv_templates=csv_templates,
+        csv_fields=_FINANCIAL_CSV_FIELDS,
+        default_mapping=_default_financial_csv_mapping(),
         current_year=date.today().year,
     )
+
+
+@bp.route("/financials/csv-template", methods=["POST"])
+@login_required
+def financials_csv_template():
+    _require_tenant()
+
+    action = (request.form.get("action") or "").strip().lower()
+    templates = _financial_csv_templates(g.tenant)
+
+    if action == "save":
+        name = str(request.form.get("template_name") or "").strip()
+        if not name:
+            flash(_("Template name is required."), "warning")
+            return redirect(url_for("credit.financials"))
+
+        mapping = _default_financial_csv_mapping()
+        mapping.update(_mapping_from_form(request.form))
+
+        replaced = False
+        for item in templates:
+            item_name = str(item.get("name") or "").strip().lower()
+            if item_name == name.lower():
+                item["name"] = name
+                item["mapping"] = mapping
+                replaced = True
+                break
+        if not replaced:
+            templates.append({"name": name, "mapping": mapping})
+
+        _save_financial_csv_templates(g.tenant, templates)
+        db.session.commit()
+        flash(_("CSV mapping template saved."), "success")
+        return redirect(url_for("credit.financials"))
+
+    if action == "delete":
+        name = str(request.form.get("template_name") or "").strip().lower()
+        if not name:
+            flash(_("Template name is required."), "warning")
+            return redirect(url_for("credit.financials"))
+
+        kept = [t for t in templates if str(t.get("name") or "").strip().lower() != name]
+        _save_financial_csv_templates(g.tenant, kept)
+        db.session.commit()
+        flash(_("CSV mapping template deleted."), "success")
+        return redirect(url_for("credit.financials"))
+
+    flash(_("Unknown template action."), "warning")
+    return redirect(url_for("credit.financials"))
 
 
 @bp.route("/financials/import", methods=["POST"])
@@ -1111,8 +3098,27 @@ def financials_import():
         flash(_("CSV invalide: en-têtes manquants."), "warning")
         return redirect(url_for("credit.financials"))
 
-    required_cols = {"borrower_id", "period_label", "fiscal_year", "revenue", "ebitda", "total_debt", "cash", "net_income"}
-    missing = sorted(required_cols - {str(h).strip() for h in reader.fieldnames})
+    template_name = str(request.form.get("template_name") or "").strip()
+    template_mapping = _find_financial_csv_template(g.tenant, template_name)
+    if not template_name or not template_mapping:
+        flash(_("Please select a valid mapping template."), "warning")
+        return redirect(url_for("credit.financials"))
+
+    mapping = _default_financial_csv_mapping()
+    mapping.update(template_mapping)
+
+    headers = {str(h).strip() for h in reader.fieldnames if h is not None}
+    required_fields = [
+        "borrower_id",
+        "period_label",
+        "fiscal_year",
+        "revenue",
+        "ebitda",
+        "total_debt",
+        "cash",
+        "net_income",
+    ]
+    missing = sorted([mapping[fld] for fld in required_fields if not str(mapping.get(fld) or "").strip() or str(mapping.get(fld) or "").strip() not in headers])
     if missing:
         flash(_("CSV invalide: colonnes manquantes ({cols}).", cols=", ".join(missing)), "warning")
         return redirect(url_for("credit.financials"))
@@ -1121,29 +3127,32 @@ def financials_import():
     skipped = 0
     file_name = upload.filename or "upload.csv"
     for row in reader:
-        borrower_id = _to_int((row.get("borrower_id") or "").strip())
+        borrower_id = _to_int((row.get(mapping["borrower_id"]) or "").strip())
         borrower = CreditBorrower.query.filter_by(id=borrower_id, tenant_id=g.tenant.id).first() if borrower_id else None
         if not borrower:
             skipped += 1
             continue
 
         try:
-            fiscal_year = int((row.get("fiscal_year") or "").strip() or date.today().year)
+            fiscal_year = int((row.get(mapping["fiscal_year"]) or "").strip() or date.today().year)
         except Exception:
             skipped += 1
             continue
 
+        spreading_col = str(mapping.get("spreading_status") or "").strip()
+        spreading_value = (row.get(spreading_col) or "").strip() if spreading_col in headers else "in_progress"
+
         statement = CreditFinancialStatement(
             tenant_id=g.tenant.id,
             borrower_id=borrower.id,
-            period_label=(row.get("period_label") or "FY").strip() or "FY",
+            period_label=(row.get(mapping["period_label"]) or "FY").strip() or "FY",
             fiscal_year=fiscal_year,
-            revenue=_to_decimal(row.get("revenue"), "0"),
-            ebitda=_to_decimal(row.get("ebitda"), "0"),
-            total_debt=_to_decimal(row.get("total_debt"), "0"),
-            cash=_to_decimal(row.get("cash"), "0"),
-            net_income=_to_decimal(row.get("net_income"), "0"),
-            spreading_status=(row.get("spreading_status") or "in_progress").strip() or "in_progress",
+            revenue=_to_decimal_loose(row.get(mapping["revenue"]), "0"),
+            ebitda=_to_decimal_loose(row.get(mapping["ebitda"]), "0"),
+            total_debt=_to_decimal_loose(row.get(mapping["total_debt"]), "0"),
+            cash=_to_decimal_loose(row.get(mapping["cash"]), "0"),
+            net_income=_to_decimal_loose(row.get(mapping["net_income"]), "0"),
+            spreading_status=spreading_value or "in_progress",
             imported_by_user_id=getattr(current_user, "id", None),
             analyst_user_id=getattr(analyst_user, "id", None),
             analyst_function_id=getattr(analyst_function, "id", None),
@@ -1159,6 +3168,88 @@ def financials_import():
         flash(_("Aucune ligne importée."), "warning")
     else:
         flash(_("Import états financiers terminé: {ok} importées, {ko} ignorées.", ok=imported, ko=skipped), "success")
+    return redirect(url_for("credit.financials"))
+
+
+@bp.route("/financials/import-pdf-ai", methods=["POST"])
+@login_required
+def financials_import_pdf_ai():
+    _require_tenant()
+    _seed_default_analyst_functions(g.tenant.id)
+
+    upload = request.files.get("pdf_file")
+    if not upload or not upload.filename:
+        flash(_("PDF file is required."), "warning")
+        return redirect(url_for("credit.financials"))
+
+    borrower_id = _to_int(request.form.get("borrower_id"))
+    borrower = CreditBorrower.query.filter_by(id=borrower_id, tenant_id=g.tenant.id).first() if borrower_id else None
+    if not borrower:
+        flash(_("Borrower invalide."), "warning")
+        return redirect(url_for("credit.financials"))
+
+    analyst_user_id = _to_int(request.form.get("analyst_user_id"))
+    analyst_function_id = _to_int(request.form.get("analyst_function_id"))
+    analyst_user = User.query.filter_by(id=analyst_user_id, tenant_id=g.tenant.id).first() if analyst_user_id else None
+    analyst_function = (
+        CreditAnalystFunction.query.filter_by(id=analyst_function_id, tenant_id=g.tenant.id).first()
+        if analyst_function_id
+        else None
+    )
+    if analyst_user_id and not analyst_user:
+        flash(_("Analyste invalide."), "warning")
+        return redirect(url_for("credit.financials"))
+    if analyst_function_id and not analyst_function:
+        flash(_("Fonction analyste invalide."), "warning")
+        return redirect(url_for("credit.financials"))
+
+    pdf_bytes = upload.read() or b""
+    if not pdf_bytes:
+        flash(_("Unable to read PDF file."), "warning")
+        return redirect(url_for("credit.financials"))
+
+    pdf_text = _extract_pdf_text(pdf_bytes)
+    if not pdf_text.strip():
+        flash(_("No readable text found in PDF."), "warning")
+        return redirect(url_for("credit.financials"))
+
+    payload = _ai_extract_financial_payload(pdf_text, getattr(g, "lang", None))
+    if not payload:
+        flash(_("AI could not extract a valid financial statement from this PDF."), "warning")
+        return redirect(url_for("credit.financials"))
+
+    fiscal_year = _to_int(str(payload.get("fiscal_year") or "")) or date.today().year
+    period_label = str(payload.get("period_label") or "FY").strip() or "FY"
+    spreading_status = str(payload.get("spreading_status") or "needs_review").strip() or "needs_review"
+    if spreading_status not in {"in_progress", "completed", "needs_review"}:
+        spreading_status = "needs_review"
+
+    statement = CreditFinancialStatement(
+        tenant_id=g.tenant.id,
+        borrower_id=borrower.id,
+        period_label=period_label,
+        fiscal_year=fiscal_year,
+        revenue=_to_decimal_loose(str(payload.get("revenue") or "0"), "0"),
+        ebitda=_to_decimal_loose(str(payload.get("ebitda") or "0"), "0"),
+        total_debt=_to_decimal_loose(str(payload.get("total_debt") or "0"), "0"),
+        cash=_to_decimal_loose(str(payload.get("cash") or "0"), "0"),
+        net_income=_to_decimal_loose(str(payload.get("net_income") or "0"), "0"),
+        spreading_status=spreading_status,
+        imported_by_user_id=getattr(current_user, "id", None),
+        analyst_user_id=getattr(analyst_user, "id", None),
+        analyst_function_id=getattr(analyst_function, "id", None),
+        import_source=f"pdf_ai:{upload.filename or 'upload.pdf'}",
+    )
+    db.session.add(statement)
+    db.session.flush()
+    _create_ratio_snapshot_for_statement(statement)
+    db.session.commit()
+
+    confidence = payload.get("confidence")
+    if confidence is None:
+        flash(_("AI PDF import completed."), "success")
+    else:
+        flash(_("AI PDF import completed (confidence: {value}).", value=confidence), "success")
     return redirect(url_for("credit.financials"))
 
 
@@ -1424,12 +3515,365 @@ def references_delete(ref_kind: str, row_id: int):
     return redirect(url_for("credit.references"))
 
 
+@bp.route("/memo-templates", methods=["GET", "POST"])
+@login_required
+def memo_templates():
+    _require_tenant()
+    if not _can_view_memo_templates():
+        flash(_("Backoffice role required to manage workflow."), "warning")
+        return redirect(url_for("credit.memos"))
+
+    if request.method == "POST":
+        if not _can_edit_memo_templates():
+            flash(_("You do not have permission to edit memo templates."), "warning")
+            return redirect(url_for("credit.memo_templates"))
+
+        name = (request.form.get("name") or "").strip()
+        memo_type = (request.form.get("memo_type") or "full_credit_memo").strip()
+        description = (request.form.get("description") or "").strip() or None
+        base_template_id = _to_int(request.form.get("base_template_id"))
+        base_template = None
+        if base_template_id:
+            base_template = CreditMemoTemplate.query.filter_by(id=base_template_id, tenant_id=g.tenant.id).first()
+            if not base_template:
+                flash(_("Template invalide."), "warning")
+                return redirect(url_for("credit.memo_templates"))
+
+        if not name:
+            flash(_("Template name is required."), "warning")
+            return redirect(url_for("credit.memo_templates"))
+
+        if memo_type not in {code for code, _ in _MEMO_TEMPLATE_TYPES}:
+            memo_type = "full_credit_memo"
+
+        row = CreditMemoTemplate(
+            tenant_id=g.tenant.id,
+            name=name,
+            memo_type=memo_type,
+            description=description,
+            status="draft",
+            base_template_id=getattr(base_template, "id", None),
+            created_by_user_id=getattr(current_user, "id", None),
+        )
+        db.session.add(row)
+        db.session.flush()
+
+        v1 = CreditMemoTemplateVersion(
+            tenant_id=g.tenant.id,
+            template_id=row.id,
+            version_no=1,
+            status="draft",
+            definition_json=_default_memo_template_definition(),
+            change_notes="Initial version",
+            created_by_user_id=getattr(current_user, "id", None),
+        )
+        db.session.add(v1)
+        db.session.commit()
+        flash(_("Template created."), "success")
+        return redirect(url_for("credit.memo_template_designer", template_id=row.id))
+
+    templates = (
+        CreditMemoTemplate.query.filter_by(tenant_id=g.tenant.id)
+        .order_by(CreditMemoTemplate.updated_at.desc(), CreditMemoTemplate.id.desc())
+        .all()
+    )
+    return render_template(
+        "credit/memo_templates.html",
+        tenant=g.tenant,
+        templates=templates,
+        memo_types=_MEMO_TEMPLATE_TYPES,
+    )
+
+
+@bp.route("/memo-templates/<int:template_id>/designer", methods=["GET", "POST"])
+@login_required
+def memo_template_designer(template_id: int):
+    _require_tenant()
+    if not _can_view_memo_templates():
+        flash(_("Backoffice role required to manage workflow."), "warning")
+        return redirect(url_for("credit.memos"))
+
+    row = CreditMemoTemplate.query.filter_by(id=template_id, tenant_id=g.tenant.id).first()
+    if not row:
+        flash(_("Template invalide."), "warning")
+        return redirect(url_for("credit.memo_templates"))
+
+    version_id = _to_int(request.args.get("version_id"))
+    version = None
+    if version_id:
+        version = CreditMemoTemplateVersion.query.filter_by(
+            id=version_id,
+            tenant_id=g.tenant.id,
+            template_id=row.id,
+        ).first()
+    if not version:
+        version = _latest_memo_template_version(row.id, g.tenant.id)
+
+    selected_deal_id = _to_int(request.values.get("test_deal_id"))
+    preview_context = _memo_preview_context(g.tenant.id, selected_deal_id)
+
+    resolved_definition = _resolve_memo_template_definition(row, version)
+    working_definition = resolved_definition
+    validation_findings = _validate_memo_template_definition(working_definition, preview_context)
+    preview_html = _render_memo_template_html(row.name, working_definition, preview_context)
+    snippets = _memo_template_snippets(g.tenant)
+
+    compare_version_id = _to_int(request.values.get("compare_version_id"))
+    compare_version = None
+    compare_definition = None
+    compare_preview_html = None
+    compare_summary = None
+
+    if request.method == "POST":
+        action = (request.form.get("action") or "save").strip().lower()
+        raw_json = (request.form.get("definition_json") or "").strip()
+        change_notes = (request.form.get("change_notes") or "").strip() or None
+        export_format = (request.form.get("export_format") or "html").strip().lower()
+
+        if raw_json:
+            try:
+                parsed = json.loads(raw_json)
+            except Exception:
+                flash(_("Invalid template JSON."), "warning")
+                return redirect(url_for("credit.memo_template_designer", template_id=row.id, version_id=getattr(version, "id", None)))
+            working_definition = _sanitize_memo_template_definition(parsed)
+        else:
+            working_definition = _sanitize_memo_template_definition(working_definition)
+
+        validation_findings = _validate_memo_template_definition(working_definition, preview_context)
+        preview_html = _render_memo_template_html(row.name, working_definition, preview_context)
+
+        if action == "save_snippet":
+            snippet_name = (request.form.get("snippet_name") or "").strip()
+            snippet_content = (request.form.get("snippet_content") or "").strip()
+            snippet_id = (request.form.get("snippet_id") or "").strip() or f"snip-{int(datetime.utcnow().timestamp())}"
+
+            if not snippet_name or not snippet_content:
+                flash(_("Snippet name and content are required."), "warning")
+            else:
+                updated = [s for s in snippets if str(s.get("id") or "") != snippet_id]
+                updated.insert(0, {"id": snippet_id[:64], "name": snippet_name[:120], "content": snippet_content[:8000]})
+                _save_memo_template_snippets(g.tenant, updated[:80])
+                db.session.commit()
+                snippets = _memo_template_snippets(g.tenant)
+                flash(_("Snippet saved."), "success")
+
+            return redirect(
+                url_for(
+                    "credit.memo_template_designer",
+                    template_id=row.id,
+                    version_id=getattr(version, "id", None),
+                    test_deal_id=selected_deal_id,
+                    compare_version_id=compare_version_id,
+                )
+            )
+        elif action == "delete_snippet":
+            snippet_id = (request.form.get("snippet_id") or "").strip()
+            if snippet_id:
+                updated = [s for s in snippets if str(s.get("id") or "") != snippet_id]
+                _save_memo_template_snippets(g.tenant, updated)
+                db.session.commit()
+                snippets = _memo_template_snippets(g.tenant)
+                flash(_("Snippet deleted."), "success")
+
+            return redirect(
+                url_for(
+                    "credit.memo_template_designer",
+                    template_id=row.id,
+                    version_id=getattr(version, "id", None),
+                    test_deal_id=selected_deal_id,
+                    compare_version_id=compare_version_id,
+                )
+            )
+
+        if action == "preview":
+            pass
+        elif action == "validate":
+            errors = len([f for f in validation_findings if f.get("severity") == "error"])
+            warnings = len([f for f in validation_findings if f.get("severity") == "warning"])
+            flash(_("Validation complete: {errors} errors, {warnings} warnings.", errors=errors, warnings=warnings), "info")
+        elif action == "export":
+            return _memo_template_export_response(row.name, preview_html, export_format)
+        elif action == "save":
+            if not _can_edit_memo_templates():
+                flash(_("You do not have permission to edit memo templates."), "warning")
+                return redirect(url_for("credit.memo_template_designer", template_id=row.id, version_id=getattr(version, "id", None)))
+
+            if version:
+                version.definition_json = working_definition
+                version.validation_json = validation_findings
+                version.change_notes = change_notes
+                version.status = "draft"
+                version.created_by_user_id = getattr(current_user, "id", None)
+            else:
+                version = CreditMemoTemplateVersion(
+                    tenant_id=g.tenant.id,
+                    template_id=row.id,
+                    version_no=1,
+                    status="draft",
+                    definition_json=working_definition,
+                    validation_json=validation_findings,
+                    change_notes=change_notes or "Initial version",
+                    created_by_user_id=getattr(current_user, "id", None),
+                )
+                db.session.add(version)
+
+            row.status = "draft"
+            db.session.commit()
+            flash(_("Template saved."), "success")
+            return redirect(url_for("credit.memo_template_designer", template_id=row.id, version_id=getattr(version, "id", None), test_deal_id=selected_deal_id))
+        elif action == "save_version":
+            if not _can_edit_memo_templates():
+                flash(_("You do not have permission to edit memo templates."), "warning")
+                return redirect(url_for("credit.memo_template_designer", template_id=row.id, version_id=getattr(version, "id", None)))
+
+            latest = _latest_memo_template_version(row.id, g.tenant.id)
+            next_no = (latest.version_no if latest else 0) + 1
+            new_version = CreditMemoTemplateVersion(
+                tenant_id=g.tenant.id,
+                template_id=row.id,
+                version_no=next_no,
+                status="in_review",
+                definition_json=working_definition,
+                validation_json=validation_findings,
+                change_notes=change_notes or _("New version"),
+                created_by_user_id=getattr(current_user, "id", None),
+            )
+            db.session.add(new_version)
+            row.status = "in_review"
+            db.session.commit()
+            flash(_("New template version saved."), "success")
+            return redirect(url_for("credit.memo_template_designer", template_id=row.id, version_id=new_version.id, test_deal_id=selected_deal_id))
+        elif action == "publish":
+            if not _can_publish_memo_templates():
+                flash(_("You do not have permission to record approval decisions."), "warning")
+                return redirect(url_for("credit.memo_template_designer", template_id=row.id, version_id=getattr(version, "id", None)))
+
+            latest = _latest_memo_template_version(row.id, g.tenant.id)
+            next_no = (latest.version_no if latest else 0) + 1
+            published_version = CreditMemoTemplateVersion(
+                tenant_id=g.tenant.id,
+                template_id=row.id,
+                version_no=next_no,
+                status="published",
+                definition_json=working_definition,
+                validation_json=validation_findings,
+                change_notes=change_notes or _("Published version"),
+                effective_date=date.today(),
+                created_by_user_id=getattr(current_user, "id", None),
+                approved_by_user_id=getattr(current_user, "id", None),
+                published_at=datetime.utcnow(),
+            )
+            db.session.add(published_version)
+            row.status = "published"
+            row.published_version_no = next_no
+            row.approved_by_user_id = getattr(current_user, "id", None)
+            row.published_at = datetime.utcnow()
+            db.session.commit()
+            flash(_("Template published."), "success")
+            return redirect(url_for("credit.memo_template_designer", template_id=row.id, version_id=published_version.id, test_deal_id=selected_deal_id))
+        else:
+            flash(_("Unknown template action."), "warning")
+
+    versions = (
+        CreditMemoTemplateVersion.query.filter_by(tenant_id=g.tenant.id, template_id=row.id)
+        .order_by(CreditMemoTemplateVersion.version_no.desc(), CreditMemoTemplateVersion.id.desc())
+        .all()
+    )
+
+    if compare_version_id:
+        compare_version = CreditMemoTemplateVersion.query.filter_by(
+            id=compare_version_id,
+            tenant_id=g.tenant.id,
+            template_id=row.id,
+        ).first()
+    if compare_version and version and compare_version.id != version.id:
+        compare_definition = _sanitize_memo_template_definition(compare_version.definition_json or _default_memo_template_definition())
+        compare_preview_html = _render_memo_template_html(f"{row.name} (v{compare_version.version_no})", compare_definition, preview_context)
+        compare_summary = _memo_template_compare_summary(
+            _sanitize_memo_template_definition(version.definition_json or _default_memo_template_definition()),
+            compare_definition,
+        )
+
+    templates = (
+        CreditMemoTemplate.query.filter_by(tenant_id=g.tenant.id)
+        .order_by(CreditMemoTemplate.updated_at.desc(), CreditMemoTemplate.id.desc())
+        .all()
+    )
+    deals = CreditDeal.query.filter_by(tenant_id=g.tenant.id).order_by(CreditDeal.updated_at.desc()).all()
+
+    return render_template(
+        "credit/memo_template_designer.html",
+        tenant=g.tenant,
+        template_row=row,
+        templates=templates,
+        versions=versions,
+        current_version=version,
+        memo_types=_MEMO_TEMPLATE_TYPES,
+        toolbox_components=_MEMO_TOOLBOX_COMPONENTS,
+        data_explorer=_MEMO_DATA_EXPLORER,
+        selected_deal_id=selected_deal_id,
+        deals=deals,
+        preview_context=preview_context,
+        validation_findings=validation_findings,
+        preview_html=preview_html,
+        compare_version_id=compare_version_id,
+        compare_version=compare_version,
+        compare_preview_html=compare_preview_html,
+        compare_summary=compare_summary,
+        snippets=snippets,
+        working_definition_json=json.dumps(working_definition, ensure_ascii=True),
+        can_edit_templates=_can_edit_memo_templates(),
+        can_publish_templates=_can_publish_memo_templates(),
+    )
+
+
+@bp.route("/memo-templates/<int:template_id>/designer/export", methods=["GET"])
+@login_required
+def memo_template_designer_export(template_id: int):
+    _require_tenant()
+    if not _can_view_memo_templates():
+        flash(_("Backoffice role required to manage workflow."), "warning")
+        return redirect(url_for("credit.memos"))
+
+    row = CreditMemoTemplate.query.filter_by(id=template_id, tenant_id=g.tenant.id).first()
+    if not row:
+        flash(_("Template invalide."), "warning")
+        return redirect(url_for("credit.memo_templates"))
+
+    version_id = _to_int(request.args.get("version_id"))
+    version = None
+    if version_id:
+        version = CreditMemoTemplateVersion.query.filter_by(
+            id=version_id,
+            tenant_id=g.tenant.id,
+            template_id=row.id,
+        ).first()
+    if not version:
+        version = _latest_memo_template_version(row.id, g.tenant.id)
+
+    selected_deal_id = _to_int(request.args.get("test_deal_id"))
+    preview_context = _memo_preview_context(g.tenant.id, selected_deal_id)
+    resolved_definition = _resolve_memo_template_definition(row, version)
+    preview_html = _render_memo_template_html(row.name, resolved_definition, preview_context)
+    export_format = (request.args.get("format") or "html").strip().lower()
+    return _memo_template_export_response(row.name, preview_html, export_format)
+
+
 @bp.route("/memos", methods=["GET", "POST"])
 @login_required
 def memos():
     _require_tenant()
     deals = CreditDeal.query.filter_by(tenant_id=g.tenant.id).order_by(CreditDeal.updated_at.desc()).all()
     borrowers = CreditBorrower.query.filter_by(tenant_id=g.tenant.id).order_by(CreditBorrower.name.asc()).all()
+    selected_template_id = _to_int(request.args.get("template_id"))
+    selected_deal_id = _to_int(request.args.get("deal_id"))
+    focus_memo_id = _to_int(request.args.get("focus_memo_id"))
+    published_templates = (
+        CreditMemoTemplate.query.filter_by(tenant_id=g.tenant.id, status="published")
+        .order_by(CreditMemoTemplate.updated_at.desc(), CreditMemoTemplate.id.desc())
+        .all()
+    )
 
     if request.method == "POST":
         row = CreditMemo(
@@ -1445,12 +3889,88 @@ def memos():
             flash(_("Le résumé du memo est requis."), "warning")
             return redirect(url_for("credit.memos"))
         db.session.add(row)
+        db.session.flush()
+        _maybe_create_backlog_task_for_new_memo_analysis(row, getattr(current_user, "id", None))
         db.session.commit()
         flash(_("Credit memo créé."), "success")
         return redirect(url_for("credit.memos"))
 
     rows = CreditMemo.query.filter_by(tenant_id=g.tenant.id).order_by(CreditMemo.updated_at.desc()).all()
-    return render_template("credit/memos.html", tenant=g.tenant, memos=rows, deals=deals, borrowers=borrowers)
+    return render_template(
+        "credit/memos.html",
+        tenant=g.tenant,
+        memos=rows,
+        deals=deals,
+        borrowers=borrowers,
+        published_templates=published_templates,
+        selected_template_id=selected_template_id,
+        selected_deal_id=selected_deal_id,
+        focus_memo_id=focus_memo_id,
+    )
+
+
+@bp.route("/memos/generate-from-template", methods=["POST"])
+@login_required
+def memos_generate_from_template():
+    _require_tenant()
+
+    template_id = _to_int(request.form.get("template_id"))
+    deal_id = _to_int(request.form.get("deal_id"))
+    recommendation = (request.form.get("recommendation") or "review").strip() or "review"
+
+    if not template_id or not deal_id:
+        flash(_("Template and deal are required."), "warning")
+        return redirect(url_for("credit.memos", mode="add"))
+
+    template = CreditMemoTemplate.query.filter_by(id=template_id, tenant_id=g.tenant.id).first()
+    deal = CreditDeal.query.filter_by(id=deal_id, tenant_id=g.tenant.id).first()
+    if not template or not deal:
+        flash(_("Invalid template or deal."), "warning")
+        return redirect(url_for("credit.memos", mode="add"))
+
+    if template.status != "published" or not template.published_version_no:
+        flash(_("Selected template is not published."), "warning")
+        return redirect(url_for("credit.memos", mode="add"))
+
+    published_version = CreditMemoTemplateVersion.query.filter_by(
+        tenant_id=g.tenant.id,
+        template_id=template.id,
+        version_no=template.published_version_no,
+    ).first()
+    if not published_version:
+        flash(_("Published template version not found."), "warning")
+        return redirect(url_for("credit.memos", mode="add"))
+
+    definition = _sanitize_memo_template_definition(published_version.definition_json or _default_memo_template_definition())
+    payload = _memo_preview_context(g.tenant.id, deal.id)
+    html = _render_memo_template_html(template.name, definition, payload)
+    summary_text = _html_to_text(html)
+    title = (request.form.get("title") or "").strip() or f"{template.name} - {deal.code}"
+
+    memo = CreditMemo(
+        tenant_id=g.tenant.id,
+        deal_id=deal.id,
+        borrower_id=deal.borrower_id,
+        title=title[:180],
+        recommendation=recommendation,
+        summary_text=summary_text[:65000],
+        ai_generated=False,
+        ai_response_json={
+            "generated_from_template": {
+                "template_id": template.id,
+                "template_name": template.name,
+                "template_version_no": published_version.version_no,
+            }
+        },
+        prepared_by_user_id=getattr(current_user, "id", None),
+    )
+    db.session.add(memo)
+    db.session.flush()
+    _maybe_create_backlog_task_for_new_memo_analysis(memo, getattr(current_user, "id", None))
+    db.session.commit()
+
+    flash(_("Final credit memo generated from published template."), "success")
+    return redirect(url_for("credit.memos", mode="search", focus_memo_id=memo.id))
 
 
 @bp.route("/memos/ai-draft", methods=["POST"])
@@ -1547,10 +4067,74 @@ def memos_ai_draft():
         prepared_by_user_id=getattr(current_user, "id", None),
     )
     db.session.add(memo)
+    db.session.flush()
+    _maybe_create_backlog_task_for_new_memo_analysis(memo, getattr(current_user, "id", None))
     db.session.commit()
 
     flash(_("AI credit memo généré."), "success")
     return redirect(url_for("credit.memos"))
+
+
+@bp.route("/memos/<int:memo_id>/pdf", methods=["GET"])
+@login_required
+def memo_pdf(memo_id: int):
+    _require_tenant()
+
+    memo = CreditMemo.query.filter_by(id=memo_id, tenant_id=g.tenant.id).first()
+    if not memo:
+        flash(_("Memo invalide."), "warning")
+        return redirect(url_for("credit.memos", mode="search"))
+
+    html = None
+    generated_info = memo.ai_response_json.get("generated_from_template") if isinstance(memo.ai_response_json, dict) else None
+    if isinstance(generated_info, dict):
+        template_id = _to_int(generated_info.get("template_id"))
+        version_no = _to_int(generated_info.get("template_version_no"))
+        template = CreditMemoTemplate.query.filter_by(id=template_id, tenant_id=g.tenant.id).first() if template_id else None
+        if template and memo.deal_id:
+            version = None
+            if version_no:
+                version = CreditMemoTemplateVersion.query.filter_by(
+                    tenant_id=g.tenant.id,
+                    template_id=template.id,
+                    version_no=version_no,
+                ).first()
+            if not version and template.published_version_no:
+                version = CreditMemoTemplateVersion.query.filter_by(
+                    tenant_id=g.tenant.id,
+                    template_id=template.id,
+                    version_no=template.published_version_no,
+                ).first()
+            if version:
+                definition = _sanitize_memo_template_definition(version.definition_json or _default_memo_template_definition())
+                payload = _memo_preview_context(g.tenant.id, memo.deal_id)
+                html = _render_memo_template_html(template.name, definition, payload)
+
+    if not html:
+        summary_plain = _html_to_text(str(memo.summary_text or ""))
+        summary_html = html_escape(summary_plain, quote=True).replace("\n", "<br>")
+        html = (
+            "<!doctype html><html><head><meta charset='utf-8'><title>"
+            + html_escape(str(memo.title or _("Credit Memo")), quote=True)
+            + "</title><style>body{font-family:Arial,sans-serif;padding:28px;color:#102a43;}"
+            "h1{font-size:24px;margin:0 0 10px 0;color:#0b4f6c;}"
+            ".meta{color:#627d98;margin-bottom:16px;}"
+            ".memo-section{margin:0 0 14px 0;padding:12px;border:1px solid #d9e2ec;border-radius:8px;background:#fff;}"
+            ".memo-section h3{margin:0 0 8px 0;font-size:16px;color:#0b4f6c;}"
+            "</style></head><body>"
+            + f"<h1>{html_escape(str(memo.title or _('Credit Memo')), quote=True)}</h1>"
+            + "<section class='memo-section'>"
+            + f"<h3>{html_escape(str(_('Recommendation')), quote=True)}</h3>"
+            + f"<div>{html_escape(str(memo.recommendation or 'review'), quote=True)}</div>"
+            + "</section>"
+            + "<section class='memo-section'>"
+            + f"<h3>{html_escape(str(_('Executive Summary')), quote=True)}</h3>"
+            + f"<div>{summary_html}</div>"
+            + "</section>"
+            + "</body></html>"
+        )
+
+    return _memo_template_export_response(memo.title or _("Credit Memo"), html, "pdf")
 
 
 @bp.route("/approvals", methods=["GET", "POST"])
@@ -1559,13 +4143,15 @@ def approvals():
     _require_tenant()
     _seed_default_approval_workflow(g.tenant.id)
     memos = CreditMemo.query.filter_by(tenant_id=g.tenant.id).order_by(CreditMemo.updated_at.desc()).all()
-    workflow_steps = (
-        CreditApprovalWorkflowStep.query.filter_by(tenant_id=g.tenant.id)
-        .order_by(CreditApprovalWorkflowStep.step_order.asc(), CreditApprovalWorkflowStep.id.asc())
-        .all()
-    )
+    workflow_steps = _workflow_steps_ordered(g.tenant.id)
+
+    can_submit = _can_record_approval_decisions()
 
     if request.method == "POST":
+        if not can_submit:
+            flash(_("You do not have permission to record approval decisions."), "warning")
+            return redirect(url_for("credit.approvals"))
+
         memo_id = int(request.form.get("memo_id") or 0)
         memo = CreditMemo.query.filter_by(id=memo_id, tenant_id=g.tenant.id).first()
         if not memo:
@@ -1573,6 +4159,10 @@ def approvals():
             return redirect(url_for("credit.approvals"))
 
         workflow_step_id = _to_int(request.form.get("workflow_step_id"))
+        if not workflow_step_id:
+            flash(_("Workflow step is required."), "warning")
+            return redirect(url_for("credit.approvals", mode="add"))
+
         workflow_step = None
         if workflow_step_id:
             workflow_step = CreditApprovalWorkflowStep.query.filter_by(
@@ -1583,10 +4173,22 @@ def approvals():
                 flash(_("Workflow step invalide."), "warning")
                 return redirect(url_for("credit.approvals"))
 
+        expected_step, workflow_state_message = _expected_workflow_step_for_memo(g.tenant.id, memo.id, workflow_steps)
+        if workflow_state_message and expected_step is None:
+            flash(workflow_state_message, "warning")
+            return redirect(url_for("credit.approvals", mode="add"))
+        if expected_step and workflow_step and expected_step.id != workflow_step.id:
+            flash(
+                _(
+                    "Invalid workflow order. Expected step: {step}",
+                    step=expected_step.step_name or expected_step.stage,
+                ),
+                "warning",
+            )
+            return redirect(url_for("credit.approvals", mode="add"))
+
         decision = (request.form.get("decision") or "pending").strip()
-        stage = (request.form.get("stage") or "analyst_review").strip()
-        if workflow_step:
-            stage = workflow_step.stage
+        stage = workflow_step.stage if workflow_step else (request.form.get("stage") or "analyst_review").strip()
 
         analyst_group_id = workflow_step.group_id if workflow_step else None
         analyst_function_id = workflow_step.function_id if workflow_step else None
@@ -1610,11 +4212,21 @@ def approvals():
             decided_at=datetime.utcnow() if decision != "pending" else None,
         )
         db.session.add(approval)
+        _maybe_create_backlog_task_for_pending_approval(approval)
         db.session.commit()
         flash(_("Décision d'approbation enregistrée."), "success")
         return redirect(url_for("credit.approvals"))
 
     rows = CreditApproval.query.filter_by(tenant_id=g.tenant.id).order_by(CreditApproval.created_at.desc()).all()
+    expected_step_by_memo: dict[int, int] = {}
+    workflow_state_by_memo: dict[int, str] = {}
+    for memo in memos:
+        step, msg = _expected_workflow_step_for_memo(g.tenant.id, memo.id, workflow_steps)
+        if step:
+            expected_step_by_memo[memo.id] = step.id
+        if msg:
+            workflow_state_by_memo[memo.id] = msg
+
     return render_template(
         "credit/approvals.html",
         tenant=g.tenant,
@@ -1622,6 +4234,9 @@ def approvals():
         memos=memos,
         workflow_steps=workflow_steps,
         stage_options=_approval_stage_options(),
+        can_submit=can_submit,
+        expected_step_by_memo=expected_step_by_memo,
+        workflow_state_by_memo=workflow_state_by_memo,
     )
 
 
@@ -1629,8 +4244,13 @@ def approvals():
 @login_required
 def approval_workflow():
     _require_tenant()
+    if not _can_manage_credit_backoffice():
+        flash(_("Backoffice role required to manage workflow."), "warning")
+        return redirect(url_for("credit.approvals"))
+
     _seed_default_analyst_functions(g.tenant.id)
     _seed_default_approval_workflow(g.tenant.id)
+    _seed_credit_references()
 
     if request.method == "POST":
         action = (request.form.get("action") or "").strip()
@@ -1667,6 +4287,39 @@ def approval_workflow():
                 db.session.rollback()
                 flash(_("Code fonction déjà utilisé."), "warning")
             return redirect(url_for("credit.approval_workflow"))
+
+        if action == "save_function_scope":
+            function_id = _to_int(request.form.get("function_id"))
+            function_row = (
+                CreditAnalystFunction.query.filter_by(id=function_id, tenant_id=g.tenant.id).first()
+                if function_id
+                else None
+            )
+            if not function_row:
+                flash(_("Fonction analyste invalide."), "warning")
+                return redirect(url_for("credit.approval_workflow", mode="add"))
+
+            def _parse_ids(name: str) -> list[int]:
+                out: list[int] = []
+                for raw in request.form.getlist(name):
+                    try:
+                        iv = int(raw)
+                    except Exception:
+                        continue
+                    if iv > 0:
+                        out.append(iv)
+                return sorted(set(out))
+
+            _save_credit_function_scope(
+                g.tenant,
+                function_row.code,
+                _parse_ids("sector_ids"),
+                _parse_ids("country_ids"),
+                _parse_ids("rating_ids"),
+            )
+            db.session.commit()
+            flash(_("Function scope updated."), "success")
+            return redirect(url_for("credit.approval_workflow", mode="add"))
 
         if action == "delete_function":
             function_id = _to_int(request.form.get("function_id"))
@@ -1840,6 +4493,10 @@ def approval_workflow():
     users = User.query.filter_by(tenant_id=g.tenant.id).order_by(User.email.asc()).all()
     groups = CreditAnalystGroup.query.filter_by(tenant_id=g.tenant.id).order_by(CreditAnalystGroup.name.asc()).all()
     functions = CreditAnalystFunction.query.filter_by(tenant_id=g.tenant.id).order_by(CreditAnalystFunction.label.asc()).all()
+    countries = CreditCountry.query.order_by(CreditCountry.name.asc()).all()
+    sectors = CreditSector.query.order_by(CreditSector.name.asc()).all()
+    ratings = CreditRating.query.order_by(CreditRating.rank_order.asc()).all()
+    function_scopes = _credit_function_scopes(g.tenant)
     steps = (
         CreditApprovalWorkflowStep.query.filter_by(tenant_id=g.tenant.id)
         .order_by(CreditApprovalWorkflowStep.step_order.asc(), CreditApprovalWorkflowStep.id.asc())
@@ -1851,8 +4508,307 @@ def approval_workflow():
         users=users,
         groups=groups,
         functions=functions,
+        countries=countries,
+        sectors=sectors,
+        ratings=ratings,
+        function_scopes=function_scopes,
         steps=steps,
         stage_options=_approval_stage_options(),
+    )
+
+
+@bp.route("/backlog", methods=["GET", "POST"])
+@login_required
+def backlog():
+    _require_tenant()
+    _seed_default_analyst_functions(g.tenant.id)
+    _seed_default_approval_workflow(g.tenant.id)
+
+    is_backoffice_admin = _can_manage_credit_backoffice()
+    can_create_task = _can_create_credit_task()
+    group_ids, function_codes = _credit_user_group_scope(g.tenant.id, current_user.id)
+
+    def _redirect_backlog() -> object:
+        scope_arg = (request.form.get("scope") or request.args.get("scope") or "my").strip().lower()
+        status_arg = (request.form.get("status") or request.args.get("status") or "").strip().lower()
+        borrower_arg = _to_int(request.form.get("borrower_id") or request.args.get("borrower_id"))
+        params: dict[str, object] = {"mode": "search", "scope": scope_arg}
+        if status_arg:
+            params["status"] = status_arg
+        if borrower_arg:
+            params["borrower_id"] = borrower_arg
+        return redirect(url_for("credit.backlog", **params))
+
+    if request.method == "POST":
+        action = (request.form.get("action") or "").strip()
+
+        if action == "create_task":
+            if not can_create_task:
+                flash(_("You do not have permission to create backlog tasks."), "warning")
+                return redirect(url_for("credit.backlog"))
+
+            title = (request.form.get("title") or "").strip()
+            if not title:
+                flash(_("Task title is required."), "warning")
+                return redirect(url_for("credit.backlog"))
+
+            memo_id = _to_int(request.form.get("memo_id"))
+            deal_id = _to_int(request.form.get("deal_id"))
+            borrower_id = _to_int(request.form.get("borrower_id"))
+            workflow_step_id = _to_int(request.form.get("workflow_step_id"))
+            assigned_user_id = _to_int(request.form.get("assigned_user_id"))
+            assigned_group_id = _to_int(request.form.get("assigned_group_id"))
+            due_date = _parse_iso_date(request.form.get("due_date"))
+
+            memo = CreditMemo.query.filter_by(id=memo_id, tenant_id=g.tenant.id).first() if memo_id else None
+            deal = CreditDeal.query.filter_by(id=deal_id, tenant_id=g.tenant.id).first() if deal_id else None
+            borrower = CreditBorrower.query.filter_by(id=borrower_id, tenant_id=g.tenant.id).first() if borrower_id else None
+            workflow_step = (
+                CreditApprovalWorkflowStep.query.filter_by(id=workflow_step_id, tenant_id=g.tenant.id).first()
+                if workflow_step_id
+                else None
+            )
+            assigned_user = User.query.filter_by(id=assigned_user_id, tenant_id=g.tenant.id).first() if assigned_user_id else None
+            assigned_group = (
+                CreditAnalystGroup.query.filter_by(id=assigned_group_id, tenant_id=g.tenant.id).first()
+                if assigned_group_id
+                else None
+            )
+
+            if memo_id and not memo:
+                flash(_("Memo invalide."), "warning")
+                return redirect(url_for("credit.backlog"))
+            if deal_id and not deal:
+                flash(_("Deal invalide."), "warning")
+                return redirect(url_for("credit.backlog"))
+            if borrower_id and not borrower:
+                flash(_("Borrower invalide."), "warning")
+                return redirect(url_for("credit.backlog"))
+            if workflow_step_id and not workflow_step:
+                flash(_("Workflow step invalide."), "warning")
+                return redirect(url_for("credit.backlog"))
+            if assigned_user_id and not assigned_user:
+                flash(_("User invalide."), "warning")
+                return redirect(url_for("credit.backlog"))
+            if assigned_group_id and not assigned_group:
+                flash(_("Groupe analyste invalide."), "warning")
+                return redirect(url_for("credit.backlog"))
+
+            task = CreditBacklogTask(
+                tenant_id=g.tenant.id,
+                memo_id=getattr(memo, "id", None),
+                deal_id=getattr(deal, "id", None),
+                borrower_id=getattr(borrower, "id", None),
+                workflow_step_id=getattr(workflow_step, "id", None),
+                title=title,
+                description=(request.form.get("description") or "").strip() or None,
+                status=(request.form.get("status") or "todo").strip() or "todo",
+                priority=(request.form.get("priority") or "normal").strip() or "normal",
+                due_date=due_date,
+                assigned_user_id=getattr(assigned_user, "id", None),
+                assigned_group_id=getattr(assigned_group, "id", None),
+                created_by_user_id=current_user.id,
+            )
+            db.session.add(task)
+            db.session.commit()
+            flash(_("Backlog task created."), "success")
+            return redirect(url_for("credit.backlog"))
+
+        if action == "set_status":
+            task_id = _to_int(request.form.get("task_id"))
+            task = CreditBacklogTask.query.filter_by(id=task_id, tenant_id=g.tenant.id).first() if task_id else None
+            if not task:
+                flash(_("Task invalide."), "warning")
+                return redirect(url_for("credit.backlog"))
+
+            can_update = is_backoffice_admin
+            if not can_update and task.assigned_user_id == current_user.id:
+                can_update = True
+            if not can_update and task.created_by_user_id == current_user.id:
+                can_update = True
+            if not can_update and task.assigned_group_id and task.assigned_group_id in group_ids:
+                can_update = True
+            if not can_update:
+                flash(_("You do not have permission to update this task."), "warning")
+                return redirect(url_for("credit.backlog"))
+
+            next_status = (request.form.get("status") or "").strip().lower()
+            if next_status not in {"todo", "in_progress", "done", "cancelled"}:
+                flash(_("Invalid task status."), "warning")
+                return redirect(url_for("credit.backlog"))
+
+            task.status = next_status
+            task.completed_at = datetime.utcnow() if next_status == "done" else None
+            db.session.commit()
+            flash(_("Task status updated."), "success")
+            return redirect(url_for("credit.backlog"))
+
+        if action == "approve_esign":
+            approval_id = _to_int(request.form.get("approval_id"))
+            approval = (
+                CreditApproval.query.filter_by(id=approval_id, tenant_id=g.tenant.id, decision="pending").first()
+                if approval_id
+                else None
+            )
+            if not approval or not approval.memo:
+                flash(_("Approval invalide."), "warning")
+                return _redirect_backlog()
+
+            signature_value = (request.form.get("signature_value") or "").strip().lower()
+            expected_signature = str(getattr(current_user, "email", "") or "").strip().lower()
+            if not signature_value or signature_value != expected_signature:
+                flash(_("Invalid electronic signature. Please type your email to sign."), "warning")
+                return _redirect_backlog()
+
+            workflow_steps = _workflow_steps_ordered(g.tenant.id)
+            expected_step, workflow_msg = _expected_workflow_step_for_memo(g.tenant.id, approval.memo_id, workflow_steps)
+            if workflow_msg and expected_step is None:
+                flash(workflow_msg, "warning")
+                return _redirect_backlog()
+            if expected_step and approval.workflow_step_id and expected_step.id != approval.workflow_step_id:
+                flash(_("You are not the expected approver for the current workflow step."), "warning")
+                return _redirect_backlog()
+
+            workflow_step = approval.workflow_step
+            if not workflow_step and approval.workflow_step_id:
+                workflow_step = CreditApprovalWorkflowStep.query.filter_by(
+                    id=approval.workflow_step_id,
+                    tenant_id=g.tenant.id,
+                ).first()
+
+            borrower = approval.memo.borrower if approval.memo else None
+            if not _user_can_sign_pending_approval(g.tenant, current_user.id, workflow_step, borrower):
+                flash(_("You are not allowed to sign this approval based on workflow/UAM scope."), "warning")
+                return _redirect_backlog()
+
+            approval.decision = "approved"
+            approval.actor_user_id = current_user.id
+            approval.decided_at = datetime.utcnow()
+            signed_line = _("E-signature by {email} on {date}", email=expected_signature, date=datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
+            approval.comments = f"{(approval.comments or '').strip()}\n{signed_line}".strip()
+
+            open_tasks = (
+                CreditBacklogTask.query.filter_by(
+                    tenant_id=g.tenant.id,
+                    memo_id=approval.memo_id,
+                    workflow_step_id=approval.workflow_step_id,
+                )
+                .filter(CreditBacklogTask.status.in_(["todo", "in_progress"]))
+                .all()
+            )
+            for task in open_tasks:
+                task.status = "done"
+                task.completed_at = datetime.utcnow()
+
+            db.session.commit()
+            flash(_("Approval signed and approved."), "success")
+            return _redirect_backlog()
+
+        flash(_("Unknown backlog action."), "warning")
+        return redirect(url_for("credit.backlog"))
+
+    scope = (request.args.get("scope") or "my").strip().lower()
+    status_filter = (request.args.get("status") or "").strip().lower()
+    selected_borrower_id = _to_int(request.args.get("borrower_id"))
+
+    borrowers = CreditBorrower.query.filter_by(tenant_id=g.tenant.id).order_by(CreditBorrower.name.asc()).all()
+    borrower_ids = {b.id for b in borrowers}
+    if selected_borrower_id and selected_borrower_id not in borrower_ids:
+        selected_borrower_id = None
+        flash(_("Borrower invalide."), "warning")
+
+    task_query = CreditBacklogTask.query.filter_by(tenant_id=g.tenant.id)
+    if status_filter in {"todo", "in_progress", "done", "cancelled"}:
+        task_query = task_query.filter(CreditBacklogTask.status == status_filter)
+    if selected_borrower_id:
+        task_query = task_query.filter(CreditBacklogTask.borrower_id == selected_borrower_id)
+
+    own_scope_filter = or_(
+        CreditBacklogTask.created_by_user_id == current_user.id,
+        CreditBacklogTask.assigned_user_id == current_user.id,
+        CreditBacklogTask.assigned_group_id.in_(group_ids) if group_ids else false(),
+    )
+
+    if is_backoffice_admin and scope == "all":
+        pass
+    elif is_backoffice_admin and scope == "open":
+        task_query = task_query.filter(CreditBacklogTask.status.in_(["todo", "in_progress"]))
+    else:
+        task_query = task_query.filter(own_scope_filter)
+
+    tasks = task_query.order_by(CreditBacklogTask.created_at.desc()).all()
+
+    pending_approval_q = CreditApproval.query.filter_by(tenant_id=g.tenant.id, decision="pending")
+    if selected_borrower_id:
+        pending_approval_q = pending_approval_q.join(CreditMemo, CreditApproval.memo_id == CreditMemo.id).filter(
+            CreditMemo.borrower_id == selected_borrower_id
+        )
+    if not (is_backoffice_admin or _has_credit_role("credit_approver")):
+        pending_approval_q = pending_approval_q.filter(
+            or_(
+                CreditApproval.actor_user_id == current_user.id,
+                CreditApproval.analyst_group_id.in_(group_ids) if group_ids else false(),
+                CreditApproval.analyst_function.in_(function_codes) if function_codes else false(),
+            )
+        )
+    pending_approvals = pending_approval_q.order_by(CreditApproval.created_at.desc()).limit(60).all()
+    workflow_steps = _workflow_steps_ordered(g.tenant.id)
+
+    can_esign_by_approval: dict[int, bool] = {}
+    expected_step_name_by_approval: dict[int, str] = {}
+    for approval in pending_approvals:
+        memo = approval.memo
+        if not memo:
+            can_esign_by_approval[int(approval.id)] = False
+            continue
+
+        expected_step, _ = _expected_workflow_step_for_memo(g.tenant.id, memo.id, workflow_steps)
+        expected_step_name_by_approval[int(approval.id)] = (
+            expected_step.step_name if expected_step else _("No expected step")
+        )
+        same_step = bool(expected_step and approval.workflow_step_id and expected_step.id == approval.workflow_step_id)
+        approval_step = approval.workflow_step
+        if not approval_step and approval.workflow_step_id:
+            approval_step = CreditApprovalWorkflowStep.query.filter_by(
+                id=approval.workflow_step_id,
+                tenant_id=g.tenant.id,
+            ).first()
+        can_sign = same_step and _user_can_sign_pending_approval(
+            g.tenant,
+            current_user.id,
+            approval_step,
+            memo.borrower if memo else None,
+        )
+        can_esign_by_approval[int(approval.id)] = bool(can_sign)
+
+    users = User.query.filter_by(tenant_id=g.tenant.id).order_by(User.email.asc()).all()
+    groups = CreditAnalystGroup.query.filter_by(tenant_id=g.tenant.id).order_by(CreditAnalystGroup.name.asc()).all()
+    memos = CreditMemo.query.filter_by(tenant_id=g.tenant.id).order_by(CreditMemo.updated_at.desc()).all()
+    deals = CreditDeal.query.filter_by(tenant_id=g.tenant.id).order_by(CreditDeal.updated_at.desc()).all()
+    workflow_steps = (
+        CreditApprovalWorkflowStep.query.filter_by(tenant_id=g.tenant.id)
+        .order_by(CreditApprovalWorkflowStep.step_order.asc())
+        .all()
+    )
+
+    return render_template(
+        "credit/backlog.html",
+        tenant=g.tenant,
+        tasks=tasks,
+        pending_approvals=pending_approvals,
+        users=users,
+        groups=groups,
+        memos=memos,
+        deals=deals,
+        borrowers=borrowers,
+        workflow_steps=workflow_steps,
+        can_create_task=can_create_task,
+        is_backoffice_admin=is_backoffice_admin,
+        scope=scope,
+        status_filter=status_filter,
+        selected_borrower_id=selected_borrower_id,
+        can_esign_by_approval=can_esign_by_approval,
+        expected_step_name_by_approval=expected_step_name_by_approval,
     )
 
 

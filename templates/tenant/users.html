@@ -69,7 +69,7 @@
               </thead>
               <tbody>
                 {% for user in users %}
-                {% set uam = user_module_access.get(user.id, {'finance': True, 'bi': True, 'project': True}) %}
+                {% set uam = user_module_access.get(user.id, {'finance': True, 'bi': True, 'project': True, 'credit': True}) %}
                 {% set menus = user_menu_access.get(user.id, {}) %}
                 <tr>
                   <td class="px-4">
@@ -112,6 +112,7 @@
                       <span class="badge {{ 'bg-success' if uam.finance else 'bg-secondary' }}">{{ _('Finance') }}</span>
                       <span class="badge {{ 'bg-success' if uam.bi else 'bg-secondary' }}">{{ _('BI') }}</span>
                       <span class="badge {{ 'bg-success' if uam.project else 'bg-secondary' }}">{{ _('Projet') }}</span>
+                      <span class="badge {{ 'bg-success' if uam.credit else 'bg-secondary' }}">{{ _('Credit') }}</span>
                     </div>
                   </td>
                   <td class="small text-muted">
@@ -152,7 +153,7 @@
       </div>
 
       {% for user in users %}
-      {% set uam = user_module_access.get(user.id, {'finance': True, 'bi': True, 'project': True}) %}
+      {% set uam = user_module_access.get(user.id, {'finance': True, 'bi': True, 'project': True, 'credit': True}) %}
       {% set menus = user_menu_access.get(user.id, {}) %}
       <div class="modal fade" id="uamModal-{{ user.id }}" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
@@ -179,6 +180,10 @@
                     <div class="form-check form-switch m-0">
                       <input class="form-check-input" type="checkbox" name="project_access" value="1" id="project-{{ user.id }}" {% if uam.project %}checked{% endif %}>
                       <label class="form-check-label" for="project-{{ user.id }}">{{ _('Projet') }}</label>
+                    </div>
+                    <div class="form-check form-switch m-0">
+                      <input class="form-check-input" type="checkbox" name="credit_access" value="1" id="credit-{{ user.id }}" {% if uam.credit %}checked{% endif %}>
+                      <label class="form-check-label" for="credit-{{ user.id }}">{{ _('Credit') }}</label>
                     </div>
                   </div>
                 </div>

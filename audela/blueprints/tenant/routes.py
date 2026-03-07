@@ -129,6 +129,29 @@ UAM_MENU_LABELS: dict[str, dict[str, str]] = {
 }
 
 
+_SYSTEM_ROLE_CATALOG: tuple[tuple[str, str], ...] = (
+    ("platform_admin", "Admin da plataforma"),
+    ("tenant_admin", "Admin do tenant"),
+    ("creator", "Criador"),
+    ("viewer", "Visualizador"),
+    ("credit_admin", "Administration credit et workflow"),
+    ("credit_analyst", "Analyste credit"),
+    ("credit_approver", "Approbateur credit"),
+    ("credit_viewer", "Lecture seule credit"),
+)
+
+
+def _ensure_system_roles() -> None:
+    changed = False
+    for code, description in _SYSTEM_ROLE_CATALOG:
+        if Role.query.filter_by(code=code).first():
+            continue
+        db.session.add(Role(code=code, description=description))
+        changed = True
+    if changed:
+        db.session.commit()
+
+
 def _tenant_user_profiles(tenant: Tenant) -> dict:
     settings = tenant.settings_json if isinstance(tenant.settings_json, dict) else {}
     raw = settings.get("user_profiles") if isinstance(settings.get("user_profiles"), dict) else {}
@@ -228,6 +251,7 @@ def _save_tenant_user_module_access(tenant: Tenant, user_id: int, module_access:
         "finance": bool(module_access.get("finance", True)),
         "bi": bool(module_access.get("bi", True)),
         "project": bool(module_access.get("project", True)),
+        "credit": bool(module_access.get("credit", True)),
         "updated_at": datetime.utcnow().isoformat(),
     }
 
@@ -616,8 +640,9 @@ def users_update_module_access(user_id: int):
     finance_enabled = str(request.form.get("finance_access") or "").lower() in ("1", "true", "on", "yes")
     bi_enabled = str(request.form.get("bi_access") or "").lower() in ("1", "true", "on", "yes")
     project_enabled = str(request.form.get("project_access") or "").lower() in ("1", "true", "on", "yes")
+    credit_enabled = str(request.form.get("credit_access") or "").lower() in ("1", "true", "on", "yes")
 
-    if user.id == current_user.id and not any([finance_enabled, bi_enabled, project_enabled]):
+    if user.id == current_user.id and not any([finance_enabled, bi_enabled, project_enabled, credit_enabled]):
         flash(tr("Au moins un produit doit rester activé pour votre propre compte.", getattr(g, "lang", None)), "error")
         return redirect(url_for("tenant.users"))
 
@@ -633,6 +658,7 @@ def users_update_module_access(user_id: int):
             "finance": finance_enabled,
             "bi": bi_enabled,
             "project": project_enabled,
+            "credit": credit_enabled,
             "menu_access": menu_access,
         },
     )
@@ -713,6 +739,7 @@ def invite_user():
             return render_template("tenant/invite.html")
     
     # Get available roles
+    _ensure_system_roles()
     roles = Role.query.all()
     
     return render_template("tenant/invite.html", roles=roles)

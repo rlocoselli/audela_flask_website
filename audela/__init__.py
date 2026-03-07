@@ -7,6 +7,7 @@ import sys
 from flask import Flask
 from flask import g, request, session, redirect
 from jinja2 import ChoiceLoader, FileSystemLoader
+from sqlalchemy import inspect
 
 from .config import DevConfig, ProdConfig
 from .extensions import csrf, db, login_manager, migrate, mail
@@ -28,6 +29,32 @@ def _configure_logging() -> None:
         )
         root_logger.addHandler(handler)
     root_logger.setLevel(level)
+
+
+def _assert_required_schema_on_startup(app: Flask) -> None:
+    """Fail fast in production when DB schema is behind code expectations."""
+    if str(os.environ.get("FLASK_ENV", "development")).lower() != "production":
+        return
+
+    with app.app_context():
+        engine = db.engine
+        insp = inspect(engine)
+
+        if not insp.has_table("data_sources"):
+            raise RuntimeError(
+                "Database schema check failed: missing table 'data_sources'. "
+                "Run migrations before starting production: 'flask db upgrade'."
+            )
+
+        cols = {c.get("name") for c in insp.get_columns("data_sources")}
+        required = {"id", "tenant_id", "type", "name", "created_at", "config_encrypted", "policy_json", "base_url", "method"}
+        missing = sorted(str(c) for c in required if c not in cols)
+        if missing:
+            raise RuntimeError(
+                "Database schema check failed for 'data_sources'. Missing columns: "
+                + ", ".join(missing)
+                + ". Run migrations before starting production: 'flask db upgrade'."
+            )
 
 
 def create_app() -> Flask:
@@ -79,6 +106,8 @@ def create_app() -> Flask:
     login_manager.init_app(app)
     csrf.init_app(app)
     mail.init_app(app)
+
+    _assert_required_schema_on_startup(app)
 
     login_manager.login_view = "auth.login"
 

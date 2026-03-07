@@ -1,0 +1,93 @@
+{% extends "credit/page_base.html" %}
+{% set title = _('Credit Memo Template Creator') %}
+{% set active_page = 'memo_templates' %}
+{% set credit_mode = request.args.get('mode', 'search') %}
+
+{% block credit_page_content %}
+<div class="d-flex gap-2 mb-3">
+  <a class="btn btn-sm {% if credit_mode != 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.memo_templates', mode='search') }}">{{ _('Search and list') }}</a>
+  <a class="btn btn-sm {% if credit_mode == 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.memo_templates', mode='add') }}">{{ _('Add new') }}</a>
+</div>
+
+<div class="row g-3 mb-3">
+  {% if credit_mode == 'add' %}
+  <div class="col-12 col-xl-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-body-tertiary">{{ _('New template') }}</div>
+      <div class="card-body">
+        <form method="post" class="row g-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="col-12">
+            <input class="form-control" name="name" placeholder="{{ _('Template name') }}" required>
+          </div>
+          <div class="col-12">
+            <select class="form-select" name="memo_type">
+              {% for code, label in memo_types %}
+              <option value="{{ code }}">{{ _(label) }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12">
+            <select class="form-select" name="base_template_id">
+              <option value="">{{ _('No base template') }}</option>
+              {% for t in templates %}
+              <option value="{{ t.id }}">{{ t.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12">
+            <textarea class="form-control" name="description" rows="3" placeholder="{{ _('Description') }}"></textarea>
+          </div>
+          <div class="col-12">
+            <button class="btn btn-primary w-100" type="submit">{{ _('Create template') }}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if credit_mode != 'add' %}
+  <div class="col-12 col-xl-12">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-body-tertiary">{{ _('Template library') }}</div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead>
+              <tr>
+                <th>{{ _('Template') }}</th>
+                <th>{{ _('Type') }}</th>
+                <th>{{ _('Status') }}</th>
+                <th>{{ _('Published version') }}</th>
+                <th>{{ _('Updated') }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for t in templates %}
+              <tr>
+                <td>{{ t.name }}</td>
+                <td>{{ t.memo_type }}</td>
+                <td><span class="badge text-bg-light">{{ t.status }}</span></td>
+                <td>{{ t.published_version_no or '-' }}</td>
+                <td>{{ t.updated_at.strftime('%Y-%m-%d %H:%M') if t.updated_at else '' }}</td>
+                <td class="text-end">
+                  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('credit.memo_template_designer', template_id=t.id) }}">{{ _('Open designer') }}</a>
+                  {% if t.status == 'published' and t.published_version_no %}
+                  <a class="btn btn-sm btn-outline-success" href="{{ url_for('credit.memos', mode='add', template_id=t.id) }}">{{ _('Generate memo') }}</a>
+                  {% endif %}
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="6" class="text-secondary">{{ _('No templates yet.') }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -59,12 +59,15 @@ from .credit import (
     CreditFinancialStatement,
     CreditRatioSnapshot,
     CreditMemo,
+    CreditMemoTemplate,
+    CreditMemoTemplateVersion,
     CreditAnalystFunction,
     CreditAnalystGroup,
     CreditAnalystGroupMember,
     CreditApprovalWorkflowStep,
     CreditApproval,
     CreditDocument,
+    CreditBacklogTask,
 )
 
 __all__ = [
@@ -132,11 +135,14 @@ __all__ = [
     "CreditFinancialStatement",
     "CreditRatioSnapshot",
     "CreditMemo",
+    "CreditMemoTemplate",
+    "CreditMemoTemplateVersion",
     "CreditAnalystFunction",
     "CreditAnalystGroup",
     "CreditAnalystGroupMember",
     "CreditApprovalWorkflowStep",
     "CreditApproval",
     "CreditDocument",
+    "CreditBacklogTask",
 ]
 from .etl_catalog import ETLConnection  # noqa: F401

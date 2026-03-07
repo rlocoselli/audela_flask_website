@@ -1,8 +1,15 @@
 {% extends "credit/page_base.html" %}
 {% set title = _('Audela Credit Collateral') %}
 {% set active_page = 'collateral' %}
+{% set credit_mode = request.args.get('mode', 'search') %}
 
 {% block credit_page_content %}
+<div class="d-flex gap-2 mb-3">
+  <a class="btn btn-sm {% if credit_mode != 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.collateral', mode='search') }}">{{ _('Search and list') }}</a>
+  <a class="btn btn-sm {% if credit_mode == 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.collateral', mode='add') }}">{{ _('Add new') }}</a>
+</div>
+
+{% if credit_mode == 'add' %}
 <div class="card border-0 shadow-sm mb-3">
   <div class="card-header bg-body-tertiary">{{ _('New collateral') }}</div>
   <div class="card-body">
@@ -18,8 +25,44 @@
     </form>
   </div>
 </div>
+{% endif %}
 
+{% if credit_mode != 'add' %}
 <div class="card border-0 shadow-sm">
+  <div class="card-header bg-body-tertiary border-bottom-0 pb-0">
+    <form method="get" class="row g-2 align-items-end">
+      <input type="hidden" name="mode" value="search">
+      <div class="col-12 col-lg-3">
+        <label class="form-label mb-1">{{ _('Borrower') }}</label>
+        <select class="form-select" name="borrower_id">
+          <option value="">{{ _('All') }}</option>
+          {% for b in borrowers %}
+          <option value="{{ b.id }}" {% if selected_borrower_id == b.id %}selected{% endif %}>{{ b.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-lg-3">
+        <label class="form-label mb-1">{{ _('Deal') }}</label>
+        <select class="form-select" name="deal_id">
+          <option value="">{{ _('All') }}</option>
+          {% for d in deals %}
+          <option value="{{ d.id }}" {% if selected_deal_id == d.id %}selected{% endif %}>{{ d.code }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-lg-2">
+        <label class="form-label mb-1">{{ _('Type') }}</label>
+        <select class="form-select" name="collateral_type_id">
+          <option value="">{{ _('All') }}</option>
+          {% for t in collateral_types %}
+          <option value="{{ t.id }}" {% if selected_type_id == t.id %}selected{% endif %}>{{ t.display_label(current_lang) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-lg-2"><button class="btn btn-primary w-100" type="submit">{{ _('Apply filters') }}</button></div>
+      <div class="col-6 col-lg-2"><a class="btn btn-outline-secondary w-100" href="{{ url_for('credit.collateral', mode='search') }}">{{ _('Reset') }}</a></div>
+    </form>
+  </div>
   <div class="card-header bg-body-tertiary">{{ _('Collateral') }}</div>
   <div class="card-body p-0">
     <div class="table-responsive">
@@ -36,4 +79,5 @@
     </div>
   </div>
 </div>
+{% endif %}
 {% endblock %}

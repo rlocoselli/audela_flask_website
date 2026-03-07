@@ -126,7 +126,12 @@ def get_user_module_access(tenant, user_id: int | None) -> dict:
             {
                 "uam": {
                     "module_access": {
-                        "<user_id>": {"finance": true/false, "bi": true/false}
+                        "<user_id>": {
+                            "finance": true/false,
+                            "bi": true/false,
+                            "project": true/false,
+                            "credit": true/false
+                        }
                     }
                 }
             }
@@ -134,7 +139,7 @@ def get_user_module_access(tenant, user_id: int | None) -> dict:
         Defaults to full access when missing.
         """
         if not tenant or user_id is None:
-            return {"finance": True, "bi": True, "project": True}
+            return {"finance": True, "bi": True, "project": True, "credit": True}
 
         settings = tenant.settings_json if isinstance(getattr(tenant, "settings_json", None), dict) else {}
         uam = settings.get("uam") if isinstance(settings.get("uam"), dict) else {}
@@ -147,6 +152,7 @@ def get_user_module_access(tenant, user_id: int | None) -> dict:
                 "finance": bool(row.get("finance", True)),
                 "bi": bool(row.get("bi", True)),
                 "project": bool(row.get("project", True)),
+            "credit": bool(row.get("credit", True)),
         }
 
 

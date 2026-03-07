@@ -3,27 +3,67 @@
 {% block title %}{% if title %}{{ title }} – {% endif %}{{ _('Audela Credit') }}{% endblock %}
 
 {% block content %}
-<div class="portal-shell d-flex">
-  <aside class="sidebar border-end bg-body-tertiary p-3 d-none d-lg-flex flex-column">
+<style>
+  .credit-shell.menu-right {
+    flex-direction: row-reverse;
+  }
+  .credit-shell.menu-hidden .sidebar {
+    display: none !important;
+  }
+  .credit-nav-group-title {
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+    margin: 0.25rem 0 0.35rem 0;
+  }
+  .credit-more summary {
+    cursor: pointer;
+    font-size: 0.84rem;
+    color: var(--bs-secondary-color);
+    list-style: none;
+  }
+  .credit-more summary::-webkit-details-marker {
+    display: none;
+  }
+  @media (max-width: 991.98px) {
+    .credit-shell.menu-hidden .sidebar {
+      display: none !important;
+    }
+  }
+</style>
+
+<div id="creditShell" class="portal-shell d-flex credit-shell">
+  <aside id="creditSidebar" class="sidebar border-end bg-body-tertiary p-3 d-none d-lg-flex flex-column">
     <div class="d-flex align-items-center gap-2 mb-3">
       <i class="bi bi-bank2"></i>
       <span class="brand">AUDELA CREDIT</span>
     </div>
 
     <nav class="nav flex-column gap-1">
+      <div class="credit-nav-group-title">{{ _('Core') }}</div>
       <a class="nav-link" href="{{ url_for('credit.overview') }}"><i class="bi bi-speedometer2 me-2"></i>{{ _('Overview') }}</a>
       <a class="nav-link" href="{{ url_for('credit.borrowers') }}"><i class="bi bi-people me-2"></i>{{ _('Borrowers') }}</a>
       <a class="nav-link" href="{{ url_for('credit.deals') }}"><i class="bi bi-briefcase me-2"></i>{{ _('Deals') }}</a>
-      <a class="nav-link" href="{{ url_for('credit.facilities') }}"><i class="bi bi-diagram-3 me-2"></i>{{ _('Facilities') }}</a>
-      <a class="nav-link" href="{{ url_for('credit.collateral') }}"><i class="bi bi-shield-lock me-2"></i>{{ _('Collateral') }}</a>
-      <a class="nav-link" href="{{ url_for('credit.guarantors') }}"><i class="bi bi-person-badge me-2"></i>{{ _('Guarantors') }}</a>
       <a class="nav-link" href="{{ url_for('credit.financials') }}"><i class="bi bi-file-earmark-bar-graph me-2"></i>{{ _('Financials & Spreading') }}</a>
       <a class="nav-link" href="{{ url_for('credit.ratios') }}"><i class="bi bi-percent me-2"></i>{{ _('Ratio Snapshot') }}</a>
       <a class="nav-link" href="{{ url_for('credit.memos') }}"><i class="bi bi-journal-richtext me-2"></i>{{ _('Credit Memo') }}</a>
       <a class="nav-link" href="{{ url_for('credit.approvals') }}"><i class="bi bi-check2-square me-2"></i>{{ _('Approvals') }}</a>
-      <a class="nav-link" href="{{ url_for('credit.documents') }}"><i class="bi bi-folder2-open me-2"></i>{{ _('Documents') }}</a>
-      <a class="nav-link" href="{{ url_for('credit.references') }}"><i class="bi bi-list-check me-2"></i>{{ _('References') }}</a>
-      <a class="nav-link" href="{{ url_for('credit.reports') }}"><i class="bi bi-file-earmark-richtext me-2"></i>{{ _('Reports') }}</a>
+
+      <details class="credit-more mt-2">
+        <summary><i class="bi bi-three-dots me-1"></i>{{ _('More') }}</summary>
+        <div class="nav flex-column gap-1 mt-1">
+          <a class="nav-link" href="{{ url_for('credit.facilities') }}"><i class="bi bi-diagram-3 me-2"></i>{{ _('Facilities') }}</a>
+          <a class="nav-link" href="{{ url_for('credit.collateral') }}"><i class="bi bi-shield-lock me-2"></i>{{ _('Collateral') }}</a>
+          <a class="nav-link" href="{{ url_for('credit.guarantors') }}"><i class="bi bi-person-badge me-2"></i>{{ _('Guarantors') }}</a>
+          <a class="nav-link" href="{{ url_for('credit.memo_templates') }}"><i class="bi bi-ui-checks-grid me-2"></i>{{ _('Memo Templates') }}</a>
+          <a class="nav-link" href="{{ url_for('credit.backlog') }}"><i class="bi bi-kanban me-2"></i>{{ _('Backlog') }}</a>
+          <a class="nav-link" href="{{ url_for('credit.approval_workflow') }}"><i class="bi bi-diagram-3 me-2"></i>{{ _('Approval Workflow') }}</a>
+          <a class="nav-link" href="{{ url_for('credit.documents') }}"><i class="bi bi-folder2-open me-2"></i>{{ _('Documents') }}</a>
+          <a class="nav-link" href="{{ url_for('credit.references') }}"><i class="bi bi-list-check me-2"></i>{{ _('References') }}</a>
+          <a class="nav-link" href="{{ url_for('credit.reports') }}"><i class="bi bi-file-earmark-richtext me-2"></i>{{ _('Reports') }}</a>
+        </div>
+      </details>
     </nav>
 
     <div class="mt-auto pt-3 small-muted">
@@ -39,6 +79,14 @@
           <button class="btn btn-outline-secondary btn-sm d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileCreditNav">
             <i class="bi bi-list"></i>
           </button>
+          <div class="btn-group btn-group-sm d-none d-lg-inline-flex" role="group" aria-label="Credit sidebar controls">
+            <button id="creditSidebarToggleBtn" class="btn btn-outline-secondary" type="button" title="{{ _('Hide menu') }}">
+              <i class="bi bi-layout-sidebar-inset"></i>
+            </button>
+            <button id="creditSidebarMoveBtn" class="btn btn-outline-secondary" type="button" title="{{ _('Move menu') }}">
+              <i class="bi bi-arrow-left-right"></i>
+            </button>
+          </div>
           <div class="fw-semibold text-nowrap">{{ _('Audela Credit') }}</div>
           <span class="small-muted text-truncate d-none d-sm-inline">· {{ tenant.name if tenant else '' }}</span>
         </div>
@@ -111,7 +159,10 @@
       <a class="nav-link" href="{{ url_for('credit.financials') }}">{{ _('Financials & Spreading') }}</a>
       <a class="nav-link" href="{{ url_for('credit.ratios') }}">{{ _('Ratio Snapshot') }}</a>
       <a class="nav-link" href="{{ url_for('credit.memos') }}">{{ _('Credit Memo') }}</a>
+      <a class="nav-link" href="{{ url_for('credit.memo_templates') }}">{{ _('Memo Templates') }}</a>
       <a class="nav-link" href="{{ url_for('credit.approvals') }}">{{ _('Approvals') }}</a>
+      <a class="nav-link" href="{{ url_for('credit.backlog') }}">{{ _('Backlog') }}</a>
+      <a class="nav-link" href="{{ url_for('credit.approval_workflow') }}">{{ _('Approval Workflow') }}</a>
       <a class="nav-link" href="{{ url_for('credit.documents') }}">{{ _('Documents') }}</a>
       <a class="nav-link" href="{{ url_for('credit.references') }}">{{ _('References') }}</a>
       <a class="nav-link" href="{{ url_for('credit.reports') }}">{{ _('Reports') }}</a>
@@ -123,4 +174,45 @@
 {% block body_scripts %}
   {{ super() }}
   <script src="{{ url_for('static', filename='portal/theme_switcher.js') }}"></script>
+  <script>
+    (function () {
+      const shell = document.getElementById('creditShell');
+      const sidebar = document.getElementById('creditSidebar');
+      const toggleBtn = document.getElementById('creditSidebarToggleBtn');
+      const moveBtn = document.getElementById('creditSidebarMoveBtn');
+      if (!shell || !sidebar || !toggleBtn || !moveBtn) return;
+
+      const KEY_VISIBLE = 'audela_credit_sidebar_visible';
+      const KEY_SIDE = 'audela_credit_sidebar_side';
+
+      const readVisible = () => localStorage.getItem(KEY_VISIBLE) !== '0';
+      const readSide = () => (localStorage.getItem(KEY_SIDE) === 'right' ? 'right' : 'left');
+
+      const applyState = () => {
+        const visible = readVisible();
+        const side = readSide();
+
+        shell.classList.toggle('menu-hidden', !visible);
+        shell.classList.toggle('menu-right', side === 'right');
+
+        toggleBtn.innerHTML = visible
+          ? '<i class="bi bi-layout-sidebar-inset"></i>'
+          : '<i class="bi bi-layout-sidebar"></i>';
+        toggleBtn.title = visible ? window.t('Hide menu') : window.t('Show menu');
+        moveBtn.title = side === 'left' ? window.t('Move menu to right') : window.t('Move menu to left');
+      };
+
+      toggleBtn.addEventListener('click', () => {
+        localStorage.setItem(KEY_VISIBLE, readVisible() ? '0' : '1');
+        applyState();
+      });
+
+      moveBtn.addEventListener('click', () => {
+        localStorage.setItem(KEY_SIDE, readSide() === 'left' ? 'right' : 'left');
+        applyState();
+      });
+
+      applyState();
+    })();
+  </script>
 {% endblock %}

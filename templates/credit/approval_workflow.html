@@ -1,9 +1,16 @@
 {% extends "credit/page_base.html" %}
 {% set title = _('Audela Credit Approval Workflow') %}
 {% set active_page = 'approval_workflow' %}
+{% set credit_mode = request.args.get('mode', 'search') %}
 
 {% block credit_page_content %}
+<div class="d-flex gap-2 mb-3">
+  <a class="btn btn-sm {% if credit_mode != 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.approval_workflow', mode='search') }}">{{ _('Search and list') }}</a>
+  <a class="btn btn-sm {% if credit_mode == 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.approval_workflow', mode='add') }}">{{ _('Add new') }}</a>
+</div>
+
 <div class="row g-3 mb-3">
+  {% if credit_mode == 'add' %}
   <div class="col-12 col-xl-4">
     <div class="card border-0 shadow-sm h-100">
       <div class="card-header bg-body-tertiary">{{ _('Create analyst group') }}</div>
@@ -24,8 +31,9 @@
       </div>
     </div>
   </div>
+  {% endif %}
 
-  <div class="col-12 col-xl-8">
+  <div class="col-12 {% if credit_mode == 'add' %}col-xl-8{% else %}col-xl-12{% endif %}">
     <div class="card border-0 shadow-sm h-100">
       <div class="card-header bg-body-tertiary">{{ _('Analyst groups and functions') }}</div>
       <div class="card-body p-0">
@@ -72,7 +80,12 @@
                     </div>
                     <div class="col-md-4">
                       <label class="form-label">{{ _('Function') }}</label>
-                      <input class="form-control" name="function_name" placeholder="analyst / risk_manager / committee" required>
+                      <select class="form-select" name="function_id" required>
+                        <option value="">{{ _('Select function') }}</option>
+                        {% for fn in functions %}
+                        <option value="{{ fn.id }}">{{ fn.label }} ({{ fn.code }})</option>
+                        {% endfor %}
+                      </select>
                     </div>
                     <div class="col-md-3">
                       <button class="btn btn-outline-primary w-100" type="submit">{{ _('Add member') }}</button>
@@ -101,6 +114,7 @@
   </div>
 </div>
 
+{% if credit_mode == 'add' %}
 <div class="card border-0 shadow-sm mb-3">
   <div class="card-header bg-body-tertiary">{{ _('Function register') }}</div>
   <div class="card-body">
@@ -135,7 +149,75 @@
     </div>
   </div>
 </div>
+{% endif %}
 
+{% if credit_mode == 'add' %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary">{{ _('Function UAM scope (borrower characteristics)') }}</div>
+  <div class="card-body">
+    <form method="post" class="row g-2 align-items-end">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="save_function_scope">
+      <div class="col-md-3">
+        <label class="form-label">{{ _('Function') }}</label>
+        <select class="form-select" name="function_id" required>
+          <option value="">{{ _('Select function') }}</option>
+          {% for fn in functions %}
+          <option value="{{ fn.id }}">{{ fn.label }} ({{ fn.code }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">{{ _('Allowed sectors') }}</label>
+        <select class="form-select" name="sector_ids" multiple size="6">
+          {% for s in sectors %}
+          <option value="{{ s.id }}">{{ s.display_name(current_lang) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">{{ _('Allowed countries') }}</label>
+        <select class="form-select" name="country_ids" multiple size="6">
+          {% for c in countries %}
+          <option value="{{ c.id }}">{{ c.display_name(current_lang) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">{{ _('Allowed ratings') }}</label>
+        <select class="form-select" name="rating_ids" multiple size="6">
+          {% for r in ratings %}
+          <option value="{{ r.id }}">{{ r.display_label(current_lang) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12"><button class="btn btn-primary" type="submit">{{ _('Save function scope') }}</button></div>
+      <div class="col-12 small text-secondary">{{ _('Tip: leave a list empty to allow all values for that characteristic.') }}</div>
+    </form>
+
+    <div class="table-responsive mt-3">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>{{ _('Function') }}</th><th>{{ _('Sectors') }}</th><th>{{ _('Countries') }}</th><th>{{ _('Ratings') }}</th></tr></thead>
+        <tbody>
+          {% for fn in functions %}
+          {% set scope = function_scopes.get(fn.code, {}) %}
+          <tr>
+            <td>{{ fn.label }} ({{ fn.code }})</td>
+            <td>{{ (scope.get('sector_ids') or [])|length }}</td>
+            <td>{{ (scope.get('country_ids') or [])|length }}</td>
+            <td>{{ (scope.get('rating_ids') or [])|length }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="text-secondary">{{ _('No functions yet.') }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if credit_mode == 'add' %}
 <div class="card border-0 shadow-sm mb-3">
   <div class="card-header bg-body-tertiary">{{ _('Add workflow step') }}</div>
   <div class="card-body">
@@ -144,12 +226,7 @@
       <input type="hidden" name="action" value="add_step">
       <div class="col-md-2">
         <label class="form-label">{{ _('Order') }}</label>
-                      <select class="form-select" name="function_id" required>
-                        <option value="">{{ _('Select function') }}</option>
-                        {% for fn in functions %}
-                        <option value="{{ fn.id }}">{{ fn.label }} ({{ fn.code }})</option>
-                        {% endfor %}
-                      </select>
+        <input class="form-control" name="step_order" type="number" min="1" placeholder="1">
       </div>
       <div class="col-md-2">
         <label class="form-label">{{ _('Stage') }}</label>
@@ -196,6 +273,7 @@
     </form>
   </div>
 </div>
+{% endif %}
 
 <div class="card border-0 shadow-sm">
   <div class="card-header bg-body-tertiary">{{ _('Approval workflow steps') }}</div>

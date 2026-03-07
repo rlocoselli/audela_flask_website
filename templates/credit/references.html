@@ -1,8 +1,25 @@
 {% extends "credit/page_base.html" %}
 {% set title = _('Audela Credit References') %}
 {% set active_page = 'references' %}
+{% set credit_mode = request.args.get('mode', 'search') %}
 
 {% block credit_page_content %}
+<div class="d-flex gap-2 mb-3">
+  <a class="btn btn-sm {% if credit_mode != 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.references', mode='search') }}">{{ _('Search and list') }}</a>
+  <a class="btn btn-sm {% if credit_mode == 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.references', mode='add') }}">{{ _('Add new') }}</a>
+</div>
+
+{% if credit_mode == 'search' %}
+<style>
+  form[action*="references_save"] { display: none !important; }
+</style>
+{% else %}
+<style>
+  .table-responsive,
+  .list-group.list-group-flush { display: none !important; }
+</style>
+{% endif %}
+
 <div class="card border-0 shadow-sm mb-3">
   <div class="card-header bg-body-tertiary">{{ _('Reference data') }}</div>
   <div class="card-body">
