@@ -7,7 +7,48 @@
 <div class="d-flex gap-2 mb-3">
   <a class="btn btn-sm {% if credit_mode != 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.financials', mode='search', borrower_id=selected_borrower_id) if selected_borrower_id else url_for('credit.financials', mode='search') }}">{{ _('Search and list') }}</a>
   <a class="btn btn-sm {% if credit_mode == 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.financials', mode='add') }}">{{ _('Add and import') }}</a>
+  {% if edit_statement %}
+  <a class="btn btn-sm {% if credit_mode == 'edit' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.financials', mode='edit', statement_id=edit_statement.id, borrower_id=selected_borrower_id) if selected_borrower_id else url_for('credit.financials', mode='edit', statement_id=edit_statement.id) }}">{{ _('Edit') }}</a>
+  {% endif %}
 </div>
+
+{% if credit_mode == 'edit' and edit_statement %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary">{{ _('Edit financial statement') }} · {{ edit_statement.borrower.name if edit_statement.borrower else '-' }}</div>
+  <div class="card-body">
+    <form method="post" class="row g-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="update">
+      <input type="hidden" name="statement_id" value="{{ edit_statement.id }}">
+      <div class="col-md-3"><select class="form-select" name="borrower_id" required><option value="">{{ _('Borrower') }}</option>{% for b in borrowers %}<option value="{{ b.id }}" {% if edit_statement.borrower_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}</select></div>
+      <div class="col-md-2"><input class="form-control" name="period_label" value="{{ edit_statement.period_label or 'FY' }}" placeholder="{{ _('Period') }}"></div>
+      <div class="col-md-1"><input class="form-control" name="fiscal_year" value="{{ edit_statement.fiscal_year }}"></div>
+      <div class="col-md-2"><input class="form-control" name="revenue" value="{{ edit_statement.revenue or 0 }}" placeholder="{{ _('Revenue') }}"></div>
+      <div class="col-md-2"><input class="form-control" name="ebitda" value="{{ edit_statement.ebitda or 0 }}" placeholder="{{ _('EBITDA') }}"></div>
+      <div class="col-md-2"><input class="form-control" name="total_debt" value="{{ edit_statement.total_debt or 0 }}" placeholder="{{ _('Total debt') }}"></div>
+      <div class="col-md-2"><input class="form-control" name="cash" value="{{ edit_statement.cash or 0 }}" placeholder="{{ _('Cash') }}"></div>
+      <div class="col-md-2"><input class="form-control" name="net_income" value="{{ edit_statement.net_income or 0 }}" placeholder="{{ _('Net income') }}"></div>
+      <div class="col-md-2"><select class="form-select" name="spreading_status"><option value="in_progress" {% if edit_statement.spreading_status == 'in_progress' %}selected{% endif %}>{{ _('In progress') }}</option><option value="completed" {% if edit_statement.spreading_status == 'completed' %}selected{% endif %}>{{ _('Completed') }}</option><option value="needs_review" {% if edit_statement.spreading_status == 'needs_review' %}selected{% endif %}>{{ _('Needs review') }}</option></select></div>
+      <div class="col-md-3">
+        <select class="form-select" name="analyst_user_id">
+          <option value="">{{ _('Analyst user (optional)') }}</option>
+          {% for u in users %}<option value="{{ u.id }}" {% if edit_statement.analyst_user_id == u.id %}selected{% endif %}>{{ u.email }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3">
+        <select class="form-select" name="analyst_function_id">
+          <option value="">{{ _('Analyst function (optional)') }}</option>
+          {% for fn in functions %}<option value="{{ fn.id }}" {% if edit_statement.analyst_function_id == fn.id %}selected{% endif %}>{{ fn.label }} ({{ fn.code }})</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button class="btn btn-primary" type="submit">{{ _('Save') }}</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('credit.financials', mode='search', borrower_id=selected_borrower_id) if selected_borrower_id else url_for('credit.financials', mode='search') }}">{{ _('Cancel') }}</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
 
 {% if credit_mode == 'add' %}
 <div class="row g-3 mb-3">
@@ -198,11 +239,12 @@
   <div class="card-body p-0">
     <div class="table-responsive">
       <table class="table table-sm mb-0">
-        <thead><tr><th>{{ _('Borrower') }}</th><th>{{ _('Period') }}</th><th>{{ _('Revenue') }}</th><th>{{ _('EBITDA') }}</th><th>{{ _('Debt') }}</th><th>{{ _('Cash') }}</th><th>{{ _('Status') }}</th><th>{{ _('Analyst') }}</th><th>{{ _('Function') }}</th><th>{{ _('Source') }}</th></tr></thead>
+        <thead><tr><th>{{ _('Borrower') }}</th><th>{{ _('Period') }}</th><th>{{ _('Revenue') }}</th><th>{{ _('EBITDA') }}</th><th>{{ _('Debt') }}</th><th>{{ _('Cash') }}</th><th>{{ _('Status') }}</th><th>{{ _('Analyst') }}</th><th>{{ _('Function') }}</th><th>{{ _('Source') }}</th><th>{{ _('Approval date') }}</th><th>{{ _('Approval summary') }}</th><th>{{ _('Actions') }}</th></tr></thead>
         <tbody>
           {% for f in financials %}
-          <tr>
-            <td>{{ f.borrower.name if f.borrower else '-' }}</td>
+          {% set ap = financial_approval_info.get(f.id, {}) %}
+          <tr class="credit-history-row" tabindex="0" data-history-popup="1" data-title="{{ (f.borrower.name if f.borrower else '-')|e }}" data-history='{{ (ap.logs if ap and ap.logs else [])|tojson|forceescape }}' data-phases='{{ (ap.phases if ap and ap.phases else [])|tojson|forceescape }}'>
+            <td><i class="bi bi-clock-history credit-history-hint" aria-hidden="true"></i>{{ f.borrower.name if f.borrower else '-' }}</td>
             <td>{{ f.period_label }} {{ f.fiscal_year }}</td>
             <td>{{ '%.2f'|format(f.revenue or 0) }}</td>
             <td>{{ '%.2f'|format(f.ebitda or 0) }}</td>
@@ -212,9 +254,31 @@
             <td>{{ f.analyst_user.email if f.analyst_user else '-' }}</td>
             <td>{{ f.analyst_function_ref.label if f.analyst_function_ref else '-' }}</td>
             <td>{{ f.import_source or 'manual' }}</td>
+            <td>{{ f.approval_date.strftime('%d/%m/%Y') if f.approval_date else (ap.approved_at.strftime('%d/%m/%Y') if ap and ap.approved_at else '-') }}</td>
+            <td>
+              <div class="small"><strong>{{ _('Current task') }}:</strong> {{ ap.current_task if ap else '-' }}</div>
+              {% if ap and ap.phases %}
+              <details>
+                <summary class="small text-secondary">{{ _('Workflow phases') }}</summary>
+                <div class="small mt-1">
+                  {% for line in ap.phases %}
+                  <div>{{ line }}</div>
+                  {% endfor %}
+                </div>
+              </details>
+              {% endif %}
+            </td>
+            <td class="text-nowrap">
+              <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.financials', mode='edit', statement_id=f.id, borrower_id=selected_borrower_id) if selected_borrower_id else url_for('credit.financials', mode='edit', statement_id=f.id) }}">{{ _('Edit') }}</a>
+              <form method="post" action="{{ url_for('credit.financials_delete', statement_id=f.id) }}" class="d-inline" onsubmit="return confirm('{{ _('Delete this financial statement?') }}');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="borrower_id" value="{{ selected_borrower_id or '' }}">
+                <button class="btn btn-outline-danger btn-sm" type="submit">{{ _('Delete') }}</button>
+              </form>
+            </td>
           </tr>
           {% else %}
-          <tr><td colspan="10" class="text-secondary">{{ _('No financial statements yet.') }}</td></tr>
+          <tr><td colspan="13" class="text-secondary">{{ _('No financial statements yet.') }}</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -264,4 +328,5 @@
     });
   })();
 </script>
+{% include "credit/_history_popup_assets.html" %}
 {% endblock %}

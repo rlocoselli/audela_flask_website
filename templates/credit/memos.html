@@ -99,15 +99,21 @@
 </div>
 {% endif %}
 <div class="card border-0 shadow-sm">
-  <div class="card-header bg-body-tertiary">{{ _('Credit memos') }}</div>
+  <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center gap-2 flex-wrap">
+    <span>{{ _('Credit memos') }}</span>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.memos_export_csv') }}">
+      <i class="bi bi-download me-1"></i>{{ _('Export CSV') }}
+    </a>
+  </div>
   <div class="card-body p-0">
     <div class="table-responsive">
       <table class="table table-sm mb-0">
-        <thead><tr><th>{{ _('Title') }}</th><th>{{ _('Deal') }}</th><th>{{ _('Recommendation') }}</th><th>{{ _('Source') }}</th><th>AI</th><th>{{ _('Updated') }}</th><th>{{ _('Actions') }}</th></tr></thead>
+        <thead><tr><th>{{ _('Title') }}</th><th>{{ _('Deal') }}</th><th>{{ _('Recommendation') }}</th><th>{{ _('Source') }}</th><th>AI</th><th>{{ _('Updated') }}</th><th>{{ _('Approval date') }}</th><th>{{ _('Approval summary') }}</th><th>{{ _('Actions') }}</th></tr></thead>
         <tbody>
           {% for m in memos %}
-          <tr id="memo-row-{{ m.id }}" {% if focus_memo_id == m.id %}class="table-success"{% endif %}>
-            <td>{{ m.title }}</td>
+          {% set ap = memo_approval_info.get(m.id, {}) %}
+          <tr id="memo-row-{{ m.id }}" class="credit-history-row{% if focus_memo_id == m.id %} table-success{% endif %}" tabindex="0" data-history-popup="1" data-title="{{ m.title|e }}" data-history='{{ (ap.logs if ap and ap.logs else [])|tojson|forceescape }}' data-phases='{{ (ap.phases if ap and ap.phases else [])|tojson|forceescape }}'>
+            <td><i class="bi bi-clock-history credit-history-hint" aria-hidden="true"></i>{{ m.title }}</td>
             <td>{{ m.deal.code if m.deal else '-' }}</td>
             <td>{{ m.recommendation }}</td>
             <td>
@@ -118,13 +124,45 @@
               {% endif %}
             </td>
             <td>{{ _('Yes') if m.ai_generated else _('No') }}</td>
-            <td>{{ m.updated_at.strftime('%Y-%m-%d %H:%M') if m.updated_at else '' }}</td>
+            <td>{{ m.updated_at.strftime('%d/%m/%Y') if m.updated_at else '' }}</td>
+            <td>{{ m.approval_date.strftime('%d/%m/%Y') if m.approval_date else (ap.approved_at.strftime('%d/%m/%Y') if ap and ap.approved_at else '-') }}</td>
+            <td>
+              <div class="small"><strong>{{ _('Current task') }}:</strong> {{ ap.current_task if ap else '-' }}</div>
+              {% if ap and ap.phases %}
+              <details>
+                <summary class="small text-secondary">{{ _('Workflow phases') }}</summary>
+                <div class="small mt-1">
+                  {% for line in ap.phases %}
+                  <div>{{ line }}</div>
+                  {% endfor %}
+                </div>
+              </details>
+              {% endif %}
+              {% if ap and ap.logs %}
+              <details>
+                <summary class="small text-secondary">{{ _('Approvals') }}</summary>
+                <div class="small mt-1">
+                  {% for log in ap.logs %}
+                  <div>
+                    <strong>{{ log.stage }}</strong>
+                    <span> - {{ log.decision }}</span>
+                    <span> · {{ log.actor }}</span>
+                    <span> · {{ log.date }}</span>
+                  </div>
+                  {% if log.comments and log.comments != '-' %}
+                  <div class="text-secondary">{{ log.comments }}</div>
+                  {% endif %}
+                  {% endfor %}
+                </div>
+              </details>
+              {% endif %}
+            </td>
             <td>
               <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.memo_pdf', memo_id=m.id) }}" target="_blank" rel="noopener">PDF</a>
             </td>
           </tr>
           {% else %}
-          <tr><td colspan="7" class="text-secondary">{{ _('No memos yet.') }}</td></tr>
+          <tr><td colspan="9" class="text-secondary">{{ _('No memos yet.') }}</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -142,4 +180,5 @@
 </script>
 {% endif %}
 {% endif %}
+{% include "credit/_history_popup_assets.html" %}
 {% endblock %}

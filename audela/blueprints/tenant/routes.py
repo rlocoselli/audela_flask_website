@@ -59,6 +59,21 @@ UAM_MENU_KEYS: dict[str, list[str]] = {
         "dashboard", "kanban", "gantt", "managers", "governance", "risks", "change", "reporting",
         "security", "notifications", "productivity", "deliverables", "ceremonies",
     ],
+    "credit": [
+        "overview",
+        "borrowers",
+        "deals",
+        "facilities",
+        "collateral",
+        "guarantors",
+        "statements",
+        "ratios",
+        "memos",
+        "approvals",
+        "backlog",
+        "workflow",
+        "documents",
+    ],
 }
 
 UAM_MENU_LABELS: dict[str, dict[str, str]] = {
@@ -125,6 +140,21 @@ UAM_MENU_LABELS: dict[str, dict[str, str]] = {
         "productivity": "Productivité",
         "deliverables": "Livrables",
         "ceremonies": "Cérémonies",
+    },
+    "credit": {
+        "overview": "Vue d'ensemble",
+        "borrowers": "Borrowers",
+        "deals": "Deals",
+        "facilities": "Facilities",
+        "collateral": "Collateral",
+        "guarantors": "Guarantors",
+        "statements": "Financial Statements",
+        "ratios": "Ratio Snapshot",
+        "memos": "Credit Memos",
+        "approvals": "Approvals",
+        "backlog": "Backlog",
+        "workflow": "Approval Workflow",
+        "documents": "Documents",
     },
 }
 
@@ -472,6 +502,27 @@ def profile():
     is_admin = current_user.has_role("tenant_admin")
 
     if request.method == "POST":
+        form_action = (request.form.get("form_action") or "profile").strip().lower()
+        if form_action == "change_password":
+            current_password = request.form.get("current_password") or ""
+            new_password = request.form.get("new_password") or ""
+            confirm_password = request.form.get("confirm_password") or ""
+
+            if not current_user.check_password(current_password):
+                flash(tr("Current password is invalid.", getattr(g, "lang", None)), "error")
+                return redirect(url_for("tenant.profile"))
+            if len(new_password) < 8:
+                flash(tr("The new password must be at least 8 characters.", getattr(g, "lang", None)), "error")
+                return redirect(url_for("tenant.profile"))
+            if new_password != confirm_password:
+                flash(tr("Password confirmation does not match.", getattr(g, "lang", None)), "error")
+                return redirect(url_for("tenant.profile"))
+
+            current_user.set_password(new_password)
+            db.session.commit()
+            flash(tr("Password updated successfully.", getattr(g, "lang", None)), "success")
+            return redirect(url_for("tenant.profile"))
+
         display_name = (request.form.get("display_name") or "").strip()
         bio = (request.form.get("bio") or "").strip()
         avatar_mode = (request.form.get("avatar_mode") or "avatar").strip().lower()
@@ -599,6 +650,7 @@ def users():
             "finance": get_user_menu_access(tenant, int(uid), "finance"),
             "bi": get_user_menu_access(tenant, int(uid), "bi"),
             "project": get_user_menu_access(tenant, int(uid), "project"),
+            "credit": get_user_menu_access(tenant, int(uid), "credit"),
         }
     
     # Check if can add more users

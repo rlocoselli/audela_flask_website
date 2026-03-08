@@ -75,6 +75,21 @@ _DEFAULT_MENU_ACCESS: dict[str, list[str]] = {
         "deliverables",
         "ceremonies",
     ],
+    "credit": [
+        "overview",
+        "borrowers",
+        "deals",
+        "facilities",
+        "collateral",
+        "guarantors",
+        "statements",
+        "ratios",
+        "memos",
+        "approvals",
+        "backlog",
+        "workflow",
+        "documents",
+    ],
 }
 
 

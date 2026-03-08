@@ -4,6 +4,26 @@
 {% block head_extra %}
   {{ super() }}
   <style>
+    {% if embedded %}
+    #biShell > aside,
+    #biShell .topbar,
+    #biShell footer,
+    #biQuickActions,
+    #biHelpChat,
+    #mobileNav,
+    #biShell .container-fluid.pt-3 {
+      display: none !important;
+    }
+    #biShell .main-area {
+      width: 100% !important;
+    }
+    #biShell .container-fluid.pb-4 {
+      padding: 0 !important;
+    }
+    body {
+      background: #fff;
+    }
+    {% endif %}
     .rp-floating-filters {
       position: fixed;
       top: 110px;
@@ -52,6 +72,7 @@
       <h1 class="h4 mb-1">{{ report.name }}</h1>
       <div class="text-secondary small"><i class="bi bi-database me-1"></i>{{ source.name }} ({{ source.type }})</div>
     </div>
+    {% if not embedded %}
     <div class="d-flex gap-2 flex-wrap">
       <button class="btn btn-outline-secondary btn-sm" id="rp-floating-filters-toggle" type="button">
         <i class="bi bi-funnel me-1"></i> {{ _('Filtres flottants') }}
@@ -66,6 +87,7 @@
         <i class="bi bi-filetype-pdf"></i> {{ _('Exportar PDF') }}
       </a>
     </div>
+    {% endif %}
   </div>
 
   {# Prefer new banded structure; keep backward compat #}
@@ -397,6 +419,7 @@
     </div>
   </div>
 
+  {% if not embedded %}
   <div id="rp-floating-filters" class="rp-floating-filters" aria-label="{{ _('Filtres flottants') }}">
     <div id="rp-floating-filters-head" class="rp-floating-head">
       <div class="fw-semibold d-flex align-items-center gap-2">
@@ -435,6 +458,7 @@
       <div id="rp-filter-summary" class="mt-2"><em>({{ _('Sem filtros.') }})</em></div>
     </div>
   </div>
+  {% endif %}
 
 </div>
 {% endblock %}

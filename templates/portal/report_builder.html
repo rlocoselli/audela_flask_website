@@ -61,6 +61,37 @@
       padding: .65rem;
     }
     .rb-floating-explorer.is-collapsed .rb-floating-body { display: none; }
+    .rb-live-card {
+      border: 1px solid var(--bs-border-color);
+      border-radius: .9rem;
+      background: linear-gradient(180deg, rgba(13, 110, 253, 0.05), rgba(13, 110, 253, 0.01));
+      padding: .55rem;
+    }
+    .rb-live-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .5rem;
+      padding: .2rem .4rem .5rem .4rem;
+    }
+    .rb-live-status {
+      border: 1px solid var(--bs-border-color);
+      border-radius: 999px;
+      padding: .12rem .55rem;
+      background: var(--bs-body-bg);
+      white-space: nowrap;
+      max-width: 62%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .rb-live-frame {
+      width: 100%;
+      height: 430px;
+      border: 1px solid var(--bs-border-color);
+      border-radius: .7rem;
+      background: #fff;
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.01);
+    }
     @media (max-width: 991.98px) {
       .rb-floating-explorer {
         right: 8px;
@@ -84,6 +115,7 @@
   <div class="d-flex gap-2">
     <a class="btn btn-outline-secondary" href="{{ url_for('portal.reports_list') }}"><i class="bi bi-arrow-left me-1"></i>{{ _('Voltar') }}</a>
     <button class="btn btn-outline-secondary" type="button" id="rb-floating-explorer-toggle" data-tour="{{ _('Ouvrez l\'explorateur de données pour insérer tables, champs et questions.') }}" data-tour-title="{{ _('Tutoriel Report') }}" data-tour-order="2"><i class="bi bi-layout-sidebar-inset-reverse me-1"></i>{{ _('Data Explorer') }}</button>
+    <button class="btn btn-outline-secondary" type="button" id="rb-preview-toggle"><i class="bi bi-eye-slash me-1"></i>{{ _('Hide preview') }}</button>
     <a class="btn btn-outline-secondary" target="_blank" href="{{ url_for('portal.report_view', report_id=report.id) }}">
       <i class="bi bi-eye me-1"></i>{{ _('Visualizar') }}
     </a>
@@ -230,6 +262,19 @@
 
   <!-- Canvas -->
   <div class="col-lg-8">
+    <div class="rb-live-card mb-3" id="rb-live-preview-wrap">
+      <div class="rb-live-head">
+        <div class="fw-semibold">{{ _('Prévisualisation automatique') }}</div>
+        <span class="text-muted small rb-live-status" id="rb-live-preview-status">{{ _('Aperçu mis à jour après modification du layout.') }}</span>
+      </div>
+      <iframe
+        id="rb-live-preview"
+        title="{{ _('Preview') }}"
+        src="{{ preview_url }}"
+        class="rb-live-frame"
+      ></iframe>
+    </div>
+
     <div class="rb-canvas p-3">
       <div class="row g-3">
 
@@ -703,6 +748,7 @@
     sourceId: {{ source.id }},
     apiUrl: "{{ url_for('portal.api_report_get', report_id=report.id) }}",
     saveUrl: "{{ url_for('portal.api_report_save', report_id=report.id) }}",
+    previewUrl: "{{ preview_url }}",
     sourceSchemaUrl: "{{ url_for('portal.api_source_schema', source_id=source.id) }}",
     csrfToken: "{{ csrf_token() }}",
   };

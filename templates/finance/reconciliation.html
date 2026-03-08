@@ -40,7 +40,7 @@
         <tbody>
           {% for t in txns %}
             <tr>
-              <td class="text-secondary small">{{ t.txn_date.strftime('%Y-%m-%d') }}</td>
+              <td class="text-secondary small">{{ t.txn_date.strftime('%d/%m/%Y') }}</td>
               <td class="text-secondary small">{{ t.account.name if t.account else '' }}</td>
               <td>{{ t.description }}</td>
               <td class="text-end fw-semibold">{{ '%.2f'|format(t.amount) }}</td>

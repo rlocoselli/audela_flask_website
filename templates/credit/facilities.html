@@ -44,6 +44,42 @@
 {% endif %}
 
 {% if credit_mode != 'add' %}
+{% if edit_facility %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary">{{ _('Edit facility') }}</div>
+  <div class="card-body">
+    <form method="post" class="row g-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="update">
+      <input type="hidden" name="facility_id" value="{{ edit_facility.id }}">
+      <div class="col-md-3">
+        <select class="form-select" name="deal_id" required>
+          {% for d in deals %}<option value="{{ d.id }}" {% if edit_facility.deal_id == d.id %}selected{% endif %}>{{ d.code }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <select class="form-select" name="facility_type_id" required>
+          {% for t in facility_types %}<option value="{{ t.id }}" {% if edit_facility.facility_type_id == t.id %}selected{% endif %}>{{ t.display_label(current_lang) }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2"><input class="form-control" name="approved_amount" value="{{ edit_facility.approved_amount or 0 }}"></div>
+      <div class="col-md-2"><input class="form-control" name="tenor_months" value="{{ edit_facility.tenor_months or '' }}"></div>
+      <div class="col-md-1"><input class="form-control" name="interest_rate" value="{{ edit_facility.interest_rate or '' }}"></div>
+      <div class="col-md-2">
+        <select class="form-select" name="status">
+          <option value="draft" {% if edit_facility.status == 'draft' %}selected{% endif %}>{{ _('Draft') }}</option>
+          <option value="approved" {% if edit_facility.status == 'approved' %}selected{% endif %}>{{ _('Approved') }}</option>
+          <option value="booked" {% if edit_facility.status == 'booked' %}selected{% endif %}>{{ _('Booked') }}</option>
+        </select>
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button class="btn btn-primary" type="submit">{{ _('Save changes') }}</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('credit.facilities', mode='search') }}">{{ _('Cancel') }}</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
 <div class="card border-0 shadow-sm">
   <div class="card-header bg-body-tertiary border-bottom-0 pb-0">
     <form method="get" class="row g-2 align-items-end">
@@ -83,12 +119,35 @@
   <div class="card-body p-0">
     <div class="table-responsive">
       <table class="table table-sm mb-0">
-        <thead><tr><th>{{ _('Deal') }}</th><th>{{ _('Type') }}</th><th>{{ _('Amount') }}</th><th>{{ _('Tenor') }}</th><th>{{ _('Rate') }}</th><th>{{ _('Status') }}</th></tr></thead>
+        <thead><tr><th>{{ _('Deal') }}</th><th>{{ _('Type') }}</th><th>{{ _('Amount') }}</th><th>{{ _('Tenor') }}</th><th>{{ _('Rate') }}</th><th>{{ _('Status') }}</th><th>{{ _('Approval date') }}</th><th>{{ _('Approval summary') }}</th><th>{{ _('Actions') }}</th></tr></thead>
         <tbody>
           {% for f in facilities %}
-          <tr><td>{{ f.deal.code if f.deal else '-' }}</td><td>{{ f.facility_type_ref.display_label(current_lang) if f.facility_type_ref else f.facility_type }}</td><td>{{ '%.2f'|format(f.approved_amount or 0) }}</td><td>{{ f.tenor_months or '-' }}</td><td>{{ f.interest_rate or '-' }}</td><td>{{ f.status }}</td></tr>
+          {% set ap = facility_approval_info.get(f.id, {}) %}
+          <tr class="credit-history-row" tabindex="0" data-history-popup="1" data-title="{{ (f.deal.code if f.deal else '-')|e }}" data-history='{{ (ap.logs if ap and ap.logs else [])|tojson|forceescape }}' data-phases='{{ (ap.phases if ap and ap.phases else [])|tojson|forceescape }}'>
+            <td><i class="bi bi-clock-history credit-history-hint" aria-hidden="true"></i>{{ f.deal.code if f.deal else '-' }}</td>
+            <td>{{ f.facility_type_ref.display_label(current_lang) if f.facility_type_ref else f.facility_type }}</td>
+            <td>{{ '%.2f'|format(f.approved_amount or 0) }}</td>
+            <td>{{ f.tenor_months or '-' }}</td>
+            <td>{{ f.interest_rate or '-' }}</td>
+            <td>{{ f.status }}</td>
+            <td>{{ f.approval_date.strftime('%d/%m/%Y') if f.approval_date else (ap.approved_at.strftime('%d/%m/%Y') if ap and ap.approved_at else '-') }}</td>
+            <td>
+              <div class="small"><strong>{{ _('Current task') }}:</strong> {{ ap.current_task if ap else '-' }}</div>
+              {% if ap and ap.phases %}
+              <details>
+                <summary class="small text-secondary">{{ _('Workflow phases') }}</summary>
+                <div class="small mt-1">
+                  {% for line in ap.phases %}
+                  <div>{{ line }}</div>
+                  {% endfor %}
+                </div>
+              </details>
+              {% endif %}
+            </td>
+            <td><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.facilities', mode='search', edit_id=f.id, deal_id=selected_deal_id, facility_type_id=selected_type_id, status=selected_status) }}">{{ _('Edit') }}</a></td>
+          </tr>
           {% else %}
-          <tr><td colspan="6" class="text-secondary">{{ _('No facilities yet.') }}</td></tr>
+          <tr><td colspan="9" class="text-secondary">{{ _('No facilities yet.') }}</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -96,4 +155,5 @@
   </div>
 </div>
 {% endif %}
+{% include "credit/_history_popup_assets.html" %}
 {% endblock %}

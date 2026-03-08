@@ -116,7 +116,7 @@
                       {% if d.is_primary %}<i class="bi bi-star-fill text-success me-1"></i>{% endif %}
                       {{ d.name }}
                     </div>
-                    <div class="small text-secondary">{{ _('Atualizado em') }} {{ d.updated_at.strftime('%Y-%m-%d %H:%M') if d.updated_at else '' }}</div>
+                    <div class="small text-secondary">{{ _('Atualizado em') }} {{ d.updated_at.strftime('%d/%m/%Y') if d.updated_at else '' }}</div>
                   </div>
                   <i class="bi bi-chevron-right" style="opacity:.6"></i>
                 </a>

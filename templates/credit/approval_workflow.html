@@ -151,71 +151,13 @@
 </div>
 {% endif %}
 
-{% if credit_mode == 'add' %}
-<div class="card border-0 shadow-sm mb-3">
-  <div class="card-header bg-body-tertiary">{{ _('Function UAM scope (borrower characteristics)') }}</div>
-  <div class="card-body">
-    <form method="post" class="row g-2 align-items-end">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="action" value="save_function_scope">
-      <div class="col-md-3">
-        <label class="form-label">{{ _('Function') }}</label>
-        <select class="form-select" name="function_id" required>
-          <option value="">{{ _('Select function') }}</option>
-          {% for fn in functions %}
-          <option value="{{ fn.id }}">{{ fn.label }} ({{ fn.code }})</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">{{ _('Allowed sectors') }}</label>
-        <select class="form-select" name="sector_ids" multiple size="6">
-          {% for s in sectors %}
-          <option value="{{ s.id }}">{{ s.display_name(current_lang) }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">{{ _('Allowed countries') }}</label>
-        <select class="form-select" name="country_ids" multiple size="6">
-          {% for c in countries %}
-          <option value="{{ c.id }}">{{ c.display_name(current_lang) }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">{{ _('Allowed ratings') }}</label>
-        <select class="form-select" name="rating_ids" multiple size="6">
-          {% for r in ratings %}
-          <option value="{{ r.id }}">{{ r.display_label(current_lang) }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-12"><button class="btn btn-primary" type="submit">{{ _('Save function scope') }}</button></div>
-      <div class="col-12 small text-secondary">{{ _('Tip: leave a list empty to allow all values for that characteristic.') }}</div>
-    </form>
-
-    <div class="table-responsive mt-3">
-      <table class="table table-sm mb-0">
-        <thead><tr><th>{{ _('Function') }}</th><th>{{ _('Sectors') }}</th><th>{{ _('Countries') }}</th><th>{{ _('Ratings') }}</th></tr></thead>
-        <tbody>
-          {% for fn in functions %}
-          {% set scope = function_scopes.get(fn.code, {}) %}
-          <tr>
-            <td>{{ fn.label }} ({{ fn.code }})</td>
-            <td>{{ (scope.get('sector_ids') or [])|length }}</td>
-            <td>{{ (scope.get('country_ids') or [])|length }}</td>
-            <td>{{ (scope.get('rating_ids') or [])|length }}</td>
-          </tr>
-          {% else %}
-          <tr><td colspan="4" class="text-secondary">{{ _('No functions yet.') }}</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+<div class="alert alert-info d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+  <div>
+    <div class="fw-semibold">{{ _('Credit UAM rules are managed separately.') }}</div>
+    <div class="small">{{ _('Use user/group borrower scopes in the dedicated page to restrict assignment and visibility.') }}</div>
   </div>
+  <a class="btn btn-outline-primary btn-sm" href="{{ url_for('credit.approval_uam') }}">{{ _('Open Credit UAM') }}</a>
 </div>
-{% endif %}
 
 {% if credit_mode == 'add' %}
 <div class="card border-0 shadow-sm mb-3">

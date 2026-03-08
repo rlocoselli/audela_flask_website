@@ -39,6 +39,38 @@
 {% endif %}
 
 {% if credit_mode != 'add' %}
+{% if edit_deal %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary">{{ _('Edit deal') }}</div>
+  <div class="card-body">
+    <form method="post" class="row g-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="update">
+      <input type="hidden" name="deal_id" value="{{ edit_deal.id }}">
+      <div class="col-md-3">
+        <select class="form-select" name="borrower_id" required>
+          {% for b in borrowers %}<option value="{{ b.id }}" {% if edit_deal.borrower_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2"><input class="form-control" name="code" value="{{ edit_deal.code }}" required></div>
+      <div class="col-md-3"><input class="form-control" name="purpose" value="{{ edit_deal.purpose or '' }}"></div>
+      <div class="col-md-2"><input class="form-control" name="requested_amount" value="{{ edit_deal.requested_amount or 0 }}"></div>
+      <div class="col-md-2">
+        <select class="form-select" name="status">
+          <option value="in_review" {% if edit_deal.status == 'in_review' %}selected{% endif %}>{{ _('In review') }}</option>
+          <option value="memo" {% if edit_deal.status == 'memo' %}selected{% endif %}>{{ _('Credit memo') }}</option>
+          <option value="approved" {% if edit_deal.status == 'approved' %}selected{% endif %}>{{ _('Approved') }}</option>
+          <option value="rejected" {% if edit_deal.status == 'rejected' %}selected{% endif %}>{{ _('Rejected') }}</option>
+        </select>
+      </div>
+      <div class="col-12 d-flex gap-2">
+        <button class="btn btn-primary" type="submit">{{ _('Save changes') }}</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('credit.deals', mode='search') }}">{{ _('Cancel') }}</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
 <div class="card border-0 shadow-sm">
   <div class="card-header bg-body-tertiary border-bottom-0 pb-0">
     <form method="get" class="row g-2 align-items-end">
@@ -66,16 +98,61 @@
       <div class="col-6 col-lg-2"><a class="btn btn-outline-secondary w-100" href="{{ url_for('credit.deals', mode='search') }}">{{ _('Reset') }}</a></div>
     </form>
   </div>
-  <div class="card-header bg-body-tertiary">{{ _('Deals') }}</div>
+  <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center gap-2 flex-wrap">
+    <span>{{ _('Deals') }}</span>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.deals_export_csv', borrower_id=selected_borrower_id, status=selected_status) }}">
+      <i class="bi bi-download me-1"></i>{{ _('Export CSV') }}
+    </a>
+  </div>
   <div class="card-body p-0">
     <div class="table-responsive">
       <table class="table table-sm mb-0">
-        <thead><tr><th>{{ _('Code') }}</th><th>{{ _('Borrower') }}</th><th>{{ _('Purpose') }}</th><th>{{ _('Amount') }}</th><th>{{ _('Status') }}</th></tr></thead>
+        <thead><tr><th>{{ _('Code') }}</th><th>{{ _('Borrower') }}</th><th>{{ _('Purpose') }}</th><th>{{ _('Amount') }}</th><th>{{ _('Status') }}</th><th>{{ _('Approval date') }}</th><th>{{ _('Approval summary') }}</th><th>{{ _('Actions') }}</th></tr></thead>
         <tbody>
           {% for d in deals %}
-          <tr><td>{{ d.code }}</td><td>{{ d.borrower.name if d.borrower else '-' }}</td><td>{{ d.purpose or '-' }}</td><td>{{ '%.2f'|format(d.requested_amount or 0) }}</td><td>{{ d.status }}</td></tr>
+          {% set ap = deal_approval_info.get(d.id, {}) %}
+          <tr class="credit-history-row" tabindex="0" data-history-popup="1" data-title="{{ d.code|e }}" data-history='{{ (ap.logs if ap and ap.logs else [])|tojson|forceescape }}' data-phases='{{ (ap.phases if ap and ap.phases else [])|tojson|forceescape }}'>
+            <td><i class="bi bi-clock-history credit-history-hint" aria-hidden="true"></i>{{ d.code }}</td>
+            <td>{{ d.borrower.name if d.borrower else '-' }}</td>
+            <td>{{ d.purpose or '-' }}</td>
+            <td>{{ '%.2f'|format(d.requested_amount or 0) }}</td>
+            <td>{{ d.status }}</td>
+            <td>{{ d.approval_date.strftime('%d/%m/%Y') if d.approval_date else (ap.approved_at.strftime('%d/%m/%Y') if ap and ap.approved_at else '-') }}</td>
+            <td>
+              <div class="small"><strong>{{ _('Current task') }}:</strong> {{ ap.current_task if ap else '-' }}</div>
+              {% if ap and ap.phases %}
+              <details>
+                <summary class="small text-secondary">{{ _('Workflow phases') }}</summary>
+                <div class="small mt-1">
+                  {% for line in ap.phases %}
+                  <div>{{ line }}</div>
+                  {% endfor %}
+                </div>
+              </details>
+              {% endif %}
+              {% if ap and ap.logs %}
+              <details>
+                <summary class="small text-secondary">{{ _('Approvals') }}</summary>
+                <div class="small mt-1">
+                  {% for log in ap.logs %}
+                  <div>
+                    <strong>{{ log.stage }}</strong>
+                    <span> - {{ log.decision }}</span>
+                    <span> · {{ log.actor }}</span>
+                    <span> · {{ log.date }}</span>
+                  </div>
+                  {% if log.comments and log.comments != '-' %}
+                  <div class="text-secondary">{{ log.comments }}</div>
+                  {% endif %}
+                  {% endfor %}
+                </div>
+              </details>
+              {% endif %}
+            </td>
+            <td><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.deals', mode='search', edit_id=d.id, borrower_id=selected_borrower_id, status=selected_status) }}">{{ _('Edit') }}</a></td>
+          </tr>
           {% else %}
-          <tr><td colspan="5" class="text-secondary">{{ _('No deals yet.') }}</td></tr>
+          <tr><td colspan="8" class="text-secondary">{{ _('No deals yet.') }}</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -83,4 +160,5 @@
   </div>
 </div>
 {% endif %}
+{% include "credit/_history_popup_assets.html" %}
 {% endblock %}

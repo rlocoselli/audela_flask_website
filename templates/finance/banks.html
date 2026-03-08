@@ -44,8 +44,8 @@
               <tr>
                 <td class="fw-semibold">{{ c.provider }}</td>
                 <td class="text-secondary small">{{ c.status }}</td>
-                <td class="text-secondary small">{{ c.created_at.strftime('%Y-%m-%d') if c.created_at else '' }}</td>
-                <td class="text-secondary small">{{ c.last_sync_at.strftime('%Y-%m-%d %H:%M') if c.last_sync_at else '-' }}</td>
+                <td class="text-secondary small">{{ c.created_at.strftime('%d/%m/%Y') if c.created_at else '' }}</td>
+                <td class="text-secondary small">{{ c.last_sync_at.strftime('%d/%m/%Y') if c.last_sync_at else '-' }}</td>
                 <td class="text-end">
                   <form method="post" action="{{ url_for('finance.banks_sync', conn_id=c.id) }}" class="d-inline">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />

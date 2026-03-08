@@ -1,6 +1,6 @@
 {% extends "portal/base_portal.html" %}
 
-{% block title %}Admin Login – AUDELA{% endblock %}
+{% block title %}{{ _('Admin Login') }} – AUDELA{% endblock %}
 
 {% block content %}
 <div class="container py-5">
@@ -8,8 +8,8 @@
     <div class="col-12 col-md-7 col-lg-5">
       <div class="card shadow-sm border-0" style="border-radius: 1rem;">
         <div class="card-body p-4">
-          <h1 class="h4 mb-1">Administration</h1>
-          <p class="text-secondary mb-4">Connexion super-utilisateur</p>
+          <h1 class="h4 mb-1">{{ _('Administration') }}</h1>
+          <p class="text-secondary mb-4">{{ _('Superuser login') }}</p>
 
           {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -23,16 +23,16 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
 
             <div class="mb-3">
-              <label class="form-label">Identifiant admin</label>
+              <label class="form-label">{{ _('Admin identifier') }}</label>
               <input class="form-control" type="text" name="identifier" placeholder="admin_user" required />
             </div>
 
             <div class="mb-3">
-              <label class="form-label">Mot de passe</label>
+              <label class="form-label">{{ _('Password') }}</label>
               <input class="form-control" type="password" name="password" required />
             </div>
 
-            <button class="btn btn-primary w-100" type="submit">Se connecter</button>
+            <button class="btn btn-primary w-100" type="submit">{{ _('Sign in') }}</button>
           </form>
         </div>
       </div>

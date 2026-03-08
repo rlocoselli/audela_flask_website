@@ -1,13 +1,13 @@
 {% extends "portal/base_portal.html" %}
 
-{% block title %}Admin Console – AUDELA{% endblock %}
+{% block title %}{{ _('Admin Console') }} – AUDELA{% endblock %}
 
 {% block content %}
 <div class="container-fluid py-4">
   <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-    <h1 class="h4 m-0">Console administrateur</h1>
+    <h1 class="h4 m-0">{{ _('Administrator console') }}</h1>
     <a class="btn btn-outline-danger btn-sm" href="{{ url_for('admin.logout') }}">
-      <i class="bi bi-box-arrow-right me-1"></i>Déconnexion
+      <i class="bi bi-box-arrow-right me-1"></i>{{ _('Logout') }}
     </a>
   </div>
 
@@ -21,48 +21,48 @@
 
   <div class="row g-3 mb-4">
     <div class="col-12 col-md-4">
-      <div class="card border-0 shadow-sm"><div class="card-body"><div class="text-secondary small">Tenants</div><div class="h4 mb-0">{{ tenants|length }}</div></div></div>
+      <div class="card border-0 shadow-sm"><div class="card-body"><div class="text-secondary small">{{ _('Tenants') }}</div><div class="h4 mb-0">{{ tenants|length }}</div></div></div>
     </div>
     <div class="col-12 col-md-4">
-      <div class="card border-0 shadow-sm"><div class="card-body"><div class="text-secondary small">Utilisateurs</div><div class="h4 mb-0">{{ users_view|length }}</div></div></div>
+      <div class="card border-0 shadow-sm"><div class="card-body"><div class="text-secondary small">{{ _('Users') }}</div><div class="h4 mb-0">{{ users_view|length }}</div></div></div>
     </div>
     <div class="col-12 col-md-4">
-      <div class="card border-0 shadow-sm"><div class="card-body"><div class="text-secondary small">Abonnements</div><div class="h4 mb-0">{{ subscriptions|length }}</div></div></div>
+      <div class="card border-0 shadow-sm"><div class="card-body"><div class="text-secondary small">{{ _('Subscriptions') }}</div><div class="h4 mb-0">{{ subscriptions|length }}</div></div></div>
     </div>
   </div>
 
   <div class="card border-0 shadow-sm mb-4">
     <div class="card-header bg-body d-flex flex-wrap align-items-center justify-content-between gap-2">
-      <strong>Contrôle financier abonnements</strong>
+      <strong>{{ _('Subscription financial control') }}</strong>
       <div class="d-flex flex-wrap align-items-center gap-2">
         <a
           class="btn btn-outline-secondary btn-sm"
           href="{{ url_for('admin.export_subscription_report_csv', months=admin_finance.selected_months) }}"
         >
-          <i class="bi bi-download me-1"></i>Exporter CSV
+          <i class="bi bi-download me-1"></i>{{ _('Export CSV') }}
         </a>
         <a
           class="btn btn-outline-secondary btn-sm"
           href="{{ url_for('admin.export_subscription_report_xlsx', months=admin_finance.selected_months) }}"
         >
-          <i class="bi bi-file-earmark-excel me-1"></i>Exporter XLSX
+          <i class="bi bi-file-earmark-excel me-1"></i>{{ _('Export XLSX') }}
         </a>
         <form method="get" action="{{ url_for('admin.dashboard') }}" class="d-flex align-items-center gap-2">
-        <label class="small text-secondary" for="months">Période</label>
+        <label class="small text-secondary" for="months">{{ _('Period') }}</label>
         <select class="form-select form-select-sm" id="months" name="months" style="max-width: 180px;">
-          <option value="3" {% if admin_finance.selected_months == 3 %}selected{% endif %}>3 derniers mois</option>
-          <option value="6" {% if admin_finance.selected_months == 6 %}selected{% endif %}>6 derniers mois</option>
-          <option value="12" {% if admin_finance.selected_months == 12 %}selected{% endif %}>12 derniers mois</option>
-          <option value="24" {% if admin_finance.selected_months == 24 %}selected{% endif %}>24 derniers mois</option>
-          <option value="36" {% if admin_finance.selected_months == 36 %}selected{% endif %}>36 derniers mois</option>
+          <option value="3" {% if admin_finance.selected_months == 3 %}selected{% endif %}>{{ _('Last 3 months') }}</option>
+          <option value="6" {% if admin_finance.selected_months == 6 %}selected{% endif %}>{{ _('Last 6 months') }}</option>
+          <option value="12" {% if admin_finance.selected_months == 12 %}selected{% endif %}>{{ _('Last 12 months') }}</option>
+          <option value="24" {% if admin_finance.selected_months == 24 %}selected{% endif %}>{{ _('Last 24 months') }}</option>
+          <option value="36" {% if admin_finance.selected_months == 36 %}selected{% endif %}>{{ _('Last 36 months') }}</option>
         </select>
-        <button class="btn btn-outline-primary btn-sm" type="submit">Actualiser</button>
+        <button class="btn btn-outline-primary btn-sm" type="submit">{{ _('Refresh') }}</button>
         </form>
       </div>
     </div>
     <div class="card-body">
       <div class="small text-secondary mb-3">
-        Période analysée : {{ admin_finance.period_start.strftime('%Y-%m') }} → {{ admin_finance.period_end.strftime('%Y-%m') }}
+        {{ _('Analyzed period') }} : {{ admin_finance.period_start.strftime('%Y-%m') }} → {{ admin_finance.period_end.strftime('%Y-%m') }}
       </div>
       <div class="row g-3 mb-3">
         <div class="col-12 col-md-6 col-lg-3">
@@ -170,20 +170,20 @@
   </div>
 
   <div class="card border-0 shadow-sm mb-4">
-    <div class="card-header bg-body"><strong>Mettre à jour le mot de passe admin</strong></div>
+    <div class="card-header bg-body"><strong>{{ _('Update admin password') }}</strong></div>
     <div class="card-body">
       <form method="post" action="{{ url_for('admin.change_admin_password') }}" class="row g-2">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-        <div class="col-12 col-md-4"><input class="form-control" type="password" name="current_password" placeholder="Mot de passe actuel" required /></div>
-        <div class="col-12 col-md-4"><input class="form-control" type="password" name="new_password" placeholder="Nouveau mot de passe" required /></div>
-        <div class="col-12 col-md-4"><input class="form-control" type="password" name="confirm_password" placeholder="Confirmer" required /></div>
-        <div class="col-12"><button class="btn btn-primary btn-sm" type="submit">Mettre à jour</button></div>
+        <div class="col-12 col-md-4"><input class="form-control" type="password" name="current_password" placeholder="{{ _('Current password') }}" required /></div>
+        <div class="col-12 col-md-4"><input class="form-control" type="password" name="new_password" placeholder="{{ _('New password') }}" required /></div>
+        <div class="col-12 col-md-4"><input class="form-control" type="password" name="confirm_password" placeholder="{{ _('Confirm') }}" required /></div>
+        <div class="col-12"><button class="btn btn-primary btn-sm" type="submit">{{ _('Update') }}</button></div>
       </form>
     </div>
   </div>
 
   <div class="card border-0 shadow-sm mb-4">
-    <div class="card-header bg-body"><strong>Utilisateurs et upgrade d'abonnement</strong></div>
+    <div class="card-header bg-body"><strong>{{ _('Users and subscription upgrade') }}</strong></div>
     <div class="table-responsive">
       <table class="table table-sm align-middle mb-0">
         <thead>
@@ -215,7 +215,7 @@
                     <option value="monthly">monthly</option>
                     <option value="yearly">yearly</option>
                   </select>
-                  <button class="btn btn-primary btn-sm" type="submit">Appliquer</button>
+                  <button class="btn btn-primary btn-sm" type="submit">{{ _('Apply') }}</button>
                 </form>
               </td>
             </tr>
@@ -226,7 +226,7 @@
   </div>
 
   <div class="card border-0 shadow-sm">
-    <div class="card-header bg-body"><strong>Tenants</strong></div>
+    <div class="card-header bg-body"><strong>{{ _('Tenants') }}</strong></div>
     <div class="table-responsive">
       <table class="table table-sm mb-0">
         <thead>

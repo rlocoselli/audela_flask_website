@@ -148,14 +148,14 @@
       </select>
 
       <select class="form-select form-select-sm" style="max-width: 130px;" name="export_format">
-        <option value="html">HTML</option>
-        <option value="word">Word</option>
-        <option value="pdf">PDF</option>
+        <option value="html">{{ _('HTML') }}</option>
+        <option value="word">{{ _('Word') }}</option>
+        <option value="pdf">{{ _('PDF') }}</option>
       </select>
       <button class="btn btn-outline-dark btn-sm" type="button" data-action="export">{{ _('Export') }}</button>
-      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.memo_template_designer_export', template_id=template_row.id, version_id=(current_version.id if current_version else None), test_deal_id=selected_deal_id, format='html') }}">HTML</a>
-      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.memo_template_designer_export', template_id=template_row.id, version_id=(current_version.id if current_version else None), test_deal_id=selected_deal_id, format='doc') }}">DOC</a>
-      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.memo_template_designer_export', template_id=template_row.id, version_id=(current_version.id if current_version else None), test_deal_id=selected_deal_id, format='pdf') }}" target="_blank" rel="noopener">PDF</a>
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.memo_template_designer_export', template_id=template_row.id, version_id=(current_version.id if current_version else None), test_deal_id=selected_deal_id, format='html') }}">{{ _('HTML') }}</a>
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.memo_template_designer_export', template_id=template_row.id, version_id=(current_version.id if current_version else None), test_deal_id=selected_deal_id, format='doc') }}">{{ _('DOC') }}</a>
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.memo_template_designer_export', template_id=template_row.id, version_id=(current_version.id if current_version else None), test_deal_id=selected_deal_id, format='pdf') }}" target="_blank" rel="noopener">{{ _('PDF') }}</a>
       <a class="btn btn-outline-success btn-sm" href="{{ url_for('credit.memos', mode='add', template_id=template_row.id) }}">{{ _('Generate final memo') }}</a>
 
       <span class="badge text-bg-light ms-auto">{{ template_row.name }} / {{ template_row.status }}</span>

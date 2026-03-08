@@ -228,7 +228,7 @@
                     </td>
                     <td class="text-muted">{{ file.file_format }}</td>
                     <td class="text-muted">—</td>
-                    <td class="text-muted">{{ file.created_at.strftime('%Y-%m-%d %H:%M') if file.created_at else '' }}</td>
+                    <td class="text-muted">{{ file.created_at.strftime('%d/%m/%Y') if file.created_at else '' }}</td>
                     <td class="text-end">
                       <div class="btn-group">
                         <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('portal.files_download', file_id=file.id) }}" title="{{ _('Baixar') }}">

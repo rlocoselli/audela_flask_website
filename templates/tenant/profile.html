@@ -30,6 +30,7 @@
 
           <form method="post" enctype="multipart/form-data" class="row g-3">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <input type="hidden" name="form_action" value="profile" />
 
             {% if is_admin %}
             <div class="col-12"><hr class="my-1"></div>
@@ -128,6 +129,32 @@
               </button>
             </div>
           </form>
+
+          {% if is_admin %}
+          <hr class="my-4">
+          <h2 class="h5 mb-3"><i class="bi bi-shield-lock"></i> {{ _('Changer le mot de passe admin') }}</h2>
+          <form method="post" class="row g-3">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <input type="hidden" name="form_action" value="change_password" />
+            <div class="col-12 col-md-4">
+              <label class="form-label">{{ _('Mot de passe actuel') }}</label>
+              <input class="form-control" type="password" name="current_password" required>
+            </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label">{{ _('Nouveau mot de passe') }}</label>
+              <input class="form-control" type="password" name="new_password" minlength="8" required>
+            </div>
+            <div class="col-12 col-md-4">
+              <label class="form-label">{{ _('Confirmer le nouveau mot de passe') }}</label>
+              <input class="form-control" type="password" name="confirm_password" minlength="8" required>
+            </div>
+            <div class="col-12">
+              <button class="btn btn-outline-primary" type="submit">
+                <i class="bi bi-key"></i> {{ _('Mettre à jour le mot de passe') }}
+              </button>
+            </div>
+          </form>
+          {% endif %}
         </div>
       </div>
     </div>

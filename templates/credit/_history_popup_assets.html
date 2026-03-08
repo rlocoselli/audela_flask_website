@@ -1,0 +1,249 @@
+<style>
+  .credit-history-trigger {
+    color: #0b5ed7;
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .credit-history-row {
+    cursor: pointer;
+    transition: background-color 180ms ease, transform 180ms ease;
+  }
+  .credit-history-row:hover {
+    background-color: rgba(13, 110, 253, 0.06);
+  }
+  .credit-history-row:hover .credit-history-hint {
+    transform: translateY(-1px) scale(1.05);
+    color: #0b5ed7;
+  }
+  .credit-history-row:focus-visible {
+    outline: 2px solid rgba(13, 110, 253, 0.6);
+    outline-offset: -2px;
+  }
+  .credit-history-hint {
+    margin-right: 6px;
+    color: #6c7da1;
+    transition: transform 180ms ease, color 180ms ease;
+  }
+  .credit-history-trigger:hover,
+  .credit-history-trigger:focus {
+    color: #0a58ca;
+    text-decoration: underline;
+  }
+  .credit-history-modal .modal-content {
+    border: 0;
+    border-radius: 18px;
+    overflow: hidden;
+    background: radial-gradient(circle at 0% 0%, rgba(13, 110, 253, 0.18), rgba(13, 110, 253, 0) 42%),
+      linear-gradient(180deg, #ffffff 0%, #f6f9ff 100%);
+    box-shadow: 0 24px 60px rgba(20, 42, 80, 0.28);
+  }
+  .credit-history-modal .modal-header {
+    border-bottom: 0;
+    background: linear-gradient(90deg, rgba(13, 110, 253, 0.08), rgba(13, 110, 253, 0.02));
+  }
+  .credit-history-meta {
+    color: #5d6f89;
+    font-size: 0.82rem;
+  }
+  .credit-history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .credit-history-item {
+    border: 1px solid rgba(13, 110, 253, 0.2);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.88);
+    padding: 10px 12px;
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  .credit-history-item.reveal {
+    animation: creditHistoryReveal 320ms ease forwards;
+  }
+  .credit-history-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    align-items: baseline;
+    flex-wrap: wrap;
+  }
+  .credit-history-stage {
+    font-weight: 700;
+    color: #0b3b78;
+  }
+  .credit-history-decision {
+    font-weight: 600;
+    color: #1f2937;
+  }
+  .credit-history-comments {
+    margin-top: 4px;
+    color: #4b5563;
+    font-size: 0.86rem;
+  }
+  @keyframes creditHistoryReveal {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+</style>
+
+<div class="modal fade credit-history-modal" id="creditHistoryModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h5 class="modal-title mb-1" id="creditHistoryTitle">{{ _('Approvals') }}</h5>
+          <div class="credit-history-meta" id="creditHistorySubtitle">{{ _('Approvals') }}</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="credit-history-list" id="creditHistoryList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div
+  id="creditHistoryLabels"
+  data-approvals-label="{{ _('Approvals')|e }}"
+  data-empty-label="{{ _('No approvals yet.')|e }}"
+  hidden
+></div>
+
+<script>
+  (function () {
+    const modalEl = document.getElementById('creditHistoryModal');
+    const listEl = document.getElementById('creditHistoryList');
+    const titleEl = document.getElementById('creditHistoryTitle');
+    const subtitleEl = document.getElementById('creditHistorySubtitle');
+    const labelsEl = document.getElementById('creditHistoryLabels');
+    if (!modalEl || !listEl || !titleEl || !subtitleEl || !labelsEl) return;
+
+    const approvalsLabel = labelsEl.getAttribute('data-approvals-label') || 'Approvals';
+    const emptyLabel = labelsEl.getAttribute('data-empty-label') || 'No approvals yet.';
+
+    let modal = null;
+
+    function parseJsonSafe(raw, fallback) {
+      try {
+        const parsed = JSON.parse(raw || '');
+        return parsed || fallback;
+      } catch (e) {
+        return fallback;
+      }
+    }
+
+    function normalizeEntries(history, phases) {
+      const rows = [];
+      if (Array.isArray(history) && history.length) {
+        history.forEach((item) => {
+          rows.push({
+            stage: String(item.stage || '-'),
+            decision: String(item.decision || '-'),
+            actor: String(item.actor || '-'),
+            date: String(item.date || '-'),
+            comments: String(item.comments || '').trim(),
+          });
+        });
+        return rows;
+      }
+
+      if (Array.isArray(phases) && phases.length) {
+        phases.forEach((line) => {
+          rows.push({
+            stage: String(line || '-'),
+            decision: '',
+            actor: '',
+            date: '',
+            comments: '',
+          });
+        });
+      }
+      return rows;
+    }
+
+    function renderEntries(entries) {
+      listEl.innerHTML = '';
+      if (!entries.length) {
+        const empty = document.createElement('div');
+        empty.className = 'text-secondary small';
+        empty.textContent = emptyLabel;
+        listEl.appendChild(empty);
+        return;
+      }
+
+      entries.forEach((entry, idx) => {
+        const card = document.createElement('div');
+        card.className = 'credit-history-item';
+        card.style.animationDelay = `${idx * 60}ms`;
+
+        const head = document.createElement('div');
+        head.className = 'credit-history-head';
+
+        const left = document.createElement('div');
+        left.innerHTML = `<span class="credit-history-stage">${entry.stage}</span>${entry.decision ? ` <span class="credit-history-decision">- ${entry.decision}</span>` : ''}`;
+
+        const right = document.createElement('div');
+        right.className = 'credit-history-meta';
+        const rightParts = [entry.actor, entry.date].filter((v) => String(v || '').trim());
+        right.textContent = rightParts.join(' · ') || '-';
+
+        head.appendChild(left);
+        head.appendChild(right);
+        card.appendChild(head);
+
+        if (entry.comments) {
+          const notes = document.createElement('div');
+          notes.className = 'credit-history-comments';
+          notes.textContent = entry.comments;
+          card.appendChild(notes);
+        }
+
+        listEl.appendChild(card);
+        requestAnimationFrame(() => card.classList.add('reveal'));
+      });
+    }
+
+    function openHistory(trigger) {
+      if (!(window.bootstrap && window.bootstrap.Modal)) {
+        return;
+      }
+      if (!modal) {
+        modal = window.bootstrap.Modal.getOrCreateInstance(modalEl);
+      }
+
+      const title = (trigger.getAttribute('data-title') || '').trim() || approvalsLabel;
+      const history = parseJsonSafe(trigger.getAttribute('data-history'), []);
+      const phases = parseJsonSafe(trigger.getAttribute('data-phases'), []);
+      const entries = normalizeEntries(history, phases);
+
+      titleEl.textContent = title;
+      subtitleEl.textContent = approvalsLabel;
+      renderEntries(entries);
+      modal.show();
+    }
+
+    document.addEventListener('click', (evt) => {
+      const trigger = evt.target.closest('[data-history-popup="1"]');
+      if (!trigger) return;
+      if (evt.target.closest('a[href],button,input,select,textarea,summary,details,label,form')) return;
+      evt.preventDefault();
+      openHistory(trigger);
+    });
+
+    document.addEventListener('keydown', (evt) => {
+      const trigger = evt.target.closest('[data-history-popup="1"]');
+      if (!trigger) return;
+      if (evt.key !== 'Enter' && evt.key !== ' ') return;
+      evt.preventDefault();
+      openHistory(trigger);
+    });
+  })();
+</script>

@@ -3,12 +3,203 @@
 {% set active_page = 'ratios' %}
 
 {% block credit_page_content %}
+<style>
+  .ratio-col-help {
+    color: #6c757d;
+    opacity: 0.9;
+    line-height: 1;
+    transform: translateY(-1px);
+  }
+  .ratio-col-help:hover,
+  .ratio-col-help:focus {
+    color: #0d6efd;
+    opacity: 1;
+  }
+  .ratio-help-btn {
+    border-radius: 999px;
+    box-shadow: 0 8px 22px rgba(13, 110, 253, 0.2);
+  }
+  .ratio-help-modal .modal-content {
+    border: 0;
+    border-radius: 18px;
+    overflow: hidden;
+    background: linear-gradient(165deg, #fbfdff 0%, #f3f8ff 45%, #eef6ff 100%);
+    box-shadow: 0 22px 60px rgba(22, 65, 120, 0.24);
+  }
+  .ratio-help-modal .modal-header {
+    border-bottom: 0;
+    background: radial-gradient(circle at top left, rgba(13, 110, 253, 0.2), rgba(13, 110, 253, 0));
+  }
+  .ratio-help-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #0b3b78;
+    background: rgba(13, 110, 253, 0.12);
+  }
+  .ratio-help-card {
+    border: 1px solid rgba(13, 110, 253, 0.18);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.82);
+    padding: 12px 14px;
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  .ratio-help-card.revealed {
+    animation: ratioHelpReveal 420ms ease forwards;
+  }
+  .ratio-help-card h6 {
+    margin-bottom: 6px;
+  }
+  .ratio-help-scale {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .ratio-help-band {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-radius: 10px;
+    padding: 8px 10px;
+    font-size: 0.85rem;
+    border: 1px solid transparent;
+  }
+  .ratio-help-band.good {
+    background: rgba(25, 135, 84, 0.11);
+    border-color: rgba(25, 135, 84, 0.25);
+  }
+  .ratio-help-band.mid {
+    background: rgba(255, 193, 7, 0.14);
+    border-color: rgba(255, 193, 7, 0.33);
+  }
+  .ratio-help-band.bad {
+    background: rgba(220, 53, 69, 0.09);
+    border-color: rgba(220, 53, 69, 0.24);
+  }
+  @keyframes ratioHelpReveal {
+    from {
+      transform: translateY(10px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+</style>
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary border-bottom-0 pb-0">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-12 col-lg-3">
+        <label class="form-label mb-1">{{ _('Borrower') }}</label>
+        <select class="form-select" name="borrower_id">
+          <option value="">{{ _('All borrowers') }}</option>
+          {% for b in borrowers %}
+          <option value="{{ b.id }}" {% if selected_borrower_id == b.id %}selected{% endif %}>{{ b.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-lg-2">
+        <label class="form-label mb-1">{{ _('Risk grade') }}</label>
+        <select class="form-select" name="risk_grade">
+          <option value="">{{ _('All') }}</option>
+          {% for rg in risk_grade_options %}
+          <option value="{{ rg }}" {% if selected_risk_grade == rg %}selected{% endif %}>{{ rg }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-lg-2">
+        <label class="form-label mb-1">{{ _('From') }}</label>
+        <input class="form-control" type="date" name="date_from" value="{{ date_from_raw or '' }}">
+      </div>
+      <div class="col-6 col-lg-2">
+        <label class="form-label mb-1">{{ _('To') }}</label>
+        <input class="form-control" type="date" name="date_to" value="{{ date_to_raw or '' }}">
+      </div>
+      <div class="col-6 col-lg-1">
+        <label class="form-label mb-1">{{ _('Rows') }}</label>
+        <input class="form-control" type="number" min="20" max="1000" step="20" name="limit" value="{{ max_rows }}">
+      </div>
+      <div class="col-6 col-lg-1">
+        <button class="btn btn-primary w-100" type="submit">{{ _('Apply') }}</button>
+      </div>
+      <div class="col-12 col-lg-1">
+        <a class="btn btn-outline-secondary w-100" href="{{ url_for('credit.ratios') }}">{{ _('Reset') }}</a>
+      </div>
+    </form>
+  </div>
+  <div class="card-header bg-body-tertiary d-flex align-items-center justify-content-between gap-2 flex-wrap">
+    <span>{{ _('Ratio trend graph') }}</span>
+    <button
+      type="button"
+      class="btn btn-primary btn-sm ratio-help-btn"
+      data-bs-toggle="modal"
+      data-bs-target="#ratioHelpModal"
+    >
+      <i class="bi bi-info-circle me-1"></i>{{ _('How to read ratios') }}
+    </button>
+  </div>
+  <div class="card-body">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+      <div class="btn-group btn-group-sm" role="group" aria-label="ratio-series-toggles">
+        <button class="btn btn-outline-primary active" type="button" data-series-toggle="dscr">DSCR</button>
+        <button class="btn btn-outline-success active" type="button" data-series-toggle="leverage">Leverage</button>
+        <button class="btn btn-outline-warning active" type="button" data-series-toggle="liquidity">Liquidity</button>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        <span id="ratioHoverInfo" class="small text-secondary">{{ _('Hover graph for details.') }}</span>
+        <button id="ratioExportBtn" type="button" class="btn btn-outline-secondary btn-sm">{{ _('Export PNG') }}</button>
+      </div>
+    </div>
+    <canvas id="ratioChart" height="180" aria-label="ratio-chart"></canvas>
+    <div class="small text-secondary mt-2">
+      {% if selected_borrower_id %}
+      {{ _('Trend by snapshot date for selected borrower.') }}
+      {% else %}
+      {{ _('Latest borrower snapshot comparison (first 24 borrowers in current filter).') }}
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary">{{ _('Borrower ratio snapshot') }}</div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>{{ _('Borrower') }}</th><th>{{ _('Snapshot date') }}</th><th>{{ _('DSCR') }} <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none ratio-col-help" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ _('Debt Service Coverage Ratio: EBITDA divided by total debt. Higher is generally better.') }}"><i class="bi bi-question-circle-fill"></i></button></th><th>{{ _('Leverage') }} <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none ratio-col-help" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ _('Leverage: total debt divided by EBITDA. Lower is generally better.') }}"><i class="bi bi-question-circle-fill"></i></button></th><th>{{ _('Liquidity') }} <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none ratio-col-help" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ _('Liquidity: cash divided by total debt. Higher means stronger cash buffer.') }}"><i class="bi bi-question-circle-fill"></i></button></th><th>{{ _('Risk grade') }} <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none ratio-col-help" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ _('Current grade is derived from DSCR thresholds in this screen version.') }}"><i class="bi bi-question-circle-fill"></i></button></th></tr></thead>
+        <tbody>
+          {% for r in borrower_snapshots %}
+          <tr>
+            <td>{{ r.borrower.name if r.borrower else '-' }}</td>
+            <td>{{ r.snapshot_date }}</td>
+            <td>{{ r.dscr or '-' }}</td>
+            <td>{{ r.leverage or '-' }}</td>
+            <td>{{ r.liquidity or '-' }}</td>
+            <td>{{ r.risk_grade or '-' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="6" class="text-secondary">{{ _('No borrower snapshot in this filter.') }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <div class="card border-0 shadow-sm">
   <div class="card-header bg-body-tertiary">{{ _('Ratio snapshots') }}</div>
   <div class="card-body p-0">
     <div class="table-responsive">
       <table class="table table-sm mb-0">
-        <thead><tr><th>{{ _('Date') }}</th><th>{{ _('Borrower') }}</th><th>{{ _('DSCR') }}</th><th>{{ _('Leverage') }}</th><th>{{ _('Liquidity') }}</th><th>{{ _('Risk grade') }}</th></tr></thead>
+        <thead><tr><th>{{ _('Date') }}</th><th>{{ _('Borrower') }}</th><th>{{ _('DSCR') }} <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none ratio-col-help" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ _('Debt Service Coverage Ratio: EBITDA divided by total debt. Higher is generally better.') }}"><i class="bi bi-question-circle-fill"></i></button></th><th>{{ _('Leverage') }} <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none ratio-col-help" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ _('Leverage: total debt divided by EBITDA. Lower is generally better.') }}"><i class="bi bi-question-circle-fill"></i></button></th><th>{{ _('Liquidity') }} <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none ratio-col-help" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ _('Liquidity: cash divided by total debt. Higher means stronger cash buffer.') }}"><i class="bi bi-question-circle-fill"></i></button></th><th>{{ _('Risk grade') }} <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none ratio-col-help" data-bs-toggle="tooltip" data-bs-placement="top" title="{{ _('Current grade is derived from DSCR thresholds in this screen version.') }}"><i class="bi bi-question-circle-fill"></i></button></th></tr></thead>
         <tbody>
           {% for r in ratios %}
           <tr><td>{{ r.snapshot_date }}</td><td>{{ r.borrower.name if r.borrower else '-' }}</td><td>{{ r.dscr or '-' }}</td><td>{{ r.leverage or '-' }}</td><td>{{ r.liquidity or '-' }}</td><td>{{ r.risk_grade or '-' }}</td></tr>
@@ -20,4 +211,296 @@
     </div>
   </div>
 </div>
+
+<div class="modal fade ratio-help-modal" id="ratioHelpModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <div class="ratio-help-chip mb-2">{{ _('Credit Analytics Help') }}</div>
+          <h5 class="modal-title mb-0">{{ _('Ratios explained') }}</h5>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            <div class="ratio-help-card" data-help-card="1">
+              <h6 class="fw-semibold text-primary mb-2">DSCR</h6>
+              <p class="mb-2 small">{{ _('Debt Service Coverage Ratio: ability to cover debt payments from operating cash generation.') }}</p>
+              <p class="mb-2 small"><strong>{{ _('Formula') }}:</strong> {{ _('EBITDA / Total Debt') }}</p>
+              <div class="ratio-help-scale">
+                <div class="ratio-help-band good"><span>{{ _('Strong') }}</span><span>&gt;= 1.30</span></div>
+                <div class="ratio-help-band mid"><span>{{ _('Watch') }}</span><span>1.00 - 1.29</span></div>
+                <div class="ratio-help-band bad"><span>{{ _('Weak') }}</span><span>&lt; 1.00</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-md-6">
+            <div class="ratio-help-card" data-help-card="1">
+              <h6 class="fw-semibold text-success mb-2">Leverage</h6>
+              <p class="mb-2 small">{{ _('Debt burden relative to operating profitability.') }}</p>
+              <p class="mb-2 small"><strong>{{ _('Formula') }}:</strong> {{ _('Total Debt / EBITDA') }}</p>
+              <div class="ratio-help-scale">
+                <div class="ratio-help-band good"><span>{{ _('Low leverage') }}</span><span>&lt;= 3.0x</span></div>
+                <div class="ratio-help-band mid"><span>{{ _('Moderate') }}</span><span>3.0x - 5.0x</span></div>
+                <div class="ratio-help-band bad"><span>{{ _('High leverage') }}</span><span>&gt; 5.0x</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-md-6">
+            <div class="ratio-help-card" data-help-card="1">
+              <h6 class="fw-semibold text-warning mb-2">Liquidity</h6>
+              <p class="mb-2 small">{{ _('Immediate liquidity buffer against debt exposure.') }}</p>
+              <p class="mb-2 small"><strong>{{ _('Formula') }}:</strong> {{ _('Cash / Total Debt') }}</p>
+              <div class="ratio-help-scale">
+                <div class="ratio-help-band good"><span>{{ _('Comfortable') }}</span><span>&gt;= 0.25</span></div>
+                <div class="ratio-help-band mid"><span>{{ _('Limited') }}</span><span>0.10 - 0.24</span></div>
+                <div class="ratio-help-band bad"><span>{{ _('Tight') }}</span><span>&lt; 0.10</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-md-6">
+            <div class="ratio-help-card" data-help-card="1">
+              <h6 class="fw-semibold mb-2">{{ _('Risk grade logic in this screen') }}</h6>
+              <p class="mb-2 small">{{ _('Current snapshot grade is based mainly on DSCR thresholds in this version of Audela Credit.') }}</p>
+              <ul class="small mb-0">
+                <li>{{ _('A: DSCR >= 1.30') }}</li>
+                <li>{{ _('BBB: DSCR >= 1.00 and < 1.30') }}</li>
+                <li>{{ _('BB: DSCR < 1.00') }}</li>
+              </ul>
+            </div>
+          </div>
+          <div class="col-12">
+            <div class="ratio-help-card" data-help-card="1">
+              <h6 class="fw-semibold mb-2">{{ _('Important note') }}</h6>
+              <p class="small mb-0">{{ _('Thresholds are indicative and should be aligned with your internal credit policy, sector specifics, and covenant framework.') }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+{{ super() }}
+<script>
+  (function () {
+    const chartData = {{ chart_payload|tojson }};
+    const canvas = document.getElementById('ratioChart');
+    const hoverInfo = document.getElementById('ratioHoverInfo');
+    const exportBtn = document.getElementById('ratioExportBtn');
+    const toggleButtons = Array.from(document.querySelectorAll('[data-series-toggle]'));
+    if (!canvas || !chartData || !Array.isArray(chartData.labels) || !chartData.labels.length) {
+      return;
+    }
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const labels = chartData.labels;
+    const series = [
+      { key: 'dscr', color: '#0d6efd', label: 'DSCR', active: true, btnClass: ['btn-outline-primary', 'btn-primary'] },
+      { key: 'leverage', color: '#198754', label: 'Leverage', active: true, btnClass: ['btn-outline-success', 'btn-success'] },
+      { key: 'liquidity', color: '#fd7e14', label: 'Liquidity', active: true, btnClass: ['btn-outline-warning', 'btn-warning'] },
+    ];
+    const drawState = {
+      pad: { left: 36, right: 12, top: 10, bottom: 24 },
+      innerW: 0,
+      innerH: 0,
+      minV: 0,
+      maxV: 1,
+      xFor: function (i) { return i; },
+      yFor: function (v) { return v; },
+    };
+
+    function updateToggleButtonStyles() {
+      toggleButtons.forEach((btn) => {
+        const key = btn.getAttribute('data-series-toggle');
+        const s = series.find((x) => x.key === key);
+        if (!s) return;
+        btn.classList.remove(s.btnClass[0], s.btnClass[1], 'active');
+        btn.classList.add(s.active ? s.btnClass[1] : s.btnClass[0]);
+        if (s.active) btn.classList.add('active');
+      });
+    }
+
+    function computeScale() {
+      const allValues = [];
+      series.filter((s) => s.active).forEach((s) => {
+        (chartData[s.key] || []).forEach((v) => {
+          const n = Number(v);
+          if (Number.isFinite(n)) allValues.push(n);
+        });
+      });
+      if (!allValues.length) return false;
+
+      const width = canvas.clientWidth || canvas.parentElement.clientWidth || 800;
+      const height = canvas.height || 180;
+      canvas.width = width;
+      canvas.height = height;
+
+      drawState.innerW = Math.max(10, width - drawState.pad.left - drawState.pad.right);
+      drawState.innerH = Math.max(10, height - drawState.pad.top - drawState.pad.bottom);
+      drawState.minV = Math.min.apply(null, allValues);
+      drawState.maxV = Math.max.apply(null, allValues);
+      if (drawState.minV === drawState.maxV) {
+        drawState.minV -= 1;
+        drawState.maxV += 1;
+      }
+      drawState.xFor = function (i) {
+        if (labels.length <= 1) return drawState.pad.left;
+        return drawState.pad.left + (i * drawState.innerW) / (labels.length - 1);
+      };
+      drawState.yFor = function (v) {
+        return drawState.pad.top + ((drawState.maxV - v) * drawState.innerH) / (drawState.maxV - drawState.minV);
+      };
+      return true;
+    }
+
+    function render() {
+      if (!computeScale()) {
+        ctx.clearRect(0, 0, canvas.width || 0, canvas.height || 0);
+        if (hoverInfo) hoverInfo.textContent = '{{ _('Enable at least one series.') }}';
+        return;
+      }
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#6c757d';
+      ctx.font = '11px sans-serif';
+
+      ctx.strokeStyle = '#ced4da';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(drawState.pad.left, drawState.pad.top);
+      ctx.lineTo(drawState.pad.left, drawState.pad.top + drawState.innerH);
+      ctx.lineTo(drawState.pad.left + drawState.innerW, drawState.pad.top + drawState.innerH);
+      ctx.stroke();
+
+      for (let i = 0; i <= 4; i += 1) {
+        const ratio = i / 4;
+        const y = drawState.pad.top + ratio * drawState.innerH;
+        const val = drawState.maxV - ratio * (drawState.maxV - drawState.minV);
+        ctx.strokeStyle = '#f1f3f5';
+        ctx.beginPath();
+        ctx.moveTo(drawState.pad.left, y);
+        ctx.lineTo(drawState.pad.left + drawState.innerW, y);
+        ctx.stroke();
+        ctx.fillStyle = '#6c757d';
+        ctx.fillText(val.toFixed(2), 2, y + 3);
+      }
+
+      const step = Math.max(1, Math.ceil(labels.length / 6));
+      for (let i = 0; i < labels.length; i += step) {
+        const x = drawState.xFor(i);
+        ctx.fillStyle = '#6c757d';
+        const t = String(labels[i] || '').slice(0, 10);
+        ctx.fillText(t, x - 20, drawState.pad.top + drawState.innerH + 14);
+      }
+
+      series.filter((s) => s.active).forEach((s) => {
+        const vals = chartData[s.key] || [];
+        let started = false;
+        ctx.strokeStyle = s.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        const points = [];
+
+        vals.forEach((raw, i) => {
+          const n = Number(raw);
+          if (!Number.isFinite(n)) {
+            started = false;
+            return;
+          }
+          const x = drawState.xFor(i);
+          const y = drawState.yFor(n);
+          points.push({ x, y });
+          if (!started) {
+            ctx.moveTo(x, y);
+            started = true;
+          } else {
+            ctx.lineTo(x, y);
+          }
+        });
+        ctx.stroke();
+
+        // Draw markers so one-point series remains visible.
+        ctx.fillStyle = s.color;
+        points.forEach((p) => {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      });
+    }
+
+    function handleHover(evt) {
+      if (!hoverInfo || labels.length === 0) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = evt.clientX - rect.left;
+      const clamped = Math.max(drawState.pad.left, Math.min(drawState.pad.left + drawState.innerW, x));
+      let idx = 0;
+      if (labels.length > 1) {
+        idx = Math.round(((clamped - drawState.pad.left) / drawState.innerW) * (labels.length - 1));
+      }
+      idx = Math.max(0, Math.min(labels.length - 1, idx));
+
+      const parts = [String(labels[idx] || '-')];
+      series.filter((s) => s.active).forEach((s) => {
+        const raw = (chartData[s.key] || [])[idx];
+        const n = Number(raw);
+        parts.push(s.label + ': ' + (Number.isFinite(n) ? n.toFixed(2) : '-'));
+      });
+      hoverInfo.textContent = parts.join(' | ');
+    }
+
+    toggleButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const key = btn.getAttribute('data-series-toggle');
+        const s = series.find((x) => x.key === key);
+        if (!s) return;
+        s.active = !s.active;
+        updateToggleButtonStyles();
+        render();
+      });
+    });
+
+    canvas.addEventListener('mousemove', handleHover);
+    canvas.addEventListener('mouseleave', () => {
+      if (hoverInfo) hoverInfo.textContent = '{{ _('Hover graph for details.') }}';
+    });
+
+    if (exportBtn) {
+      exportBtn.addEventListener('click', () => {
+        const link = document.createElement('a');
+        link.href = canvas.toDataURL('image/png');
+        link.download = 'credit-ratios-chart.png';
+        link.click();
+      });
+    }
+
+    window.addEventListener('resize', render);
+    updateToggleButtonStyles();
+    render();
+
+    const helpModal = document.getElementById('ratioHelpModal');
+    if (helpModal && window.bootstrap && window.bootstrap.Modal) {
+      helpModal.addEventListener('shown.bs.modal', function () {
+        const cards = Array.from(helpModal.querySelectorAll('[data-help-card="1"]'));
+        cards.forEach((c) => c.classList.remove('revealed'));
+        cards.forEach((c, idx) => {
+          setTimeout(() => c.classList.add('revealed'), idx * 80);
+        });
+      });
+    }
+
+    if (window.bootstrap && window.bootstrap.Tooltip) {
+      Array.from(document.querySelectorAll('[data-bs-toggle="tooltip"]')).forEach((el) => {
+        window.bootstrap.Tooltip.getOrCreateInstance(el);
+      });
+    }
+  })();
+</script>
 {% endblock %}

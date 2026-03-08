@@ -976,6 +976,98 @@
 
   function qsa (sel, root) { return Array.from((root || document).querySelectorAll(sel)); }
 
+  let _rbAutoSaveTimer = null;
+  let _rbAutoSaving = false;
+  let _rbAutoSaveQueued = false;
+  let _rbPreviewVisible = true;
+
+  function _rbPreviewElements () {
+    return {
+      wrap: qs('#rb-live-preview-wrap'),
+      iframe: qs('#rb-live-preview'),
+      status: qs('#rb-live-preview-status'),
+      toggleBtn: qs('#rb-preview-toggle')
+    };
+  }
+
+  function _rbSetPreviewToggleLabel () {
+    const els = _rbPreviewElements();
+    if (!els.toggleBtn) return;
+    if (_rbPreviewVisible) {
+      els.toggleBtn.innerHTML = `<i class="bi bi-eye-slash me-1"></i>${t('Hide preview')}`;
+    } else {
+      els.toggleBtn.innerHTML = `<i class="bi bi-eye me-1"></i>${t('Show preview')}`;
+    }
+  }
+
+  function _rbApplyPreviewVisibility () {
+    const els = _rbPreviewElements();
+    if (!els.wrap) return;
+    els.wrap.style.display = _rbPreviewVisible ? '' : 'none';
+    _rbSetPreviewToggleLabel();
+    if (els.status && !_rbPreviewVisible) {
+      els.status.textContent = t('Preview hidden');
+    }
+  }
+
+  async function _rbSaveLayoutAndRefreshPreview (opts) {
+    const o = opts || {};
+    const cfg = window.__RB || {};
+    if (!cfg.saveUrl) return;
+
+    const statusEl = qs('#rb-live-preview-status');
+    const saveBtn = qs('#rb-save');
+    const iframe = qs('#rb-live-preview');
+    if (_rbAutoSaving) {
+      _rbAutoSaveQueued = true;
+      return;
+    }
+
+    _rbAutoSaving = true;
+    if (!o.silent && statusEl) statusEl.textContent = t('Auto-saving...');
+    try {
+      const layout = extractLayoutFromDom();
+      await jsonFetch(cfg.saveUrl, { method: 'POST', body: JSON.stringify({ layout }) });
+
+      if (saveBtn) {
+        saveBtn.innerHTML = `<i class="bi bi-check2 me-1"></i>${t('Saved automatically')}`;
+        setTimeout(() => {
+          saveBtn.innerHTML = `<i class="bi bi-save me-1"></i>${t('Salvar')}`;
+        }, 1000);
+      }
+      if (statusEl) {
+        statusEl.textContent = _rbPreviewVisible
+          ? t('Aperçu mis à jour après modification du layout.')
+          : t('Preview hidden');
+      }
+
+      if (_rbPreviewVisible && iframe && cfg.previewUrl) {
+        const sep = cfg.previewUrl.includes('?') ? '&' : '?';
+        iframe.src = `${cfg.previewUrl}${sep}_ts=${Date.now()}`;
+      }
+    } catch (err) {
+      const msg = err && err.error ? err.error : t('Auto-save failed');
+      if (statusEl) statusEl.textContent = msg;
+      if (!o.silent) {
+        if (window.uiToast) window.uiToast(msg, { variant: 'danger' });
+        else rbAlert(msg, { title: t('Erreur') });
+      }
+    } finally {
+      _rbAutoSaving = false;
+      if (_rbAutoSaveQueued) {
+        _rbAutoSaveQueued = false;
+        _rbSaveLayoutAndRefreshPreview({ silent: true });
+      }
+    }
+  }
+
+  function _rbScheduleAutoSave () {
+    if (_rbAutoSaveTimer) window.clearTimeout(_rbAutoSaveTimer);
+    _rbAutoSaveTimer = window.setTimeout(() => {
+      _rbSaveLayoutAndRefreshPreview({ silent: true });
+    }, 800);
+  }
+
   function getQuestionDataUrl (qid) {
     const id = Number(qid || 0);
     return `/app/api/questions/${id}/data`;
@@ -1569,6 +1661,23 @@
     const pageFooter = qs('#rb-page-footer');
     const reportFooter = qs('#rb-report-footer');
     const saveBtn = qs('#rb-save');
+    const previewToggleBtn = qs('#rb-preview-toggle');
+
+    try {
+      const key = `rb.preview.visible.${Number(cfg.reportId || 0)}`;
+      _rbPreviewVisible = localStorage.getItem(key) !== '0';
+      if (previewToggleBtn) {
+        previewToggleBtn.addEventListener('click', () => {
+          _rbPreviewVisible = !_rbPreviewVisible;
+          try { localStorage.setItem(key, _rbPreviewVisible ? '1' : '0'); } catch (e) {}
+          _rbApplyPreviewVisibility();
+          if (_rbPreviewVisible) _rbSaveLayoutAndRefreshPreview({ silent: true });
+        });
+      }
+    } catch (e) {
+      _rbPreviewVisible = true;
+    }
+    _rbApplyPreviewVisibility();
 
     initFloatingExplorerPanel();
 
@@ -1624,9 +1733,10 @@
 
           // open editor immediately for most blocks
           if (['text', 'markdown', 'image', 'field', 'question', 'data_field'].includes(type)) editBlock(newEl);
+          _rbScheduleAutoSave();
         },
-        onSort: normalizeDropHints,
-        onRemove: normalizeDropHints
+        onSort: () => { normalizeDropHints(); _rbScheduleAutoSave(); },
+        onRemove: () => { normalizeDropHints(); _rbScheduleAutoSave(); }
       };
     }
 
@@ -1727,6 +1837,7 @@
           }
         }));
         normalizeDropHints();
+        _rbScheduleAutoSave();
       });
     }
 
@@ -1743,6 +1854,7 @@
         imgUrlInput.value = '';
         normalizeDropHints();
         editBlock(el);
+        _rbScheduleAutoSave();
       });
     }
 
@@ -1756,6 +1868,7 @@
         pageHeader.appendChild(el);
         normalizeDropHints();
         editBlock(el);
+        _rbScheduleAutoSave();
       });
     }
     if (addFieldDateTime) {
@@ -1765,19 +1878,32 @@
         pageHeader.appendChild(el);
         normalizeDropHints();
         editBlock(el);
+        _rbScheduleAutoSave();
       });
     }
+
+    // Auto-save on settings changes.
+    ['#rb-setting-page-number', '#rb-setting-page-label'].forEach(sel => {
+      const el = qs(sel);
+      if (!el) return;
+      el.addEventListener('input', _rbScheduleAutoSave);
+      el.addEventListener('change', _rbScheduleAutoSave);
+    });
+
+    // Auto-save on DOM structure/style changes in report zones.
+    const mo = new MutationObserver(() => _rbScheduleAutoSave());
+    [reportHeader, pageHeader, detail, pageFooter, reportFooter].forEach(zone => {
+      if (!zone) return;
+      mo.observe(zone, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-title', 'data-content', 'data-style', 'data-config', 'data-image-url', 'data-image-alt', 'data-image-caption', 'data-image-width', 'data-image-align', 'data-question-id'] });
+    });
 
     // Save
     if (saveBtn) {
       saveBtn.addEventListener('click', async (e) => {
         e.preventDefault();
-        const layout = extractLayoutFromDom();
         saveBtn.disabled = true;
         try {
-          await jsonFetch(cfg.saveUrl, { method: 'POST', body: JSON.stringify({ layout }) });
-          saveBtn.innerHTML = `<i class="bi bi-check2 me-1"></i>${t('Salvo')}`;
-          setTimeout(() => { saveBtn.innerHTML = `<i class="bi bi-save me-1"></i>${t('Salvar')}`; }, 1200);
+          await _rbSaveLayoutAndRefreshPreview({ silent: false });
         } catch (err) {
           const msg = err?.error || t('Falha ao salvar');
           if (window.uiToast) window.uiToast(msg, { variant: 'danger' });

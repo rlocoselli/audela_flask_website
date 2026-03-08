@@ -32,7 +32,7 @@
               <tr>
                 <td class="fw-semibold">{{ r.name }}</td>
                 <td class="text-muted">#{{ r.source_id }}</td>
-                <td class="text-muted">{{ r.updated_at.strftime('%Y-%m-%d %H:%M') if r.updated_at else '' }}</td>
+                <td class="text-muted">{{ r.updated_at.strftime('%d/%m/%Y') if r.updated_at else '' }}</td>
                 <td class="text-end">
                   <div class="btn-group" role="group" aria-label="report actions">
                     <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('portal.report_view', report_id=r.id) }}" title="{{ _('Visualizar') }}">

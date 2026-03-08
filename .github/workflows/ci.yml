@@ -113,6 +113,31 @@ jobs:
           flask --app app db check
           flask --app app db upgrade
 
+      - name: Verify credit approval_date columns
+        env:
+          DATABASE_URL: ${{ env.CI_DATABASE_URL }}
+          AUTO_CREATE_DB: "false"
+        run: |
+          python - <<'PY'
+          from audela import create_app
+          from audela.extensions import db
+          from sqlalchemy import inspect
+
+          app = create_app()
+          with app.app_context():
+              ins = inspect(db.engine)
+              expected = {
+                  "credit_deals": "approval_date",
+                  "credit_facilities": "approval_date",
+                  "credit_financial_statements": "approval_date",
+                  "credit_memos": "approval_date",
+              }
+              for table, col in expected.items():
+                  cols = {c["name"] for c in ins.get_columns(table)}
+                  assert col in cols, f"{table}.{col} missing"
+              print("credit approval_date columns verified")
+          PY
+
       - name: Credit readiness validation
         env:
           DATABASE_URL: ${{ env.CI_DATABASE_URL }}

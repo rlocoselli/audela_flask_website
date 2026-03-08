@@ -1,0 +1,428 @@
+{% extends "credit/page_base.html" %}
+{% set title = _('Audela Credit UAM') %}
+{% set active_page = 'approval_uam' %}
+
+{% block credit_page_content %}
+<style>
+  .cuam-hero {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 1rem;
+    background: linear-gradient(135deg, rgba(13, 110, 253, 0.08), rgba(13, 110, 253, 0.02));
+    padding: 1rem 1.1rem;
+  }
+  .cuam-kpi {
+    border: 1px solid var(--bs-border-color);
+    border-radius: .8rem;
+    background: var(--bs-body-bg);
+    padding: .65rem .75rem;
+  }
+  .cuam-kpi .num {
+    font-weight: 700;
+    font-size: 1.1rem;
+    line-height: 1;
+  }
+  .cuam-card {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 1rem;
+    background: var(--bs-body-bg);
+  }
+  .cuam-card .card-header {
+    background: rgba(108, 117, 125, 0.08);
+    border-top-left-radius: 1rem;
+    border-top-right-radius: 1rem;
+    font-weight: 600;
+  }
+  .cuam-table thead th {
+    font-size: .78rem;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    color: var(--bs-secondary-color);
+    background: rgba(108, 117, 125, 0.06);
+    border-bottom-width: 1px;
+  }
+  .cuam-table td {
+    vertical-align: middle;
+  }
+  .cuam-pill {
+    display: inline-flex;
+    min-width: 2rem;
+    justify-content: center;
+    align-items: center;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 999px;
+    padding: .1rem .5rem;
+    font-size: .8rem;
+    background: var(--bs-body-bg);
+  }
+  .cuam-actions {
+    display: inline-flex;
+    gap: .35rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  @media (max-width: 991.98px) {
+    .cuam-actions {
+      justify-content: flex-start;
+    }
+  }
+</style>
+
+<div class="cuam-hero mb-3 d-flex flex-wrap justify-content-between align-items-start gap-3">
+  <div>
+    <h5 class="mb-1">{{ _('Credit UAM (sector/country/rating by user or group)') }}</h5>
+    <div class="text-muted small">{{ _('Leave any list empty to allow all values for that dimension.') }}</div>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.approval_workflow') }}">{{ _('Back to Approval Workflow') }}</a>
+  </div>
+</div>
+
+<div class="row g-2 mb-3">
+  <div class="col-6 col-lg-3">
+    <div class="cuam-kpi">
+      <div class="text-muted small">{{ _('Users') }}</div>
+      <div class="num">{{ users|length }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="cuam-kpi">
+      <div class="text-muted small">{{ _('Groups') }}</div>
+      <div class="num">{{ groups|length }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="cuam-kpi">
+      <div class="text-muted small">{{ _('Sectors') }}</div>
+      <div class="num">{{ sectors|length }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="cuam-kpi">
+      <div class="text-muted small">{{ _('Countries') }}</div>
+      <div class="num">{{ countries|length }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-12 col-xxl-8">
+    <div class="card cuam-card h-100">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>{{ _('Save UAM scope') }}</span>
+        <span class="text-muted small">{{ _('User') }} / {{ _('Group') }}</span>
+      </div>
+      <div class="card-body">
+        <form method="post" class="row g-2 align-items-end">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="save_scope">
+
+      <div class="col-md-2">
+        <label class="form-label">{{ _('Target type') }}</label>
+        <select class="form-select" name="target_type" id="targetType" required>
+          <option value="user">{{ _('User') }}</option>
+          <option value="group">{{ _('Group') }}</option>
+        </select>
+      </div>
+
+      <div class="col-md-3" id="userTargetWrap">
+        <label class="form-label">{{ _('User') }}</label>
+        <select class="form-select" name="target_id" id="targetUserId">
+          <option value="">{{ _('Select user') }}</option>
+          {% for u in users %}
+          <option value="{{ u.id }}">{{ u.email }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-3 d-none" id="groupTargetWrap">
+        <label class="form-label">{{ _('Group') }}</label>
+        <select class="form-select" id="targetGroupId">
+          <option value="">{{ _('Select group') }}</option>
+          {% for grp in groups %}
+          <option value="{{ grp.id }}">{{ grp.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-2">
+        <label class="form-label">{{ _('Allowed sectors') }}</label>
+        <select class="form-select" name="sector_ids" multiple size="6">
+          {% for s in sectors %}
+          <option value="{{ s.id }}">{{ s.display_name(current_lang) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ _('Allowed countries') }}</label>
+        <select class="form-select" name="country_ids" multiple size="6">
+          {% for c in countries %}
+          <option value="{{ c.id }}">{{ c.display_name(current_lang) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label">{{ _('Allowed ratings') }}</label>
+        <select class="form-select" name="rating_ids" multiple size="6">
+          {% for r in ratings %}
+          <option value="{{ r.id }}">{{ r.display_label(current_lang) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-12 d-flex align-items-center gap-2 flex-wrap">
+        <button class="btn btn-primary" type="submit">{{ _('Save UAM scope') }}</button>
+        <span class="small text-secondary">{{ _('Leave any list empty to allow all values for that dimension.') }}</span>
+      </div>
+    </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-xxl-4">
+    <div class="card cuam-card h-100">
+      <div class="card-header">{{ _('Clone scope') }}</div>
+      <div class="card-body">
+        <form method="post" class="row g-2 align-items-end">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="clone_scope">
+          <div class="col-12">
+            <label class="form-label">{{ _('Source') }}</label>
+            <select class="form-select" name="source_ref" required>
+              <option value="">{{ _('Select source') }}</option>
+              {% for u in users %}
+              <option value="user:{{ u.id }}">{{ _('User') }}: {{ u.email }}</option>
+              {% endfor %}
+              {% for grp in groups %}
+              <option value="group:{{ grp.id }}">{{ _('Group') }}: {{ grp.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">{{ _('Target') }}</label>
+            <select class="form-select" name="target_ref" required>
+              <option value="">{{ _('Select target') }}</option>
+              {% for u in users %}
+              <option value="user:{{ u.id }}">{{ _('User') }}: {{ u.email }}</option>
+              {% endfor %}
+              {% for grp in groups %}
+              <option value="group:{{ grp.id }}">{{ _('Group') }}: {{ grp.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12">
+            <button class="btn btn-outline-primary w-100" type="submit">{{ _('Clone') }}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-xl-6">
+    <div class="card cuam-card h-100">
+      <div class="card-header">{{ _('User scopes') }}</div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm mb-0 cuam-table">
+            <thead><tr><th>{{ _('User') }}</th><th>{{ _('Sectors') }}</th><th>{{ _('Countries') }}</th><th>{{ _('Ratings') }}</th><th class="text-end">{{ _('Actions') }}</th></tr></thead>
+            <tbody>
+              {% for u in users %}
+              {% set scope = assignment_scopes.get('users', {}).get((u.id|string), {}) %}
+              <tr>
+                <td>{{ u.email }}</td>
+                <td><span class="cuam-pill" title="{{ user_scope_titles.get((u.id|string), {}).get('sectors', '-') }}">{{ (scope.get('sector_ids') or [])|length }}</span></td>
+                <td><span class="cuam-pill" title="{{ user_scope_titles.get((u.id|string), {}).get('countries', '-') }}">{{ (scope.get('country_ids') or [])|length }}</span></td>
+                <td><span class="cuam-pill" title="{{ user_scope_titles.get((u.id|string), {}).get('ratings', '-') }}">{{ (scope.get('rating_ids') or [])|length }}</span></td>
+                <td class="text-end">
+                  <div class="cuam-actions">
+                  <button
+                    class="btn btn-outline-secondary btn-sm"
+                    type="button"
+                    data-edit-scope="1"
+                    data-target-type="user"
+                    data-target-id="{{ u.id }}"
+                    data-sector-ids="{{ (scope.get('sector_ids') or [])|join(',') }}"
+                    data-country-ids="{{ (scope.get('country_ids') or [])|join(',') }}"
+                    data-rating-ids="{{ (scope.get('rating_ids') or [])|join(',') }}"
+                  >{{ _('Edit') }}</button>
+                  {% if scope %}
+                  <form method="post" class="d-inline" onsubmit="return confirm('{{ _('Reset this scope?') }}');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="clear_scope">
+                    <input type="hidden" name="target_type" value="user">
+                    <input type="hidden" name="target_id" value="{{ u.id }}">
+                    <button class="btn btn-outline-danger btn-sm" type="submit">{{ _('Reset') }}</button>
+                  </form>
+                  {% else %}
+                  <span class="text-secondary">-</span>
+                  {% endif %}
+                  </div>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="5" class="text-secondary">{{ _('No users found.') }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-xl-6">
+    <div class="card cuam-card h-100">
+      <div class="card-header">{{ _('Group scopes') }}</div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm mb-0 cuam-table">
+            <thead><tr><th>{{ _('Group') }}</th><th>{{ _('Sectors') }}</th><th>{{ _('Countries') }}</th><th>{{ _('Ratings') }}</th><th class="text-end">{{ _('Actions') }}</th></tr></thead>
+            <tbody>
+              {% for grp in groups %}
+              {% set scope = assignment_scopes.get('groups', {}).get((grp.id|string), {}) %}
+              <tr>
+                <td>{{ grp.name }}</td>
+                <td><span class="cuam-pill" title="{{ group_scope_titles.get((grp.id|string), {}).get('sectors', '-') }}">{{ (scope.get('sector_ids') or [])|length }}</span></td>
+                <td><span class="cuam-pill" title="{{ group_scope_titles.get((grp.id|string), {}).get('countries', '-') }}">{{ (scope.get('country_ids') or [])|length }}</span></td>
+                <td><span class="cuam-pill" title="{{ group_scope_titles.get((grp.id|string), {}).get('ratings', '-') }}">{{ (scope.get('rating_ids') or [])|length }}</span></td>
+                <td class="text-end">
+                  <div class="cuam-actions">
+                  <button
+                    class="btn btn-outline-secondary btn-sm"
+                    type="button"
+                    data-edit-scope="1"
+                    data-target-type="group"
+                    data-target-id="{{ grp.id }}"
+                    data-sector-ids="{{ (scope.get('sector_ids') or [])|join(',') }}"
+                    data-country-ids="{{ (scope.get('country_ids') or [])|join(',') }}"
+                    data-rating-ids="{{ (scope.get('rating_ids') or [])|join(',') }}"
+                  >{{ _('Edit') }}</button>
+                  {% if scope %}
+                  <form method="post" class="d-inline" onsubmit="return confirm('{{ _('Reset this scope?') }}');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="clear_scope">
+                    <input type="hidden" name="target_type" value="group">
+                    <input type="hidden" name="target_id" value="{{ grp.id }}">
+                    <button class="btn btn-outline-danger btn-sm" type="submit">{{ _('Reset') }}</button>
+                  </form>
+                  {% else %}
+                  <span class="text-secondary">-</span>
+                  {% endif %}
+                  </div>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="5" class="text-secondary">{{ _('No groups found.') }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card cuam-card mt-3">
+  <div class="card-header">{{ _('Effective user rules (direct + groups)') }}</div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm mb-0 cuam-table">
+        <thead>
+          <tr>
+            <th>{{ _('User') }}</th>
+            <th>{{ _('Groups') }}</th>
+            <th>{{ _('Direct scope') }}</th>
+            <th>{{ _('Group scopes') }}</th>
+            <th>{{ _('Effective sectors') }}</th>
+            <th>{{ _('Effective countries') }}</th>
+            <th>{{ _('Effective ratings') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in effective_user_scopes %}
+          <tr>
+            <td>{{ row.user.email }}</td>
+            <td>
+              {% if row.group_names %}
+                {{ row.group_names|join(', ') }}
+              {% else %}
+                <span class="text-secondary">-</span>
+              {% endif %}
+            </td>
+            <td>{{ _('Yes') if row.direct_scope else _('No') }}</td>
+            <td>{{ row.group_scope_count }}</td>
+            <td><span title="{{ row.effective_sector_title }}">{{ row.effective_sector_count }}</span></td>
+            <td><span title="{{ row.effective_country_title }}">{{ row.effective_country_count }}</span></td>
+            <td><span title="{{ row.effective_rating_title }}">{{ row.effective_rating_count }}</span></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7" class="text-secondary">{{ _('No users found.') }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script>
+    window.onReady(function () {
+      const typeSelect = document.getElementById('targetType');
+      const userWrap = document.getElementById('userTargetWrap');
+      const groupWrap = document.getElementById('groupTargetWrap');
+      const userSelect = document.getElementById('targetUserId');
+      const groupSelect = document.getElementById('targetGroupId');
+      const sectorSelect = document.querySelector('select[name="sector_ids"]');
+      const countrySelect = document.querySelector('select[name="country_ids"]');
+      const ratingSelect = document.querySelector('select[name="rating_ids"]');
+      if (!typeSelect || !userWrap || !groupWrap || !userSelect || !groupSelect) return;
+
+      function syncTargetMode() {
+        const mode = (typeSelect.value || 'user').toLowerCase();
+        if (mode === 'group') {
+          userWrap.classList.add('d-none');
+          groupWrap.classList.remove('d-none');
+          userSelect.removeAttribute('name');
+          groupSelect.setAttribute('name', 'target_id');
+        } else {
+          groupWrap.classList.add('d-none');
+          userWrap.classList.remove('d-none');
+          groupSelect.removeAttribute('name');
+          userSelect.setAttribute('name', 'target_id');
+        }
+      }
+
+      function setMulti(selectEl, rawCsv) {
+        if (!selectEl) return;
+        const selected = new Set((rawCsv || '').split(',').map(v => v.trim()).filter(Boolean));
+        Array.from(selectEl.options).forEach(function (opt) {
+          opt.selected = selected.has(opt.value);
+        });
+      }
+
+      document.querySelectorAll('[data-edit-scope="1"]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          const ttype = (btn.getAttribute('data-target-type') || 'user').toLowerCase();
+          const tid = btn.getAttribute('data-target-id') || '';
+          typeSelect.value = ttype;
+          syncTargetMode();
+          if (ttype === 'group') {
+            groupSelect.value = tid;
+          } else {
+            userSelect.value = tid;
+          }
+
+          setMulti(sectorSelect, btn.getAttribute('data-sector-ids') || '');
+          setMulti(countrySelect, btn.getAttribute('data-country-ids') || '');
+          setMulti(ratingSelect, btn.getAttribute('data-rating-ids') || '');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+      });
+
+      typeSelect.addEventListener('change', syncTargetMode);
+      syncTargetMode();
+    });
+  </script>
+{% endblock %}

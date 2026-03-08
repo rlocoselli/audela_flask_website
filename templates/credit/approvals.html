@@ -44,13 +44,19 @@
 
 {% if credit_mode != 'add' %}
 <div class="card border-0 shadow-sm">
-  <div class="card-header bg-body-tertiary">{{ _('Approvals') }}</div>
+  <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center gap-2 flex-wrap">
+    <span>{{ _('Approvals') }}</span>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.approvals_export_csv') }}">
+      <i class="bi bi-download me-1"></i>{{ _('Export CSV') }}
+    </a>
+  </div>
   <div class="card-body p-0">
     <div class="table-responsive">
       <table class="table table-sm mb-0">
-        <thead><tr><th>{{ _('Memo') }}</th><th>{{ _('Stage') }}</th><th>{{ _('Group') }}</th><th>{{ _('Function') }}</th><th>{{ _('Decision') }}</th><th>{{ _('Comments') }}</th><th>{{ _('Date') }}</th></tr></thead>
+        <thead><tr><th>{{ _('Memo') }}</th><th>{{ _('Stage') }}</th><th>{{ _('Group') }}</th><th>{{ _('Function') }}</th><th>{{ _('Decision') }}</th><th>{{ _('Comments') }}</th><th>{{ _('Date') }}</th><th>{{ _('Approvals') }}</th></tr></thead>
         <tbody>
           {% for a in approvals %}
+          {% set logs = memo_logs_by_id.get(a.memo_id or 0, []) %}
           <tr>
             <td>{{ a.memo.title if a.memo else '-' }}</td>
             <td>{{ a.workflow_step.step_name if a.workflow_step else a.stage }}</td>
@@ -59,9 +65,31 @@
             <td>{{ a.decision }}</td>
             <td>{{ a.comments or '-' }}</td>
             <td>{{ a.decided_at.strftime('%Y-%m-%d %H:%M') if a.decided_at else '-' }}</td>
+            <td>
+              {% if logs %}
+              <details>
+                <summary class="small text-secondary">{{ _('Approvals') }}</summary>
+                <div class="small mt-1">
+                  {% for log in logs %}
+                  <div>
+                    <strong>{{ log.stage }}</strong>
+                    <span> - {{ log.decision }}</span>
+                    <span> · {{ log.actor }}</span>
+                    <span> · {{ log.date }}</span>
+                  </div>
+                  {% if log.comments and log.comments != '-' %}
+                  <div class="text-secondary">{{ log.comments }}</div>
+                  {% endif %}
+                  {% endfor %}
+                </div>
+              </details>
+              {% else %}
+              <span class="text-secondary">-</span>
+              {% endif %}
+            </td>
           </tr>
           {% else %}
-          <tr><td colspan="7" class="text-secondary">{{ _('No approvals yet.') }}</td></tr>
+          <tr><td colspan="8" class="text-secondary">{{ _('No approvals yet.') }}</td></tr>
           {% endfor %}
         </tbody>
       </table>

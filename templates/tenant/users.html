@@ -109,15 +109,16 @@
                   </td>
                   <td>
                     <div class="d-flex flex-wrap gap-1">
-                      <span class="badge {{ 'bg-success' if uam.finance else 'bg-secondary' }}">{{ _('Finance') }}</span>
-                      <span class="badge {{ 'bg-success' if uam.bi else 'bg-secondary' }}">{{ _('BI') }}</span>
-                      <span class="badge {{ 'bg-success' if uam.project else 'bg-secondary' }}">{{ _('Projet') }}</span>
-                      <span class="badge {{ 'bg-success' if uam.credit else 'bg-secondary' }}">{{ _('Credit') }}</span>
+                      {% if uam.finance %}<span class="badge bg-success">{{ _('Finance') }}</span>{% endif %}
+                      {% if uam.bi %}<span class="badge bg-success">{{ _('BI') }}</span>{% endif %}
+                      {% if uam.project %}<span class="badge bg-success">{{ _('Projet') }}</span>{% endif %}
+                      {% if uam.credit %}<span class="badge bg-success">{{ _('Credit') }}</span>{% endif %}
+                      {% if not (uam.finance or uam.bi or uam.project or uam.credit) %}<span class="text-secondary">-</span>{% endif %}
                     </div>
                   </td>
                   <td class="small text-muted">
                     {% set ns = namespace(total=0, enabled=0) %}
-                    {% for product in ['finance','bi','project'] %}
+                    {% for product in ['finance','bi','project','credit'] %}
                       {% for key in uam_menu_keys[product] %}
                         {% set ns.total = ns.total + 1 %}
                         {% if menus.get(product, {}).get(key, True) %}
@@ -188,10 +189,10 @@
                   </div>
                 </div>
 
-                {% for product in ['finance', 'bi', 'project'] %}
+                {% for product in ['finance', 'bi', 'project', 'credit'] %}
                 <div class="card mb-3">
                   <div class="card-header d-flex align-items-center justify-content-between">
-                    <span class="fw-semibold">{{ _('BI') if product == 'bi' else (_('Finance') if product == 'finance' else _('Projet')) }}</span>
+                    <span class="fw-semibold">{{ _('BI') if product == 'bi' else (_('Finance') if product == 'finance' else (_('Projet') if product == 'project' else _('Credit'))) }}</span>
                     <div class="d-flex align-items-center gap-2">
                       <span class="small text-muted">{{ _('Menus') }}</span>
                       <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2 js-uam-check-all" data-product="{{ product }}">{{ _('Tout cocher') }}</button>

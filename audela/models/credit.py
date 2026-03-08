@@ -157,6 +157,7 @@ class CreditDeal(db.Model):
     requested_amount = db.Column(db.Numeric(18, 2), nullable=False, default=0)
     currency = db.Column(db.String(8), nullable=False, default="EUR")
     status = db.Column(db.String(32), nullable=False, default="in_review", index=True)
+    approval_date = db.Column(db.DateTime, nullable=True, index=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -175,6 +176,7 @@ class CreditFacility(db.Model):
     tenor_months = db.Column(db.Integer, nullable=True)
     interest_rate = db.Column(db.Numeric(9, 4), nullable=True)
     status = db.Column(db.String(32), nullable=False, default="draft", index=True)
+    approval_date = db.Column(db.DateTime, nullable=True, index=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     deal = db.relationship("CreditDeal", backref=db.backref("facilities", lazy="dynamic"))
@@ -236,6 +238,7 @@ class CreditFinancialStatement(db.Model):
     analyst_user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     analyst_function_id = db.Column(db.Integer, db.ForeignKey("credit_analyst_functions.id", ondelete="SET NULL"), nullable=True, index=True)
     import_source = db.Column(db.String(120), nullable=True)
+    approval_date = db.Column(db.DateTime, nullable=True, index=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     borrower = db.relationship("CreditBorrower", backref=db.backref("financial_statements", lazy="dynamic"))
@@ -276,6 +279,7 @@ class CreditMemo(db.Model):
     ai_prompt = db.Column(db.Text, nullable=True)
     ai_response_json = db.Column(db.JSON, nullable=True)
     prepared_by_user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    approval_date = db.Column(db.DateTime, nullable=True, index=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 

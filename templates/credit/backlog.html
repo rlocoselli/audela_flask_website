@@ -30,6 +30,13 @@
           <span class="badge text-bg-light border">{{ pending_approvals|length }}</span>
         </div>
       </div>
+      {% if pending_approvals_relaxed_scope %}
+      <div class="px-3 pt-2">
+        <div class="alert alert-info py-2 mb-0 small">
+          {{ _('Showing pending approvals in your borrower scope. E-sign is available only when your workflow/UAM permissions match.') }}
+        </div>
+      </div>
+      {% endif %}
       <div class="card-body p-0">
         <div class="table-responsive">
           <table class="table table-sm mb-0">

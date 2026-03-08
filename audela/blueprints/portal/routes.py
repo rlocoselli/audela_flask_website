@@ -5730,6 +5730,7 @@ def report_builder(report_id: int):
         report=rep,
         source=src,
         questions=questions,
+        preview_url=url_for("portal.report_view", report_id=rep.id, embed=1),
     )
 
 
@@ -6405,6 +6406,8 @@ def report_view(report_id: int):
             idx += 1
         render_bands[band_name] = out_list
 
+    embed_mode = str(request.args.get("embed") or "").strip().lower() in {"1", "true", "yes", "on"}
+
     return render_template(
         "portal/report_view.html",
         tenant=g.tenant,
@@ -6414,6 +6417,7 @@ def report_view(report_id: int):
         layout=layout,
         bands=render_bands,
         blocks_data=blocks_data,
+        embedded=embed_mode,
     )
 
 
