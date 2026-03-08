@@ -435,14 +435,16 @@ html[data-bs-theme="dark"] .project-top-actions .badge {
 }
 
 html[data-bs-theme="dark"] #financeQuickActionsMenu .btn,
-html[data-bs-theme="dark"] #projectQuickActionsMenu .btn {
+html[data-bs-theme="dark"] #projectQuickActionsMenu .btn,
+html[data-bs-theme="dark"] #creditQuickActionsMenu .btn {
   background: var(--bg-tertiary) !important;
   color: var(--text-primary) !important;
   border-color: var(--border-color) !important;
 }
 
 html[data-bs-theme="dark"] #financeHelpChatPanel,
-html[data-bs-theme="dark"] #projectHelpChatPanel {
+html[data-bs-theme="dark"] #projectHelpChatPanel,
+html[data-bs-theme="dark"] #creditHelpChatPanel {
   background: var(--bg-primary) !important;
   color: var(--text-primary) !important;
   border: 1px solid var(--border-color);

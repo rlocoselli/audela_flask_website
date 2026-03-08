@@ -143,6 +143,63 @@
   </div>
 </div>
 
+<div id="creditQuickActions" class="position-fixed end-0 p-3" style="bottom:72px; z-index:1081;">
+  <div id="creditQuickActionsMenu" class="d-none mb-2 d-flex flex-column align-items-end gap-2">
+    {% if credit_menu_access.get('borrowers', True) %}<a class="btn btn-light border shadow-sm btn-sm rounded-pill" href="{{ url_for('credit.borrowers') }}" title="{{ _('Borrowers') }}">
+      <i class="bi bi-people me-1"></i>{{ _('Borrowers') }}
+    </a>{% endif %}
+    {% if credit_menu_access.get('deals', True) %}<a class="btn btn-light border shadow-sm btn-sm rounded-pill" href="{{ url_for('credit.deals', mode='add') }}" title="{{ _('Deals') }}">
+      <i class="bi bi-briefcase me-1"></i>{{ _('New deal') }}
+    </a>{% endif %}
+    {% if credit_menu_access.get('facilities', True) %}<a class="btn btn-light border shadow-sm btn-sm rounded-pill" href="{{ url_for('credit.facilities', mode='add') }}" title="{{ _('Facilities') }}">
+      <i class="bi bi-diagram-3 me-1"></i>{{ _('New facility') }}
+    </a>{% endif %}
+    {% if credit_menu_access.get('memos', True) %}<a class="btn btn-light border shadow-sm btn-sm rounded-pill" href="{{ url_for('credit.memos', mode='add') }}" title="{{ _('Credit Memo') }}">
+      <i class="bi bi-journal-richtext me-1"></i>{{ _('New memo') }}
+    </a>{% endif %}
+    {% if credit_menu_access.get('approvals', True) %}<a class="btn btn-light border shadow-sm btn-sm rounded-pill" href="{{ url_for('credit.approvals') }}" title="{{ _('Approvals') }}">
+      <i class="bi bi-check2-square me-1"></i>{{ _('Approvals') }}
+    </a>{% endif %}
+  </div>
+  <button
+    id="creditQuickActionsToggle"
+    class="btn btn-primary rounded-circle shadow"
+    style="width:52px;height:52px;"
+    type="button"
+    aria-label="{{ _('Actions rapides Credit') }}"
+    title="{{ _('Actions rapides Credit') }}"
+  >
+    <i class="bi bi-lightning-charge"></i>
+  </button>
+</div>
+
+<div id="creditHelpChat" class="position-fixed bottom-0 end-0 p-3" style="z-index:1080;">
+  <button
+    id="creditHelpChatToggle"
+    class="btn btn-primary rounded-circle"
+    style="width:48px;height:48px;"
+    type="button"
+    aria-label="{{ _('Ouvrir l\'aide Credit') }}"
+    title="{{ _('Ouvrir l\'aide Credit') }}"
+  >
+    <i class="bi bi-chat-dots"></i>
+  </button>
+
+  <div id="creditHelpChatPanel" class="card mt-2 d-none" style="width: 340px; max-width: calc(100vw - 2rem);">
+    <div class="card-header d-flex align-items-center justify-content-between py-2">
+      <span class="fw-semibold">{{ _('Assistant Credit') }}</span>
+      <button id="creditHelpChatClose" class="btn btn-sm btn-outline-secondary" type="button" aria-label="{{ _('Fermer') }}">×</button>
+    </div>
+    <div id="creditHelpChatMessages" class="card-body" style="height: 300px; overflow:auto;"></div>
+    <div class="card-footer">
+      <div class="input-group input-group-sm">
+        <input id="creditHelpChatInput" type="text" class="form-control" placeholder="{{ _('Posez votre question Credit...') }}" />
+        <button id="creditHelpChatSend" class="btn btn-primary" type="button">{{ _('Envoyer') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="offcanvas offcanvas-start" tabindex="-1" id="mobileCreditNav">
   <div class="offcanvas-header">
     <h5 class="offcanvas-title">AUDELA CREDIT</h5>
@@ -214,5 +271,127 @@
 
       applyState();
     })();
+
+    window.onReady(function(){
+      const quickToggle = document.getElementById('creditQuickActionsToggle');
+      const quickMenu = document.getElementById('creditQuickActionsMenu');
+      if (quickToggle && quickMenu) {
+        function closeQuickActions() {
+          quickMenu.classList.add('d-none');
+          quickToggle.classList.remove('btn-secondary');
+          quickToggle.classList.add('btn-primary');
+        }
+        quickToggle.addEventListener('click', function(e){
+          e.stopPropagation();
+          const isOpen = !quickMenu.classList.contains('d-none');
+          if (isOpen) {
+            closeQuickActions();
+          } else {
+            quickMenu.classList.remove('d-none');
+            quickToggle.classList.remove('btn-primary');
+            quickToggle.classList.add('btn-secondary');
+          }
+        });
+        document.addEventListener('click', function(e){
+          if (!quickMenu.contains(e.target) && !quickToggle.contains(e.target)) {
+            closeQuickActions();
+          }
+        });
+      }
+
+      const toggle = document.getElementById('creditHelpChatToggle');
+      const panel = document.getElementById('creditHelpChatPanel');
+      const closeBtn = document.getElementById('creditHelpChatClose');
+      const input = document.getElementById('creditHelpChatInput');
+      const sendBtn = document.getElementById('creditHelpChatSend');
+      const messages = document.getElementById('creditHelpChatMessages');
+      if (!toggle || !panel || !closeBtn || !input || !sendBtn || !messages) return;
+
+      function addMsg(text, who){
+        const wrap = document.createElement('div');
+        wrap.className = 'mb-2 d-flex ' + (who === 'user' ? 'justify-content-end' : 'justify-content-start');
+        const bubble = document.createElement('div');
+        bubble.className = (who === 'user' ? 'bg-primary text-white' : 'bg-body-tertiary') + ' rounded px-2 py-1 small';
+        bubble.style.maxWidth = '85%';
+        bubble.textContent = text;
+        wrap.appendChild(bubble);
+        messages.appendChild(wrap);
+        messages.scrollTop = messages.scrollHeight;
+      }
+
+      function addSuggestions(items){
+        if (!Array.isArray(items) || !items.length) return;
+        const row = document.createElement('div');
+        row.className = 'd-flex flex-wrap gap-1 mb-2';
+        items.slice(0, 4).forEach(function(s){
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'btn btn-outline-secondary btn-sm';
+          btn.textContent = s;
+          btn.addEventListener('click', function(){
+            input.value = s;
+            send();
+          });
+          row.appendChild(btn);
+        });
+        messages.appendChild(row);
+        messages.scrollTop = messages.scrollHeight;
+      }
+
+      async function send(){
+        const msg = (input.value || '').trim();
+        if (!msg) return;
+        addMsg(msg, 'user');
+        input.value = '';
+        sendBtn.disabled = true;
+        try {
+          const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+          const res = await fetch('{{ url_for("credit.help_chat") }}', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(csrf ? {'X-CSRFToken': csrf} : {})
+            },
+            body: JSON.stringify({ message: msg })
+          });
+          const data = await res.json();
+          if (!res.ok || !data.ok) {
+            addMsg(data.error || window.t('Erreur de chargement.'), 'bot');
+          } else {
+            addMsg(data.reply || window.t('Sans réponse.'), 'bot');
+            addSuggestions(data.suggestions || []);
+          }
+        } catch (e) {
+          addMsg(window.t('Erreur de chargement.'), 'bot');
+        } finally {
+          sendBtn.disabled = false;
+          input.focus();
+        }
+      }
+
+      let seeded = false;
+      function openPanel(){
+        panel.classList.remove('d-none');
+        if (!seeded) {
+          addMsg(window.t('Bonjour. Je peux aider sur Borrowers, Deals, Facilities, Financials, Memos, Approvals et Workflow.'), 'bot');
+          addSuggestions([
+            window.t('Comment créer un deal ?'),
+            window.t('Comment structurer une facility ?'),
+            window.t('Comment générer un credit memo ?'),
+            window.t('Comment suivre le workflow ?')
+          ]);
+          seeded = true;
+        }
+        input.focus();
+      }
+
+      toggle.addEventListener('click', function(){
+        if (panel.classList.contains('d-none')) openPanel();
+        else panel.classList.add('d-none');
+      });
+      closeBtn.addEventListener('click', function(){ panel.classList.add('d-none'); });
+      sendBtn.addEventListener('click', send);
+      input.addEventListener('keydown', function(e){ if (e.key === 'Enter') send(); });
+    });
   </script>
 {% endblock %}

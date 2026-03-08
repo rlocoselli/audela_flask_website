@@ -5018,6 +5018,58 @@ def memo_pdf(memo_id: int):
     return _memo_template_export_response(memo.title or _("Credit Memo"), html, "pdf")
 
 
+@bp.route("/help/chat", methods=["POST"])
+@login_required
+def help_chat():
+    _require_tenant()
+
+    payload = request.get_json(silent=True) or {}
+    message = (payload.get("message") or "").strip()
+    if not message:
+        return jsonify({"ok": False, "error": _("Message vide.")}), 400
+
+    text = message.lower()
+    credit_url = url_for("credit.overview")
+
+    if any(k in text for k in ["borrower", "contrepart", "counterparty", "client", "rating"]):
+        reply = _(
+            "Borrowers: enregistrez secteur, pays et rating pour alimenter le filtrage UAM et le workflow d'approbation."
+        )
+    elif any(k in text for k in ["deal", "intake", "demande", "montant"]):
+        reply = _(
+            "Deals: créez la demande avec purpose, montant et statut, puis rattachez facility, états financiers et memo."
+        )
+    elif any(k in text for k in ["facilit", "tenor", "rate", "tranche"]):
+        reply = _(
+            "Facilities: gérez type, montant approuvé, tenor et taux pour structurer la transaction avant décision."
+        )
+    elif any(k in text for k in ["statement", "financial", "spreading", "ebitda", "ratio"]):
+        reply = _(
+            "Financials & Ratios: importez ou saisissez les états, puis vérifiez DSCR, leverage et liquidité pour le risk view."
+        )
+    elif any(k in text for k in ["memo", "credit memo", "template", "committee"]):
+        reply = _(
+            "Credit Memo: générez le memo (manuel, IA ou template publié) avec recommandation et pièces justificatives."
+        )
+    elif any(k in text for k in ["approval", "workflow", "approb", "esign", "backlog", "task"]):
+        reply = _(
+            "Approvals & Workflow: suivez les étapes, décisions, approbateurs et la tâche courante; e-sign disponible sur les décisions pending."
+        )
+    else:
+        reply = _(
+            "Je peux aider sur Borrowers, Deals, Facilities, Financials, Ratios, Credit Memo, Approvals, Workflow et Backlog."
+        )
+
+    reply = f"{reply} {_('Ouvrez aussi le module Credit')}: {credit_url}"
+    suggestions = [
+        _("Comment créer un deal ?"),
+        _("Comment structurer une facility ?"),
+        _("Comment générer un credit memo ?"),
+        _("Comment suivre le workflow d'approbation ?"),
+    ]
+    return jsonify({"ok": True, "reply": reply, "suggestions": suggestions})
+
+
 @bp.route("/approvals", methods=["GET", "POST"])
 @login_required
 def approvals():
