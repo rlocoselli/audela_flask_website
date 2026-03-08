@@ -183,6 +183,55 @@ class CreditFacility(db.Model):
     facility_type_ref = db.relationship("CreditFacilityType")
 
 
+class CreditCovenant(db.Model):
+    __tablename__ = "credit_covenants"
+
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    borrower_id = db.Column(db.Integer, db.ForeignKey("credit_borrowers.id", ondelete="CASCADE"), nullable=False, index=True)
+    deal_id = db.Column(db.Integer, db.ForeignKey("credit_deals.id", ondelete="SET NULL"), nullable=True, index=True)
+    facility_id = db.Column(db.Integer, db.ForeignKey("credit_facilities.id", ondelete="SET NULL"), nullable=True, index=True)
+    name = db.Column(db.String(180), nullable=False)
+    scope_level = db.Column(db.String(32), nullable=False, default="deal", index=True)
+    metric = db.Column(db.String(120), nullable=True)
+    operator = db.Column(db.String(16), nullable=False, default=">=")
+    threshold_value = db.Column(db.Numeric(18, 4), nullable=True)
+    frequency = db.Column(db.String(32), nullable=False, default="quarterly")
+    status = db.Column(db.String(32), nullable=False, default="active", index=True)
+    due_date = db.Column(db.Date, nullable=True, index=True)
+    last_test_date = db.Column(db.Date, nullable=True, index=True)
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    borrower = db.relationship("CreditBorrower", backref=db.backref("covenants", lazy="dynamic"))
+    deal = db.relationship("CreditDeal", backref=db.backref("covenants", lazy="dynamic"))
+    facility = db.relationship("CreditFacility", backref=db.backref("covenants", lazy="dynamic"))
+
+
+class CreditFacilityUtilization(db.Model):
+    __tablename__ = "credit_facility_utilizations"
+
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    borrower_id = db.Column(db.Integer, db.ForeignKey("credit_borrowers.id", ondelete="CASCADE"), nullable=False, index=True)
+    deal_id = db.Column(db.Integer, db.ForeignKey("credit_deals.id", ondelete="SET NULL"), nullable=True, index=True)
+    facility_id = db.Column(db.Integer, db.ForeignKey("credit_facilities.id", ondelete="SET NULL"), nullable=True, index=True)
+    utilization_type = db.Column(db.String(32), nullable=False, default="drawdown", index=True)
+    amount = db.Column(db.Numeric(18, 2), nullable=False, default=0)
+    currency = db.Column(db.String(8), nullable=False, default="EUR")
+    value_date = db.Column(db.Date, nullable=False, index=True)
+    status = db.Column(db.String(32), nullable=False, default="posted", index=True)
+    reference = db.Column(db.String(120), nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    borrower = db.relationship("CreditBorrower", backref=db.backref("utilizations", lazy="dynamic"))
+    deal = db.relationship("CreditDeal", backref=db.backref("utilizations", lazy="dynamic"))
+    facility = db.relationship("CreditFacility", backref=db.backref("utilizations", lazy="dynamic"))
+
+
 class CreditCollateral(db.Model):
     __tablename__ = "credit_collaterals"
 

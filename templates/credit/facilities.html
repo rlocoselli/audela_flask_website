@@ -7,6 +7,7 @@
 <div class="d-flex gap-2 mb-3">
   <a class="btn btn-sm {% if credit_mode != 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.facilities', mode='search') }}">{{ _('Search and list') }}</a>
   <a class="btn btn-sm {% if credit_mode == 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.facilities', mode='add') }}">{{ _('Add new') }}</a>
+  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('credit.facility_tree') }}">{{ _('Facility tree view') }}</a>
 </div>
 
 {% if credit_mode == 'add' %}
@@ -80,6 +81,7 @@
   </div>
 </div>
 {% endif %}
+
 <div class="card border-0 shadow-sm">
   <div class="card-header bg-body-tertiary border-bottom-0 pb-0">
     <form method="get" class="row g-2 align-items-end">
@@ -133,6 +135,7 @@
             <td>{{ f.approval_date.strftime('%d/%m/%Y') if f.approval_date else (ap.approved_at.strftime('%d/%m/%Y') if ap and ap.approved_at else '-') }}</td>
             <td>
               <div class="small"><strong>{{ _('Current task') }}:</strong> {{ ap.current_task if ap else '-' }}</div>
+              <div class="small"><strong>{{ _('Current workflow stage') }}:</strong> {{ ap.current_stage if ap else '-' }}</div>
               {% if ap and ap.phases %}
               <details>
                 <summary class="small text-secondary">{{ _('Workflow phases') }}</summary>

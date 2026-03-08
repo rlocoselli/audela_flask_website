@@ -1,0 +1,244 @@
+{% extends "credit/page_base.html" %}
+{% set title = _('Audela Credit Covenants') %}
+{% set active_page = 'covenants' %}
+{% set credit_mode = request.args.get('mode', 'search') %}
+
+{% block credit_page_content %}
+<div class="d-flex gap-2 mb-3">
+  <a class="btn btn-sm {% if credit_mode != 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.covenants', mode='search') }}">{{ _('Search and list') }}</a>
+  <a class="btn btn-sm {% if credit_mode == 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.covenants', mode='add') }}">{{ _('Add new') }}</a>
+</div>
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary">{{ _('Credit structure (standard schema)') }}</div>
+  <div class="card-body">
+    <div class="small mb-2">
+      <strong>{{ _('Customer / Borrower') }}</strong> -> <strong>{{ _('Deal / Transaction') }}</strong> -> <strong>{{ _('Facility') }}</strong> -> <strong>{{ _('Utilization / Drawdown') }}</strong> -> <strong>{{ _('Repayment / Interest / Fees') }}</strong>
+    </div>
+    <pre class="small mb-2">Borrower 1..N Deal
+Deal 1..N Facility
+Facility 1..N Drawdown</pre>
+    <div class="d-flex flex-wrap gap-2 small">
+      <span class="badge text-bg-light border">{{ _('Borrowers') }}: {{ schema_counts.borrowers }}</span>
+      <span class="badge text-bg-light border">{{ _('Deals') }}: {{ schema_counts.deals }}</span>
+      <span class="badge text-bg-light border">{{ _('Facilities') }}: {{ schema_counts.facilities }}</span>
+      <span class="badge text-bg-light border">{{ _('Visible covenants') }}: {{ schema_counts.covenants }}</span>
+    </div>
+    <div class="form-text mt-2">{{ _('Covenants can be defined at deal level (package-wide) or facility level (line-specific).') }}</div>
+  </div>
+</div>
+
+{% macro covenant_form(row, action_label, action_name) -%}
+<form method="post" class="row g-2">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="action" value="{{ action_name }}">
+  {% if row %}<input type="hidden" name="covenant_id" value="{{ row.id }}">{% endif %}
+  <div class="col-md-2">
+    <label class="form-label mb-1">{{ _('Borrower') }}</label>
+    <select class="form-select" name="borrower_id" required>
+      <option value="">{{ _('Select') }}</option>
+      {% for b in borrowers %}
+      <option value="{{ b.id }}" {% if row and row.borrower_id == b.id %}selected{% endif %}>{{ b.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-2">
+    <label class="form-label mb-1">{{ _('Deal') }}</label>
+    <select class="form-select" name="deal_id">
+      <option value="">{{ _('Optional') }}</option>
+      {% for d in deals %}
+      <option value="{{ d.id }}" {% if row and row.deal_id == d.id %}selected{% endif %}>{{ d.code }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-2">
+    <label class="form-label mb-1">{{ _('Facility') }}</label>
+    <select class="form-select" name="facility_id">
+      <option value="">{{ _('Optional') }}</option>
+      {% for f in facilities %}
+      <option value="{{ f.id }}" {% if row and row.facility_id == f.id %}selected{% endif %}>{{ (f.deal.code if f.deal else '-') }} - {{ f.facility_type_ref.display_label(current_lang) if f.facility_type_ref else f.facility_type }} (#{{ f.id }})</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-2">
+    <label class="form-label mb-1">{{ _('Scope') }}</label>
+    <select class="form-select" name="scope_level">
+      {% for code, label in scope_options %}
+      <option value="{{ code }}" {% if row and row.scope_level == code %}selected{% elif not row and code == 'deal' %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-4">
+    <label class="form-label mb-1">{{ _('Covenant name') }}</label>
+    <input class="form-control" name="name" value="{{ row.name if row else '' }}" placeholder="{{ _('DSCR minimum') }}" required>
+  </div>
+
+  <div class="col-md-3">
+    <label class="form-label mb-1">{{ _('Metric') }}</label>
+    <input class="form-control" name="metric" value="{{ row.metric if row else '' }}" placeholder="{{ _('DSCR / Leverage / Liquidity') }}">
+  </div>
+  <div class="col-md-1">
+    <label class="form-label mb-1">{{ _('Operator') }}</label>
+    <select class="form-select" name="operator">
+      {% for op in operator_options %}
+      <option value="{{ op }}" {% if row and row.operator == op %}selected{% elif not row and op == '>=' %}selected{% endif %}>{{ op }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-2">
+    <label class="form-label mb-1">{{ _('Threshold') }}</label>
+    <input class="form-control" name="threshold_value" value="{{ row.threshold_value if row and row.threshold_value is not none else '' }}" placeholder="1.20">
+  </div>
+  <div class="col-md-2">
+    <label class="form-label mb-1">{{ _('Frequency') }}</label>
+    <select class="form-select" name="frequency">
+      {% for code, label in frequency_options %}
+      <option value="{{ code }}" {% if row and row.frequency == code %}selected{% elif not row and code == 'quarterly' %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-2">
+    <label class="form-label mb-1">{{ _('Status') }}</label>
+    <select class="form-select" name="status">
+      {% for code, label in status_options %}
+      <option value="{{ code }}" {% if row and row.status == code %}selected{% elif not row and code == 'active' %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-2">
+    <label class="form-label mb-1">{{ _('Due date') }}</label>
+    <input class="form-control" type="date" name="due_date" value="{{ row.due_date.isoformat() if row and row.due_date else '' }}">
+  </div>
+  <div class="col-md-2">
+    <label class="form-label mb-1">{{ _('Last test date') }}</label>
+    <input class="form-control" type="date" name="last_test_date" value="{{ row.last_test_date.isoformat() if row and row.last_test_date else '' }}">
+  </div>
+  <div class="col-md-6">
+    <label class="form-label mb-1">{{ _('Notes') }}</label>
+    <input class="form-control" name="notes" value="{{ row.notes if row else '' }}" placeholder="{{ _('Optional comment') }}">
+  </div>
+  <div class="col-12 d-flex gap-2">
+    <button class="btn btn-primary" type="submit">{{ action_label }}</button>
+    {% if row %}<a class="btn btn-outline-secondary" href="{{ url_for('credit.covenants', mode='search') }}">{{ _('Cancel') }}</a>{% endif %}
+  </div>
+</form>
+{%- endmacro %}
+
+{% if credit_mode == 'add' %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary">{{ _('New covenant') }}</div>
+  <div class="card-body">
+    {{ covenant_form(None, _('Save'), 'create') }}
+  </div>
+</div>
+{% endif %}
+
+{% if credit_mode != 'add' %}
+{% if edit_covenant %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary">{{ _('Edit covenant') }}</div>
+  <div class="card-body">
+    {{ covenant_form(edit_covenant, _('Save changes'), 'update') }}
+  </div>
+</div>
+{% endif %}
+
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-body-tertiary border-bottom-0 pb-0">
+    <form method="get" class="row g-2 align-items-end">
+      <input type="hidden" name="mode" value="search">
+      <div class="col-12 col-lg-3">
+        <label class="form-label mb-1">{{ _('Borrower') }}</label>
+        <select class="form-select" name="borrower_id">
+          <option value="">{{ _('All') }}</option>
+          {% for b in borrowers %}
+          <option value="{{ b.id }}" {% if selected_borrower_id == b.id %}selected{% endif %}>{{ b.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-lg-3">
+        <label class="form-label mb-1">{{ _('Deal') }}</label>
+        <select class="form-select" name="deal_id">
+          <option value="">{{ _('All') }}</option>
+          {% for d in deals %}
+          <option value="{{ d.id }}" {% if selected_deal_id == d.id %}selected{% endif %}>{{ d.code }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-lg-2">
+        <label class="form-label mb-1">{{ _('Facility') }}</label>
+        <select class="form-select" name="facility_id">
+          <option value="">{{ _('All') }}</option>
+          {% for f in facilities %}
+          <option value="{{ f.id }}" {% if selected_facility_id == f.id %}selected{% endif %}>{{ (f.deal.code if f.deal else '-') }} - {{ f.facility_type_ref.display_label(current_lang) if f.facility_type_ref else f.facility_type }} (#{{ f.id }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-lg-2">
+        <label class="form-label mb-1">{{ _('Scope') }}</label>
+        <select class="form-select" name="scope">
+          <option value="">{{ _('All') }}</option>
+          {% for code, label in scope_options %}
+          <option value="{{ code }}" {% if selected_scope == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-lg-2">
+        <label class="form-label mb-1">{{ _('Status') }}</label>
+        <select class="form-select" name="status">
+          <option value="">{{ _('All') }}</option>
+          {% for code, label in status_options %}
+          <option value="{{ code }}" {% if selected_status == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-lg-2"><button class="btn btn-primary w-100" type="submit">{{ _('Apply filters') }}</button></div>
+      <div class="col-6 col-lg-2"><a class="btn btn-outline-secondary w-100" href="{{ url_for('credit.covenants', mode='search') }}">{{ _('Reset') }}</a></div>
+    </form>
+  </div>
+  <div class="card-header bg-body-tertiary">{{ _('Covenants') }}</div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead>
+          <tr><th>{{ _('Borrower') }}</th><th>{{ _('Deal') }}</th><th>{{ _('Facility') }}</th><th>{{ _('Covenant') }}</th><th>{{ _('Rule') }}</th><th>{{ _('Scope') }}</th><th>{{ _('Frequency') }}</th><th>{{ _('Status') }}</th><th>{{ _('Due') }}</th><th class="text-end">{{ _('Actions') }}</th></tr>
+        </thead>
+        <tbody>
+          {% for c in covenants %}
+          <tr>
+            <td>{{ c.borrower.name if c.borrower else '-' }}</td>
+            <td>{{ c.deal.code if c.deal else '-' }}</td>
+            <td>
+              {% if c.facility %}
+              {{ c.facility.facility_type_ref.display_label(current_lang) if c.facility.facility_type_ref else c.facility.facility_type }} (#{{ c.facility.id }})
+              {% else %}-{% endif %}
+            </td>
+            <td>
+              <div class="fw-semibold">{{ c.name }}</div>
+              <div class="small text-secondary">{{ c.notes or '-' }}</div>
+            </td>
+            <td>{{ c.metric or '-' }} {{ c.operator }} {{ c.threshold_value if c.threshold_value is not none else '-' }}</td>
+            <td>{{ c.scope_level }}</td>
+            <td>{{ c.frequency }}</td>
+            <td>{{ c.status }}</td>
+            <td>{{ c.due_date.strftime('%d/%m/%Y') if c.due_date else '-' }}</td>
+            <td class="text-end">
+              <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.covenants', mode='search', edit_id=c.id, borrower_id=selected_borrower_id, deal_id=selected_deal_id, facility_id=selected_facility_id, scope=selected_scope, status=selected_status) }}">{{ _('Edit') }}</a>
+              <form method="post" class="d-inline" onsubmit="return confirm('{{ _('Delete this covenant?') }}');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="covenant_id" value="{{ c.id }}">
+                <button class="btn btn-outline-danger btn-sm" type="submit">{{ _('Delete') }}</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="10" class="text-secondary">{{ _('No covenants yet.') }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

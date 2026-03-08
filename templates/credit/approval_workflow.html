@@ -4,11 +4,319 @@
 {% set credit_mode = request.args.get('mode', 'search') %}
 
 {% block credit_page_content %}
+<style>
+  .wf-node-row {
+    cursor: pointer;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  }
+
+  .wf-node-row:hover {
+    border-color: var(--bs-primary) !important;
+    box-shadow: 0 0.15rem 0.5rem rgba(13, 110, 253, 0.12);
+    transform: translateY(-1px);
+  }
+
+  .wf-node-row.is-selected {
+    border-color: var(--bs-primary) !important;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.18);
+    background: rgba(13, 110, 253, 0.08) !important;
+  }
+
+  .wf-catalog-row {
+    cursor: pointer;
+  }
+
+  .wf-catalog-row:hover {
+    background: rgba(13, 110, 253, 0.06);
+  }
+
+  .matrix-stage-row.is-active {
+    background: rgba(13, 110, 253, 0.1);
+  }
+</style>
+
 <div class="d-flex gap-2 mb-3">
   <a class="btn btn-sm {% if credit_mode != 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.approval_workflow', mode='search') }}">{{ _('Search and list') }}</a>
   <a class="btn btn-sm {% if credit_mode == 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.approval_workflow', mode='add') }}">{{ _('Add new') }}</a>
 </div>
 
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body py-2">
+    <ul class="nav nav-pills flex-wrap gap-2" id="approvalWorkflowTabs" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="approval-tab-workflows-btn" data-bs-toggle="pill" data-bs-target="#approval-tab-workflows" type="button" role="tab" aria-controls="approval-tab-workflows" aria-selected="true">{{ _('Approval Workflow') }}</button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="approval-tab-bindings-btn" data-bs-toggle="pill" data-bs-target="#approval-tab-bindings" type="button" role="tab" aria-controls="approval-tab-bindings" aria-selected="false">{{ _('Borrower bindings') }}</button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="approval-tab-teams-btn" data-bs-toggle="pill" data-bs-target="#approval-tab-teams" type="button" role="tab" aria-controls="approval-tab-teams" aria-selected="false">{{ _('Analyst groups and functions') }}</button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link" id="approval-tab-rules-btn" data-bs-toggle="pill" data-bs-target="#approval-tab-rules" type="button" role="tab" aria-controls="approval-tab-rules" aria-selected="false">{{ _('Approval workflow steps') }}</button>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<div class="tab-content" id="approvalWorkflowTabsContent">
+<div class="tab-pane fade show active" id="approval-tab-workflows" role="tabpanel" aria-labelledby="approval-tab-workflows-btn" tabindex="0">
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span>{{ _('Generic workflows (multilingual)') }}</span>
+    <span class="badge text-bg-light border">{{ workflow_catalog_workflows|length }}</span>
+  </div>
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-12 col-xl-4">
+        <form method="post" class="row g-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="create_generic_workflow">
+          <div class="col-12">
+            <label class="form-label">{{ _('Workflow id') }}</label>
+            <input class="form-control" name="workflow_id" placeholder="new_credit_flow">
+          </div>
+          <div class="col-12">
+            <label class="form-label">{{ _('Name (FR)') }}</label>
+            <input class="form-control" name="workflow_name_fr" placeholder="Workflow credit personnalise" required>
+          </div>
+          <div class="col-12">
+            <label class="form-label">{{ _('Name (EN)') }}</label>
+            <input class="form-control" name="workflow_name_en" placeholder="Custom credit workflow">
+          </div>
+          <div class="col-12">
+            <label class="form-label">{{ _('Description') }}</label>
+            <input class="form-control" name="workflow_description" placeholder="BPM style workflow with decision points">
+          </div>
+          <div class="col-12 form-check">
+            <input class="form-check-input" type="checkbox" name="set_default" id="setDefaultWorkflow">
+            <label class="form-check-label" for="setDefaultWorkflow">{{ _('Set as default workflow') }}</label>
+          </div>
+          <div class="col-12">
+            <button class="btn btn-primary" type="submit">{{ _('Create generic workflow') }}</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="col-12 col-xl-8">
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr><th>{{ _('Workflow') }}</th><th>{{ _('Type') }}</th><th>{{ _('Nodes') }}</th><th>{{ _('Default') }}</th><th class="text-end">{{ _('Actions') }}</th></tr>
+            </thead>
+            <tbody>
+              {% for wf in workflow_catalog_workflows %}
+              <tr class="wf-catalog-row" tabindex="0" data-edit-href="{{ url_for('credit.approval_workflow', workflow_id=wf.id, mode=credit_mode) }}">
+                <td>
+                  <div class="fw-semibold">{{ workflow_label_fn(wf.labels, wf.id) }}</div>
+                  <div class="small text-secondary">{{ wf.id }}</div>
+                </td>
+                <td>{{ _('Generic') if wf.is_generic else _('Specific') }}</td>
+                <td>{{ wf.nodes|length }}</td>
+                <td>
+                  {% if workflow_catalog.default_workflow_id == wf.id %}
+                  <span class="badge text-bg-success">{{ _('Default') }}</span>
+                  {% else %}-{% endif %}
+                </td>
+                <td class="text-end">
+                  <a class="btn btn-outline-primary btn-sm" data-no-row-click="1" href="{{ url_for('credit.approval_workflow', workflow_id=wf.id, mode=credit_mode) }}">{{ _('Edit visual') }}</a>
+                  <form method="post" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="set_default_workflow">
+                    <input type="hidden" name="workflow_id" value="{{ wf.id }}">
+                    <button class="btn btn-outline-secondary btn-sm" data-no-row-click="1" type="submit">{{ _('Set default') }}</button>
+                  </form>
+                  <form method="post" class="d-inline" onsubmit="return confirm('{{ _('Delete this workflow?') }}');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="delete_generic_workflow">
+                    <input type="hidden" name="workflow_id" value="{{ wf.id }}">
+                    <button class="btn btn-outline-danger btn-sm" data-no-row-click="1" type="submit">{{ _('Delete') }}</button>
+                  </form>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="5" class="text-secondary">{{ _('No generic workflow yet.') }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span>{{ _('Visual BPM designer (drag and drop)') }}</span>
+    <span class="badge text-bg-light border">{{ selected_workflow_id or '-' }}</span>
+  </div>
+  <div class="card-body">
+    {% if selected_workflow %}
+    <form method="post" id="visualWorkflowForm" class="row g-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="save_visual_workflow">
+      <input type="hidden" name="workflow_id" value="{{ selected_workflow.id }}">
+      <input type="hidden" name="designer_payload" id="designerPayload">
+
+      <div class="col-12 col-xl-3">
+        <label class="form-label">{{ _('Workflow name (FR)') }}</label>
+        <input class="form-control" name="workflow_name_fr" value="{{ selected_workflow.labels.fr or '' }}">
+      </div>
+      <div class="col-12 col-xl-3">
+        <label class="form-label">{{ _('Workflow name (EN)') }}</label>
+        <input class="form-control" name="workflow_name_en" value="{{ selected_workflow.labels.en or '' }}">
+      </div>
+      <div class="col-12 col-xl-6">
+        <label class="form-label">{{ _('Description') }}</label>
+        <input class="form-control" name="workflow_description" value="{{ selected_workflow.description or '' }}">
+      </div>
+
+      <div class="col-12">
+        <div class="d-flex flex-wrap gap-2 mb-2">
+          <button class="btn btn-outline-primary btn-sm" type="button" id="addTaskNode">{{ _('Add task node') }}</button>
+          <button class="btn btn-outline-secondary btn-sm" type="button" id="addDecisionNode">{{ _('Add decision node') }}</button>
+          <button class="btn btn-outline-success btn-sm" type="button" id="includeApprovalSteps">{{ _('Include approval steps') }}</button>
+          <span class="small text-secondary align-self-center">{{ _('Drag cards to reorder. Decision nodes are visual gates for BPM-style design.') }}</span>
+        </div>
+        <div class="border rounded-3 bg-body-tertiary p-2 mb-3" id="workflowDiagramBox">
+          <div class="small fw-semibold mb-2">{{ _('BPM diagram preview') }}</div>
+          <div id="workflowDiagram" class="overflow-auto"></div>
+        </div>
+        <div id="workflowCanvas" class="d-flex flex-column gap-2"></div>
+        <div id="workflowDesignerFeedback" class="small mt-2 text-secondary"></div>
+        <div class="small text-secondary mt-2">{{ _('Click a node to select it. Double-click a diagram node to open options popup. Press Delete to remove selected node.') }}</div>
+      </div>
+
+      <div class="col-12">
+        <button class="btn btn-primary" type="submit">{{ _('Save visual workflow') }}</button>
+      </div>
+    </form>
+
+    <div class="modal fade" id="nodeEditorModal" tabindex="-1" aria-labelledby="nodeEditorModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="nodeEditorModalLabel">{{ _('Node options') }}</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="nodeEditorId">
+            <div class="row g-2">
+              <div class="col-md-3">
+                <label class="form-label small">Type</label>
+                <select class="form-select form-select-sm" id="nodeEditorType">
+                  <option value="task">Task</option>
+                  <option value="decision">Decision</option>
+                </select>
+              </div>
+              <div class="col-md-5">
+                <label class="form-label small">Label FR</label>
+                <input class="form-control form-control-sm" id="nodeEditorLabelFr">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small">Label EN</label>
+                <input class="form-control form-control-sm" id="nodeEditorLabelEn">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small">Stage</label>
+                <select class="form-select form-select-sm" id="nodeEditorStage"></select>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label small">SLA</label>
+                <input type="number" min="1" class="form-control form-control-sm" id="nodeEditorSla">
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small">Group</label>
+                <select class="form-select form-select-sm" id="nodeEditorGroup"></select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small">Function</label>
+                <select class="form-select form-select-sm" id="nodeEditorFunction"></select>
+              </div>
+              <div class="col-md-2 d-flex align-items-end">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="nodeEditorRequired">
+                  <label class="form-check-label small" for="nodeEditorRequired">Required</label>
+                </div>
+              </div>
+              <div class="col-12">
+                <label class="form-label small">Decision rule</label>
+                <input class="form-control form-control-sm" id="nodeEditorDecisionRule">
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer d-flex justify-content-between">
+            <button type="button" class="btn btn-outline-danger" id="nodeEditorDelete">{{ _('Delete') }}</button>
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ _('Cancel') }}</button>
+              <button type="button" class="btn btn-primary" id="nodeEditorSave">{{ _('Apply') }}</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="text-secondary">{{ _('Select or create a workflow to open the visual designer.') }}</div>
+    {% endif %}
+  </div>
+</div>
+
+</div>
+
+<div class="tab-pane fade" id="approval-tab-bindings" role="tabpanel" aria-labelledby="approval-tab-bindings-btn" tabindex="0">
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary">{{ _('Borrower to workflow binding') }}</div>
+  <div class="card-body">
+    <form method="post" class="row g-2 align-items-end mb-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="bind_borrower_workflow">
+      <div class="col-md-5">
+        <label class="form-label">{{ _('Borrower') }}</label>
+        <select class="form-select" name="borrower_id" required>
+          <option value="">{{ _('Select borrower') }}</option>
+          {% for b in borrowers %}
+          <option value="{{ b.id }}">{{ b.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-5">
+        <label class="form-label">{{ _('Workflow') }}</label>
+        <select class="form-select" name="workflow_id">
+          <option value="">{{ _('Use default workflow') }}</option>
+          {% for wf in workflow_catalog_workflows %}
+          <option value="{{ wf.id }}">{{ workflow_label_fn(wf.labels, wf.id) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-primary w-100" type="submit">{{ _('Save binding') }}</button>
+      </div>
+    </form>
+
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>{{ _('Borrower') }}</th><th>{{ _('Bound workflow') }}</th><th>{{ _('Effective') }}</th></tr></thead>
+        <tbody>
+          {% for b in borrowers %}
+          {% set bind_id = workflow_catalog_bindings.get(b.id|string, '') %}
+          {% set wf = workflow_by_id.get(bind_id) %}
+          <tr>
+            <td>{{ b.name }}</td>
+            <td>{{ workflow_label_fn(wf.labels, wf.id) if wf else '-' }}</td>
+            <td>{{ workflow_label_fn((wf.labels if wf else {}), (wf.id if wf else workflow_catalog.default_workflow_id)) if wf else _('Default workflow') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<div class="tab-pane fade" id="approval-tab-teams" role="tabpanel" aria-labelledby="approval-tab-teams-btn" tabindex="0">
 <div class="row g-3 mb-3">
   {% if credit_mode == 'add' %}
   <div class="col-12 col-xl-4">
@@ -159,6 +467,138 @@
   <a class="btn btn-outline-primary btn-sm" href="{{ url_for('credit.approval_uam') }}">{{ _('Open Credit UAM') }}</a>
 </div>
 
+</div>
+
+<div class="tab-pane fade" id="approval-tab-rules" role="tabpanel" aria-labelledby="approval-tab-rules-btn" tabindex="0">
+
+{% set active_workflow_id = selected_workflow_id or workflow_catalog.default_workflow_id or '' %}
+{% set active_workflow = workflow_by_id.get(active_workflow_id) %}
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body py-2 d-flex flex-wrap align-items-center justify-content-between gap-2">
+    <div class="small">
+      <strong>{{ _('Workflow being edited') }}:</strong>
+      {% if active_workflow %}
+      <span>{{ workflow_label_fn(active_workflow.labels, active_workflow.id) }}</span>
+      <code class="ms-1">{{ active_workflow.id }}</code>
+      {% else %}
+      <code>{{ active_workflow_id or '-' }}</code>
+      {% endif %}
+    </div>
+    <span class="badge text-bg-primary">{{ _('Approval workflow steps tab') }}</span>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary">{{ _('Stage thresholds table') }}</div>
+  <div class="card-body border-bottom">
+    <form method="post" class="row g-2 align-items-end">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="add_stage_option">
+      <input type="hidden" name="workflow_id" value="{{ active_workflow_id }}">
+      <div class="col-md-4">
+        <label class="form-label">{{ _('New stage code') }}</label>
+        <input class="form-control" name="stage_code" placeholder="legal_review">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">{{ _('Stage label') }}</label>
+        <input class="form-control" name="stage_label" placeholder="Legal review">
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-outline-primary w-100" type="submit">{{ _('Add stage') }}</button>
+      </div>
+    </form>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm mb-0" id="matrixStagesTable">
+        <thead>
+          <tr><th>{{ _('Stage') }}</th><th>{{ _('Minimum amount') }}</th><th>{{ _('Risk grades') }}</th><th class="text-end">{{ _('Action') }}</th></tr>
+        </thead>
+        <tbody>
+          {% for stage_code, stage_label in matrix_stage_options %}
+          {% set stage_data = approval_matrix.by_stage.get(stage_code, {}) %}
+          {% set stage_min = stage_data.get('min_amount', '') %}
+          {% set stage_grades = stage_data.get('risk_grades_list', []) %}
+          <tr class="matrix-stage-row" data-stage="{{ stage_code }}" tabindex="0" style="cursor:pointer;">
+            <td><strong>{{ stage_label }}</strong></td>
+            <td>{{ stage_min or '-' }}</td>
+            <td>{{ stage_grades|join(', ') if stage_grades else '-' }}</td>
+            <td class="text-end">
+              <button type="button" class="btn btn-outline-primary btn-sm matrix-stage-pick" data-stage="{{ stage_code }}">{{ _('Edit threshold') }}</button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary">{{ _('Approval matrix by amount and risk') }}</div>
+  <div class="card-body">
+    <div class="alert alert-info py-2 small" role="alert">
+      <div><strong>{{ _('How this matrix works') }}:</strong></div>
+      <div>1. {{ _('For each stage, you can define an amount threshold and/or risk grades.') }}</div>
+      <div>2. {{ _('A stage becomes required when at least one condition matches: amount threshold reached OR risk grade listed.') }}</div>
+      <div>3. {{ _('If both fields are empty for a stage, that stage remains always required.') }}</div>
+      <div>4. {{ _('Threshold 0 means the amount condition always matches, so the stage stays required for all amounts.') }}</div>
+      <div>5. {{ _('Matrix changes affect workflow progression for next expected steps; an already created pending approval is not retroactively replaced.') }}</div>
+      <div>6. {{ _('Use "Recalculate pending approvals" to realign existing pending approvals with the latest matrix.') }}</div>
+    </div>
+    <form method="post" class="row g-2 align-items-end" id="approvalMatrixForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="save_matrix">
+      <input type="hidden" name="workflow_id" value="{{ active_workflow_id }}">
+      <div class="col-md-4">
+        <label class="form-label">{{ _('Stage') }}</label>
+        <select class="form-select" id="matrixTargetStage" name="matrix_target_stage">
+          {% for stage_code, stage_label in matrix_stage_options %}
+          <option value="{{ stage_code }}">{{ stage_label }}</option>
+          {% endfor %}
+        </select>
+        <div class="form-text">{{ _('Choose the stage to edit, or click a row in the stage table above.') }}</div>
+      </div>
+
+      {% for stage_code, stage_label in matrix_stage_options %}
+      {% set stage_data = approval_matrix.by_stage.get(stage_code, {}) %}
+      <input type="hidden" name="matrix_stage_codes" value="{{ stage_code }}">
+      <div class="col-12 matrix-stage-editor" data-stage="{{ stage_code }}">
+        <div class="row g-2">
+          <div class="col-md-4">
+            <label class="form-label">{{ _('{stage} minimum amount', stage=stage_label) }}</label>
+            <input class="form-control" name="matrix_min_amount__{{ stage_code }}" value="{{ stage_data.get('min_amount', '') }}" placeholder="0">
+          </div>
+          <div class="col-md-8">
+            <label class="form-label">{{ _('{stage} risk grades', stage=stage_label) }}</label>
+            {% set selected_grades = stage_data.get('risk_grades_list', []) %}
+            <select class="form-select" name="matrix_risk_grades__{{ stage_code }}" multiple size="6">
+              {% for grade in matrix_grade_options %}
+              <option value="{{ grade }}" {% if grade in selected_grades %}selected{% endif %}>{{ grade }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+
+      <div class="col-12 form-text">{{ _('Leave fields empty to keep this stage always required.') }}</div>
+      <div class="col-12 form-text">{{ _('Use Ctrl/Cmd to select multiple grades in the dropdown list.') }}</div>
+      <div class="col-12">
+        <button class="btn btn-primary" type="submit">{{ _('Save matrix') }}</button>
+      </div>
+    </form>
+
+    <form method="post" class="mt-2" onsubmit="return confirm('{{ _('Recalculate all pending approvals now?') }}');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="recalculate_pending_approvals">
+      <input type="hidden" name="workflow_id" value="{{ active_workflow_id }}">
+      <button class="btn btn-outline-warning" type="submit">{{ _('Recalculate pending approvals') }}</button>
+    </form>
+  </div>
+</div>
+
 {% if credit_mode == 'add' %}
 <div class="card border-0 shadow-sm mb-3">
   <div class="card-header bg-body-tertiary">{{ _('Add workflow step') }}</div>
@@ -217,16 +657,75 @@
 </div>
 {% endif %}
 
+{% if selected_workflow %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span>{{ _('BPM workflow to approval steps linkage') }}</span>
+    <span class="badge text-bg-light border">{{ selected_workflow_id or '-' }}</span>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>{{ _('BPM node') }}</th>
+            <th>{{ _('Stage') }}</th>
+            <th>{{ _('Group') }}</th>
+            <th>{{ _('Function') }}</th>
+            <th>{{ _('SLA days') }}</th>
+            <th>{{ _('Required') }}</th>
+            <th>{{ _('Linked approval step') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in selected_workflow_steps %}
+          <tr>
+            <td>{{ row.order }}</td>
+            <td>
+              <div class="fw-semibold">{{ row.label }}</div>
+              <div class="small text-secondary">{{ row.id }}</div>
+            </td>
+            <td><code>{{ row.stage or '-' }}</code></td>
+            <td>{{ row.group_name or '-' }}</td>
+            <td>{{ row.function_label or '-' }}</td>
+            <td>{{ row.sla_days if row.sla_days else '-' }}</td>
+            <td>{{ _('Yes') if row.is_required else _('No') }}</td>
+            <td>
+              {% if row.linked_step_id %}
+              <span class="badge text-bg-success">#{{ row.linked_step_id }} · {{ row.linked_step_name }}</span>
+              {% else %}
+              <span class="badge text-bg-warning text-dark">{{ _('Not linked yet') }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="8" class="text-secondary">{{ _('No BPM task node yet.') }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <div class="card border-0 shadow-sm">
   <div class="card-header bg-body-tertiary">{{ _('Approval workflow steps') }}</div>
   <div class="card-body border-bottom">
     <div class="d-flex flex-wrap align-items-center gap-2">
+      {% if selected_workflow_steps %}
+      {% for row in selected_workflow_steps %}
+      <span class="badge {{ 'text-bg-primary' if row.linked_step_id else 'text-bg-warning text-dark' }} p-2">#{{ row.order }} · {{ row.label }}</span>
+      {% if not loop.last %}<i class="bi bi-arrow-right text-secondary"></i>{% endif %}
+      {% endfor %}
+      {% else %}
       {% for step in steps %}
       <span class="badge text-bg-primary p-2">#{{ step.step_order }} · {{ step.step_name }}</span>
       {% if not loop.last %}<i class="bi bi-arrow-right text-secondary"></i>{% endif %}
       {% else %}
       <span class="text-secondary">{{ _('No workflow steps yet.') }}</span>
       {% endfor %}
+      {% endif %}
     </div>
   </div>
   <div class="card-body p-0">
@@ -266,4 +765,756 @@
     </div>
   </div>
 </div>
+
+</div>
+</div>
+
+<script>
+  (() => {
+    const tabsRoot = document.getElementById('approvalWorkflowTabs');
+    if (!tabsRoot || !window.bootstrap || !window.bootstrap.Tab) return;
+
+    const storageKey = 'credit.approval_workflow.active_tab';
+    const savedTarget = window.localStorage.getItem(storageKey);
+    if (savedTarget) {
+      const savedBtn = tabsRoot.querySelector(`button[data-bs-target="${savedTarget}"]`);
+      if (savedBtn) {
+        bootstrap.Tab.getOrCreateInstance(savedBtn).show();
+      }
+    }
+
+    tabsRoot.querySelectorAll('button[data-bs-toggle="pill"]').forEach((btn) => {
+      btn.addEventListener('shown.bs.tab', (event) => {
+        const target = event.target.getAttribute('data-bs-target');
+        if (target) {
+          window.localStorage.setItem(storageKey, target);
+        }
+      });
+    });
+  })();
+</script>
+
+<script>
+  (() => {
+    const rows = document.querySelectorAll('tr.wf-catalog-row[data-edit-href]');
+    if (!rows.length) return;
+
+    rows.forEach((row) => {
+      const openEdit = () => {
+        const href = row.getAttribute('data-edit-href');
+        if (href) {
+          window.location.href = href;
+        }
+      };
+
+      row.addEventListener('click', (event) => {
+        if (event.target.closest('[data-no-row-click],a,button,form,input,select,textarea,label')) return;
+        openEdit();
+      });
+
+      row.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openEdit();
+        }
+      });
+    });
+  })();
+</script>
+
+<script>
+  (() => {
+    const stageSelect = document.getElementById('matrixTargetStage');
+    const stageRows = document.querySelectorAll('#matrixStagesTable .matrix-stage-row[data-stage]');
+    const stagePickButtons = document.querySelectorAll('.matrix-stage-pick[data-stage]');
+    const stageEditors = document.querySelectorAll('#approvalMatrixForm .matrix-stage-editor[data-stage]');
+    if (!stageSelect || !stageEditors.length) return;
+
+    const normalize = (value) => String(value || '').trim().toLowerCase();
+
+    const setActiveStage = (rawStage) => {
+      const stage = normalize(rawStage || stageSelect.value);
+      stageSelect.value = stage;
+
+      stageEditors.forEach((editor) => {
+        const isMatch = normalize(editor.getAttribute('data-stage')) === stage;
+        editor.classList.toggle('d-none', !isMatch);
+      });
+
+      stageRows.forEach((row) => {
+        const isMatch = normalize(row.getAttribute('data-stage')) === stage;
+        row.classList.toggle('is-active', isMatch);
+      });
+    };
+
+    stageSelect.addEventListener('change', () => {
+      setActiveStage(stageSelect.value);
+    });
+
+    stagePickButtons.forEach((btn) => {
+      btn.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setActiveStage(btn.getAttribute('data-stage'));
+      });
+    });
+
+    stageRows.forEach((row) => {
+      const openFromRow = () => setActiveStage(row.getAttribute('data-stage'));
+      row.addEventListener('click', (event) => {
+        if (event.target.closest('button,a,input,select,textarea,label,form')) return;
+        openFromRow();
+      });
+      row.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openFromRow();
+        }
+      });
+    });
+
+    setActiveStage(stageSelect.value || (stageEditors[0] && stageEditors[0].getAttribute('data-stage')) || 'risk_manager');
+  })();
+</script>
+
+{% if selected_workflow %}
+<script>
+  (() => {
+    const canvas = document.getElementById('workflowCanvas');
+    const diagram = document.getElementById('workflowDiagram');
+    const addTaskBtn = document.getElementById('addTaskNode');
+    const addDecisionBtn = document.getElementById('addDecisionNode');
+    const includeApprovalStepsBtn = document.getElementById('includeApprovalSteps');
+    const form = document.getElementById('visualWorkflowForm');
+    const payloadInput = document.getElementById('designerPayload');
+    const nodeEditorModalEl = document.getElementById('nodeEditorModal');
+    const nodeEditorIdEl = document.getElementById('nodeEditorId');
+    const nodeEditorTypeEl = document.getElementById('nodeEditorType');
+    const nodeEditorLabelFrEl = document.getElementById('nodeEditorLabelFr');
+    const nodeEditorLabelEnEl = document.getElementById('nodeEditorLabelEn');
+    const nodeEditorStageEl = document.getElementById('nodeEditorStage');
+    const nodeEditorSlaEl = document.getElementById('nodeEditorSla');
+    const nodeEditorGroupEl = document.getElementById('nodeEditorGroup');
+    const nodeEditorFunctionEl = document.getElementById('nodeEditorFunction');
+    const nodeEditorRequiredEl = document.getElementById('nodeEditorRequired');
+    const nodeEditorDecisionRuleEl = document.getElementById('nodeEditorDecisionRule');
+    const nodeEditorSaveBtn = document.getElementById('nodeEditorSave');
+    const nodeEditorDeleteBtn = document.getElementById('nodeEditorDelete');
+    const designerFeedbackEl = document.getElementById('workflowDesignerFeedback');
+    if (!canvas || !form || !payloadInput) return;
+
+    const functionOptions = {{ function_options|tojson }};
+    const groupOptions = {{ group_options|tojson }};
+    const workflowStageOptions = {{ workflow_stage_options|tojson }};
+    const approvalStepTemplates = {{ approval_step_templates|tojson }};
+    const nodeEditorModal = (window.bootstrap && window.bootstrap.Modal && nodeEditorModalEl)
+      ? new bootstrap.Modal(nodeEditorModalEl)
+      : null;
+    let fallbackBackdropEl = null;
+
+    let nodes = {{ (selected_workflow.nodes or [])|tojson }};
+    let edges = {{ (selected_workflow.edges or [])|tojson }};
+    let dragId = null;
+    let selectedNodeId = null;
+
+    const stageLabelByCode = {};
+    workflowStageOptions.forEach((opt) => {
+      const code = String((opt || {}).value || '').trim();
+      if (!code) return;
+      stageLabelByCode[code] = String((opt || {}).label || code).trim();
+    });
+    const defaultTaskStage = String((workflowStageOptions[0] || {}).value || '').trim() || '{{ selected_workflow.id|e }}_node_1';
+
+    function esc(value) {
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function optionHtml(options, selected, selectedLabel) {
+      const selectedValue = String(selected || '');
+      let hasSelected = false;
+      const html = options.map((opt) => {
+        const val = String((opt || {}).value || '');
+        const lbl = String((opt || {}).label || val);
+        const isSelected = val === selectedValue;
+        if (isSelected) hasSelected = true;
+        return `<option value="${esc(val)}" ${isSelected ? 'selected' : ''}>${esc(lbl)}</option>`;
+      });
+
+      if (selectedValue && !hasSelected) {
+        html.unshift(`<option value="${esc(selectedValue)}" selected>${esc(selectedLabel || selectedValue)}</option>`);
+      }
+      return html.join('');
+    }
+
+    function setDesignerFeedback(message, tone) {
+      if (!designerFeedbackEl) return;
+      const safeTone = tone || 'muted';
+      const toneClass = safeTone === 'success'
+        ? 'text-success'
+        : (safeTone === 'warning' ? 'text-warning' : 'text-secondary');
+      designerFeedbackEl.className = `small mt-2 ${toneClass}`;
+      designerFeedbackEl.textContent = message || '';
+    }
+
+    function ensureFallbackBackdrop() {
+      if (fallbackBackdropEl) return;
+      fallbackBackdropEl = document.createElement('div');
+      fallbackBackdropEl.className = 'modal-backdrop fade show';
+      document.body.appendChild(fallbackBackdropEl);
+    }
+
+    function removeFallbackBackdrop() {
+      if (!fallbackBackdropEl) return;
+      fallbackBackdropEl.remove();
+      fallbackBackdropEl = null;
+    }
+
+    function isNodeEditorOpen() {
+      if (!nodeEditorModalEl) return false;
+      return nodeEditorModalEl.classList.contains('show');
+    }
+
+    function showNodeEditorModal() {
+      if (!nodeEditorModalEl) return;
+      if (nodeEditorModal) {
+        nodeEditorModal.show();
+        return;
+      }
+
+      nodeEditorModalEl.style.display = 'block';
+      nodeEditorModalEl.removeAttribute('aria-hidden');
+      nodeEditorModalEl.setAttribute('aria-modal', 'true');
+      nodeEditorModalEl.classList.add('show');
+      document.body.classList.add('modal-open');
+      ensureFallbackBackdrop();
+    }
+
+    function hideNodeEditorModal() {
+      if (!nodeEditorModalEl) return;
+      if (nodeEditorModal) {
+        nodeEditorModal.hide();
+        return;
+      }
+
+      nodeEditorModalEl.classList.remove('show');
+      nodeEditorModalEl.style.display = 'none';
+      nodeEditorModalEl.setAttribute('aria-hidden', 'true');
+      nodeEditorModalEl.removeAttribute('aria-modal');
+      document.body.classList.remove('modal-open');
+      removeFallbackBackdrop();
+    }
+
+    function stageOptionHtml(selected) {
+      return optionHtml(workflowStageOptions, selected, stageLabelByCode[String(selected || '')] || String(selected || ''));
+    }
+
+    function stageLabel(stageCode) {
+      const code = String(stageCode || '').trim();
+      if (!code) return '-';
+      return stageLabelByCode[code] || code;
+    }
+
+    function normalizedNodeId(raw, fallback) {
+      return String(raw || fallback).toLowerCase().replace(/[^a-z0-9_]+/g, '_');
+    }
+
+    function normalizeNode(node, index) {
+      const type = (node.type === 'decision') ? 'decision' : 'task';
+      const stageRaw = String(node.stage || '').trim();
+      const stage = type === 'task' ? (stageRaw || defaultTaskStage) : '';
+      return {
+        id: normalizedNodeId(node.id, `node_${index + 1}`),
+        type,
+        stage,
+        label_fr: String((node.labels && node.labels.fr) || node.label_fr || node.label || ''),
+        label_en: String((node.labels && node.labels.en) || node.label_en || ''),
+        group_id: node.group_id || '',
+        function_id: node.function_id || '',
+        sla_days: node.sla_days || '',
+        is_required: (node.is_required !== false),
+        decision_rule: String(node.decision_rule || ''),
+      };
+    }
+
+    function getNodeById(id) {
+      return nodes.find((node) => node.id === id);
+    }
+
+    function ensureSelection() {
+      if (!nodes.length) {
+        selectedNodeId = null;
+        return;
+      }
+      if (!selectedNodeId || !getNodeById(selectedNodeId)) {
+        selectedNodeId = nodes[0].id;
+      }
+    }
+
+    function setSelectedNode(id) {
+      if (!id) return;
+      selectedNodeId = id;
+      applySelectionDecorations();
+    }
+
+    function removeNodeById(id) {
+      if (!id) return;
+      nodes = nodes.filter((n) => n.id !== id);
+      if (selectedNodeId === id) {
+        selectedNodeId = nodes.length ? nodes[0].id : null;
+      }
+      render();
+    }
+
+    function setNodeEditorStateByType(type) {
+      const isDecision = type === 'decision';
+      if (nodeEditorStageEl) nodeEditorStageEl.disabled = isDecision;
+      if (nodeEditorSlaEl) nodeEditorSlaEl.disabled = isDecision;
+      if (nodeEditorGroupEl) nodeEditorGroupEl.disabled = isDecision;
+      if (nodeEditorFunctionEl) nodeEditorFunctionEl.disabled = isDecision;
+      if (nodeEditorRequiredEl) nodeEditorRequiredEl.disabled = isDecision;
+      if (nodeEditorDecisionRuleEl) nodeEditorDecisionRuleEl.disabled = !isDecision;
+    }
+
+    function openNodeEditor(id) {
+      const node = getNodeById(id);
+      if (!node || !nodeEditorModalEl || !nodeEditorIdEl) return;
+
+      selectedNodeId = node.id;
+      if (nodeEditorIdEl) nodeEditorIdEl.value = node.id;
+      if (nodeEditorTypeEl) nodeEditorTypeEl.value = node.type;
+      if (nodeEditorLabelFrEl) nodeEditorLabelFrEl.value = node.label_fr || '';
+      if (nodeEditorLabelEnEl) nodeEditorLabelEnEl.value = node.label_en || '';
+      if (nodeEditorStageEl) nodeEditorStageEl.innerHTML = stageOptionHtml(node.stage || defaultTaskStage);
+      if (nodeEditorSlaEl) nodeEditorSlaEl.value = node.sla_days || '';
+      if (nodeEditorGroupEl) nodeEditorGroupEl.innerHTML = optionHtml(groupOptions, node.group_id);
+      if (nodeEditorFunctionEl) nodeEditorFunctionEl.innerHTML = optionHtml(functionOptions, node.function_id);
+      if (nodeEditorRequiredEl) nodeEditorRequiredEl.checked = !!node.is_required;
+      if (nodeEditorDecisionRuleEl) nodeEditorDecisionRuleEl.value = node.decision_rule || '';
+
+      setNodeEditorStateByType(node.type);
+      applySelectionDecorations();
+      showNodeEditorModal();
+    }
+
+    function applyNodeEditorChanges() {
+      if (!nodeEditorIdEl || !nodeEditorTypeEl) return;
+      const node = getNodeById(nodeEditorIdEl.value);
+      if (!node) return;
+
+      node.type = nodeEditorTypeEl.value === 'decision' ? 'decision' : 'task';
+      node.label_fr = (nodeEditorLabelFrEl && nodeEditorLabelFrEl.value) ? nodeEditorLabelFrEl.value : '';
+      node.label_en = (nodeEditorLabelEnEl && nodeEditorLabelEnEl.value) ? nodeEditorLabelEnEl.value : '';
+
+      if (node.type === 'decision') {
+        node.stage = '';
+        node.group_id = '';
+        node.function_id = '';
+        node.sla_days = '';
+        node.is_required = false;
+        node.decision_rule = (nodeEditorDecisionRuleEl && nodeEditorDecisionRuleEl.value) ? nodeEditorDecisionRuleEl.value : '';
+      } else {
+        node.stage = (nodeEditorStageEl && nodeEditorStageEl.value) ? nodeEditorStageEl.value : defaultTaskStage;
+        node.sla_days = (nodeEditorSlaEl && nodeEditorSlaEl.value) ? nodeEditorSlaEl.value : '';
+        node.group_id = (nodeEditorGroupEl && nodeEditorGroupEl.value) ? nodeEditorGroupEl.value : '';
+        node.function_id = (nodeEditorFunctionEl && nodeEditorFunctionEl.value) ? nodeEditorFunctionEl.value : '';
+        node.is_required = !!(nodeEditorRequiredEl && nodeEditorRequiredEl.checked);
+        node.decision_rule = '';
+      }
+
+      render();
+    }
+
+    function applySelectionDecorations() {
+      canvas.querySelectorAll('.wf-node-row').forEach((row) => {
+        row.classList.toggle('is-selected', row.dataset.nodeId === selectedNodeId);
+      });
+
+      const svgRoot = diagram ? diagram.querySelector('svg') : null;
+      if (!svgRoot) return;
+      svgRoot.querySelectorAll('g[data-node-id]').forEach((group) => {
+        group.classList.toggle('is-selected', group.getAttribute('data-node-id') === selectedNodeId);
+      });
+    }
+
+    function isTypingElement(el) {
+      if (!el) return false;
+      const tag = String(el.tagName || '').toLowerCase();
+      return tag === 'input' || tag === 'textarea' || tag === 'select' || !!el.isContentEditable;
+    }
+
+    function buildSequentialEdges() {
+      return nodes.slice(0, -1).map((node, index) => ({
+        from: node.id,
+        to: nodes[index + 1].id,
+        label: 'next',
+      }));
+    }
+
+    function normalizeEdges() {
+      const validIds = new Set(nodes.map((n) => n.id));
+      const raw = Array.isArray(edges) ? edges : [];
+      const cleaned = raw
+        .map((edge) => ({
+          from: String((edge || {}).from || '').trim().toLowerCase(),
+          to: String((edge || {}).to || '').trim().toLowerCase(),
+          label: String((edge || {}).label || '').trim() || 'next',
+        }))
+        .filter((edge) => edge.from && edge.to && validIds.has(edge.from) && validIds.has(edge.to));
+
+      edges = cleaned.length ? cleaned : buildSequentialEdges();
+    }
+
+    function renderDiagram() {
+      if (!diagram) return;
+      if (!nodes.length) {
+        diagram.innerHTML = '<div class="small text-secondary">{{ _('No BPM node yet.') }}</div>';
+        return;
+      }
+
+      const nodeWidth = 206;
+      const nodeHeight = 62;
+      const nodeGap = 52;
+      const marginX = 22;
+      const y = 48;
+      const totalWidth = Math.max(320, marginX * 2 + nodes.length * nodeWidth + (nodes.length - 1) * nodeGap);
+      const totalHeight = 170;
+      const centerY = y + (nodeHeight / 2);
+
+      const byId = {};
+      nodes.forEach((node, idx) => {
+        byId[node.id] = {
+          index: idx,
+          x: marginX + idx * (nodeWidth + nodeGap),
+          y,
+        };
+      });
+
+      let svg = '';
+      svg += `<svg xmlns="http://www.w3.org/2000/svg" width="${totalWidth}" height="${totalHeight}" viewBox="0 0 ${totalWidth} ${totalHeight}">`;
+      svg += '<defs>';
+      svg += '<marker id="wfArrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">';
+      svg += '<path d="M0,0 L10,4 L0,8 z" fill="#6c757d"></path>';
+      svg += '</marker>';
+      svg += '<filter id="wfSoftShadow" x="-20%" y="-20%" width="140%" height="150%">';
+      svg += '<feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#000" flood-opacity="0.22"></feDropShadow>';
+      svg += '</filter>';
+      svg += '</defs>';
+      svg += '<style>';
+      svg += '.wf-node{cursor:pointer}';
+      svg += '.wf-node .wf-task-shape{fill:#e7f1ff;stroke:#0d6efd;stroke-width:1.6}';
+      svg += '.wf-node.is-selected .wf-task-shape{fill:#cfe2ff;stroke:#084298;stroke-width:2.2}';
+      svg += '.wf-node .wf-decision-shape{fill:#ffe39e;stroke:#9a5800;stroke-width:2;filter:url(#wfSoftShadow)}';
+      svg += '.wf-node.is-selected .wf-decision-shape{fill:#ffd166;stroke:#7a4100;stroke-width:2.6}';
+      svg += '.wf-node .wf-title{font-size:12px;font-weight:700;fill:#10233f}';
+      svg += '.wf-node .wf-sub{font-size:10px;fill:#2c4666}';
+      svg += '.wf-node .wf-decision-text{fill:#5f3600}';
+      svg += '</style>';
+
+      edges.forEach((edge) => {
+        const src = byId[edge.from];
+        const dst = byId[edge.to];
+        if (!src || !dst) return;
+        const x1 = src.x + nodeWidth;
+        const x2 = dst.x;
+        svg += `<line x1="${x1}" y1="${centerY}" x2="${x2}" y2="${centerY}" stroke="#6c757d" stroke-width="2" marker-end="url(#wfArrow)"></line>`;
+        if (edge.label && edge.label.toLowerCase() !== 'next') {
+          const tx = (x1 + x2) / 2;
+          svg += `<text x="${tx}" y="${centerY - 7}" text-anchor="middle" font-size="10" fill="#495057">${esc(edge.label)}</text>`;
+        }
+      });
+
+      nodes.forEach((node) => {
+        const pos = byId[node.id];
+        if (!pos) return;
+        const title = esc(node.label_fr || node.label_en || node.id);
+        const stageTxt = esc(node.type === 'task' ? stageLabel(node.stage || '-') : (node.decision_rule || 'Decision'));
+        const selectedClass = selectedNodeId === node.id ? 'is-selected' : '';
+        if (node.type === 'decision') {
+          const cx = pos.x + (nodeWidth / 2);
+          const cy = centerY;
+          const hw = 58;
+          const hh = 34;
+          svg += `<g class="wf-node ${selectedClass}" data-node-id="${node.id}">`;
+          svg += `<polygon class="wf-decision-shape" points="${cx},${cy - hh} ${cx + hw},${cy} ${cx},${cy + hh} ${cx - hw},${cy}"></polygon>`;
+          svg += `<text class="wf-title wf-decision-text" x="${cx}" y="${cy - 4}" text-anchor="middle">${title}</text>`;
+          svg += `<text class="wf-sub wf-decision-text" x="${cx}" y="${cy + 13}" text-anchor="middle">${stageTxt}</text>`;
+          svg += '</g>';
+        } else {
+          svg += `<g class="wf-node ${selectedClass}" data-node-id="${node.id}">`;
+          svg += `<rect class="wf-task-shape" x="${pos.x}" y="${pos.y}" width="${nodeWidth}" height="${nodeHeight}" rx="11" ry="11"></rect>`;
+          svg += `<text class="wf-title" x="${pos.x + 10}" y="${pos.y + 24}">${title}</text>`;
+          svg += `<text class="wf-sub" x="${pos.x + 10}" y="${pos.y + 43}">${stageTxt}</text>`;
+          svg += '</g>';
+        }
+      });
+
+      svg += '</svg>';
+      diagram.innerHTML = svg;
+
+      const svgRoot = diagram.querySelector('svg');
+      if (!svgRoot) return;
+
+      svgRoot.addEventListener('click', (event) => {
+        const nodeGroup = event.target.closest('g[data-node-id]');
+        if (!nodeGroup) return;
+        setSelectedNode(nodeGroup.getAttribute('data-node-id'));
+      });
+
+      svgRoot.addEventListener('dblclick', (event) => {
+        const nodeGroup = event.target.closest('g[data-node-id]');
+        if (!nodeGroup) return;
+        const nodeId = nodeGroup.getAttribute('data-node-id');
+        setSelectedNode(nodeId);
+        openNodeEditor(nodeId);
+      });
+
+      applySelectionDecorations();
+    }
+
+    function nodeSummary(node) {
+      if (node.type === 'decision') {
+        return node.decision_rule || 'Decision rule not set';
+      }
+      const stageText = stageLabel(node.stage || '-');
+      const slaText = node.sla_days ? `${node.sla_days}d` : '-';
+      return `Stage: ${stageText} | SLA: ${slaText}`;
+    }
+
+    function render() {
+      canvas.innerHTML = '';
+      nodes = nodes.map((node, index) => normalizeNode(node, index));
+      ensureSelection();
+      edges = buildSequentialEdges();
+      normalizeEdges();
+      renderDiagram();
+
+      nodes.forEach((node, index) => {
+        const row = document.createElement('div');
+        row.className = `wf-node-row border rounded-3 p-2 bg-body-tertiary ${node.id === selectedNodeId ? 'is-selected' : ''}`;
+        row.draggable = true;
+        row.tabIndex = 0;
+        row.dataset.nodeId = node.id;
+        row.innerHTML = `
+          <div class="d-flex justify-content-between align-items-center gap-2">
+            <div>
+              <div class="fw-semibold">${node.type === 'decision' ? '◆' : '●'} ${esc(node.label_fr || node.label_en || node.id)}</div>
+              <div class="small text-secondary">${esc(nodeSummary(node))}</div>
+            </div>
+            <div class="d-flex gap-1">
+              <button type="button" class="btn btn-outline-primary btn-sm" data-edit="${node.id}">Options</button>
+              <button type="button" class="btn btn-outline-danger btn-sm" data-remove="${node.id}">×</button>
+            </div>
+          </div>
+          ${index < (nodes.length - 1) ? '<div class="text-center text-secondary small mt-2">↓ next</div>' : ''}
+        `;
+
+        row.addEventListener('click', (event) => {
+          if (event.target.closest('button')) return;
+          setSelectedNode(node.id);
+        });
+
+        row.addEventListener('dblclick', () => {
+          setSelectedNode(node.id);
+          openNodeEditor(node.id);
+        });
+
+        row.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setSelectedNode(node.id);
+            openNodeEditor(node.id);
+          }
+        });
+
+        row.addEventListener('dragstart', () => {
+          dragId = node.id;
+          setSelectedNode(node.id);
+          row.classList.add('opacity-50');
+        });
+        row.addEventListener('dragend', () => {
+          dragId = null;
+          row.classList.remove('opacity-50');
+        });
+        row.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          if (!dragId || dragId === node.id) return;
+          const from = nodes.findIndex((n) => n.id === dragId);
+          const to = nodes.findIndex((n) => n.id === node.id);
+          if (from < 0 || to < 0 || from === to) return;
+          const moved = nodes.splice(from, 1)[0];
+          nodes.splice(to, 0, moved);
+          selectedNodeId = moved.id;
+          render();
+        });
+
+        canvas.appendChild(row);
+      });
+
+      applySelectionDecorations();
+
+      canvas.querySelectorAll('[data-remove]').forEach((btn) => {
+        btn.addEventListener('click', (event) => {
+          event.stopPropagation();
+          const id = btn.getAttribute('data-remove');
+          removeNodeById(id);
+        });
+      });
+
+      canvas.querySelectorAll('[data-edit]').forEach((btn) => {
+        btn.addEventListener('click', (event) => {
+          event.stopPropagation();
+          const id = btn.getAttribute('data-edit');
+          if (!id) return;
+          setSelectedNode(id);
+          openNodeEditor(id);
+        });
+      });
+    }
+
+    addTaskBtn && addTaskBtn.addEventListener('click', () => {
+      const idx = nodes.length + 1;
+      const added = normalizeNode({ id: `task_${idx}`, type: 'task', stage: defaultTaskStage }, idx);
+      nodes.push(added);
+      selectedNodeId = added.id;
+      render();
+    });
+
+    addDecisionBtn && addDecisionBtn.addEventListener('click', () => {
+      const idx = nodes.length + 1;
+      const added = normalizeNode({ id: `decision_${idx}`, type: 'decision' }, idx);
+      nodes.push(added);
+      selectedNodeId = added.id;
+      render();
+    });
+
+    includeApprovalStepsBtn && includeApprovalStepsBtn.addEventListener('click', () => {
+      const existingStages = new Set(
+        nodes
+          .filter((node) => node.type === 'task')
+          .map((node) => String(node.stage || '').trim())
+          .filter(Boolean)
+      );
+
+      let inserted = 0;
+      approvalStepTemplates.forEach((step) => {
+        const stage = String((step || {}).stage || '').trim();
+        if (!stage || existingStages.has(stage)) return;
+
+        let candidateId = normalizedNodeId(stage, `task_${nodes.length + inserted + 1}`);
+        let suffix = 2;
+        while (nodes.some((n) => n.id === candidateId)) {
+          candidateId = `${normalizedNodeId(stage, 'task')}_${suffix}`;
+          suffix += 1;
+        }
+
+        const stepName = String((step || {}).step_name || stage).trim();
+        const newNode = normalizeNode(
+          {
+            id: candidateId,
+            type: 'task',
+            stage,
+            label_fr: stepName,
+            label_en: stepName,
+            group_id: String((step || {}).group_id || ''),
+            function_id: String((step || {}).function_id || ''),
+            sla_days: String((step || {}).sla_days || ''),
+            is_required: !!(step || {}).is_required,
+          },
+          nodes.length + inserted
+        );
+        nodes.push(newNode);
+        existingStages.add(stage);
+        inserted += 1;
+      });
+
+      if (inserted > 0) {
+        selectedNodeId = nodes[nodes.length - inserted].id;
+        render();
+        setDesignerFeedback(
+          {{ _('Approval steps inserted: {count}', count='__COUNT__')|tojson }}.replace('__COUNT__', String(inserted)),
+          'success'
+        );
+      } else {
+        setDesignerFeedback({{ _('No new approval step to insert (already present).')|tojson }}, 'warning');
+      }
+    });
+
+    nodeEditorTypeEl && nodeEditorTypeEl.addEventListener('change', () => {
+      setNodeEditorStateByType(nodeEditorTypeEl.value);
+    });
+
+    nodeEditorSaveBtn && nodeEditorSaveBtn.addEventListener('click', () => {
+      applyNodeEditorChanges();
+      hideNodeEditorModal();
+    });
+
+    nodeEditorDeleteBtn && nodeEditorDeleteBtn.addEventListener('click', () => {
+      if (!nodeEditorIdEl || !nodeEditorIdEl.value) return;
+      if (!window.confirm({{ _('Delete this node?')|tojson }})) return;
+      removeNodeById(nodeEditorIdEl.value);
+      hideNodeEditorModal();
+    });
+
+    if (nodeEditorModalEl) {
+      nodeEditorModalEl.querySelectorAll('[data-bs-dismiss="modal"]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          hideNodeEditorModal();
+        });
+      });
+
+      nodeEditorModalEl.addEventListener('click', (event) => {
+        if (event.target === nodeEditorModalEl) {
+          hideNodeEditorModal();
+        }
+      });
+    }
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && isNodeEditorOpen()) {
+        event.preventDefault();
+        hideNodeEditorModal();
+        return;
+      }
+
+      if (!selectedNodeId) return;
+      if (event.key !== 'Delete' && event.key !== 'Backspace') return;
+      if (isTypingElement(event.target)) return;
+      event.preventDefault();
+      removeNodeById(selectedNodeId);
+    });
+
+    form.addEventListener('submit', () => {
+      normalizeEdges();
+      const payload = {
+        nodes: nodes.map((node, index) => ({
+          id: node.id,
+          order: index + 1,
+          type: node.type,
+          stage: node.type === 'task' ? node.stage : '',
+          label_fr: node.label_fr,
+          label_en: node.label_en,
+          group_id: node.type === 'task' ? node.group_id : '',
+          function_id: node.type === 'task' ? node.function_id : '',
+          sla_days: node.type === 'task' ? node.sla_days : '',
+          is_required: node.type === 'task' ? !!node.is_required : false,
+          decision_rule: node.type === 'decision' ? node.decision_rule : '',
+        })),
+        edges: edges.map((edge) => ({
+          from: edge.from,
+          to: edge.to,
+          label: edge.label || 'next',
+        })),
+      };
+      payloadInput.value = JSON.stringify(payload);
+    });
+
+    render();
+  })();
+</script>
+{% endif %}
 {% endblock %}

@@ -1,0 +1,228 @@
+{% extends "credit/page_base.html" %}
+{% set title = _('Audela Credit Utilizations') %}
+{% set active_page = 'utilizations' %}
+{% set credit_mode = request.args.get('mode', 'search') %}
+
+{% block credit_page_content %}
+<div class="d-flex gap-2 mb-3">
+  <a class="btn btn-sm {% if credit_mode != 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.utilizations', mode='search') }}">{{ _('Search and list') }}</a>
+  <a class="btn btn-sm {% if credit_mode == 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.utilizations', mode='add') }}">{{ _('Add new') }}</a>
+  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('credit.facility_tree') }}">{{ _('Facility Tree') }}</a>
+</div>
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary">{{ _('Credit structure (standard schema)') }}</div>
+  <div class="card-body">
+    <div class="small mb-2">
+      <strong>{{ _('Customer / Borrower') }}</strong> -> <strong>{{ _('Deal / Transaction') }}</strong> -> <strong>{{ _('Facility') }}</strong> -> <strong>{{ _('Utilization / Drawdown') }}</strong> -> <strong>{{ _('Repayment / Interest / Fees') }}</strong>
+    </div>
+    <pre class="small mb-2">Borrower 1..N Deal
+Deal 1..N Facility
+Facility 1..N Drawdown</pre>
+    <div class="d-flex flex-wrap gap-2 small">
+      <span class="badge text-bg-light border">{{ _('Borrowers') }}: {{ schema_counts.borrowers }}</span>
+      <span class="badge text-bg-light border">{{ _('Deals') }}: {{ schema_counts.deals }}</span>
+      <span class="badge text-bg-light border">{{ _('Facilities') }}: {{ schema_counts.facilities }}</span>
+      <span class="badge text-bg-light border">{{ _('Visible utilizations') }}: {{ schema_counts.utilizations }}</span>
+    </div>
+    <div class="form-text mt-2">{{ _('Register drawdowns, repayments, interest and fees at facility level to track net utilization.') }}</div>
+  </div>
+</div>
+
+{% macro utilization_form(row, action_label, action_name) -%}
+<form method="post" class="row g-2">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="action" value="{{ action_name }}">
+  {% if row %}<input type="hidden" name="utilization_id" value="{{ row.id }}">{% endif %}
+
+  <div class="col-md-3">
+    <label class="form-label mb-1">{{ _('Borrower') }}</label>
+    <select class="form-select" name="borrower_id" required>
+      <option value="">{{ _('Select') }}</option>
+      {% for b in borrowers %}
+      <option value="{{ b.id }}" {% if row and row.borrower_id == b.id %}selected{% endif %}>{{ b.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-3">
+    <label class="form-label mb-1">{{ _('Deal') }}</label>
+    <select class="form-select" name="deal_id">
+      <option value="">{{ _('Optional') }}</option>
+      {% for d in deals %}
+      <option value="{{ d.id }}" {% if row and row.deal_id == d.id %}selected{% endif %}>{{ d.code }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-3">
+    <label class="form-label mb-1">{{ _('Facility') }}</label>
+    <select class="form-select" name="facility_id">
+      <option value="">{{ _('Optional') }}</option>
+      {% for f in facilities %}
+      <option value="{{ f.id }}" {% if row and row.facility_id == f.id %}selected{% endif %}>{{ (f.deal.code if f.deal else '-') }} - {{ f.facility_type_ref.display_label(current_lang) if f.facility_type_ref else f.facility_type }} (#{{ f.id }})</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-3">
+    <label class="form-label mb-1">{{ _('Type') }}</label>
+    <select class="form-select" name="utilization_type">
+      {% for code, label in utilization_type_options %}
+      <option value="{{ code }}" {% if row and row.utilization_type == code %}selected{% elif not row and code == 'drawdown' %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="col-md-2">
+    <label class="form-label mb-1">{{ _('Value date') }}</label>
+    <input class="form-control" type="date" name="value_date" value="{{ row.value_date.isoformat() if row and row.value_date else '' }}" required>
+  </div>
+  <div class="col-md-2">
+    <label class="form-label mb-1">{{ _('Amount') }}</label>
+    <input class="form-control" name="amount" value="{{ row.amount if row and row.amount is not none else '' }}" placeholder="0.00" required>
+  </div>
+  <div class="col-md-2">
+    <label class="form-label mb-1">{{ _('Currency') }}</label>
+    <input class="form-control" name="currency" value="{{ row.currency if row and row.currency else 'EUR' }}" maxlength="8">
+  </div>
+  <div class="col-md-2">
+    <label class="form-label mb-1">{{ _('Status') }}</label>
+    <select class="form-select" name="status">
+      {% for code, label in status_options %}
+      <option value="{{ code }}" {% if row and row.status == code %}selected{% elif not row and code == 'posted' %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-4">
+    <label class="form-label mb-1">{{ _('Reference') }}</label>
+    <input class="form-control" name="reference" value="{{ row.reference if row else '' }}" maxlength="120" placeholder="{{ _('Drawdown #1') }}">
+  </div>
+
+  <div class="col-12">
+    <label class="form-label mb-1">{{ _('Notes') }}</label>
+    <input class="form-control" name="notes" value="{{ row.notes if row else '' }}" placeholder="{{ _('Optional comment') }}">
+  </div>
+
+  <div class="col-12 d-flex gap-2">
+    <button class="btn btn-primary" type="submit">{{ action_label }}</button>
+    {% if row %}<a class="btn btn-outline-secondary" href="{{ url_for('credit.utilizations', mode='search') }}">{{ _('Cancel') }}</a>{% endif %}
+  </div>
+</form>
+{%- endmacro %}
+
+{% if credit_mode == 'add' %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary">{{ _('New utilization movement') }}</div>
+  <div class="card-body">
+    {{ utilization_form(None, _('Save'), 'create') }}
+  </div>
+</div>
+{% endif %}
+
+{% if credit_mode != 'add' %}
+{% if edit_utilization %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary">{{ _('Edit utilization movement') }}</div>
+  <div class="card-body">
+    {{ utilization_form(edit_utilization, _('Save changes'), 'update') }}
+  </div>
+</div>
+{% endif %}
+
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-body-tertiary border-bottom-0 pb-0">
+    <form method="get" class="row g-2 align-items-end">
+      <input type="hidden" name="mode" value="search">
+      <div class="col-12 col-lg-3">
+        <label class="form-label mb-1">{{ _('Borrower') }}</label>
+        <select class="form-select" name="borrower_id">
+          <option value="">{{ _('All') }}</option>
+          {% for b in borrowers %}
+          <option value="{{ b.id }}" {% if selected_borrower_id == b.id %}selected{% endif %}>{{ b.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-lg-3">
+        <label class="form-label mb-1">{{ _('Deal') }}</label>
+        <select class="form-select" name="deal_id">
+          <option value="">{{ _('All') }}</option>
+          {% for d in deals %}
+          <option value="{{ d.id }}" {% if selected_deal_id == d.id %}selected{% endif %}>{{ d.code }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-lg-2">
+        <label class="form-label mb-1">{{ _('Facility') }}</label>
+        <select class="form-select" name="facility_id">
+          <option value="">{{ _('All') }}</option>
+          {% for f in facilities %}
+          <option value="{{ f.id }}" {% if selected_facility_id == f.id %}selected{% endif %}>{{ (f.deal.code if f.deal else '-') }} - {{ f.facility_type_ref.display_label(current_lang) if f.facility_type_ref else f.facility_type }} (#{{ f.id }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-lg-2">
+        <label class="form-label mb-1">{{ _('Type') }}</label>
+        <select class="form-select" name="utilization_type">
+          <option value="">{{ _('All') }}</option>
+          {% for code, label in utilization_type_options %}
+          <option value="{{ code }}" {% if selected_type == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-lg-2">
+        <label class="form-label mb-1">{{ _('Status') }}</label>
+        <select class="form-select" name="status">
+          <option value="">{{ _('All') }}</option>
+          {% for code, label in status_options %}
+          <option value="{{ code }}" {% if selected_status == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-lg-2"><button class="btn btn-primary w-100" type="submit">{{ _('Apply filters') }}</button></div>
+      <div class="col-6 col-lg-2"><a class="btn btn-outline-secondary w-100" href="{{ url_for('credit.utilizations', mode='search') }}">{{ _('Reset') }}</a></div>
+    </form>
+  </div>
+  <div class="card-header bg-body-tertiary">{{ _('Utilization movements') }}</div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead>
+          <tr><th>{{ _('Borrower') }}</th><th>{{ _('Deal') }}</th><th>{{ _('Facility') }}</th><th>{{ _('Date') }}</th><th>{{ _('Type') }}</th><th>{{ _('Amount') }}</th><th>{{ _('Currency') }}</th><th>{{ _('Status') }}</th><th>{{ _('Reference') }}</th><th class="text-end">{{ _('Actions') }}</th></tr>
+        </thead>
+        <tbody>
+          {% for u in utilizations %}
+          <tr>
+            <td>{{ u.borrower.name if u.borrower else '-' }}</td>
+            <td>{{ u.deal.code if u.deal else '-' }}</td>
+            <td>
+              {% if u.facility %}
+              {{ u.facility.facility_type_ref.display_label(current_lang) if u.facility.facility_type_ref else u.facility.facility_type }} (#{{ u.facility.id }})
+              {% else %}-{% endif %}
+            </td>
+            <td>{{ u.value_date.strftime('%d/%m/%Y') if u.value_date else '-' }}</td>
+            <td>{{ u.utilization_type }}</td>
+            <td>{{ '%.2f'|format(u.amount or 0) }}</td>
+            <td>{{ u.currency or '-' }}</td>
+            <td>{{ u.status }}</td>
+            <td>
+              <div class="fw-semibold">{{ u.reference or '-' }}</div>
+              <div class="small text-secondary">{{ u.notes or '-' }}</div>
+            </td>
+            <td class="text-end">
+              <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.utilizations', mode='search', edit_id=u.id, borrower_id=selected_borrower_id, deal_id=selected_deal_id, facility_id=selected_facility_id, utilization_type=selected_type, status=selected_status) }}">{{ _('Edit') }}</a>
+              <form method="post" class="d-inline" onsubmit="return confirm('{{ _('Delete this utilization movement?') }}');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="utilization_id" value="{{ u.id }}">
+                <button class="btn btn-outline-danger btn-sm" type="submit">{{ _('Delete') }}</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="10" class="text-secondary">{{ _('No utilization movement yet.') }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -8,6 +8,7 @@ from ...extensions import db
 from ...models import Prospect
 from ...models import Tenant
 from ...services.subscription_service import SubscriptionService
+from ...product_catalog import get_product_entry
 
 from ...i18n import DEFAULT_LANG, SUPPORTED_LANGS, normalize_lang, tr
 
@@ -142,22 +143,22 @@ def plans():
 
 @bp.route("/produits/finance")
 def product_finance():
-    return render_template("products/finance.html")
+    return render_template("products/finance.html", product=get_product_entry("finance"))
 
 
 @bp.route("/produits/bi")
 def product_bi():
-    return render_template("products/bi.html")
+    return render_template("products/bi.html", product=get_product_entry("bi"))
 
 
 @bp.route("/produits/credit")
 def product_credit():
-    return render_template("products/credit.html")
+    return render_template("products/credit.html", product=get_product_entry("credit"))
 
 
 @bp.route("/produits/projet")
 def product_project():
-    return render_template("products/project.html")
+    return render_template("products/project.html", product=get_product_entry("project"))
 
 
 # -----------------
@@ -236,6 +237,7 @@ def sitemap_xml():
         (_abs("public.plans"), "weekly", "0.9"),
         (_abs("public.product_finance"), "weekly", "0.9"),
         (_abs("public.product_bi"), "weekly", "0.9"),
+        (_abs("public.product_credit"), "weekly", "0.9"),
         (_abs("public.product_project"), "weekly", "0.9"),
         (_abs("public.metabase"), "monthly", "0.7"),
         (_abs("public.belegal"), "monthly", "0.7"),

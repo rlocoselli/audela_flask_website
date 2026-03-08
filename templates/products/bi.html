@@ -1,36 +1,48 @@
 {% extends "base.html" %}
+{% from "products/_product_content_macros.html" import render_public_sections with context %}
 
-{% block title %}{{ _('Produit BI') }} – AUDELA{% endblock %}
-{% block meta_description %}{{ _('Plateforme BI française pour analyse de données, tableaux de bord et gouvernance data. Connectez vos sources SQL/API et pilotez vos décisions métier avec confiance.') }}{% endblock %}
-{% block og_title %}{{ _('Produit BI') }} – AUDELA{% endblock %}
-{% block og_description %}{{ _('Plateforme BI française pour analyse de données, tableaux de bord et gouvernance data. Connectez vos sources SQL/API et pilotez vos décisions métier avec confiance.') }}{% endblock %}
-{% block twitter_title %}{{ _('Produit BI') }} – AUDELA{% endblock %}
-{% block twitter_description %}{{ _('Plateforme BI française pour analyse de données, tableaux de bord et gouvernance data. Connectez vos sources SQL/API et pilotez vos décisions métier avec confiance.') }}{% endblock %}
-{% block og_image %}{{ url_for('static', filename='images/audela-carousel-01.svg', _external=True) }}{% endblock %}
-{% block twitter_image %}{{ url_for('static', filename='images/audela-carousel-01.svg', _external=True) }}{% endblock %}
+{% block title %}{{ _(product.public_title) }} – AUDELA{% endblock %}
+{% block meta_description %}{{ _(product.meta_description) }}{% endblock %}
+{% block og_title %}{{ _(product.public_title) }} – AUDELA{% endblock %}
+{% block og_description %}{{ _(product.meta_description) }}{% endblock %}
+{% block twitter_title %}{{ _(product.public_title) }} – AUDELA{% endblock %}
+{% block twitter_description %}{{ _(product.meta_description) }}{% endblock %}
+{% block og_image %}{{ url_for('static', filename=product.image, _external=True) }}{% endblock %}
+{% block twitter_image %}{{ url_for('static', filename=product.image, _external=True) }}{% endblock %}
 
 {% block content %}
 <section id="main" class="wrapper style1">
   <div class="container">
     <header class="major">
-      <h2>{{ _('Produit BI') }}</h2>
-      <p class="muted">{{ _('Décision pilotée par la donnée, de la source au dashboard.') }}</p>
+      <h2>{{ _(product.public_title) }}</h2>
+      <p class="muted">{{ _(product.subtitle) }}</p>
     </header>
 
     <div class="legal-content">
-      <h3>{{ _('Ce produit inclut :') }}</h3>
-      <ul>
-        <li>{{ _('Connexion aux sources SQL/API et gouvernance par tenant.') }}</li>
-        <li>{{ _('Modélisation, requêtes, visualisations et dashboards.') }}</li>
-        <li>{{ _('Partage sécurisé, exports et supervision des exécutions.') }}</li>
-        <li>{{ _('Assistant IA pour accélérer l\'analyse.') }}</li>
-      </ul>
+      <div class="row gtr-50">
+        <div class="col-8 col-12-medium">
+          <h3>{{ _('Vue d\'ensemble') }}</h3>
+          <p>{{ _(product.overview) }}</p>
+
+          {{ render_public_sections(
+            features=product.features,
+            integrations=product.integrations,
+            use_cases=product.use_cases,
+            outcomes=product.outcomes
+          ) }}
+        </div>
+        <div class="col-4 col-12-medium">
+          <span class="image fit">
+            <img src="{{ url_for('static', filename=product.image) }}" alt="{{ _(product.image_alt) }}" loading="lazy" />
+          </span>
+        </div>
+      </div>
 
       <h3>{{ _('Pour qui ?') }}</h3>
-      <p>{{ _('Équipes data, opérations, direction générale et métiers.') }}</p>
+      <p>{{ _(product.audience) }}</p>
 
       <ul class="actions">
-        <li><a href="{{ url_for('public.plans', product='bi') }}" class="button primary">{{ _('Découvrir les plans BI') }}</a></li>
+        <li><a href="{{ url_for('public.plans', product=product.plans_slug) }}" class="button primary">{{ _(product.plans_cta) }}</a></li>
         <li><a href="{{ url_for('public.index') }}#five" class="button">{{ _('Contact') }}</a></li>
       </ul>
     </div>

@@ -126,6 +126,9 @@ jobs:
           app = create_app()
           with app.app_context():
               ins = inspect(db.engine)
+              tables = set(ins.get_table_names())
+              assert "credit_covenants" in tables, "credit_covenants missing"
+              assert "credit_facility_utilizations" in tables, "credit_facility_utilizations missing"
               expected = {
                   "credit_deals": "approval_date",
                   "credit_facilities": "approval_date",

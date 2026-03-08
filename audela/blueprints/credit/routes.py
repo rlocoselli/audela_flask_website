@@ -12,7 +12,7 @@ from urllib.parse import urlencode
 from html import escape as html_escape
 from html import unescape as html_unescape
 
-from flask import abort, flash, g, jsonify, make_response, redirect, render_template, request, send_file, url_for
+from flask import abort, flash, g, has_request_context, jsonify, make_response, redirect, render_template, request, send_file, url_for
 from flask_login import current_user, login_required
 from markupsafe import escape
 from sqlalchemy import false, func, or_
@@ -36,6 +36,8 @@ from ...models.credit import (
     CreditDocument,
     CreditFacilityType,
     CreditFacility,
+    CreditCovenant,
+    CreditFacilityUtilization,
     CreditFinancialStatement,
     CreditGuaranteeType,
     CreditGuarantor,
@@ -98,6 +100,46 @@ def _to_decimal_loose(value: str | None, default: str = "0") -> Decimal:
         return Decimal(cleaned)
     except Exception:
         return Decimal(default)
+
+
+def _parse_decimal_loose_optional(value: str | None) -> Decimal | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+
+    cleaned = raw.replace(" ", "").replace("\u00a0", "")
+    if "," in cleaned and "." in cleaned:
+        if cleaned.rfind(",") > cleaned.rfind("."):
+            cleaned = cleaned.replace(".", "").replace(",", ".")
+        else:
+            cleaned = cleaned.replace(",", "")
+    else:
+        cleaned = cleaned.replace(",", ".")
+
+    try:
+        return Decimal(cleaned)
+    except Exception:
+        return None
+
+
+def _parse_risk_grade_values(raw: object) -> list[str]:
+    parts: list[str]
+    if isinstance(raw, str):
+        parts = re.split(r"[,;\n]+", raw)
+    elif isinstance(raw, (list, tuple, set)):
+        parts = [str(v) for v in raw]
+    else:
+        parts = []
+
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in parts:
+        token = str(item or "").strip().upper()
+        if not token or token in seen:
+            continue
+        seen.add(token)
+        out.append(token)
+    return out
 
 
 _FINANCIAL_CSV_FIELDS: tuple[str, ...] = (
@@ -372,6 +414,703 @@ def _save_credit_settings(tenant: Tenant, payload: dict) -> None:
     new_root = dict(root)
     new_root["credit"] = payload
     tenant.settings_json = new_root
+
+
+_WORKFLOW_LABEL_LANGS: tuple[str, ...] = ("fr", "en", "pt", "es", "it", "de")
+
+
+def _slugify_key(value: str | None, fallback: str) -> str:
+    token = re.sub(r"[^a-z0-9_]+", "_", str(value or "").strip().lower())
+    token = re.sub(r"_+", "_", token).strip("_")
+    return token or fallback
+
+
+def _workflow_lang_code() -> str:
+    raw = getattr(g, "lang", DEFAULT_LANG) if has_request_context() else DEFAULT_LANG
+    return str(raw or DEFAULT_LANG).split("-")[0].lower()
+
+
+def _workflow_labels_clean(raw: object, fallback: str) -> dict[str, str]:
+    out: dict[str, str] = {}
+    if isinstance(raw, dict):
+        for lang in _WORKFLOW_LABEL_LANGS:
+            txt = str(raw.get(lang) or "").strip()
+            if txt:
+                out[lang] = txt[:160]
+
+    fallback_txt = str(fallback or "").strip()
+    if fallback_txt and "fr" not in out:
+        out["fr"] = fallback_txt[:160]
+    if fallback_txt and "en" not in out:
+        out["en"] = fallback_txt[:160]
+    return out
+
+
+def _workflow_label(labels: object, fallback: str = "") -> str:
+    data = labels if isinstance(labels, dict) else {}
+    code = _workflow_lang_code()
+    txt = str(data.get(code) or data.get("fr") or data.get("en") or fallback or "").strip()
+    return txt or str(fallback or "").strip()
+
+
+def _default_workflow_catalog(tenant_id: int) -> dict[str, object]:
+    fn_by_code = {
+        str(fn.code): fn
+        for fn in CreditAnalystFunction.query.filter_by(tenant_id=tenant_id).all()
+    }
+
+    standard_nodes = [
+        {
+            "id": "analyst_review",
+            "order": 1,
+            "type": "task",
+            "stage": "analyst_review",
+            "labels": {"fr": "Revue analyste", "en": "Analyst review"},
+            "function_id": getattr(fn_by_code.get("analyst"), "id", None),
+            "function_name": "analyst",
+            "sla_days": 2,
+            "is_required": True,
+        },
+        {
+            "id": "risk_gate",
+            "order": 2,
+            "type": "decision",
+            "labels": {"fr": "Porte de risque", "en": "Risk gate"},
+            "decision_rule": "Montant et risque",
+        },
+        {
+            "id": "risk_manager",
+            "order": 3,
+            "type": "task",
+            "stage": "risk_manager",
+            "labels": {"fr": "Validation risk manager", "en": "Risk manager approval"},
+            "function_id": getattr(fn_by_code.get("risk_manager"), "id", None),
+            "function_name": "risk_manager",
+            "sla_days": 2,
+            "is_required": True,
+        },
+        {
+            "id": "credit_committee",
+            "order": 4,
+            "type": "task",
+            "stage": "credit_committee",
+            "labels": {"fr": "Comite credit", "en": "Credit committee"},
+            "function_id": getattr(fn_by_code.get("credit_committee"), "id", None),
+            "function_name": "credit_committee",
+            "sla_days": 3,
+            "is_required": True,
+        },
+    ]
+    standard_edges = [
+        {"from": "analyst_review", "to": "risk_gate", "label": "next"},
+        {"from": "risk_gate", "to": "risk_manager", "label": "if_required"},
+        {"from": "risk_gate", "to": "credit_committee", "label": "if_escalated"},
+        {"from": "risk_manager", "to": "credit_committee", "label": "next"},
+    ]
+
+    fast_nodes = [
+        {
+            "id": "fast_analyst_review",
+            "order": 1,
+            "type": "task",
+            "stage": "fast_analyst_review",
+            "labels": {"fr": "Revue analyste rapide", "en": "Fast analyst review"},
+            "function_id": getattr(fn_by_code.get("analyst"), "id", None),
+            "function_name": "analyst",
+            "sla_days": 1,
+            "is_required": True,
+        },
+        {
+            "id": "fast_decision",
+            "order": 2,
+            "type": "decision",
+            "labels": {"fr": "Decision pre-comite", "en": "Pre-committee decision"},
+            "decision_rule": "Escalade selon politique",
+        },
+        {
+            "id": "fast_committee",
+            "order": 3,
+            "type": "task",
+            "stage": "fast_credit_committee",
+            "labels": {"fr": "Comite credit accelere", "en": "Fast credit committee"},
+            "function_id": getattr(fn_by_code.get("credit_committee"), "id", None),
+            "function_name": "credit_committee",
+            "sla_days": 1,
+            "is_required": True,
+        },
+    ]
+    fast_edges = [
+        {"from": "fast_analyst_review", "to": "fast_decision", "label": "next"},
+        {"from": "fast_decision", "to": "fast_committee", "label": "if_required"},
+    ]
+
+    return {
+        "default_workflow_id": "standard_credit",
+        "borrower_bindings": {},
+        "workflows": [
+            {
+                "id": "standard_credit",
+                "is_generic": True,
+                "labels": {"fr": "Workflow credit standard", "en": "Standard credit workflow"},
+                "description": "Workflow standard multi-etapes.",
+                "nodes": standard_nodes,
+                "edges": standard_edges,
+            },
+            {
+                "id": "fast_track_credit",
+                "is_generic": True,
+                "labels": {"fr": "Workflow credit fast track", "en": "Fast-track credit workflow"},
+                "description": "Workflow accelere avec porte de decision.",
+                "nodes": fast_nodes,
+                "edges": fast_edges,
+            },
+        ],
+    }
+
+
+def _seed_default_workflow_catalog(tenant: Tenant) -> None:
+    cfg = _get_credit_settings(tenant)
+    raw = cfg.get("workflow_catalog") if isinstance(cfg.get("workflow_catalog"), dict) else {}
+    existing = raw.get("workflows") if isinstance(raw.get("workflows"), list) else []
+    if existing:
+        return
+
+    cfg["workflow_catalog"] = _default_workflow_catalog(int(tenant.id))
+    _save_credit_settings(tenant, cfg)
+    db.session.commit()
+
+
+def _credit_workflow_catalog(tenant: Tenant | None) -> dict[str, object]:
+    cfg = _get_credit_settings(tenant)
+    raw = cfg.get("workflow_catalog") if isinstance(cfg.get("workflow_catalog"), dict) else {}
+    workflows_raw = raw.get("workflows") if isinstance(raw.get("workflows"), list) else []
+    bindings_raw = raw.get("borrower_bindings") if isinstance(raw.get("borrower_bindings"), dict) else {}
+    default_workflow_id = _slugify_key(str(raw.get("default_workflow_id") or "").strip(), "")
+
+    workflows: list[dict[str, object]] = []
+    seen_workflow_ids: set[str] = set()
+    for idx, item in enumerate(workflows_raw, start=1):
+        if not isinstance(item, dict):
+            continue
+
+        workflow_id = _slugify_key(item.get("id") or f"workflow_{idx}", f"workflow_{idx}")
+        if workflow_id in seen_workflow_ids:
+            continue
+        seen_workflow_ids.add(workflow_id)
+
+        fallback_name = str(item.get("name") or item.get("label") or workflow_id.replace("_", " ").title())
+        labels = _workflow_labels_clean(item.get("labels"), fallback_name)
+
+        nodes_raw = item.get("nodes") if isinstance(item.get("nodes"), list) else []
+        nodes: list[dict[str, object]] = []
+        seen_node_ids: set[str] = set()
+        for node_idx, node in enumerate(nodes_raw, start=1):
+            if not isinstance(node, dict):
+                continue
+            node_id = _slugify_key(node.get("id") or f"node_{node_idx}", f"node_{node_idx}")
+            if node_id in seen_node_ids:
+                continue
+            seen_node_ids.add(node_id)
+
+            raw_type = str(node.get("type") or "task").strip().lower()
+            node_type = raw_type if raw_type in {"task", "decision"} else "task"
+            try:
+                order_value = int(node.get("order") or node_idx)
+            except Exception:
+                order_value = node_idx
+
+            fallback_node_name = str(node.get("name") or node_id.replace("_", " ").title())
+            node_labels = _workflow_labels_clean(node.get("labels"), fallback_node_name)
+            stage_raw = str(node.get("stage") or "").strip().lower()
+            if node_type == "task":
+                stage = _slugify_key(stage_raw or f"{workflow_id}_{node_id}", f"{workflow_id}_{node_id}")
+            else:
+                stage = ""
+
+            group_id = _to_int(str(node.get("group_id") or ""))
+            function_id = _to_int(str(node.get("function_id") or ""))
+            sla_days = _to_int(str(node.get("sla_days") or ""))
+            function_name = str(node.get("function_name") or "").strip().lower() or None
+
+            nodes.append(
+                {
+                    "id": node_id,
+                    "order": max(1, int(order_value)),
+                    "type": node_type,
+                    "stage": stage,
+                    "labels": node_labels,
+                    "group_id": group_id,
+                    "function_id": function_id,
+                    "function_name": function_name,
+                    "sla_days": sla_days,
+                    "is_required": bool(node.get("is_required", True)),
+                    "decision_rule": str(node.get("decision_rule") or "").strip(),
+                }
+            )
+
+        nodes.sort(key=lambda n: (int(n.get("order") or 0), str(n.get("id") or "")))
+
+        edges_raw = item.get("edges") if isinstance(item.get("edges"), list) else []
+        edges: list[dict[str, str]] = []
+        for edge in edges_raw:
+            if not isinstance(edge, dict):
+                continue
+            src = _slugify_key(edge.get("from") or "", "")
+            dst = _slugify_key(edge.get("to") or "", "")
+            if not src or not dst:
+                continue
+            edges.append(
+                {
+                    "from": src,
+                    "to": dst,
+                    "label": str(edge.get("label") or "").strip()[:80],
+                }
+            )
+
+        if not edges:
+            for idx_edge in range(len(nodes) - 1):
+                edges.append(
+                    {
+                        "from": str(nodes[idx_edge].get("id") or ""),
+                        "to": str(nodes[idx_edge + 1].get("id") or ""),
+                        "label": "next",
+                    }
+                )
+
+        workflows.append(
+            {
+                "id": workflow_id,
+                "is_generic": bool(item.get("is_generic", True)),
+                "labels": labels,
+                "description": str(item.get("description") or "").strip(),
+                "nodes": nodes,
+                "edges": edges,
+            }
+        )
+
+    if not workflows and tenant:
+        seeded = _default_workflow_catalog(int(tenant.id))
+        workflows = seeded.get("workflows") if isinstance(seeded.get("workflows"), list) else []
+        default_workflow_id = str(seeded.get("default_workflow_id") or "")
+        bindings_raw = seeded.get("borrower_bindings") if isinstance(seeded.get("borrower_bindings"), dict) else {}
+
+    valid_ids = {str(w.get("id") or "") for w in workflows}
+    bindings: dict[str, str] = {}
+    for raw_bid, raw_wf in bindings_raw.items():
+        try:
+            borrower_id = int(raw_bid)
+        except Exception:
+            continue
+        if borrower_id <= 0:
+            continue
+        wf_id = _slugify_key(raw_wf, "")
+        if wf_id and wf_id in valid_ids:
+            bindings[str(borrower_id)] = wf_id
+
+    if default_workflow_id not in valid_ids:
+        default_workflow_id = next(iter(valid_ids), "")
+
+    return {
+        "default_workflow_id": default_workflow_id,
+        "borrower_bindings": bindings,
+        "workflows": workflows,
+    }
+
+
+def _save_credit_workflow_catalog(tenant: Tenant, catalog: dict[str, object]) -> None:
+    cfg = _get_credit_settings(tenant)
+    cfg["workflow_catalog"] = catalog
+    _save_credit_settings(tenant, cfg)
+
+
+def _catalog_workflow_by_id(catalog: dict[str, object], workflow_id: str | None) -> dict[str, object] | None:
+    wanted = _slugify_key(workflow_id or "", "")
+    for workflow in catalog.get("workflows") if isinstance(catalog.get("workflows"), list) else []:
+        if not isinstance(workflow, dict):
+            continue
+        if str(workflow.get("id") or "") == wanted:
+            return workflow
+    return None
+
+
+def _catalog_workflow_id_for_borrower(catalog: dict[str, object], borrower_id: int | None) -> str:
+    bid = str(int(borrower_id or 0))
+    bindings = catalog.get("borrower_bindings") if isinstance(catalog.get("borrower_bindings"), dict) else {}
+    if bid in bindings:
+        return str(bindings.get(bid) or "")
+    return str(catalog.get("default_workflow_id") or "")
+
+
+def _steps_from_catalog_workflow(tenant_id: int, workflow: dict[str, object]) -> list[CreditApprovalWorkflowStep]:
+    nodes = workflow.get("nodes") if isinstance(workflow.get("nodes"), list) else []
+    task_nodes = [n for n in nodes if isinstance(n, dict) and str(n.get("type") or "task") == "task"]
+    task_nodes.sort(key=lambda n: (int(n.get("order") or 0), str(n.get("id") or "")))
+    if not task_nodes:
+        return []
+
+    out: list[CreditApprovalWorkflowStep] = []
+    for idx, node in enumerate(task_nodes, start=1):
+        stage = _slugify_key(node.get("stage") or "", "")
+        if not stage:
+            continue
+
+        labels = node.get("labels") if isinstance(node.get("labels"), dict) else {}
+        step_name = str(labels.get("fr") or labels.get("en") or stage.replace("_", " ").title())
+
+        group_id = _to_int(str(node.get("group_id") or ""))
+        function_id = _to_int(str(node.get("function_id") or ""))
+        function_name = str(node.get("function_name") or "").strip().lower() or None
+        sla_days = _to_int(str(node.get("sla_days") or ""))
+        is_required = bool(node.get("is_required", True))
+
+        row = (
+            CreditApprovalWorkflowStep.query.filter_by(tenant_id=tenant_id, stage=stage)
+            .order_by(CreditApprovalWorkflowStep.id.asc())
+            .first()
+        )
+        if not row:
+            row = CreditApprovalWorkflowStep(
+                tenant_id=tenant_id,
+                step_order=800 + idx,
+                stage=stage,
+                step_name=step_name,
+                group_id=group_id,
+                function_id=function_id,
+                function_name=function_name,
+                sla_days=sla_days,
+                is_required=is_required,
+            )
+            db.session.add(row)
+            db.session.flush()
+        else:
+            # Keep generated step metadata in sync with the visual workflow definition.
+            row.step_name = step_name
+            row.group_id = group_id
+            row.function_id = function_id
+            row.function_name = function_name
+            row.sla_days = sla_days
+            row.is_required = is_required
+
+        out.append(row)
+
+    return out
+
+
+def _catalog_task_nodes_for_display(workflow: dict[str, object]) -> list[dict[str, object]]:
+    nodes = workflow.get("nodes") if isinstance(workflow.get("nodes"), list) else []
+    out: list[dict[str, object]] = []
+    for idx, node in enumerate(nodes, start=1):
+        if not isinstance(node, dict):
+            continue
+        if str(node.get("type") or "task") != "task":
+            continue
+
+        labels = node.get("labels") if isinstance(node.get("labels"), dict) else {}
+        stage = _slugify_key(node.get("stage") or "", "")
+        node_id = _slugify_key(node.get("id") or f"task_{idx}", f"task_{idx}")
+        order = _to_int(str(node.get("order") or "")) or idx
+
+        out.append(
+            {
+                "id": node_id,
+                "order": order,
+                "stage": stage,
+                "label_fr": str(labels.get("fr") or node.get("label_fr") or node.get("label") or "").strip(),
+                "label_en": str(labels.get("en") or node.get("label_en") or "").strip(),
+                "group_id": _to_int(str(node.get("group_id") or "")),
+                "function_id": _to_int(str(node.get("function_id") or "")),
+                "sla_days": _to_int(str(node.get("sla_days") or "")),
+                "is_required": bool(node.get("is_required", True)),
+            }
+        )
+
+    out.sort(key=lambda n: (int(n.get("order") or 0), str(n.get("id") or "")))
+    return out
+
+
+def _workflow_steps_for_memo(tenant_id: int, memo_id: int) -> list[CreditApprovalWorkflowStep]:
+    memo = CreditMemo.query.filter_by(id=memo_id, tenant_id=tenant_id).first()
+    if not memo:
+        ordered = _workflow_steps_ordered(tenant_id)
+        return _effective_workflow_steps_for_memo(tenant_id, memo_id, ordered)
+
+    tenant_row = getattr(g, "tenant", None) if has_request_context() else None
+    if not tenant_row or int(getattr(tenant_row, "id", 0) or 0) != int(tenant_id):
+        tenant_row = Tenant.query.filter_by(id=tenant_id).first()
+
+    catalog = _credit_workflow_catalog(tenant_row)
+    workflow_id = _catalog_workflow_id_for_borrower(catalog, memo.borrower_id)
+    selected_workflow = _catalog_workflow_by_id(catalog, workflow_id)
+    if selected_workflow:
+        steps = _steps_from_catalog_workflow(tenant_id, selected_workflow)
+        if steps:
+            return _effective_workflow_steps_for_memo(tenant_id, memo_id, steps)
+
+    ordered = _workflow_steps_ordered(tenant_id)
+    return _effective_workflow_steps_for_memo(tenant_id, memo_id, ordered)
+
+
+def _approval_base_stage_options() -> list[tuple[str, str]]:
+    return [
+        ("analyst_review", _("Analyst review")),
+        ("risk_manager", _("Risk manager")),
+        ("credit_committee", _("Credit committee")),
+    ]
+
+
+def _approval_custom_stage_options(tenant: Tenant | None) -> list[tuple[str, str]]:
+    if not tenant:
+        return []
+
+    cfg = _get_credit_settings(tenant)
+    raw_items = cfg.get("custom_stage_options") if isinstance(cfg.get("custom_stage_options"), list) else []
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
+
+    for item in raw_items:
+        if isinstance(item, dict):
+            code_raw = item.get("code")
+            label_raw = item.get("label")
+        else:
+            code_raw = item
+            label_raw = item
+
+        code = _slugify_key(code_raw, "")
+        if not code or code in seen:
+            continue
+        seen.add(code)
+
+        label = str(label_raw or code).strip()[:120]
+        if not label:
+            label = _display_approval_stage(code)
+        out.append((code, label))
+
+    return out
+
+
+def _approval_stage_options(tenant: Tenant | None = None) -> list[tuple[str, str]]:
+    tenant_row = tenant
+    if not tenant_row and has_request_context():
+        tenant_row = getattr(g, "tenant", None)
+
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
+
+    for code, label in _approval_base_stage_options():
+        token = _slugify_key(code, "")
+        if not token or token in seen:
+            continue
+        seen.add(token)
+        out.append((token, str(label)))
+
+    for code, label in _approval_custom_stage_options(tenant_row):
+        token = _slugify_key(code, "")
+        if not token or token in seen:
+            continue
+        seen.add(token)
+        out.append((token, str(label)))
+
+    return out
+
+
+def _approval_matrix_stage_options(
+    tenant: Tenant | None,
+    matrix_raw: dict[str, object] | None = None,
+) -> list[tuple[str, str]]:
+    out: list[tuple[str, str]] = []
+    seen: set[str] = set()
+
+    for code, label in _approval_stage_options(tenant):
+        token = _slugify_key(code, "")
+        if not token or token in seen:
+            continue
+        seen.add(token)
+        out.append((token, str(label)))
+
+    raw_map = matrix_raw if isinstance(matrix_raw, dict) else {}
+    for raw_code in raw_map.keys():
+        token = _slugify_key(raw_code, "")
+        if not token or token in seen:
+            continue
+        seen.add(token)
+        out.append((token, _display_approval_stage(token)))
+
+    return out
+
+
+def _credit_approval_matrix_form(tenant: Tenant | None) -> dict[str, object]:
+    cfg = _get_credit_settings(tenant)
+    raw = cfg.get("approval_matrix") if isinstance(cfg.get("approval_matrix"), dict) else {}
+
+    by_stage: dict[str, dict[str, object]] = {}
+    for stage_code, stage_label in _approval_matrix_stage_options(tenant, raw):
+        stage_raw = raw.get(stage_code) if isinstance(raw.get(stage_code), dict) else {}
+        grades = _parse_risk_grade_values(stage_raw.get("risk_grades"))
+        by_stage[stage_code] = {
+            "stage": stage_code,
+            "label": str(stage_label),
+            "min_amount": str(stage_raw.get("min_amount") or "").strip(),
+            "risk_grades_csv": ",".join(grades),
+            "risk_grades_list": grades,
+        }
+
+    return {
+        "by_stage": by_stage,
+    }
+
+
+def _approval_matrix_grade_options(tenant: Tenant | None, matrix_form: dict[str, object] | None = None) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+
+    def _add(value: object) -> None:
+        token = str(value or "").strip().upper()
+        if not token or token in seen:
+            return
+        seen.add(token)
+        out.append(token)
+
+    # Common baseline ratings appear first for predictable UX.
+    for grade in ("AAA", "AA", "A", "BBB", "BB", "B", "CCC", "CC", "C", "D"):
+        _add(grade)
+
+    if tenant and getattr(tenant, "id", None):
+        rows = (
+            db.session.query(CreditRatioSnapshot.risk_grade)
+            .filter(CreditRatioSnapshot.tenant_id == tenant.id)
+            .filter(CreditRatioSnapshot.risk_grade.isnot(None))
+            .distinct()
+            .all()
+        )
+        for row in rows:
+            _add(getattr(row, "risk_grade", ""))
+
+    data = matrix_form if isinstance(matrix_form, dict) else {}
+    by_stage = data.get("by_stage") if isinstance(data.get("by_stage"), dict) else {}
+    for stage_data in by_stage.values():
+        if not isinstance(stage_data, dict):
+            continue
+        for token in _parse_risk_grade_values(stage_data.get("risk_grades_list") or stage_data.get("risk_grades_csv")):
+            _add(token)
+
+    return out
+
+
+def _credit_approval_matrix_rules(tenant: Tenant | None) -> dict[str, dict[str, object]]:
+    form = _credit_approval_matrix_form(tenant)
+    by_stage = form.get("by_stage") if isinstance(form.get("by_stage"), dict) else {}
+    out: dict[str, dict[str, object]] = {}
+    for raw_stage, data in by_stage.items():
+        stage = _slugify_key(raw_stage, "")
+        if not stage or not isinstance(data, dict):
+            continue
+        out[stage] = {
+            "min_amount": _parse_decimal_loose_optional(str(data.get("min_amount") or "")),
+            "risk_grades": set(_parse_risk_grade_values(data.get("risk_grades_list") or data.get("risk_grades_csv"))),
+        }
+    return out
+
+
+def _approval_matrix_has_conditions(matrix_rules: dict[str, dict[str, object]]) -> bool:
+    for stage_rules in (matrix_rules.values() if isinstance(matrix_rules, dict) else []):
+        if not isinstance(stage_rules, dict):
+            continue
+        if stage_rules.get("min_amount") is not None:
+            return True
+        grades = stage_rules.get("risk_grades")
+        if isinstance(grades, set) and grades:
+            return True
+    return False
+
+
+def _save_credit_approval_matrix(
+    tenant: Tenant,
+    stage_payload: dict[str, dict[str, object]],
+) -> None:
+    cleaned: dict[str, dict[str, object]] = {}
+    for raw_stage, values in (stage_payload.items() if isinstance(stage_payload, dict) else []):
+        stage = _slugify_key(raw_stage, "")
+        if not stage or not isinstance(values, dict):
+            continue
+        cleaned[stage] = {
+            "min_amount": str(values.get("min_amount") or "").strip(),
+            "risk_grades": _parse_risk_grade_values(values.get("risk_grades")),
+        }
+
+    cfg = _get_credit_settings(tenant)
+    cfg["approval_matrix"] = cleaned
+    _save_credit_settings(tenant, cfg)
+
+
+def _memo_requested_amount_and_risk_grade(tenant_id: int, memo_id: int) -> tuple[Decimal, str]:
+    memo = CreditMemo.query.filter_by(id=memo_id, tenant_id=tenant_id).first()
+    if not memo:
+        return Decimal("0"), ""
+
+    requested_amount = Decimal("0")
+    if memo.deal and memo.deal.requested_amount is not None:
+        requested_amount = Decimal(memo.deal.requested_amount)
+
+    risk_grade = ""
+    if memo.borrower_id:
+        ratio_row = (
+            CreditRatioSnapshot.query.filter_by(tenant_id=tenant_id, borrower_id=memo.borrower_id)
+            .order_by(CreditRatioSnapshot.snapshot_date.desc(), CreditRatioSnapshot.created_at.desc(), CreditRatioSnapshot.id.desc())
+            .first()
+        )
+        risk_grade = str(getattr(ratio_row, "risk_grade", "") or "").strip().upper()
+
+    return requested_amount, risk_grade
+
+
+def _approval_stage_required_by_matrix(
+    stage: str | None,
+    requested_amount: Decimal,
+    risk_grade: str,
+    matrix_rules: dict[str, dict[str, object]],
+) -> bool:
+    stage_key = str(stage or "").strip().lower()
+    if not stage_key:
+        return True
+
+    stage_rules = matrix_rules.get(stage_key) if isinstance(matrix_rules, dict) else None
+    if not isinstance(stage_rules, dict):
+        return True
+
+    min_amount = stage_rules.get("min_amount") if isinstance(stage_rules.get("min_amount"), Decimal) else None
+    grade_rules = stage_rules.get("risk_grades") if isinstance(stage_rules.get("risk_grades"), set) else set()
+
+    # Keep backward-compatible behavior: no rule means the stage remains mandatory.
+    if min_amount is None and not grade_rules:
+        return True
+
+    amount_hit = bool(min_amount is not None and requested_amount >= min_amount)
+    grade_hit = bool(risk_grade and risk_grade.upper() in grade_rules)
+    return amount_hit or grade_hit
+
+
+def _effective_workflow_steps_for_memo(
+    tenant_id: int,
+    memo_id: int,
+    ordered_steps: list[CreditApprovalWorkflowStep],
+) -> list[CreditApprovalWorkflowStep]:
+    if not ordered_steps:
+        return []
+
+    tenant_row = getattr(g, "tenant", None) if has_request_context() else None
+    if not tenant_row or int(getattr(tenant_row, "id", 0) or 0) != int(tenant_id):
+        tenant_row = Tenant.query.filter_by(id=tenant_id).first()
+
+    matrix_rules = _credit_approval_matrix_rules(tenant_row)
+    if not _approval_matrix_has_conditions(matrix_rules):
+        return ordered_steps
+
+    requested_amount, risk_grade = _memo_requested_amount_and_risk_grade(tenant_id, memo_id)
+    return [
+        step
+        for step in ordered_steps
+        if _approval_stage_required_by_matrix(step.stage, requested_amount, risk_grade, matrix_rules)
+    ]
 
 
 def _credit_assignment_scopes(tenant: Tenant | None) -> dict[str, dict[str, dict[str, list[int]]]]:
@@ -1740,6 +2479,9 @@ def _credit_menu_key_for_endpoint(endpoint: str | None) -> str | None:
         "borrowers": "borrowers",
         "deals": "deals",
         "facilities": "facilities",
+        "facility_tree": "facilities",
+        "utilizations": "utilizations",
+        "covenants": "covenants",
         "collateral": "collateral",
         "guarantors": "guarantors",
         "financials": "statements",
@@ -2076,14 +2818,6 @@ def _credit_active_filter_tags(filters: dict, filter_options: dict[str, list], l
     return tags
 
 
-def _approval_stage_options() -> list[tuple[str, str]]:
-    return [
-        ("analyst_review", _("Analyst review")),
-        ("risk_manager", _("Risk manager")),
-        ("credit_committee", _("Credit committee")),
-    ]
-
-
 def _maybe_create_backlog_task_for_pending_approval(approval: CreditApproval) -> None:
     if approval.decision != "pending" or not approval.memo:
         return
@@ -2306,6 +3040,47 @@ def _maybe_create_backlog_task_for_new_memo_analysis(memo: CreditMemo, actor_use
     )
 
 
+def _spreading_workflow_step_for_tenant(tenant_id: int) -> CreditApprovalWorkflowStep | None:
+    steps = _workflow_steps_ordered(tenant_id)
+    if not steps:
+        return None
+
+    for step in steps:
+        txt = f"{str(step.stage or '').strip().lower()} {str(step.step_name or '').strip().lower()}"
+        if "spread" in txt or "spreading" in txt:
+            return step
+
+    return _analysis_workflow_step_for_tenant(tenant_id)
+
+
+def _maybe_create_backlog_task_for_statement_spreading(
+    statement: CreditFinancialStatement,
+    actor_user_id: int | None,
+) -> None:
+    if not statement:
+        return
+
+    status = str(statement.spreading_status or "").strip().lower()
+    if status not in {"in_progress", "needs_review"}:
+        return
+
+    borrower = statement.borrower
+    borrower_label = borrower.name if borrower else _("Borrower")
+    workflow_step = _spreading_workflow_step_for_tenant(statement.tenant_id)
+    period = f"{statement.period_label or 'FY'} {statement.fiscal_year or ''}".strip()
+
+    _create_analysis_backlog_task(
+        tenant_id=statement.tenant_id,
+        deal_id=None,
+        borrower_id=statement.borrower_id,
+        memo_id=None,
+        title=_("Spreading review: {borrower} ({period})", borrower=borrower_label, period=period),
+        description=_("Auto-created from financial statement import/update (status: {status}).", status=status),
+        actor_user_id=actor_user_id,
+        workflow_step=workflow_step,
+    )
+
+
 def _maybe_create_initial_pending_approval_for_memo(
     memo: CreditMemo,
     actor_user_id: int | None,
@@ -2327,11 +3102,11 @@ def _maybe_create_initial_pending_approval_for_memo(
     if existing:
         return None
 
-    ordered_steps = _workflow_steps_ordered(memo.tenant_id)
-    if not ordered_steps:
+    effective_steps = _workflow_steps_for_memo(memo.tenant_id, memo.id)
+    if not effective_steps:
         return None
 
-    first_step = ordered_steps[0]
+    first_step = effective_steps[0]
     analyst_function = None
     if first_step.function_ref:
         analyst_function = first_step.function_ref.code
@@ -2355,6 +3130,133 @@ def _maybe_create_initial_pending_approval_for_memo(
     db.session.flush()
     _maybe_create_backlog_task_for_pending_approval(approval)
     return approval
+
+
+def _ensure_pending_approval_for_expected_step(
+    memo: CreditMemo,
+    actor_user_id: int | None,
+    comment: str | None = None,
+) -> CreditApproval | None:
+    if not memo or not memo.id:
+        return None
+
+    runtime_steps = _workflow_steps_for_memo(memo.tenant_id, memo.id)
+    if not runtime_steps:
+        return None
+
+    expected_step, _workflow_msg = _expected_workflow_step_for_memo(memo.tenant_id, memo.id, runtime_steps)
+    if not expected_step:
+        return None
+
+    existing_pending = (
+        CreditApproval.query.filter_by(
+            tenant_id=memo.tenant_id,
+            memo_id=memo.id,
+            decision="pending",
+            workflow_step_id=expected_step.id,
+        )
+        .order_by(CreditApproval.id.desc())
+        .first()
+    )
+    if existing_pending:
+        return existing_pending
+
+    analyst_function = None
+    if expected_step.function_ref:
+        analyst_function = expected_step.function_ref.code
+    elif expected_step.function_name:
+        analyst_function = expected_step.function_name
+
+    approval = CreditApproval(
+        tenant_id=memo.tenant_id,
+        memo_id=memo.id,
+        stage=expected_step.stage,
+        decision="pending",
+        comments=(comment or _("Auto-created from workflow progression.")).strip(),
+        workflow_step_id=expected_step.id,
+        analyst_group_id=expected_step.group_id,
+        analyst_function_id=expected_step.function_id,
+        analyst_function=analyst_function,
+        actor_user_id=actor_user_id,
+        decided_at=None,
+    )
+    db.session.add(approval)
+    db.session.flush()
+    _maybe_create_backlog_task_for_pending_approval(approval)
+    return approval
+
+
+def _recalculate_pending_approvals_for_matrix(
+    tenant_id: int,
+    actor_user_id: int | None,
+) -> dict[str, int]:
+    pending_rows = (
+        CreditApproval.query.filter_by(tenant_id=tenant_id, decision="pending")
+        .order_by(CreditApproval.memo_id.asc(), CreditApproval.id.asc())
+        .all()
+    )
+    if not pending_rows:
+        return {
+            "memos": 0,
+            "pending_removed": 0,
+            "tasks_cancelled": 0,
+            "pending_created": 0,
+        }
+
+    grouped: dict[int, list[CreditApproval]] = {}
+    for row in pending_rows:
+        memo_id = int(row.memo_id or 0)
+        if memo_id <= 0:
+            continue
+        grouped.setdefault(memo_id, []).append(row)
+
+    out = {
+        "memos": 0,
+        "pending_removed": 0,
+        "tasks_cancelled": 0,
+        "pending_created": 0,
+    }
+
+    for memo_id, memo_pending in grouped.items():
+        memo = CreditMemo.query.filter_by(id=memo_id, tenant_id=tenant_id).first()
+        if not memo:
+            continue
+
+        out["memos"] += 1
+        out["pending_removed"] += len(memo_pending)
+        pending_step_ids = sorted({int(row.workflow_step_id) for row in memo_pending if row.workflow_step_id})
+
+        for row in memo_pending:
+            db.session.delete(row)
+
+        if pending_step_ids:
+            tasks_to_cancel = (
+                CreditBacklogTask.query.filter(
+                    CreditBacklogTask.tenant_id == tenant_id,
+                    CreditBacklogTask.memo_id == memo_id,
+                    CreditBacklogTask.workflow_step_id.in_(pending_step_ids),
+                    CreditBacklogTask.status.in_(["todo", "in_progress"]),
+                    CreditBacklogTask.title.like("Approval pending for memo:%"),
+                )
+                .order_by(CreditBacklogTask.id.asc())
+                .all()
+            )
+            for task in tasks_to_cancel:
+                task.status = "cancelled"
+                task.completed_at = datetime.utcnow()
+            out["tasks_cancelled"] += len(tasks_to_cancel)
+
+        db.session.flush()
+
+        recreated = _ensure_pending_approval_for_expected_step(
+            memo,
+            actor_user_id,
+            _("Recalculated from approval matrix update."),
+        )
+        if recreated:
+            out["pending_created"] += 1
+
+    return out
 
 
 def _seed_default_analyst_functions(tenant_id: int) -> None:
@@ -2395,7 +3297,7 @@ def _seed_default_approval_workflow(tenant_id: int) -> None:
         "credit_committee": "credit_committee",
     }
 
-    for idx, (stage, label) in enumerate(_approval_stage_options(), start=1):
+    for idx, (stage, label) in enumerate(_approval_base_stage_options(), start=1):
         db.session.add(
             CreditApprovalWorkflowStep(
                 tenant_id=tenant_id,
@@ -2440,13 +3342,20 @@ def _expected_workflow_step_for_memo(
     if not ordered_steps:
         return None, _("No approval workflow is configured.")
 
+    effective_steps = _effective_workflow_steps_for_memo(tenant_id, memo_id, ordered_steps)
+    if not effective_steps:
+        return None, _("No applicable workflow steps for this memo based on approval matrix.")
+
+    ordered_index_by_step_id = {int(step.id): idx for idx, step in enumerate(ordered_steps)}
+    effective_step_ids = {int(step.id) for step in effective_steps}
+
     approvals = (
         CreditApproval.query.filter_by(tenant_id=tenant_id, memo_id=memo_id)
         .order_by(CreditApproval.created_at.asc(), CreditApproval.id.asc())
         .all()
     )
     if not approvals:
-        return ordered_steps[0], None
+        return effective_steps[0], None
 
     last = approvals[-1]
     if last.decision == "rejected":
@@ -2454,21 +3363,23 @@ def _expected_workflow_step_for_memo(
 
     last_step = _workflow_step_for_approval(last, ordered_steps)
     if not last_step:
-        return ordered_steps[0], _("Previous approval is not mapped to current workflow. Restart from first step.")
+        return effective_steps[0], _("Previous approval is not mapped to current workflow. Restart from first step.")
 
     if last.decision == "pending":
-        return last_step, None
+        if int(last_step.id) in effective_step_ids:
+            return last_step, None
+        return effective_steps[0], _("Current approval step is no longer applicable under the approval matrix.")
 
-    try:
-        idx = next(i for i, step in enumerate(ordered_steps) if step.id == last_step.id)
-    except StopIteration:
-        return ordered_steps[0], _("Previous approval is not mapped to current workflow. Restart from first step.")
+    idx = ordered_index_by_step_id.get(int(last_step.id))
+    if idx is None:
+        return effective_steps[0], _("Previous approval is not mapped to current workflow. Restart from first step.")
 
-    next_idx = idx + 1
-    if next_idx >= len(ordered_steps):
-        return None, _("Workflow is already completed for this memo.")
+    for step in effective_steps:
+        next_idx = ordered_index_by_step_id.get(int(step.id))
+        if next_idx is not None and next_idx > idx:
+            return step, None
 
-    return ordered_steps[next_idx], None
+    return None, _("Workflow is already completed for this memo.")
 
 
 def _approval_summaries_for_memos(tenant_id: int, memo_ids: list[int]) -> dict[int, dict[str, object]]:
@@ -2476,7 +3387,6 @@ def _approval_summaries_for_memos(tenant_id: int, memo_ids: list[int]) -> dict[i
     if not clean_ids:
         return {}
 
-    ordered_steps = _workflow_steps_ordered(tenant_id)
     approvals = (
         CreditApproval.query.filter(
             CreditApproval.tenant_id == tenant_id,
@@ -2493,6 +3403,7 @@ def _approval_summaries_for_memos(tenant_id: int, memo_ids: list[int]) -> dict[i
 
     out: dict[int, dict[str, object]] = {}
     for memo_id in clean_ids:
+        ordered_steps = _workflow_steps_for_memo(tenant_id, memo_id)
         memo_rows = grouped.get(memo_id, [])
         approved_dates = [a.decided_at for a in memo_rows if a.decision == "approved" and a.decided_at]
         latest_approved_at = max(approved_dates) if approved_dates else None
@@ -2500,8 +3411,16 @@ def _approval_summaries_for_memos(tenant_id: int, memo_ids: list[int]) -> dict[i
         if ordered_steps:
             expected_step, workflow_msg = _expected_workflow_step_for_memo(tenant_id, memo_id, ordered_steps)
             current_task = expected_step.step_name if expected_step else (workflow_msg or _("Completed"))
+            current_stage = (
+                (expected_step.step_name or _display_approval_stage(str(expected_step.stage or "")) or str(expected_step.stage or "")).strip()
+                if expected_step
+                else (workflow_msg or _("Completed"))
+            )
+            current_stage_code = str(expected_step.stage or "").strip() if expected_step else ""
         else:
             current_task = _("No approval workflow is configured.")
+            current_stage = current_task
+            current_stage_code = ""
 
         approvals_by_step_id: dict[int, CreditApproval] = {}
         for approval in memo_rows:
@@ -2536,6 +3455,8 @@ def _approval_summaries_for_memos(tenant_id: int, memo_ids: list[int]) -> dict[i
         out[memo_id] = {
             "approved_at": latest_approved_at,
             "current_task": current_task,
+            "current_stage": current_stage,
+            "current_stage_code": current_stage_code,
             "phases": phase_lines,
         }
 
@@ -2547,18 +3468,6 @@ def _approval_logs_for_memos(tenant_id: int, memo_ids: list[int]) -> dict[int, l
     if not clean_ids:
         return {}
 
-    workflow_steps = _workflow_steps_ordered(tenant_id)
-    step_label_by_id = {
-        int(step.id): str(step.step_name or step.stage or _("Workflow step"))
-        for step in workflow_steps
-        if step.id
-    }
-    step_label_by_stage = {
-        str(step.stage or ""): str(step.step_name or step.stage or _("Workflow step"))
-        for step in workflow_steps
-        if step.stage
-    }
-
     rows = (
         CreditApproval.query.filter(
             CreditApproval.tenant_id == tenant_id,
@@ -2568,11 +3477,31 @@ def _approval_logs_for_memos(tenant_id: int, memo_ids: list[int]) -> dict[int, l
         .all()
     )
 
+    step_maps_by_memo: dict[int, dict[str, dict[object, str]]] = {}
+    for memo_id in clean_ids:
+        runtime_steps = _workflow_steps_for_memo(tenant_id, memo_id)
+        step_maps_by_memo[memo_id] = {
+            "by_id": {
+                int(step.id): str(step.step_name or step.stage or _("Workflow step"))
+                for step in runtime_steps
+                if step.id
+            },
+            "by_stage": {
+                str(step.stage or ""): str(step.step_name or step.stage or _("Workflow step"))
+                for step in runtime_steps
+                if step.stage
+            },
+        }
+
     out: dict[int, list[dict[str, str]]] = {memo_id: [] for memo_id in clean_ids}
     for row in rows:
         memo_id = int(row.memo_id or 0)
         if memo_id not in out:
             continue
+
+        step_maps = step_maps_by_memo.get(memo_id, {})
+        step_label_by_id = step_maps.get("by_id") if isinstance(step_maps, dict) else {}
+        step_label_by_stage = step_maps.get("by_stage") if isinstance(step_maps, dict) else {}
 
         step_label = ""
         if row.workflow_step_id and int(row.workflow_step_id) in step_label_by_id:
@@ -2974,6 +3903,7 @@ def deals():
             deal.status = (request.form.get("status") or "in_review").strip() or "in_review"
             if str(deal.status).strip().lower() == "approved" and not deal.approval_date:
                 deal.approval_date = datetime.utcnow()
+            _maybe_create_backlog_task_for_new_deal_analysis(deal, getattr(current_user, "id", None))
             db.session.commit()
             flash(_("Deal mis à jour."), "success")
             return redirect(url_for("credit.deals", mode="search"))
@@ -3205,6 +4135,7 @@ def facilities():
             row.tenor_months = int(request.form.get("tenor_months") or 0) or None
             row.interest_rate = _to_decimal(request.form.get("interest_rate"), "0")
             row.status = (request.form.get("status") or "draft").strip() or "draft"
+            _maybe_create_backlog_task_for_new_facility_analysis(row, getattr(current_user, "id", None))
             db.session.commit()
             flash(_("Facility mise à jour."), "success")
             return redirect(url_for("credit.facilities", mode="search"))
@@ -3313,6 +4244,700 @@ def facilities():
         selected_status=selected_status,
         edit_facility=edit_facility,
         facility_approval_info=facility_approval_info,
+    )
+
+
+@bp.route("/facility-tree", methods=["GET"])
+@login_required
+def facility_tree():
+    _require_tenant()
+    _seed_credit_references()
+
+    borrowers_all = CreditBorrower.query.filter_by(tenant_id=g.tenant.id).order_by(CreditBorrower.name.asc()).all()
+    visible_borrowers = [b for b in borrowers_all if _borrower_visible_for_user(g.tenant, current_user.id, b)]
+    visible_borrower_ids = {int(b.id) for b in visible_borrowers}
+
+    deals_all = CreditDeal.query.filter_by(tenant_id=g.tenant.id).order_by(CreditDeal.code.asc()).all()
+    visible_deals = [d for d in deals_all if int(d.borrower_id or 0) in visible_borrower_ids]
+    visible_deal_ids = {int(d.id) for d in visible_deals}
+
+    facilities_all = (
+        CreditFacility.query.filter_by(tenant_id=g.tenant.id)
+        .order_by(CreditFacility.created_at.desc(), CreditFacility.id.desc())
+        .all()
+    )
+    visible_facilities = [f for f in facilities_all if int(f.deal_id or 0) in visible_deal_ids]
+
+    utilization_type_options = [
+        ("drawdown", _("Drawdown")),
+        ("repayment", _("Repayment")),
+        ("interest", _("Interest")),
+        ("fee", _("Fee")),
+        ("adjustment", _("Adjustment")),
+    ]
+    utilization_status_options = [
+        ("pending", _("Pending")),
+        ("posted", _("Posted")),
+        ("reversed", _("Reversed")),
+    ]
+
+    selected_borrower_id = _to_int(request.args.get("borrower_id"))
+    selected_deal_id = _to_int(request.args.get("deal_id"))
+    selected_facility_status = (request.args.get("facility_status") or "").strip().lower()
+    selected_utilization_type = (request.args.get("utilization_type") or "").strip().lower()
+    selected_utilization_status = (request.args.get("utilization_status") or "").strip().lower()
+    only_with_utilizations = (request.args.get("with_utilizations") or "").strip().lower() in {"1", "true", "yes", "on"}
+
+    if selected_borrower_id and selected_borrower_id not in visible_borrower_ids:
+        selected_borrower_id = None
+        flash(_("Borrower invalide."), "warning")
+    if selected_deal_id and selected_deal_id not in visible_deal_ids:
+        selected_deal_id = None
+        flash(_("Deal invalide."), "warning")
+
+    allowed_facility_statuses = {"draft", "approved", "booked"}
+    if selected_facility_status and selected_facility_status not in allowed_facility_statuses:
+        selected_facility_status = ""
+    if selected_utilization_type and selected_utilization_type not in {k for k, _v in utilization_type_options}:
+        selected_utilization_type = ""
+    if selected_utilization_status and selected_utilization_status not in {k for k, _v in utilization_status_options}:
+        selected_utilization_status = ""
+
+    filtered_facilities = []
+    for f in visible_facilities:
+        deal = f.deal
+        borrower = deal.borrower if deal else None
+        if selected_borrower_id and int(getattr(borrower, "id", 0) or 0) != selected_borrower_id:
+            continue
+        if selected_deal_id and int(f.deal_id or 0) != selected_deal_id:
+            continue
+        if selected_facility_status and str(f.status or "").strip().lower() != selected_facility_status:
+            continue
+        filtered_facilities.append(f)
+
+    facility_ids = [int(f.id) for f in filtered_facilities if f.id]
+    deal_ids = sorted({int(f.deal_id) for f in filtered_facilities if f.deal_id})
+
+    utilization_map: dict[int, list[CreditFacilityUtilization]] = {}
+    utilization_totals: dict[int, dict[str, float]] = {}
+    if facility_ids:
+        try:
+            util_query = CreditFacilityUtilization.query.filter(
+                CreditFacilityUtilization.tenant_id == g.tenant.id,
+                CreditFacilityUtilization.facility_id.in_(facility_ids),
+            )
+            if selected_utilization_type:
+                util_query = util_query.filter(CreditFacilityUtilization.utilization_type == selected_utilization_type)
+            if selected_utilization_status:
+                util_query = util_query.filter(CreditFacilityUtilization.status == selected_utilization_status)
+
+            util_rows = util_query.order_by(CreditFacilityUtilization.value_date.desc(), CreditFacilityUtilization.id.desc()).all()
+            for util in util_rows:
+                fid = int(util.facility_id or 0)
+                if not fid:
+                    continue
+                utilization_map.setdefault(fid, []).append(util)
+                bucket = utilization_totals.setdefault(
+                    fid,
+                    {
+                        "drawdown": 0.0,
+                        "repayment": 0.0,
+                        "other": 0.0,
+                    },
+                )
+                amount = float(util.amount or 0)
+                utype = str(util.utilization_type or "").strip().lower()
+                if utype == "drawdown":
+                    bucket["drawdown"] += amount
+                elif utype == "repayment":
+                    bucket["repayment"] += amount
+                else:
+                    bucket["other"] += amount
+        except Exception:
+            utilization_map = {}
+            utilization_totals = {}
+
+    if only_with_utilizations:
+        filtered_facilities = [f for f in filtered_facilities if utilization_map.get(int(f.id or 0))]
+        facility_ids = [int(f.id) for f in filtered_facilities if f.id]
+        deal_ids = sorted({int(f.deal_id) for f in filtered_facilities if f.deal_id})
+
+    deal_memo_by_deal: dict[int, CreditMemo] = {}
+    if deal_ids:
+        deal_memos = (
+            CreditMemo.query.filter(
+                CreditMemo.tenant_id == g.tenant.id,
+                CreditMemo.deal_id.in_(deal_ids),
+            )
+            .order_by(CreditMemo.updated_at.desc(), CreditMemo.id.desc())
+            .all()
+        )
+        for memo in deal_memos:
+            if memo.deal_id and int(memo.deal_id) not in deal_memo_by_deal:
+                deal_memo_by_deal[int(memo.deal_id)] = memo
+
+    deal_memo_ids = [int(m.id) for m in deal_memo_by_deal.values()]
+    memo_summaries = _approval_summaries_for_memos(g.tenant.id, deal_memo_ids)
+
+    facility_approval_info: dict[int, dict[str, object]] = {}
+    for f in filtered_facilities:
+        memo = deal_memo_by_deal.get(int(f.deal_id or 0))
+        if memo:
+            facility_approval_info[int(f.id)] = dict(memo_summaries.get(int(memo.id), {}))
+        else:
+            facility_approval_info[int(f.id)] = {
+                "approved_at": None,
+                "current_task": _("No memo"),
+                "phases": [],
+            }
+
+    covenant_count_by_facility: dict[int, int] = {}
+    if facility_ids:
+        cov_rows = (
+            CreditCovenant.query.filter(
+                CreditCovenant.tenant_id == g.tenant.id,
+                or_(
+                    CreditCovenant.facility_id.in_(facility_ids),
+                    CreditCovenant.deal_id.in_(deal_ids) if deal_ids else false(),
+                ),
+            )
+            .all()
+        )
+        for cov in cov_rows:
+            fid = int(cov.facility_id or 0)
+            did = int(cov.deal_id or 0)
+            if fid:
+                covenant_count_by_facility[fid] = int(covenant_count_by_facility.get(fid, 0)) + 1
+            elif did:
+                for f in filtered_facilities:
+                    if int(f.deal_id or 0) == did:
+                        f_id = int(f.id or 0)
+                        covenant_count_by_facility[f_id] = int(covenant_count_by_facility.get(f_id, 0)) + 1
+
+    facility_tree_map: dict[str, dict[str, object]] = {}
+    for f in filtered_facilities:
+        deal = f.deal
+        borrower = deal.borrower if deal else None
+
+        borrower_key = str(int(borrower.id)) if borrower and borrower.id else "unknown"
+        borrower_label = borrower.name if borrower and borrower.name else _("Unknown borrower")
+        borrower_node = facility_tree_map.get(borrower_key)
+        if not borrower_node:
+            borrower_node = {
+                "borrower_id": int(borrower.id) if borrower and borrower.id else None,
+                "borrower_name": borrower_label,
+                "facility_count": 0,
+                "approved_amount_total": 0.0,
+                "net_utilized_total": 0.0,
+                "utilization_count": 0,
+                "deals": {},
+            }
+            facility_tree_map[borrower_key] = borrower_node
+
+        deal_key = str(int(deal.id)) if deal and deal.id else f"no_deal_{int(f.id)}"
+        deal_label = deal.code if deal and deal.code else _("No deal")
+        deal_node = borrower_node["deals"].get(deal_key)
+        if not deal_node:
+            deal_node = {
+                "deal_id": int(deal.id) if deal and deal.id else None,
+                "deal_code": deal_label,
+                "facility_count": 0,
+                "approved_amount_total": 0.0,
+                "net_utilized_total": 0.0,
+                "utilization_count": 0,
+                "facilities": [],
+            }
+            borrower_node["deals"][deal_key] = deal_node
+
+        fid = int(f.id or 0)
+        amount_value = float(f.approved_amount or 0)
+        approval_info = facility_approval_info.get(fid, {})
+        util_list = utilization_map.get(fid, [])
+        util_tot = utilization_totals.get(fid, {"drawdown": 0.0, "repayment": 0.0, "other": 0.0})
+        net_utilized = float(util_tot.get("drawdown", 0.0)) - float(util_tot.get("repayment", 0.0))
+        utilization_count = len(util_list)
+
+        deal_node["facilities"].append(
+            {
+                "facility": f,
+                "approval_info": approval_info,
+                "utilizations": util_list,
+                "utilization_count": utilization_count,
+                "utilization_drawdown_total": float(util_tot.get("drawdown", 0.0)),
+                "utilization_repayment_total": float(util_tot.get("repayment", 0.0)),
+                "utilization_other_total": float(util_tot.get("other", 0.0)),
+                "net_utilized": net_utilized,
+                "covenant_count": int(covenant_count_by_facility.get(fid, 0)),
+            }
+        )
+
+        deal_node["facility_count"] = int(deal_node["facility_count"]) + 1
+        deal_node["approved_amount_total"] = float(deal_node["approved_amount_total"]) + amount_value
+        deal_node["net_utilized_total"] = float(deal_node["net_utilized_total"]) + net_utilized
+        deal_node["utilization_count"] = int(deal_node["utilization_count"]) + utilization_count
+
+        borrower_node["facility_count"] = int(borrower_node["facility_count"]) + 1
+        borrower_node["approved_amount_total"] = float(borrower_node["approved_amount_total"]) + amount_value
+        borrower_node["net_utilized_total"] = float(borrower_node["net_utilized_total"]) + net_utilized
+        borrower_node["utilization_count"] = int(borrower_node["utilization_count"]) + utilization_count
+
+    tree_rows: list[dict[str, object]] = []
+    for borrower_node in facility_tree_map.values():
+        deal_nodes = []
+        for deal_node in borrower_node["deals"].values():
+            deal_node["facilities"] = sorted(
+                deal_node["facilities"],
+                key=lambda item: (
+                    str(getattr((item.get("facility") or object()), "facility_type", "") or ""),
+                    int(getattr((item.get("facility") or object()), "id", 0) or 0),
+                ),
+            )
+            deal_nodes.append(deal_node)
+
+        deal_nodes = sorted(
+            deal_nodes,
+            key=lambda node: (str(node.get("deal_code") or "").lower(), int(node.get("deal_id") or 0)),
+        )
+        borrower_node["deals"] = deal_nodes
+        tree_rows.append(borrower_node)
+
+    tree_rows = sorted(
+        tree_rows,
+        key=lambda node: (str(node.get("borrower_name") or "").lower(), int(node.get("borrower_id") or 0)),
+    )
+
+    return render_template(
+        "credit/facility_tree.html",
+        tenant=g.tenant,
+        facility_tree=tree_rows,
+        borrowers=visible_borrowers,
+        deals=visible_deals,
+        selected_borrower_id=selected_borrower_id,
+        selected_deal_id=selected_deal_id,
+        selected_facility_status=selected_facility_status,
+        selected_utilization_type=selected_utilization_type,
+        selected_utilization_status=selected_utilization_status,
+        only_with_utilizations=only_with_utilizations,
+        utilization_type_options=utilization_type_options,
+        utilization_status_options=utilization_status_options,
+    )
+
+
+@bp.route("/covenants", methods=["GET", "POST"])
+@login_required
+def covenants():
+    _require_tenant()
+    _seed_credit_references()
+
+    borrowers_all = CreditBorrower.query.filter_by(tenant_id=g.tenant.id).order_by(CreditBorrower.name.asc()).all()
+    visible_borrowers = [
+        b
+        for b in borrowers_all
+        if _borrower_visible_for_user(g.tenant, current_user.id, b)
+    ]
+    visible_borrower_ids = {int(b.id) for b in visible_borrowers}
+
+    deals_all = CreditDeal.query.filter_by(tenant_id=g.tenant.id).order_by(CreditDeal.code.asc()).all()
+    visible_deals = [d for d in deals_all if int(d.borrower_id or 0) in visible_borrower_ids]
+    visible_deal_ids = {int(d.id) for d in visible_deals}
+
+    facilities_all = (
+        CreditFacility.query.filter_by(tenant_id=g.tenant.id)
+        .order_by(CreditFacility.created_at.desc(), CreditFacility.id.desc())
+        .all()
+    )
+    visible_facilities = [f for f in facilities_all if int(f.deal_id or 0) in visible_deal_ids]
+    visible_facility_ids = {int(f.id) for f in visible_facilities}
+
+    scope_options = [
+        ("deal", _("Deal level")),
+        ("facility", _("Facility level")),
+    ]
+    operator_options = [">=", "<=", ">", "<", "="]
+    frequency_options = [
+        ("monthly", _("Monthly")),
+        ("quarterly", _("Quarterly")),
+        ("semi_annual", _("Semi-annual")),
+        ("annual", _("Annual")),
+        ("ad_hoc", _("Ad hoc")),
+    ]
+    status_options = [
+        ("active", _("Active")),
+        ("watch", _("Watch")),
+        ("breached", _("Breached")),
+        ("waived", _("Waived")),
+        ("closed", _("Closed")),
+    ]
+
+    if request.method == "POST":
+        action = (request.form.get("action") or "create").strip().lower()
+        covenant_id = _to_int(request.form.get("covenant_id"))
+        row = None
+
+        if action in {"update", "delete"}:
+            row = CreditCovenant.query.filter_by(id=covenant_id, tenant_id=g.tenant.id).first() if covenant_id else None
+            if not row:
+                flash(_("Covenant invalide."), "warning")
+                return redirect(url_for("credit.covenants", mode="search"))
+
+        if action == "delete":
+            db.session.delete(row)
+            db.session.commit()
+            flash(_("Covenant supprimé."), "success")
+            return redirect(url_for("credit.covenants", mode="search"))
+
+        borrower_id = _to_int(request.form.get("borrower_id"))
+        borrower = (
+            CreditBorrower.query.filter_by(id=borrower_id, tenant_id=g.tenant.id).first()
+            if borrower_id
+            else None
+        )
+        if not borrower:
+            flash(_("Borrower invalide."), "warning")
+            return redirect(url_for("credit.covenants", mode="search"))
+        if int(borrower.id) not in visible_borrower_ids:
+            flash(_("Borrower out of your UAM scope."), "warning")
+            return redirect(url_for("credit.covenants", mode="search"))
+
+        deal_id = _to_int(request.form.get("deal_id"))
+        deal = CreditDeal.query.filter_by(id=deal_id, tenant_id=g.tenant.id).first() if deal_id else None
+        if deal_id and not deal:
+            flash(_("Deal invalide."), "warning")
+            return redirect(url_for("credit.covenants", mode="search"))
+        if deal and int(deal.id) not in visible_deal_ids:
+            flash(_("Deal out of your UAM scope."), "warning")
+            return redirect(url_for("credit.covenants", mode="search"))
+
+        facility_id = _to_int(request.form.get("facility_id"))
+        facility = CreditFacility.query.filter_by(id=facility_id, tenant_id=g.tenant.id).first() if facility_id else None
+        if facility_id and not facility:
+            flash(_("Facility invalide."), "warning")
+            return redirect(url_for("credit.covenants", mode="search"))
+        if facility and int(facility.id) not in visible_facility_ids:
+            flash(_("Facility out of your UAM scope."), "warning")
+            return redirect(url_for("credit.covenants", mode="search"))
+
+        scope_level = (request.form.get("scope_level") or "deal").strip().lower()
+        if scope_level not in {"deal", "facility"}:
+            scope_level = "deal"
+        if scope_level == "facility" and not facility:
+            flash(_("Facility is required for facility-level covenant."), "warning")
+            return redirect(url_for("credit.covenants", mode="search"))
+
+        name = (request.form.get("name") or "").strip()
+        if not name:
+            flash(_("Covenant name is required."), "warning")
+            return redirect(url_for("credit.covenants", mode="search"))
+
+        operator = (request.form.get("operator") or ">=").strip()
+        if operator == "==":
+            operator = "="
+        if operator not in set(operator_options):
+            operator = ">="
+
+        frequency = (request.form.get("frequency") or "quarterly").strip().lower()
+        if frequency not in {code for code, _label in frequency_options}:
+            frequency = "quarterly"
+
+        status = (request.form.get("status") or "active").strip().lower()
+        if status not in {code for code, _label in status_options}:
+            status = "active"
+
+        threshold_raw = (request.form.get("threshold_value") or "").strip()
+        threshold_value = _to_decimal_loose(threshold_raw, "0") if threshold_raw else None
+        due_date = _parse_iso_date(request.form.get("due_date"))
+        last_test_date = _parse_iso_date(request.form.get("last_test_date"))
+
+        target = row if row else CreditCovenant(tenant_id=g.tenant.id)
+        target.borrower_id = int(borrower.id)
+        target.deal_id = int(deal.id) if deal else None
+        target.facility_id = int(facility.id) if facility else None
+        target.scope_level = scope_level
+        target.name = name[:180]
+        target.metric = (request.form.get("metric") or "").strip()[:120] or None
+        target.operator = operator
+        target.threshold_value = threshold_value
+        target.frequency = frequency
+        target.status = status
+        target.due_date = due_date
+        target.last_test_date = last_test_date
+        target.notes = (request.form.get("notes") or "").strip() or None
+
+        if not row:
+            db.session.add(target)
+
+        db.session.commit()
+        flash(_("Covenant mis à jour." if row else "Covenant ajouté."), "success")
+        return redirect(url_for("credit.covenants", mode="search"))
+
+    selected_borrower_id = _to_int(request.args.get("borrower_id"))
+    selected_deal_id = _to_int(request.args.get("deal_id"))
+    selected_facility_id = _to_int(request.args.get("facility_id"))
+    selected_status = (request.args.get("status") or "").strip().lower()
+    selected_scope = (request.args.get("scope") or "").strip().lower()
+    edit_covenant_id = _to_int(request.args.get("edit_id"))
+
+    if selected_borrower_id and selected_borrower_id not in visible_borrower_ids:
+        selected_borrower_id = None
+        flash(_("Borrower invalide."), "warning")
+    if selected_deal_id and selected_deal_id not in visible_deal_ids:
+        selected_deal_id = None
+        flash(_("Deal invalide."), "warning")
+    if selected_facility_id and selected_facility_id not in visible_facility_ids:
+        selected_facility_id = None
+        flash(_("Facility invalide."), "warning")
+    if selected_status and selected_status not in {code for code, _label in status_options}:
+        selected_status = ""
+    if selected_scope and selected_scope not in {code for code, _label in scope_options}:
+        selected_scope = ""
+
+    query = CreditCovenant.query.filter_by(tenant_id=g.tenant.id)
+    if selected_borrower_id:
+        query = query.filter(CreditCovenant.borrower_id == selected_borrower_id)
+    if selected_deal_id:
+        query = query.filter(CreditCovenant.deal_id == selected_deal_id)
+    if selected_facility_id:
+        query = query.filter(CreditCovenant.facility_id == selected_facility_id)
+    if selected_status:
+        query = query.filter(CreditCovenant.status == selected_status)
+    if selected_scope:
+        query = query.filter(CreditCovenant.scope_level == selected_scope)
+
+    rows = query.order_by(CreditCovenant.updated_at.desc(), CreditCovenant.id.desc()).all()
+    rows = [r for r in rows if int(r.borrower_id or 0) in visible_borrower_ids]
+
+    edit_covenant = (
+        CreditCovenant.query.filter_by(id=edit_covenant_id, tenant_id=g.tenant.id).first()
+        if edit_covenant_id
+        else None
+    )
+    if edit_covenant and int(edit_covenant.borrower_id or 0) not in visible_borrower_ids:
+        edit_covenant = None
+
+    schema_counts = {
+        "borrowers": len(visible_borrowers),
+        "deals": len(visible_deals),
+        "facilities": len(visible_facilities),
+        "covenants": len(rows),
+    }
+
+    return render_template(
+        "credit/covenants.html",
+        tenant=g.tenant,
+        covenants=rows,
+        edit_covenant=edit_covenant,
+        borrowers=visible_borrowers,
+        deals=visible_deals,
+        facilities=visible_facilities,
+        scope_options=scope_options,
+        operator_options=operator_options,
+        frequency_options=frequency_options,
+        status_options=status_options,
+        selected_borrower_id=selected_borrower_id,
+        selected_deal_id=selected_deal_id,
+        selected_facility_id=selected_facility_id,
+        selected_status=selected_status,
+        selected_scope=selected_scope,
+        schema_counts=schema_counts,
+    )
+
+
+@bp.route("/utilizations", methods=["GET", "POST"])
+@login_required
+def utilizations():
+    _require_tenant()
+    _seed_credit_references()
+
+    borrowers_all = CreditBorrower.query.filter_by(tenant_id=g.tenant.id).order_by(CreditBorrower.name.asc()).all()
+    visible_borrowers = [b for b in borrowers_all if _borrower_visible_for_user(g.tenant, current_user.id, b)]
+    visible_borrower_ids = {int(b.id) for b in visible_borrowers}
+
+    deals_all = CreditDeal.query.filter_by(tenant_id=g.tenant.id).order_by(CreditDeal.code.asc()).all()
+    visible_deals = [d for d in deals_all if int(d.borrower_id or 0) in visible_borrower_ids]
+    visible_deal_ids = {int(d.id) for d in visible_deals}
+
+    facilities_all = (
+        CreditFacility.query.filter_by(tenant_id=g.tenant.id)
+        .order_by(CreditFacility.created_at.desc(), CreditFacility.id.desc())
+        .all()
+    )
+    visible_facilities = [f for f in facilities_all if int(f.deal_id or 0) in visible_deal_ids]
+    visible_facility_ids = {int(f.id) for f in visible_facilities}
+
+    utilization_type_options = [
+        ("drawdown", _("Drawdown")),
+        ("repayment", _("Repayment")),
+        ("interest", _("Interest")),
+        ("fee", _("Fee")),
+        ("adjustment", _("Adjustment")),
+    ]
+    status_options = [
+        ("pending", _("Pending")),
+        ("posted", _("Posted")),
+        ("reversed", _("Reversed")),
+    ]
+
+    if request.method == "POST":
+        action = (request.form.get("action") or "create").strip().lower()
+        utilization_id = _to_int(request.form.get("utilization_id"))
+        row = None
+
+        if action in {"update", "delete"}:
+            row = (
+                CreditFacilityUtilization.query.filter_by(id=utilization_id, tenant_id=g.tenant.id).first()
+                if utilization_id
+                else None
+            )
+            if not row:
+                flash(_("Utilization invalide."), "warning")
+                return redirect(url_for("credit.utilizations", mode="search"))
+
+        if action == "delete":
+            db.session.delete(row)
+            db.session.commit()
+            flash(_("Utilization supprimée."), "success")
+            return redirect(url_for("credit.utilizations", mode="search"))
+
+        borrower_id = _to_int(request.form.get("borrower_id"))
+        borrower = CreditBorrower.query.filter_by(id=borrower_id, tenant_id=g.tenant.id).first() if borrower_id else None
+        if not borrower:
+            flash(_("Borrower invalide."), "warning")
+            return redirect(url_for("credit.utilizations", mode="search"))
+        if int(borrower.id) not in visible_borrower_ids:
+            flash(_("Borrower out of your UAM scope."), "warning")
+            return redirect(url_for("credit.utilizations", mode="search"))
+
+        deal_id = _to_int(request.form.get("deal_id"))
+        deal = CreditDeal.query.filter_by(id=deal_id, tenant_id=g.tenant.id).first() if deal_id else None
+        if deal_id and not deal:
+            flash(_("Deal invalide."), "warning")
+            return redirect(url_for("credit.utilizations", mode="search"))
+        if deal and int(deal.id) not in visible_deal_ids:
+            flash(_("Deal out of your UAM scope."), "warning")
+            return redirect(url_for("credit.utilizations", mode="search"))
+
+        facility_id = _to_int(request.form.get("facility_id"))
+        facility = CreditFacility.query.filter_by(id=facility_id, tenant_id=g.tenant.id).first() if facility_id else None
+        if facility_id and not facility:
+            flash(_("Facility invalide."), "warning")
+            return redirect(url_for("credit.utilizations", mode="search"))
+        if facility and int(facility.id) not in visible_facility_ids:
+            flash(_("Facility out of your UAM scope."), "warning")
+            return redirect(url_for("credit.utilizations", mode="search"))
+
+        # Keep hierarchy consistent: facility -> deal -> borrower.
+        if facility:
+            deal = facility.deal
+        if deal and int(deal.borrower_id or 0) != int(borrower.id):
+            flash(_("Deal does not belong to selected borrower."), "warning")
+            return redirect(url_for("credit.utilizations", mode="search"))
+        if facility and deal and int(facility.deal_id or 0) != int(deal.id):
+            flash(_("Facility does not belong to selected deal."), "warning")
+            return redirect(url_for("credit.utilizations", mode="search"))
+
+        utilization_type = (request.form.get("utilization_type") or "drawdown").strip().lower()
+        if utilization_type not in {code for code, _label in utilization_type_options}:
+            utilization_type = "drawdown"
+
+        status = (request.form.get("status") or "posted").strip().lower()
+        if status not in {code for code, _label in status_options}:
+            status = "posted"
+
+        value_date = _parse_iso_date(request.form.get("value_date"))
+        if not value_date:
+            flash(_("Value date is required."), "warning")
+            return redirect(url_for("credit.utilizations", mode="search"))
+
+        amount = _to_decimal_loose(request.form.get("amount"), "0")
+        if amount < 0:
+            amount = abs(amount)
+
+        target = row if row else CreditFacilityUtilization(tenant_id=g.tenant.id)
+        target.borrower_id = int(borrower.id)
+        target.deal_id = int(deal.id) if deal else None
+        target.facility_id = int(facility.id) if facility else None
+        target.utilization_type = utilization_type
+        target.amount = amount
+        target.currency = (request.form.get("currency") or "EUR").strip().upper()[:8] or "EUR"
+        target.value_date = value_date
+        target.status = status
+        target.reference = (request.form.get("reference") or "").strip()[:120] or None
+        target.notes = (request.form.get("notes") or "").strip() or None
+
+        if not row:
+            db.session.add(target)
+
+        db.session.commit()
+        flash(_("Utilization mise à jour." if row else "Utilization ajoutée."), "success")
+        return redirect(url_for("credit.utilizations", mode="search"))
+
+    selected_borrower_id = _to_int(request.args.get("borrower_id"))
+    selected_deal_id = _to_int(request.args.get("deal_id"))
+    selected_facility_id = _to_int(request.args.get("facility_id"))
+    selected_type = (request.args.get("utilization_type") or "").strip().lower()
+    selected_status = (request.args.get("status") or "").strip().lower()
+    edit_utilization_id = _to_int(request.args.get("edit_id"))
+
+    if selected_borrower_id and selected_borrower_id not in visible_borrower_ids:
+        selected_borrower_id = None
+        flash(_("Borrower invalide."), "warning")
+    if selected_deal_id and selected_deal_id not in visible_deal_ids:
+        selected_deal_id = None
+        flash(_("Deal invalide."), "warning")
+    if selected_facility_id and selected_facility_id not in visible_facility_ids:
+        selected_facility_id = None
+        flash(_("Facility invalide."), "warning")
+    if selected_type and selected_type not in {code for code, _label in utilization_type_options}:
+        selected_type = ""
+    if selected_status and selected_status not in {code for code, _label in status_options}:
+        selected_status = ""
+
+    query = CreditFacilityUtilization.query.filter_by(tenant_id=g.tenant.id)
+    if selected_borrower_id:
+        query = query.filter(CreditFacilityUtilization.borrower_id == selected_borrower_id)
+    if selected_deal_id:
+        query = query.filter(CreditFacilityUtilization.deal_id == selected_deal_id)
+    if selected_facility_id:
+        query = query.filter(CreditFacilityUtilization.facility_id == selected_facility_id)
+    if selected_type:
+        query = query.filter(CreditFacilityUtilization.utilization_type == selected_type)
+    if selected_status:
+        query = query.filter(CreditFacilityUtilization.status == selected_status)
+
+    rows = query.order_by(CreditFacilityUtilization.value_date.desc(), CreditFacilityUtilization.id.desc()).all()
+    rows = [r for r in rows if int(r.borrower_id or 0) in visible_borrower_ids]
+
+    edit_utilization = (
+        CreditFacilityUtilization.query.filter_by(id=edit_utilization_id, tenant_id=g.tenant.id).first()
+        if edit_utilization_id
+        else None
+    )
+    if edit_utilization and int(edit_utilization.borrower_id or 0) not in visible_borrower_ids:
+        edit_utilization = None
+
+    schema_counts = {
+        "borrowers": len(visible_borrowers),
+        "deals": len(visible_deals),
+        "facilities": len(visible_facilities),
+        "utilizations": len(rows),
+    }
+
+    return render_template(
+        "credit/utilizations.html",
+        tenant=g.tenant,
+        utilizations=rows,
+        edit_utilization=edit_utilization,
+        borrowers=visible_borrowers,
+        deals=visible_deals,
+        facilities=visible_facilities,
+        utilization_type_options=utilization_type_options,
+        status_options=status_options,
+        selected_borrower_id=selected_borrower_id,
+        selected_deal_id=selected_deal_id,
+        selected_facility_id=selected_facility_id,
+        selected_type=selected_type,
+        selected_status=selected_status,
+        schema_counts=schema_counts,
     )
 
 
@@ -3567,6 +5192,7 @@ def financials():
                 statement_id=statement.id,
             ).delete(synchronize_session=False)
             _create_ratio_snapshot_for_statement(statement)
+            _maybe_create_backlog_task_for_statement_spreading(statement, getattr(current_user, "id", None))
             db.session.commit()
             flash(_("État financier modifié."), "success")
             return redirect(url_for("credit.financials", mode="search", borrower_id=statement.borrower_id))
@@ -3611,6 +5237,7 @@ def financials():
         db.session.add(statement)
         db.session.flush()
         _create_ratio_snapshot_for_statement(statement)
+        _maybe_create_backlog_task_for_statement_spreading(statement, getattr(current_user, "id", None))
         db.session.commit()
         flash(_("États financiers et snapshot ratios enregistrés."), "success")
         return redirect(url_for("credit.financials"))
@@ -3855,6 +5482,7 @@ def financials_import():
         db.session.add(statement)
         db.session.flush()
         _create_ratio_snapshot_for_statement(statement)
+        _maybe_create_backlog_task_for_statement_spreading(statement, getattr(current_user, "id", None))
         imported += 1
 
     db.session.commit()
@@ -3937,6 +5565,7 @@ def financials_import_pdf_ai():
     db.session.add(statement)
     db.session.flush()
     _create_ratio_snapshot_for_statement(statement)
+    _maybe_create_backlog_task_for_statement_spreading(statement, getattr(current_user, "id", None))
     db.session.commit()
 
     confidence = payload.get("confidence")
@@ -5110,7 +6739,8 @@ def approvals():
                 flash(_("Workflow step invalide."), "warning")
                 return redirect(url_for("credit.approvals"))
 
-        expected_step, workflow_state_message = _expected_workflow_step_for_memo(g.tenant.id, memo.id, workflow_steps)
+        memo_workflow_steps = _workflow_steps_for_memo(g.tenant.id, memo.id)
+        expected_step, workflow_state_message = _expected_workflow_step_for_memo(g.tenant.id, memo.id, memo_workflow_steps)
         if workflow_state_message and expected_step is None:
             flash(workflow_state_message, "warning")
             return redirect(url_for("credit.approvals", mode="add"))
@@ -5149,8 +6779,14 @@ def approvals():
             decided_at=datetime.utcnow() if decision != "pending" else None,
         )
         db.session.add(approval)
+        db.session.flush()
         if approval.decision == "approved":
             _sync_entity_approval_dates_for_memo(memo, approval.decided_at)
+            _ensure_pending_approval_for_expected_step(
+                memo,
+                getattr(current_user, "id", None),
+                _("Auto-created after previous step approval."),
+            )
         _maybe_create_backlog_task_for_pending_approval(approval)
         db.session.commit()
         flash(_("Décision d'approbation enregistrée."), "success")
@@ -5163,7 +6799,8 @@ def approvals():
     expected_step_by_memo: dict[int, int] = {}
     workflow_state_by_memo: dict[int, str] = {}
     for memo in memos:
-        step, msg = _expected_workflow_step_for_memo(g.tenant.id, memo.id, workflow_steps)
+        memo_workflow_steps = _workflow_steps_for_memo(g.tenant.id, memo.id)
+        step, msg = _expected_workflow_step_for_memo(g.tenant.id, memo.id, memo_workflow_steps)
         if step:
             expected_step_by_memo[memo.id] = step.id
         if msg:
@@ -5248,10 +6885,354 @@ def approval_workflow():
 
     _seed_default_analyst_functions(g.tenant.id)
     _seed_default_approval_workflow(g.tenant.id)
+    _seed_default_workflow_catalog(g.tenant)
     _seed_credit_references()
 
     if request.method == "POST":
         action = (request.form.get("action") or "").strip()
+
+        workflow_id_for_redirect = _slugify_key(request.form.get("workflow_id") or "", "")
+
+        def _redirect_workflow() -> object:
+            if workflow_id_for_redirect:
+                return redirect(url_for("credit.approval_workflow", workflow_id=workflow_id_for_redirect))
+            return redirect(url_for("credit.approval_workflow"))
+
+        if action == "add_stage_option":
+            stage_code_raw = (request.form.get("stage_code") or "").strip()
+            stage_label_raw = (request.form.get("stage_label") or "").strip()
+            stage_code = _slugify_key(stage_code_raw or stage_label_raw, "")
+            if not stage_code:
+                flash(_("Stage code is required."), "warning")
+                return _redirect_workflow()
+
+            stage_label = stage_label_raw or _display_approval_stage(stage_code)
+            existing_codes = {code for code, _label in _approval_stage_options(g.tenant)}
+            if stage_code in existing_codes:
+                flash(_("Stage already exists."), "warning")
+                return _redirect_workflow()
+
+            cfg = _get_credit_settings(g.tenant)
+            raw_items = cfg.get("custom_stage_options") if isinstance(cfg.get("custom_stage_options"), list) else []
+            raw_items.append({"code": stage_code, "label": stage_label[:120]})
+            cfg["custom_stage_options"] = raw_items
+            _save_credit_settings(g.tenant, cfg)
+            db.session.commit()
+            flash(_("Custom stage added."), "success")
+            return _redirect_workflow()
+
+        if action == "save_matrix":
+            stage_codes: list[str] = []
+            for raw_code in request.form.getlist("matrix_stage_codes"):
+                code = _slugify_key(raw_code, "")
+                if code and code not in stage_codes:
+                    stage_codes.append(code)
+            if not stage_codes:
+                stage_codes = [code for code, _label in _approval_matrix_stage_options(g.tenant)]
+
+            stage_payload: dict[str, dict[str, object]] = {}
+            for stage_code in stage_codes:
+                min_amount_raw = (request.form.get(f"matrix_min_amount__{stage_code}") or "").strip()
+                risk_grades = request.form.getlist(f"matrix_risk_grades__{stage_code}")
+                if not risk_grades:
+                    risk_grades = request.form.getlist(f"matrix_risk_grades__{stage_code}[]")
+                if not risk_grades:
+                    risk_grades = (request.form.get(f"matrix_risk_grades__{stage_code}") or "").strip()
+
+                parsed_amount = _parse_decimal_loose_optional(min_amount_raw)
+                if min_amount_raw and parsed_amount is None:
+                    flash(
+                        _("Invalid amount value for: {field}", field=_display_approval_stage(stage_code)),
+                        "warning",
+                    )
+                    return _redirect_workflow()
+
+                stage_payload[stage_code] = {
+                    "min_amount": str(parsed_amount) if parsed_amount is not None else "",
+                    "risk_grades": risk_grades,
+                }
+
+            _save_credit_approval_matrix(g.tenant, stage_payload)
+            db.session.commit()
+            flash(_("Approval matrix updated."), "success")
+            return _redirect_workflow()
+
+        if action == "recalculate_pending_approvals":
+            stats = _recalculate_pending_approvals_for_matrix(
+                g.tenant.id,
+                getattr(current_user, "id", None),
+            )
+            db.session.commit()
+            flash(
+                _(
+                    "Pending approvals recalculated. Memos: {memos}, removed: {removed}, cancelled tasks: {tasks}, created: {created}.",
+                    memos=stats.get("memos", 0),
+                    removed=stats.get("pending_removed", 0),
+                    tasks=stats.get("tasks_cancelled", 0),
+                    created=stats.get("pending_created", 0),
+                ),
+                "success",
+            )
+            return _redirect_workflow()
+
+        if action == "create_generic_workflow":
+            catalog = _credit_workflow_catalog(g.tenant)
+            workflows = catalog.get("workflows") if isinstance(catalog.get("workflows"), list) else []
+            labels = _workflow_labels_clean(
+                {
+                    "fr": (request.form.get("workflow_name_fr") or "").strip(),
+                    "en": (request.form.get("workflow_name_en") or "").strip(),
+                },
+                (request.form.get("workflow_name_fr") or request.form.get("workflow_name_en") or "Nouveau workflow").strip(),
+            )
+            candidate_id = _slugify_key(
+                request.form.get("workflow_id") or labels.get("fr") or labels.get("en") or "",
+                f"workflow_{len(workflows) + 1}",
+            )
+            if any(str(w.get("id") or "") == candidate_id for w in workflows if isinstance(w, dict)):
+                flash(_("Workflow id already exists."), "warning")
+                return redirect(url_for("credit.approval_workflow", mode="add"))
+
+            new_workflow = {
+                "id": candidate_id,
+                "is_generic": True,
+                "labels": labels,
+                "description": (request.form.get("workflow_description") or "").strip(),
+                "nodes": [
+                    {
+                        "id": "task_1",
+                        "order": 1,
+                        "type": "task",
+                        "stage": _slugify_key(f"{candidate_id}_task_1", "task_1"),
+                        "labels": labels,
+                        "group_id": None,
+                        "function_id": None,
+                        "function_name": None,
+                        "sla_days": None,
+                        "is_required": True,
+                        "decision_rule": "",
+                    }
+                ],
+                "edges": [],
+            }
+
+            workflows.append(new_workflow)
+            catalog["workflows"] = workflows
+            if (request.form.get("set_default") or "").lower() in {"1", "true", "on", "yes"} or not catalog.get(
+                "default_workflow_id"
+            ):
+                catalog["default_workflow_id"] = candidate_id
+
+            _save_credit_workflow_catalog(g.tenant, catalog)
+            db.session.commit()
+            flash(_("Generic workflow created."), "success")
+            return redirect(url_for("credit.approval_workflow", workflow_id=candidate_id))
+
+        if action == "save_visual_workflow":
+            workflow_id = _slugify_key(request.form.get("workflow_id") or "", "")
+            if not workflow_id:
+                flash(_("Workflow is required."), "warning")
+                return redirect(url_for("credit.approval_workflow"))
+
+            catalog = _credit_workflow_catalog(g.tenant)
+            workflow = _catalog_workflow_by_id(catalog, workflow_id)
+            if not workflow:
+                flash(_("Workflow not found."), "warning")
+                return redirect(url_for("credit.approval_workflow"))
+
+            payload_raw = (request.form.get("designer_payload") or "").strip()
+            try:
+                payload = json.loads(payload_raw) if payload_raw else {}
+            except Exception:
+                payload = {}
+
+            nodes_raw = payload.get("nodes") if isinstance(payload.get("nodes"), list) else []
+            edges_raw = payload.get("edges") if isinstance(payload.get("edges"), list) else []
+            if not nodes_raw:
+                flash(_("Designer payload is empty."), "warning")
+                return redirect(url_for("credit.approval_workflow", workflow_id=workflow_id))
+
+            valid_group_ids = {
+                int(row.id)
+                for row in CreditAnalystGroup.query.filter_by(tenant_id=g.tenant.id).all()
+            }
+            function_rows = CreditAnalystFunction.query.filter_by(tenant_id=g.tenant.id).all()
+            function_by_id = {int(row.id): row for row in function_rows}
+
+            cleaned_nodes: list[dict[str, object]] = []
+            seen_node_ids: set[str] = set()
+            task_count = 0
+            for idx, node in enumerate(nodes_raw, start=1):
+                if not isinstance(node, dict):
+                    continue
+
+                node_id = _slugify_key(node.get("id") or f"node_{idx}", f"node_{idx}")
+                if node_id in seen_node_ids:
+                    continue
+                seen_node_ids.add(node_id)
+
+                node_type = str(node.get("type") or "task").strip().lower()
+                if node_type not in {"task", "decision"}:
+                    node_type = "task"
+
+                if node_type == "task":
+                    task_count += 1
+
+                label_fr = str(node.get("label_fr") or node.get("label") or "").strip()
+                label_en = str(node.get("label_en") or "").strip()
+                labels = _workflow_labels_clean(
+                    {"fr": label_fr, "en": label_en},
+                    label_fr or label_en or node_id.replace("_", " ").title(),
+                )
+
+                raw_stage = str(node.get("stage") or "").strip().lower()
+                if node_type == "task":
+                    stage = _slugify_key(raw_stage or f"{workflow_id}_{node_id}", f"{workflow_id}_{node_id}")
+                else:
+                    stage = ""
+
+                group_id = _to_int(str(node.get("group_id") or ""))
+                if group_id and group_id not in valid_group_ids:
+                    group_id = None
+
+                function_id = _to_int(str(node.get("function_id") or ""))
+                function_row = function_by_id.get(int(function_id or 0)) if function_id else None
+                if function_id and not function_row:
+                    function_id = None
+
+                sla_days = _to_int(str(node.get("sla_days") or ""))
+                required_flag = bool(node.get("is_required", True))
+
+                cleaned_nodes.append(
+                    {
+                        "id": node_id,
+                        "order": idx,
+                        "type": node_type,
+                        "stage": stage,
+                        "labels": labels,
+                        "group_id": group_id,
+                        "function_id": int(function_id) if function_id else None,
+                        "function_name": getattr(function_row, "code", None),
+                        "sla_days": int(sla_days) if sla_days else None,
+                        "is_required": required_flag,
+                        "decision_rule": str(node.get("decision_rule") or "").strip(),
+                    }
+                )
+
+            if task_count == 0:
+                flash(_("At least one task node is required."), "warning")
+                return redirect(url_for("credit.approval_workflow", workflow_id=workflow_id))
+
+            node_ids = {str(n.get("id") or "") for n in cleaned_nodes}
+            cleaned_edges: list[dict[str, str]] = []
+            for edge in edges_raw:
+                if not isinstance(edge, dict):
+                    continue
+                src = _slugify_key(edge.get("from") or "", "")
+                dst = _slugify_key(edge.get("to") or "", "")
+                if not src or not dst or src not in node_ids or dst not in node_ids:
+                    continue
+                cleaned_edges.append(
+                    {
+                        "from": src,
+                        "to": dst,
+                        "label": str(edge.get("label") or "").strip()[:80],
+                    }
+                )
+            if not cleaned_edges:
+                for idx in range(len(cleaned_nodes) - 1):
+                    cleaned_edges.append(
+                        {
+                            "from": str(cleaned_nodes[idx].get("id") or ""),
+                            "to": str(cleaned_nodes[idx + 1].get("id") or ""),
+                            "label": "next",
+                        }
+                    )
+
+            workflow["labels"] = _workflow_labels_clean(
+                {
+                    "fr": (request.form.get("workflow_name_fr") or "").strip() or workflow.get("labels", {}).get("fr", ""),
+                    "en": (request.form.get("workflow_name_en") or "").strip() or workflow.get("labels", {}).get("en", ""),
+                },
+                _workflow_label(workflow.get("labels"), fallback=str(workflow.get("id") or "Workflow")),
+            )
+            workflow["description"] = (request.form.get("workflow_description") or "").strip()
+            workflow["nodes"] = cleaned_nodes
+            workflow["edges"] = cleaned_edges
+
+            # Keep workflow steps aligned with task nodes defined in BPM designer.
+            _steps_from_catalog_workflow(g.tenant.id, workflow)
+
+            _save_credit_workflow_catalog(g.tenant, catalog)
+            db.session.commit()
+            flash(_("Visual workflow updated."), "success")
+            return redirect(url_for("credit.approval_workflow", workflow_id=workflow_id))
+
+        if action == "set_default_workflow":
+            workflow_id = _slugify_key(request.form.get("workflow_id") or "", "")
+            catalog = _credit_workflow_catalog(g.tenant)
+            workflow = _catalog_workflow_by_id(catalog, workflow_id)
+            if not workflow:
+                flash(_("Workflow not found."), "warning")
+                return redirect(url_for("credit.approval_workflow"))
+
+            catalog["default_workflow_id"] = workflow_id
+            _save_credit_workflow_catalog(g.tenant, catalog)
+            db.session.commit()
+            flash(_("Default workflow updated."), "success")
+            return redirect(url_for("credit.approval_workflow", workflow_id=workflow_id))
+
+        if action == "bind_borrower_workflow":
+            borrower_id = _to_int(request.form.get("borrower_id"))
+            workflow_id = _slugify_key(request.form.get("workflow_id") or "", "")
+            borrower = CreditBorrower.query.filter_by(id=borrower_id, tenant_id=g.tenant.id).first() if borrower_id else None
+            if not borrower:
+                flash(_("Borrower invalide."), "warning")
+                return redirect(url_for("credit.approval_workflow"))
+
+            catalog = _credit_workflow_catalog(g.tenant)
+            bindings = catalog.get("borrower_bindings") if isinstance(catalog.get("borrower_bindings"), dict) else {}
+            new_bindings = dict(bindings)
+
+            if workflow_id:
+                workflow = _catalog_workflow_by_id(catalog, workflow_id)
+                if not workflow:
+                    flash(_("Workflow not found."), "warning")
+                    return redirect(url_for("credit.approval_workflow"))
+                new_bindings[str(borrower.id)] = workflow_id
+            else:
+                new_bindings.pop(str(borrower.id), None)
+
+            catalog["borrower_bindings"] = new_bindings
+            _save_credit_workflow_catalog(g.tenant, catalog)
+            db.session.commit()
+            flash(_("Borrower workflow binding updated."), "success")
+            return redirect(url_for("credit.approval_workflow"))
+
+        if action == "delete_generic_workflow":
+            workflow_id = _slugify_key(request.form.get("workflow_id") or "", "")
+            catalog = _credit_workflow_catalog(g.tenant)
+            workflows = [w for w in (catalog.get("workflows") or []) if isinstance(w, dict)]
+            if len(workflows) <= 1:
+                flash(_("At least one workflow must remain."), "warning")
+                return redirect(url_for("credit.approval_workflow"))
+
+            kept = [w for w in workflows if str(w.get("id") or "") != workflow_id]
+            if len(kept) == len(workflows):
+                flash(_("Workflow not found."), "warning")
+                return redirect(url_for("credit.approval_workflow"))
+
+            bindings = catalog.get("borrower_bindings") if isinstance(catalog.get("borrower_bindings"), dict) else {}
+            new_bindings = {k: v for k, v in bindings.items() if str(v) != workflow_id}
+            catalog["workflows"] = kept
+            catalog["borrower_bindings"] = new_bindings
+            if str(catalog.get("default_workflow_id") or "") == workflow_id:
+                catalog["default_workflow_id"] = str(kept[0].get("id") or "")
+
+            _save_credit_workflow_catalog(g.tenant, catalog)
+            db.session.commit()
+            flash(_("Workflow deleted."), "success")
+            return redirect(url_for("credit.approval_workflow"))
 
         if action == "create_group":
             name = (request.form.get("name") or "").strip()
@@ -5393,8 +7374,8 @@ def approval_workflow():
             return redirect(url_for("credit.approval_workflow"))
 
         if action == "add_step":
-            stage = (request.form.get("stage") or "").strip() or "analyst_review"
-            step_name = (request.form.get("step_name") or "").strip() or stage
+            stage = _slugify_key((request.form.get("stage") or "").strip(), "analyst_review")
+            step_name = (request.form.get("step_name") or "").strip() or _display_approval_stage(stage)
             step_order = _to_int(request.form.get("step_order"))
             group_id = _to_int(request.form.get("group_id"))
             function_id = _to_int(request.form.get("function_id"))
@@ -5458,19 +7439,150 @@ def approval_workflow():
     users = User.query.filter_by(tenant_id=g.tenant.id).order_by(User.email.asc()).all()
     groups = CreditAnalystGroup.query.filter_by(tenant_id=g.tenant.id).order_by(CreditAnalystGroup.name.asc()).all()
     functions = CreditAnalystFunction.query.filter_by(tenant_id=g.tenant.id).order_by(CreditAnalystFunction.label.asc()).all()
+    function_options = [{"value": "", "label": _("None")}]
+    function_options.extend(
+        {
+            "value": str(fn.id),
+            "label": f"{fn.label} ({fn.code})",
+        }
+        for fn in functions
+    )
+    group_options = [{"value": "", "label": _("None")}]
+    group_options.extend(
+        {
+            "value": str(group.id),
+            "label": group.name,
+        }
+        for group in groups
+    )
+    borrowers = CreditBorrower.query.filter_by(tenant_id=g.tenant.id).order_by(CreditBorrower.name.asc()).all()
+    catalog = _credit_workflow_catalog(g.tenant)
+    catalog_workflows = catalog.get("workflows") if isinstance(catalog.get("workflows"), list) else []
+    catalog_bindings = catalog.get("borrower_bindings") if isinstance(catalog.get("borrower_bindings"), dict) else {}
+    workflow_by_id = {
+        str(w.get("id") or ""): w
+        for w in catalog_workflows
+        if isinstance(w, dict) and str(w.get("id") or "")
+    }
+    selected_workflow_id = _slugify_key(request.args.get("workflow_id") or str(catalog.get("default_workflow_id") or ""), "")
+    selected_workflow = workflow_by_id.get(selected_workflow_id)
+    if not selected_workflow and workflow_by_id:
+        selected_workflow_id = next(iter(workflow_by_id.keys()))
+        selected_workflow = workflow_by_id.get(selected_workflow_id)
+
     steps = (
         CreditApprovalWorkflowStep.query.filter_by(tenant_id=g.tenant.id)
         .order_by(CreditApprovalWorkflowStep.step_order.asc(), CreditApprovalWorkflowStep.id.asc())
         .all()
     )
+
+    workflow_stage_options: list[dict[str, str]] = []
+    seen_stage_codes: set[str] = set()
+    for step in steps:
+        stage_code = _slugify_key(str(step.stage or "").strip(), "")
+        if not stage_code or stage_code in seen_stage_codes:
+            continue
+        seen_stage_codes.add(stage_code)
+        step_label = str(step.step_name or _display_approval_stage(stage_code) or stage_code).strip()
+        full_label = f"{step_label} ({stage_code})" if step_label.lower() != stage_code.lower() else step_label
+        workflow_stage_options.append({"value": stage_code, "label": full_label})
+
+    if selected_workflow and isinstance(selected_workflow.get("nodes"), list):
+        for node in selected_workflow.get("nodes"):
+            if not isinstance(node, dict):
+                continue
+            if str(node.get("type") or "task").strip().lower() != "task":
+                continue
+            stage_code = _slugify_key(str(node.get("stage") or "").strip(), "")
+            if not stage_code or stage_code in seen_stage_codes:
+                continue
+            seen_stage_codes.add(stage_code)
+            labels = node.get("labels") if isinstance(node.get("labels"), dict) else {}
+            fallback = str(labels.get("fr") or labels.get("en") or node.get("label_fr") or node.get("label") or stage_code)
+            workflow_stage_options.append({"value": stage_code, "label": f"{fallback} ({stage_code})"})
+
+    if not workflow_stage_options:
+        for code, label in _approval_stage_options():
+            workflow_stage_options.append({"value": code, "label": str(label)})
+
+    approval_step_templates: list[dict[str, object]] = []
+    for step in steps:
+        stage_code = _slugify_key(str(step.stage or "").strip(), "")
+        if not stage_code:
+            continue
+        approval_step_templates.append(
+            {
+                "stage": stage_code,
+                "step_name": str(step.step_name or stage_code).strip(),
+                "group_id": str(step.group_id or ""),
+                "function_id": str(step.function_id or ""),
+                "sla_days": str(step.sla_days or ""),
+                "is_required": bool(step.is_required),
+            }
+        )
+
+    selected_workflow_steps: list[dict[str, object]] = []
+    if selected_workflow:
+        group_name_by_id = {int(row.id): row.name for row in groups}
+        function_label_by_id = {int(row.id): f"{row.label} ({row.code})" for row in functions}
+        step_by_stage = {
+            str(step.stage or "").strip().lower(): step
+            for step in steps
+            if str(step.stage or "").strip()
+        }
+
+        for node in _catalog_task_nodes_for_display(selected_workflow):
+            stage_code = str(node.get("stage") or "").strip().lower()
+            linked_step = step_by_stage.get(stage_code)
+            selected_workflow_steps.append(
+                {
+                    "id": node.get("id"),
+                    "order": node.get("order"),
+                    "stage": node.get("stage"),
+                    "label": str(node.get("label_fr") or node.get("label_en") or node.get("stage") or "-").strip(),
+                    "group_name": group_name_by_id.get(int(node.get("group_id") or 0), "-"),
+                    "function_label": function_label_by_id.get(int(node.get("function_id") or 0), "-"),
+                    "sla_days": node.get("sla_days"),
+                    "is_required": bool(node.get("is_required", True)),
+                    "linked_step_id": int(linked_step.id) if linked_step else None,
+                    "linked_step_name": linked_step.step_name if linked_step else "",
+                }
+            )
+
+    approval_matrix_form = _credit_approval_matrix_form(g.tenant)
+    matrix_stage_options = _approval_matrix_stage_options(
+        g.tenant,
+        {
+            code: data
+            for code, data in (approval_matrix_form.get("by_stage") or {}).items()
+            if isinstance(data, dict)
+        },
+    )
+
     return render_template(
         "credit/approval_workflow.html",
         tenant=g.tenant,
         users=users,
         groups=groups,
         functions=functions,
+        function_options=function_options,
+        group_options=group_options,
+        borrowers=borrowers,
         steps=steps,
         stage_options=_approval_stage_options(),
+        approval_matrix=approval_matrix_form,
+        matrix_stage_options=matrix_stage_options,
+        matrix_grade_options=_approval_matrix_grade_options(g.tenant, approval_matrix_form),
+        workflow_catalog=catalog,
+        workflow_catalog_workflows=catalog_workflows,
+        workflow_catalog_bindings=catalog_bindings,
+        selected_workflow_id=selected_workflow_id,
+        selected_workflow=selected_workflow,
+        selected_workflow_steps=selected_workflow_steps,
+        workflow_stage_options=workflow_stage_options,
+        approval_step_templates=approval_step_templates,
+        workflow_by_id=workflow_by_id,
+        workflow_label_fn=_workflow_label,
     )
 
 
@@ -5693,13 +7805,30 @@ def backlog():
     can_create_task = _can_create_credit_task()
     group_ids, function_codes = _credit_user_group_scope(g.tenant.id, current_user.id)
 
+    def _can_update_backlog_task(task: CreditBacklogTask) -> bool:
+        if is_backoffice_admin:
+            return True
+        if task.assigned_user_id == current_user.id:
+            return True
+        if task.created_by_user_id == current_user.id:
+            return True
+        if task.assigned_group_id and task.assigned_group_id in group_ids:
+            return True
+        return False
+
     def _redirect_backlog() -> object:
         scope_arg = (request.form.get("scope") or request.args.get("scope") or "my").strip().lower()
-        status_arg = (request.form.get("status") or request.args.get("status") or "").strip().lower()
+        status_arg = (request.form.get("filter_status") or request.args.get("status") or "").strip().lower()
+        priority_arg = (request.form.get("filter_priority") or request.args.get("priority") or "").strip().lower()
+        due_arg = (request.form.get("filter_due") or request.args.get("due") or "").strip().lower()
         borrower_arg = _to_int(request.form.get("borrower_id") or request.args.get("borrower_id"))
         params: dict[str, object] = {"mode": "search", "scope": scope_arg}
         if status_arg:
             params["status"] = status_arg
+        if priority_arg:
+            params["priority"] = priority_arg
+        if due_arg:
+            params["due"] = due_arg
         if borrower_arg:
             params["borrower_id"] = borrower_arg
         return redirect(url_for("credit.backlog", **params))
@@ -5786,13 +7915,7 @@ def backlog():
                 flash(_("Task invalide."), "warning")
                 return redirect(url_for("credit.backlog"))
 
-            can_update = is_backoffice_admin
-            if not can_update and task.assigned_user_id == current_user.id:
-                can_update = True
-            if not can_update and task.created_by_user_id == current_user.id:
-                can_update = True
-            if not can_update and task.assigned_group_id and task.assigned_group_id in group_ids:
-                can_update = True
+            can_update = _can_update_backlog_task(task)
             if not can_update:
                 flash(_("You do not have permission to update this task."), "warning")
                 return redirect(url_for("credit.backlog"))
@@ -5806,7 +7929,68 @@ def backlog():
             task.completed_at = datetime.utcnow() if next_status == "done" else None
             db.session.commit()
             flash(_("Task status updated."), "success")
-            return redirect(url_for("credit.backlog"))
+            return _redirect_backlog()
+
+        if action == "bulk_update":
+            selected_ids = []
+            for raw in request.form.getlist("task_ids"):
+                try:
+                    iv = int(raw)
+                except Exception:
+                    continue
+                if iv > 0:
+                    selected_ids.append(iv)
+            selected_ids = sorted(set(selected_ids))
+            if not selected_ids:
+                flash(_("Select at least one task."), "warning")
+                return _redirect_backlog()
+
+            next_status = (request.form.get("bulk_status") or "").strip().lower()
+            next_priority = (request.form.get("bulk_priority") or "").strip().lower()
+            next_due = _parse_iso_date(request.form.get("bulk_due_date"))
+
+            if next_status and next_status not in {"todo", "in_progress", "done", "cancelled"}:
+                flash(_("Invalid task status."), "warning")
+                return _redirect_backlog()
+            if next_priority and next_priority not in {"low", "normal", "high", "critical"}:
+                flash(_("Invalid task priority."), "warning")
+                return _redirect_backlog()
+
+            tasks_to_update = (
+                CreditBacklogTask.query.filter(
+                    CreditBacklogTask.tenant_id == g.tenant.id,
+                    CreditBacklogTask.id.in_(selected_ids),
+                )
+                .order_by(CreditBacklogTask.id.asc())
+                .all()
+            )
+            if not tasks_to_update:
+                flash(_("Task invalide."), "warning")
+                return _redirect_backlog()
+
+            updated_count = 0
+            denied_count = 0
+            for task in tasks_to_update:
+                if not _can_update_backlog_task(task):
+                    denied_count += 1
+                    continue
+                if next_status:
+                    task.status = next_status
+                    task.completed_at = datetime.utcnow() if next_status == "done" else None
+                if next_priority:
+                    task.priority = next_priority
+                if request.form.get("bulk_due_date"):
+                    task.due_date = next_due
+                updated_count += 1
+
+            if updated_count:
+                db.session.commit()
+                flash(_("Bulk update applied to {count} task(s).", count=updated_count), "success")
+            else:
+                flash(_("No task updated."), "warning")
+            if denied_count:
+                flash(_("{count} task(s) skipped due to permissions.", count=denied_count), "warning")
+            return _redirect_backlog()
 
         if action == "approve_esign":
             approval_id = _to_int(request.form.get("approval_id"))
@@ -5825,12 +8009,18 @@ def backlog():
                 flash(_("Invalid electronic signature. Please type your email to sign."), "warning")
                 return _redirect_backlog()
 
-            workflow_steps = _workflow_steps_ordered(g.tenant.id)
-            expected_step, workflow_msg = _expected_workflow_step_for_memo(g.tenant.id, approval.memo_id, workflow_steps)
+            memo_workflow_steps = _workflow_steps_for_memo(g.tenant.id, approval.memo_id)
+            expected_step, workflow_msg = _expected_workflow_step_for_memo(g.tenant.id, approval.memo_id, memo_workflow_steps)
             if workflow_msg and expected_step is None:
                 flash(workflow_msg, "warning")
                 return _redirect_backlog()
-            if expected_step and approval.workflow_step_id and expected_step.id != approval.workflow_step_id:
+            same_expected = False
+            if expected_step:
+                if approval.workflow_step_id and expected_step.id == approval.workflow_step_id:
+                    same_expected = True
+                elif (not approval.workflow_step_id) and str(approval.stage or "") == str(expected_step.stage or ""):
+                    same_expected = True
+            if expected_step and not same_expected:
                 flash(_("You are not the expected approver for the current workflow step."), "warning")
                 return _redirect_backlog()
 
@@ -5866,6 +8056,11 @@ def backlog():
                 task.completed_at = datetime.utcnow()
 
             _sync_entity_approval_dates_for_memo(approval.memo, approval.decided_at)
+            _ensure_pending_approval_for_expected_step(
+                approval.memo,
+                getattr(current_user, "id", None),
+                _("Auto-created after e-sign approval."),
+            )
 
             db.session.commit()
             flash(_("Approval signed and approved."), "success")
@@ -5876,6 +8071,8 @@ def backlog():
 
     scope = (request.args.get("scope") or "my").strip().lower()
     status_filter = (request.args.get("status") or "").strip().lower()
+    priority_filter = (request.args.get("priority") or "").strip().lower()
+    due_filter = (request.args.get("due") or "").strip().lower()
     selected_borrower_id = _to_int(request.args.get("borrower_id"))
 
     borrowers = CreditBorrower.query.filter_by(tenant_id=g.tenant.id).order_by(CreditBorrower.name.asc()).all()
@@ -5888,6 +8085,19 @@ def backlog():
     task_query = CreditBacklogTask.query.filter_by(tenant_id=g.tenant.id)
     if status_filter in {"todo", "in_progress", "done", "cancelled"}:
         task_query = task_query.filter(CreditBacklogTask.status == status_filter)
+    if priority_filter in {"low", "normal", "high", "critical"}:
+        task_query = task_query.filter(CreditBacklogTask.priority == priority_filter)
+    today = date.today()
+    if due_filter == "overdue":
+        task_query = task_query.filter(CreditBacklogTask.due_date.isnot(None), CreditBacklogTask.due_date < today)
+    elif due_filter == "today":
+        task_query = task_query.filter(CreditBacklogTask.due_date == today)
+    elif due_filter == "next7":
+        task_query = task_query.filter(
+            CreditBacklogTask.due_date.isnot(None),
+            CreditBacklogTask.due_date >= today,
+            CreditBacklogTask.due_date <= (today + timedelta(days=7)),
+        )
     if selected_borrower_id:
         task_query = task_query.filter(CreditBacklogTask.borrower_id == selected_borrower_id)
 
@@ -5933,8 +8143,6 @@ def backlog():
         if relaxed_rows:
             pending_approvals = relaxed_rows
             pending_approvals_relaxed_scope = True
-    workflow_steps = _workflow_steps_ordered(g.tenant.id)
-
     can_esign_by_approval: dict[int, bool] = {}
     expected_step_name_by_approval: dict[int, str] = {}
     for approval in pending_approvals:
@@ -5943,11 +8151,17 @@ def backlog():
             can_esign_by_approval[int(approval.id)] = False
             continue
 
-        expected_step, _workflow_note = _expected_workflow_step_for_memo(g.tenant.id, memo.id, workflow_steps)
+        memo_workflow_steps = _workflow_steps_for_memo(g.tenant.id, memo.id)
+        expected_step, _workflow_note = _expected_workflow_step_for_memo(g.tenant.id, memo.id, memo_workflow_steps)
         expected_step_name_by_approval[int(approval.id)] = (
             expected_step.step_name if expected_step else _("No expected step")
         )
-        same_step = bool(expected_step and approval.workflow_step_id and expected_step.id == approval.workflow_step_id)
+        same_step = False
+        if expected_step:
+            if approval.workflow_step_id and expected_step.id == approval.workflow_step_id:
+                same_step = True
+            elif (not approval.workflow_step_id) and str(approval.stage or "") == str(expected_step.stage or ""):
+                same_step = True
         approval_step = approval.workflow_step
         if not approval_step and approval.workflow_step_id:
             approval_step = CreditApprovalWorkflowStep.query.filter_by(
@@ -5989,6 +8203,8 @@ def backlog():
         is_backoffice_admin=is_backoffice_admin,
         scope=scope,
         status_filter=status_filter,
+        priority_filter=priority_filter,
+        due_filter=due_filter,
         selected_borrower_id=selected_borrower_id,
         can_esign_by_approval=can_esign_by_approval,
         expected_step_name_by_approval=expected_step_name_by_approval,

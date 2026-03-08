@@ -5,7 +5,7 @@
 
 {% block credit_page_content %}
 <div class="d-flex gap-2 mb-3">
-  <a class="btn btn-sm {% if credit_mode != 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.backlog', mode='search', scope=scope, status=status_filter, borrower_id=selected_borrower_id) if (status_filter or selected_borrower_id) else url_for('credit.backlog', mode='search', scope=scope) }}">{{ _('Search and list') }}</a>
+  <a class="btn btn-sm {% if credit_mode != 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.backlog', mode='search', scope=scope, status=status_filter, priority=priority_filter, due=due_filter, borrower_id=selected_borrower_id) if (status_filter or priority_filter or due_filter or selected_borrower_id) else url_for('credit.backlog', mode='search', scope=scope) }}">{{ _('Search and list') }}</a>
   <a class="btn btn-sm {% if credit_mode == 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.backlog', mode='add') }}">{{ _('Add new') }}</a>
 </div>
 
@@ -19,6 +19,8 @@
             <input type="hidden" name="mode" value="search">
             <input type="hidden" name="scope" value="{{ scope }}">
             <input type="hidden" name="status" value="{{ status_filter or '' }}">
+            <input type="hidden" name="priority" value="{{ priority_filter or '' }}">
+            <input type="hidden" name="due" value="{{ due_filter or '' }}">
             <select class="form-select form-select-sm" name="borrower_id">
               <option value="" {% if not selected_borrower_id %}selected{% endif %}>{{ _('All borrowers') }}</option>
               {% for b in borrowers %}
@@ -57,7 +59,9 @@
                     <input type="hidden" name="action" value="approve_esign">
                     <input type="hidden" name="approval_id" value="{{ a.id }}">
                     <input type="hidden" name="scope" value="{{ scope }}">
-                    <input type="hidden" name="status" value="{{ status_filter or '' }}">
+                    <input type="hidden" name="filter_status" value="{{ status_filter or '' }}">
+                    <input type="hidden" name="filter_priority" value="{{ priority_filter or '' }}">
+                    <input type="hidden" name="filter_due" value="{{ due_filter or '' }}">
                     <input type="hidden" name="borrower_id" value="{{ selected_borrower_id or '' }}">
                     <input class="form-control form-control-sm" name="signature_value" placeholder="{{ _('Type your email to e-sign') }}" required>
                     <button class="btn btn-success btn-sm" type="submit">{{ _('Approve & e-sign') }}</button>
@@ -182,6 +186,19 @@
         <option value="done" {% if status_filter == 'done' %}selected{% endif %}>{{ _('Done') }}</option>
         <option value="cancelled" {% if status_filter == 'cancelled' %}selected{% endif %}>{{ _('Cancelled') }}</option>
       </select>
+      <select class="form-select form-select-sm" name="priority">
+        <option value="" {% if not priority_filter %}selected{% endif %}>{{ _('All priorities') }}</option>
+        <option value="low" {% if priority_filter == 'low' %}selected{% endif %}>{{ _('Low') }}</option>
+        <option value="normal" {% if priority_filter == 'normal' %}selected{% endif %}>{{ _('Normal') }}</option>
+        <option value="high" {% if priority_filter == 'high' %}selected{% endif %}>{{ _('High') }}</option>
+        <option value="critical" {% if priority_filter == 'critical' %}selected{% endif %}>{{ _('Critical') }}</option>
+      </select>
+      <select class="form-select form-select-sm" name="due">
+        <option value="" {% if not due_filter %}selected{% endif %}>{{ _('Any due date') }}</option>
+        <option value="overdue" {% if due_filter == 'overdue' %}selected{% endif %}>{{ _('Overdue') }}</option>
+        <option value="today" {% if due_filter == 'today' %}selected{% endif %}>{{ _('Due today') }}</option>
+        <option value="next7" {% if due_filter == 'next7' %}selected{% endif %}>{{ _('Due in 7 days') }}</option>
+      </select>
       <select class="form-select form-select-sm" name="borrower_id">
         <option value="" {% if not selected_borrower_id %}selected{% endif %}>{{ _('All borrowers') }}</option>
         {% for b in borrowers %}
@@ -193,12 +210,52 @@
     </form>
   </div>
   <div class="card-body p-0">
+    <form method="post" id="bulkTaskForm" class="p-2 border-bottom d-flex flex-wrap gap-2 align-items-end">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="bulk_update">
+      <input type="hidden" name="scope" value="{{ scope }}">
+      <input type="hidden" name="filter_status" value="{{ status_filter or '' }}">
+      <input type="hidden" name="filter_priority" value="{{ priority_filter or '' }}">
+      <input type="hidden" name="filter_due" value="{{ due_filter or '' }}">
+      <input type="hidden" name="borrower_id" value="{{ selected_borrower_id or '' }}">
+      <div>
+        <label class="form-label form-label-sm mb-1">{{ _('Bulk status') }}</label>
+        <select class="form-select form-select-sm" name="bulk_status">
+          <option value="">{{ _('No change') }}</option>
+          <option value="todo">{{ _('To do') }}</option>
+          <option value="in_progress">{{ _('In progress') }}</option>
+          <option value="done">{{ _('Done') }}</option>
+          <option value="cancelled">{{ _('Cancelled') }}</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label form-label-sm mb-1">{{ _('Bulk priority') }}</label>
+        <select class="form-select form-select-sm" name="bulk_priority">
+          <option value="">{{ _('No change') }}</option>
+          <option value="low">{{ _('Low') }}</option>
+          <option value="normal">{{ _('Normal') }}</option>
+          <option value="high">{{ _('High') }}</option>
+          <option value="critical">{{ _('Critical') }}</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label form-label-sm mb-1">{{ _('Bulk due date') }}</label>
+        <input class="form-control form-control-sm" type="date" name="bulk_due_date">
+      </div>
+      <div>
+        <button class="btn btn-primary btn-sm" type="submit">{{ _('Apply to selected') }}</button>
+      </div>
+      <div class="small text-secondary">{{ _('Use task checkboxes below.') }}</div>
+    </form>
     <div class="table-responsive">
       <table class="table table-sm mb-0">
-        <thead><tr><th>{{ _('Task') }}</th><th>{{ _('Scope') }}</th><th>{{ _('Priority') }}</th><th>{{ _('Status') }}</th><th>{{ _('Due date') }}</th><th>{{ _('Actions') }}</th></tr></thead>
+        <thead><tr><th><input type="checkbox" id="selectAllTasks"></th><th>{{ _('Task') }}</th><th>{{ _('Scope') }}</th><th>{{ _('Priority') }}</th><th>{{ _('Status') }}</th><th>{{ _('Due date') }}</th><th>{{ _('Actions') }}</th></tr></thead>
         <tbody>
           {% for task in tasks %}
           <tr>
+            <td>
+              <input type="checkbox" form="bulkTaskForm" name="task_ids" value="{{ task.id }}" class="task-selector">
+            </td>
             <td>
               <div class="fw-semibold">{{ task.title }}</div>
               <div class="small text-secondary">{{ task.description or '-' }}</div>
@@ -226,6 +283,11 @@
                   <input type="hidden" name="action" value="set_status">
                   <input type="hidden" name="task_id" value="{{ task.id }}">
                   <input type="hidden" name="status" value="{{ st }}">
+                  <input type="hidden" name="scope" value="{{ scope }}">
+                  <input type="hidden" name="filter_status" value="{{ status_filter or '' }}">
+                  <input type="hidden" name="filter_priority" value="{{ priority_filter or '' }}">
+                  <input type="hidden" name="filter_due" value="{{ due_filter or '' }}">
+                  <input type="hidden" name="borrower_id" value="{{ selected_borrower_id or '' }}">
                   <button class="btn btn-outline-secondary btn-sm" type="submit">{{ label }}</button>
                 </form>
                 {% endfor %}
@@ -233,12 +295,34 @@
             </td>
           </tr>
           {% else %}
-          <tr><td colspan="6" class="text-secondary">{{ _('No tasks for this scope.') }}</td></tr>
+          <tr><td colspan="7" class="text-secondary">{{ _('No tasks for this scope.') }}</td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
   </div>
 </div>
+
+<script>
+  (() => {
+    const selectAll = document.getElementById('selectAllTasks');
+    const checkboxes = Array.from(document.querySelectorAll('.task-selector'));
+    if (!selectAll || !checkboxes.length) return;
+
+    selectAll.addEventListener('change', () => {
+      checkboxes.forEach((cb) => {
+        cb.checked = !!selectAll.checked;
+      });
+    });
+
+    checkboxes.forEach((cb) => {
+      cb.addEventListener('change', () => {
+        const selectedCount = checkboxes.filter((item) => item.checked).length;
+        selectAll.checked = selectedCount > 0 && selectedCount === checkboxes.length;
+        selectAll.indeterminate = selectedCount > 0 && selectedCount < checkboxes.length;
+      });
+    });
+  })();
+</script>
 {% endif %}
 {% endblock %}

@@ -27,6 +27,7 @@ from ...models.bi import AuditEvent
 from ...models.prospect import Prospect
 from ...services.tenant_service import TenantService
 from ...services.subscription_service import SubscriptionService
+from ...product_catalog import get_product_catalog
 from ...tenancy import CurrentTenant, set_current_tenant, clear_current_tenant, get_user_module_access, get_user_menu_access
 from ...i18n import tr
 from . import bp
@@ -842,6 +843,7 @@ def products():
         "tenant/products.html",
         tenant=tenant,
         subscription=subscription,
+        product_catalog=get_product_catalog(),
         has_finance=has_finance,
         has_bi=has_bi,
         has_credit=has_credit,
