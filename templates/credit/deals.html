@@ -120,6 +120,7 @@
             <td>{{ d.approval_date.strftime('%d/%m/%Y') if d.approval_date else (ap.approved_at.strftime('%d/%m/%Y') if ap and ap.approved_at else '-') }}</td>
             <td>
               <div class="small"><strong>{{ _('Current task') }}:</strong> {{ ap.current_task if ap else '-' }}</div>
+              <div class="small"><strong>{{ _('Current workflow stage') }}:</strong> {{ ap.current_stage if ap else '-' }}</div>
               {% if ap and ap.phases %}
               <details>
                 <summary class="small text-secondary">{{ _('Workflow phases') }}</summary>

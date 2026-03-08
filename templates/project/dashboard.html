@@ -17,25 +17,36 @@
 
 <datalist id="pm-managers-datalist"></datalist>
 
-<ul class="nav nav-tabs mb-3" id="pm-main-tabs" role="tablist">
-  <li class="nav-item" role="presentation">
-    <button class="nav-link active" id="pm-tab-execution" data-bs-toggle="tab" data-bs-target="#pm-pane-execution" type="button" role="tab" aria-controls="pm-pane-execution" aria-selected="true">{{ _('Tableau') }}</button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link" id="pm-tab-governance" data-bs-toggle="tab" data-bs-target="#pm-pane-governance" type="button" role="tab" aria-controls="pm-pane-governance" aria-selected="false">{{ _('Gouvernance') }}</button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link" id="pm-tab-reporting" data-bs-toggle="tab" data-bs-target="#pm-pane-reporting" type="button" role="tab" aria-controls="pm-pane-reporting" aria-selected="false">{{ _('Reporting') }}</button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link" id="pm-tab-notifications" data-bs-toggle="tab" data-bs-target="#pm-pane-notifications" type="button" role="tab" aria-controls="pm-pane-notifications" aria-selected="false">{{ _('Notifications') }}</button>
-  </li>
-</ul>
+<div class="row g-3">
+  <div class="col-12 col-xl-3 col-xxl-2">
+    <div class="card border-0 shadow-sm pm-side-nav-wrap">
+      <div class="card-body p-2">
+        <div class="nav nav-pills flex-column gap-1" id="pm-main-tabs" role="tablist" aria-orientation="vertical">
+          <button class="nav-link active text-start" id="pm-tab-execution" data-bs-toggle="tab" data-bs-target="#pm-pane-execution" type="button" role="tab" aria-controls="pm-pane-execution" aria-selected="true">
+            <i class="bi bi-kanban me-2"></i>{{ _('Tableau') }}
+          </button>
+          <button class="nav-link text-start" id="pm-tab-managers" data-bs-toggle="tab" data-bs-target="#pm-pane-managers" type="button" role="tab" aria-controls="pm-pane-managers" aria-selected="false">
+            <i class="bi bi-people me-2"></i>{{ _('Responsables') }}
+          </button>
+          <button class="nav-link text-start" id="pm-tab-governance" data-bs-toggle="tab" data-bs-target="#pm-pane-governance" type="button" role="tab" aria-controls="pm-pane-governance" aria-selected="false">
+            <i class="bi bi-diagram-3 me-2"></i>{{ _('Gouvernance') }}
+          </button>
+          <button class="nav-link text-start" id="pm-tab-reporting" data-bs-toggle="tab" data-bs-target="#pm-pane-reporting" type="button" role="tab" aria-controls="pm-pane-reporting" aria-selected="false">
+            <i class="bi bi-graph-up-arrow me-2"></i>{{ _('Reporting') }}
+          </button>
+          <button class="nav-link text-start" id="pm-tab-notifications" data-bs-toggle="tab" data-bs-target="#pm-pane-notifications" type="button" role="tab" aria-controls="pm-pane-notifications" aria-selected="false">
+            <i class="bi bi-bell me-2"></i>{{ _('Notifications') }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 
+  <div class="col-12 col-xl-9 col-xxl-10">
 <div class="tab-content" id="pm-main-tabs-content">
 <div class="tab-pane fade show active" id="pm-pane-execution" role="tabpanel" aria-labelledby="pm-tab-execution" tabindex="0">
 <div class="row g-3 mb-3">
-  <div class="col-lg-8">
+  <div class="col-12">
     <div class="card border-0 shadow-sm h-100" id="pm-section-kanban">
       <div class="card-body">
         <div class="d-flex align-items-center justify-content-between mb-2">
@@ -74,15 +85,32 @@
       </div>
     </div>
 
-    <div class="card border-0 shadow-sm" id="pm-section-managers">
+    <div class="card border-0 shadow-sm" id="pm-section-managers-shortcut">
       <div class="card-body">
         <div class="d-flex align-items-center justify-content-between mb-2">
-          <h5 class="mb-0">{{ _('Registre responsables') }}</h5>
-          <button class="btn btn-sm btn-outline-primary" id="pm-add-manager">{{ _('Ajouter') }}</button>
+          <h5 class="mb-0">{{ _('Responsables') }}</h5>
+          <a href="#pm-section-managers" class="btn btn-sm btn-outline-primary">{{ _('Ecran dedie') }}</a>
         </div>
-        <div id="pm-managers" class="small"></div>
+        <div id="pm-managers-quick-summary" class="small text-secondary">{{ _('Charge des responsables en cours de calcul...') }}</div>
       </div>
     </div>
+  </div>
+</div>
+
+</div>
+<div class="tab-pane fade" id="pm-pane-managers" role="tabpanel" aria-labelledby="pm-tab-managers" tabindex="0">
+
+<div class="card border-0 shadow-sm" id="pm-section-managers">
+  <div class="card-body">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+      <div>
+        <h5 class="mb-1">{{ _('Registre responsables') }}</h5>
+        <div class="small text-secondary">{{ _('Gestion centralisee des responsables, capacite, tarification et surcharge.') }}</div>
+      </div>
+      <button class="btn btn-sm btn-outline-primary" id="pm-add-manager">{{ _('Ajouter') }}</button>
+    </div>
+    <div id="pm-managers-workload-alerts" class="small mb-2"></div>
+    <div id="pm-managers" class="small"></div>
   </div>
 </div>
 
@@ -249,42 +277,55 @@
       </div>
     </div>
   </div>
-  <div class="col-lg-4" id="pm-section-security">
-    <div class="card border-0 shadow-sm h-100">
-      <div class="card-body">
-        <h5 class="mb-2">{{ _('Paramètres & sécurité') }}</h5>
-        <div class="mb-2">
-          <label class="form-label small mb-1">{{ _('Droits') }}</label>
-          <select id="pm-security-rights" class="form-select form-select-sm">
-            <option value="rw">{{ _('Lecture/écriture') }}</option>
-            <option value="rwa">{{ _('Lecture/écriture/approbation') }}</option>
-            <option value="r">{{ _('Lecture seule') }}</option>
-          </select>
-        </div>
-        <div class="mb-2 d-none">
-          <label class="form-label small mb-1">{{ _('Templates / champs personnalisés') }}</label>
-          <textarea id="pm-security-templates" class="form-control form-control-sm" rows="2"></textarea>
-        </div>
-        <div class="d-none">
-          <label class="form-label small mb-1">{{ _('Intégrations') }}</label>
-          <textarea id="pm-security-integrations" class="form-control form-control-sm" rows="2" placeholder="{{ _('Email, calendrier, Jira, Git, ERP...') }}"></textarea>
-        </div>
-      </div>
-    </div>
-  </div>
 </div>
 
 <div class="card border-0 shadow-sm" id="pm-section-gantt">
   <div class="card-body">
     <div class="d-flex align-items-center justify-content-between mb-2">
-      <h5 class="mb-0">{{ _('Diagramme de Gantt (simple)') }}</h5>
+      <h5 class="mb-0">{{ _('Diagramme de Gantt avancé') }}</h5>
       <div class="d-flex gap-2">
         <button class="btn btn-sm btn-outline-secondary" id="pm-gantt-maximize" type="button">
           <i class="bi bi-arrows-fullscreen me-1"></i>{{ _('Maximiser') }}
         </button>
+        <button class="btn btn-sm btn-outline-secondary" id="pm-gantt-capture-baseline" type="button">{{ _('Capturer baseline') }}</button>
         <button class="btn btn-sm btn-outline-primary" id="pm-add-gantt">{{ _('Ajouter tâche') }}</button>
       </div>
     </div>
+    <div class="row g-2 mb-2" id="pm-gantt-toolbar">
+      <div class="col-12 col-lg-3">
+        <label class="form-label form-label-sm mb-1">{{ _('Zoom') }}</label>
+        <select class="form-select form-select-sm" id="pm-gantt-zoom">
+          <option value="day">{{ _('Jour') }}</option>
+          <option value="week" selected>{{ _('Semaine') }}</option>
+          <option value="month">{{ _('Mois') }}</option>
+        </select>
+      </div>
+      <div class="col-12 col-lg-3">
+        <label class="form-label form-label-sm mb-1">{{ _('Filtre responsable') }}</label>
+        <select class="form-select form-select-sm" id="pm-gantt-owner-filter">
+          <option value="">{{ _('Tous') }}</option>
+        </select>
+      </div>
+      <div class="col-12 col-lg-6 d-flex align-items-end gap-3">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="pm-gantt-show-baseline" checked>
+          <label class="form-check-label" for="pm-gantt-show-baseline">{{ _('Afficher baseline') }}</label>
+        </div>
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="pm-gantt-auto-schedule" checked>
+          <label class="form-check-label" for="pm-gantt-auto-schedule">{{ _('Auto-planning') }}</label>
+        </div>
+      </div>
+      <div class="col-12">
+        <div class="d-flex flex-wrap gap-2 small">
+          <span class="badge rounded-pill text-bg-secondary pm-gantt-status-badge">{{ _('Non démarré') }}</span>
+          <span class="badge rounded-pill text-bg-primary pm-gantt-status-badge">{{ _('En cours') }}</span>
+          <span class="badge rounded-pill text-bg-success pm-gantt-status-badge">{{ _('Terminé') }}</span>
+          <span class="badge rounded-pill text-bg-dark pm-gantt-status-badge">{{ _('Bloqué') }}</span>
+        </div>
+      </div>
+    </div>
+    <div id="pm-gantt-insights" class="small mb-2"></div>
     <div class="table-responsive">
       <table class="table table-sm align-middle" id="pm-gantt-table">
         <thead>
@@ -293,10 +334,17 @@
             <th>{{ _('Tâche') }}</th>
             <th>{{ _('Responsable') }}</th>
             <th>{{ _('Prédecesseur') }}</th>
+            <th>{{ _('Type lien') }}</th>
+            <th>{{ _('Lag (j)') }}</th>
+            <th>{{ _('Statut') }}</th>
+            <th>{{ _('Avancement %') }}</th>
             <th>{{ _('Début') }}</th>
             <th>{{ _('Fin') }}</th>
             <th>{{ _('Durée (j)') }}</th>
+            <th>{{ _('Charge/j') }}</th>
+            <th>{{ _('Capacité/j') }}</th>
             <th>{{ _('Critique') }}</th>
+            <th>{{ _('Alerte') }}</th>
             <th>{{ _('Heures (calc)') }}</th>
             <th>{{ _('Tarif/h (resp.)') }}</th>
             <th>{{ _('Coût (calc)') }}</th>
@@ -384,8 +432,36 @@
 
 </div>
 </div>
+</div>
+</div>
 
 <style>
+  .pm-side-nav-wrap {
+    position: sticky;
+    top: 86px;
+  }
+  #pm-main-tabs .nav-link {
+    border: 1px solid var(--bs-border-color);
+    color: var(--bs-body-color);
+    background: var(--bs-body-bg);
+  }
+  #pm-main-tabs .nav-link.active {
+    background: var(--bs-primary);
+    border-color: var(--bs-primary);
+  }
+  @media (max-width: 1199.98px) {
+    .pm-side-nav-wrap {
+      position: static;
+    }
+    #pm-main-tabs {
+      flex-direction: row !important;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+    #pm-main-tabs .nav-link {
+      min-width: max-content;
+    }
+  }
   .pm-gantt-fullscreen {
     position: fixed !important;
     inset: 1rem;
@@ -400,6 +476,164 @@
   .pm-gantt-fullscreen .table-responsive {
     flex: 1;
     overflow: auto;
+  }
+  .pm-gantt-track {
+    position: relative;
+    height: 20px;
+    background: repeating-linear-gradient(
+      to right,
+      rgba(13, 110, 253, 0.05),
+      rgba(13, 110, 253, 0.05) 1px,
+      transparent 1px,
+      transparent 24px
+    );
+    border-radius: 999px;
+    overflow: visible;
+  }
+  .pm-gantt-today-marker {
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    width: 2px;
+    background: var(--bs-danger);
+    opacity: 0.9;
+    z-index: 5;
+  }
+  .pm-gantt-bar {
+    position: absolute;
+    top: 2px;
+    height: 16px;
+    border-radius: 999px;
+    cursor: grab;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  }
+  .pm-gantt-bar-label {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+    color: rgba(255, 255, 255, 0.95);
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
+    pointer-events: none;
+    z-index: 6;
+    white-space: nowrap;
+  }
+  .pm-gantt-status-badge {
+    letter-spacing: 0.01em;
+  }
+  .pm-gantt-bar--not_started {
+    background-image: repeating-linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.18),
+      rgba(255, 255, 255, 0.18) 7px,
+      rgba(255, 255, 255, 0) 7px,
+      rgba(255, 255, 255, 0) 14px
+    );
+  }
+  .pm-gantt-bar--blocked {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      rgba(220, 53, 69, 0.35),
+      rgba(220, 53, 69, 0.35) 7px,
+      rgba(220, 53, 69, 0) 7px,
+      rgba(220, 53, 69, 0) 14px
+    );
+  }
+  .pm-gantt-timeline-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .pm-gantt-bar:active {
+    cursor: grabbing;
+  }
+  .pm-gantt-bar-progress {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.45);
+  }
+  .pm-gantt-bar-handle {
+    position: absolute;
+    top: 0;
+    width: 7px;
+    height: 16px;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    z-index: 7;
+  }
+  .pm-gantt-bar-handle-left {
+    left: 0;
+    border-radius: 999px 0 0 999px;
+    cursor: ew-resize;
+  }
+  .pm-gantt-bar-handle-right {
+    right: 0;
+    border-radius: 0 999px 999px 0;
+    cursor: ew-resize;
+  }
+  .pm-gantt-baseline {
+    position: absolute;
+    top: 8px;
+    height: 4px;
+    background: rgba(108, 117, 125, 0.75);
+    border-radius: 999px;
+    z-index: 3;
+  }
+  #pm-gantt-table {
+    min-width: 2280px;
+  }
+  #pm-gantt-table th,
+  #pm-gantt-table td {
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+  #pm-gantt-table th:nth-child(1),
+  #pm-gantt-table td:nth-child(1) { min-width: 52px; }
+  #pm-gantt-table th:nth-child(2),
+  #pm-gantt-table td:nth-child(2) { min-width: 220px; }
+  #pm-gantt-table th:nth-child(3),
+  #pm-gantt-table td:nth-child(3) { min-width: 150px; }
+  #pm-gantt-table th:nth-child(4),
+  #pm-gantt-table td:nth-child(4) { min-width: 170px; }
+  #pm-gantt-table th:nth-child(5),
+  #pm-gantt-table td:nth-child(5) { min-width: 95px; }
+  #pm-gantt-table th:nth-child(6),
+  #pm-gantt-table td:nth-child(6) { min-width: 90px; }
+  #pm-gantt-table th:nth-child(7),
+  #pm-gantt-table td:nth-child(7) { min-width: 130px; }
+  #pm-gantt-table th:nth-child(8),
+  #pm-gantt-table td:nth-child(8) { min-width: 120px; }
+  #pm-gantt-table th:nth-child(9),
+  #pm-gantt-table td:nth-child(9),
+  #pm-gantt-table th:nth-child(10),
+  #pm-gantt-table td:nth-child(10) { min-width: 125px; }
+  #pm-gantt-table th:nth-child(11),
+  #pm-gantt-table td:nth-child(11) { min-width: 95px; }
+  #pm-gantt-table th:nth-child(12),
+  #pm-gantt-table td:nth-child(12) { min-width: 100px; }
+  #pm-gantt-table th:nth-child(13),
+  #pm-gantt-table td:nth-child(13) { min-width: 120px; }
+  #pm-gantt-table th:nth-child(14),
+  #pm-gantt-table td:nth-child(14) { min-width: 95px; }
+  #pm-gantt-table th:nth-child(15),
+  #pm-gantt-table td:nth-child(15) { min-width: 150px; }
+  #pm-gantt-table th:nth-child(16),
+  #pm-gantt-table td:nth-child(16) { min-width: 110px; }
+  #pm-gantt-table th:nth-child(17),
+  #pm-gantt-table td:nth-child(17),
+  #pm-gantt-table th:nth-child(18),
+  #pm-gantt-table td:nth-child(18) { min-width: 120px; }
+  #pm-gantt-table th:nth-child(19),
+  #pm-gantt-table td:nth-child(19) {
+    min-width: 640px;
+    width: 42%;
   }
 </style>
 
@@ -530,6 +764,12 @@
       const projectSelect = document.getElementById('pm-project-select');
       const ganttCard = document.getElementById('pm-gantt-table')?.closest('.card');
       const ganttMaxBtn = document.getElementById('pm-gantt-maximize');
+      const ganttView = {
+        zoom: 'week',
+        ownerFilter: '',
+        showBaseline: true,
+        autoSchedule: true,
+      };
       let draggedCardId = null;
       let ganttIsMaximized = false;
 
@@ -545,6 +785,23 @@
       function money(v){ return num(v).toFixed(2); }
       function daysBetween(a,b){ return Math.max(1, Math.round((b-a)/(1000*60*60*24))+1); }
       function addDays(base, n){ const d = new Date(base); d.setDate(d.getDate() + Number(n || 0)); return d; }
+      function dayDiff(a, b){ return Math.round((b - a) / (1000 * 60 * 60 * 24)); }
+      function dayOffset(start, point){ return Math.max(0, dayDiff(start, point)); }
+      function zoomPx(){
+        if (ganttView.zoom === 'day') return 20;
+        if (ganttView.zoom === 'month') return 2;
+        return 6;
+      }
+      function statusNorm(v){
+        const x = (v || '').toString().trim().toLowerCase();
+        if (x === 'done' || x === 'blocked' || x === 'in_progress' || x === 'not_started') return x;
+        return 'not_started';
+      }
+      function depTypeNorm(v){
+        const x = (v || '').toString().trim().toUpperCase();
+        if (x === 'FS' || x === 'SS' || x === 'FF' || x === 'SF') return x;
+        return 'FS';
+      }
 
       function sanitize(){
         state.projects = asArray(state.projects);
@@ -704,19 +961,174 @@
       function taskComputedCost(task){
         return taskComputedHours(task) * managerRate(task && task.owner);
       }
-      function predecessorIds(task){
-        const ids = [];
-        if (task && task.predecessor_id) ids.push(String(task.predecessor_id));
-        if (Array.isArray(task && task.dependencies)) {
-          task.dependencies.forEach(function(d){ if (d && d.task_id) ids.push(String(d.task_id)); });
+      function managerKey(name){
+        return normalizeManagerName(name).toLowerCase();
+      }
+      function eachTaskDay(task, cb){
+        const s = dt(task && task.start);
+        const e = dt(task && task.end);
+        if (!s || !e || !cb) return;
+        const cursor = new Date(s);
+        cursor.setHours(0, 0, 0, 0);
+        const end = new Date(e);
+        end.setHours(0, 0, 0, 0);
+        let guard = 0;
+        while (cursor <= end && guard < 2000) {
+          cb(fmtDate(cursor));
+          cursor.setDate(cursor.getDate() + 1);
+          guard += 1;
         }
-        return Array.from(new Set(ids));
+      }
+      function ganttWorkloadSnapshot(tasks){
+        const rows = Array.isArray(tasks) ? tasks : [];
+        const owners = {};
+        const overloadedTaskIds = new Set();
+
+        rows.forEach(function(task){
+          const owner = normalizeManagerName(task && task.owner) || '{{ _('Non assigné') }}';
+          const key = managerKey(owner);
+          const duration = Math.max(1, num(task && task.duration_days));
+          const taskHours = taskComputedHours(task);
+          const dailyLoad = taskHours / duration;
+          const capacity = Math.max(0.25, managerHoursPerDay(owner) || 8);
+          if (!owners[key]) {
+            owners[key] = {
+              key: key,
+              name: owner,
+              capacity: capacity,
+              days: {},
+              overloaded_days: 0,
+              max_utilization: 0,
+              total_hours: 0,
+            };
+          }
+          owners[key].capacity = capacity;
+          owners[key].total_hours += taskHours;
+          eachTaskDay(task, function(day){
+            owners[key].days[day] = (owners[key].days[day] || 0) + dailyLoad;
+          });
+        });
+
+        Object.keys(owners).forEach(function(key){
+          const row = owners[key];
+          Object.keys(row.days).forEach(function(day){
+            const load = num(row.days[day]);
+            const util = row.capacity > 0 ? (load / row.capacity) : 0;
+            row.max_utilization = Math.max(row.max_utilization, util);
+            if (util > 1.001) row.overloaded_days += 1;
+          });
+        });
+
+        rows.forEach(function(task){
+          const owner = normalizeManagerName(task && task.owner) || '{{ _('Non assigné') }}';
+          const key = managerKey(owner);
+          const row = owners[key];
+          if (!row) return;
+          let overloaded = false;
+          eachTaskDay(task, function(day){
+            if (overloaded) return;
+            const load = num(row.days[day]);
+            const util = row.capacity > 0 ? (load / row.capacity) : 0;
+            if (util > 1.001) overloaded = true;
+          });
+          if (overloaded) overloadedTaskIds.add(String(task.id));
+        });
+
+        const overloadedOwners = Object.keys(owners)
+          .map(function(k){ return owners[k]; })
+          .filter(function(x){ return x.overloaded_days > 0; })
+          .sort(function(a, b){ return b.max_utilization - a.max_utilization; });
+
+        return { owners: owners, overloadedOwners: overloadedOwners, overloadedTaskIds: overloadedTaskIds };
+      }
+      function normalizeTaskDependencies(task){
+        if (!task || typeof task !== 'object') return [];
+        const deps = [];
+        const raw = Array.isArray(task.dependencies) ? task.dependencies : [];
+        raw.forEach(function(d){
+          if (!d || !d.task_id) return;
+          const depId = String(d.task_id);
+          if (!depId || depId === String(task.id)) return;
+          deps.push({ task_id: depId, type: depTypeNorm(d.type || task.dependency_type), lag_days: Math.round(num(d.lag_days || d.lag || 0)) });
+        });
+        if (!deps.length && task.predecessor_id) {
+          const depId = String(task.predecessor_id);
+          if (depId && depId !== String(task.id)) {
+            deps.push({ task_id: depId, type: depTypeNorm(task.dependency_type), lag_days: Math.round(num(task.lag_days || 0)) });
+          }
+        }
+        task.dependencies = deps;
+        task.predecessor_id = deps[0] ? String(deps[0].task_id) : null;
+        task.dependency_type = deps[0] ? depTypeNorm(deps[0].type) : depTypeNorm(task.dependency_type);
+        task.lag_days = deps[0] ? Math.round(num(deps[0].lag_days || 0)) : Math.round(num(task.lag_days || 0));
+        return deps;
+      }
+      function predecessorIds(task){
+        return Array.from(new Set(normalizeTaskDependencies(task).map(function(d){ return String(d.task_id); })));
+      }
+      function dependencyStartConstraint(dep, predTask, duration){
+        const predStart = dt(predTask && predTask.start);
+        const predEnd = dt(predTask && predTask.end);
+        if (!predStart || !predEnd) return null;
+        const type = depTypeNorm(dep && dep.type);
+        const lag = Math.round(num(dep && dep.lag_days));
+        if (type === 'SS') {
+          return addDays(predStart, lag);
+        }
+        if (type === 'FF') {
+          const targetEnd = addDays(predEnd, lag);
+          return addDays(targetEnd, -(Math.max(1, duration) - 1));
+        }
+        if (type === 'SF') {
+          const targetEnd = addDays(predStart, lag);
+          return addDays(targetEnd, -(Math.max(1, duration) - 1));
+        }
+        return addDays(predEnd, lag + 1);
+      }
+      function applyDependenciesSchedule(task, tasks){
+        if (!ganttView.autoSchedule || !task) return;
+        const rows = Array.isArray(tasks) ? tasks : currentProjectGantt();
+        const byId = new Map();
+        rows.forEach(function(x){ byId.set(String(x.id), x); });
+        const deps = normalizeTaskDependencies(task);
+        if (!deps.length) return;
+
+        const duration = Math.max(1, Number(task.duration_days || 1));
+        let nextStart = null;
+        deps.forEach(function(dep){
+          const pred = byId.get(String(dep.task_id));
+          if (!pred) return;
+          const candidate = dependencyStartConstraint(dep, pred, duration);
+          if (!candidate) return;
+          if (!nextStart || candidate > nextStart) nextStart = candidate;
+        });
+        if (!nextStart) return;
+        task.start = fmtDate(nextStart);
+        task.end = fmtDate(addDays(nextStart, duration - 1));
+      }
+      function normalizeGanttTask(task){
+        const item = Object.assign({}, task || {});
+        item.id = item.id || uid();
+        item.task = (item.task || '').toString();
+        item.owner = (item.owner || '').toString().trim();
+        item.project_id = item.project_id || state.selected_project_id;
+        item.duration_days = Math.max(1, Math.round(num(item.duration_days || 1)));
+        item.status = statusNorm(item.status);
+        item.progress_pct = Math.max(0, Math.min(100, Math.round(num(item.progress_pct || 0))));
+        item.start = item.start || '';
+        item.end = item.end || '';
+        item.baseline_start = item.baseline_start || '';
+        item.baseline_end = item.baseline_end || '';
+        item.dependency_type = depTypeNorm(item.dependency_type);
+        item.lag_days = Math.round(num(item.lag_days || 0));
+        normalizeTaskDependencies(item);
+        return item;
       }
       function criticalPathIds(tasks){
         const rows = Array.isArray(tasks) ? tasks : [];
         if (!rows.length) return new Set();
         const map = new Map();
-        rows.forEach(function(t){ map.set(String(t.id), t); });
+        rows.forEach(function(t){ map.set(String(t.id), normalizeGanttTask(t)); });
         const best = new Map();
         const prev = new Map();
 
@@ -728,9 +1140,11 @@
           const dur = Math.max(1, num(task && task.duration_days));
           let maxPred = 0;
           let maxPredId = null;
-          predecessorIds(task).forEach(function(pid){
+          normalizeTaskDependencies(task).forEach(function(dep){
+            const pid = String(dep.task_id);
             if (!map.has(pid)) return;
-            const val = solve(pid, visiting);
+            const lag = Math.max(0, num(dep.lag_days || 0));
+            const val = solve(pid, visiting) + lag;
             if (val > maxPred) { maxPred = val; maxPredId = pid; }
           });
           visiting.delete(id);
@@ -883,19 +1297,13 @@
           return row;
         });
         state.gantt = state.gantt.map(function(g){
-          const deps = Array.isArray(g.dependencies)
-            ? g.dependencies
-            : (g.predecessor_id ? [{ task_id: g.predecessor_id, type: 'FS' }] : []);
-          const predecessor = g.predecessor_id || (deps[0] && deps[0].task_id) || null;
-          const item = Object.assign({}, g, {
+          const item = normalizeGanttTask(Object.assign({}, g, {
             project_id: g.project_id || state.selected_project_id,
-            dependencies: deps,
-            predecessor_id: predecessor,
-            duration_days: Math.max(1, Number(g.duration_days || 1)),
-            start: g.start || '',
-            end: g.end || '',
-            owner: (g.owner || '').toString(),
-          });
+          }));
+          const s = dt(item.start);
+          if (s && !dt(item.end)) {
+            item.end = fmtDate(addDays(s, Math.max(1, Number(item.duration_days || 1)) - 1));
+          }
           delete item.hours_spent;
           delete item.hourly_rate;
           return item;
@@ -912,7 +1320,7 @@
         if (!state.ceremonies.length) state.ceremonies = [{ id: uid(), type:'planning', when:'Lundi 09:30' }, { id: uid(), type:'daily', when:'Chaque jour 10:00' }];
         if (!state.deliverables.length) state.deliverables = [{ id: uid(), label:'Epic: Portail client', done:false }];
         if (!state.gantt.length) {
-          state.gantt = [{ id: uid(), project_id: state.selected_project_id, task:'{{ _('Construction MVP') }}', owner:'PM', dependencies:[], predecessor_id:null, start:'2026-02-25', end:'2026-03-05', duration_days:9 }];
+          state.gantt = [normalizeGanttTask({ id: uid(), project_id: state.selected_project_id, task:'{{ _('Construction MVP') }}', owner:'PM', dependencies:[], predecessor_id:null, dependency_type:'FS', lag_days:0, status:'in_progress', progress_pct:35, start:'2026-02-25', end:'2026-03-05', baseline_start:'2026-02-25', baseline_end:'2026-03-04', duration_days:9 })];
         }
         metaForProject();
         if (!state.security || typeof state.security !== 'object') state.security = {};
@@ -1183,17 +1591,55 @@
 
       function renderManagers(){
         const el = document.getElementById('pm-managers');
+        const alertsEl = document.getElementById('pm-managers-workload-alerts');
+        const quickSummaryEl = document.getElementById('pm-managers-quick-summary');
         if (!el) return;
+        const tasks = currentProjectGantt();
+        const workload = ganttWorkloadSnapshot(tasks);
+
+        function setManagersSummary(){
+          const overloadCount = workload.overloadedOwners.length;
+          const text = overloadCount > 0
+            ? '<span class="badge text-bg-danger">' + overloadCount + ' {{ _('responsable(s) en surcharge') }}</span>'
+            : '<span class="badge text-bg-success">{{ _('Aucune surcharge détectée') }}</span>';
+          if (alertsEl) {
+            alertsEl.innerHTML =
+              '<div class="d-flex flex-wrap gap-2">' +
+                '<span class="badge text-bg-light border">{{ _('Responsables actifs') }}: ' + state.managers.length + '</span>' +
+                '<span class="badge text-bg-light border">{{ _('Tâches Gantt') }}: ' + tasks.length + '</span>' +
+                text +
+              '</div>';
+          }
+          if (quickSummaryEl) {
+            quickSummaryEl.innerHTML =
+              '<div class="d-flex flex-wrap gap-2">' +
+                '<span class="badge text-bg-light border">{{ _('Responsables') }}: ' + state.managers.length + '</span>' +
+                '<span class="badge text-bg-light border">{{ _('Surcharges') }}: ' + overloadCount + '</span>' +
+              '</div>';
+          }
+        }
+
         if (!state.managers.length) {
           el.innerHTML = '<span class="text-secondary">{{ _('Aucun responsable enregistré') }}</span>';
+          if (alertsEl) alertsEl.innerHTML = '';
+          if (quickSummaryEl) quickSummaryEl.innerHTML = '<span class="text-secondary">{{ _('Aucun responsable enregistré') }}</span>';
           renderManagersDatalist();
           return;
         }
+
+        setManagersSummary();
+
         const rows = state.managers.slice().sort(function(a, b){ return managerLabel(a).localeCompare(managerLabel(b)); });
         el.innerHTML = '<div class="list-group list-group-flush">' + rows.map(function(m){
           const relatedTasks = currentProjectGantt().filter(function(t){ return normalizeManagerName(t.owner).toLowerCase() === managerLabel(m).toLowerCase(); });
           const calcHours = relatedTasks.reduce(function(acc, t){ return acc + taskComputedHours(t); }, 0);
           const calcAmount = calcHours * Math.max(0, num(m.hourly_rate));
+          const wk = workload.owners[managerKey(managerLabel(m))] || null;
+          const overloadedDays = wk ? wk.overloaded_days : 0;
+          const maxUtil = wk ? (wk.max_utilization * 100) : 0;
+          const overloadBadge = overloadedDays > 0
+            ? '<span class="badge text-bg-danger">' + overloadedDays + 'j {{ _('surcharge') }}</span>'
+            : '<span class="badge text-bg-success">{{ _('Charge OK') }}</span>';
           return '<div class="list-group-item px-0 d-flex justify-content-between align-items-start">' +
             '<div><div class="fw-semibold">' + managerLabel(m) + '</div>' +
             '<div class="text-secondary small">' + ((m.role || '-') + ' · ' + (m.email || '-')) + '</div>' +
@@ -1201,8 +1647,12 @@
               '{{ _('Heures') }}: <strong>' + calcHours.toFixed(2) + '</strong> · ' +
               '{{ _('Tarif/h') }}: <strong>' + money(m.hourly_rate) + '</strong> · ' +
               '{{ _('Total') }}: <strong>' + money(calcAmount) + '</strong>' +
+            '</div>' +
+            '<div class="small mt-1">' +
+              '{{ _('Capacité/j') }}: <strong>' + Math.max(0, num(m.hours_per_day || 8)).toFixed(2) + '</strong> · ' +
+              '{{ _('Pic charge') }}: <strong>' + maxUtil.toFixed(0) + '%</strong> ' + overloadBadge +
             '</div></div>' +
-            '<div class="d-flex align-items-center gap-1">' +
+            '<div class="d-flex flex-wrap justify-content-end align-items-center gap-1">' +
               '<input type="number" min="0" step="0.01" class="form-control form-control-sm" style="width:96px;" data-manager-rate="' + m.id + '" value="' + Math.max(0, num(m.hourly_rate)) + '" title="{{ _('Tarif/h') }}">' +
               '<input type="number" min="0" step="0.25" class="form-control form-control-sm" style="width:88px;" data-manager-hpd="' + m.id + '" value="' + Math.max(0, num(m.hours_per_day || 8)) + '" title="{{ _('Heures/jour') }}">' +
               '<button class="btn btn-sm btn-outline-danger" data-manager-id="' + m.id + '">×</button>' +
@@ -1214,6 +1664,10 @@
             const id = input.getAttribute('data-manager-rate');
             const row = state.managers.find(function(m){ return m.id === id; });
             if (!row) return;
+            if (!canWrite()) {
+              input.value = Math.max(0, num(row.hourly_rate));
+              return;
+            }
             row.hourly_rate = Math.max(0, num(input.value));
             renderAll();
             scheduleSave();
@@ -1224,6 +1678,10 @@
             const id = input.getAttribute('data-manager-hpd');
             const row = state.managers.find(function(m){ return m.id === id; });
             if (!row) return;
+            if (!canWrite()) {
+              input.value = Math.max(0, num(row.hours_per_day || 8));
+              return;
+            }
             row.hours_per_day = Math.max(0, num(input.value));
             renderAll();
             scheduleSave();
@@ -1231,6 +1689,7 @@
         });
         el.querySelectorAll('[data-manager-id]').forEach(function(btn){
           btn.addEventListener('click', function(){
+            if (!canWrite()) return;
             const id = btn.getAttribute('data-manager-id');
             const current = state.managers.find(function(m){ return m.id === id; });
             if (!current) return;
@@ -1392,10 +1851,6 @@
         renderSimpleRegistry('pm-documents', state.documents, 'document', function(r){ return (r.kind || '-') + ' · ' + (r.url || '-'); }, '{{ _('Aucun document') }}');
         renderSimpleRegistry('pm-meetings', state.meetings, 'meeting', function(r){ return (r.date || '-') + ' · ' + (r.actions || '-'); }, '{{ _('Aucun compte-rendu') }}');
 
-        document.getElementById('pm-security-rights').value = state.security.rights || 'rw';
-        document.getElementById('pm-security-templates').value = state.security.templates || '';
-        document.getElementById('pm-security-integrations').value = state.security.integrations || '';
-
         const tasks = currentProjectGantt();
         const cards = currentProjectCards();
         const today = new Date();
@@ -1512,27 +1967,22 @@
       function applyPermissionsUI(){
         const writable = canWrite();
         const approvable = canApprove();
-        const securityEditable = canEditSecurity();
         const notificationsEditable = canEditSecurity();
         [
-          'pm-new-project-btn','pm-add-card','pm-add-ceremony','pm-add-deliverable','pm-add-manager','pm-add-gantt',
+          'pm-new-project-btn','pm-add-card','pm-add-ceremony','pm-add-deliverable','pm-add-manager','pm-add-gantt','pm-gantt-capture-baseline',
           'pm-add-stakeholder','pm-add-risk','pm-add-issue','pm-add-decision','pm-add-change','pm-add-document','pm-add-meeting'
         ].forEach(function(id){
           const el = document.getElementById(id);
           if (el) el.disabled = !writable;
         });
         document.querySelectorAll('#pm-section-governance textarea, #pm-section-governance input, #pm-section-governance select').forEach(function(el){
-          if (el.id === 'pm-security-rights' || el.id === 'pm-security-templates' || el.id === 'pm-security-integrations') return;
           el.disabled = !writable;
         });
-        const rights = document.getElementById('pm-security-rights');
-        const templates = document.getElementById('pm-security-templates');
-        const integrations = document.getElementById('pm-security-integrations');
-        if (rights) rights.disabled = !securityEditable;
-        if (templates) templates.disabled = !securityEditable;
-        if (integrations) integrations.disabled = !securityEditable;
         document.querySelectorAll('#pm-section-notifications input, #pm-section-notifications select, #pm-section-notifications textarea').forEach(function(el){
           el.disabled = !notificationsEditable;
+        });
+        document.querySelectorAll('[data-manager-rate],[data-manager-hpd],[data-manager-id]').forEach(function(el){
+          el.disabled = !writable;
         });
         document.querySelectorAll('[data-change-approve],[data-change-reject]').forEach(function(btn){ btn.disabled = !approvable; });
       }
@@ -1604,40 +2054,232 @@
       }
 
       function applyPredecessor(task){
-        if (!task.predecessor_id) return;
-        const pred = currentProjectGantt().find(function(x){ return x.id === task.predecessor_id; });
-        if (!pred) return;
-        const predEnd = dt(pred.end);
-        if (!predEnd) return;
-        const duration = Math.max(1, Number(task.duration_days || 1));
-        const start = addDays(predEnd, 1);
-        task.start = fmtDate(start);
-        task.end = fmtDate(addDays(start, duration - 1));
+        applyDependenciesSchedule(task, currentProjectGantt());
+      }
+
+      function renderGanttToolbar(tasks){
+        const ownerFilter = document.getElementById('pm-gantt-owner-filter');
+        const zoomSelect = document.getElementById('pm-gantt-zoom');
+        const showBaseline = document.getElementById('pm-gantt-show-baseline');
+        const autoSchedule = document.getElementById('pm-gantt-auto-schedule');
+        if (zoomSelect) zoomSelect.value = ganttView.zoom;
+        if (showBaseline) showBaseline.checked = !!ganttView.showBaseline;
+        if (autoSchedule) autoSchedule.checked = !!ganttView.autoSchedule;
+
+        if (ownerFilter) {
+          const current = ganttView.ownerFilter || '';
+          const names = Array.from(new Set((tasks || []).map(function(t){ return normalizeManagerName(t.owner); }).filter(Boolean))).sort();
+          ownerFilter.innerHTML = '<option value="">{{ _('Tous') }}</option>' + names.map(function(name){
+            const selected = current === name ? ' selected' : '';
+            return '<option value="' + name.replace(/"/g, '&quot;') + '"' + selected + '>' + name + '</option>';
+          }).join('');
+        }
+      }
+
+      function filteredGanttTasks(rows){
+        return (rows || []).filter(function(t){
+          if (ganttView.ownerFilter && normalizeManagerName(t.owner) !== ganttView.ownerFilter) return false;
+          return true;
+        });
+      }
+
+      function captureBaselineForCurrentProject(){
+        const rows = currentProjectGantt();
+        rows.forEach(function(t){
+          if (!t.start || !t.end) return;
+          t.baseline_start = fmtDate(t.start);
+          t.baseline_end = fmtDate(t.end);
+        });
+        addAudit('gantt.baseline.captured', { tasks: rows.length });
+      }
+
+      function attachGanttTimelineInteractions(tbody, minDate, dayPx){
+        if (!tbody) return;
+        let drag = null;
+
+        function finishDrag(){
+          if (!drag) return;
+          const dx = drag.lastX - drag.startX;
+          const deltaDays = Math.round(dx / Math.max(1, dayPx));
+          if (deltaDays !== 0) {
+            const task = drag.task;
+            const origStart = dt(drag.origStart);
+            const origEnd = dt(drag.origEnd);
+            if (origStart && origEnd) {
+              if (drag.mode === 'move') {
+                task.start = fmtDate(addDays(origStart, deltaDays));
+                task.end = fmtDate(addDays(origEnd, deltaDays));
+              } else if (drag.mode === 'resize-left') {
+                const nextStart = addDays(origStart, deltaDays);
+                const safeStart = nextStart > origEnd ? origEnd : nextStart;
+                task.start = fmtDate(safeStart);
+              } else if (drag.mode === 'resize-right') {
+                const nextEnd = addDays(origEnd, deltaDays);
+                const safeEnd = nextEnd < origStart ? origStart : nextEnd;
+                task.end = fmtDate(safeEnd);
+              }
+              recalcTask(task);
+              if (ganttView.autoSchedule) {
+                const rows = currentProjectGantt();
+                for (let pass = 0; pass < rows.length; pass += 1) {
+                  rows.forEach(function(row){ applyDependenciesSchedule(row, rows); recalcTask(row); });
+                }
+              }
+              renderGantt();
+              renderManagers();
+              scheduleSave();
+            }
+          }
+          drag = null;
+          document.body.style.userSelect = '';
+          window.removeEventListener('mousemove', onMove);
+          window.removeEventListener('mouseup', onUp);
+        }
+
+        function onMove(e){
+          if (!drag) return;
+          drag.lastX = e.clientX;
+          const dx = drag.lastX - drag.startX;
+          const deltaDays = Math.round(dx / Math.max(1, dayPx));
+          const px = deltaDays * dayPx;
+          if (drag.mode === 'move') {
+            drag.bar.style.left = (drag.origLeft + px) + 'px';
+          } else if (drag.mode === 'resize-left') {
+            const nextLeft = drag.origLeft + px;
+            const nextWidth = drag.origWidth - px;
+            if (nextWidth >= dayPx) {
+              drag.bar.style.left = nextLeft + 'px';
+              drag.bar.style.width = nextWidth + 'px';
+            }
+          } else if (drag.mode === 'resize-right') {
+            const nextWidth = drag.origWidth + px;
+            if (nextWidth >= dayPx) {
+              drag.bar.style.width = nextWidth + 'px';
+            }
+          }
+        }
+
+        function onUp(){ finishDrag(); }
+
+        tbody.querySelectorAll('.pm-gantt-bar[data-task-id]').forEach(function(bar){
+          bar.addEventListener('mousedown', function(e){
+            if (!canWrite()) return;
+            const id = bar.getAttribute('data-task-id');
+            const task = state.gantt.find(function(x){ return String(x.id) === String(id); });
+            if (!task) return;
+            const mode = e.target.classList.contains('pm-gantt-bar-handle-left')
+              ? 'resize-left'
+              : (e.target.classList.contains('pm-gantt-bar-handle-right') ? 'resize-right' : 'move');
+            drag = {
+              task: task,
+              mode: mode,
+              bar: bar,
+              startX: e.clientX,
+              lastX: e.clientX,
+              origLeft: parseFloat(bar.style.left || '0') || 0,
+              origWidth: parseFloat(bar.style.width || '0') || dayPx,
+              origStart: task.start,
+              origEnd: task.end,
+              minDate: minDate,
+            };
+            document.body.style.userSelect = 'none';
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onUp);
+            e.preventDefault();
+          });
+        });
+      }
+
+      function renderGanttInsights(tasks, criticalIds, workload){
+        const insightsEl = document.getElementById('pm-gantt-insights');
+        if (!insightsEl) return;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const delayed = tasks.filter(function(t){
+          const end = dt(t.end);
+          return !!end && end < today;
+        });
+        const criticalCount = tasks.filter(function(t){ return criticalIds.has(String(t.id)); }).length;
+        const overloadedTaskCount = tasks.filter(function(t){ return workload.overloadedTaskIds.has(String(t.id)); }).length;
+        const overloadedOwners = workload.overloadedOwners || [];
+
+        const ownerHtml = overloadedOwners.slice(0, 3).map(function(owner){
+          return '<span class="badge text-bg-danger">' + owner.name + ' · ' + (owner.max_utilization * 100).toFixed(0) + '%</span>';
+        }).join(' ');
+
+        insightsEl.innerHTML =
+          '<div class="border rounded p-2 bg-body-tertiary">' +
+            '<div class="d-flex flex-wrap gap-2 mb-1">' +
+              '<span class="badge text-bg-light border">{{ _('Tâches') }}: ' + tasks.length + '</span>' +
+              '<span class="badge text-bg-danger">{{ _('Critiques') }}: ' + criticalCount + '</span>' +
+              '<span class="badge text-bg-warning text-dark">{{ _('Retards') }}: ' + delayed.length + '</span>' +
+              '<span class="badge text-bg-warning text-dark">{{ _('Surcharge tâches') }}: ' + overloadedTaskCount + '</span>' +
+              '<span class="badge ' + (overloadedOwners.length ? 'text-bg-danger' : 'text-bg-success') + '">{{ _('Responsables en surcharge') }}: ' + overloadedOwners.length + '</span>' +
+            '</div>' +
+            (ownerHtml ? '<div class="small text-secondary mb-1">{{ _('Top surcharge') }}: ' + ownerHtml + '</div>' : '<div class="small text-secondary mb-1">{{ _('Aucune surcharge sur la capacité journalière détectée.') }}</div>') +
+            '<div class="d-flex flex-wrap gap-2 small">' +
+              '<span class="badge text-bg-danger">{{ _('Critique') }}</span>' +
+              '<span class="badge text-bg-warning text-dark">{{ _('Retard') }}</span>' +
+              '<span class="badge text-bg-danger">{{ _('Surcharge') }}</span>' +
+              '<span class="badge text-bg-success">{{ _('RAS') }}</span>' +
+            '</div>' +
+          '</div>';
       }
 
       function renderGantt(){
         const tbody = document.querySelector('#pm-gantt-table tbody');
+        const insightsEl = document.getElementById('pm-gantt-insights');
         tbody.innerHTML = '';
-        const tasks = currentProjectGantt();
-        if (!tasks.length) return;
-        const criticalIds = criticalPathIds(tasks);
+        const allTasks = currentProjectGantt();
+        allTasks.forEach(function(t){ Object.assign(t, normalizeGanttTask(t)); recalcTask(t); });
 
-        tasks.forEach(function(t){ recalcTask(t); });
+        if (ganttView.autoSchedule && allTasks.length) {
+          for (let pass = 0; pass < allTasks.length; pass += 1) {
+            allTasks.forEach(function(t){ applyDependenciesSchedule(t, allTasks); recalcTask(t); });
+          }
+        }
+
+        renderGanttToolbar(allTasks);
+        const tasks = filteredGanttTasks(allTasks);
+        if (!allTasks.length) {
+          if (insightsEl) insightsEl.innerHTML = '<div class="text-secondary">{{ _('Aucune tâche Gantt pour ce projet.') }}</div>';
+          return;
+        }
+        if (!tasks.length) {
+          if (insightsEl) insightsEl.innerHTML = '<div class="text-secondary">{{ _('Aucune tâche pour ce filtre.') }}</div>';
+          return;
+        }
+        const criticalIds = criticalPathIds(allTasks);
+        const workload = ganttWorkloadSnapshot(allTasks);
+
         const allStart = tasks.map(g => dt(g.start)).filter(Boolean);
         const allEnd = tasks.map(g => dt(g.end)).filter(Boolean);
-        if (!allStart.length || !allEnd.length) return;
+        if (!allStart.length || !allEnd.length) {
+          if (insightsEl) insightsEl.innerHTML = '<div class="text-secondary">{{ _('Complétez les dates de début et fin pour visualiser le Gantt.') }}</div>';
+          return;
+        }
+
+        renderGanttInsights(tasks, criticalIds, workload);
+
         const min = new Date(Math.min.apply(null, allStart));
         const max = new Date(Math.max.apply(null, allEnd));
         const total = daysBetween(min, max);
+        const unitPx = zoomPx();
+        const trackWidth = Math.max(520, total * unitPx + 16);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
 
         tasks.forEach(function(g, rowIndex){
           const s = dt(g.start), e = dt(g.end); if (!s || !e) return;
-          const left = Math.max(0, ((daysBetween(min, s)-1) / total) * 100);
-          const width = Math.max(2, (daysBetween(s, e) / total) * 100);
+          const leftPx = dayOffset(min, s) * unitPx;
+          const widthPx = Math.max(unitPx, daysBetween(s, e) * unitPx);
+          const todayLeft = dayOffset(min, today) * unitPx;
+
+          const dep = normalizeTaskDependencies(g)[0] || null;
 
           const predecessorOptions = ['<option value="">-</option>'].concat(
-            tasks.filter(function(x){ return x.id !== g.id; }).map(function(x, idx){
-              const selected = x.id === g.predecessor_id ? ' selected' : '';
+            allTasks.filter(function(x){ return x.id !== g.id; }).map(function(x, idx){
+              const selected = dep && String(x.id) === String(dep.task_id) ? ' selected' : '';
               return '<option value="' + x.id + '"' + selected + '>' + (idx + 1) + ' - ' + (x.task || 'Task') + (x.owner ? ' (' + x.owner + ')' : '') + '</option>';
             })
           ).join('');
@@ -1645,22 +2287,95 @@
           const hours = taskComputedHours(g);
           const rate = managerRate(g.owner);
           const lineCost = taskComputedCost(g);
+          const duration = Math.max(1, Number(g.duration_days || daysBetween(s, e)));
+          const dailyLoad = hours / duration;
+          const capacity = Math.max(0.25, managerHoursPerDay(g.owner) || 8);
+          const dailyUtil = capacity > 0 ? (dailyLoad / capacity) : 0;
           const isCritical = criticalIds.has(String(g.id));
+          const isOverloaded = workload.overloadedTaskIds.has(String(g.id));
+          const isDelayed = e < today;
+          const taskStatus = statusNorm(g.status);
+          const alertBadges = [];
+          if (isDelayed) alertBadges.push('<span class="badge text-bg-warning text-dark">{{ _('Retard') }}</span>');
+          if (isOverloaded) alertBadges.push('<span class="badge text-bg-danger">{{ _('Surcharge') }}</span>');
+          if (isCritical) alertBadges.push('<span class="badge text-bg-danger">{{ _('Critique') }}</span>');
+          if (taskStatus === 'blocked') alertBadges.push('<span class="badge text-bg-dark">{{ _('Bloqué') }}</span>');
+          if (!alertBadges.length) alertBadges.push('<span class="badge text-bg-success">{{ _('RAS') }}</span>');
+
+          const statusLabel = taskStatus === 'done'
+            ? '{{ _('Terminé') }}'
+            : (taskStatus === 'blocked'
+              ? '{{ _('Bloqué') }}'
+              : (taskStatus === 'in_progress' ? '{{ _('En cours') }}' : '{{ _('Non démarré') }}'));
+          const statusBadgeClass = taskStatus === 'done'
+            ? 'text-bg-success'
+            : (taskStatus === 'blocked'
+              ? 'text-bg-dark'
+              : (taskStatus === 'in_progress' ? 'text-bg-primary' : 'text-bg-secondary'));
+          const statusBarClass = taskStatus === 'blocked'
+            ? 'pm-gantt-bar--blocked'
+            : (taskStatus === 'not_started' ? 'pm-gantt-bar--not_started' : '');
+          const barColor = taskStatus === 'done'
+            ? 'var(--bs-success)'
+            : (taskStatus === 'blocked'
+              ? 'var(--bs-dark)'
+              : (taskStatus === 'in_progress' ? 'var(--bs-primary)' : 'var(--bs-secondary)'));
+          const trClass = isDelayed ? 'table-warning' : (isOverloaded ? 'table-danger' : (isCritical ? 'table-danger' : ''));
+          const progress = Math.max(0, Math.min(100, Math.round(num(g.progress_pct || 0))));
+          const depType = dep ? depTypeNorm(dep.type) : depTypeNorm(g.dependency_type);
+          const depLag = dep ? Math.round(num(dep.lag_days || 0)) : Math.round(num(g.lag_days || 0));
+          const baselineStart = dt(g.baseline_start);
+          const baselineEnd = dt(g.baseline_end);
+          const baselineLeftPx = baselineStart ? dayOffset(min, baselineStart) * unitPx : 0;
+          const baselineWidthPx = (baselineStart && baselineEnd) ? Math.max(unitPx, daysBetween(baselineStart, baselineEnd) * unitPx) : 0;
 
           const tr = document.createElement('tr');
+          tr.className = trClass;
           tr.innerHTML =
             '<td class="text-secondary">' + (rowIndex + 1) + '</td>' +
             '<td><input class="form-control form-control-sm" data-field="task" data-id="' + g.id + '" value="' + (g.task || '') + '"></td>' +
             '<td><input class="form-control form-control-sm" list="pm-managers-datalist" data-field="owner" data-id="' + g.id + '" value="' + (g.owner || '') + '"></td>' +
             '<td><select class="form-select form-select-sm" data-field="predecessor_id" data-id="' + g.id + '">' + predecessorOptions + '</select></td>' +
+            '<td><select class="form-select form-select-sm" data-field="dependency_type" data-id="' + g.id + '">' +
+              '<option value="FS"' + (depType === 'FS' ? ' selected' : '') + '>FS</option>' +
+              '<option value="SS"' + (depType === 'SS' ? ' selected' : '') + '>SS</option>' +
+              '<option value="FF"' + (depType === 'FF' ? ' selected' : '') + '>FF</option>' +
+              '<option value="SF"' + (depType === 'SF' ? ' selected' : '') + '>SF</option>' +
+            '</select></td>' +
+            '<td><input type="number" class="form-control form-control-sm" data-field="lag_days" data-id="' + g.id + '" value="' + depLag + '"></td>' +
+            '<td><select class="form-select form-select-sm" data-field="status" data-id="' + g.id + '">' +
+              '<option value="not_started"' + (taskStatus === 'not_started' ? ' selected' : '') + '>{{ _('Non démarré') }}</option>' +
+              '<option value="in_progress"' + (taskStatus === 'in_progress' ? ' selected' : '') + '>{{ _('En cours') }}</option>' +
+              '<option value="done"' + (taskStatus === 'done' ? ' selected' : '') + '>{{ _('Terminé') }}</option>' +
+              '<option value="blocked"' + (taskStatus === 'blocked' ? ' selected' : '') + '>{{ _('Bloqué') }}</option>' +
+            '</select></td>' +
+            '<td><input type="number" min="0" max="100" class="form-control form-control-sm" data-field="progress_pct" data-id="' + g.id + '" value="' + progress + '"></td>' +
             '<td><input type="date" class="form-control form-control-sm" data-field="start" data-id="' + g.id + '" value="' + fmtDate(g.start) + '"></td>' +
             '<td><input type="date" class="form-control form-control-sm" data-field="end" data-id="' + g.id + '" value="' + fmtDate(g.end) + '"></td>' +
-            '<td><input type="number" min="1" class="form-control form-control-sm" data-field="duration_days" data-id="' + g.id + '" value="' + Math.max(1, Number(g.duration_days || daysBetween(s, e))) + '"></td>' +
+            '<td><input type="number" min="1" class="form-control form-control-sm" data-field="duration_days" data-id="' + g.id + '" value="' + duration + '"></td>' +
+            '<td><span class="badge text-bg-light border">' + dailyLoad.toFixed(2) + '</span></td>' +
+            '<td><span class="badge ' + (dailyUtil > 1 ? 'text-bg-danger' : 'text-bg-light border') + '">' + capacity.toFixed(2) + ' (' + (dailyUtil * 100).toFixed(0) + '%)</span></td>' +
             '<td><span class="badge ' + (isCritical ? 'text-bg-danger' : 'text-bg-light border') + '">' + (isCritical ? '{{ _('Oui') }}' : '{{ _('Non') }}') + '</span></td>' +
+            '<td class="small">' + alertBadges.join(' ') + '</td>' +
             '<td><span class="badge text-bg-light border">' + hours.toFixed(2) + '</span></td>' +
             '<td><span class="badge text-bg-light border">' + money(rate) + '</span></td>' +
             '<td><span class="badge text-bg-light border">' + money(lineCost) + '</span></td>' +
-            '<td><div style="position:relative;height:16px;background:var(--bs-light);border-radius:8px;overflow:hidden;"><div style="position:absolute;left:' + left + '%;width:' + width + '%;top:0;bottom:0;background:' + (isCritical ? 'var(--bs-danger)' : 'var(--bs-primary)') + ';"></div></div></td>';
+            '<td>' +
+              '<div class="pm-gantt-track" style="width:' + trackWidth + 'px;">' +
+                (ganttView.showBaseline && baselineWidthPx > 0 ? '<div class="pm-gantt-baseline" style="left:' + baselineLeftPx + 'px;width:' + baselineWidthPx + 'px;"></div>' : '') +
+                '<div class="pm-gantt-today-marker" style="left:' + todayLeft + 'px;"></div>' +
+                '<div class="pm-gantt-bar ' + statusBarClass + '" data-task-id="' + g.id + '" style="left:' + leftPx + 'px;width:' + widthPx + 'px;background:' + barColor + ';">' +
+                  '<span class="pm-gantt-bar-label">' + statusLabel + '</span>' +
+                  '<div class="pm-gantt-bar-progress" style="width:' + progress + '%;"></div>' +
+                  '<span class="pm-gantt-bar-handle pm-gantt-bar-handle-left"></span>' +
+                  '<span class="pm-gantt-bar-handle pm-gantt-bar-handle-right"></span>' +
+                '</div>' +
+              '</div>' +
+              '<div class="small text-secondary mt-1 pm-gantt-timeline-meta"><span class="badge rounded-pill ' + statusBadgeClass + '">' + statusLabel + '</span><span>' + fmtDate(g.start) + ' → ' + fmtDate(g.end) + (ganttView.showBaseline && baselineWidthPx > 0 ? (' · BL: ' + fmtDate(g.baseline_start) + ' → ' + fmtDate(g.baseline_end)) : '') + '</span></div>' +
+            '</td>';
+          if (!canWrite()) {
+            tr.querySelectorAll('input,select').forEach(function(ctrl){ ctrl.disabled = true; });
+          }
           tbody.appendChild(tr);
         });
 
@@ -1672,13 +2387,27 @@
             if (!task) return;
 
             if (field === 'duration_days') task[field] = Math.max(1, Number(el.value || 1));
+            else if (field === 'lag_days') task[field] = Math.round(num(el.value || 0));
+            else if (field === 'progress_pct') task[field] = Math.max(0, Math.min(100, Math.round(num(el.value || 0))));
+            else if (field === 'status') task[field] = statusNorm(el.value || 'not_started');
             else task[field] = el.value || '';
+
+            normalizeTaskDependencies(task);
 
             if (field === 'owner') upsertManager(task.owner);
 
             if (field === 'predecessor_id') {
               task.predecessor_id = task.predecessor_id || null;
-              task.dependencies = task.predecessor_id ? [{ task_id: task.predecessor_id, type: 'FS' }] : [];
+              if (task.predecessor_id) {
+                task.dependencies = [{ task_id: task.predecessor_id, type: depTypeNorm(task.dependency_type), lag_days: Math.round(num(task.lag_days || 0)) }];
+              } else {
+                task.dependencies = [];
+              }
+              applyPredecessor(task);
+            } else if (field === 'dependency_type' || field === 'lag_days') {
+              if (task.predecessor_id) {
+                task.dependencies = [{ task_id: task.predecessor_id, type: depTypeNorm(task.dependency_type), lag_days: Math.round(num(task.lag_days || 0)) }];
+              }
               applyPredecessor(task);
             } else if (field === 'start') {
               const s = dt(task.start);
@@ -1690,6 +2419,16 @@
               if (s) task.end = fmtDate(addDays(s, duration - 1));
             } else if (field === 'end') {
               recalcTask(task);
+            } else if (field === 'status') {
+              if (task.status === 'done') task.progress_pct = 100;
+              if (task.status === 'not_started' && num(task.progress_pct) === 0) task.progress_pct = 0;
+            }
+
+            if (ganttView.autoSchedule && field !== 'start' && field !== 'end' && field !== 'progress_pct' && field !== 'status') {
+              const rows = currentProjectGantt();
+              for (let pass = 0; pass < rows.length; pass += 1) {
+                rows.forEach(function(row){ applyDependenciesSchedule(row, rows); recalcTask(row); });
+              }
             }
 
             renderGantt();
@@ -1697,6 +2436,8 @@
             scheduleSave();
           });
         });
+
+        attachGanttTimelineInteractions(tbody, min, unitPx);
       }
 
       function renderFinanceSummary(){
@@ -2026,7 +2767,9 @@
           '<div class="mb-2"><label class="form-label">{{ _('Tâche') }}</label><input class="form-control" name="task" required></div>' +
           '<div class="mb-2"><label class="form-label">{{ _('Responsable') }}</label><input class="form-control" name="owner" list="pm-managers-datalist"></div>' +
           '<div class="row g-2 mb-2"><div class="col"><label class="form-label">{{ _('Début') }}</label><input type="date" class="form-control" name="start" required></div><div class="col"><label class="form-label">{{ _('Durée (j)') }}</label><input type="number" min="1" class="form-control" name="duration_days" value="1" required></div></div>' +
-          '<div><label class="form-label">{{ _('Prédecesseur') }}</label><select class="form-select" name="predecessor_id">' + predecessorSelect + '</select></div>';
+          '<div class="row g-2 mb-2"><div class="col"><label class="form-label">{{ _('Statut') }}</label><select class="form-select" name="status"><option value="not_started">{{ _('Non démarré') }}</option><option value="in_progress">{{ _('En cours') }}</option><option value="done">{{ _('Terminé') }}</option><option value="blocked">{{ _('Bloqué') }}</option></select></div><div class="col"><label class="form-label">{{ _('Avancement %') }}</label><input type="number" min="0" max="100" class="form-control" name="progress_pct" value="0"></div></div>' +
+          '<div><label class="form-label">{{ _('Prédecesseur') }}</label><select class="form-select" name="predecessor_id">' + predecessorSelect + '</select></div>' +
+          '<div class="row g-2 mt-1"><div class="col"><label class="form-label">{{ _('Type lien') }}</label><select class="form-select" name="dependency_type"><option value="FS">FS</option><option value="SS">SS</option><option value="FF">FF</option><option value="SF">SF</option></select></div><div class="col"><label class="form-label">{{ _('Lag (j)') }}</label><input type="number" class="form-control" name="lag_days" value="0"></div></div>';
         document.getElementById('simpleForm').dataset.kind = 'gantt';
         simpleModal.show();
       });
@@ -2112,21 +2855,30 @@
           const duration = Math.max(1, Number(fd.get('duration_days') || 1));
           const startDate = dt(start);
           const end = startDate ? fmtDate(addDays(startDate, duration - 1)) : start;
+          const predecessorId = ((fd.get('predecessor_id') || '').toString() || null);
+          const dependencyType = depTypeNorm((fd.get('dependency_type') || '').toString() || 'FS');
+          const lagDays = Math.round(num(fd.get('lag_days') || 0));
           const row = {
             id: uid(),
             project_id: state.selected_project_id,
             task: (fd.get('task') || '').toString(),
             owner: (fd.get('owner') || '').toString(),
-            predecessor_id: ((fd.get('predecessor_id') || '').toString() || null),
+            predecessor_id: predecessorId,
+            dependency_type: dependencyType,
+            lag_days: lagDays,
             dependencies: [],
+            status: statusNorm((fd.get('status') || '').toString()),
+            progress_pct: Math.max(0, Math.min(100, Math.round(num(fd.get('progress_pct') || 0)))),
             start,
             end,
+            baseline_start: '',
+            baseline_end: '',
             duration_days: duration,
           };
-          row.dependencies = row.predecessor_id ? [{ task_id: row.predecessor_id, type: 'FS' }] : [];
+          row.dependencies = row.predecessor_id ? [{ task_id: row.predecessor_id, type: dependencyType, lag_days: lagDays }] : [];
           upsertManager(row.owner);
           applyPredecessor(row);
-          state.gantt.push(row);
+          state.gantt.push(normalizeGanttTask(row));
           addAudit('task.created', { task: row.task });
           renderGantt();
           renderManagers();
@@ -2140,6 +2892,7 @@
         state.selected_project_id = projectSelect.value;
         renderSprintFilter();
         renderKanban();
+        renderManagers();
         renderGantt();
         renderGovernance();
         renderFinanceSummary();
@@ -2172,19 +2925,6 @@
         });
       });
 
-      ['pm-security-rights','pm-security-templates','pm-security-integrations'].forEach(function(id){
-        const el = document.getElementById(id);
-        if (!el) return;
-        el.addEventListener('change', function(){
-          if (!canEditSecurity()) return;
-          state.security.rights = document.getElementById('pm-security-rights').value || 'rw';
-          state.security.templates = document.getElementById('pm-security-templates').value || '';
-          state.security.integrations = document.getElementById('pm-security-integrations').value || '';
-          addAudit('security.updated');
-          scheduleSave();
-        });
-      });
-
       [
         'pm-notif-slack-enabled','pm-notif-slack-webhook','pm-notif-mail-enabled','pm-notif-mail-to','pm-notif-teams-enabled','pm-notif-teams-webhook',
         'pm-notif-trigger-project-delay','pm-notif-trigger-card-delay','pm-notif-trigger-risk-high','pm-notif-trigger-change-approved','pm-notif-trigger-daily-summary'
@@ -2212,6 +2952,35 @@
       });
 
       document.getElementById('pm-save-now').addEventListener('click', saveNow);
+      document.getElementById('pm-gantt-zoom')?.addEventListener('change', function(e){
+        ganttView.zoom = (e.target.value || 'week').toString();
+        renderGantt();
+      });
+      document.getElementById('pm-gantt-owner-filter')?.addEventListener('change', function(e){
+        ganttView.ownerFilter = (e.target.value || '').toString();
+        renderGantt();
+      });
+      document.getElementById('pm-gantt-show-baseline')?.addEventListener('change', function(e){
+        ganttView.showBaseline = !!e.target.checked;
+        renderGantt();
+      });
+      document.getElementById('pm-gantt-auto-schedule')?.addEventListener('change', function(e){
+        ganttView.autoSchedule = !!e.target.checked;
+        if (ganttView.autoSchedule) {
+          const rows = currentProjectGantt();
+          for (let pass = 0; pass < rows.length; pass += 1) {
+            rows.forEach(function(row){ applyDependenciesSchedule(row, rows); recalcTask(row); });
+          }
+          scheduleSave();
+        }
+        renderGantt();
+      });
+      document.getElementById('pm-gantt-capture-baseline')?.addEventListener('click', function(){
+        if (!canWrite()) return;
+        captureBaselineForCurrentProject();
+        renderGantt();
+        scheduleSave();
+      });
       document.getElementById('pm-add-version').addEventListener('click', function(){
         if (!canWrite()) return;
         createProjectVersion();
@@ -2247,13 +3016,15 @@
         const hash = (window.location.hash || '').toLowerCase();
         if (!hash) return;
         let tabBtnId = null;
-        if (hash.startsWith('#pm-section-governance') || hash.startsWith('#pm-section-risks') || hash.startsWith('#pm-section-change')) {
+        if (hash.startsWith('#pm-section-managers')) {
+          tabBtnId = 'pm-tab-managers';
+        } else if (hash.startsWith('#pm-section-governance') || hash.startsWith('#pm-section-risks') || hash.startsWith('#pm-section-change')) {
           tabBtnId = 'pm-tab-governance';
-        } else if (hash.startsWith('#pm-section-reporting') || hash.startsWith('#pm-section-gantt') || hash.startsWith('#pm-section-productivity') || hash.startsWith('#pm-section-security')) {
+        } else if (hash.startsWith('#pm-section-reporting') || hash.startsWith('#pm-section-gantt') || hash.startsWith('#pm-section-productivity')) {
           tabBtnId = 'pm-tab-reporting';
         } else if (hash.startsWith('#pm-section-notifications')) {
           tabBtnId = 'pm-tab-notifications';
-        } else if (hash.startsWith('#pm-section-kanban') || hash.startsWith('#pm-section-ceremonies') || hash.startsWith('#pm-section-deliverables') || hash.startsWith('#pm-section-managers')) {
+        } else if (hash.startsWith('#pm-section-kanban') || hash.startsWith('#pm-section-ceremonies') || hash.startsWith('#pm-section-deliverables') || hash.startsWith('#pm-section-managers-shortcut')) {
           tabBtnId = 'pm-tab-execution';
         }
         if (!tabBtnId) return;

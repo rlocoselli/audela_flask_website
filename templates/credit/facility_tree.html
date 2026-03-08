@@ -1,0 +1,171 @@
+{% extends "credit/page_base.html" %}
+{% set title = _('Audela Facility Tree') %}
+{% set active_page = 'facility_tree' %}
+
+{% block credit_page_content %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary border-bottom-0 pb-0">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-12 col-lg-3">
+        <label class="form-label mb-1">{{ _('Borrower') }}</label>
+        <select class="form-select" name="borrower_id">
+          <option value="">{{ _('All') }}</option>
+          {% for b in borrowers %}
+          <option value="{{ b.id }}" {% if selected_borrower_id == b.id %}selected{% endif %}>{{ b.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-lg-3">
+        <label class="form-label mb-1">{{ _('Deal') }}</label>
+        <select class="form-select" name="deal_id">
+          <option value="">{{ _('All') }}</option>
+          {% for d in deals %}
+          <option value="{{ d.id }}" {% if selected_deal_id == d.id %}selected{% endif %}>{{ d.code }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-lg-2">
+        <label class="form-label mb-1">{{ _('Facility status') }}</label>
+        <select class="form-select" name="facility_status">
+          <option value="">{{ _('All') }}</option>
+          <option value="draft" {% if selected_facility_status == 'draft' %}selected{% endif %}>{{ _('Draft') }}</option>
+          <option value="approved" {% if selected_facility_status == 'approved' %}selected{% endif %}>{{ _('Approved') }}</option>
+          <option value="booked" {% if selected_facility_status == 'booked' %}selected{% endif %}>{{ _('Booked') }}</option>
+        </select>
+      </div>
+      <div class="col-6 col-lg-2">
+        <label class="form-label mb-1">{{ _('Utilization type') }}</label>
+        <select class="form-select" name="utilization_type">
+          <option value="">{{ _('All') }}</option>
+          {% for code, label in utilization_type_options %}
+          <option value="{{ code }}" {% if selected_utilization_type == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-lg-2">
+        <label class="form-label mb-1">{{ _('Utilization status') }}</label>
+        <select class="form-select" name="utilization_status">
+          <option value="">{{ _('All') }}</option>
+          {% for code, label in utilization_status_options %}
+          <option value="{{ code }}" {% if selected_utilization_status == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-lg-3">
+        <div class="form-check mt-2">
+          <input class="form-check-input" type="checkbox" id="with_utilizations" name="with_utilizations" value="1" {% if only_with_utilizations %}checked{% endif %}>
+          <label class="form-check-label" for="with_utilizations">{{ _('Only facilities with utilizations') }}</label>
+        </div>
+      </div>
+      <div class="col-6 col-lg-2"><button class="btn btn-primary w-100" type="submit">{{ _('Apply filters') }}</button></div>
+      <div class="col-6 col-lg-2"><a class="btn btn-outline-secondary w-100" href="{{ url_for('credit.facility_tree') }}">{{ _('Reset') }}</a></div>
+    </form>
+  </div>
+  <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center">
+    <span>{{ _('Facility tree by borrower and deal') }}</span>
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('credit.facilities', mode='search') }}">{{ _('Open facilities list') }}</a>
+  </div>
+  <div class="card-body">
+    {% if facility_tree %}
+    <div class="d-flex flex-column gap-2">
+      {% for borrower_node in facility_tree %}
+      <details class="border rounded p-2" open>
+        <summary class="fw-semibold">
+          {{ borrower_node.borrower_name }}
+          <span class="text-secondary small">- {{ borrower_node.facility_count }} {{ _('facilities') }}, {{ _('approved') }} {{ '%.2f'|format(borrower_node.approved_amount_total or 0) }}, {{ _('net utilized') }} {{ '%.2f'|format(borrower_node.net_utilized_total or 0) }}, {{ borrower_node.utilization_count }} {{ _('movements') }}</span>
+        </summary>
+        <div class="mt-2 d-flex flex-column gap-2">
+          {% for deal_node in borrower_node.deals %}
+          <details class="border rounded p-2">
+            <summary class="fw-semibold">
+              {{ _('Deal') }}: {{ deal_node.deal_code }}
+              <span class="text-secondary small">- {{ deal_node.facility_count }} {{ _('facilities') }}, {{ _('approved') }} {{ '%.2f'|format(deal_node.approved_amount_total or 0) }}, {{ _('net utilized') }} {{ '%.2f'|format(deal_node.net_utilized_total or 0) }}, {{ deal_node.utilization_count }} {{ _('movements') }}</span>
+            </summary>
+            <div class="table-responsive mt-2">
+              <table class="table table-sm mb-0">
+                <thead>
+                  <tr>
+                    <th>{{ _('Facility') }}</th>
+                    <th>{{ _('Approved amount') }}</th>
+                    <th>{{ _('Status') }}</th>
+                    <th>{{ _('Current workflow stage') }}</th>
+                    <th>{{ _('Covenants') }}</th>
+                    <th>{{ _('Utilizations') }}</th>
+                    <th>{{ _('Net utilized') }}</th>
+                    <th>{{ _('Actions') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for item in deal_node.facilities %}
+                  {% set f = item.facility %}
+                  {% set ap = item.approval_info or {} %}
+                  <tr>
+                    <td>
+                      {{ f.facility_type_ref.display_label(current_lang) if f.facility_type_ref else f.facility_type }}
+                      <div class="small text-secondary">#{{ f.id }} - {{ _('Tenor') }} {{ f.tenor_months or '-' }} - {{ _('Rate') }} {{ f.interest_rate or '-' }}</div>
+                    </td>
+                    <td>{{ '%.2f'|format(f.approved_amount or 0) }}</td>
+                    <td>{{ f.status }}</td>
+                    <td>{{ ap.current_stage if ap else '-' }}</td>
+                    <td>{{ item.covenant_count or 0 }}</td>
+                    <td>
+                      <div>{{ item.utilization_count or 0 }} {{ _('movements') }}</div>
+                      <div class="small text-secondary">{{ _('Drawdown') }}: {{ '%.2f'|format(item.utilization_drawdown_total or 0) }}</div>
+                      <div class="small text-secondary">{{ _('Repayment') }}: {{ '%.2f'|format(item.utilization_repayment_total or 0) }}</div>
+                    </td>
+                    <td>{{ '%.2f'|format(item.net_utilized or 0) }}</td>
+                    <td>
+                      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.facilities', mode='search', edit_id=f.id) }}">{{ _('Edit') }}</a>
+                    </td>
+                  </tr>
+                  {% if item.utilizations %}
+                  <tr>
+                    <td colspan="8" class="bg-body-tertiary">
+                      <details>
+                        <summary class="small">{{ _('Show utilization movements') }}</summary>
+                        <div class="table-responsive mt-2">
+                          <table class="table table-sm mb-0">
+                            <thead>
+                              <tr>
+                                <th>{{ _('Date') }}</th>
+                                <th>{{ _('Type') }}</th>
+                                <th>{{ _('Status') }}</th>
+                                <th>{{ _('Amount') }}</th>
+                                <th>{{ _('Currency') }}</th>
+                                <th>{{ _('Reference') }}</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {% for u in item.utilizations %}
+                              <tr>
+                                <td>{{ u.value_date.strftime('%d/%m/%Y') if u.value_date else '-' }}</td>
+                                <td>{{ u.utilization_type }}</td>
+                                <td>{{ u.status }}</td>
+                                <td>{{ '%.2f'|format(u.amount or 0) }}</td>
+                                <td>{{ u.currency or '-' }}</td>
+                                <td>{{ u.reference or '-' }}</td>
+                              </tr>
+                              {% endfor %}
+                            </tbody>
+                          </table>
+                        </div>
+                      </details>
+                    </td>
+                  </tr>
+                  {% endif %}
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </details>
+          {% endfor %}
+        </div>
+      </details>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-secondary">{{ _('No facilities found for current filters.') }}</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

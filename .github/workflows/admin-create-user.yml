@@ -72,6 +72,9 @@ jobs:
             # Ensure service is up before exec
             $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml up -d audela
 
+            echo "🗃️ Apply DB migrations before admin operation"
+            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db upgrade
+
             # Non-interactive execution (stdin prompts: identifier, password, password confirmation)
             printf "%s\n%s\n%s\n" "$IDENTIFIER" "$ADMIN_PASSWORD" "$ADMIN_PASSWORD" | \
               $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela \
