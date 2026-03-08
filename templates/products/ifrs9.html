@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% from "products/_product_content_macros.html" import render_public_sections with context %}
+
+{% block title %}{{ _(product.public_title) }} – AUDELA{% endblock %}
+{% block meta_description %}{{ _(product.meta_description) }}{% endblock %}
+{% block og_title %}{{ _(product.public_title) }} – AUDELA{% endblock %}
+{% block og_description %}{{ _(product.meta_description) }}{% endblock %}
+{% block twitter_title %}{{ _(product.public_title) }} – AUDELA{% endblock %}
+{% block twitter_description %}{{ _(product.meta_description) }}{% endblock %}
+{% block og_image %}{{ url_for('static', filename=product.image, _external=True) }}{% endblock %}
+{% block twitter_image %}{{ url_for('static', filename=product.image, _external=True) }}{% endblock %}
+
+{% block content %}
+<section id="main" class="wrapper style1">
+  <div class="container">
+    <header class="major">
+      <h2>{{ _(product.public_title) }}</h2>
+      <p class="muted">{{ _(product.subtitle) }}</p>
+    </header>
+
+    <div class="legal-content">
+      <div class="row gtr-50">
+        <div class="col-8 col-12-medium">
+          <h3>{{ _('Vue d\'ensemble') }}</h3>
+          <p>{{ _(product.overview) }}</p>
+
+          {{ render_public_sections(
+            features=product.features,
+            integrations=product.integrations,
+            use_cases=product.use_cases,
+            outcomes=product.outcomes
+          ) }}
+        </div>
+        <div class="col-4 col-12-medium">
+          <span class="image fit">
+            <img src="{{ url_for('static', filename=product.image) }}" alt="{{ _(product.image_alt) }}" loading="lazy" />
+          </span>
+        </div>
+      </div>
+
+      <h3>{{ _('Pour qui ?') }}</h3>
+      <p>{{ _(product.audience) }}</p>
+
+      <ul class="actions">
+        <li><a href="{{ url_for('public.plans', product=product.plans_slug) }}" class="button primary">{{ _(product.plans_cta) }}</a></li>
+        <li><a href="{{ url_for('public.index') }}#five" class="button">{{ _('Contact') }}</a></li>
+      </ul>
+    </div>
+  </div>
+</section>
+{% endblock %}

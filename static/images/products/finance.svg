@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" role="img" aria-labelledby="title desc">
+  <title id="title">AUDELA Finance</title>
+  <desc id="desc">Finance product banner with ledger bars and currency mark.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b2e1b"/>
+      <stop offset="100%" stop-color="#1f7a4b"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.05"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="675" fill="url(#bg)"/>
+  <rect x="80" y="80" width="1040" height="515" rx="28" fill="url(#card)" stroke="#c5f5da" stroke-opacity="0.4"/>
+  <rect x="170" y="180" width="120" height="320" rx="16" fill="#9be8be"/>
+  <rect x="330" y="250" width="120" height="250" rx="16" fill="#79d8a3"/>
+  <rect x="490" y="140" width="120" height="360" rx="16" fill="#b6f5cf"/>
+  <rect x="650" y="300" width="120" height="200" rx="16" fill="#6ac58f"/>
+  <circle cx="910" cy="305" r="120" fill="#e8fff2" fill-opacity="0.15"/>
+  <circle cx="910" cy="305" r="86" fill="#d4ffe6"/>
+  <text x="910" y="327" text-anchor="middle" font-size="84" font-family="Verdana, sans-serif" fill="#175336">$</text>
+  <text x="170" y="560" font-size="52" font-family="Verdana, sans-serif" font-weight="700" fill="#ffffff">AUDELA FINANCE</text>
+  <text x="170" y="605" font-size="30" font-family="Verdana, sans-serif" fill="#dff8e9">Cash flow, accounting and control</text>
+</svg>

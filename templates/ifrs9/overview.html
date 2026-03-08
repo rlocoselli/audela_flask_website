@@ -1,0 +1,366 @@
+{% extends "portal/base_portal.html" %}
+
+{% block title %}{{ _('AUDELA IFRS9') }}{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <div class="d-flex justify-content-end align-items-center gap-2 mb-3 flex-wrap">
+    <div class="dropdown">
+      <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+        {{ _('Langue') }}: {{ lang_label(current_lang) }}
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        {% for code, info in supported_langs.items() %}
+          <li><a class="dropdown-item" href="{{ url_for('public.set_language', lang_code=code, next=request.full_path) }}">{{ info.label }}</a></li>
+        {% endfor %}
+      </ul>
+    </div>
+    <a href="{{ url_for('tenant.profile') }}" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-person-circle"></i> {{ _('Mon profil') }}
+    </a>
+  </div>
+
+  <div class="ifrs9-hero rounded-4 p-4 p-lg-5 mb-4 shadow-sm">
+    <div class="d-flex align-items-start justify-content-between flex-wrap gap-3">
+      <div>
+        <div class="small text-uppercase fw-semibold ifrs9-kicker">{{ _('Module IFRS9 activé pour votre tenant.') }}</div>
+        <h1 class="h3 mb-2 mt-1">{{ _('AUDELA IFRS9') }}</h1>
+        <p class="mb-0 text-white-50">{{ _('Provisionnement IFRS9 (ECL), staging et gouvernance des hypothèses.') }}</p>
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <a href="#ifrs9-help" class="btn btn-light btn-sm">
+          <i class="bi bi-question-circle"></i> {{ _('Help IFRS9') }}
+        </a>
+        <a href="#ifrs9-reports" class="btn btn-outline-light btn-sm">
+          <i class="bi bi-bar-chart"></i> {{ _('Rapports IFRS9') }}
+        </a>
+        <a href="{{ url_for('tenant.products') }}" class="btn btn-light btn-sm">
+          <i class="bi bi-arrow-left"></i> {{ _('Retour aux produits') }}
+        </a>
+      </div>
+    </div>
+  </div>
+
+  {% if not companies %}
+  <div class="card border-0 shadow-sm">
+    <div class="card-body py-4 text-center">
+      <i class="bi bi-building" style="font-size: 2rem;"></i>
+      <h5 class="mt-3 mb-2">{{ _('Aucune société Finance trouvée') }}</h5>
+      <p class="text-muted mb-3">{{ _('Créez d\'abord une société dans Finance pour configurer IFRS9 et l\'intégration comptable.') }}</p>
+      <a href="{{ url_for('finance.dashboard') }}" class="btn btn-primary">
+        <i class="bi bi-box-arrow-up-right"></i> {{ _('Aller au module Finance') }}
+      </a>
+    </div>
+  </div>
+  {% else %}
+  <ul class="nav nav-pills ifrs9-nav mb-4">
+    <li class="nav-item"><a class="nav-link active" href="#ifrs9-config">{{ _('Configuration') }}</a></li>
+    <li class="nav-item"><a class="nav-link" href="#ifrs9-help">{{ _('Help') }}</a></li>
+    <li class="nav-item"><a class="nav-link" href="#ifrs9-reports">{{ _('Rapports') }}</a></li>
+  </ul>
+
+  <div class="row g-4">
+    <div class="col-lg-6" id="ifrs9-config">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body p-4">
+          <h5 class="mb-3">{{ _('Configuration IFRS9') }}</h5>
+          <p class="text-muted small mb-4">{{ _('Connectez IFRS9 à votre plan de comptes et définissez les hypothèses minimales de calcul ECL.') }}</p>
+
+          <form method="post" action="{{ url_for('ifrs9.overview', company_id=selected_company_id) }}" class="row g-3">
+            <input type="hidden" name="action" value="save_config">
+
+            <div class="col-12">
+              <label for="company_id" class="form-label">{{ _('Société Finance') }}</label>
+              <select id="company_id" name="company_id" class="form-select" required>
+                {% for company in companies %}
+                <option value="{{ company.id }}" {% if selected_company_id == company.id %}selected{% endif %}>
+                  {{ company.name }} ({{ company.base_currency }})
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="col-md-6">
+              <label for="expense_gl_account_id" class="form-label">{{ _('Compte de charge IFRS9 (Débit)') }}</label>
+              <select id="expense_gl_account_id" name="expense_gl_account_id" class="form-select" required>
+                <option value="">{{ _('Sélectionner un compte') }}</option>
+                {% for gl in gl_accounts %}
+                <option value="{{ gl.id }}" {% if selected_expense_id == gl.id %}selected{% endif %}>{{ gl.code }} - {{ gl.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="col-md-6">
+              <label for="provision_gl_account_id" class="form-label">{{ _('Compte de provision IFRS9 (Crédit)') }}</label>
+              <select id="provision_gl_account_id" name="provision_gl_account_id" class="form-select" required>
+                <option value="">{{ _('Sélectionner un compte') }}</option>
+                {% for gl in gl_accounts %}
+                <option value="{{ gl.id }}" {% if selected_provision_id == gl.id %}selected{% endif %}>{{ gl.code }} - {{ gl.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="col-md-4">
+              <label for="pd_percent" class="form-label">{{ _('PD (%)') }}</label>
+              <input id="pd_percent" name="pd_percent" type="number" min="0" max="100" step="0.01" value="{{ pd_percent }}" class="form-control" required>
+            </div>
+
+            <div class="col-md-4">
+              <label for="lgd_percent" class="form-label">{{ _('LGD (%)') }}</label>
+              <input id="lgd_percent" name="lgd_percent" type="number" min="0" max="100" step="0.01" value="{{ lgd_percent }}" class="form-control" required>
+            </div>
+
+            <div class="col-md-4">
+              <label for="stage" class="form-label">{{ _('Stage IFRS9') }}</label>
+              <select id="stage" name="stage" class="form-select" required>
+                <option value="stage1" {% if stage == 'stage1' %}selected{% endif %}>Stage 1</option>
+                <option value="stage2" {% if stage == 'stage2' %}selected{% endif %}>Stage 2</option>
+                <option value="stage3" {% if stage == 'stage3' %}selected{% endif %}>Stage 3</option>
+              </select>
+            </div>
+
+            <div class="col-12">
+              <label for="ead_amount" class="form-label">{{ _('EAD (montant exposé)') }}</label>
+              <input id="ead_amount" name="ead_amount" type="number" min="0" step="0.01" value="{{ ead_amount }}" class="form-control" required>
+            </div>
+
+            <div class="col-12 d-flex flex-wrap gap-2">
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-save"></i> {{ _('Enregistrer la configuration') }}
+              </button>
+              {% if selected_company_id %}
+              <a href="{{ url_for('finance.settings_gl', company_id=selected_company_id) }}" class="btn btn-outline-secondary">
+                <i class="bi bi-diagram-3"></i> {{ _('Gérer le plan de comptes') }}
+              </a>
+              {% endif %}
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body p-4 d-flex flex-column">
+          <h5 class="mb-2">{{ _('Simulation ECL') }}</h5>
+          <p class="text-muted small mb-3">{{ _('Calcul minimal: ECL = EAD x PD x LGD x coefficient de stage') }}</p>
+
+          <div class="ifrs9-result rounded-3 p-3 mb-3">
+            <div class="small text-uppercase text-muted">{{ _('Provision estimée') }}</div>
+            <div class="display-6 fw-semibold mb-0">{{ '%.2f'|format(ecl_amount) }} {{ selected_company.base_currency if selected_company else 'EUR' }}</div>
+          </div>
+
+          <div class="table-responsive mb-3">
+            <table class="table table-sm align-middle mb-0">
+              <tbody>
+                <tr>
+                  <th class="text-muted" style="width: 45%;">{{ _('Stage') }}</th>
+                  <td>{{ stage|upper }}</td>
+                </tr>
+                <tr>
+                  <th class="text-muted">{{ _('PD') }}</th>
+                  <td>{{ '%.2f'|format(pd_percent) }}%</td>
+                </tr>
+                <tr>
+                  <th class="text-muted">{{ _('LGD') }}</th>
+                  <td>{{ '%.2f'|format(lgd_percent) }}%</td>
+                </tr>
+                <tr>
+                  <th class="text-muted">{{ _('EAD') }}</th>
+                  <td>{{ '%.2f'|format(ead_amount) }} {{ selected_company.base_currency if selected_company else 'EUR' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {% if expense_account and provision_account %}
+          <h6 class="mb-2">{{ _('Prévisualisation écriture comptable') }}</h6>
+          <div class="table-responsive mb-3">
+            <table class="table table-sm mb-0">
+              <thead>
+                <tr>
+                  <th>{{ _('Compte') }}</th>
+                  <th>{{ _('Libellé') }}</th>
+                  <th class="text-end">{{ _('Débit') }}</th>
+                  <th class="text-end">{{ _('Crédit') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>{{ expense_account.code }}</code></td>
+                  <td>{{ expense_account.name }}</td>
+                  <td class="text-end">{{ '%.2f'|format(ecl_amount) }}</td>
+                  <td class="text-end">0.00</td>
+                </tr>
+                <tr>
+                  <td><code>{{ provision_account.code }}</code></td>
+                  <td>{{ provision_account.name }}</td>
+                  <td class="text-end">0.00</td>
+                  <td class="text-end">{{ '%.2f'|format(ecl_amount) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <form method="post" action="{{ url_for('ifrs9.overview', company_id=selected_company_id) }}" class="mt-auto">
+            <input type="hidden" name="action" value="post_entry">
+            <input type="hidden" name="company_id" value="{{ selected_company_id }}">
+            <input type="hidden" name="expense_gl_account_id" value="{{ selected_expense_id }}">
+            <input type="hidden" name="provision_gl_account_id" value="{{ selected_provision_id }}">
+            <input type="hidden" name="pd_percent" value="{{ pd_percent }}">
+            <input type="hidden" name="lgd_percent" value="{{ lgd_percent }}">
+            <input type="hidden" name="ead_amount" value="{{ ead_amount }}">
+            <input type="hidden" name="stage" value="{{ stage }}">
+
+            <button type="submit" class="btn btn-success w-100">
+              <i class="bi bi-journal-check"></i> {{ _('Comptabiliser l\'écriture IFRS9') }}
+            </button>
+          </form>
+          {% else %}
+          <div class="alert alert-warning mb-0 mt-auto">
+            <i class="bi bi-exclamation-triangle"></i> {{ _('Sélectionnez les comptes IFRS9 pour activer la prévisualisation comptable.') }}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4 mt-1">
+    <div class="col-lg-6" id="ifrs9-help">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body p-4">
+          <h5 class="mb-3">{{ _('Help IFRS9') }}</h5>
+          <p class="text-muted small mb-3">{{ _('Guide rapide pour configurer IFRS9 avec Finance et le plan de comptes.') }}</p>
+
+          <div class="accordion" id="ifrs9HelpAccordion">
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="h1">
+                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#c1" aria-expanded="true" aria-controls="c1">
+                  1. {{ _('Relier IFRS9 à la comptabilité') }}
+                </button>
+              </h2>
+              <div id="c1" class="accordion-collapse collapse show" aria-labelledby="h1" data-bs-parent="#ifrs9HelpAccordion">
+                <div class="accordion-body small text-muted">
+                  {{ _('Choisissez la société Finance puis mappez les comptes de charge et de provision IFRS9.') }}
+                </div>
+              </div>
+            </div>
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="h2">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c2" aria-expanded="false" aria-controls="c2">
+                  2. {{ _('Régler les hypothèses ECL') }}
+                </button>
+              </h2>
+              <div id="c2" class="accordion-collapse collapse" aria-labelledby="h2" data-bs-parent="#ifrs9HelpAccordion">
+                <div class="accordion-body small text-muted">
+                  {{ _('Saisissez PD, LGD, EAD et le stage IFRS9 pour obtenir une estimation immédiate de la provision.') }}
+                </div>
+              </div>
+            </div>
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="h3">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c3" aria-expanded="false" aria-controls="c3">
+                  3. {{ _('Comptabiliser et contrôler') }}
+                </button>
+              </h2>
+              <div id="c3" class="accordion-collapse collapse" aria-labelledby="h3" data-bs-parent="#ifrs9HelpAccordion">
+                <div class="accordion-body small text-muted">
+                  {{ _('Validez l\'écriture IFRS9 puis vérifiez les lignes dans les rapports comptables Finance.') }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6" id="ifrs9-reports">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-body p-4 d-flex flex-column">
+          <h5 class="mb-3">{{ _('Rapports IFRS9') }}</h5>
+          <div class="row g-3 mb-3">
+            <div class="col-6">
+              <div class="ifrs9-result rounded-3 p-3 h-100">
+                <div class="small text-muted">{{ _('Écritures IFRS9 (10 dernières)') }}</div>
+                <div class="h4 mb-0">{{ ifrs9_postings_count }}</div>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="ifrs9-result rounded-3 p-3 h-100">
+                <div class="small text-muted">{{ _('Provision IFRS9 comptabilisée') }}</div>
+                <div class="h4 mb-0">{{ '%.2f'|format(ifrs9_posted_total) }} {{ selected_company.base_currency if selected_company else 'EUR' }}</div>
+              </div>
+            </div>
+          </div>
+
+          {% if ifrs9_report_rows %}
+          <div class="table-responsive mb-3">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>{{ _('Date') }}</th>
+                  <th>{{ _('Référence') }}</th>
+                  <th>{{ _('Description') }}</th>
+                  <th class="text-end">{{ _('Montant') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in ifrs9_report_rows %}
+                <tr>
+                  <td>{{ row.voucher_date.strftime('%d/%m/%Y') }}</td>
+                  <td><code>{{ row.reference }}</code></td>
+                  <td>{{ row.description }}</td>
+                  <td class="text-end">{{ '%.2f'|format(row.amount) }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="alert alert-info mb-3">
+            <i class="bi bi-info-circle"></i> {{ _('Aucune écriture IFRS9 comptabilisée pour le moment.') }}
+          </div>
+          {% endif %}
+
+          {% if selected_company_id %}
+          <a href="{{ url_for('finance.reports_accounting', company_id=selected_company_id) }}" class="btn btn-outline-primary mt-auto">
+            <i class="bi bi-graph-up-arrow"></i> {{ _('Ouvrir les rapports comptables Finance') }}
+          </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<style>
+.ifrs9-hero {
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.18), transparent 36%),
+    radial-gradient(circle at 85% 30%, rgba(255, 255, 255, 0.16), transparent 32%),
+    linear-gradient(135deg, #7a132a 0%, #b62445 48%, #521a6b 100%);
+  color: #fff;
+}
+
+.ifrs9-kicker {
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.ifrs9-result {
+  background: linear-gradient(135deg, #f6f9ff 0%, #eef2ff 100%);
+  border: 1px solid #d8e0ff;
+}
+
+.ifrs9-nav .nav-link {
+  color: #6c757d;
+}
+
+.ifrs9-nav .nav-link.active {
+  background-color: #7a132a;
+  color: #fff;
+}
+</style>
+{% endblock %}

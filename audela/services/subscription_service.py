@@ -19,24 +19,28 @@ from audela.services.email_service import EmailService
 class SubscriptionService:
     """Service de gestion des abonnements."""
 
+    IFRS9_INCLUDED_PLAN_CODES = {"credit_pro", "all_in_one_pro", "enterprise"}
+
     @staticmethod
     def _default_plan_definitions() -> Dict[str, Dict[str, Any]]:
         """Définitions des plans par défaut pour bootstrap runtime."""
         return {
             "free": {
                 "name": "Gratuit",
-                "description": "Plan gratuit avec decouverte Audela Credit",
+                "description": "Plan gratuit de decouverte avec acces limite a tous les modules",
                 "price_monthly": "0.00",
                 "price_yearly": "0.00",
                 "trial_days": 30,
-                "has_finance": False,
-                "has_bi": False,
+                "has_finance": True,
+                "has_bi": True,
                 "max_users": 1,
                 "max_companies": 1,
                 "max_transactions_per_month": 100,
                 "features_json": {
                     "premium_support": False,
                     "has_credit": True,
+                    "has_project": True,
+                    "has_ifrs9": True,
                 },
                 "display_order": 1,
             },
@@ -103,6 +107,7 @@ class SubscriptionService:
                 "features_json": {
                     "premium_support": False,
                     "has_credit": True,
+                    "has_ifrs9": True,
                 },
                 "display_order": 5,
             },
@@ -207,6 +212,7 @@ class SubscriptionService:
                     "premium_support": True,
                     "has_project": True,
                     "has_credit": True,
+                    "has_ifrs9": True,
                 },
                 "display_order": 11,
             },
@@ -225,6 +231,7 @@ class SubscriptionService:
                     "premium_support": True,
                     "has_project": True,
                     "has_credit": True,
+                    "has_ifrs9": True,
                 },
                 "display_order": 12,
             },
@@ -317,16 +324,17 @@ class SubscriptionService:
                     plan.max_companies = -1
                     changed = True
 
-            features = plan.features_json if isinstance(plan.features_json, dict) else {}
+            features = dict(plan.features_json) if isinstance(plan.features_json, dict) else {}
+            original_features = dict(features)
             desired_features = data.get("features_json") or {}
             for feature_key, feature_value in desired_features.items():
                 if features.get(feature_key) != feature_value:
                     features[feature_key] = feature_value
-                    plan.features_json = features
-                    changed = True
 
             if "premium_support" not in features:
                 features["premium_support"] = False
+
+            if features != original_features:
                 plan.features_json = features
                 changed = True
 
@@ -538,15 +546,18 @@ class SubscriptionService:
         
         # Vérifier les features
         if feature == "finance":
-            return plan.has_finance
+            return bool(plan.has_finance or plan.code == "free")
         elif feature == "bi":
-            return plan.has_bi
+            return bool(plan.has_bi or plan.code == "free")
         elif feature == "credit":
             features = plan.features_json if isinstance(plan.features_json, dict) else {}
             return bool(features.get("has_credit", (plan.code == "free" or plan.has_bi)))
+        elif feature == "ifrs9":
+            features = plan.features_json if isinstance(plan.features_json, dict) else {}
+            return bool(features.get("has_ifrs9", plan.code == "free" or plan.code in SubscriptionService.IFRS9_INCLUDED_PLAN_CODES))
         elif feature == "project":
             features = plan.features_json if isinstance(plan.features_json, dict) else {}
-            return bool(features.get("has_project", False))
+            return bool(features.get("has_project", plan.code == "free"))
         elif feature == "premium_support":
             features = plan.features_json if isinstance(plan.features_json, dict) else {}
             return bool(features.get("premium_support", False))

@@ -368,6 +368,7 @@ class TenantService:
             "has_finance": False,
             "has_bi": False,
             "has_credit": False,
+            "has_ifrs9": False,
             "has_project": False,
             "usage": {
                 "users": {"current": 0, "max": 0},
@@ -388,10 +389,11 @@ class TenantService:
                 "subscription_status": subscription.status,
                 "is_trial": subscription.is_trial(),
                 "trial_days_left": subscription.days_left_in_trial(),
-                "has_finance": subscription.plan.has_finance,
-                "has_bi": subscription.plan.has_bi,
+                "has_finance": bool(subscription.plan.has_finance or subscription.plan.code == "free"),
+                "has_bi": bool(subscription.plan.has_bi or subscription.plan.code == "free"),
                 "has_credit": bool((subscription.plan.features_json or {}).get("has_credit", (subscription.plan.code == "free" or subscription.plan.has_bi))) if isinstance(subscription.plan.features_json, dict) else bool(subscription.plan.code == "free" or subscription.plan.has_bi),
-                "has_project": bool((subscription.plan.features_json or {}).get("has_project", False)) if isinstance(subscription.plan.features_json, dict) else False,
+                "has_ifrs9": bool((subscription.plan.features_json or {}).get("has_ifrs9", subscription.plan.code == "free" or subscription.plan.code in SubscriptionService.IFRS9_INCLUDED_PLAN_CODES)) if isinstance(subscription.plan.features_json, dict) else bool(subscription.plan.code == "free" or subscription.plan.code in SubscriptionService.IFRS9_INCLUDED_PLAN_CODES),
+                "has_project": bool((subscription.plan.features_json or {}).get("has_project", subscription.plan.code == "free")) if isinstance(subscription.plan.features_json, dict) else bool(subscription.plan.code == "free"),
                 "usage": {
                     "users": {
                         "current": users_count,

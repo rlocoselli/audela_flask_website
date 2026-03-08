@@ -33,20 +33,26 @@ def plans():
 
     def _has_project(plan: SubscriptionPlan) -> bool:
         features = plan.features_json if isinstance(plan.features_json, dict) else {}
-        return bool(features.get("has_project", False))
+        return bool(features.get("has_project", plan.code == "free"))
 
     def _has_credit(plan: SubscriptionPlan) -> bool:
         features = plan.features_json if isinstance(plan.features_json, dict) else {}
         return bool(features.get("has_credit", (plan.code == "free" or plan.has_bi)))
 
+    def _has_ifrs9(plan: SubscriptionPlan) -> bool:
+        features = plan.features_json if isinstance(plan.features_json, dict) else {}
+        return bool(features.get("has_ifrs9", plan.code == "free" or plan.code in SubscriptionService.IFRS9_INCLUDED_PLAN_CODES))
+
     if selected_product == "finance":
-        plans = [plan for plan in plans if plan.has_finance]
+        plans = [plan for plan in plans if (plan.has_finance or plan.code == "free")]
     elif selected_product == "bi":
-        plans = [plan for plan in plans if plan.has_bi]
+        plans = [plan for plan in plans if (plan.has_bi or plan.code == "free")]
     elif selected_product == "credit":
         plans = [plan for plan in plans if _has_credit(plan)]
     elif selected_product == "project":
         plans = [plan for plan in plans if _has_project(plan)]
+    elif selected_product == "ifrs9":
+        plans = [plan for plan in plans if _has_ifrs9(plan)]
     else:
         selected_product = None
     
