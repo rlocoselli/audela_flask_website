@@ -1,0 +1,60 @@
+{% macro render_public_sections(features, integrations, use_cases, outcomes) -%}
+<h3>{{ _('Ce produit inclut :') }}</h3>
+<ul>
+  {% for item in features %}
+  <li>{{ _(item) }}</li>
+  {% endfor %}
+</ul>
+
+<div class="row gtr-50">
+  <div class="col-6 col-12-medium">
+    <h3>{{ _('Intégrations & déploiement') }}</h3>
+    <ul>
+      {% for item in integrations %}
+      <li>{{ _(item) }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  <div class="col-6 col-12-medium">
+    <h3>{{ _('Cas d\'usage typiques') }}</h3>
+    <ul>
+      {% for item in use_cases %}
+      <li>{{ _(item) }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+
+<h3>{{ _('Résultats attendus') }}</h3>
+<ul>
+  {% for item in outcomes %}
+  <li>{{ _(item) }}</li>
+  {% endfor %}
+</ul>
+{%- endmacro %}
+
+
+{% macro render_tenant_sections(features, use_cases, outcomes, icon_color) -%}
+<h6 class="mb-3">{{ _('Fonctionnalités incluses:') }}</h6>
+<ul class="list-unstyled mb-4">
+  {% for item in features %}
+  <li class="mb-2">
+    <i class="bi bi-check-circle {{ icon_color }}"></i> {{ _(item) }}
+  </li>
+  {% endfor %}
+</ul>
+
+<h6 class="mb-2">{{ _('Cas d\'usage typiques') }}</h6>
+<ul class="list-unstyled mb-4">
+  {% for item in use_cases %}
+  <li class="mb-1 small text-muted"><i class="bi bi-dot"></i> {{ _(item) }}</li>
+  {% endfor %}
+</ul>
+
+<h6 class="mb-2">{{ _('Résultats attendus') }}</h6>
+<ul class="list-unstyled mb-4">
+  {% for item in outcomes %}
+  <li class="mb-1 small text-muted"><i class="bi bi-dot"></i> {{ _(item) }}</li>
+  {% endfor %}
+</ul>
+{%- endmacro %}

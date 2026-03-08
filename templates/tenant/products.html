@@ -1,4 +1,5 @@
 {% extends "portal/base_portal.html" %}
+{% from "products/_product_content_macros.html" import render_tenant_sections with context %}
 
 {% block title %}{{ _('Mes produits') }} – {{ tenant.name }}{% endblock %}
 
@@ -16,52 +17,49 @@
         <i class="bi bi-box-seam"></i> {{ _('Mes produits') }}
       </h1>
 
+      {% set finance = product_catalog.finance %}
+      {% set bi = product_catalog.bi %}
+      {% set credit = product_catalog.credit %}
+      {% set project = product_catalog.project %}
+
       <div class="row g-4">
         {% if has_finance %}
         <!-- Finance Product -->
         <div class="col-md-6">
           <div class="card border-0 shadow-sm h-100">
             <div class="card-body p-4">
+              <div class="mb-3">
+                <img src="{{ url_for('static', filename=finance.image) }}" alt="{{ _(finance.image_alt) }}" class="img-fluid rounded border" loading="lazy" />
+              </div>
+
               <div class="d-flex align-items-center mb-3">
                 <div class="bg-success bg-opacity-10 rounded-circle p-3 me-3">
                   <i class="bi bi-cash-coin text-success" style="font-size: 2rem;"></i>
                 </div>
                 <div>
-                  <h4 class="mb-0">{{ _('AUDELA Finance') }}</h4>
+                  <h4 class="mb-0">{{ _(finance.tenant_title) }}</h4>
                   <span class="badge bg-success">{{ _('Actif') }}</span>
                 </div>
               </div>
 
               <p class="text-muted mb-4">
-                {{ _('Gestion financière complète avec synchronisation bancaire, calcul LCR/NSFR, et rapports réglementaires.') }}
+                {{ _(finance.tenant_summary) }}
               </p>
 
-              <h6 class="mb-3">{{ _('Fonctionnalités incluses:') }}</h6>
-              <ul class="list-unstyled mb-4">
-                <li class="mb-2">
-                  <i class="bi bi-check-circle text-success"></i> {{ _('Synchronisation bancaire Powens/Tink') }}
-                </li>
-                <li class="mb-2">
-                  <i class="bi bi-check-circle text-success"></i> {{ _('Calcul automatique LCR et NSFR') }}
-                </li>
-                <li class="mb-2">
-                  <i class="bi bi-check-circle text-success"></i> {{ _('Gestion des transactions') }}
-                </li>
-                <li class="mb-2">
-                  <i class="bi bi-check-circle text-success"></i> {{ _('Rapports et exports') }}
-                </li>
-                <li class="mb-2">
-                  <i class="bi bi-check-circle text-success"></i> {{ _('Catégorisation automatique') }}
-                </li>
-              </ul>
+              {{ render_tenant_sections(
+                features=finance.features,
+                use_cases=finance.use_cases,
+                outcomes=finance.outcomes,
+                icon_color='text-success'
+              ) }}
 
               {% if module_access.finance %}
               <a href="{{ url_for('finance.dashboard') }}" class="btn btn-success w-100">
-                <i class="bi bi-box-arrow-up-right"></i> {{ _('Accéder à Finance') }}
+                <i class="bi bi-box-arrow-up-right"></i> {{ _(finance.tenant_access_label) }}
               </a>
               {% else %}
               <button class="btn btn-outline-secondary w-100" disabled>
-                <i class="bi bi-lock"></i> {{ _('Accès Finance désactivé') }}
+                <i class="bi bi-lock"></i> {{ _(finance.tenant_access_disabled) }}
               </button>
               {% endif %}
             </div>
@@ -74,46 +72,38 @@
         <div class="col-md-6">
           <div class="card border-0 shadow-sm h-100">
             <div class="card-body p-4">
+              <div class="mb-3">
+                <img src="{{ url_for('static', filename=bi.image) }}" alt="{{ _(bi.image_alt) }}" class="img-fluid rounded border" loading="lazy" />
+              </div>
+
               <div class="d-flex align-items-center mb-3">
                 <div class="bg-info bg-opacity-10 rounded-circle p-3 me-3">
                   <i class="bi bi-graph-up text-info" style="font-size: 2rem;"></i>
                 </div>
                 <div>
-                  <h4 class="mb-0">{{ _('AUDELA BI') }}</h4>
+                  <h4 class="mb-0">{{ _(bi.tenant_title) }}</h4>
                   <span class="badge bg-info">{{ _('Actif') }}</span>
                 </div>
               </div>
 
               <p class="text-muted mb-4">
-                {{ _('Business Intelligence avec tableaux de bord interactifs, analyses avancées et requêtes SQL personnalisées.') }}
+                {{ _(bi.tenant_summary) }}
               </p>
 
-              <h6 class="mb-3">{{ _('Fonctionnalités incluses:') }}</h6>
-              <ul class="list-unstyled mb-4">
-                <li class="mb-2">
-                  <i class="bi bi-check-circle text-info"></i> {{ _('Tableaux de bord personnalisables') }}
-                </li>
-                <li class="mb-2">
-                  <i class="bi bi-check-circle text-info"></i> {{ _('Requêtes SQL interactives') }}
-                </li>
-                <li class="mb-2">
-                  <i class="bi bi-check-circle text-info"></i> {{ _('Connexion multi-sources de données') }}
-                </li>
-                <li class="mb-2">
-                  <i class="bi bi-check-circle text-info"></i> {{ _('Graphiques et visualisations') }}
-                </li>
-                <li class="mb-2">
-                  <i class="bi bi-check-circle text-info"></i> {{ _('Rapports automatisés') }}
-                </li>
-              </ul>
+              {{ render_tenant_sections(
+                features=bi.features,
+                use_cases=bi.use_cases,
+                outcomes=bi.outcomes,
+                icon_color='text-info'
+              ) }}
 
               {% if module_access.bi %}
               <a href="{{ url_for('portal.home') }}" class="btn btn-info w-100">
-                <i class="bi bi-box-arrow-up-right"></i> {{ _('Accéder à BI') }}
+                <i class="bi bi-box-arrow-up-right"></i> {{ _(bi.tenant_access_label) }}
               </a>
               {% else %}
               <button class="btn btn-outline-secondary w-100" disabled>
-                <i class="bi bi-lock"></i> {{ _('Accès Audela Credit désactivé') }}
+                <i class="bi bi-lock"></i> {{ _(bi.tenant_access_disabled) }}
               </button>
               {% endif %}
             </div>
@@ -126,43 +116,38 @@
         <div class="col-md-6">
           <div class="card border-0 shadow-sm h-100">
             <div class="card-body p-4">
+              <div class="mb-3">
+                <img src="{{ url_for('static', filename=credit.image) }}" alt="{{ _(credit.image_alt) }}" class="img-fluid rounded border" loading="lazy" />
+              </div>
+
               <div class="d-flex align-items-center mb-3">
                 <div class="bg-warning bg-opacity-10 rounded-circle p-3 me-3">
                   <i class="bi bi-bank2 text-warning" style="font-size: 2rem;"></i>
                 </div>
                 <div>
-                  <h4 class="mb-0">{{ _('Audela Credit') }}</h4>
+                  <h4 class="mb-0">{{ _(credit.tenant_title) }}</h4>
                   <span class="badge bg-warning text-dark">{{ _('Actif') }}</span>
                 </div>
               </div>
 
               <p class="text-muted mb-4">
-                {{ _('Origination de crédit pour petites banques avec borrowers, deals, facilities, collatéraux, garants, spreading, ratios, credit memo et workflow d’approbation.') }}
+                {{ _(credit.tenant_summary) }}
               </p>
 
-              <h6 class="mb-3">{{ _('Fonctionnalités incluses:') }}</h6>
-              <ul class="list-unstyled mb-4">
-                <li class="mb-2">
-                  <i class="bi bi-check-circle text-warning"></i> {{ _('Pipeline d’origination et suivi des deals') }}
-                </li>
-                <li class="mb-2">
-                  <i class="bi bi-check-circle text-warning"></i> {{ _('Gestion des collatéraux et garants') }}
-                </li>
-                <li class="mb-2">
-                  <i class="bi bi-check-circle text-warning"></i> {{ _('Spreading des états financiers et ratios') }}
-                </li>
-                <li class="mb-2">
-                  <i class="bi bi-check-circle text-warning"></i> {{ _('Credit memo et workflow d’approbation') }}
-                </li>
-              </ul>
+              {{ render_tenant_sections(
+                features=credit.features,
+                use_cases=credit.use_cases,
+                outcomes=credit.outcomes,
+                icon_color='text-warning'
+              ) }}
 
-              {% if module_access.bi %}
+              {% if module_access.credit %}
               <a href="{{ url_for('credit.overview') }}" class="btn btn-warning w-100">
-                <i class="bi bi-box-arrow-up-right"></i> {{ _('Accéder à Audela Credit') }}
+                <i class="bi bi-box-arrow-up-right"></i> {{ _(credit.tenant_access_label) }}
               </a>
               {% else %}
               <button class="btn btn-outline-secondary w-100" disabled>
-                <i class="bi bi-lock"></i> {{ _('Accès BI désactivé') }}
+                <i class="bi bi-lock"></i> {{ _(credit.tenant_access_disabled) }}
               </button>
               {% endif %}
             </div>
@@ -174,43 +159,38 @@
         <div class="col-md-6">
           <div class="card border-0 shadow-sm h-100">
             <div class="card-body p-4">
+              <div class="mb-3">
+                <img src="{{ url_for('static', filename=project.image) }}" alt="{{ _(project.image_alt) }}" class="img-fluid rounded border" loading="lazy" />
+              </div>
+
               <div class="d-flex align-items-center mb-3">
                 <div class="bg-primary bg-opacity-10 rounded-circle p-3 me-3">
                   <i class="bi bi-kanban text-primary" style="font-size: 2rem;"></i>
                 </div>
                 <div>
-                  <h4 class="mb-0">{{ _('AUDELA Project') }}</h4>
+                  <h4 class="mb-0">{{ _(project.tenant_title) }}</h4>
                   <span class="badge bg-primary">{{ _('Actif') }}</span>
                 </div>
               </div>
 
               <p class="text-muted mb-4">
-                {{ _('Pilotage projet simple avec tableau Kanban, timeline Gantt, arbre des livrables et cérémonies Agile/Scrum.') }}
+                {{ _(project.tenant_summary) }}
               </p>
 
-              <h6 class="mb-3">{{ _('Fonctionnalités incluses:') }}</h6>
-              <ul class="list-unstyled mb-4">
-                <li class="mb-2">
-                  <i class="bi bi-check-circle text-primary"></i> {{ _('Kanban backlog / en cours / terminé') }}
-                </li>
-                <li class="mb-2">
-                  <i class="bi bi-check-circle text-primary"></i> {{ _('Gantt simple par dates') }}
-                </li>
-                <li class="mb-2">
-                  <i class="bi bi-check-circle text-primary"></i> {{ _('Arbre des items livrables') }}
-                </li>
-                <li class="mb-2">
-                  <i class="bi bi-check-circle text-primary"></i> {{ _('Agenda cérémonies Scrum') }}
-                </li>
-              </ul>
+              {{ render_tenant_sections(
+                features=project.features,
+                use_cases=project.use_cases,
+                outcomes=project.outcomes,
+                icon_color='text-primary'
+              ) }}
 
               {% if module_access.project %}
               <a href="{{ url_for('project.dashboard') }}" class="btn btn-primary w-100">
-                <i class="bi bi-box-arrow-up-right"></i> {{ _('Accéder à Projet') }}
+                <i class="bi bi-box-arrow-up-right"></i> {{ _(project.tenant_access_label) }}
               </a>
               {% else %}
               <button class="btn btn-outline-secondary w-100" disabled>
-                <i class="bi bi-lock"></i> {{ _('Accès Projet désactivé') }}
+                <i class="bi bi-lock"></i> {{ _(project.tenant_access_disabled) }}
               </button>
               {% endif %}
             </div>
