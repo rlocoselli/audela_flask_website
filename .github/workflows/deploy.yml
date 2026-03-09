@@ -98,26 +98,21 @@ jobs:
               COMPOSE_CMD="docker-compose"
             fi
 
-            # Wait until app container is ready for exec
-            for i in $(seq 1 20); do
-              if $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml ps audela >/dev/null 2>&1; then
-                if $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela sh -lc "echo ready" >/dev/null 2>&1; then
-                  break
-                fi
-              fi
-              echo "⏳ Waiting audela container... ($i/20)"
-              sleep 3
-            done
+            # Use one-off container runs for migrations so deploy still works even if
+            # audela service is restarting due to schema checks before upgrade.
+            aud_run () {
+              $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml run --rm --no-deps audela "$@"
+            }
 
             # Pre-fix: if known tables already exist, mark corresponding migrations as applied.
             pre_stamp_if_exists () {
               local tbl="$1"
               local rev="$2"
               local exists
-              exists="$($COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela python -c "from sqlalchemy import text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); e=db.session.execute(text(\"SELECT to_regclass('public.${tbl}')\")).scalar(); print('1' if e else '0'); ctx.pop()" 2>/dev/null || echo 0)"
+              exists="$(aud_run python -c "from sqlalchemy import text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); e=db.session.execute(text(\"SELECT to_regclass('public.${tbl}')\")).scalar(); print('1' if e else '0'); ctx.pop()" 2>/dev/null || echo 0)"
               if [ "$exists" = "1" ]; then
                 echo "ℹ️ ${tbl} exists -> pre-stamp ${rev}"
-                $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db stamp "$rev" || true
+                aud_run flask db stamp "$rev" || true
               fi
             }
 
@@ -129,7 +124,7 @@ jobs:
               local exists
 
               for tbl in "$@"; do
-                exists="$($COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela python -c "from sqlalchemy import text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); e=db.session.execute(text(\"SELECT to_regclass('public.${tbl}')\")).scalar(); print('1' if e else '0'); ctx.pop()" 2>/dev/null || echo 0)"
+                exists="$(aud_run python -c "from sqlalchemy import text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); e=db.session.execute(text(\"SELECT to_regclass('public.${tbl}')\")).scalar(); print('1' if e else '0'); ctx.pop()" 2>/dev/null || echo 0)"
                 if [ "$exists" != "1" ]; then
                   all_exist="0"
                   echo "ℹ️ ${tbl} missing -> not stamping ${rev}"
@@ -139,7 +134,7 @@ jobs:
 
               if [ "$all_exist" = "1" ]; then
                 echo "ℹ️ all target tables exist -> pre-stamp ${rev}"
-                $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db stamp "$rev" || true
+                aud_run flask db stamp "$rev" || true
               fi
             }
 
@@ -171,7 +166,7 @@ jobs:
             cleanup_credit_ref_data () {
               echo "🧹 Cleaning up partial credit reference data..."
               for tbl in credit_countries credit_sectors credit_ratings credit_facility_types credit_collateral_types credit_guarantee_types; do
-                $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela python -c "from sqlalchemy import text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); db.session.execute(text('TRUNCATE TABLE ${tbl} CASCADE')); db.session.commit(); ctx.pop()" 2>/dev/null || true
+                aud_run python -c "from sqlalchemy import text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); db.session.execute(text('TRUNCATE TABLE ${tbl} CASCADE')); db.session.commit(); ctx.pop()" 2>/dev/null || true
               done
             }
 
@@ -179,10 +174,10 @@ jobs:
             MIG_OK=0
             for i in $(seq 1 5); do
               echo "🧭 Alembic heads (attempt $i):"
-              $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db heads || true
+              aud_run flask db heads || true
 
               set +e
-              MIG_OUT="$($COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db upgrade 2>&1)"
+              MIG_OUT="$(aud_run flask db upgrade 2>&1)"
               MIG_RC=$?
               set -e
 
@@ -204,13 +199,13 @@ jobs:
               if echo "$MIG_OUT" | grep -Eqi "DuplicateTable|already exists"; then
                 if echo "$MIG_OUT" | grep -Eqi "project_workspaces"; then
                   echo "⚠️ project_workspaces already exists -> stamping migration 20260220_add_project_workspaces"
-                  $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db stamp 20260220_add_project_workspaces || true
+                  aud_run flask db stamp 20260220_add_project_workspaces || true
                 elif echo "$MIG_OUT" | grep -Eqi "finance_investments"; then
                   echo "⚠️ finance_investments already exists -> stamping migration 20260221_add_finance_investments"
-                  $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db stamp 20260221_add_finance_investments || true
+                  aud_run flask db stamp 20260221_add_finance_investments || true
                 elif echo "$MIG_OUT" | grep -Eqi "finance_accounting_periods"; then
                   echo "⚠️ finance_accounting_periods already exists -> stamping migration 20260221_add_finance_accounting_periods"
-                  $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db stamp 20260221_add_finance_accounting_periods || true
+                  aud_run flask db stamp 20260221_add_finance_accounting_periods || true
                 elif echo "$MIG_OUT" | grep -Eqi "finance_products|finance_daily_balances|finance_adjustments|finance_adjustment_logs|finance_counterparty_attributes|finance_gocardless_connections|finance_gocardless_sync_logs"; then
                   echo "⚠️ finance models tables conflict detected -> validating full set before stamping 7811fe58d1ac"
                   pre_stamp_if_all_tables_exist 7811fe58d1ac \
@@ -222,14 +217,14 @@ jobs:
                     finance_gocardless_connections \
                     finance_gocardless_sync_logs
                 fi
-                if $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db upgrade heads; then
+                if aud_run flask db upgrade heads; then
                   MIG_OK=1
                   break
                 fi
               fi
 
               # Fallback for temporary multi-head situations
-              if $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db upgrade heads; then
+              if aud_run flask db upgrade heads; then
                 MIG_OK=1
                 break
               fi
@@ -244,8 +239,8 @@ jobs:
             fi
 
             echo "🧪 Ensure database is at Alembic head(s)"
-            HEAD_REVS="$($COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db heads | awk '/^[0-9a-f]+/ {print $1}')"
-            CURRENT_REVS="$($COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db current | awk '/^[0-9a-f]+/ {print $1}')"
+            HEAD_REVS="$(aud_run flask db heads | awk '/^[0-9a-f]+/ {print $1}')"
+            CURRENT_REVS="$(aud_run flask db current | awk '/^[0-9a-f]+/ {print $1}')"
             echo "Heads:   ${HEAD_REVS}"
             echo "Current: ${CURRENT_REVS}"
             for rev in $HEAD_REVS; do
@@ -256,7 +251,7 @@ jobs:
             done
 
             echo "🔎 Verify migration objects"
-            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela python -c "from sqlalchemy import inspect, text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); exists=db.session.execute(text(\"SELECT to_regclass('public.finance_accounting_periods')\")).scalar(); assert exists, 'finance_accounting_periods table not found'; ci=inspect(db.engine); tables=set(ci.get_table_names()); assert 'credit_borrowers' in tables, 'credit_borrowers table not found'; assert 'credit_countries' in tables, 'credit_countries table not found'; assert 'credit_covenants' in tables, 'credit_covenants table not found'; assert 'credit_facility_utilizations' in tables, 'credit_facility_utilizations table not found'; cols={c['name'] for c in ci.get_columns('credit_borrowers')}; assert 'sector_id' in cols and 'country_id' in cols and 'rating_id' in cols, 'credit_borrowers FK columns missing'; assert 'approval_date' in {c['name'] for c in ci.get_columns('credit_deals')}, 'credit_deals.approval_date missing'; assert 'approval_date' in {c['name'] for c in ci.get_columns('credit_facilities')}, 'credit_facilities.approval_date missing'; assert 'approval_date' in {c['name'] for c in ci.get_columns('credit_financial_statements')}, 'credit_financial_statements.approval_date missing'; assert 'approval_date' in {c['name'] for c in ci.get_columns('credit_memos')}, 'credit_memos.approval_date missing'; print('finance_accounting_periods table found:', exists); print('credit schema including covenant/utilization tables verified'); ctx.pop()"
+            aud_run python -c "from sqlalchemy import inspect, text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); exists=db.session.execute(text(\"SELECT to_regclass('public.finance_accounting_periods')\")).scalar(); assert exists, 'finance_accounting_periods table not found'; ci=inspect(db.engine); tables=set(ci.get_table_names()); assert 'credit_borrowers' in tables, 'credit_borrowers table not found'; assert 'credit_countries' in tables, 'credit_countries table not found'; assert 'credit_covenants' in tables, 'credit_covenants table not found'; assert 'credit_facility_utilizations' in tables, 'credit_facility_utilizations table not found'; cols={c['name'] for c in ci.get_columns('credit_borrowers')}; assert 'sector_id' in cols and 'country_id' in cols and 'rating_id' in cols, 'credit_borrowers FK columns missing'; assert 'approval_date' in {c['name'] for c in ci.get_columns('credit_deals')}, 'credit_deals.approval_date missing'; assert 'approval_date' in {c['name'] for c in ci.get_columns('credit_facilities')}, 'credit_facilities.approval_date missing'; assert 'approval_date' in {c['name'] for c in ci.get_columns('credit_financial_statements')}, 'credit_financial_statements.approval_date missing'; assert 'approval_date' in {c['name'] for c in ci.get_columns('credit_memos')}, 'credit_memos.approval_date missing'; print('finance_accounting_periods table found:', exists); print('credit schema including covenant/utilization tables verified'); ctx.pop()"
 
             echo "🔄 Restart service"
             systemctl restart audeladedonnees
