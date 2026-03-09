@@ -17,12 +17,33 @@ branch_labels = None
 depends_on = None
 
 
+def _table_exists(table_name: str) -> bool:
+    return sa.inspect(op.get_bind()).has_table(table_name)
+
+
+def _index_exists(table_name: str, index_name: str) -> bool:
+    if not _table_exists(table_name):
+        return False
+    indexes = sa.inspect(op.get_bind()).get_indexes(table_name)
+    return any(idx.get("name") == index_name for idx in indexes)
+
+
+def _create_table_if_missing(table_name: str, *columns_and_constraints) -> None:
+    if not _table_exists(table_name):
+        op.create_table(table_name, *columns_and_constraints)
+
+
+def _create_index_if_missing(index_name: str, table_name: str, columns: list[str], unique: bool = False) -> None:
+    if _table_exists(table_name) and not _index_exists(table_name, index_name):
+        op.create_index(index_name, table_name, columns, unique=unique)
+
+
 def upgrade():
     dialect_name = context.get_context().dialect.name
     use_sqlite_safe_types = dialect_name == "sqlite"
     json_type = sa.JSON() if use_sqlite_safe_types else postgresql.JSONB(astext_type=sa.Text())
 
-    op.create_table(
+    _create_table_if_missing(
         "credit_borrowers",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("tenant_id", sa.Integer(), nullable=False),
@@ -35,10 +56,10 @@ def upgrade():
         sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_credit_borrowers_tenant_id", "credit_borrowers", ["tenant_id"])
-    op.create_index("ix_credit_borrowers_name", "credit_borrowers", ["name"])
+    _create_index_if_missing("ix_credit_borrowers_tenant_id", "credit_borrowers", ["tenant_id"])
+    _create_index_if_missing("ix_credit_borrowers_name", "credit_borrowers", ["name"])
 
-    op.create_table(
+    _create_table_if_missing(
         "credit_deals",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("tenant_id", sa.Integer(), nullable=False),
@@ -54,12 +75,12 @@ def upgrade():
         sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_credit_deals_tenant_id", "credit_deals", ["tenant_id"])
-    op.create_index("ix_credit_deals_borrower_id", "credit_deals", ["borrower_id"])
-    op.create_index("ix_credit_deals_code", "credit_deals", ["code"])
-    op.create_index("ix_credit_deals_status", "credit_deals", ["status"])
+    _create_index_if_missing("ix_credit_deals_tenant_id", "credit_deals", ["tenant_id"])
+    _create_index_if_missing("ix_credit_deals_borrower_id", "credit_deals", ["borrower_id"])
+    _create_index_if_missing("ix_credit_deals_code", "credit_deals", ["code"])
+    _create_index_if_missing("ix_credit_deals_status", "credit_deals", ["status"])
 
-    op.create_table(
+    _create_table_if_missing(
         "credit_facilities",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("tenant_id", sa.Integer(), nullable=False),
@@ -74,11 +95,11 @@ def upgrade():
         sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_credit_facilities_tenant_id", "credit_facilities", ["tenant_id"])
-    op.create_index("ix_credit_facilities_deal_id", "credit_facilities", ["deal_id"])
-    op.create_index("ix_credit_facilities_status", "credit_facilities", ["status"])
+    _create_index_if_missing("ix_credit_facilities_tenant_id", "credit_facilities", ["tenant_id"])
+    _create_index_if_missing("ix_credit_facilities_deal_id", "credit_facilities", ["deal_id"])
+    _create_index_if_missing("ix_credit_facilities_status", "credit_facilities", ["status"])
 
-    op.create_table(
+    _create_table_if_missing(
         "credit_collaterals",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("tenant_id", sa.Integer(), nullable=False),
@@ -94,11 +115,11 @@ def upgrade():
         sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_credit_collaterals_tenant_id", "credit_collaterals", ["tenant_id"])
-    op.create_index("ix_credit_collaterals_borrower_id", "credit_collaterals", ["borrower_id"])
-    op.create_index("ix_credit_collaterals_deal_id", "credit_collaterals", ["deal_id"])
+    _create_index_if_missing("ix_credit_collaterals_tenant_id", "credit_collaterals", ["tenant_id"])
+    _create_index_if_missing("ix_credit_collaterals_borrower_id", "credit_collaterals", ["borrower_id"])
+    _create_index_if_missing("ix_credit_collaterals_deal_id", "credit_collaterals", ["deal_id"])
 
-    op.create_table(
+    _create_table_if_missing(
         "credit_guarantors",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("tenant_id", sa.Integer(), nullable=False),
@@ -113,11 +134,11 @@ def upgrade():
         sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_credit_guarantors_tenant_id", "credit_guarantors", ["tenant_id"])
-    op.create_index("ix_credit_guarantors_borrower_id", "credit_guarantors", ["borrower_id"])
-    op.create_index("ix_credit_guarantors_deal_id", "credit_guarantors", ["deal_id"])
+    _create_index_if_missing("ix_credit_guarantors_tenant_id", "credit_guarantors", ["tenant_id"])
+    _create_index_if_missing("ix_credit_guarantors_borrower_id", "credit_guarantors", ["borrower_id"])
+    _create_index_if_missing("ix_credit_guarantors_deal_id", "credit_guarantors", ["deal_id"])
 
-    op.create_table(
+    _create_table_if_missing(
         "credit_financial_statements",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("tenant_id", sa.Integer(), nullable=False),
@@ -135,10 +156,10 @@ def upgrade():
         sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_credit_financial_statements_tenant_id", "credit_financial_statements", ["tenant_id"])
-    op.create_index("ix_credit_financial_statements_borrower_id", "credit_financial_statements", ["borrower_id"])
+    _create_index_if_missing("ix_credit_financial_statements_tenant_id", "credit_financial_statements", ["tenant_id"])
+    _create_index_if_missing("ix_credit_financial_statements_borrower_id", "credit_financial_statements", ["borrower_id"])
 
-    op.create_table(
+    _create_table_if_missing(
         "credit_ratio_snapshots",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("tenant_id", sa.Integer(), nullable=False),
@@ -155,12 +176,12 @@ def upgrade():
         sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_credit_ratio_snapshots_tenant_id", "credit_ratio_snapshots", ["tenant_id"])
-    op.create_index("ix_credit_ratio_snapshots_borrower_id", "credit_ratio_snapshots", ["borrower_id"])
-    op.create_index("ix_credit_ratio_snapshots_statement_id", "credit_ratio_snapshots", ["statement_id"])
-    op.create_index("ix_credit_ratio_snapshots_snapshot_date", "credit_ratio_snapshots", ["snapshot_date"])
+    _create_index_if_missing("ix_credit_ratio_snapshots_tenant_id", "credit_ratio_snapshots", ["tenant_id"])
+    _create_index_if_missing("ix_credit_ratio_snapshots_borrower_id", "credit_ratio_snapshots", ["borrower_id"])
+    _create_index_if_missing("ix_credit_ratio_snapshots_statement_id", "credit_ratio_snapshots", ["statement_id"])
+    _create_index_if_missing("ix_credit_ratio_snapshots_snapshot_date", "credit_ratio_snapshots", ["snapshot_date"])
 
-    op.create_table(
+    _create_table_if_missing(
         "credit_memos",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("tenant_id", sa.Integer(), nullable=False),
@@ -181,12 +202,12 @@ def upgrade():
         sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_credit_memos_tenant_id", "credit_memos", ["tenant_id"])
-    op.create_index("ix_credit_memos_deal_id", "credit_memos", ["deal_id"])
-    op.create_index("ix_credit_memos_borrower_id", "credit_memos", ["borrower_id"])
-    op.create_index("ix_credit_memos_prepared_by_user_id", "credit_memos", ["prepared_by_user_id"])
+    _create_index_if_missing("ix_credit_memos_tenant_id", "credit_memos", ["tenant_id"])
+    _create_index_if_missing("ix_credit_memos_deal_id", "credit_memos", ["deal_id"])
+    _create_index_if_missing("ix_credit_memos_borrower_id", "credit_memos", ["borrower_id"])
+    _create_index_if_missing("ix_credit_memos_prepared_by_user_id", "credit_memos", ["prepared_by_user_id"])
 
-    op.create_table(
+    _create_table_if_missing(
         "credit_approvals",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("tenant_id", sa.Integer(), nullable=False),
@@ -202,10 +223,10 @@ def upgrade():
         sa.ForeignKeyConstraint(["tenant_id"], ["tenants.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_credit_approvals_tenant_id", "credit_approvals", ["tenant_id"])
-    op.create_index("ix_credit_approvals_memo_id", "credit_approvals", ["memo_id"])
+    _create_index_if_missing("ix_credit_approvals_tenant_id", "credit_approvals", ["tenant_id"])
+    _create_index_if_missing("ix_credit_approvals_memo_id", "credit_approvals", ["memo_id"])
 
-    op.create_table(
+    _create_table_if_missing(
         "credit_documents",
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("tenant_id", sa.Integer(), nullable=False),
@@ -224,10 +245,10 @@ def upgrade():
         sa.ForeignKeyConstraint(["uploaded_by_user_id"], ["users.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("ix_credit_documents_tenant_id", "credit_documents", ["tenant_id"])
-    op.create_index("ix_credit_documents_borrower_id", "credit_documents", ["borrower_id"])
-    op.create_index("ix_credit_documents_deal_id", "credit_documents", ["deal_id"])
-    op.create_index("ix_credit_documents_memo_id", "credit_documents", ["memo_id"])
+    _create_index_if_missing("ix_credit_documents_tenant_id", "credit_documents", ["tenant_id"])
+    _create_index_if_missing("ix_credit_documents_borrower_id", "credit_documents", ["borrower_id"])
+    _create_index_if_missing("ix_credit_documents_deal_id", "credit_documents", ["deal_id"])
+    _create_index_if_missing("ix_credit_documents_memo_id", "credit_documents", ["memo_id"])
 
 
 def downgrade():
