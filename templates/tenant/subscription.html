@@ -49,6 +49,12 @@
                 {% if stats.has_bi %}
                   <span class="badge bg-info"><i class="bi bi-graph-up"></i> {{ _('BI') }}</span>
                 {% endif %}
+                {% if stats.has_credit %}
+                  <span class="badge bg-warning text-dark"><i class="bi bi-bank"></i> {{ _('Credit') }}</span>
+                {% endif %}
+                {% if stats.has_ifrs9 %}
+                  <span class="badge bg-danger"><i class="bi bi-shield-check"></i> {{ _('IFRS9') }}</span>
+                {% endif %}
               </div>
             </div>
             <div class="col-md-4 text-md-end mt-3 mt-md-0">
@@ -164,6 +170,22 @@
                     <i class="bi bi-x-circle text-muted"></i>
                   {% endif %}
                   {{ _('Module BI') }}
+                </li>
+                <li class="mb-2">
+                  {% if stats.has_credit %}
+                    <i class="bi bi-check-circle text-success"></i>
+                  {% else %}
+                    <i class="bi bi-x-circle text-muted"></i>
+                  {% endif %}
+                  {{ _('Module Credit') }}
+                </li>
+                <li class="mb-2">
+                  {% if stats.has_ifrs9 %}
+                    <i class="bi bi-check-circle text-success"></i>
+                  {% else %}
+                    <i class="bi bi-x-circle text-muted"></i>
+                  {% endif %}
+                  {{ _('Module IFRS9') }}
                 </li>
               </ul>
             </div>

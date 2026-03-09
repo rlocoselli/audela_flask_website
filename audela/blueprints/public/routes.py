@@ -110,20 +110,26 @@ def plans():
 
     def _has_project(plan) -> bool:
         features = plan.features_json if isinstance(plan.features_json, dict) else {}
-        return bool(features.get("has_project", False))
+        return bool(features.get("has_project", plan.code == "free"))
 
     def _has_credit(plan) -> bool:
         features = plan.features_json if isinstance(plan.features_json, dict) else {}
         return bool(features.get("has_credit", (plan.code == "free" or plan.has_bi)))
 
+    def _has_ifrs9(plan) -> bool:
+        features = plan.features_json if isinstance(plan.features_json, dict) else {}
+        return bool(features.get("has_ifrs9", plan.code == "free" or plan.code in SubscriptionService.IFRS9_INCLUDED_PLAN_CODES))
+
     if selected_product == "finance":
-        plans = [plan for plan in plans if plan.has_finance]
+        plans = [plan for plan in plans if (plan.has_finance or plan.code == "free")]
     elif selected_product == "bi":
-        plans = [plan for plan in plans if plan.has_bi]
+        plans = [plan for plan in plans if (plan.has_bi or plan.code == "free")]
     elif selected_product == "credit":
         plans = [plan for plan in plans if _has_credit(plan)]
     elif selected_product == "project":
         plans = [plan for plan in plans if _has_project(plan)]
+    elif selected_product == "ifrs9":
+        plans = [plan for plan in plans if _has_ifrs9(plan)]
     else:
         selected_product = None
 
@@ -159,6 +165,11 @@ def product_credit():
 @bp.route("/produits/projet")
 def product_project():
     return render_template("products/project.html", product=get_product_entry("project"))
+
+
+@bp.route("/produits/ifrs9")
+def product_ifrs9():
+    return render_template("products/ifrs9.html", product=get_product_entry("ifrs9"))
 
 
 # -----------------
@@ -239,6 +250,7 @@ def sitemap_xml():
         (_abs("public.product_bi"), "weekly", "0.9"),
         (_abs("public.product_credit"), "weekly", "0.9"),
         (_abs("public.product_project"), "weekly", "0.9"),
+        (_abs("public.product_ifrs9"), "weekly", "0.9"),
         (_abs("public.metabase"), "monthly", "0.7"),
         (_abs("public.belegal"), "monthly", "0.7"),
         (_abs("public.projects_mobile"), "monthly", "0.6"),

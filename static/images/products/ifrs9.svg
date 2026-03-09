@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" role="img" aria-labelledby="title desc">
+  <title id="title">AUDELA IFRS9</title>
+  <desc id="desc">IFRS9 banner with shield, stages and expected credit loss concept.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3a0d15"/>
+      <stop offset="100%" stop-color="#a31f3a"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="675" fill="url(#bg)"/>
+  <rect x="80" y="80" width="1040" height="515" rx="28" fill="#ffdbe2" fill-opacity="0.11" stroke="#ffb7c6" stroke-opacity="0.45"/>
+  <path d="M330 180 L510 250 L510 390 C510 470 450 530 420 545 C390 530 330 470 330 390 Z" fill="#ffd6df"/>
+  <path d="M420 290 L470 340 L420 430 L370 340 Z" fill="#c02946"/>
+  <circle cx="760" cy="245" r="64" fill="#ffdae2"/>
+  <circle cx="910" cy="245" r="64" fill="#ffbfd0"/>
+  <circle cx="1060" cy="245" r="64" fill="#ffa4be"/>
+  <text x="760" y="255" text-anchor="middle" font-size="34" font-family="Verdana, sans-serif" font-weight="700" fill="#661425">S1</text>
+  <text x="910" y="255" text-anchor="middle" font-size="34" font-family="Verdana, sans-serif" font-weight="700" fill="#661425">S2</text>
+  <text x="1060" y="255" text-anchor="middle" font-size="34" font-family="Verdana, sans-serif" font-weight="700" fill="#661425">S3</text>
+  <polyline points="710,390 800,350 890,410 980,340 1070,380" fill="none" stroke="#ffe57e" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="170" y="560" font-size="52" font-family="Verdana, sans-serif" font-weight="700" fill="#ffffff">AUDELA IFRS9</text>
+  <text x="170" y="605" font-size="30" font-family="Verdana, sans-serif" fill="#ffdbe2">Staging, assumptions and ECL governance</text>
+</svg>

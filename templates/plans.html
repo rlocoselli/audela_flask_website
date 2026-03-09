@@ -33,6 +33,10 @@
       <div class="box" style="margin-bottom:1rem;">
         <strong>{{ _('Filtre actif : Projet') }}</strong>
       </div>
+    {% elif selected_product == 'ifrs9' %}
+      <div class="box" style="margin-bottom:1rem;">
+        <strong>{{ _('Filtre actif : IFRS9') }}</strong>
+      </div>
     {% endif %}
 
     {% if plans %}
@@ -45,13 +49,17 @@
                 <p>{{ plan.description }}</p>
               {% endif %}
 
-              {% set has_project = plan.features_json and plan.features_json.get('has_project') %}
+              {% set has_finance = plan.has_finance or plan.code == 'free' %}
+              {% set has_bi = plan.has_bi or plan.code == 'free' %}
+              {% set has_project = (plan.features_json and plan.features_json.get('has_project')) or plan.code == 'free' %}
               {% set has_credit = (plan.features_json and plan.features_json.get('has_credit')) or plan.code == 'free' %}
+              {% set has_ifrs9 = (plan.features_json and plan.features_json.get('has_ifrs9')) or plan.code == 'free' or plan.code in ['credit_pro', 'all_in_one_pro', 'enterprise'] %}
               <p>
-                {% if plan.has_finance %}<span class="badge">{{ _('Finance') }}</span>{% endif %}
-                {% if plan.has_bi %}<span class="badge">{{ _('BI') }}</span>{% endif %}
+                {% if has_finance %}<span class="badge">{{ _('Finance') }}</span>{% endif %}
+                {% if has_bi %}<span class="badge">{{ _('BI') }}</span>{% endif %}
                 {% if has_credit %}<span class="badge">{{ _('Audela Credit') }}</span>{% endif %}
                 {% if has_project %}<span class="badge">{{ _('Projet') }}</span>{% endif %}
+                {% if has_ifrs9 %}<span class="badge">{{ _('IFRS9') }}</span>{% endif %}
               </p>
 
               <p><strong>{{ '%.2f'|format(plan.price_monthly or 0) }} {{ plan.currency or 'EUR' }} / {{ _('mois') }}</strong></p>
