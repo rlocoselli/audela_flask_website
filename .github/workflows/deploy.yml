@@ -101,7 +101,7 @@ jobs:
             # Use one-off container runs for migrations so deploy still works even if
             # audela service is restarting due to schema checks before upgrade.
             aud_run () {
-              $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml run --rm --no-deps audela "$@"
+              $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml run --rm --no-deps --entrypoint "" audela "$@"
             }
 
             # Pre-fix: if known tables already exist, mark corresponding migrations as applied.
