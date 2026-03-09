@@ -10,6 +10,7 @@ from typing import Iterable, List, Tuple
 
 from ..models.finance import FinanceAccount, FinanceTransaction
 from ..models.finance_ext import FinanceLiability
+from ..models.finance_invoices import FinanceInvoice
 
 
 def _d(x) -> Decimal:
@@ -344,6 +345,8 @@ def compute_risk_metrics(
     accounts: Iterable[FinanceAccount],
     transactions: Iterable[FinanceTransaction] | None = None,
     liabilities: Iterable[FinanceLiability] | None = None,
+    invoices: Iterable[FinanceInvoice] | None = None,
+    ifrs9_config: dict | None = None,
 ) -> dict:
     """Compute robust SME-friendly liquidity risk metrics: LCR, NSFR, and concentration ratios.
     
@@ -521,6 +524,124 @@ def compute_risk_metrics(
             "concentration": conc_ratio,
         })
     
+    # ===== IFRS9 (SME approximation for expected credit losses) =====
+    # Scope: open sales invoices are treated as receivable exposures.
+    # Staging by Days Past Due (DPD):
+    #   Stage 1: current or <= 30 DPD (12-month ECL proxy)
+    #   Stage 2: 31-90 DPD (lifetime ECL)
+    #   Stage 3: > 90 DPD (credit-impaired)
+    cfg = ifrs9_config or {}
+    stage_1_max_dpd = int(cfg.get("stage_1_max_dpd") or 30)
+    stage_2_max_dpd = int(cfg.get("stage_2_max_dpd") or 90)
+    if stage_1_max_dpd < 0:
+        stage_1_max_dpd = 0
+    if stage_2_max_dpd <= stage_1_max_dpd:
+        stage_2_max_dpd = stage_1_max_dpd + 60
+
+    stage_cfg = {
+        "stage_1": {
+            "label": "Stage 1",
+            "pd": _d(cfg.get("pd_stage_1") or "2") / Decimal("100"),
+            "lgd": _d(cfg.get("lgd_stage_1") or "40") / Decimal("100"),
+            "dpd_min": -9999,
+            "dpd_max": stage_1_max_dpd,
+        },
+        "stage_2": {
+            "label": "Stage 2",
+            "pd": _d(cfg.get("pd_stage_2") or "10") / Decimal("100"),
+            "lgd": _d(cfg.get("lgd_stage_2") or "50") / Decimal("100"),
+            "dpd_min": stage_1_max_dpd + 1,
+            "dpd_max": stage_2_max_dpd,
+        },
+        "stage_3": {
+            "label": "Stage 3",
+            "pd": _d(cfg.get("pd_stage_3") or "35") / Decimal("100"),
+            "lgd": _d(cfg.get("lgd_stage_3") or "65") / Decimal("100"),
+            "dpd_min": stage_2_max_dpd + 1,
+            "dpd_max": 9999,
+        },
+    }
+    for _k in stage_cfg:
+        stage_cfg[_k]["pd"] = max(Decimal("0"), min(Decimal("1"), stage_cfg[_k]["pd"]))
+        stage_cfg[_k]["lgd"] = max(Decimal("0"), min(Decimal("1"), stage_cfg[_k]["lgd"]))
+    ifrs9_rows: list[dict] = []
+    ifrs9_by_stage: dict[str, dict] = {
+        "stage_1": {"label": "Stage 1", "exposure": Decimal("0"), "ecl": Decimal("0"), "count": 0},
+        "stage_2": {"label": "Stage 2", "exposure": Decimal("0"), "ecl": Decimal("0"), "count": 0},
+        "stage_3": {"label": "Stage 3", "exposure": Decimal("0"), "ecl": Decimal("0"), "count": 0},
+    }
+    overdue_by_cp: dict[str, Decimal] = {}
+
+    for inv in (invoices or []):
+        if (getattr(inv, "invoice_type", "") or "").lower() != "sale":
+            continue
+        status = (getattr(inv, "status", "") or "").lower()
+        if status in {"paid", "void"}:
+            continue
+
+        ead = abs(_d(getattr(inv, "total_gross", None)))
+        if ead <= 0:
+            continue
+
+        due_date = getattr(inv, "due_date", None) or getattr(inv, "issue_date", None) or as_of
+        dpd = max(0, (as_of - due_date).days)
+
+        if dpd <= 30:
+            stage_key = "stage_1"
+        elif dpd <= 90:
+            stage_key = "stage_2"
+        else:
+            stage_key = "stage_3"
+
+        cfg = stage_cfg[stage_key]
+        pd = cfg["pd"]
+        lgd = cfg["lgd"]
+        ecl = ead * pd * lgd
+
+        cp_name = (
+            getattr(getattr(inv, "counterparty", None), "name", None)
+            or "(n/a)"
+        )
+        cp_norm = normalize_counterparty_label(cp_name)
+
+        ifrs9_rows.append(
+            {
+                "invoice_number": getattr(inv, "invoice_number", None) or "-",
+                "counterparty": cp_name,
+                "counterparty_normalized": cp_norm,
+                "status": status,
+                "currency": getattr(inv, "currency", None) or "EUR",
+                "due_date": due_date,
+                "days_past_due": dpd,
+                "stage": cfg["label"],
+                "stage_key": stage_key,
+                "pd": pd,
+                "lgd": lgd,
+                "ead": ead,
+                "ecl": ecl,
+            }
+        )
+
+        ifrs9_by_stage[stage_key]["exposure"] += ead
+        ifrs9_by_stage[stage_key]["ecl"] += ecl
+        ifrs9_by_stage[stage_key]["count"] += 1
+
+        if dpd > 0:
+            overdue_by_cp[cp_norm] = overdue_by_cp.get(cp_norm, Decimal("0")) + ead
+
+    total_ifrs9_exposure = sum((r["ead"] for r in ifrs9_rows), Decimal("0"))
+    total_ifrs9_ecl = sum((r["ecl"] for r in ifrs9_rows), Decimal("0"))
+    coverage_ratio = (total_ifrs9_ecl / total_ifrs9_exposure * 100) if total_ifrs9_exposure > 0 else Decimal("0")
+
+    overdue_cp_rows = [
+        {
+            "counterparty": cp,
+            "exposure": amt,
+            "share": (amt / total_ifrs9_exposure * 100) if total_ifrs9_exposure > 0 else Decimal("0"),
+        }
+        for cp, amt in sorted(overdue_by_cp.items(), key=lambda x: x[1], reverse=True)[:10]
+    ]
+
     # ===== Output Summary =====
     return {
         "as_of": as_of,
@@ -549,6 +670,15 @@ def compute_risk_metrics(
         "concentration": {
             "currency": ccy_rows,
             "counterparty": cp_rows,
+        },
+        "ifrs9": {
+            "open_receivables_count": len(ifrs9_rows),
+            "total_exposure": total_ifrs9_exposure,
+            "total_ecl": total_ifrs9_ecl,
+            "coverage_ratio": coverage_ratio,
+            "stages": [ifrs9_by_stage["stage_1"], ifrs9_by_stage["stage_2"], ifrs9_by_stage["stage_3"]],
+            "rows": sorted(ifrs9_rows, key=lambda r: (r["days_past_due"], r["ecl"]), reverse=True),
+            "overdue_counterparties": overdue_cp_rows,
         },
     }
 

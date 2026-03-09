@@ -3,6 +3,9 @@ Billing Routes
 
 Routes pour la gestion des abonnements et paiements.
 """
+from urllib.parse import urlencode
+from decimal import Decimal
+
 from flask import (
     render_template,
     redirect,
@@ -25,11 +28,44 @@ from ...i18n import tr
 from . import bp
 
 
+FINANCE_PLAN_CODES = {"free", "finance_starter", "finance_pro", "finance_banking", "all_in_one_pro"}
+PAYPAL_BUSINESS_EMAIL = "rlocoselli@yahoo.com.br"
+
+
+def _build_paypal_checkout_url(plan: SubscriptionPlan, billing_cycle: str, tenant: Tenant) -> str:
+    amount = Decimal(plan.price_yearly or 0) if billing_cycle == "yearly" else Decimal(plan.price_monthly or 0)
+    amount_str = f"{amount:.2f}"
+    success_url = url_for("billing.checkout_success", _external=True)
+    cancel_url = url_for("billing.checkout_cancel", _external=True)
+    params = {
+        "cmd": "_xclick-subscriptions",
+        "business": PAYPAL_BUSINESS_EMAIL,
+        "item_name": f"AUDELA {plan.name} ({billing_cycle}) - {tenant.slug}",
+        "currency_code": (plan.currency or "EUR"),
+        # 30-day free trial for everyone
+        "a1": "0",
+        "p1": "30",
+        "t1": "D",
+        # Recurring amount
+        "a3": amount_str,
+        "p3": "1",
+        "t3": "Y" if billing_cycle == "yearly" else "M",
+        "src": "1",
+        "sra": "1",
+        "no_shipping": "1",
+        "no_note": "1",
+        "return": success_url,
+        "cancel_return": cancel_url,
+        "custom": f"tenant_id={tenant.id};plan={plan.code};cycle={billing_cycle}",
+    }
+    return f"https://www.paypal.com/cgi-bin/webscr?{urlencode(params)}"
+
+
 @bp.route("/plans")
 def plans():
     """Display available subscription plans."""
     plans = SubscriptionService.get_available_plans(include_internal=False)
-    selected_product = (request.args.get("product") or "").strip().lower()
+    selected_product = (request.args.get("product") or "finance").strip().lower()
 
     def _has_project(plan: SubscriptionPlan) -> bool:
         features = plan.features_json if isinstance(plan.features_json, dict) else {}
@@ -37,14 +73,14 @@ def plans():
 
     def _has_credit(plan: SubscriptionPlan) -> bool:
         features = plan.features_json if isinstance(plan.features_json, dict) else {}
-        return bool(features.get("has_credit", (plan.code == "free" or plan.has_bi)))
+        return bool(features.get("has_credit", plan.code == "free"))
 
     def _has_ifrs9(plan: SubscriptionPlan) -> bool:
         features = plan.features_json if isinstance(plan.features_json, dict) else {}
         return bool(features.get("has_ifrs9", plan.code == "free" or plan.code in SubscriptionService.IFRS9_INCLUDED_PLAN_CODES))
 
     if selected_product == "finance":
-        plans = [plan for plan in plans if (plan.has_finance or plan.code == "free")]
+        plans = [plan for plan in plans if plan.code in FINANCE_PLAN_CODES]
     elif selected_product == "bi":
         plans = [plan for plan in plans if (plan.has_bi or plan.code == "free")]
     elif selected_product == "credit":
@@ -53,8 +89,11 @@ def plans():
         plans = [plan for plan in plans if _has_project(plan)]
     elif selected_product == "ifrs9":
         plans = [plan for plan in plans if _has_ifrs9(plan)]
+    elif selected_product == "all":
+        plans = plans
     else:
-        selected_product = None
+        selected_product = "finance"
+        plans = [plan for plan in plans if plan.code in FINANCE_PLAN_CODES]
     
     current_plan = None
     if current_user.is_authenticated:
@@ -133,7 +172,7 @@ def upgrade(plan_code):
 @require_tenant
 @csrf.exempt
 def checkout():
-    """Create Stripe checkout session and redirect."""
+    """Create PayPal checkout redirect for paid plans, or auto-activate free plans."""
     plan_code = request.form.get("plan_code")
     billing_cycle = request.form.get("billing_cycle", "monthly")
     
@@ -168,22 +207,26 @@ def checkout():
             flash(tr("Free plan activated. No card required.", getattr(g, "lang", None)), "success")
             return redirect(url_for("billing.subscription"))
 
-        # Create Stripe checkout session
-        session_url = SubscriptionService.create_stripe_checkout_session(
-            tenant_id=current_user.tenant_id,
-            plan_code=plan_code,
-            billing_cycle=billing_cycle,
-            success_url=url_for("billing.checkout_success", _external=True),
-            cancel_url=url_for("billing.checkout_cancel", _external=True)
+        tenant = Tenant.query.get(current_user.tenant_id)
+        if not tenant:
+            flash(tr("Tenant not found", getattr(g, "lang", None)), "error")
+            return redirect(url_for("billing.plans"))
+
+        paypal_url = _build_paypal_checkout_url(plan, billing_cycle, tenant)
+        flash(
+            tr(
+                "Paiement via PayPal. Après paiement, transmettez le reçu à rlocoselli@yahoo.com.br pour activation immédiate.",
+                getattr(g, "lang", None),
+            ),
+            "info",
         )
-        
-        return redirect(session_url)
+        return redirect(paypal_url)
     
     except ValueError as e:
         flash(tr(str(e), getattr(g, "lang", None)), "error")
         return redirect(url_for("billing.plans"))
     except Exception as e:
-        current_app.logger.error(f"Stripe checkout error: {e}")
+        current_app.logger.error(f"PayPal checkout error: {e}")
         flash(tr("Payment processing error. Please try again.", getattr(g, "lang", None)), "error")
         return redirect(url_for("billing.plans"))
 

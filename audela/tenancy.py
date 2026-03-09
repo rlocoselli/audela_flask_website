@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Optional
 from functools import wraps
 
-from flask import g, session, redirect, url_for, flash
+from flask import g, session, redirect, url_for, flash, request
 from flask_login import current_user
 
 from .i18n import tr
@@ -92,6 +92,9 @@ _DEFAULT_MENU_ACCESS: dict[str, list[str]] = {
     ],
 }
 
+# Plan-level menu policy for Finance Personal.
+_FINANCE_PERSONAL_DISABLED_MENUS = {"risk", "regulation", "investments", "nii", "gaps"}
+
 
 def _normalize_bool_map(data: dict | None, keys: list[str], default_value: bool = True) -> dict[str, bool]:
     src = data if isinstance(data, dict) else {}
@@ -134,6 +137,16 @@ def clear_current_tenant() -> None:
     session.pop("tenant_slug", None)
 
 
+def _is_test_user(tenant, user_id: int | None) -> bool:
+    if not tenant or user_id is None:
+        return False
+    settings = tenant.settings_json if isinstance(getattr(tenant, "settings_json", None), dict) else {}
+    uam = settings.get("uam") if isinstance(settings.get("uam"), dict) else {}
+    raw = uam.get("test_users") if isinstance(uam.get("test_users"), list) else []
+    normalized = {str(x) for x in raw}
+    return str(int(user_id)) in normalized
+
+
 def get_user_module_access(tenant, user_id: int | None) -> dict:
         """Return simple UAM module access flags for a user.
 
@@ -154,7 +167,10 @@ def get_user_module_access(tenant, user_id: int | None) -> dict:
         Defaults to full access when missing.
         """
         if not tenant or user_id is None:
-            return {"finance": True, "bi": True, "project": True, "credit": True}
+            return {"finance": True, "bi": True, "project": True, "credit": True, "ifrs9": True}
+
+        if _is_test_user(tenant, user_id):
+            return {"finance": True, "bi": True, "project": True, "credit": True, "ifrs9": True}
 
         settings = tenant.settings_json if isinstance(getattr(tenant, "settings_json", None), dict) else {}
         uam = settings.get("uam") if isinstance(settings.get("uam"), dict) else {}
@@ -168,6 +184,7 @@ def get_user_module_access(tenant, user_id: int | None) -> dict:
                 "bi": bool(row.get("bi", True)),
                 "project": bool(row.get("project", True)),
             "credit": bool(row.get("credit", True)),
+            "ifrs9": bool(row.get("ifrs9", True)),
         }
 
 
@@ -187,14 +204,28 @@ def get_user_menu_access(tenant, user_id: int | None, product: str) -> dict[str,
         return {}
 
     if not tenant or user_id is None:
-        return {k: True for k in defaults}
+        resolved = {k: True for k in defaults}
+    elif _is_test_user(tenant, user_id):
+        resolved = {k: True for k in defaults}
+    else:
+        settings = tenant.settings_json if isinstance(getattr(tenant, "settings_json", None), dict) else {}
+        uam = settings.get("uam") if isinstance(settings.get("uam"), dict) else {}
+        menu_access = uam.get("menu_access") if isinstance(uam.get("menu_access"), dict) else {}
+        by_user = menu_access.get(str(int(user_id))) if isinstance(menu_access.get(str(int(user_id))), dict) else {}
+        row = by_user.get(product_key) if isinstance(by_user.get(product_key), dict) else {}
+        resolved = _normalize_bool_map(row, defaults, True)
 
-    settings = tenant.settings_json if isinstance(getattr(tenant, "settings_json", None), dict) else {}
-    uam = settings.get("uam") if isinstance(settings.get("uam"), dict) else {}
-    menu_access = uam.get("menu_access") if isinstance(uam.get("menu_access"), dict) else {}
-    by_user = menu_access.get(str(int(user_id))) if isinstance(menu_access.get(str(int(user_id))), dict) else {}
-    row = by_user.get(product_key) if isinstance(by_user.get(product_key), dict) else {}
-    return _normalize_bool_map(row, defaults, True)
+    # Finance Personal: expose only basic menus.
+    if product_key == "finance":
+        subscription = getattr(tenant, "subscription", None)
+        plan = getattr(subscription, "plan", None) if subscription else None
+        plan_code = str(getattr(plan, "code", "") or "").strip().lower()
+        if plan_code == "finance_starter":
+            for key in _FINANCE_PERSONAL_DISABLED_MENUS:
+                if key in resolved:
+                    resolved[key] = False
+
+    return resolved
 
 
 def require_tenant(func):
@@ -236,7 +267,46 @@ def require_tenant(func):
             else:
                 flash(tr("No active tenant session. Please login.", getattr(g, "lang", None)), "warning")
                 return redirect(url_for("tenant.login"))
+
+        subscription_guard_result = enforce_subscription_access_or_redirect(current_user.tenant_id)
+        if subscription_guard_result is not None:
+            return subscription_guard_result
         
         return func(*args, **kwargs)
     
     return decorated_view
+
+
+def enforce_subscription_access_or_redirect(tenant_id: int):
+    """Block app access when trial is expired or subscription is inactive.
+
+    Returns a redirect response when access must be blocked, otherwise None.
+    Billing pages remain reachable so users can upgrade.
+    """
+    endpoint = str(getattr(request, "endpoint", "") or "")
+    if endpoint.startswith("billing.") or endpoint.startswith("public.plans") or endpoint == "static":
+        return None
+
+    from .extensions import db
+    from .models import Tenant
+
+    tenant = Tenant.query.get(int(tenant_id))
+    if not tenant:
+        return None
+
+    subscription = getattr(tenant, "subscription", None)
+    if not subscription:
+        flash(tr("No active subscription found", getattr(g, "lang", None)), "warning")
+        return redirect(url_for("billing.plans", product="all"))
+
+    if getattr(subscription, "status", None) == "trial" and subscription.is_trial_expired():
+        subscription.status = "expired"
+        db.session.commit()
+        flash(tr("Your free trial has ended. Please choose a plan to continue.", getattr(g, "lang", None)), "warning")
+        return redirect(url_for("billing.plans", product="all"))
+
+    if not subscription.is_active():
+        flash(tr("Your subscription is inactive. Please choose a plan to continue.", getattr(g, "lang", None)), "warning")
+        return redirect(url_for("billing.plans", product="all"))
+
+    return None

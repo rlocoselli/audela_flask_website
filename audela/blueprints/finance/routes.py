@@ -81,6 +81,7 @@ from ...services.finance_projection import project_cash_balance, build_ui_alerts
 from ...services.regulation_exports import export_fec_csv, export_it_ledger_csv
 from ...services.email_service import EmailService
 from ...services.subscription_service import SubscriptionService
+from ...tenancy import enforce_subscription_access_or_redirect, get_current_tenant_id, get_user_menu_access, get_user_module_access
 from ...tenancy import get_current_tenant_id, get_user_module_access, get_user_menu_access
 
 from . import bp
@@ -187,13 +188,26 @@ def _finance_layout_context():
     tenant = getattr(g, "tenant", None)
     module_access = get_user_module_access(tenant, getattr(current_user, "id", None))
     finance_menu_access = get_user_menu_access(tenant, getattr(current_user, "id", None), "finance")
+    has_ifrs9_feature = False
+    if tenant:
+        try:
+            has_ifrs9_feature = SubscriptionService.check_feature_access(tenant.id, "ifrs9")
+        except Exception:
+            has_ifrs9_feature = False
+
     if not tenant or not getattr(tenant, "subscription", None):
-        return {"transaction_usage": None, "module_access": module_access, "finance_menu_access": finance_menu_access}
+        return {
+            "transaction_usage": None,
+            "module_access": module_access,
+            "finance_menu_access": finance_menu_access,
+            "has_ifrs9_feature": has_ifrs9_feature,
+        }
 
     _, current_count, max_limit = SubscriptionService.check_limit(tenant.id, "transactions")
     return {
         "module_access": module_access,
         "finance_menu_access": finance_menu_access,
+        "has_ifrs9_feature": has_ifrs9_feature,
         "transaction_usage": {
             "current": int(current_count),
             "max": int(max_limit),
@@ -215,6 +229,16 @@ def _load_tenant_into_g() -> None:
             if tenant:
                 g.tenant = tenant
 
+    # Self-heal stale tenant session after user/account switches.
+    # Access still remains strictly bound to current_user.tenant_id.
+    if request.endpoint and request.endpoint.startswith("finance.") and current_user.is_authenticated:
+        if not getattr(g, "tenant", None) or current_user.tenant_id != g.tenant.id:
+            user_tenant = Tenant.query.get(current_user.tenant_id)
+            if user_tenant:
+                g.tenant = user_tenant
+                session["tenant_id"] = user_tenant.id
+                session["tenant_slug"] = user_tenant.slug
+
     if (
         request.endpoint
         and request.endpoint.startswith("finance.")
@@ -222,6 +246,10 @@ def _load_tenant_into_g() -> None:
         and getattr(g, "tenant", None)
         and current_user.tenant_id == g.tenant.id
     ):
+        redirect_resp = enforce_subscription_access_or_redirect(current_user.tenant_id)
+        if redirect_resp is not None:
+            return redirect_resp
+
         access = get_user_module_access(g.tenant, current_user.id)
         if not access.get("finance", True):
             flash(_("Acesso Finance desativado para seu usuário."), "warning")
@@ -259,6 +287,8 @@ def _load_tenant_into_g() -> None:
             "finance.gaps": "gaps",
             "finance.liquidity": "liquidity",
             "finance.risk": "risk",
+            "finance.ifrs9_tab": "risk",
+            "finance.risk_ifrs9_settings": "risk",
             "finance.settings_categories": "settings",
             "finance.settings_gl": "settings",
             "finance.counterparties_settings": "settings",
@@ -367,6 +397,53 @@ _INVOICE_TEMPLATE_SETTING_KEY = "invoice_template"
 _INVOICE_TEMPLATE_LANGS = ["fr", "en", "pt", "es", "it", "de"]
 _GL_AUTO_RULES_SETTING_KEY = "gl_auto_rules"
 _RATIO_MODULE_SETTING_KEY = "ratio_module"
+_IFRS9_SETTING_KEY = "ifrs9"
+
+
+def _default_ifrs9_config() -> dict:
+    return {
+        "stage_1_max_dpd": 30,
+        "stage_2_max_dpd": 90,
+        "pd_stage_1": 2.0,
+        "pd_stage_2": 10.0,
+        "pd_stage_3": 35.0,
+        "lgd_stage_1": 40.0,
+        "lgd_stage_2": 50.0,
+        "lgd_stage_3": 65.0,
+        "include_draft_invoices": True,
+    }
+
+
+def _get_ifrs9_config(company: FinanceCompany) -> dict:
+    defaults = _default_ifrs9_config()
+    raw = _get_fin_setting(company, _IFRS9_SETTING_KEY, defaults)
+    cfg = defaults.copy()
+    if isinstance(raw, dict):
+        cfg.update(raw)
+
+    try:
+        cfg["stage_1_max_dpd"] = max(0, int(cfg.get("stage_1_max_dpd") or defaults["stage_1_max_dpd"]))
+    except Exception:
+        cfg["stage_1_max_dpd"] = defaults["stage_1_max_dpd"]
+    try:
+        cfg["stage_2_max_dpd"] = int(cfg.get("stage_2_max_dpd") or defaults["stage_2_max_dpd"])
+    except Exception:
+        cfg["stage_2_max_dpd"] = defaults["stage_2_max_dpd"]
+    if cfg["stage_2_max_dpd"] <= cfg["stage_1_max_dpd"]:
+        cfg["stage_2_max_dpd"] = cfg["stage_1_max_dpd"] + 60
+
+    for k in [
+        "pd_stage_1", "pd_stage_2", "pd_stage_3",
+        "lgd_stage_1", "lgd_stage_2", "lgd_stage_3",
+    ]:
+        try:
+            v = float(cfg.get(k))
+        except Exception:
+            v = float(defaults[k])
+        cfg[k] = max(0.0, min(100.0, v))
+
+    cfg["include_draft_invoices"] = bool(cfg.get("include_draft_invoices", True))
+    return cfg
 
 
 def _get_ratio_module_config(company: FinanceCompany) -> dict:
@@ -3096,6 +3173,18 @@ def pivot_data():
 @require_roles("tenant_admin", "creator", "viewer")
 def risk():
     company = _get_company()
+    has_ifrs9_feature = False
+    if getattr(g, "tenant", None):
+        has_ifrs9_feature = SubscriptionService.check_feature_access(g.tenant.id, "ifrs9")
+
+    risk_view = (request.args.get("view") or "risk").strip().lower()
+    if risk_view not in {"risk", "ifrs9"}:
+        risk_view = "risk"
+    if risk_view == "ifrs9" and not has_ifrs9_feature:
+        flash(_("Le module IFRS9 n'est pas disponible dans votre plan actuel."), "warning")
+        return redirect(url_for("billing.plans", product="ifrs9"))
+
+    ifrs9_config = _get_ifrs9_config(company)
     accounts = _q_accounts(company).all()
     horizon_raw = (request.args.get("horizon") or "90").strip()
     if horizon_raw not in {"30", "90", "180", "365", "0"}:
@@ -3104,16 +3193,109 @@ def risk():
 
     transactions_q = (
         FinanceTransaction.query
-        .options(joinedload(FinanceTransaction.account), joinedload(FinanceTransaction.counterparty_ref))
+        .options(
+            joinedload(FinanceTransaction.account),
+            joinedload(FinanceTransaction.counterparty_ref),
+            joinedload(FinanceTransaction.gl_account_ref),
+            joinedload(FinanceTransaction.category_ref),
+        )
         .filter_by(tenant_id=g.tenant.id, company_id=company.id)
     )
     if horizon_days > 0:
         transactions_q = transactions_q.filter(FinanceTransaction.txn_date >= (date.today() - timedelta(days=horizon_days)))
     transactions = transactions_q.all()
     liabilities = FinanceLiability.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).all()
+    statuses = ["sent"]
+    if ifrs9_config.get("include_draft_invoices"):
+        statuses.append("draft")
+
+    invoices = (
+        FinanceInvoice.query
+        .options(joinedload(FinanceInvoice.counterparty))
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+        .filter(FinanceInvoice.invoice_type == "sale")
+        .filter(FinanceInvoice.status.in_(statuses))
+        .all()
+    )
     
-    # Use new robust risk metrics (LCR, NSFR, concentration)
-    res = compute_risk_metrics(accounts, transactions=transactions, liabilities=liabilities)
+    # Use robust risk metrics + IFRS9 approximation (expected credit losses)
+    res = compute_risk_metrics(
+        accounts,
+        transactions=transactions,
+        liabilities=liabilities,
+        invoices=invoices,
+        ifrs9_config=ifrs9_config,
+    )
+
+    gl_accounts = get_gl_accounts(company)
+    gl_by_id = {int(gl.id): gl for gl in gl_accounts}
+    gl_exposure: dict[int, Decimal] = defaultdict(Decimal)
+    total_txn_volume = Decimal("0")
+    unmapped_volume = Decimal("0")
+    mapped_txn_count = 0
+
+    for t in transactions:
+        amt = abs(Decimal(str(t.amount or 0)))
+        if amt <= 0:
+            continue
+
+        total_txn_volume += amt
+        gl_id = t.gl_account_id
+        if not gl_id and getattr(t, "category_ref", None) and getattr(t.category_ref, "default_gl_account_id", None):
+            gl_id = t.category_ref.default_gl_account_id
+
+        if gl_id and int(gl_id) in gl_by_id:
+            gl_exposure[int(gl_id)] += amt
+            mapped_txn_count += 1
+        else:
+            unmapped_volume += amt
+
+    coa_rows = []
+    mapped_volume = sum(gl_exposure.values(), Decimal("0"))
+    for gl_id, exposure in sorted(gl_exposure.items(), key=lambda x: x[1], reverse=True):
+        gl = gl_by_id.get(gl_id)
+        if not gl:
+            continue
+        share = (exposure / total_txn_volume * 100) if total_txn_volume > 0 else Decimal("0")
+        coa_rows.append(
+            {
+                "gl_id": gl_id,
+                "code": gl.code,
+                "name": gl.name,
+                "kind": gl.kind,
+                "exposure": exposure,
+                "share": share,
+            }
+        )
+
+    overdue_count = sum(1 for r in res.get("ifrs9", {}).get("rows", []) if int(r.get("days_past_due") or 0) > 0)
+    bank_connections = FinanceBankConnection.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).count()
+    mapping_coverage = (mapped_volume / total_txn_volume * 100) if total_txn_volume > 0 else Decimal("0")
+
+    financial_info = {
+        "as_of": date.today(),
+        "accounts_count": len(accounts),
+        "transactions_count": len(transactions),
+        "liabilities_count": len(liabilities),
+        "open_sales_invoices_count": len(invoices),
+        "overdue_invoices_count": overdue_count,
+        "bank_connections_count": bank_connections,
+        "gl_accounts_count": len(gl_accounts),
+        "mapped_txn_count": mapped_txn_count,
+        "total_txn_volume": total_txn_volume,
+        "mapped_txn_volume": mapped_volume,
+        "unmapped_txn_volume": unmapped_volume,
+        "gl_mapping_coverage": mapping_coverage,
+        "ifrs9_data_sources_ready": (
+            1 if len(accounts) > 0 else 0
+        ) + (
+            1 if len(transactions) > 0 else 0
+        ) + (
+            1 if len(invoices) > 0 else 0
+        ) + (
+            1 if len(gl_accounts) > 0 else 0
+        ),
+    }
 
     # Convert all Decimal values to float for Jinja2 template compatibility
     def convert_decimals(obj):
@@ -3126,10 +3308,18 @@ def risk():
             return [convert_decimals(item) for item in obj]
         return obj
     
+    res["chart_of_accounts"] = {
+        "rows": coa_rows,
+        "mapped_volume": mapped_volume,
+        "unmapped_volume": unmapped_volume,
+        "coverage": mapping_coverage,
+    }
+
     res = convert_decimals(res)
-    
-    # Prepare chart data for currency exposure
+
+    # Prepare chart data
     ccy_chart = [{"name": r["currency"], "value": r["exposure"]} for r in res["concentration"]["currency"]]
+    coa_chart = [{"name": f"{r['code']} {r['name']}", "value": r["exposure"]} for r in res["chart_of_accounts"]["rows"][:10]]
 
     return render_template(
         "finance/risk.html",
@@ -3137,8 +3327,79 @@ def risk():
         company=company,
         res=res,
         ccy_chart=ccy_chart,
+        coa_chart=coa_chart,
+        financial_info=convert_decimals(financial_info),
+        ifrs9_config=ifrs9_config,
+        ifrs9_enabled=has_ifrs9_feature,
+        risk_view=risk_view,
         horizon_days=horizon_days,
     )
+
+
+@bp.route("/ifrs9", methods=["GET"])
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def ifrs9_tab():
+    if not getattr(g, "tenant", None) or not SubscriptionService.check_feature_access(g.tenant.id, "ifrs9"):
+        flash(_("Le module IFRS9 n'est pas disponible dans votre plan actuel."), "warning")
+        return redirect(url_for("billing.plans", product="ifrs9"))
+    args = request.args.to_dict(flat=True)
+    args["view"] = "ifrs9"
+    return redirect(url_for("finance.risk", **args))
+
+
+@bp.route("/risk/ifrs9/settings", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def risk_ifrs9_settings():
+    if not getattr(g, "tenant", None) or not SubscriptionService.check_feature_access(g.tenant.id, "ifrs9"):
+        flash(_("Le module IFRS9 n'est pas disponible dans votre plan actuel."), "warning")
+        return redirect(url_for("billing.plans", product="ifrs9"))
+
+    company = _get_company()
+    current_cfg = _get_ifrs9_config(company)
+
+    def _float_field(name: str, fallback: float) -> float:
+        raw = (request.form.get(name) or "").strip()
+        if raw == "":
+            return fallback
+        try:
+            return float(raw)
+        except Exception:
+            return fallback
+
+    def _int_field(name: str, fallback: int) -> int:
+        raw = (request.form.get(name) or "").strip()
+        if raw == "":
+            return fallback
+        try:
+            return int(raw)
+        except Exception:
+            return fallback
+
+    cfg = {
+        "stage_1_max_dpd": max(0, _int_field("stage_1_max_dpd", int(current_cfg["stage_1_max_dpd"]))),
+        "stage_2_max_dpd": _int_field("stage_2_max_dpd", int(current_cfg["stage_2_max_dpd"])),
+        "pd_stage_1": _float_field("pd_stage_1", float(current_cfg["pd_stage_1"])),
+        "pd_stage_2": _float_field("pd_stage_2", float(current_cfg["pd_stage_2"])),
+        "pd_stage_3": _float_field("pd_stage_3", float(current_cfg["pd_stage_3"])),
+        "lgd_stage_1": _float_field("lgd_stage_1", float(current_cfg["lgd_stage_1"])),
+        "lgd_stage_2": _float_field("lgd_stage_2", float(current_cfg["lgd_stage_2"])),
+        "lgd_stage_3": _float_field("lgd_stage_3", float(current_cfg["lgd_stage_3"])),
+        "include_draft_invoices": request.form.get("include_draft_invoices") == "on",
+    }
+    for key in ["pd_stage_1", "pd_stage_2", "pd_stage_3", "lgd_stage_1", "lgd_stage_2", "lgd_stage_3"]:
+        cfg[key] = max(0.0, min(100.0, float(cfg[key])))
+    if cfg["stage_2_max_dpd"] <= cfg["stage_1_max_dpd"]:
+        cfg["stage_2_max_dpd"] = cfg["stage_1_max_dpd"] + 60
+
+    _set_fin_setting(company, _IFRS9_SETTING_KEY, cfg)
+    flash(_("Parâmetros IFRS 9 atualizados."), "success")
+
+    horizon = (request.form.get("horizon") or request.args.get("horizon") or "90").strip()
+    if horizon not in {"30", "90", "180", "365", "0"}:
+        horizon = "90"
+    return redirect(url_for("finance.risk", horizon=horizon))
 
 
 # -----------------

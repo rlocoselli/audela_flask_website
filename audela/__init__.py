@@ -7,7 +7,7 @@ import sys
 from flask import Flask
 from flask import g, request, session, redirect
 from jinja2 import ChoiceLoader, FileSystemLoader
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
 
 from .config import DevConfig, ProdConfig
 from .extensions import csrf, db, login_manager, migrate, mail
@@ -55,6 +55,65 @@ def _assert_required_schema_on_startup(app: Flask) -> None:
                 + ", ".join(missing)
                 + ". Run migrations before starting production: 'flask db upgrade'."
             )
+
+
+def _assert_alembic_head_on_startup(app: Flask) -> None:
+    """Fail fast in production when Alembic revision is not at head."""
+    if str(os.environ.get("FLASK_ENV", "development")).lower() != "production":
+        return
+
+    with app.app_context():
+        engine = db.engine
+        insp = inspect(engine)
+        if not insp.has_table("alembic_version"):
+            raise RuntimeError(
+                "Database schema check failed: missing table 'alembic_version'. "
+                "Run migrations before starting production: 'flask db upgrade'."
+            )
+
+        with engine.connect() as conn:
+            rows = conn.execute(text("SELECT version_num FROM alembic_version")).fetchall()
+        current_revisions = {str(row[0]) for row in rows if row and row[0]}
+        if not current_revisions:
+            raise RuntimeError(
+                "Database schema check failed: 'alembic_version' is empty. "
+                "Run migrations before starting production: 'flask db upgrade'."
+            )
+
+        try:
+            from alembic.config import Config as AlembicConfig
+            from alembic.script import ScriptDirectory
+
+            project_root = os.path.abspath(os.path.join(app.root_path, os.pardir))
+            alembic_ini = os.path.join(project_root, "migrations", "alembic.ini")
+            cfg = AlembicConfig(alembic_ini)
+            cfg.set_main_option("script_location", os.path.join(project_root, "migrations"))
+            script = ScriptDirectory.from_config(cfg)
+            head_revisions = set(script.get_heads())
+        except Exception as exc:
+            raise RuntimeError(
+                "Unable to verify Alembic head revisions in production. "
+                "Ensure migrations configuration is available and valid."
+            ) from exc
+
+        if current_revisions != head_revisions:
+            raise RuntimeError(
+                "Database schema is not at Alembic head. "
+                f"Current revision(s): {sorted(current_revisions)}; "
+                f"Head revision(s): {sorted(head_revisions)}. "
+                "Run migrations before starting production: 'flask db upgrade'."
+            )
+
+
+def _seed_subscription_plans_on_startup(app: Flask) -> None:
+    """Ensure default subscription plans exist and are normalized in production."""
+    if str(os.environ.get("FLASK_ENV", "development")).lower() != "production":
+        return
+
+    with app.app_context():
+        from .services.subscription_service import SubscriptionService
+
+        SubscriptionService._ensure_default_plans_seeded()
 
 
 def create_app() -> Flask:
@@ -107,7 +166,9 @@ def create_app() -> Flask:
     csrf.init_app(app)
     mail.init_app(app)
 
+    _assert_alembic_head_on_startup(app)
     _assert_required_schema_on_startup(app)
+    _seed_subscription_plans_on_startup(app)
 
     login_manager.login_view = "auth.login"
 

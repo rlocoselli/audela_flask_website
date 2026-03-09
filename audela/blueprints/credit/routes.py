@@ -51,7 +51,7 @@ from ...models.credit import (
 )
 from ...services.ai_service import analyze_with_ai
 from ...services.subscription_service import SubscriptionService
-from ...tenancy import get_current_tenant_id, get_user_menu_access, get_user_module_access
+from ...tenancy import enforce_subscription_access_or_redirect, get_current_tenant_id, get_user_menu_access, get_user_module_access
 from . import bp
 
 
@@ -2519,6 +2519,10 @@ def _load_tenant_into_g() -> None:
         and getattr(g, "tenant", None)
         and current_user.tenant_id == g.tenant.id
     ):
+        redirect_resp = enforce_subscription_access_or_redirect(current_user.tenant_id)
+        if redirect_resp is not None:
+            return redirect_resp
+
         _seed_credit_system_roles()
         module_access = get_user_module_access(g.tenant, current_user.id)
         if not module_access.get("credit", module_access.get("bi", True)):

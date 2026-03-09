@@ -10,7 +10,7 @@ from ...i18n import DEFAULT_LANG, tr
 from ...models.core import Tenant
 from ...models.project_management import ProjectWorkspace
 from ...services.subscription_service import SubscriptionService
-from ...tenancy import get_current_tenant_id, get_user_module_access, get_user_menu_access
+from ...tenancy import enforce_subscription_access_or_redirect, get_current_tenant_id, get_user_module_access, get_user_menu_access
 from . import bp
 
 
@@ -98,6 +98,10 @@ def _load_tenant_into_g() -> None:
         and getattr(g, "tenant", None)
         and current_user.tenant_id == g.tenant.id
     ):
+        redirect_resp = enforce_subscription_access_or_redirect(current_user.tenant_id)
+        if redirect_resp is not None:
+            return redirect_resp
+
         access = get_user_module_access(g.tenant, current_user.id)
         if not access.get("project", True):
             flash(_("Accès Projet désactivé pour votre utilisateur."), "warning")

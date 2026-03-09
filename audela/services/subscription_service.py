@@ -9,7 +9,8 @@ from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from flask import current_app
+from flask import current_app, has_request_context
+from flask_login import current_user
 
 from audela.extensions import db
 from audela.models import Tenant, TenantSubscription, SubscriptionPlan, BillingEvent, User
@@ -19,7 +20,7 @@ from audela.services.email_service import EmailService
 class SubscriptionService:
     """Service de gestion des abonnements."""
 
-    IFRS9_INCLUDED_PLAN_CODES = {"credit_pro", "all_in_one_pro", "enterprise"}
+    IFRS9_INCLUDED_PLAN_CODES = {"finance_banking", "credit_pro", "all_in_one_pro", "enterprise"}
 
     @staticmethod
     def _default_plan_definitions() -> Dict[str, Dict[str, Any]]:
@@ -27,7 +28,7 @@ class SubscriptionService:
         return {
             "free": {
                 "name": "Gratuit",
-                "description": "Plan gratuit de decouverte avec acces limite a tous les modules",
+                "description": "Essai gratuit 30 jours avec acces complet, limite a 1 utilisateur et volume de transactions plafonne",
                 "price_monthly": "0.00",
                 "price_yearly": "0.00",
                 "trial_days": 30,
@@ -45,15 +46,15 @@ class SubscriptionService:
                 "display_order": 1,
             },
             "finance_starter": {
-                "name": "Finance Starter",
-                "description": "Gestion financière pour petites entreprises",
-                "price_monthly": "29.00",
-                "price_yearly": "290.00",
+                "name": "Finance Personal",
+                "description": "Pilotage de finances personnelles et micro-activites",
+                "price_monthly": "19.00",
+                "price_yearly": "180.00",
                 "trial_days": 30,
                 "has_finance": True,
                 "has_bi": False,
-                "max_users": 3,
-                "max_companies": 3,
+                "max_users": 1,
+                "max_companies": 1,
                 "max_transactions_per_month": -1,
                 "features_json": {
                     "premium_support": False,
@@ -61,26 +62,43 @@ class SubscriptionService:
                 "display_order": 2,
             },
             "finance_pro": {
-                "name": "Finance Pro",
-                "description": "Gestion financière avancée",
-                "price_monthly": "79.00",
-                "price_yearly": "790.00",
+                "name": "Finance PME",
+                "description": "Gestion financiere pour PME avec collaboration equipe",
+                "price_monthly": "59.00",
+                "price_yearly": "540.00",
                 "trial_days": 30,
                 "has_finance": True,
                 "has_bi": False,
                 "max_users": 10,
-                "max_companies": 10,
+                "max_companies": 15,
                 "max_transactions_per_month": -1,
                 "features_json": {
                     "premium_support": False,
                 },
                 "display_order": 3,
             },
+            "finance_banking": {
+                "name": "Finance Banking",
+                "description": "Pilotage financier pour institutions bancaires et structures multi-entites",
+                "price_monthly": "149.00",
+                "price_yearly": "1420.00",
+                "trial_days": 30,
+                "has_finance": True,
+                "has_bi": False,
+                "max_users": 50,
+                "max_companies": 100,
+                "max_transactions_per_month": -1,
+                "features_json": {
+                    "premium_support": True,
+                    "has_ifrs9": True,
+                },
+                "display_order": 4,
+            },
             "credit_starter": {
                 "name": "Audela Credit Starter",
                 "description": "Origination de credit pour petites equipes bancaires",
-                "price_monthly": "24.00",
-                "price_yearly": "240.00",
+                "price_monthly": "49.00",
+                "price_yearly": "468.00",
                 "trial_days": 30,
                 "has_finance": False,
                 "has_bi": False,
@@ -96,8 +114,8 @@ class SubscriptionService:
             "credit_pro": {
                 "name": "Audela Credit Pro",
                 "description": "Origination de credit avancee avec workflow complet",
-                "price_monthly": "59.00",
-                "price_yearly": "590.00",
+                "price_monthly": "119.00",
+                "price_yearly": "1140.00",
                 "trial_days": 30,
                 "has_finance": False,
                 "has_bi": False,
@@ -113,9 +131,9 @@ class SubscriptionService:
             },
             "bi_starter": {
                 "name": "BI Starter",
-                "description": "Business Intelligence basique + Audela Credit",
+                "description": "Business Intelligence basique pour pilotage operationnel",
                 "price_monthly": "39.00",
-                "price_yearly": "390.00",
+                "price_yearly": "372.00",
                 "trial_days": 30,
                 "has_finance": False,
                 "has_bi": True,
@@ -124,15 +142,15 @@ class SubscriptionService:
                 "max_transactions_per_month": -1,
                 "features_json": {
                     "premium_support": False,
-                    "has_credit": True,
+                    "has_credit": False,
                 },
                 "display_order": 6,
             },
             "bi_pro": {
                 "name": "BI Pro",
-                "description": "Business Intelligence avance + Audela Credit",
-                "price_monthly": "99.00",
-                "price_yearly": "990.00",
+                "description": "Business Intelligence avancee avec gouvernance data",
+                "price_monthly": "109.00",
+                "price_yearly": "1040.00",
                 "trial_days": 30,
                 "has_finance": False,
                 "has_bi": True,
@@ -140,16 +158,16 @@ class SubscriptionService:
                 "max_companies": 20,
                 "max_transactions_per_month": -1,
                 "features_json": {
-                    "premium_support": False,
-                    "has_credit": True,
+                    "premium_support": True,
+                    "has_credit": False,
                 },
                 "display_order": 7,
             },
             "project_start": {
                 "name": "Project Start",
                 "description": "Gestion de projet simple (Kanban, Gantt, livrables)",
-                "price_monthly": "4.99",
-                "price_yearly": "49.90",
+                "price_monthly": "15.00",
+                "price_yearly": "144.00",
                 "trial_days": 30,
                 "has_finance": False,
                 "has_bi": False,
@@ -165,8 +183,8 @@ class SubscriptionService:
             "project_team": {
                 "name": "Project Team",
                 "description": "Gestion de projet multi-équipes avec cérémonies Scrum",
-                "price_monthly": "12.99",
-                "price_yearly": "129.90",
+                "price_monthly": "39.00",
+                "price_yearly": "372.00",
                 "trial_days": 30,
                 "has_finance": False,
                 "has_bi": False,
@@ -182,8 +200,8 @@ class SubscriptionService:
             "all_in_one_starter": {
                 "name": "All-in-One Starter",
                 "description": "Finance + BI + Audela Credit + Projet pour equipes en croissance",
-                "price_monthly": "129.00",
-                "price_yearly": "1290.00",
+                "price_monthly": "89.00",
+                "price_yearly": "852.00",
                 "trial_days": 30,
                 "has_finance": True,
                 "has_bi": True,
@@ -194,14 +212,15 @@ class SubscriptionService:
                     "premium_support": False,
                     "has_project": True,
                     "has_credit": True,
+                    "has_ifrs9": True,
                 },
                 "display_order": 10,
             },
             "all_in_one_pro": {
                 "name": "All-in-One Pro",
                 "description": "Suite complete Finance + BI + Audela Credit + Projet pour organisations avancees",
-                "price_monthly": "169.00",
-                "price_yearly": "1690.00",
+                "price_monthly": "179.00",
+                "price_yearly": "1716.00",
                 "trial_days": 30,
                 "has_finance": True,
                 "has_bi": True,
@@ -219,8 +238,8 @@ class SubscriptionService:
             "enterprise": {
                 "name": "Enterprise",
                 "description": "Toutes les fonctionnalites, incluant Audela Credit",
-                "price_monthly": "199.00",
-                "price_yearly": "1990.00",
+                "price_monthly": "299.00",
+                "price_yearly": "2868.00",
                 "trial_days": 30,
                 "has_finance": True,
                 "has_bi": True,
@@ -247,12 +266,15 @@ class SubscriptionService:
 
         for code in missing_codes:
             data = defaults[code]
+            monthly_value = Decimal(data["price_monthly"])
+            features = dict(data.get("features_json") or {})
+            features["premium_support"] = monthly_value > Decimal("100")
             db.session.add(
                 SubscriptionPlan(
                     code=code,
                     name=data["name"],
                     description=data["description"],
-                    price_monthly=Decimal(data["price_monthly"]),
+                    price_monthly=monthly_value,
                     price_yearly=Decimal(data["price_yearly"]),
                     currency="EUR",
                     has_finance=data["has_finance"],
@@ -266,7 +288,7 @@ class SubscriptionService:
                     is_active=True,
                     is_public=True,
                     display_order=data["display_order"],
-                    features_json=data.get("features_json") or {},
+                    features_json=features,
                 )
             )
 
@@ -331,8 +353,8 @@ class SubscriptionService:
                 if features.get(feature_key) != feature_value:
                     features[feature_key] = feature_value
 
-            if "premium_support" not in features:
-                features["premium_support"] = False
+            # Policy: premium support for plans above 100 EUR monthly.
+            features["premium_support"] = desired_monthly > Decimal("100")
 
             if features != original_features:
                 plan.features_json = features
@@ -354,6 +376,26 @@ class SubscriptionService:
                 "Normalized subscription plan policy at runtime: %s",
                 ", ".join(sorted(set(changed_codes)))
             )
+
+    @staticmethod
+    def _is_test_user_override(tenant_id: int) -> bool:
+        """Return True when current request user is marked as a test user in tenant UAM."""
+        if not has_request_context():
+            return False
+        try:
+            if not getattr(current_user, "is_authenticated", False):
+                return False
+            if int(getattr(current_user, "tenant_id", 0) or 0) != int(tenant_id):
+                return False
+            tenant = Tenant.query.get(int(tenant_id))
+            if not tenant:
+                return False
+            settings = tenant.settings_json if isinstance(tenant.settings_json, dict) else {}
+            uam = settings.get("uam") if isinstance(settings.get("uam"), dict) else {}
+            test_users = uam.get("test_users") if isinstance(uam.get("test_users"), list) else []
+            return str(int(current_user.id)) in {str(x) for x in test_users}
+        except Exception:
+            return False
     
     @staticmethod
     def create_trial_subscription(tenant: Tenant, plan_code: str = "free") -> TenantSubscription:
@@ -535,6 +577,9 @@ class SubscriptionService:
         Returns:
             True si accès autorisé
         """
+        if SubscriptionService._is_test_user_override(tenant_id):
+            return True
+
         subscription = TenantSubscription.query.filter_by(tenant_id=tenant_id).first()
         if not subscription:
             return False
@@ -551,7 +596,7 @@ class SubscriptionService:
             return bool(plan.has_bi or plan.code == "free")
         elif feature == "credit":
             features = plan.features_json if isinstance(plan.features_json, dict) else {}
-            return bool(features.get("has_credit", (plan.code == "free" or plan.has_bi)))
+            return bool(features.get("has_credit", plan.code == "free"))
         elif feature == "ifrs9":
             features = plan.features_json if isinstance(plan.features_json, dict) else {}
             return bool(features.get("has_ifrs9", plan.code == "free" or plan.code in SubscriptionService.IFRS9_INCLUDED_PLAN_CODES))
@@ -576,6 +621,9 @@ class SubscriptionService:
         Returns:
             (can_add, current_count, max_limit)
         """
+        if SubscriptionService._is_test_user_override(tenant_id):
+            return True, 0, -1
+
         subscription = TenantSubscription.query.filter_by(tenant_id=tenant_id).first()
         if not subscription or not subscription.is_active():
             return False, 0, 0

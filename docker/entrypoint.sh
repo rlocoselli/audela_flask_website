@@ -7,6 +7,14 @@ set -e
 : "${GUNICORN_THREADS:=4}"
 : "${GUNICORN_TIMEOUT:=120}"
 
+if [ -z "${STRICT_MIGRATIONS:-}" ]; then
+  if [ "${FLASK_ENV:-development}" = "production" ]; then
+    STRICT_MIGRATIONS=1
+  else
+    STRICT_MIGRATIONS=0
+  fi
+fi
+
 # Optional: wait for Postgres if DATABASE_URL points to it
 if [ -n "${DATABASE_URL:-}" ]; then
   python - <<'PY'
@@ -35,7 +43,12 @@ fi
 
 # Run migrations if requested (best effort)
 if [ "${RUN_MIGRATIONS:-1}" != "0" ]; then
-  (flask --app app db upgrade) || echo "[WARN] Alembic upgrade failed (AUTO_CREATE_DB may still create tables)."
+  if [ "${STRICT_MIGRATIONS}" = "1" ]; then
+    echo "Running Alembic migrations (strict mode)..."
+    flask --app app db upgrade
+  else
+    (flask --app app db upgrade) || echo "[WARN] Alembic upgrade failed (strict mode disabled)."
+  fi
 fi
 
 exec gunicorn \

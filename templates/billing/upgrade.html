@@ -6,7 +6,7 @@
 <div class="container py-4">
   <div class="mb-4">
     <h1 class="h3 mb-1">{{ _('Confirmer la mise à niveau') }}</h1>
-    <p class="text-muted mb-0">{{ _('Vous êtes sur le point de passer au plan sélectionné.') }}</p>
+    <p class="text-muted mb-0">{{ _('Vous êtes sur le point de passer au plan sélectionné (paiement PayPal).') }}</p>
   </div>
 
   {% with messages = get_flashed_messages(with_categories=true) %}
@@ -26,6 +26,11 @@
       {% if plan.description %}<p class="text-muted">{{ plan.description }}</p>{% endif %}
 
       {% set is_free_plan = plan.code == 'free' or ((plan.price_monthly or 0) == 0 and (plan.price_yearly or 0) == 0) %}
+      {% set monthly_price = (plan.price_monthly or 0)|float %}
+      {% set yearly_price = (plan.price_yearly or 0)|float %}
+      {% set yearly_reference = monthly_price * 12 %}
+      {% set yearly_saving = (yearly_reference - yearly_price) if yearly_reference > yearly_price else 0 %}
+      {% set yearly_saving_pct = ((yearly_saving * 100 / yearly_reference) if yearly_reference > 0 else 0) %}
 
       {% if is_free_plan %}
       <div class="alert alert-info mb-3">
@@ -44,6 +49,9 @@
           <div class="p-3 bg-light rounded">
             <div class="text-muted small">{{ _('Annuel') }}</div>
             <div class="h4 mb-0">{{ '%.2f'|format(plan.price_yearly or 0) }} {{ plan.currency or 'EUR' }}</div>
+            {% if yearly_saving > 0 %}
+            <div class="small text-success mt-1">{{ _('Promo annuelle') }}: -{{ '%.0f'|format(yearly_saving_pct) }}% ({{ '%.2f'|format(yearly_saving) }} {{ plan.currency or 'EUR' }})</div>
+            {% endif %}
           </div>
         </div>
       </div>
@@ -68,7 +76,7 @@
           {% if is_free_plan %}
           <i class="bi bi-check2-circle"></i> {{ _('Activer le plan gratuit') }}
           {% else %}
-          <i class="bi bi-credit-card"></i> {{ _('Continuer vers le paiement') }}
+          <i class="bi bi-paypal"></i> {{ _('Payer avec PayPal') }}
           {% endif %}
         </button>
 

@@ -23,6 +23,23 @@
   {% endwith %}
 
   {% if subscription %}
+  {% if stats.is_trial %}
+  <div class="alert {% if (stats.trial_days_left or 0) <= 3 %}alert-warning{% else %}alert-info{% endif %} mb-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div>
+        <strong>{{ _('Free trial in progress') }}</strong>
+        <div class="small">
+          {{ _('Trial days remaining') }}: {{ stats.trial_days_left if stats.trial_days_left is not none else 0 }}
+          {% if stats.trial_end_date %}
+            · {{ _('Trial ends on') }} {{ stats.trial_end_date.strftime('%d/%m/%Y %H:%M') }}
+          {% endif %}
+        </div>
+      </div>
+      <a class="btn btn-sm btn-primary" href="{{ url_for('billing.plans', product='all') }}">{{ _('Upgrade now') }}</a>
+    </div>
+  </div>
+  {% endif %}
+
   <div class="row g-3 mb-4">
     <div class="col-md-4">
       <div class="card border-0 shadow-sm h-100">
@@ -54,7 +71,7 @@
     <div class="card-body">
       <h5 class="mb-3">{{ _('Utilisation') }}</h5>
       {% set features = subscription.plan.features_json if subscription and subscription.plan and subscription.plan.features_json else {} %}
-      {% set has_credit = features.get('has_credit', (subscription.plan.code == 'free' or subscription.plan.has_bi)) if subscription and subscription.plan else false %}
+      {% set has_credit = features.get('has_credit', (subscription.plan.code == 'free')) if subscription and subscription.plan else false %}
       <ul class="list-unstyled mb-0">
         <li>{{ _('Produits') }}:
           {% if subscription.plan.has_finance %}{{ _('Finance') }} {% endif %}

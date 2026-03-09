@@ -109,6 +109,18 @@ jobs:
             echo "⬆️ Apply migrations"
             $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db upgrade
 
+            echo "🧪 Ensure database is at Alembic head(s)"
+            HEAD_REVS="$($COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db heads | awk '/^[0-9a-f]+/ {print $1}')"
+            CURRENT_REVS="$($COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db current | awk '/^[0-9a-f]+/ {print $1}')"
+            echo "Heads:   ${HEAD_REVS}"
+            echo "Current: ${CURRENT_REVS}"
+            for rev in $HEAD_REVS; do
+              echo "$CURRENT_REVS" | grep -qx "$rev" || {
+                echo "❌ DB is not at required Alembic head: $rev"
+                exit 1
+              }
+            done
+
             echo "✅ Verify finance_accounting_periods exists"
             $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela python -c "from sqlalchemy import inspect, text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); exists=db.session.execute(text(\"SELECT to_regclass('public.finance_accounting_periods')\")).scalar(); assert exists, 'finance_accounting_periods table not found'; ci=inspect(db.engine); tables=set(ci.get_table_names()); assert 'credit_borrowers' in tables, 'credit_borrowers table not found'; assert 'credit_covenants' in tables, 'credit_covenants table not found'; assert 'credit_facility_utilizations' in tables, 'credit_facility_utilizations table not found'; cols={c['name'] for c in ci.get_columns('credit_borrowers')}; assert 'sector_id' in cols and 'country_id' in cols and 'rating_id' in cols, 'credit_borrowers FK columns missing'; assert 'approval_date' in {c['name'] for c in ci.get_columns('credit_deals')}, 'credit_deals.approval_date missing'; assert 'approval_date' in {c['name'] for c in ci.get_columns('credit_facilities')}, 'credit_facilities.approval_date missing'; assert 'approval_date' in {c['name'] for c in ci.get_columns('credit_financial_statements')}, 'credit_financial_statements.approval_date missing'; assert 'approval_date' in {c['name'] for c in ci.get_columns('credit_memos')}, 'credit_memos.approval_date missing'; print('finance_accounting_periods table found:', exists); print('credit schema including covenant/utilization tables verified'); ctx.pop()"
 

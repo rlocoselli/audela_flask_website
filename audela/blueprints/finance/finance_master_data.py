@@ -13,10 +13,11 @@ from datetime import datetime
 
 from ...extensions import db
 from ...models.finance import FinanceCompany
+from ...models.core import Tenant
 from ...models.finance_ref import FinanceCounterparty
 from ...models.finance_ext import FinanceProduct
 from ...i18n import DEFAULT_LANG, tr
-from ...tenancy import get_current_tenant_id
+from ...tenancy import enforce_subscription_access_or_redirect, get_current_tenant_id
 from ...services.bank_configuration_service import IBANValidator, BankConfigurationService
 from ...security import require_roles
 
@@ -35,6 +36,28 @@ def _require_tenant() -> None:
         abort(401)
     if not getattr(g, "tenant", None) or current_user.tenant_id != g.tenant.id:
         abort(403)
+
+
+@finance_master_bp.before_app_request
+def _enforce_subscription_guard_for_master() -> None:
+    if getattr(g, "tenant", None) is None:
+        tenant_id = get_current_tenant_id()
+        g.tenant = None
+        if tenant_id:
+            tenant = Tenant.query.get(tenant_id)
+            if tenant:
+                g.tenant = tenant
+
+    if (
+        request.endpoint
+        and request.endpoint.startswith("finance_master.")
+        and current_user.is_authenticated
+        and getattr(g, "tenant", None)
+        and current_user.tenant_id == g.tenant.id
+    ):
+        redirect_resp = enforce_subscription_access_or_redirect(current_user.tenant_id)
+        if redirect_resp is not None:
+            return redirect_resp
 
 
 def _get_company() -> FinanceCompany:

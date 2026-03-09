@@ -6,8 +6,8 @@
 <div class="container py-4">
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-      <h1 class="h3 mb-1">{{ _('Choisissez votre plan') }}</h1>
-      <p class="text-muted mb-0">{{ _('Comparez les fonctionnalités et passez à la version adaptée à votre activité.') }}</p>
+      <h1 class="h3 mb-1">{{ _('AUDELA Plans') }}</h1>
+      <p class="text-muted mb-0">{{ _('Organized offers for Finance, BI, Credit, Project and All-in-one bundles.') }}</p>
     </div>
     {% if current_user.is_authenticated %}
     <a href="{{ url_for('tenant.dashboard') }}" class="btn btn-outline-secondary btn-sm">
@@ -27,9 +27,20 @@
     {% endif %}
   {% endwith %}
 
+  <div class="mb-3">
+    <div class="btn-group" role="group" aria-label="Product filters">
+      <a class="btn btn-sm {% if selected_product == 'finance' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('billing.plans', product='finance') }}">{{ _('Finance') }}</a>
+      <a class="btn btn-sm {% if selected_product == 'bi' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('billing.plans', product='bi') }}">{{ _('BI') }}</a>
+      <a class="btn btn-sm {% if selected_product == 'credit' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('billing.plans', product='credit') }}">{{ _('Audela Credit') }}</a>
+      <a class="btn btn-sm {% if selected_product == 'project' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('billing.plans', product='project') }}">{{ _('Projet') }}</a>
+      <a class="btn btn-sm {% if selected_product == 'ifrs9' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('billing.plans', product='ifrs9') }}">{{ _('IFRS9') }}</a>
+      <a class="btn btn-sm {% if selected_product == 'all' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('billing.plans', product='all') }}">{{ _('All-in-one') }}</a>
+    </div>
+  </div>
+
   {% if selected_product == 'finance' %}
   <div class="alert alert-info">
-    <i class="bi bi-cash-coin"></i> {{ _('Plans Finance disponibles') }}
+    <i class="bi bi-cash-coin"></i> {{ _('Finance offers only: Personal Finance, PME, Banking.') }}
   </div>
   {% elif selected_product == 'bi' %}
   <div class="alert alert-info">
@@ -46,6 +57,10 @@
   {% elif selected_product == 'ifrs9' %}
   <div class="alert alert-info">
     <i class="bi bi-shield-check"></i> {{ _('Plans IFRS9 disponibles') }}
+  </div>
+  {% elif selected_product == 'all' %}
+  <div class="alert alert-info">
+    <i class="bi bi-grid"></i> {{ _('All products and bundles') }}
   </div>
   {% endif %}
 
@@ -79,9 +94,23 @@
             {% if has_ifrs9 %}<span class="badge text-bg-secondary">{{ _('IFRS9') }}</span>{% endif %}
           </div>
 
+          {% set monthly_price = (plan.price_monthly or 0)|float %}
+          {% set yearly_price = (plan.price_yearly or 0)|float %}
+          {% set yearly_reference = monthly_price * 12 %}
+          {% set yearly_saving = (yearly_reference - yearly_price) if yearly_reference > yearly_price else 0 %}
+          {% set yearly_saving_pct = ((yearly_saving * 100 / yearly_reference) if yearly_reference > 0 else 0) %}
+
           <div class="mb-3">
-            <div class="h4 mb-0">{{ '%.2f'|format(plan.price_monthly or 0) }} {{ plan.currency or 'EUR' }}</div>
-            <small class="text-muted">{{ _('/ mois') }}</small>
+            <div class="h4 mb-1">{{ '%.2f'|format(monthly_price) }} {{ plan.currency or 'EUR' }} <small class="text-muted">{{ _('/ mois') }}</small></div>
+            <div class="small text-muted">
+              {{ _('Yearly') }}: {{ '%.2f'|format(yearly_price) }} {{ plan.currency or 'EUR' }}
+              {% if yearly_saving > 0 %}
+                · {{ _('Save') }} {{ '%.0f'|format(yearly_saving_pct) }}% ({{ '%.2f'|format(yearly_saving) }} {{ plan.currency or 'EUR' }})
+              {% endif %}
+            </div>
+            {% if yearly_saving > 0 %}
+            <div class="mt-2"><span class="badge text-bg-warning">{{ _('Best value: yearly promo') }}</span></div>
+            {% endif %}
           </div>
 
           <ul class="list-unstyled small mb-3">

@@ -65,7 +65,7 @@ from ...services.finance_ratio_service import (
     validate_scalar_sql,
 )
 from ...services.subscription_service import SubscriptionService
-from ...tenancy import get_current_tenant_id, get_user_module_access, get_user_menu_access
+from ...tenancy import enforce_subscription_access_or_redirect, get_current_tenant_id, get_user_module_access, get_user_menu_access
 
 from ...i18n import tr, DEFAULT_LANG
 
@@ -145,6 +145,10 @@ def load_tenant_into_g() -> None:
         and g.tenant
         and current_user.tenant_id == g.tenant.id
     ):
+        redirect_resp = enforce_subscription_access_or_redirect(current_user.tenant_id)
+        if redirect_resp is not None:
+            return redirect_resp
+
         _ensure_data_sources_schema_compat()
         if request.endpoint in {
             "portal.projects_hub",

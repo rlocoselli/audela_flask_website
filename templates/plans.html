@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ _('Plans Audela Credit, BI, Finance et Projet – AUDELA') }}{% endblock %}
+{% block title %}{{ _('Plans – AUDELA') }}{% endblock %}
 {% block meta_description %}{{ _('Découvrez les plans AUDELA pour Audela Credit, BI française, finance et gestion de projet. Comparez les offres, fonctionnalités et choisissez la solution adaptée à votre organisation.') }}{% endblock %}
 {% block og_title %}{{ _('Plans Audela Credit, BI, Finance et Projet – AUDELA') }}{% endblock %}
 {% block og_description %}{{ _('Découvrez les plans AUDELA pour Audela Credit, BI française, finance et gestion de projet. Comparez les offres, fonctionnalités et choisissez la solution adaptée à votre organisation.') }}{% endblock %}
@@ -13,14 +13,21 @@
 <section id="main" class="wrapper style1">
   <div class="container">
     <header class="major">
-      <h2>{{ _('Plans d’abonnement') }}</h2>
-      <p>{{ _('Cette page reflète exactement les offres disponibles à l’abonnement.') }}</p>
+      <h2>{{ _('Plans AUDELA') }}</h2>
+      <p>{{ _('Compare organized offers for Finance, BI, Credit, Project and All-in-one bundles.') }}</p>
     </header>
 
+    <div class="box" style="margin-bottom:1rem;">
+      <a href="{{ url_for('public.plans', product='finance') }}" class="button {% if selected_product == 'finance' %}primary{% endif %}">{{ _('Finance') }}</a>
+      <a href="{{ url_for('public.plans', product='bi') }}" class="button {% if selected_product == 'bi' %}primary{% endif %}">{{ _('BI') }}</a>
+      <a href="{{ url_for('public.plans', product='credit') }}" class="button {% if selected_product == 'credit' %}primary{% endif %}">{{ _('Audela Credit') }}</a>
+      <a href="{{ url_for('public.plans', product='project') }}" class="button {% if selected_product == 'project' %}primary{% endif %}">{{ _('Projet') }}</a>
+      <a href="{{ url_for('public.plans', product='ifrs9') }}" class="button {% if selected_product == 'ifrs9' %}primary{% endif %}">{{ _('IFRS9') }}</a>
+      <a href="{{ url_for('public.plans', product='all') }}" class="button {% if selected_product == 'all' %}primary{% endif %}">{{ _('All-in-one') }}</a>
+    </div>
+
     {% if selected_product == 'finance' %}
-      <div class="box" style="margin-bottom:1rem;">
-        <strong>{{ _('Filtre actif : Finance') }}</strong>
-      </div>
+      <div class="box" style="margin-bottom:1rem;"><strong>{{ _('Filtre actif : Finance') }}</strong></div>
     {% elif selected_product == 'bi' %}
       <div class="box" style="margin-bottom:1rem;">
         <strong>{{ _('Filtre actif : BI') }}</strong>
@@ -36,6 +43,10 @@
     {% elif selected_product == 'ifrs9' %}
       <div class="box" style="margin-bottom:1rem;">
         <strong>{{ _('Filtre actif : IFRS9') }}</strong>
+      </div>
+    {% elif selected_product == 'all' %}
+      <div class="box" style="margin-bottom:1rem;">
+        <strong>{{ _('Filtre actif : Tous les produits') }}</strong>
       </div>
     {% endif %}
 
@@ -54,6 +65,11 @@
               {% set has_project = (plan.features_json and plan.features_json.get('has_project')) or plan.code == 'free' %}
               {% set has_credit = (plan.features_json and plan.features_json.get('has_credit')) or plan.code == 'free' %}
               {% set has_ifrs9 = (plan.features_json and plan.features_json.get('has_ifrs9')) or plan.code == 'free' or plan.code in ['credit_pro', 'all_in_one_pro', 'enterprise'] %}
+              {% set monthly_price = (plan.price_monthly or 0)|float %}
+              {% set yearly_price = (plan.price_yearly or 0)|float %}
+              {% set yearly_reference = monthly_price * 12 %}
+              {% set yearly_saving = (yearly_reference - yearly_price) if yearly_reference > yearly_price else 0 %}
+              {% set yearly_saving_pct = ((yearly_saving * 100 / yearly_reference) if yearly_reference > 0 else 0) %}
               <p>
                 {% if has_finance %}<span class="badge">{{ _('Finance') }}</span>{% endif %}
                 {% if has_bi %}<span class="badge">{{ _('BI') }}</span>{% endif %}
@@ -62,7 +78,13 @@
                 {% if has_ifrs9 %}<span class="badge">{{ _('IFRS9') }}</span>{% endif %}
               </p>
 
-              <p><strong>{{ '%.2f'|format(plan.price_monthly or 0) }} {{ plan.currency or 'EUR' }} / {{ _('mois') }}</strong></p>
+              <p><strong>{{ '%.2f'|format(monthly_price) }} {{ plan.currency or 'EUR' }} / {{ _('mois') }}</strong></p>
+              <p class="small text-muted" style="margin-top:-.6rem;">
+                {{ _('Annuel') }}: {{ '%.2f'|format(yearly_price) }} {{ plan.currency or 'EUR' }}
+                {% if yearly_saving > 0 %}
+                  · {{ _('Économie') }} {{ '%.0f'|format(yearly_saving_pct) }}% ({{ '%.2f'|format(yearly_saving) }} {{ plan.currency or 'EUR' }})
+                {% endif %}
+              </p>
 
               <ul class="alt">
                 <li>{{ _('Utilisateurs') }}: {{ '∞' if plan.max_users == -1 else plan.max_users }}</li>

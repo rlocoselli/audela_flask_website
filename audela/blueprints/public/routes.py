@@ -15,6 +15,9 @@ from ...i18n import DEFAULT_LANG, SUPPORTED_LANGS, normalize_lang, tr
 from . import bp
 
 
+FINANCE_PLAN_CODES = {"free", "finance_starter", "finance_pro", "finance_banking", "all_in_one_pro"}
+
+
 @bp.route("/")
 def index():
     return render_template("index.html")
@@ -106,7 +109,7 @@ def metabase():
 @bp.route("/plans")
 def plans():
     plans = SubscriptionService.get_available_plans(include_internal=False)
-    selected_product = (request.args.get("product") or "").strip().lower()
+    selected_product = (request.args.get("product") or "finance").strip().lower()
 
     def _has_project(plan) -> bool:
         features = plan.features_json if isinstance(plan.features_json, dict) else {}
@@ -114,14 +117,14 @@ def plans():
 
     def _has_credit(plan) -> bool:
         features = plan.features_json if isinstance(plan.features_json, dict) else {}
-        return bool(features.get("has_credit", (plan.code == "free" or plan.has_bi)))
+        return bool(features.get("has_credit", plan.code == "free"))
 
     def _has_ifrs9(plan) -> bool:
         features = plan.features_json if isinstance(plan.features_json, dict) else {}
         return bool(features.get("has_ifrs9", plan.code == "free" or plan.code in SubscriptionService.IFRS9_INCLUDED_PLAN_CODES))
 
     if selected_product == "finance":
-        plans = [plan for plan in plans if (plan.has_finance or plan.code == "free")]
+        plans = [plan for plan in plans if plan.code in FINANCE_PLAN_CODES]
     elif selected_product == "bi":
         plans = [plan for plan in plans if (plan.has_bi or plan.code == "free")]
     elif selected_product == "credit":
@@ -130,8 +133,11 @@ def plans():
         plans = [plan for plan in plans if _has_project(plan)]
     elif selected_product == "ifrs9":
         plans = [plan for plan in plans if _has_ifrs9(plan)]
+    elif selected_product == "all":
+        plans = plans
     else:
-        selected_product = None
+        selected_product = "finance"
+        plans = [plan for plan in plans if plan.code in FINANCE_PLAN_CODES]
 
     current_plan = None
     if current_user.is_authenticated:

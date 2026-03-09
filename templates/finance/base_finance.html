@@ -97,6 +97,7 @@
       {% if finance_menu_access.gaps %}<option value="{{ url_for('finance.gaps') }}" {% if active=='gaps' %}selected{% endif %}>{{ _('Gaps') }}</option>{% endif %}
       {% if finance_menu_access.liquidity %}<option value="{{ url_for('finance.liquidity') }}" {% if active=='liquidity' %}selected{% endif %}>{{ _('Liquidité') }}</option>{% endif %}
       {% if finance_menu_access.risk %}<option value="{{ url_for('finance.risk') }}" {% if active=='risk' %}selected{% endif %}>{{ _('Risque') }}</option>{% endif %}
+      {% if finance_menu_access.risk and has_ifrs9_feature %}<option value="{{ url_for('finance.ifrs9_tab') }}" {% if active=='ifrs9' %}selected{% endif %}>{{ _('IFRS9') }}</option>{% endif %}
       {% if finance_menu_access.settings %}<option value="{{ url_for('finance.settings_categories') }}" {% if active=='settings' %}selected{% endif %}>{{ _('Paramètres') }}</option>{% endif %}
       {% if finance_menu_access.imports %}<option value="{{ url_for('finance.master_data_import') }}" {% if active=='imports' %}selected{% endif %}>{{ _('Imports CSV') }}</option>{% endif %}
       {% if finance_menu_access.help %}<option value="{{ url_for('finance.help_page') }}" {% if active=='help' %}selected{% endif %}>{{ _('Aide') }}</option>{% endif %}
@@ -123,6 +124,7 @@
     {% if finance_menu_access.gaps %}<li class="nav-item"><a class="nav-link {% if active=='gaps' %}active{% endif %}" href="{{ url_for('finance.gaps') }}">{{ _('Gaps') }}</a></li>{% endif %}
     {% if finance_menu_access.liquidity %}<li class="nav-item"><a class="nav-link {% if active=='liquidity' %}active{% endif %}" href="{{ url_for('finance.liquidity') }}">{{ _('Liquidité') }}</a></li>{% endif %}
     {% if finance_menu_access.risk %}<li class="nav-item"><a class="nav-link {% if active=='risk' %}active{% endif %}" href="{{ url_for('finance.risk') }}">{{ _('Risque') }}</a></li>{% endif %}
+    {% if finance_menu_access.risk and has_ifrs9_feature %}<li class="nav-item"><a class="nav-link {% if active=='ifrs9' %}active{% endif %}" href="{{ url_for('finance.ifrs9_tab') }}">{{ _('IFRS9') }}</a></li>{% endif %}
     {% if finance_menu_access.settings %}<li class="nav-item"><a class="nav-link {% if active=='settings' %}active{% endif %}" href="{{ url_for('finance.settings_categories') }}">{{ _('Paramètres') }}</a></li>{% endif %}
     {% if finance_menu_access.imports %}<li class="nav-item"><a class="nav-link {% if active=='imports' %}active{% endif %}" href="{{ url_for('finance.master_data_import') }}">{{ _('Imports CSV') }}</a></li>{% endif %}
     {% if finance_menu_access.help %}<li class="nav-item"><a class="nav-link {% if active=='help' %}active{% endif %}" href="{{ url_for('finance.help_page') }}">{{ _('Aide') }}</a></li>{% endif %}

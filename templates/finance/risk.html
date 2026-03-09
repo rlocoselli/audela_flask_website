@@ -1,9 +1,295 @@
 {% extends "finance/base_finance.html" %}
-{% set active = 'risk' %}
+{% set active = 'ifrs9' if risk_view == 'ifrs9' else 'risk' %}
 
 {% block finance_content %}
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  
+  <ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+      <a class="nav-link {% if risk_view != 'ifrs9' %}active{% endif %}" href="{{ url_for('finance.risk', horizon=horizon_days) }}">{{ _('Risk Overview') }}</a>
+    </li>
+    {% if ifrs9_enabled %}
+      <li class="nav-item">
+        <a class="nav-link {% if risk_view == 'ifrs9' %}active{% endif %}" href="{{ url_for('finance.ifrs9_tab', horizon=horizon_days) }}">{{ _('IFRS9') }}</a>
+      </li>
+    {% endif %}
+  </ul>
+  <style>
+    .ifrs9-hero {
+      background: linear-gradient(130deg, #0f2e45 0%, #194f6f 52%, #2b7f8f 100%);
+      color: #f5fbff;
+      border-radius: 16px;
+      padding: 1.2rem 1.25rem;
+      box-shadow: 0 10px 30px rgba(15, 46, 69, 0.25);
+    }
+    .ifrs9-hero .muted { color: rgba(245, 251, 255, 0.82); }
+    .ifrs9-chip {
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      border-radius: 999px;
+      padding: 0.2rem 0.7rem;
+      font-size: 0.75rem;
+      margin-right: 0.35rem;
+      display: inline-block;
+      margin-top: 0.35rem;
+    }
+    .ifrs9-step {
+      border-left: 4px solid #2d9c95;
+      border-radius: 12px;
+      background: #f7fbfc;
+      padding: 0.85rem 0.95rem;
+      height: 100%;
+    }
+    .ifrs9-kpi {
+      border-radius: 12px;
+      border: 1px solid #e5edf2;
+      background: #ffffff;
+      padding: 0.9rem;
+      height: 100%;
+    }
+    .ifrs9-kpi .value {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #114b63;
+    }
+    .ifrs9-pill {
+      border-radius: 999px;
+      padding: 0.1rem 0.55rem;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+    .stage-1 { background: #e7f4ee; color: #1d7b52; }
+    .stage-2 { background: #fff4e4; color: #9d6000; }
+    .stage-3 { background: #fde8e9; color: #9f1f26; }
+  </style>
+
+  {% if ifrs9_enabled and risk_view == 'ifrs9' %}
+  <div class="ifrs9-hero mb-3">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2">
+      <div>
+        <h4 class="mb-1">IFRS 9 - {{ _('Credit loss risk identification') }}</h4>
+        <div class="muted small">{{ _('Simple workflow to collect financial information, classify risk and estimate expected loss per operation.') }}</div>
+        <div>
+          <span class="ifrs9-chip">{{ _('As of') }} {{ res.as_of.strftime('%d/%m/%Y') }}</span>
+          <span class="ifrs9-chip">{{ _('Horizon') }} {{ horizon_days if horizon_days > 0 else _('Full') }}</span>
+          <span class="ifrs9-chip">{{ _('GL coverage') }} {{ '%.1f'|format(financial_info.gl_mapping_coverage) }}%</span>
+        </div>
+      </div>
+      <div class="text-lg-end">
+        <div class="small muted">{{ _('Total expected loss (ECL)') }}</div>
+        <div class="h3 mb-0">{{ '%.2f'|format(res.ifrs9.total_ecl) }}</div>
+        <div class="small muted">{{ _('Open exposure') }}: {{ '%.2f'|format(res.ifrs9.total_exposure) }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+      <span>{{ _('Configure IFRS9 model') }}</span>
+      <span class="small text-secondary">{{ _('Data readiness') }}: {{ financial_info.ifrs9_data_sources_ready }}/4</span>
+    </div>
+    <div class="card-body">
+      <form method="post" action="{{ url_for('finance.risk_ifrs9_settings') }}" class="row g-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="horizon" value="{{ horizon_days }}">
+
+        <div class="col-6 col-lg-2">
+          <label class="form-label small mb-1">{{ _('Stage 1 max DPD') }}</label>
+          <input type="number" name="stage_1_max_dpd" class="form-control form-control-sm" min="0" value="{{ ifrs9_config.stage_1_max_dpd }}">
+        </div>
+        <div class="col-6 col-lg-2">
+          <label class="form-label small mb-1">{{ _('Stage 2 max DPD') }}</label>
+          <input type="number" name="stage_2_max_dpd" class="form-control form-control-sm" min="1" value="{{ ifrs9_config.stage_2_max_dpd }}">
+        </div>
+        <div class="col-6 col-lg-2">
+          <label class="form-label small mb-1">{{ _('PD Stage 1 (%)') }}</label>
+          <input type="number" step="0.1" name="pd_stage_1" class="form-control form-control-sm" min="0" max="100" value="{{ ifrs9_config.pd_stage_1 }}">
+        </div>
+        <div class="col-6 col-lg-2">
+          <label class="form-label small mb-1">{{ _('PD Stage 2 (%)') }}</label>
+          <input type="number" step="0.1" name="pd_stage_2" class="form-control form-control-sm" min="0" max="100" value="{{ ifrs9_config.pd_stage_2 }}">
+        </div>
+        <div class="col-6 col-lg-2">
+          <label class="form-label small mb-1">{{ _('PD Stage 3 (%)') }}</label>
+          <input type="number" step="0.1" name="pd_stage_3" class="form-control form-control-sm" min="0" max="100" value="{{ ifrs9_config.pd_stage_3 }}">
+        </div>
+
+        <div class="col-6 col-lg-2">
+          <label class="form-label small mb-1">{{ _('LGD Stage 1 (%)') }}</label>
+          <input type="number" step="0.1" name="lgd_stage_1" class="form-control form-control-sm" min="0" max="100" value="{{ ifrs9_config.lgd_stage_1 }}">
+        </div>
+        <div class="col-6 col-lg-2">
+          <label class="form-label small mb-1">{{ _('LGD Stage 2 (%)') }}</label>
+          <input type="number" step="0.1" name="lgd_stage_2" class="form-control form-control-sm" min="0" max="100" value="{{ ifrs9_config.lgd_stage_2 }}">
+        </div>
+        <div class="col-6 col-lg-2">
+          <label class="form-label small mb-1">{{ _('LGD Stage 3 (%)') }}</label>
+          <input type="number" step="0.1" name="lgd_stage_3" class="form-control form-control-sm" min="0" max="100" value="{{ ifrs9_config.lgd_stage_3 }}">
+        </div>
+
+        <div class="col-12 col-lg-4 d-flex align-items-end">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="include_draft_invoices" name="include_draft_invoices" {% if ifrs9_config.include_draft_invoices %}checked{% endif %}>
+            <label class="form-check-label small" for="include_draft_invoices">{{ _('Include draft invoices in ECL') }}</label>
+          </div>
+        </div>
+
+        <div class="col-12 col-lg-2 d-flex align-items-end justify-content-lg-end">
+          <button type="submit" class="btn btn-sm btn-primary w-100 w-lg-auto">{{ _('Save IFRS9 model') }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-md-6 col-lg-3"><div class="ifrs9-kpi"><div class="small text-secondary">{{ _('Financial accounts') }}</div><div class="value">{{ financial_info.accounts_count }}</div></div></div>
+    <div class="col-12 col-md-6 col-lg-3"><div class="ifrs9-kpi"><div class="small text-secondary">{{ _('Transactions analyzed') }}</div><div class="value">{{ financial_info.transactions_count }}</div></div></div>
+    <div class="col-12 col-md-6 col-lg-3"><div class="ifrs9-kpi"><div class="small text-secondary">{{ _('Open sales invoices') }}</div><div class="value">{{ financial_info.open_sales_invoices_count }}</div></div></div>
+    <div class="col-12 col-md-6 col-lg-3"><div class="ifrs9-kpi"><div class="small text-secondary">{{ _('Overdue invoices') }}</div><div class="value">{{ financial_info.overdue_invoices_count }}</div></div></div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header fw-semibold">{{ _('IFRS9 step-by-step procedure') }}</div>
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-12 col-lg-3"><div class="ifrs9-step"><div class="fw-semibold mb-1">1. {{ _('Collect information') }}</div><div class="small text-secondary">{{ _('Consolidate accounts, transactions, liabilities and open invoices to build exposure base.') }}</div></div></div>
+        <div class="col-12 col-lg-3"><div class="ifrs9-step"><div class="fw-semibold mb-1">2. {{ _('Map chart of accounts') }}</div><div class="small text-secondary">{{ _('Ensure GL classification for traceability of exposure by accounting nature.') }}</div></div></div>
+        <div class="col-12 col-lg-3"><div class="ifrs9-step"><div class="fw-semibold mb-1">3. {{ _('Classify risk stages') }}</div><div class="small text-secondary">{{ _('Segment Stage 1/2/3 using days past due to detect significant credit deterioration.') }}</div></div></div>
+        <div class="col-12 col-lg-3"><div class="ifrs9-step"><div class="fw-semibold mb-1">4. {{ _('Calculate ECL') }}</div><div class="small text-secondary">{{ _('Apply EAD x PD x LGD by operation and monitor counterparty concentration.') }}</div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-header fw-semibold">{{ _('IFRS9 Help & Glossary') }}</div>
+    <div class="card-body small">
+      <div><strong>EAD</strong>: {{ _('Exposure at default, amount outstanding when default occurs.') }}</div>
+      <div><strong>PD</strong>: {{ _('Probability of default over the selected horizon.') }}</div>
+      <div><strong>LGD</strong>: {{ _('Loss given default, expected percentage not recovered after default.') }}</div>
+      <div><strong>ECL</strong>: {{ _('Expected credit loss = EAD x PD x LGD.') }}</div>
+      <div class="text-secondary mt-2">{{ _('Tip: keep GL mappings complete and review overdue counterparties first to improve model quality.') }}</div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-lg-7">
+      <div class="card h-100">
+        <div class="card-header fw-semibold">{{ _('Estagios IFRS 9 e perda esperada') }}</div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm mb-0 align-middle">
+              <thead>
+                <tr>
+                  <th>{{ _('Estagio') }}</th>
+                  <th class="text-end">{{ _('Operacoes') }}</th>
+                  <th class="text-end">{{ _('Exposicao (EAD)') }}</th>
+                  <th class="text-end">{{ _('ECL') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for st in res.ifrs9.stages %}
+                  <tr>
+                    <td>
+                      <span class="ifrs9-pill {% if loop.index == 1 %}stage-1{% elif loop.index == 2 %}stage-2{% else %}stage-3{% endif %}">{{ st.label }}</span>
+                    </td>
+                    <td class="text-end">{{ st.count }}</td>
+                    <td class="text-end">{{ '%.2f'|format(st.exposure) }}</td>
+                    <td class="text-end fw-semibold">{{ '%.2f'|format(st.ecl) }}</td>
+                  </tr>
+                {% else %}
+                  <tr><td colspan="4" class="text-center text-secondary py-4">{{ _('Sem exposicoes abertas para IFRS 9.') }}</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-5">
+      <div class="card h-100">
+        <div class="card-header fw-semibold">{{ _('Overdue risk concentration by counterparty') }}</div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm mb-0">
+              <thead>
+                <tr>
+                  <th>{{ _('Contraparte') }}</th>
+                  <th class="text-end">{{ _('Exposicao') }}</th>
+                  <th class="text-end">{{ _('Share') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for r in res.ifrs9.overdue_counterparties %}
+                  <tr>
+                    <td>{{ r.counterparty }}</td>
+                    <td class="text-end">{{ '%.2f'|format(r.exposure) }}</td>
+                    <td class="text-end">{{ '%.1f'|format(r.share) }}%</td>
+                  </tr>
+                {% else %}
+                  <tr><td colspan="3" class="text-center text-secondary py-4">{{ _('No material concentration at the moment.') }}</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-lg-5">
+      <div class="card h-100">
+        <div class="card-header fw-semibold">{{ _('Chart of accounts (GL) - exposure by account') }}</div>
+        <div class="card-body">
+          <div id="coa-chart" style="height: 320px;"></div>
+          <div class="small text-secondary mt-2">{{ _('GL mapping coverage over transaction volume in the selected horizon.') }}</div>
+          <div class="small mt-2">
+            <strong>{{ _('Mapped volume') }}:</strong> {{ '%.2f'|format(res.chart_of_accounts.mapped_volume) }}<br>
+            <strong>{{ _('Unmapped volume') }}:</strong> {{ '%.2f'|format(res.chart_of_accounts.unmapped_volume) }}<br>
+            <strong>{{ _('Coverage') }}:</strong> {{ '%.1f'|format(res.chart_of_accounts.coverage) }}%
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-7">
+      <div class="card h-100">
+        <div class="card-header fw-semibold">{{ _('Accounting account detail (Top 12)') }}</div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table table-sm mb-0">
+              <thead>
+                <tr>
+                  <th>{{ _('Conta') }}</th>
+                  <th>{{ _('Tipo') }}</th>
+                  <th class="text-end">{{ _('Exposicao') }}</th>
+                  <th class="text-end">{{ _('Share') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for r in res.chart_of_accounts.rows[:12] %}
+                  <tr>
+                    <td><strong>{{ r.code }}</strong> - {{ r.name }}</td>
+                    <td><span class="badge text-bg-light">{{ r.kind }}</span></td>
+                    <td class="text-end">{{ '%.2f'|format(r.exposure) }}</td>
+                    <td class="text-end">{{ '%.1f'|format(r.share) }}%</td>
+                  </tr>
+                {% else %}
+                  <tr><td colspan="4" class="text-center text-secondary py-4">{{ _('Sem dados GL suficientes.') }}</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% elif risk_view == 'ifrs9' %}
+  <div class="alert alert-info mb-3">
+    {{ _('IFRS9 product is not active for this tenant. Activate an IFRS9 plan to enable expected credit loss workflow, configuration and postings.') }}
+    <a class="ms-2" href="{{ url_for('billing.plans', product='ifrs9') }}">{{ _('View plans') }}</a>
+  </div>
+  {% endif %}
+
+  {% if risk_view != 'ifrs9' %}
   <!-- Liquidity Risk Metrics (LCR & NSFR) -->
   <div class="row g-3 mb-3">
     <div class="col-12 col-md-6">
@@ -130,6 +416,50 @@
     </div>
   </div>
 
+  {% if ifrs9_enabled and risk_view == 'ifrs9' %}
+  <div class="card mb-3">
+    <div class="card-header fw-semibold">{{ _('Operacoes em risco (detalhe IFRS 9)') }}</div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle">
+          <thead>
+            <tr>
+              <th>{{ _('Fatura') }}</th>
+              <th>{{ _('Contraparte') }}</th>
+              <th>{{ _('Vencimento') }}</th>
+              <th class="text-end">{{ _('Dias atraso') }}</th>
+              <th>{{ _('Estagio') }}</th>
+              <th class="text-end">{{ _('EAD') }}</th>
+              <th class="text-end">{{ _('PD') }}</th>
+              <th class="text-end">{{ _('LGD') }}</th>
+              <th class="text-end">{{ _('ECL') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in res.ifrs9.rows[:20] %}
+              <tr>
+                <td>{{ row.invoice_number }}</td>
+                <td>{{ row.counterparty }}</td>
+                <td>{{ row.due_date.strftime('%d/%m/%Y') if row.due_date else '-' }}</td>
+                <td class="text-end">{{ row.days_past_due }}</td>
+                <td>
+                  <span class="ifrs9-pill {% if row.stage_key == 'stage_1' %}stage-1{% elif row.stage_key == 'stage_2' %}stage-2{% else %}stage-3{% endif %}">{{ row.stage }}</span>
+                </td>
+                <td class="text-end">{{ '%.2f'|format(row.ead) }}</td>
+                <td class="text-end">{{ '%.1f'|format(row.pd * 100) }}%</td>
+                <td class="text-end">{{ '%.1f'|format(row.lgd * 100) }}%</td>
+                <td class="text-end fw-semibold">{{ '%.2f'|format(row.ecl) }}</td>
+              </tr>
+            {% else %}
+              <tr><td colspan="9" class="text-center text-secondary py-4">{{ _('Nenhuma operacao aberta para calcular perda esperada.') }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Concentration Analysis -->
   <div class="d-flex justify-content-end mb-2">
     <form method="get" class="d-flex align-items-center gap-2">
@@ -206,30 +536,65 @@
       </div>
     </div>
   </div>
+  {% endif %}
 
   <script>
     (window.onReady || function(fn){ window.addEventListener('load', fn); })(function(){
-      const data = {{ ccy_chart|tojson }};
-      const dom = document.getElementById('ccy-chart');
-      if (!dom) return;
-      if (!window.echarts) { 
-        dom.innerHTML = `<div class="text-secondary small">${(window.t ? window.t("Charts unavailable") : "Charts unavailable")}</div>`; 
+      const ccyData = {{ ccy_chart|tojson }};
+      const coaData = {{ coa_chart|tojson }};
+      const ccyDom = document.getElementById('ccy-chart');
+      const coaDom = document.getElementById('coa-chart');
+      if (!window.echarts) {
+        if (ccyDom) ccyDom.innerHTML = `<div class="text-secondary small">${(window.t ? window.t("Charts unavailable") : "Charts unavailable")}</div>`;
+        if (coaDom) coaDom.innerHTML = `<div class="text-secondary small">${(window.t ? window.t("Charts unavailable") : "Charts unavailable")}</div>`;
         return; 
       }
-      
-      const chart = echarts.init(dom);
-      chart.setOption({
-        tooltip: { trigger: 'item' },
-        series: [{
-          type: 'pie',
-          radius: '70%',
-          data: data,
-          label: { formatter: '{b}: {c}' }
-        }]
+
+      let ccyChart = null;
+      let coaChart = null;
+
+      if (ccyDom) {
+        ccyChart = echarts.init(ccyDom);
+        ccyChart.setOption({
+          tooltip: { trigger: 'item' },
+          series: [{
+            type: 'pie',
+            radius: ['45%', '74%'],
+            data: ccyData,
+            label: { formatter: '{b}: {d}%' }
+          }]
+        });
+      }
+
+      if (coaDom) {
+        coaChart = echarts.init(coaDom);
+        coaChart.setOption({
+          tooltip: { trigger: 'axis' },
+          grid: { top: 20, left: 80, right: 20, bottom: 35 },
+          xAxis: { type: 'value' },
+          yAxis: {
+            type: 'category',
+            data: coaData.map(r => r.name).reverse(),
+            axisLabel: { width: 190, overflow: 'truncate' }
+          },
+          series: [{
+            type: 'bar',
+            data: coaData.map(r => r.value).reverse(),
+            itemStyle: { color: '#2a7f8f' },
+            barMaxWidth: 20
+          }]
+        });
+      }
+
+      setTimeout(() => {
+        try { if (ccyChart) ccyChart.resize(); } catch(e) {}
+        try { if (coaChart) coaChart.resize(); } catch(e) {}
+      }, 80);
+
+      window.addEventListener('resize', () => {
+        try { if (ccyChart) ccyChart.resize(); } catch(e) {}
+        try { if (coaChart) coaChart.resize(); } catch(e) {}
       });
-      
-      setTimeout(() => { try { chart.resize(); } catch(e) {} }, 80);
-      window.addEventListener('resize', () => { try { chart.resize(); } catch(e) {} });
     });
   </script>
 {% endblock %}

@@ -276,6 +276,7 @@ def _save_tenant_user_module_access(tenant: Tenant, user_id: int, module_access:
     uam = settings.get("uam") if isinstance(settings.get("uam"), dict) else {}
     rows = uam.get("module_access") if isinstance(uam.get("module_access"), dict) else {}
     menu_rows = uam.get("menu_access") if isinstance(uam.get("menu_access"), dict) else {}
+    test_users = uam.get("test_users") if isinstance(uam.get("test_users"), list) else []
     user_menu_access = module_access.get("menu_access") if isinstance(module_access.get("menu_access"), dict) else {}
 
     rows[str(int(user_id))] = {
@@ -283,8 +284,16 @@ def _save_tenant_user_module_access(tenant: Tenant, user_id: int, module_access:
         "bi": bool(module_access.get("bi", True)),
         "project": bool(module_access.get("project", True)),
         "credit": bool(module_access.get("credit", True)),
+        "ifrs9": bool(module_access.get("ifrs9", True)),
         "updated_at": datetime.utcnow().isoformat(),
     }
+
+    is_test_user = bool(module_access.get("test_user", False))
+    test_set = {str(x) for x in test_users}
+    if is_test_user:
+        test_set.add(str(int(user_id)))
+    else:
+        test_set.discard(str(int(user_id)))
 
     normalized_menu_access: dict[str, dict[str, bool]] = {}
     for product, keys in UAM_MENU_KEYS.items():
@@ -295,6 +304,7 @@ def _save_tenant_user_module_access(tenant: Tenant, user_id: int, module_access:
 
     uam["module_access"] = rows
     uam["menu_access"] = menu_rows
+    uam["test_users"] = sorted(test_set)
     settings["uam"] = uam
     tenant.settings_json = settings
     flag_modified(tenant, "settings_json")
@@ -642,11 +652,17 @@ def users():
     users = TenantService.list_users(current_user.tenant_id)
     user_module_access = {}
     user_menu_access = {}
+    settings = tenant.settings_json if isinstance(getattr(tenant, "settings_json", None), dict) else {}
+    uam = settings.get("uam") if isinstance(settings.get("uam"), dict) else {}
+    raw_test_users = uam.get("test_users") if isinstance(uam.get("test_users"), list) else []
+    test_set = {str(x) for x in raw_test_users}
+    user_test_flags = {}
     for u in users:
         uid = u.get("id") if isinstance(u, dict) else getattr(u, "id", None)
         if uid is None:
             continue
         user_module_access[int(uid)] = get_user_module_access(tenant, int(uid))
+        user_test_flags[int(uid)] = str(int(uid)) in test_set
         user_menu_access[int(uid)] = {
             "finance": get_user_menu_access(tenant, int(uid), "finance"),
             "bi": get_user_menu_access(tenant, int(uid), "bi"),
@@ -667,6 +683,7 @@ def users():
         current_users=current_count,
         max_users=max_limit,
         user_module_access=user_module_access,
+        user_test_flags=user_test_flags,
         user_menu_access=user_menu_access,
         uam_menu_keys=UAM_MENU_KEYS,
         uam_menu_labels=UAM_MENU_LABELS,
@@ -694,8 +711,10 @@ def users_update_module_access(user_id: int):
     bi_enabled = str(request.form.get("bi_access") or "").lower() in ("1", "true", "on", "yes")
     project_enabled = str(request.form.get("project_access") or "").lower() in ("1", "true", "on", "yes")
     credit_enabled = str(request.form.get("credit_access") or "").lower() in ("1", "true", "on", "yes")
+    ifrs9_enabled = str(request.form.get("ifrs9_access") or "").lower() in ("1", "true", "on", "yes")
+    test_user_enabled = str(request.form.get("test_user_access") or "").lower() in ("1", "true", "on", "yes")
 
-    if user.id == current_user.id and not any([finance_enabled, bi_enabled, project_enabled, credit_enabled]):
+    if user.id == current_user.id and not any([finance_enabled, bi_enabled, project_enabled, credit_enabled, ifrs9_enabled, test_user_enabled]):
         flash(tr("Au moins un produit doit rester activé pour votre propre compte.", getattr(g, "lang", None)), "error")
         return redirect(url_for("tenant.users"))
 
@@ -712,6 +731,8 @@ def users_update_module_access(user_id: int):
             "bi": bi_enabled,
             "project": project_enabled,
             "credit": credit_enabled,
+            "ifrs9": ifrs9_enabled,
+            "test_user": test_user_enabled,
             "menu_access": menu_access,
         },
     )

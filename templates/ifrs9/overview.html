@@ -28,10 +28,10 @@
         <p class="mb-0 text-white-50">{{ _('Provisionnement IFRS9 (ECL), staging et gouvernance des hypothèses.') }}</p>
       </div>
       <div class="d-flex flex-wrap gap-2">
-        <a href="#ifrs9-help" class="btn btn-light btn-sm">
+        <a href="#" data-ifrs9-tab="help" class="btn btn-light btn-sm">
           <i class="bi bi-question-circle"></i> {{ _('Help IFRS9') }}
         </a>
-        <a href="#ifrs9-reports" class="btn btn-outline-light btn-sm">
+        <a href="#" data-ifrs9-tab="reports" class="btn btn-outline-light btn-sm">
           <i class="bi bi-bar-chart"></i> {{ _('Rapports IFRS9') }}
         </a>
         <a href="{{ url_for('tenant.products') }}" class="btn btn-light btn-sm">
@@ -53,13 +53,13 @@
     </div>
   </div>
   {% else %}
-  <ul class="nav nav-pills ifrs9-nav mb-4">
-    <li class="nav-item"><a class="nav-link active" href="#ifrs9-config">{{ _('Configuration') }}</a></li>
-    <li class="nav-item"><a class="nav-link" href="#ifrs9-help">{{ _('Help') }}</a></li>
-    <li class="nav-item"><a class="nav-link" href="#ifrs9-reports">{{ _('Rapports') }}</a></li>
+  <ul class="nav nav-pills ifrs9-nav mb-4" id="ifrs9-tabs">
+    <li class="nav-item"><a class="nav-link active" href="#" data-ifrs9-tab="config">{{ _('Configuration') }}</a></li>
+    <li class="nav-item"><a class="nav-link" href="#" data-ifrs9-tab="help">{{ _('Help') }}</a></li>
+    <li class="nav-item"><a class="nav-link" href="#" data-ifrs9-tab="reports">{{ _('Rapports') }}</a></li>
   </ul>
 
-  <div class="row g-4">
+  <div class="row g-4 ifrs9-tab-section" data-ifrs9-section="config">
     <div class="col-lg-6" id="ifrs9-config">
       <div class="card border-0 shadow-sm h-100">
         <div class="card-body p-4">
@@ -67,6 +67,7 @@
           <p class="text-muted small mb-4">{{ _('Connectez IFRS9 à votre plan de comptes et définissez les hypothèses minimales de calcul ECL.') }}</p>
 
           <form method="post" action="{{ url_for('ifrs9.overview', company_id=selected_company_id) }}" class="row g-3">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <input type="hidden" name="action" value="save_config">
 
             <div class="col-12">
@@ -119,9 +120,100 @@
               </select>
             </div>
 
+            <div class="col-md-4">
+              <label for="stage_mode" class="form-label">{{ _('Mode de staging') }}
+                <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Manuel: stage fixé par l\'utilisateur. Auto: stage proposé selon les jours de retard (DPD).') }}"><i class="bi bi-info-circle"></i></button>
+              </label>
+              <select id="stage_mode" name="stage_mode" class="form-select" required>
+                <option value="manual" {% if stage_mode != 'auto' %}selected{% endif %}>{{ _('Manuel') }}</option>
+                <option value="auto" {% if stage_mode == 'auto' %}selected{% endif %}>{{ _('Auto (depuis DPD Finance)') }}</option>
+              </select>
+            </div>
+
             <div class="col-12">
               <label for="ead_amount" class="form-label">{{ _('EAD (montant exposé)') }}</label>
               <input id="ead_amount" name="ead_amount" type="number" min="0" step="0.01" value="{{ ead_amount }}" class="form-control" required>
+              <div class="form-text">{{ _('Vous pouvez laisser une valeur manuelle ou utiliser l\'exposition Finance (factures de vente ouvertes).') }}</div>
+            </div>
+
+            <div class="col-12"><hr class="my-1"></div>
+            <div class="col-12"><h6 class="mb-1">{{ _('Scénarios macro (pondération ECL)') }}</h6></div>
+            <div class="col-md-4">
+              <label class="form-label">{{ _('Poids base') }}
+                <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Poids du scénario central. Les poids des 3 scénarios sont normalisés automatiquement à 100%.') }}"><i class="bi bi-info-circle"></i></button>
+              </label>
+              <input name="scenario_base_weight" type="number" min="0" step="0.01" class="form-control" value="{{ scenario_base_weight }}">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">{{ _('Poids favorable') }}
+                <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Poids du scénario favorable (amélioration macro).') }}"><i class="bi bi-info-circle"></i></button>
+              </label>
+              <input name="scenario_upside_weight" type="number" min="0" step="0.01" class="form-control" value="{{ scenario_upside_weight }}">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">{{ _('Poids défavorable') }}
+                <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Poids du scénario défavorable (stress macro).') }}"><i class="bi bi-info-circle"></i></button>
+              </label>
+              <input name="scenario_downside_weight" type="number" min="0" step="0.01" class="form-control" value="{{ scenario_downside_weight }}">
+            </div>
+
+            <div class="col-md-4">
+              <label class="form-label">{{ _('Multiplicateur base') }}
+                <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Facteur appliqué à l\'ECL du scénario base (1.00 = neutre).') }}"><i class="bi bi-info-circle"></i></button>
+              </label>
+              <input name="scenario_base_multiplier" type="number" min="0" step="0.01" class="form-control" value="{{ scenario_base_multiplier }}">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">{{ _('Multiplicateur favorable') }}
+                <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Facteur appliqué à l\'ECL du scénario favorable (souvent < 1).') }}"><i class="bi bi-info-circle"></i></button>
+              </label>
+              <input name="scenario_upside_multiplier" type="number" min="0" step="0.01" class="form-control" value="{{ scenario_upside_multiplier }}">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">{{ _('Multiplicateur défavorable') }}
+                <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Facteur appliqué à l\'ECL du scénario défavorable (souvent > 1).') }}"><i class="bi bi-info-circle"></i></button>
+              </label>
+              <input name="scenario_downside_multiplier" type="number" min="0" step="0.01" class="form-control" value="{{ scenario_downside_multiplier }}">
+            </div>
+
+            <div class="col-12"><h6 class="mb-1">{{ _('Politique SICR (jours en retard)') }}</h6></div>
+            <div class="col-md-6">
+              <label class="form-label">{{ _('Seuil Stage 2 (DPD)') }}
+                <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Nombre de jours de retard à partir duquel l\'exposition passe en Stage 2 (SICR).') }}"><i class="bi bi-info-circle"></i></button>
+              </label>
+              <input name="sicr_stage2_dpd" type="number" min="1" step="1" class="form-control" value="{{ sicr_stage2_dpd }}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ _('Seuil Stage 3 (DPD)') }}
+                <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Nombre de jours de retard à partir duquel l\'exposition est considérée en Stage 3 (défaut).') }}"><i class="bi bi-info-circle"></i></button>
+              </label>
+              <input name="sicr_stage3_dpd" type="number" min="1" step="1" class="form-control" value="{{ sicr_stage3_dpd }}">
+            </div>
+
+            <div class="col-12">
+              <label for="ead_source" class="form-label">{{ _('Source EAD') }}
+                <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Manuelle: valeur saisie. Depuis Finance: somme des factures de vente ouvertes selon la configuration Finance IFRS9.') }}"><i class="bi bi-info-circle"></i></button>
+              </label>
+              <select id="ead_source" name="ead_source" class="form-select">
+                <option value="manual" {% if ead_source != 'finance' %}selected{% endif %}>{{ _('Manuelle') }}</option>
+                <option value="finance" {% if ead_source == 'finance' %}selected{% endif %}>{{ _('Depuis Finance (factures ouvertes)') }}</option>
+              </select>
+            </div>
+
+            <div class="col-12">
+              <div class="alert alert-light border mb-0">
+                <div class="small text-muted">{{ _('Exposition calculée depuis Finance') }}</div>
+                <div class="fw-semibold">{{ '%.2f'|format(finance_ead_total) }} {{ selected_company.base_currency if selected_company else 'EUR' }}</div>
+                <div class="small text-muted">
+                  {{ _('Factures ouvertes') }}: {{ finance_invoice_count }}
+                  · {{ _('En retard') }}: {{ finance_overdue_count }}
+                  · {{ _('Inclut brouillons') }}: {{ _('Oui') if finance_include_draft_invoices else _('Non') }}
+                </div>
+                <div class="small text-muted mt-1">
+                  {{ _('Répartition EAD') }}: S1 {{ '%.2f'|format(finance_stage1_ead) }} · S2 {{ '%.2f'|format(finance_stage2_ead) }} · S3 {{ '%.2f'|format(finance_stage3_ead) }}
+                  · {{ _('Stage suggéré') }}: {{ finance_suggested_stage|upper }}
+                </div>
+              </div>
             </div>
 
             <div class="col-12 d-flex flex-wrap gap-2">
@@ -169,6 +261,40 @@
                   <th class="text-muted">{{ _('EAD') }}</th>
                   <td>{{ '%.2f'|format(ead_amount) }} {{ selected_company.base_currency if selected_company else 'EUR' }}</td>
                 </tr>
+                <tr>
+                  <th class="text-muted">{{ _('Source') }}</th>
+                  <td>{% if ead_source == 'finance' %}{{ _('Depuis Finance') }}{% else %}{{ _('Manuelle') }}{% endif %}</td>
+                </tr>
+                <tr>
+                  <th class="text-muted">{{ _('Mode stage') }}</th>
+                  <td>{{ _('Auto') if stage_mode == 'auto' else _('Manuel') }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h6 class="mb-2">{{ _('Décomposition ECL par scénario') }}</h6>
+          <div class="table-responsive mb-3">
+            <table class="table table-sm mb-0">
+              <thead>
+                <tr>
+                  <th>{{ _('Scénario') }}</th>
+                  <th class="text-end">{{ _('Poids') }}</th>
+                  <th class="text-end">{{ _('Multiplicateur') }}</th>
+                  <th class="text-end">{{ _('ECL brut') }}</th>
+                  <th class="text-end">{{ _('ECL pondéré') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for s in ecl_scenarios %}
+                <tr>
+                  <td>{{ s.name }}</td>
+                  <td class="text-end">{{ '%.2f'|format(s.weight) }}</td>
+                  <td class="text-end">{{ '%.2f'|format(s.multiplier) }}</td>
+                  <td class="text-end">{{ '%.2f'|format(s.ecl) }}</td>
+                  <td class="text-end">{{ '%.2f'|format(s.weighted_ecl) }}</td>
+                </tr>
+                {% endfor %}
               </tbody>
             </table>
           </div>
@@ -203,6 +329,7 @@
           </div>
 
           <form method="post" action="{{ url_for('ifrs9.overview', company_id=selected_company_id) }}" class="mt-auto">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <input type="hidden" name="action" value="post_entry">
             <input type="hidden" name="company_id" value="{{ selected_company_id }}">
             <input type="hidden" name="expense_gl_account_id" value="{{ selected_expense_id }}">
@@ -210,6 +337,16 @@
             <input type="hidden" name="pd_percent" value="{{ pd_percent }}">
             <input type="hidden" name="lgd_percent" value="{{ lgd_percent }}">
             <input type="hidden" name="ead_amount" value="{{ ead_amount }}">
+            <input type="hidden" name="ead_source" value="{{ ead_source }}">
+            <input type="hidden" name="stage_mode" value="{{ stage_mode }}">
+            <input type="hidden" name="scenario_base_weight" value="{{ scenario_base_weight }}">
+            <input type="hidden" name="scenario_upside_weight" value="{{ scenario_upside_weight }}">
+            <input type="hidden" name="scenario_downside_weight" value="{{ scenario_downside_weight }}">
+            <input type="hidden" name="scenario_base_multiplier" value="{{ scenario_base_multiplier }}">
+            <input type="hidden" name="scenario_upside_multiplier" value="{{ scenario_upside_multiplier }}">
+            <input type="hidden" name="scenario_downside_multiplier" value="{{ scenario_downside_multiplier }}">
+            <input type="hidden" name="sicr_stage2_dpd" value="{{ sicr_stage2_dpd }}">
+            <input type="hidden" name="sicr_stage3_dpd" value="{{ sicr_stage3_dpd }}">
             <input type="hidden" name="stage" value="{{ stage }}">
 
             <button type="submit" class="btn btn-success w-100">
@@ -226,8 +363,8 @@
     </div>
   </div>
 
-  <div class="row g-4 mt-1">
-    <div class="col-lg-6" id="ifrs9-help">
+  <div class="row g-4 mt-1 ifrs9-tab-section" data-ifrs9-section="help" style="display:none;">
+    <div class="col-12" id="ifrs9-help">
       <div class="card border-0 shadow-sm h-100">
         <div class="card-body p-4">
           <h5 class="mb-3">{{ _('Help IFRS9') }}</h5>
@@ -271,11 +408,25 @@
               </div>
             </div>
           </div>
+
+          <hr>
+          <h6 class="mb-2">{{ _('IFRS9 compliance checklist') }}</h6>
+          <p class="text-muted small mb-3">{{ _('Operational check based on current setup. This does not replace governance, validation backtesting and auditor review.') }}</p>
+          <ul class="list-unstyled small mb-0">
+            <li><strong>{{ _('OK') if ifrs9_compliance_flags.accounts_mapped else _('Warning') }}:</strong> {{ _('Comptes IFRS9 mappés (charge + provision).') }}</li>
+            <li><strong>{{ _('OK') if ifrs9_compliance_flags.ead_source_finance else _('Warning') }}:</strong> {{ _('Exposition alimentée depuis Finance (recommandé).') }}</li>
+            <li><strong>{{ _('OK') if ifrs9_compliance_flags.finance_data_ready else _('Warning') }}:</strong> {{ _('Factures de vente ouvertes disponibles pour le calcul EAD.') }}</li>
+            <li><strong>{{ _('OK') if ifrs9_compliance_flags.staging_thresholds_ordered else _('Warning') }}:</strong> {{ _('Seuils de staging cohérents (Stage 2 > Stage 1).') }}</li>
+            <li><strong>{{ _('OK') if ifrs9_compliance_flags.pd_lgd_in_range else _('Warning') }}:</strong> {{ _('Paramètres PD/LGD bornés entre 0% et 100%.') }}</li>
+            <li><strong>{{ _('OK') if ifrs9_compliance_flags.scenario_weights_valid else _('Warning') }}:</strong> {{ _('Pondérations de scénarios normalisées à 100%.') }}</li>
+          </ul>
         </div>
       </div>
     </div>
+  </div>
 
-    <div class="col-lg-6" id="ifrs9-reports">
+  <div class="row g-4 mt-1 ifrs9-tab-section" data-ifrs9-section="reports" style="display:none;">
+    <div class="col-12" id="ifrs9-reports">
       <div class="card border-0 shadow-sm h-100">
         <div class="card-body p-4 d-flex flex-column">
           <h5 class="mb-3">{{ _('Rapports IFRS9') }}</h5>
@@ -328,11 +479,95 @@
             <i class="bi bi-graph-up-arrow"></i> {{ _('Ouvrir les rapports comptables Finance') }}
           </a>
           {% endif %}
+
+          <hr>
+          <h6 class="mb-2">{{ _('Gouvernance modèle IFRS9 (versions)') }}</h6>
+          <div class="table-responsive mb-3">
+            <table class="table table-sm mb-0">
+              <thead>
+                <tr>
+                  <th>{{ _('Version') }}</th>
+                  <th>{{ _('Date') }}</th>
+                  <th>{{ _('Action') }}</th>
+                  <th>{{ _('Stage') }}</th>
+                  <th>{{ _('Source') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for v in ifrs9_model_versions %}
+                <tr>
+                  <td>#{{ v.version }}</td>
+                  <td>{{ v.saved_at }}</td>
+                  <td>{{ v.action }}</td>
+                  <td>{{ v.stage|upper }}</td>
+                  <td>{{ v.ead_source }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="text-muted">{{ _('Aucune version de modèle enregistrée.') }}</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <h6 class="mb-2">{{ _('Journal de validation IFRS9') }}</h6>
+          <div class="table-responsive">
+            <table class="table table-sm mb-0">
+              <thead>
+                <tr>
+                  <th>{{ _('Date') }}</th>
+                  <th>{{ _('ECL') }}</th>
+                  <th>{{ _('Comptes') }}</th>
+                  <th>{{ _('Données') }}</th>
+                  <th>{{ _('Scénarios') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for l in ifrs9_validation_logs %}
+                <tr>
+                  <td>{{ l.validated_at }}</td>
+                  <td>{{ l.ecl_preview }}</td>
+                  <td>{{ _('OK') if l.flags.accounts_mapped else _('Warning') }}</td>
+                  <td>{{ _('OK') if l.flags.finance_data_ready else _('Warning') }}</td>
+                  <td>{{ _('OK') if l.flags.scenario_weights_valid else _('Warning') }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="text-muted">{{ _('Aucun log de validation disponible.') }}</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
   </div>
   {% endif %}
+</div>
+
+<div id="ifrs9HelpChat" class="position-fixed bottom-0 end-0 p-3" style="z-index:1080;">
+  <button
+    id="ifrs9HelpChatToggle"
+    class="btn btn-primary rounded-circle"
+    style="width:48px;height:48px;"
+    type="button"
+    aria-label="{{ _('Abrir ajuda') }}"
+    title="{{ _('Abrir ajuda') }}"
+  >
+    <i class="bi bi-chat-dots"></i>
+  </button>
+
+  <div id="ifrs9HelpChatPanel" class="card mt-2 d-none" style="width: 340px; max-width: calc(100vw - 2rem);">
+    <div class="card-header d-flex align-items-center justify-content-between py-2">
+      <span class="fw-semibold">{{ _('Assistente de suporte') }}</span>
+      <button id="ifrs9HelpChatClose" class="btn btn-sm btn-outline-secondary" type="button" aria-label="{{ _('Fechar') }}">×</button>
+    </div>
+    <div id="ifrs9HelpChatMessages" class="card-body" style="height: 300px; overflow:auto;"></div>
+    <div class="card-footer">
+      <div class="input-group input-group-sm">
+        <input id="ifrs9HelpChatInput" type="text" class="form-control" placeholder="{{ _('Digite sua dúvida...') }}" />
+        <button id="ifrs9HelpChatSend" class="btn btn-primary" type="button">{{ _('Enviar') }}</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <style>
@@ -363,4 +598,130 @@
   color: #fff;
 }
 </style>
+
+<script>
+(function() {
+  const tabs = document.querySelectorAll('[data-ifrs9-tab]');
+  const sections = document.querySelectorAll('[data-ifrs9-section]');
+  if (!tabs.length || !sections.length) return;
+
+  function activate(name) {
+    tabs.forEach((t) => t.classList.toggle('active', t.getAttribute('data-ifrs9-tab') === name));
+    sections.forEach((s) => {
+      s.style.display = s.getAttribute('data-ifrs9-section') === name ? '' : 'none';
+    });
+  }
+
+  tabs.forEach((tab) => {
+    tab.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      activate(tab.getAttribute('data-ifrs9-tab') || 'config');
+    });
+  });
+
+  if (window.bootstrap && window.bootstrap.Tooltip) {
+    document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(function(el){
+      window.bootstrap.Tooltip.getOrCreateInstance(el);
+    });
+  }
+
+  const toggle = document.getElementById('ifrs9HelpChatToggle');
+  const panel = document.getElementById('ifrs9HelpChatPanel');
+  const closeBtn = document.getElementById('ifrs9HelpChatClose');
+  const input = document.getElementById('ifrs9HelpChatInput');
+  const sendBtn = document.getElementById('ifrs9HelpChatSend');
+  const messages = document.getElementById('ifrs9HelpChatMessages');
+
+  if (toggle && panel && closeBtn && input && sendBtn && messages) {
+    const loadErrorMsg = 'Error loading help response.';
+    const noResponseMsg = 'No response available.';
+    const chatWelcomeMsg = 'Hello! I can explain IFRS9 scenarios, SICR, EAD, and posting.';
+    const chatSuggestions = [
+      'Explain IFRS9 scenarios',
+      'How does SICR work here?',
+      'Where does Finance EAD come from?',
+      'How to read the compliance checklist?'
+    ];
+
+    function addMsg(text, who){
+      const wrap = document.createElement('div');
+      wrap.className = 'mb-2 d-flex ' + (who === 'user' ? 'justify-content-end' : 'justify-content-start');
+      const b = document.createElement('div');
+      b.className = (who === 'user' ? 'bg-primary text-white' : 'bg-body-tertiary') + ' rounded px-2 py-1 small';
+      b.style.maxWidth = '85%';
+      b.textContent = text;
+      wrap.appendChild(b);
+      messages.appendChild(wrap);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function addSuggestions(items){
+      if (!Array.isArray(items) || !items.length) return;
+      const row = document.createElement('div');
+      row.className = 'd-flex flex-wrap gap-1 mb-2';
+      items.slice(0, 4).forEach(function(s){
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-outline-secondary btn-sm';
+        btn.textContent = s;
+        btn.addEventListener('click', function(){
+          input.value = s;
+          send();
+        });
+        row.appendChild(btn);
+      });
+      messages.appendChild(row);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    async function send(){
+      const msg = (input.value || '').trim();
+      if (!msg) return;
+      addMsg(msg, 'user');
+      input.value = '';
+      sendBtn.disabled = true;
+      try {
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        const res = await fetch('{{ url_for("finance.help_chat") }}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(csrf ? {'X-CSRFToken': csrf} : {})
+          },
+          body: JSON.stringify({ message: msg })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          addMsg(data.error || loadErrorMsg, 'bot');
+        } else {
+          addMsg(data.reply || noResponseMsg, 'bot');
+          addSuggestions(data.suggestions || []);
+        }
+      } catch(e) {
+        addMsg(loadErrorMsg, 'bot');
+      } finally {
+        sendBtn.disabled = false;
+      }
+    }
+
+    toggle.addEventListener('click', function(){
+      panel.classList.toggle('d-none');
+      if (!panel.classList.contains('d-none') && !messages.children.length) {
+        addMsg(chatWelcomeMsg, 'bot');
+        addSuggestions(chatSuggestions);
+      }
+      if (!panel.classList.contains('d-none')) input.focus();
+    });
+
+    closeBtn.addEventListener('click', function(){ panel.classList.add('d-none'); });
+    sendBtn.addEventListener('click', send);
+    input.addEventListener('keydown', function(e){
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        send();
+      }
+    });
+  }
+})();
+</script>
 {% endblock %}

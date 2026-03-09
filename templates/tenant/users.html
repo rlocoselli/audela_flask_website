@@ -69,8 +69,9 @@
               </thead>
               <tbody>
                 {% for user in users %}
-                {% set uam = user_module_access.get(user.id, {'finance': True, 'bi': True, 'project': True, 'credit': True}) %}
+                {% set uam = user_module_access.get(user.id, {'finance': True, 'bi': True, 'project': True, 'credit': True, 'ifrs9': True}) %}
                 {% set menus = user_menu_access.get(user.id, {}) %}
+                {% set is_test_user = user_test_flags.get(user.id, False) %}
                 <tr>
                   <td class="px-4">
                     <div class="d-flex align-items-center">
@@ -113,7 +114,9 @@
                       {% if uam.bi %}<span class="badge bg-success">{{ _('BI') }}</span>{% endif %}
                       {% if uam.project %}<span class="badge bg-success">{{ _('Projet') }}</span>{% endif %}
                       {% if uam.credit %}<span class="badge bg-success">{{ _('Credit') }}</span>{% endif %}
-                      {% if not (uam.finance or uam.bi or uam.project or uam.credit) %}<span class="text-secondary">-</span>{% endif %}
+                      {% if uam.ifrs9 %}<span class="badge bg-success">{{ _('IFRS9') }}</span>{% endif %}
+                      {% if is_test_user %}<span class="badge bg-danger">{{ _('Test user') }}</span>{% endif %}
+                      {% if not (uam.finance or uam.bi or uam.project or uam.credit or uam.ifrs9) %}<span class="text-secondary">-</span>{% endif %}
                     </div>
                   </td>
                   <td class="small text-muted">
@@ -154,8 +157,9 @@
       </div>
 
       {% for user in users %}
-      {% set uam = user_module_access.get(user.id, {'finance': True, 'bi': True, 'project': True, 'credit': True}) %}
+      {% set uam = user_module_access.get(user.id, {'finance': True, 'bi': True, 'project': True, 'credit': True, 'ifrs9': True}) %}
       {% set menus = user_menu_access.get(user.id, {}) %}
+      {% set is_test_user = user_test_flags.get(user.id, False) %}
       <div class="modal fade" id="uamModal-{{ user.id }}" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
           <div class="modal-content">
@@ -185,6 +189,14 @@
                     <div class="form-check form-switch m-0">
                       <input class="form-check-input" type="checkbox" name="credit_access" value="1" id="credit-{{ user.id }}" {% if uam.credit %}checked{% endif %}>
                       <label class="form-check-label" for="credit-{{ user.id }}">{{ _('Credit') }}</label>
+                    </div>
+                    <div class="form-check form-switch m-0">
+                      <input class="form-check-input" type="checkbox" name="ifrs9_access" value="1" id="ifrs9-{{ user.id }}" {% if uam.ifrs9 %}checked{% endif %}>
+                      <label class="form-check-label" for="ifrs9-{{ user.id }}">{{ _('IFRS9') }}</label>
+                    </div>
+                    <div class="form-check form-switch m-0">
+                      <input class="form-check-input" type="checkbox" name="test_user_access" value="1" id="testuser-{{ user.id }}" {% if is_test_user %}checked{% endif %}>
+                      <label class="form-check-label" for="testuser-{{ user.id }}">{{ _('Test user (unlimited access)') }}</label>
                     </div>
                   </div>
                 </div>
