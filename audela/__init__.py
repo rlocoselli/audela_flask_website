@@ -15,6 +15,24 @@ from .models.core import User
 from .i18n import DEFAULT_LANG, SUPPORTED_LANGS, TRANSLATIONS, best_lang_from_accept_language, normalize_lang, tr
 
 
+def _is_flask_db_command() -> bool:
+    """Return True when running a Flask-Migrate command via Flask CLI."""
+    argv = [str(a).lower() for a in sys.argv]
+    if not argv:
+        return False
+
+    executable = os.path.basename(argv[0])
+    is_flask_cli = executable == "flask" or executable.startswith("flask")
+    return is_flask_cli and "db" in argv[1:]
+
+
+def _skip_startup_db_guards() -> bool:
+    """Allow migration/maintenance commands to initialize the app without DB guard checks."""
+    if _is_flask_db_command():
+        return True
+    return str(os.environ.get("SKIP_ALEMBIC_HEAD_CHECK", "")).lower() in {"1", "true", "yes", "on"}
+
+
 def _configure_logging() -> None:
     level_name = os.environ.get("LOG_LEVEL", "INFO").upper()
     level = getattr(logging, level_name, logging.INFO)
@@ -33,6 +51,9 @@ def _configure_logging() -> None:
 
 def _assert_required_schema_on_startup(app: Flask) -> None:
     """Fail fast in production when DB schema is behind code expectations."""
+    if _skip_startup_db_guards():
+        return
+
     if str(os.environ.get("FLASK_ENV", "development")).lower() != "production":
         return
 
@@ -59,6 +80,10 @@ def _assert_required_schema_on_startup(app: Flask) -> None:
 
 def _assert_alembic_head_on_startup(app: Flask) -> None:
     """Fail fast in production when Alembic revision is not at head."""
+    # Allow migration commands to run even when DB is currently behind head.
+    if _skip_startup_db_guards():
+        return
+
     if str(os.environ.get("FLASK_ENV", "development")).lower() != "production":
         return
 
@@ -107,6 +132,9 @@ def _assert_alembic_head_on_startup(app: Flask) -> None:
 
 def _seed_subscription_plans_on_startup(app: Flask) -> None:
     """Ensure default subscription plans exist and are normalized in production."""
+    if _skip_startup_db_guards():
+        return
+
     if str(os.environ.get("FLASK_ENV", "development")).lower() != "production":
         return
 
