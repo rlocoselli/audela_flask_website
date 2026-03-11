@@ -64,33 +64,38 @@
         </div>
         <div class="col-12 col-lg-7">
           <div class="d-flex flex-wrap gap-2">
-            <form method="post" action="{{ url_for('admin.dashboard') }}">
+            <form method="post" action="{{ url_for('admin.celery_console') }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
               <input type="hidden" name="intent" value="service_action" />
+              <input type="hidden" name="return_to" value="dashboard" />
               <input type="hidden" name="months" value="{{ admin_finance.selected_months }}" />
               <button class="btn btn-success btn-sm" type="submit" name="action" value="enable">{{ _('Enable') }}</button>
             </form>
-            <form method="post" action="{{ url_for('admin.dashboard') }}">
+            <form method="post" action="{{ url_for('admin.celery_console') }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
               <input type="hidden" name="intent" value="service_action" />
+              <input type="hidden" name="return_to" value="dashboard" />
               <input type="hidden" name="months" value="{{ admin_finance.selected_months }}" />
               <button class="btn btn-outline-primary btn-sm" type="submit" name="action" value="restart">{{ _('Restart') }}</button>
             </form>
-            <form method="post" action="{{ url_for('admin.dashboard') }}">
+            <form method="post" action="{{ url_for('admin.celery_console') }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
               <input type="hidden" name="intent" value="service_action" />
+              <input type="hidden" name="return_to" value="dashboard" />
               <input type="hidden" name="months" value="{{ admin_finance.selected_months }}" />
               <button class="btn btn-outline-secondary btn-sm" type="submit" name="action" value="status">{{ _('Status') }}</button>
             </form>
-            <form method="post" action="{{ url_for('admin.dashboard') }}">
+            <form method="post" action="{{ url_for('admin.celery_console') }}">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
               <input type="hidden" name="intent" value="service_action" />
+              <input type="hidden" name="return_to" value="dashboard" />
               <input type="hidden" name="months" value="{{ admin_finance.selected_months }}" />
               <button class="btn btn-outline-danger btn-sm" type="submit" name="action" value="disable">{{ _('Disable') }}</button>
             </form>
-            <form method="post" action="{{ url_for('admin.dashboard') }}" class="d-flex align-items-center gap-2">
+            <form method="post" action="{{ url_for('admin.celery_console') }}" class="d-flex align-items-center gap-2">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
               <input type="hidden" name="intent" value="test_task" />
+              <input type="hidden" name="return_to" value="dashboard" />
               <input type="hidden" name="months" value="{{ admin_finance.selected_months }}" />
               <input type="hidden" name="wait_seconds" value="6" />
               <button class="btn btn-primary btn-sm" type="submit">{{ _('Run test task') }}</button>
