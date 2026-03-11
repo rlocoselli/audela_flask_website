@@ -451,6 +451,11 @@ def celery_console():
         intent = (request.form.get("intent") or "").strip().lower()
         service_action_result, task_result, task_lookup = _handle_celery_intent(intent)
 
+        # Dashboard quick-actions post here, then bounce back to /admin.
+        if (request.form.get("return_to") or "").strip().lower() == "dashboard":
+            selected_months = (request.form.get("months") or request.args.get("months") or "12").strip()
+            return redirect(url_for("admin.dashboard", months=selected_months))
+
     context = _build_celery_screen_context()
     return render_template(
         "admin/celery.html",
