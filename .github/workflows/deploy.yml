@@ -14,7 +14,7 @@ on:
           - keep
           - enable
           - disable
-        default: disable
+        default: keep
 
 jobs:
   deploy:
@@ -41,7 +41,7 @@ jobs:
             set -e
             echo "🚀 Deploy started (root)"
 
-            CELERY_ACTION="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.celery_action || 'disable' }}"
+            CELERY_ACTION="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.celery_action || 'keep' }}"
             echo "🧭 Celery action for this deploy: ${CELERY_ACTION}"
 
             cd /root/audela_flask_website
