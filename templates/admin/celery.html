@@ -65,14 +65,20 @@
   <div class="card border-0 shadow-sm mb-4">
     <div class="card-header bg-body"><strong>{{ _('Activate / stop Celery services') }}</strong></div>
     <div class="card-body">
-      <form method="post" class="d-flex flex-wrap gap-2">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-        <input type="hidden" name="intent" value="service_action" />
-        <button class="btn btn-success btn-sm" type="submit" name="action" value="enable">{{ _('Enable') }}</button>
-        <button class="btn btn-outline-primary btn-sm" type="submit" name="action" value="restart">{{ _('Restart') }}</button>
-        <button class="btn btn-outline-secondary btn-sm" type="submit" name="action" value="status">{{ _('Status') }}</button>
-        <button class="btn btn-outline-danger btn-sm" type="submit" name="action" value="disable">{{ _('Disable') }}</button>
-      </form>
+      {% if compose_available %}
+        <form method="post" class="d-flex flex-wrap gap-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <input type="hidden" name="intent" value="service_action" />
+          <button class="btn btn-success btn-sm" type="submit" name="action" value="enable">{{ _('Enable') }}</button>
+          <button class="btn btn-outline-primary btn-sm" type="submit" name="action" value="restart">{{ _('Restart') }}</button>
+          <button class="btn btn-outline-secondary btn-sm" type="submit" name="action" value="status">{{ _('Status') }}</button>
+          <button class="btn btn-outline-danger btn-sm" type="submit" name="action" value="disable">{{ _('Disable') }}</button>
+        </form>
+      {% else %}
+        <div class="alert alert-secondary py-2 mb-0">
+          {{ compose_unavailable_reason or _('Service control is unavailable in this runtime.') }}
+        </div>
+      {% endif %}
 
       {% if service_action_result %}
         <hr />

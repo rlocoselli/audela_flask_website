@@ -224,6 +224,19 @@ def _resolve_compose_command() -> list[str] | None:
     return None
 
 
+def _compose_unavailable_reason() -> str | None:
+    if _resolve_compose_command() is not None:
+        return None
+
+    if os.path.exists("/.dockerenv"):
+        return (
+            "Docker Compose is not available inside the web app container runtime. "
+            "Use your external server workflow to start/stop Celery services."
+        )
+
+    return "Docker Compose command not available on this host."
+
+
 def _compose_file_args(project_root: str) -> list[str]:
     compose_args: list[str] = []
     for filename in ("docker-compose.yml", "docker-compose.letsencrypt.yml"):
@@ -277,7 +290,7 @@ def _run_celery_service_action(action: str) -> dict:
         return {
             "ok": False,
             "action": action,
-            "error": "Docker Compose command not available on this host.",
+            "error": _compose_unavailable_reason() or "Docker Compose command not available on this host.",
             "steps": [],
         }
 
@@ -347,6 +360,8 @@ def _build_celery_screen_context() -> dict:
     except Exception as exc:
         worker_ping_error = str(exc)
 
+    compose_reason = _compose_unavailable_reason()
+
     return {
         "broker_url": broker,
         "result_backend": backend,
@@ -354,7 +369,8 @@ def _build_celery_screen_context() -> dict:
         "task_ignore_result": bool(current_app.config.get("CELERY_TASK_IGNORE_RESULT", False)),
         "worker_ping": worker_ping,
         "worker_ping_error": worker_ping_error,
-        "compose_available": _resolve_compose_command() is not None,
+        "compose_available": compose_reason is None,
+        "compose_unavailable_reason": compose_reason,
     }
 
 
