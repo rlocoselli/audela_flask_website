@@ -850,6 +850,288 @@ def _workflow_steps_for_memo(tenant_id: int, memo_id: int) -> list[CreditApprova
     return _effective_workflow_steps_for_memo(tenant_id, memo_id, ordered)
 
 
+def _catalog_workflow_for_memo(tenant_id: int, memo_id: int) -> dict[str, object] | None:
+    memo = CreditMemo.query.filter_by(id=memo_id, tenant_id=tenant_id).first()
+    if not memo:
+        return None
+
+    tenant_row = getattr(g, "tenant", None) if has_request_context() else None
+    if not tenant_row or int(getattr(tenant_row, "id", 0) or 0) != int(tenant_id):
+        tenant_row = Tenant.query.filter_by(id=tenant_id).first()
+
+    catalog = _credit_workflow_catalog(tenant_row)
+    workflow_id = _catalog_workflow_id_for_borrower(catalog, memo.borrower_id)
+    return _catalog_workflow_by_id(catalog, workflow_id)
+
+
+def _workflow_decision_function_key(decision_rule: str | None) -> str:
+    raw = str(decision_rule or "").strip()
+    if not raw:
+        return ""
+
+    explicit = re.search(r"(?:^|\s)(?:fn|function)\s*:\s*([a-z0-9_\- ]+)", raw, flags=re.IGNORECASE)
+    if explicit:
+        return _slugify_key(explicit.group(1), "")
+    return _slugify_key(raw, "")
+
+
+def _workflow_decision_route_preferences(
+    decision_rule: str | None,
+    requested_amount: Decimal,
+    risk_grade: str,
+    matrix_rules: dict[str, dict[str, object]],
+) -> list[str]:
+    key = _workflow_decision_function_key(decision_rule)
+    if not key:
+        return []
+
+    require_risk_manager_keys = {
+        "require_risk_manager",
+        "risk_and_amount",
+        "amount_and_risk",
+        "montant_et_risque",
+        "escalade_selon_politique",
+    }
+    if key in require_risk_manager_keys:
+        needs_risk_manager = _approval_stage_required_by_matrix(
+            "risk_manager",
+            requested_amount,
+            risk_grade,
+            matrix_rules,
+        )
+        if needs_risk_manager:
+            return ["if_required", "required", "yes", "true", "next"]
+        return [
+            "if_not_required",
+            "if_skipped",
+            "if_escalated",
+            "escalated",
+            "skip",
+            "no",
+            "false",
+            "else",
+            "next",
+        ]
+
+    if key in {"always_next", "next", "default"}:
+        return ["next"]
+
+    return []
+
+
+def _workflow_pick_edge(
+    outgoing_edges: list[dict[str, str]],
+    preferred_labels: list[str] | None = None,
+) -> dict[str, str] | None:
+    if not outgoing_edges:
+        return None
+
+    preferred = [
+        _slugify_key(token, "")
+        for token in (preferred_labels or [])
+        if _slugify_key(token, "")
+    ]
+    if preferred:
+        for pref in preferred:
+            for edge in outgoing_edges:
+                label_token = _slugify_key(edge.get("label") or "next", "next")
+                target_token = _slugify_key(edge.get("to") or "", "")
+                if pref == label_token or pref == target_token:
+                    return edge
+
+    for edge in outgoing_edges:
+        if _slugify_key(edge.get("label") or "next", "next") == "next":
+            return edge
+
+    return outgoing_edges[0]
+
+
+def _expected_workflow_step_from_catalog_graph(
+    tenant_id: int,
+    memo_id: int,
+    ordered_steps: list[CreditApprovalWorkflowStep],
+) -> tuple[CreditApprovalWorkflowStep | None, str | None]:
+    workflow = _catalog_workflow_for_memo(tenant_id, memo_id)
+    if not workflow:
+        return None, None
+
+    nodes = workflow.get("nodes") if isinstance(workflow.get("nodes"), list) else []
+    if not nodes:
+        return None, None
+
+    node_rows: list[dict[str, object]] = []
+    node_by_id: dict[str, dict[str, object]] = {}
+    for idx, raw_node in enumerate(nodes, start=1):
+        if not isinstance(raw_node, dict):
+            continue
+        node_id = _slugify_key(raw_node.get("id") or f"node_{idx}", "")
+        if not node_id:
+            continue
+        node_type = str(raw_node.get("type") or "task").strip().lower()
+        if node_type not in {"task", "decision"}:
+            node_type = "task"
+        order_value = _to_int(str(raw_node.get("order") or "")) or idx
+        row = {
+            "id": node_id,
+            "type": node_type,
+            "order": order_value,
+            "stage": _slugify_key(raw_node.get("stage") or "", "") if node_type == "task" else "",
+            "decision_rule": str(raw_node.get("decision_rule") or "").strip(),
+        }
+        node_rows.append(row)
+        node_by_id[node_id] = row
+
+    if not node_rows:
+        return None, None
+
+    node_rows.sort(key=lambda item: (int(item.get("order") or 0), str(item.get("id") or "")))
+
+    edges_raw = workflow.get("edges") if isinstance(workflow.get("edges"), list) else []
+    outgoing_by_node: dict[str, list[dict[str, str]]] = {}
+    for edge in edges_raw:
+        if not isinstance(edge, dict):
+            continue
+        src = _slugify_key(edge.get("from") or "", "")
+        dst = _slugify_key(edge.get("to") or "", "")
+        if not src or not dst or src not in node_by_id or dst not in node_by_id:
+            continue
+        outgoing_by_node.setdefault(src, []).append(
+            {
+                "from": src,
+                "to": dst,
+                "label": str(edge.get("label") or "").strip()[:80],
+            }
+        )
+
+    if not outgoing_by_node:
+        for idx in range(len(node_rows) - 1):
+            src = str(node_rows[idx].get("id") or "")
+            dst = str(node_rows[idx + 1].get("id") or "")
+            if not src or not dst:
+                continue
+            outgoing_by_node.setdefault(src, []).append({"from": src, "to": dst, "label": "next"})
+
+    step_by_stage: dict[str, CreditApprovalWorkflowStep] = {}
+    for step in ordered_steps:
+        stage_key = _slugify_key(step.stage or "", "")
+        if stage_key and stage_key not in step_by_stage:
+            step_by_stage[stage_key] = step
+
+    task_step_by_node_id: dict[str, CreditApprovalWorkflowStep] = {}
+    node_id_by_step_id: dict[int, str] = {}
+    for node in node_rows:
+        if str(node.get("type") or "") != "task":
+            continue
+        node_id = str(node.get("id") or "")
+        stage_key = str(node.get("stage") or "")
+        step = step_by_stage.get(stage_key)
+        if not step:
+            continue
+        task_step_by_node_id[node_id] = step
+        node_id_by_step_id[int(step.id)] = node_id
+
+    if not task_step_by_node_id:
+        return None, None
+
+    tenant_row = getattr(g, "tenant", None) if has_request_context() else None
+    if not tenant_row or int(getattr(tenant_row, "id", 0) or 0) != int(tenant_id):
+        tenant_row = Tenant.query.filter_by(id=tenant_id).first()
+    matrix_rules = _credit_approval_matrix_rules(tenant_row)
+    requested_amount, risk_grade = _memo_requested_amount_and_risk_grade(tenant_id, memo_id)
+
+    def _next_task_from_node(start_node_id: str, include_current: bool) -> CreditApprovalWorkflowStep | None:
+        current = str(start_node_id or "").strip()
+        inspect_current = bool(include_current)
+        if not current:
+            return None
+
+        max_hops = max(8, len(node_by_id) * 4)
+        visited: set[tuple[str, bool]] = set()
+        for _hop in range(max_hops):
+            state = (current, inspect_current)
+            if state in visited:
+                return None
+            visited.add(state)
+
+            node = node_by_id.get(current)
+            if not isinstance(node, dict):
+                return None
+
+            node_type = str(node.get("type") or "task")
+            if node_type == "task":
+                step = task_step_by_node_id.get(current)
+                if inspect_current and step:
+                    return step
+
+            outgoing = outgoing_by_node.get(current) or []
+            if not outgoing:
+                return None
+
+            preferred: list[str] = []
+            if node_type == "decision":
+                preferred = _workflow_decision_route_preferences(
+                    str(node.get("decision_rule") or ""),
+                    requested_amount,
+                    risk_grade,
+                    matrix_rules,
+                )
+
+            picked = _workflow_pick_edge(outgoing, preferred)
+            if not picked:
+                return None
+
+            current = str(picked.get("to") or "").strip()
+            inspect_current = True
+
+        return None
+
+    entry_node_id = str(node_rows[0].get("id") or "")
+
+    approvals = (
+        CreditApproval.query.filter_by(tenant_id=tenant_id, memo_id=memo_id)
+        .order_by(CreditApproval.created_at.asc(), CreditApproval.id.asc())
+        .all()
+    )
+    if not approvals:
+        entry_step = _next_task_from_node(entry_node_id, include_current=True)
+        if entry_step:
+            return entry_step, None
+        return None, _("No applicable workflow steps for this memo based on approval matrix.")
+
+    last = approvals[-1]
+    if last.decision == "rejected":
+        return None, _("Workflow is closed for this memo (already rejected).")
+
+    last_step = _workflow_step_for_approval(last, ordered_steps)
+    if not last_step:
+        entry_step = _next_task_from_node(entry_node_id, include_current=True)
+        if entry_step:
+            return entry_step, _("Previous approval is not mapped to current workflow. Restart from first step.")
+        return None, _("Workflow is already completed for this memo.")
+
+    last_node_id = node_id_by_step_id.get(int(last_step.id))
+    if not last_node_id:
+        entry_step = _next_task_from_node(entry_node_id, include_current=True)
+        if entry_step:
+            return entry_step, _("Previous approval is not mapped to current workflow. Restart from first step.")
+        return None, _("Workflow is already completed for this memo.")
+
+    if last.decision == "pending":
+        current_step = _next_task_from_node(last_node_id, include_current=True)
+        if current_step:
+            return current_step, None
+        entry_step = _next_task_from_node(entry_node_id, include_current=True)
+        if entry_step:
+            return entry_step, _("Current approval step is no longer applicable under the approval matrix.")
+        return None, _("No applicable workflow steps for this memo based on approval matrix.")
+
+    next_step = _next_task_from_node(last_node_id, include_current=False)
+    if next_step:
+        return next_step, None
+
+    return None, _("Workflow is already completed for this memo.")
+
+
 def _approval_base_stage_options() -> list[tuple[str, str]]:
     return [
         ("analyst_review", _("Analyst review")),
@@ -3343,6 +3625,14 @@ def _expected_workflow_step_for_memo(
     memo_id: int,
     ordered_steps: list[CreditApprovalWorkflowStep],
 ) -> tuple[CreditApprovalWorkflowStep | None, str | None]:
+    graph_step, graph_msg = _expected_workflow_step_from_catalog_graph(
+        tenant_id,
+        memo_id,
+        ordered_steps,
+    )
+    if graph_step is not None or graph_msg is not None:
+        return graph_step, graph_msg
+
     if not ordered_steps:
         return None, _("No approval workflow is configured.")
 

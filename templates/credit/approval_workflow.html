@@ -242,7 +242,8 @@
               </div>
               <div class="col-12">
                 <label class="form-label small">Decision rule</label>
-                <input class="form-control form-control-sm" id="nodeEditorDecisionRule">
+                <input class="form-control form-control-sm" id="nodeEditorDecisionRule" placeholder="fn:require_risk_manager">
+                <div class="form-text small">Use <code>fn:&lt;function_name&gt;</code> to route edges by function (example: <code>fn:require_risk_manager</code>).</div>
               </div>
             </div>
           </div>
@@ -1289,7 +1290,6 @@
       canvas.innerHTML = '';
       nodes = nodes.map((node, index) => normalizeNode(node, index));
       ensureSelection();
-      edges = buildSequentialEdges();
       normalizeEdges();
       renderDiagram();
 
