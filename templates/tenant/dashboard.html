@@ -349,7 +349,8 @@
                 <tr>
                   <td>{{ user.email }}</td>
                   <td>
-                    {% for role in user.roles %}
+                    {% set labels = user.role_labels if user.role_labels is defined else user.roles %}
+                    {% for role in labels %}
                       <span class="badge bg-secondary">{{ role }}</span>
                     {% endfor %}
                   </td>

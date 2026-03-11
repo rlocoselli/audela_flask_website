@@ -84,6 +84,7 @@ _DEFAULT_MENU_ACCESS: dict[str, list[str]] = {
         "guarantors",
         "statements",
         "ratios",
+        "risk_grading",
         "memos",
         "approvals",
         "backlog",

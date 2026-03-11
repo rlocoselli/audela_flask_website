@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import html
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -46,7 +47,7 @@ def _scan_python_flash_strings(path: Path) -> list[Finding]:
 
 
 def _is_probably_translatable_text(text: str) -> bool:
-    candidate = re.sub(r"\s+", " ", text).strip()
+    candidate = re.sub(r"\s+", " ", html.unescape(text)).strip()
     if not candidate:
         return False
     if "{{" in candidate or "{%" in candidate or "{#" in candidate:
@@ -75,8 +76,33 @@ def _is_probably_translatable_text(text: str) -> bool:
         "OK",
         "FR",
         "IT",
+        "DSCR",
+        "Leverage",
+        "Liquidity",
+        "left",
+        "center",
+        "right",
+        "True",
+        "False",
+        "if_required",
+        "if_not_required",
     }
     if candidate in safe_tokens:
+        return False
+
+    lower = candidate.lower()
+
+    # Decision-rule snippets and technical tokens are documentation examples,
+    # not user-facing natural language.
+    if lower.startswith("fn:"):
+        return False
+    if "?true=" in lower or "?false=" in lower:
+        return False
+
+    # Ignore formula-like fragments and comparator chunks.
+    if re.fullmatch(r"[<>=0-9xX.\-\s]+", candidate):
+        return False
+    if re.fullmatch(r"[<>=0-9xX.\-\s]+(?:and|or)?", lower):
         return False
 
     if re.search(r"[A-Za-zÀ-ÿ]", candidate) is None:

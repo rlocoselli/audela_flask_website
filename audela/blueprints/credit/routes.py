@@ -3,12 +3,14 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from copy import deepcopy
+import ast
 import csv
 import io
 import calendar
 import json
 import re
-from urllib.parse import urlencode
+import requests
+from urllib.parse import parse_qs, urlencode
 from html import escape as html_escape
 from html import unescape as html_unescape
 
@@ -142,6 +144,428 @@ def _parse_risk_grade_values(raw: object) -> list[str]:
     return out
 
 
+def _clamp_float(value: float, low: float, high: float) -> float:
+    return max(low, min(high, float(value)))
+
+
+def _rating_code_from_score(score: float) -> str:
+    if score >= 90:
+        return "AAA"
+    if score >= 82:
+        return "AA"
+    if score >= 74:
+        return "A"
+    if score >= 66:
+        return "BBB"
+    if score >= 56:
+        return "BB"
+    if score >= 46:
+        return "B"
+    return "CCC"
+
+
+def _borrower_country_iso2(borrower: CreditBorrower | None) -> str:
+    if not borrower:
+        return ""
+
+    if borrower.country_ref and borrower.country_ref.iso_code:
+        return str(borrower.country_ref.iso_code).strip().upper()
+
+    raw_country = str(getattr(borrower, "country", "") or "").strip()
+    if not raw_country:
+        return ""
+
+    raw_upper = raw_country.upper()
+    if len(raw_upper) == 2 and raw_upper.isalpha():
+        return raw_upper
+
+    lower_country = raw_country.lower()
+    country = (
+        CreditCountry.query.filter(
+            or_(
+                func.lower(CreditCountry.name) == lower_country,
+                func.lower(CreditCountry.name_fr) == lower_country,
+                func.lower(CreditCountry.name_en) == lower_country,
+            )
+        )
+        .order_by(CreditCountry.id.asc())
+        .first()
+    )
+    if country and country.iso_code:
+        return str(country.iso_code).strip().upper()
+
+    return ""
+
+
+def _country_base_score(country_iso2: str | None) -> float:
+    return _country_base_score_for_tenant(country_iso2, None)
+
+
+def _tenant_country_base_score_overrides(tenant: Tenant | None) -> dict[str, float]:
+    cfg = _get_credit_settings(tenant)
+    raw = cfg.get("risk_grading_country_base_score_overrides") if isinstance(
+        cfg.get("risk_grading_country_base_score_overrides"),
+        dict,
+    ) else {}
+
+    out: dict[str, float] = {}
+    for raw_iso2, raw_score in raw.items():
+        iso2 = str(raw_iso2 or "").strip().upper()
+        if len(iso2) != 2 or not iso2.isalpha():
+            continue
+        try:
+            parsed = float(str(raw_score).strip().replace(",", "."))
+        except Exception:
+            continue
+        out[iso2] = float(_clamp_float(parsed, 0.0, 100.0))
+    return out
+
+
+def _country_base_score_for_tenant(country_iso2: str | None, tenant: Tenant | None) -> float:
+    key = str(country_iso2 or "").strip().upper()
+    overrides = _tenant_country_base_score_overrides(tenant)
+    if key and key in overrides:
+        return float(overrides[key])
+    if not key:
+        return 60.0
+    return float(_COUNTRY_BASE_SCORE_BY_ISO2.get(key, 60.0))
+
+
+def _save_tenant_country_base_score_overrides(tenant: Tenant, payload: dict[str, float]) -> None:
+    cleaned: dict[str, float] = {}
+    for raw_iso2, raw_score in (payload.items() if isinstance(payload, dict) else []):
+        iso2 = str(raw_iso2 or "").strip().upper()
+        if len(iso2) != 2 or not iso2.isalpha():
+            continue
+        try:
+            parsed = float(str(raw_score).strip().replace(",", "."))
+        except Exception:
+            continue
+        score = float(_clamp_float(parsed, 0.0, 100.0))
+        default_score = _COUNTRY_BASE_SCORE_BY_ISO2.get(iso2)
+        if default_score is not None and abs(float(default_score) - score) < 1e-9:
+            continue
+        cleaned[iso2] = score
+
+    cfg = _get_credit_settings(tenant)
+    if cleaned:
+        cfg["risk_grading_country_base_score_overrides"] = cleaned
+    else:
+        cfg.pop("risk_grading_country_base_score_overrides", None)
+    _save_credit_settings(tenant, cfg)
+
+
+def _risk_grading_country_reference_rows(tenant: Tenant | None) -> list[dict[str, object]]:
+    tenant_overrides = _tenant_country_base_score_overrides(tenant)
+    countries = CreditCountry.query.order_by(CreditCountry.name.asc(), CreditCountry.id.asc()).all()
+
+    label_by_iso2: dict[str, str] = {}
+    for row in countries:
+        iso2 = str(getattr(row, "iso_code", "") or "").strip().upper()
+        if not iso2 or len(iso2) != 2:
+            continue
+        if iso2 not in label_by_iso2:
+            label_by_iso2[iso2] = str(row.display_name(getattr(g, "lang", DEFAULT_LANG))).strip() or iso2
+
+    all_iso2 = sorted(set(_COUNTRY_BASE_SCORE_BY_ISO2.keys()) | set(tenant_overrides.keys()) | set(label_by_iso2.keys()))
+    out: list[dict[str, object]] = []
+    for iso2 in all_iso2:
+        default_score = _COUNTRY_BASE_SCORE_BY_ISO2.get(iso2)
+        tenant_score = tenant_overrides.get(iso2)
+        effective_score = float(tenant_score if tenant_score is not None else (default_score if default_score is not None else 60.0))
+        out.append(
+            {
+                "iso2": iso2,
+                "country_label": label_by_iso2.get(iso2, iso2),
+                "default_score": (float(default_score) if default_score is not None else None),
+                "tenant_score": (float(tenant_score) if tenant_score is not None else None),
+                "effective_score": effective_score,
+            }
+        )
+    return out
+
+
+def _world_bank_latest_indicator(country_iso2: str, indicator: str) -> tuple[float | None, str | None]:
+    if not country_iso2:
+        return None, None
+    url = f"https://api.worldbank.org/v2/country/{country_iso2}/indicator/{indicator}"
+    try:
+        resp = requests.get(url, params={"format": "json", "per_page": 8}, timeout=6)
+        resp.raise_for_status()
+        payload = resp.json()
+    except Exception:
+        return None, None
+
+    if not isinstance(payload, list) or len(payload) < 2 or not isinstance(payload[1], list):
+        return None, None
+
+    for row in payload[1]:
+        if not isinstance(row, dict):
+            continue
+        value = row.get("value")
+        if value is None:
+            continue
+        try:
+            return float(value), str(row.get("date") or "")
+        except Exception:
+            continue
+    return None, None
+
+
+def _country_web_score(country_iso2: str | None) -> dict[str, object]:
+    key = str(country_iso2 or "").strip().upper()
+    if not key:
+        return {
+            "available": False,
+            "score": None,
+            "grade": None,
+            "error": _("Country ISO code is missing for web enrichment."),
+            "source": "world_bank",
+            "metrics": {},
+        }
+
+    gdp_growth, gdp_growth_year = _world_bank_latest_indicator(key, "NY.GDP.MKTP.KD.ZG")
+    inflation, inflation_year = _world_bank_latest_indicator(key, "FP.CPI.TOTL.ZG")
+    gdp_pc, gdp_pc_year = _world_bank_latest_indicator(key, "NY.GDP.PCAP.CD")
+
+    if gdp_growth is None and inflation is None and gdp_pc is None:
+        return {
+            "available": False,
+            "score": None,
+            "grade": None,
+            "error": _("No World Bank macro data available for this country."),
+            "source": "world_bank",
+            "metrics": {},
+        }
+
+    score = 50.0
+    if gdp_growth is not None:
+        if gdp_growth >= 4:
+            score += 15
+        elif gdp_growth >= 2:
+            score += 8
+        elif gdp_growth >= 0:
+            score += 2
+        elif gdp_growth >= -2:
+            score -= 8
+        else:
+            score -= 15
+
+    if inflation is not None:
+        if inflation <= 3:
+            score += 12
+        elif inflation <= 8:
+            score += 4
+        elif inflation <= 15:
+            score -= 6
+        else:
+            score -= 15
+
+    if gdp_pc is not None:
+        if gdp_pc >= 20000:
+            score += 12
+        elif gdp_pc >= 8000:
+            score += 5
+        elif gdp_pc >= 3000:
+            score -= 4
+        else:
+            score -= 10
+
+    score = _clamp_float(score, 0, 100)
+    return {
+        "available": True,
+        "score": score,
+        "grade": _rating_code_from_score(score),
+        "error": "",
+        "source": "world_bank",
+        "metrics": {
+            "gdp_growth": gdp_growth,
+            "gdp_growth_year": gdp_growth_year,
+            "inflation": inflation,
+            "inflation_year": inflation_year,
+            "gdp_per_capita": gdp_pc,
+            "gdp_per_capita_year": gdp_pc_year,
+        },
+    }
+
+
+def _score_dscr(dscr: float | None) -> float:
+    if dscr is None:
+        return 50.0
+    if dscr >= 2.0:
+        return 98.0
+    if dscr >= 1.5:
+        return 86.0
+    if dscr >= 1.2:
+        return 72.0
+    if dscr >= 1.0:
+        return 58.0
+    if dscr >= 0.8:
+        return 38.0
+    return 18.0
+
+
+def _score_leverage(leverage: float | None) -> float:
+    if leverage is None:
+        return 50.0
+    if leverage <= 1.0:
+        return 96.0
+    if leverage <= 2.0:
+        return 86.0
+    if leverage <= 3.0:
+        return 74.0
+    if leverage <= 4.0:
+        return 62.0
+    if leverage <= 5.0:
+        return 46.0
+    if leverage <= 7.0:
+        return 30.0
+    return 16.0
+
+
+def _score_liquidity(liquidity: float | None) -> float:
+    if liquidity is None:
+        return 50.0
+    if liquidity >= 0.5:
+        return 94.0
+    if liquidity >= 0.3:
+        return 82.0
+    if liquidity >= 0.2:
+        return 68.0
+    if liquidity >= 0.1:
+        return 48.0
+    return 28.0
+
+
+def _qualitative_answers_from_form(form) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for key, _label in _RISK_GRADING_QUALITATIVE_QUESTIONS:
+        raw = str(form.get(f"qual_{key}") or "").strip()
+        try:
+            value = int(raw)
+        except Exception:
+            value = 3
+        out[key] = max(1, min(5, value))
+    return out
+
+
+def _qualitative_score(answers: dict[str, int]) -> float:
+    if not answers:
+        return 60.0
+    points: list[float] = []
+    for key, _label in _RISK_GRADING_QUALITATIVE_QUESTIONS:
+        value = int(answers.get(key, 3))
+        normalized = ((value - 1) / 4.0) * 100.0
+        points.append(normalized)
+    if not points:
+        return 60.0
+    return _clamp_float(sum(points) / len(points), 0, 100)
+
+
+def _risk_grading_result_for_borrower(
+    tenant_id: int,
+    borrower: CreditBorrower,
+    use_web_country_data: bool,
+    qualitative_answers: dict[str, int],
+    tenant: Tenant | None = None,
+) -> dict[str, object]:
+    statement = (
+        CreditFinancialStatement.query.filter_by(tenant_id=tenant_id, borrower_id=borrower.id)
+        .order_by(
+            CreditFinancialStatement.fiscal_year.desc(),
+            CreditFinancialStatement.created_at.desc(),
+            CreditFinancialStatement.id.desc(),
+        )
+        .first()
+    )
+    latest_snapshot = (
+        CreditRatioSnapshot.query.filter_by(tenant_id=tenant_id, borrower_id=borrower.id)
+        .order_by(CreditRatioSnapshot.snapshot_date.desc(), CreditRatioSnapshot.id.desc())
+        .first()
+    )
+
+    dscr_val: float | None = None
+    leverage_val: float | None = None
+    liquidity_val: float | None = None
+
+    if statement:
+        total_debt = Decimal(statement.total_debt or 0)
+        ebitda = Decimal(statement.ebitda or 0)
+        cash = Decimal(statement.cash or 0)
+
+        if total_debt and total_debt != 0:
+            dscr_val = float(ebitda / total_debt)
+            liquidity_val = float(cash / total_debt)
+        if ebitda and ebitda != 0:
+            leverage_val = float(total_debt / ebitda)
+    elif latest_snapshot:
+        dscr_val = float(latest_snapshot.dscr) if latest_snapshot.dscr is not None else None
+        leverage_val = float(latest_snapshot.leverage) if latest_snapshot.leverage is not None else None
+        liquidity_val = float(latest_snapshot.liquidity) if latest_snapshot.liquidity is not None else None
+
+    dscr_score = _score_dscr(dscr_val)
+    leverage_score = _score_leverage(leverage_val)
+    liquidity_score = _score_liquidity(liquidity_val)
+    quantitative_score = _clamp_float(
+        (0.45 * dscr_score) + (0.35 * leverage_score) + (0.20 * liquidity_score),
+        0,
+        100,
+    )
+
+    country_iso2 = _borrower_country_iso2(borrower)
+    country_score = _country_base_score_for_tenant(country_iso2, tenant)
+    country_source = "local_reference"
+    country_web_data = {
+        "available": False,
+        "score": None,
+        "grade": None,
+        "error": "",
+        "source": "world_bank",
+        "metrics": {},
+    }
+    if use_web_country_data:
+        country_web_data = _country_web_score(country_iso2)
+        if bool(country_web_data.get("available")) and country_web_data.get("score") is not None:
+            country_score = float(country_web_data.get("score") or country_score)
+            country_source = "web"
+
+    qualitative_score = _qualitative_score(qualitative_answers)
+
+    overall_score = _clamp_float(
+        (0.55 * quantitative_score) + (0.20 * country_score) + (0.25 * qualitative_score),
+        0,
+        100,
+    )
+    rating_code = _rating_code_from_score(overall_score)
+
+    return {
+        "borrower": borrower,
+        "statement": statement,
+        "latest_snapshot": latest_snapshot,
+        "metrics": {
+            "dscr": dscr_val,
+            "leverage": leverage_val,
+            "liquidity": liquidity_val,
+        },
+        "component_scores": {
+            "quantitative": quantitative_score,
+            "country": country_score,
+            "qualitative": qualitative_score,
+            "dscr": dscr_score,
+            "leverage": leverage_score,
+            "liquidity": liquidity_score,
+        },
+        "country": {
+            "iso2": country_iso2,
+            "source": country_source,
+            "web": country_web_data,
+        },
+        "qualitative_answers": qualitative_answers,
+        "overall_score": overall_score,
+        "rating_code": rating_code,
+    }
+
+
 _FINANCIAL_CSV_FIELDS: tuple[str, ...] = (
     "borrower_id",
     "period_label",
@@ -153,6 +577,27 @@ _FINANCIAL_CSV_FIELDS: tuple[str, ...] = (
     "net_income",
     "spreading_status",
 )
+
+_RISK_GRADING_QUALITATIVE_QUESTIONS: tuple[tuple[str, str], ...] = (
+    ("management", "Management quality and track record"),
+    ("governance", "Governance and control environment"),
+    ("market", "Market position and competitive resilience"),
+    ("transparency", "Financial transparency and reporting quality"),
+    ("sector_outlook", "Sector outlook and business stability"),
+)
+
+_COUNTRY_BASE_SCORE_BY_ISO2: dict[str, float] = {
+    "CH": 92.0,
+    "LU": 90.0,
+    "DE": 89.0,
+    "FR": 86.0,
+    "BE": 85.0,
+    "PT": 80.0,
+    "ES": 80.0,
+    "IT": 76.0,
+    "MA": 58.0,
+    "SN": 52.0,
+}
 
 
 _CREDIT_IMPLEMENTATION_PHASES: tuple[tuple[str, tuple[str, ...]], ...] = (
@@ -476,7 +921,7 @@ def _default_workflow_catalog(tenant_id: int) -> dict[str, object]:
             "order": 2,
             "type": "decision",
             "labels": {"fr": "Porte de risque", "en": "Risk gate"},
-            "decision_rule": "Montant et risque",
+            "decision_rule": "fn:require_risk_manager?true=if_required&false=if_not_required",
         },
         {
             "id": "risk_manager",
@@ -525,7 +970,7 @@ def _default_workflow_catalog(tenant_id: int) -> dict[str, object]:
             "order": 2,
             "type": "decision",
             "labels": {"fr": "Decision pre-comite", "en": "Pre-committee decision"},
-            "decision_rule": "Escalade selon politique",
+            "decision_rule": "fn:require_risk_manager?true=if_required&false=if_not_required",
         },
         {
             "id": "fast_committee",
@@ -632,6 +1077,19 @@ def _credit_workflow_catalog(tenant: Tenant | None) -> dict[str, object]:
             sla_days = _to_int(str(node.get("sla_days") or ""))
             function_name = str(node.get("function_name") or "").strip().lower() or None
 
+            try:
+                pos_x_val = int(float(str(node.get("pos_x") or "").strip()))
+            except Exception:
+                pos_x_val = None
+            try:
+                pos_y_val = int(float(str(node.get("pos_y") or "").strip()))
+            except Exception:
+                pos_y_val = None
+            if pos_x_val is not None and (pos_x_val < 0 or pos_x_val > 50000):
+                pos_x_val = None
+            if pos_y_val is not None and (pos_y_val < 0 or pos_y_val > 50000):
+                pos_y_val = None
+
             nodes.append(
                 {
                     "id": node_id,
@@ -645,6 +1103,8 @@ def _credit_workflow_catalog(tenant: Tenant | None) -> dict[str, object]:
                     "sla_days": sla_days,
                     "is_required": bool(node.get("is_required", True)),
                     "decision_rule": str(node.get("decision_rule") or "").strip(),
+                    "pos_x": pos_x_val,
+                    "pos_y": pos_y_val,
                 }
             )
 
@@ -865,14 +1325,474 @@ def _catalog_workflow_for_memo(tenant_id: int, memo_id: int) -> dict[str, object
 
 
 def _workflow_decision_function_key(decision_rule: str | None) -> str:
+    legacy_key_map = {
+        # Legacy localized/synonym keys are mapped to canonical English names.
+        "risk_and_amount": "require_risk_manager",
+        "amount_and_risk": "require_risk_manager",
+        "montant_et_risque": "require_risk_manager",
+        "escalade_selon_politique": "require_risk_manager",
+    }
+
+    def _normalize_decision_key(value: str | None) -> str:
+        key = _slugify_key(value, "")
+        return str(legacy_key_map.get(key) or key)
+
     raw = str(decision_rule or "").strip()
     if not raw:
         return ""
 
+    if raw.lower().startswith("expr:"):
+        return "expression"
+
     explicit = re.search(r"(?:^|\s)(?:fn|function)\s*:\s*([a-z0-9_\- ]+)", raw, flags=re.IGNORECASE)
     if explicit:
-        return _slugify_key(explicit.group(1), "")
-    return _slugify_key(raw, "")
+        return _normalize_decision_key(explicit.group(1))
+    return _normalize_decision_key(raw)
+
+
+def _workflow_decision_rule_config(decision_rule: str | None) -> dict[str, str]:
+    raw = str(decision_rule or "").strip()
+    function_key = _workflow_decision_function_key(raw)
+
+    true_label = "if_required"
+    false_label = "if_not_required"
+    expression = ""
+
+    if raw.lower().startswith("expr:"):
+        expression = raw.split(":", 1)[1].strip()
+
+    if "?" in raw:
+        query = raw.split("?", 1)[1]
+        params = parse_qs(query, keep_blank_values=False)
+        raw_true = str((params.get("true") or [true_label])[0] or "").strip()
+        raw_false = str((params.get("false") or [false_label])[0] or "").strip()
+        raw_expr = str((params.get("expr") or [expression])[0] or "").strip()
+        true_label = _slugify_key(raw_true, true_label)
+        false_label = _slugify_key(raw_false, false_label)
+        expression = raw_expr
+
+    return {
+        "function_key": function_key,
+        "true_label": true_label,
+        "false_label": false_label,
+        "expression": expression,
+    }
+
+
+def _decision_fn_require_risk_manager(
+    requested_amount: Decimal,
+    risk_grade: str,
+    matrix_rules: dict[str, dict[str, object]],
+) -> bool:
+    return _approval_stage_required_by_matrix(
+        "risk_manager",
+        requested_amount,
+        risk_grade,
+        matrix_rules,
+    )
+
+
+def _decision_fn_always_next(
+    requested_amount: Decimal,
+    risk_grade: str,
+    matrix_rules: dict[str, dict[str, object]],
+) -> str:
+    return "next"
+
+
+def _workflow_decision_expression_field_catalog() -> list[dict[str, str]]:
+    return [
+        {
+            "token": "Borrower.sum_deals",
+            "label": "Borrower total requested amount",
+            "description": "Sum of requested amounts for all borrower deals.",
+        },
+        {
+            "token": "Borrower.somme_deals",
+            "label": "Borrower total requested amount (FR alias)",
+            "description": "French alias of Borrower.sum_deals.",
+        },
+        {
+            "token": "Borrower.deal_count",
+            "label": "Borrower deal count",
+            "description": "Number of borrower deals.",
+        },
+        {
+            "token": "Borrower.country_iso2",
+            "label": "Borrower country ISO-2",
+            "description": "Two-letter ISO code resolved from borrower country.",
+        },
+        {
+            "token": "Borrower.risk_grade",
+            "label": "Borrower risk grade",
+            "description": "Latest borrower risk grade (e.g. BBB, BB).",
+        },
+        {
+            "token": "Deal.requested_amount",
+            "label": "Current deal requested amount",
+            "description": "Requested amount used by approval workflow.",
+        },
+        {
+            "token": "Memo.requested_amount",
+            "label": "Current memo requested amount",
+            "description": "Same amount available under Memo namespace.",
+        },
+        {
+            "token": "RiskGrade",
+            "label": "Current memo risk grade",
+            "description": "Uppercase risk grade resolved from latest ratio snapshot.",
+        },
+        {
+            "token": "Matrix.risk_manager_required",
+            "label": "Matrix risk-manager gate",
+            "description": "Boolean result of matrix requirement for risk manager stage.",
+        },
+    ]
+
+
+def _workflow_decision_expression_context(
+    tenant: Tenant | None,
+    memo_id: int | None,
+    requested_amount: Decimal,
+    risk_grade: str,
+    matrix_rules: dict[str, dict[str, object]],
+) -> dict[str, object]:
+    tenant_id = int(getattr(tenant, "id", 0) or 0)
+    memo = (
+        CreditMemo.query.filter_by(id=int(memo_id), tenant_id=tenant_id).first()
+        if tenant_id and memo_id
+        else None
+    )
+    borrower = memo.borrower if memo and memo.borrower_id else None
+
+    sum_deals = Decimal("0")
+    deal_count = 0
+    if tenant_id and borrower:
+        sum_deals = Decimal(
+            db.session.query(func.coalesce(func.sum(CreditDeal.requested_amount), 0))
+            .filter(
+                CreditDeal.tenant_id == tenant_id,
+                CreditDeal.borrower_id == borrower.id,
+            )
+            .scalar()
+            or 0
+        )
+        deal_count = int(
+            db.session.query(func.count(CreditDeal.id))
+            .filter(
+                CreditDeal.tenant_id == tenant_id,
+                CreditDeal.borrower_id == borrower.id,
+            )
+            .scalar()
+            or 0
+        )
+
+    borrower_iso2 = _borrower_country_iso2(borrower)
+    requested_amount_float = float(requested_amount or 0)
+    risk_grade_txt = str(risk_grade or "").strip().upper()
+
+    borrower_ctx = {
+        "id": int(getattr(borrower, "id", 0) or 0),
+        "name": str(getattr(borrower, "name", "") or ""),
+        "sum_deals": float(sum_deals),
+        "somme_deals": float(sum_deals),
+        "total_deals_amount": float(sum_deals),
+        "deal_count": deal_count,
+        "country_iso2": borrower_iso2,
+        "risk_grade": risk_grade_txt,
+    }
+
+    out = {
+        "Borrower": borrower_ctx,
+        "Deal": {
+            "requested_amount": requested_amount_float,
+        },
+        "Memo": {
+            "id": int(getattr(memo, "id", 0) or 0),
+            "requested_amount": requested_amount_float,
+            "risk_grade": risk_grade_txt,
+        },
+        "Matrix": {
+            "risk_manager_required": _approval_stage_required_by_matrix(
+                "risk_manager",
+                requested_amount,
+                risk_grade_txt,
+                matrix_rules,
+            )
+        },
+        "RequestedAmount": requested_amount_float,
+        "RiskGrade": risk_grade_txt,
+    }
+    # Convenience lower-case aliases for case-insensitive formulas.
+    out["borrower"] = borrower_ctx
+    out["deal"] = out["Deal"]
+    out["memo"] = out["Memo"]
+    out["matrix"] = out["Matrix"]
+    out["requested_amount"] = requested_amount_float
+    out["risk_grade"] = risk_grade_txt
+    return out
+
+
+def _workflow_decision_expression_eval(expression: str, context: dict[str, object]) -> bool | None:
+    src = str(expression or "").strip()
+    if not src:
+        return None
+    if len(src) > 700:
+        return None
+
+    safe_functions = {
+        "min": min,
+        "max": max,
+        "abs": abs,
+        "round": round,
+    }
+
+    def _dict_get_ci(obj: object, key: str) -> object:
+        if not isinstance(obj, dict):
+            return None
+        if key in obj:
+            return obj.get(key)
+        lowered = key.lower()
+        for k, v in obj.items():
+            if str(k).lower() == lowered:
+                return v
+        return None
+
+    def _eval(node: ast.AST) -> object:
+        if isinstance(node, ast.Constant):
+            return node.value
+
+        if isinstance(node, ast.Name):
+            if node.id == "True":
+                return True
+            if node.id == "False":
+                return False
+            if node.id == "None":
+                return None
+            return _dict_get_ci(context, node.id)
+
+        if isinstance(node, ast.Attribute):
+            root = _eval(node.value)
+            if isinstance(root, dict):
+                return _dict_get_ci(root, node.attr)
+            return getattr(root, str(node.attr or ""), None)
+
+        if isinstance(node, ast.Subscript):
+            root = _eval(node.value)
+            key_node = node.slice
+            key = _eval(key_node) if isinstance(key_node, ast.AST) else None
+            if isinstance(root, dict):
+                return _dict_get_ci(root, str(key or ""))
+            if isinstance(root, (list, tuple)):
+                try:
+                    idx = int(key) if key is not None else -1
+                except Exception:
+                    return None
+                if idx < 0 or idx >= len(root):
+                    return None
+                return root[idx]
+            return None
+
+        if isinstance(node, ast.List):
+            return [_eval(x) for x in node.elts]
+        if isinstance(node, ast.Tuple):
+            return tuple(_eval(x) for x in node.elts)
+        if isinstance(node, ast.Set):
+            return {_eval(x) for x in node.elts}
+        if isinstance(node, ast.Dict):
+            return {_eval(k): _eval(v) for k, v in zip(node.keys, node.values)}
+
+        if isinstance(node, ast.UnaryOp):
+            val = _eval(node.operand)
+            if isinstance(node.op, ast.Not):
+                return not bool(val)
+            if isinstance(node.op, ast.USub):
+                return -float(val or 0)
+            if isinstance(node.op, ast.UAdd):
+                return +float(val or 0)
+            raise ValueError("Unsupported unary operator")
+
+        if isinstance(node, ast.BinOp):
+            left = _eval(node.left)
+            right = _eval(node.right)
+            if isinstance(node.op, ast.Add):
+                return left + right
+            if isinstance(node.op, ast.Sub):
+                return left - right
+            if isinstance(node.op, ast.Mult):
+                return left * right
+            if isinstance(node.op, ast.Div):
+                return left / right
+            if isinstance(node.op, ast.FloorDiv):
+                return left // right
+            if isinstance(node.op, ast.Mod):
+                return left % right
+            if isinstance(node.op, ast.Pow):
+                return left**right
+            raise ValueError("Unsupported binary operator")
+
+        if isinstance(node, ast.BoolOp):
+            if isinstance(node.op, ast.And):
+                return all(bool(_eval(v)) for v in node.values)
+            if isinstance(node.op, ast.Or):
+                return any(bool(_eval(v)) for v in node.values)
+            raise ValueError("Unsupported boolean operator")
+
+        if isinstance(node, ast.Compare):
+            left = _eval(node.left)
+            for op, comparator in zip(node.ops, node.comparators):
+                right = _eval(comparator)
+                if isinstance(op, ast.Eq):
+                    ok = left == right
+                elif isinstance(op, ast.NotEq):
+                    ok = left != right
+                elif isinstance(op, ast.Gt):
+                    ok = left > right
+                elif isinstance(op, ast.GtE):
+                    ok = left >= right
+                elif isinstance(op, ast.Lt):
+                    ok = left < right
+                elif isinstance(op, ast.LtE):
+                    ok = left <= right
+                elif isinstance(op, ast.In):
+                    ok = left in right if right is not None else False
+                elif isinstance(op, ast.NotIn):
+                    ok = left not in right if right is not None else True
+                else:
+                    raise ValueError("Unsupported comparison operator")
+
+                if not ok:
+                    return False
+                left = right
+            return True
+
+        if isinstance(node, ast.IfExp):
+            return _eval(node.body) if bool(_eval(node.test)) else _eval(node.orelse)
+
+        if isinstance(node, ast.Call):
+            if not isinstance(node.func, ast.Name):
+                raise ValueError("Unsupported function call")
+            fn_name = str(node.func.id or "").strip().lower()
+            fn = safe_functions.get(fn_name)
+            if not fn:
+                raise ValueError("Function not allowed")
+            args = [_eval(a) for a in node.args]
+            return fn(*args)
+
+        raise ValueError("Unsupported expression")
+
+    try:
+        parsed = ast.parse(src, mode="eval")
+        value = _eval(parsed.body)
+    except Exception:
+        return None
+
+    return bool(value)
+
+
+# Add custom decision functions here, then register them in
+# _WORKFLOW_DECISION_FUNCTIONS using the function key used by `fn:<key>`.
+_WORKFLOW_DECISION_FUNCTIONS = {
+    "require_risk_manager": _decision_fn_require_risk_manager,
+    "always_next": _decision_fn_always_next,
+    "next": _decision_fn_always_next,
+    "default": _decision_fn_always_next,
+}
+
+
+def _workflow_decision_function_docs() -> list[dict[str, str]]:
+    registry = _WORKFLOW_DECISION_FUNCTIONS
+
+    matrix_gate_keys = {
+        "require_risk_manager",
+    }
+    linear_keys = {"always_next", "next", "default"}
+
+    docs: list[dict[str, str]] = []
+    for key in sorted(set(registry.keys()) | {"expression"}):
+        if key in matrix_gate_keys:
+            behavior = "Checks the approval matrix (amount and risk) to determine if risk manager step is required."
+        elif key in linear_keys:
+            behavior = "Always follows the default next branch."
+        elif key == "expression":
+            behavior = "Evaluates a safe formula on workflow context fields and returns True or False."
+        else:
+            behavior = "Custom function key available for decision rules."
+
+        if key in matrix_gate_keys:
+            returns = "bool (True/False)"
+            example_output = "True -> true label (default: if_required), False -> false label (default: if_not_required)."
+            example = f"fn:{key}?true=if_required&false=if_not_required"
+        elif key == "expression":
+            returns = "bool (True/False)"
+            example_output = "True when expression is satisfied, otherwise False."
+            example = "fn:expression?expr=Borrower.sum_deals>10000&true=if_required&false=if_not_required"
+        elif key in linear_keys:
+            returns = "str"
+            example_output = "next"
+            example = f"fn:{key}"
+        else:
+            returns = "str or bool"
+            example_output = "Custom token returned by the function."
+            example = f"fn:{key}"
+
+        docs.append(
+            {
+                "key": key,
+                "behavior": behavior,
+                "description": behavior,
+                "returns": returns,
+                "example_output": example_output,
+                "example": example,
+            }
+        )
+
+    return docs
+
+
+def _workflow_decision_branch_token(
+    decision_rule: str | None,
+    requested_amount: Decimal,
+    risk_grade: str,
+    matrix_rules: dict[str, dict[str, object]],
+    tenant: Tenant | None = None,
+    memo_id: int | None = None,
+) -> str:
+    config = _workflow_decision_rule_config(decision_rule)
+    key = str(config.get("function_key") or "")
+    if not key:
+        return ""
+
+    if key == "expression":
+        expression = str(config.get("expression") or "").strip()
+        if not expression:
+            return ""
+
+        context = _workflow_decision_expression_context(
+            tenant=tenant,
+            memo_id=memo_id,
+            requested_amount=requested_amount,
+            risk_grade=risk_grade,
+            matrix_rules=matrix_rules,
+        )
+        outcome = _workflow_decision_expression_eval(expression, context)
+        if outcome is None:
+            return ""
+        return str(config.get("true_label") if outcome else config.get("false_label") or "").strip().lower()
+
+    fn = _WORKFLOW_DECISION_FUNCTIONS.get(key)
+    if not fn:
+        return ""
+
+    try:
+        outcome = fn(requested_amount, risk_grade, matrix_rules)
+    except Exception:
+        return ""
+
+    if isinstance(outcome, bool):
+        return str(config.get("true_label") if outcome else config.get("false_label") or "").strip().lower()
+
+    return _slugify_key(str(outcome or ""), "")
 
 
 def _workflow_decision_route_preferences(
@@ -880,28 +1800,37 @@ def _workflow_decision_route_preferences(
     requested_amount: Decimal,
     risk_grade: str,
     matrix_rules: dict[str, dict[str, object]],
+    tenant: Tenant | None = None,
+    memo_id: int | None = None,
 ) -> list[str]:
-    key = _workflow_decision_function_key(decision_rule)
-    if not key:
+    branch = _workflow_decision_branch_token(
+        decision_rule,
+        requested_amount,
+        risk_grade,
+        matrix_rules,
+        tenant,
+        memo_id,
+    )
+    if not branch:
         return []
 
-    require_risk_manager_keys = {
-        "require_risk_manager",
-        "risk_and_amount",
-        "amount_and_risk",
-        "montant_et_risque",
-        "escalade_selon_politique",
+    required_aliases = {"if_required", "required", "yes", "true"}
+    not_required_aliases = {
+        "if_not_required",
+        "if_skipped",
+        "if_escalated",
+        "escalated",
+        "skip",
+        "no",
+        "false",
+        "else",
     }
-    if key in require_risk_manager_keys:
-        needs_risk_manager = _approval_stage_required_by_matrix(
-            "risk_manager",
-            requested_amount,
-            risk_grade,
-            matrix_rules,
-        )
-        if needs_risk_manager:
-            return ["if_required", "required", "yes", "true", "next"]
+
+    if branch in required_aliases:
+        return [branch, "if_required", "required", "yes", "true", "next"]
+    if branch in not_required_aliases:
         return [
+            branch,
             "if_not_required",
             "if_skipped",
             "if_escalated",
@@ -912,11 +1841,12 @@ def _workflow_decision_route_preferences(
             "else",
             "next",
         ]
-
-    if key in {"always_next", "next", "default"}:
+    if branch == "next":
         return ["next"]
 
-    return []
+    # For custom functions that return a branch token, first try that token,
+    # then fallback to the default linear edge.
+    return [branch, "next"]
 
 
 def _workflow_pick_edge(
@@ -1074,7 +2004,27 @@ def _expected_workflow_step_from_catalog_graph(
                     requested_amount,
                     risk_grade,
                     matrix_rules,
+                    tenant_row,
+                    memo_id,
                 )
+
+                # Allow direct branching to a target node/stage token returned by
+                # the decision function mapping (e.g. false=credit_committee)
+                # even if the designer has not explicitly created that edge label.
+                for pref in preferred:
+                    token = _slugify_key(pref, "")
+                    if token and token in node_by_id and token != current:
+                        current = token
+                        inspect_current = True
+                        break
+                else:
+                    picked = _workflow_pick_edge(outgoing, preferred)
+                    if not picked:
+                        return None
+
+                    current = str(picked.get("to") or "").strip()
+                    inspect_current = True
+                continue
 
             picked = _workflow_pick_edge(outgoing, preferred)
             if not picked:
@@ -1241,6 +2191,30 @@ def _credit_approval_matrix_form(tenant: Tenant | None) -> dict[str, object]:
     }
 
 
+def _credit_approval_matrix_meta(
+    tenant: Tenant | None,
+    user_label_by_id: dict[int, str] | None = None,
+) -> dict[str, str]:
+    cfg = _get_credit_settings(tenant)
+    raw = cfg.get("approval_matrix_meta") if isinstance(cfg.get("approval_matrix_meta"), dict) else {}
+    labels = user_label_by_id if isinstance(user_label_by_id, dict) else {}
+
+    def _label_for_user(raw_user_id: object) -> str:
+        user_id = _to_int(raw_user_id)
+        if not user_id:
+            return ""
+        if user_id in labels:
+            return str(labels[user_id])
+        return f"#{user_id}"
+
+    return {
+        "updated_at": str(raw.get("updated_at") or "").strip(),
+        "updated_by": _label_for_user(raw.get("updated_by_user_id")),
+        "approved_at": str(raw.get("approved_at") or "").strip(),
+        "approved_by": _label_for_user(raw.get("approved_by_user_id")),
+    }
+
+
 def _approval_matrix_grade_options(tenant: Tenant | None, matrix_form: dict[str, object] | None = None) -> list[str]:
     out: list[str] = []
     seen: set[str] = set()
@@ -1321,6 +2295,29 @@ def _save_credit_approval_matrix(
 
     cfg = _get_credit_settings(tenant)
     cfg["approval_matrix"] = cleaned
+    _save_credit_settings(tenant, cfg)
+
+
+def _save_credit_approval_matrix_meta(
+    tenant: Tenant,
+    *,
+    updated_by_user_id: int | None,
+    approved_by_user_id: int | None = None,
+) -> None:
+    cfg = _get_credit_settings(tenant)
+    raw = cfg.get("approval_matrix_meta") if isinstance(cfg.get("approval_matrix_meta"), dict) else {}
+    meta = dict(raw)
+
+    now_iso = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    meta["updated_at"] = now_iso
+    if updated_by_user_id:
+        meta["updated_by_user_id"] = int(updated_by_user_id)
+
+    if approved_by_user_id:
+        meta["approved_at"] = now_iso
+        meta["approved_by_user_id"] = int(approved_by_user_id)
+
+    cfg["approval_matrix_meta"] = meta
     _save_credit_settings(tenant, cfg)
 
 
@@ -2768,6 +3765,7 @@ def _credit_menu_key_for_endpoint(endpoint: str | None) -> str | None:
         "guarantors": "guarantors",
         "financials": "statements",
         "ratios": "ratios",
+        "risk_grading": "risk_grading",
         "memos": "memos",
         "memo_pdf": "memos",
         "memos_generate_from_template": "memos",
@@ -5972,6 +6970,152 @@ def ratios():
     )
 
 
+@bp.route("/risk-grading", methods=["GET", "POST"])
+@login_required
+def risk_grading():
+    _require_tenant()
+    _seed_credit_references()
+
+    borrowers = CreditBorrower.query.filter_by(tenant_id=g.tenant.id).order_by(CreditBorrower.name.asc()).all()
+    borrowers = [b for b in borrowers if _borrower_visible_for_user(g.tenant, current_user.id, b)]
+    borrower_ids = {int(b.id) for b in borrowers}
+    can_manage_country_reference = _can_manage_credit_backoffice()
+
+    selected_borrower_id = _to_int(request.form.get("borrower_id") if request.method == "POST" else request.args.get("borrower_id"))
+    if selected_borrower_id and selected_borrower_id not in borrower_ids:
+        selected_borrower_id = None
+        flash(_("Borrower invalide."), "warning")
+
+    selected_borrower = (
+        CreditBorrower.query.filter_by(id=selected_borrower_id, tenant_id=g.tenant.id).first()
+        if selected_borrower_id
+        else None
+    )
+    if selected_borrower and not _borrower_visible_for_user(g.tenant, current_user.id, selected_borrower):
+        selected_borrower = None
+
+    default_answers = {key: 3 for key, _label in _RISK_GRADING_QUALITATIVE_QUESTIONS}
+    qualitative_answers = dict(default_answers)
+    use_web_country_data = False
+    result: dict[str, object] | None = None
+
+    if request.method == "POST":
+        action = str(request.form.get("action") or "preview").strip().lower()
+
+        if action == "save_country_reference_scores":
+            redirect_kwargs: dict[str, object] = {}
+            if selected_borrower_id:
+                redirect_kwargs["borrower_id"] = selected_borrower_id
+
+            if not can_manage_country_reference:
+                flash(_("Backoffice role required to manage country reference scores."), "warning")
+                return redirect(url_for("credit.risk_grading", **redirect_kwargs))
+
+            payload: dict[str, float] = {}
+            invalid_iso2: list[str] = []
+            for raw_iso2 in request.form.getlist("country_score_codes"):
+                iso2 = str(raw_iso2 or "").strip().upper()
+                if len(iso2) != 2 or not iso2.isalpha():
+                    continue
+                value_raw = (request.form.get(f"country_score__{iso2}") or "").strip()
+                if not value_raw:
+                    continue
+                try:
+                    parsed = float(value_raw.replace(",", "."))
+                except Exception:
+                    invalid_iso2.append(iso2)
+                    continue
+                payload[iso2] = float(_clamp_float(parsed, 0.0, 100.0))
+
+            if invalid_iso2:
+                flash(
+                    _(
+                        "Invalid country score value for: {codes}",
+                        codes=", ".join(sorted(set(invalid_iso2))),
+                    ),
+                    "warning",
+                )
+            else:
+                _save_tenant_country_base_score_overrides(g.tenant, payload)
+                db.session.commit()
+                flash(_("Country reference scores updated for this tenant."), "success")
+
+            return redirect(url_for("credit.risk_grading", **redirect_kwargs))
+
+        use_web_country_data = str(request.form.get("use_web_country_data") or "").strip().lower() in {
+            "1",
+            "true",
+            "on",
+            "yes",
+        }
+        qualitative_answers = _qualitative_answers_from_form(request.form)
+
+        if not selected_borrower:
+            flash(_("Borrower is required for risk grading."), "warning")
+        else:
+            result = _risk_grading_result_for_borrower(
+                g.tenant.id,
+                selected_borrower,
+                use_web_country_data,
+                qualitative_answers,
+                g.tenant,
+            )
+
+            if action == "calculate":
+                rating_code = str(result.get("rating_code") or "")
+                metrics = result.get("metrics") if isinstance(result.get("metrics"), dict) else {}
+                statement = result.get("statement") if isinstance(result.get("statement"), CreditFinancialStatement) else None
+
+                snapshot = CreditRatioSnapshot(
+                    tenant_id=g.tenant.id,
+                    borrower_id=selected_borrower.id,
+                    statement_id=getattr(statement, "id", None),
+                    snapshot_date=date.today(),
+                    dscr=(Decimal(str(metrics.get("dscr"))) if metrics.get("dscr") is not None else None),
+                    leverage=(Decimal(str(metrics.get("leverage"))) if metrics.get("leverage") is not None else None),
+                    liquidity=(Decimal(str(metrics.get("liquidity"))) if metrics.get("liquidity") is not None else None),
+                    risk_grade=rating_code or None,
+                )
+                db.session.add(snapshot)
+
+                selected_borrower.internal_rating = rating_code or None
+                rating_row = CreditRating.query.filter_by(code=rating_code).first() if rating_code else None
+                if rating_row:
+                    selected_borrower.rating_id = rating_row.id
+
+                db.session.commit()
+                flash(_("Risk grading computed and saved."), "success")
+            else:
+                flash(_("Risk grading preview refreshed."), "info")
+
+    latest_snapshot = None
+    if selected_borrower:
+        latest_snapshot = (
+            CreditRatioSnapshot.query.filter_by(tenant_id=g.tenant.id, borrower_id=selected_borrower.id)
+            .order_by(CreditRatioSnapshot.snapshot_date.desc(), CreditRatioSnapshot.id.desc())
+            .first()
+        )
+
+    country_reference_rows = _risk_grading_country_reference_rows(g.tenant)
+    country_reference_override_count = len([row for row in country_reference_rows if row.get("tenant_score") is not None])
+
+    return render_template(
+        "credit/risk_grading.html",
+        tenant=g.tenant,
+        borrowers=borrowers,
+        selected_borrower_id=selected_borrower_id,
+        selected_borrower=selected_borrower,
+        use_web_country_data=use_web_country_data,
+        qualitative_questions=_RISK_GRADING_QUALITATIVE_QUESTIONS,
+        qualitative_answers=qualitative_answers,
+        result=result,
+        latest_snapshot=latest_snapshot,
+        can_manage_country_reference=can_manage_country_reference,
+        country_reference_rows=country_reference_rows,
+        country_reference_override_count=country_reference_override_count,
+    )
+
+
 @bp.route("/references")
 @login_required
 def references():
@@ -7184,6 +8328,11 @@ def approval_workflow():
 
     if request.method == "POST":
         action = (request.form.get("action") or "").strip()
+        if not action:
+            if request.form.get("quick_stage"):
+                action = "save_matrix_quick"
+            elif request.form.getlist("matrix_stage_codes"):
+                action = "save_matrix"
 
         workflow_id_for_redirect = _slugify_key(request.form.get("workflow_id") or "", "")
 
@@ -7215,7 +8364,7 @@ def approval_workflow():
             flash(_("Custom stage added."), "success")
             return _redirect_workflow()
 
-        if action == "save_matrix":
+        if action in {"save_matrix", "save_matrix_and_approve"}:
             stage_codes: list[str] = []
             for raw_code in request.form.getlist("matrix_stage_codes"):
                 code = _slugify_key(raw_code, "")
@@ -7247,8 +8396,105 @@ def approval_workflow():
                 }
 
             _save_credit_approval_matrix(g.tenant, stage_payload)
+            approve_now = action == "save_matrix_and_approve"
+            _save_credit_approval_matrix_meta(
+                g.tenant,
+                updated_by_user_id=getattr(current_user, "id", None),
+                approved_by_user_id=(getattr(current_user, "id", None) if approve_now else None),
+            )
+
+            if approve_now:
+                stats = _recalculate_pending_approvals_for_matrix(
+                    g.tenant.id,
+                    getattr(current_user, "id", None),
+                )
+                db.session.commit()
+                flash(
+                    _(
+                        "Approval matrix saved and approved. Pending approvals realigned (memos: {memos}, removed: {removed}, cancelled tasks: {tasks}, created: {created}).",
+                        memos=stats.get("memos", 0),
+                        removed=stats.get("pending_removed", 0),
+                        tasks=stats.get("tasks_cancelled", 0),
+                        created=stats.get("pending_created", 0),
+                    ),
+                    "success",
+                )
+                return _redirect_workflow()
+
             db.session.commit()
             flash(_("Approval matrix updated."), "success")
+            return _redirect_workflow()
+
+        if action in {"save_matrix_quick", "save_matrix_quick_approve"}:
+            quick_stage = _slugify_key(request.form.get("quick_stage") or "", "")
+            valid_stage_list = [code for code, _label in _approval_matrix_stage_options(g.tenant)]
+            valid_stage_codes = set(valid_stage_list)
+            if not quick_stage or quick_stage not in valid_stage_codes:
+                flash(_("Invalid stage selected for matrix."), "warning")
+                return _redirect_workflow()
+
+            min_amount_raw = (request.form.get("quick_min_amount") or "").strip()
+            parsed_amount = _parse_decimal_loose_optional(min_amount_raw)
+            if min_amount_raw and parsed_amount is None:
+                flash(
+                    _("Invalid amount value for: {field}", field=_display_approval_stage(quick_stage)),
+                    "warning",
+                )
+                return _redirect_workflow()
+
+            quick_grades = request.form.getlist("quick_risk_grades")
+            if not quick_grades:
+                quick_grades = request.form.getlist("quick_risk_grades[]")
+            if not quick_grades:
+                quick_grades = (request.form.get("quick_risk_grades") or "").strip()
+
+            matrix_form = _credit_approval_matrix_form(g.tenant)
+            current_by_stage = matrix_form.get("by_stage") if isinstance(matrix_form.get("by_stage"), dict) else {}
+            stage_payload: dict[str, dict[str, object]] = {}
+            for stage_code in valid_stage_list:
+                current = current_by_stage.get(stage_code) if isinstance(current_by_stage.get(stage_code), dict) else {}
+                stage_payload[stage_code] = {
+                    "min_amount": str(current.get("min_amount") or "").strip(),
+                    "risk_grades": current.get("risk_grades_list") or current.get("risk_grades_csv") or [],
+                }
+
+            stage_payload[quick_stage] = {
+                "min_amount": str(parsed_amount) if parsed_amount is not None else "",
+                "risk_grades": quick_grades,
+            }
+
+            _save_credit_approval_matrix(g.tenant, stage_payload)
+            approve_now = action == "save_matrix_quick_approve"
+            _save_credit_approval_matrix_meta(
+                g.tenant,
+                updated_by_user_id=getattr(current_user, "id", None),
+                approved_by_user_id=(getattr(current_user, "id", None) if approve_now else None),
+            )
+
+            if approve_now:
+                stats = _recalculate_pending_approvals_for_matrix(
+                    g.tenant.id,
+                    getattr(current_user, "id", None),
+                )
+                db.session.commit()
+                flash(
+                    _(
+                        "Matrix saved and approved for {stage}. Pending approvals realigned (memos: {memos}, removed: {removed}, cancelled tasks: {tasks}, created: {created}).",
+                        stage=_display_approval_stage(quick_stage),
+                        memos=stats.get("memos", 0),
+                        removed=stats.get("pending_removed", 0),
+                        tasks=stats.get("tasks_cancelled", 0),
+                        created=stats.get("pending_created", 0),
+                    ),
+                    "success",
+                )
+                return _redirect_workflow()
+
+            db.session.commit()
+            flash(
+                _("Matrix updated for {stage}.", stage=_display_approval_stage(quick_stage)),
+                "success",
+            )
             return _redirect_workflow()
 
         if action == "recalculate_pending_approvals":
@@ -7397,6 +8643,19 @@ def approval_workflow():
                 sla_days = _to_int(str(node.get("sla_days") or ""))
                 required_flag = bool(node.get("is_required", True))
 
+                try:
+                    pos_x_val = int(float(str(node.get("pos_x") or "").strip()))
+                except Exception:
+                    pos_x_val = None
+                try:
+                    pos_y_val = int(float(str(node.get("pos_y") or "").strip()))
+                except Exception:
+                    pos_y_val = None
+                if pos_x_val is not None and (pos_x_val < 0 or pos_x_val > 50000):
+                    pos_x_val = None
+                if pos_y_val is not None and (pos_y_val < 0 or pos_y_val > 50000):
+                    pos_y_val = None
+
                 cleaned_nodes.append(
                     {
                         "id": node_id,
@@ -7410,6 +8669,8 @@ def approval_workflow():
                         "sla_days": int(sla_days) if sla_days else None,
                         "is_required": required_flag,
                         "decision_rule": str(node.get("decision_rule") or "").strip(),
+                        "pos_x": pos_x_val,
+                        "pos_y": pos_y_val,
                     }
                 )
 
@@ -7731,6 +8992,16 @@ def approval_workflow():
         return redirect(url_for("credit.approval_workflow"))
 
     users = User.query.filter_by(tenant_id=g.tenant.id).order_by(User.email.asc()).all()
+    user_label_by_id = {
+        int(getattr(user, "id")): str(
+            getattr(user, "email", None)
+            or getattr(user, "full_name", None)
+            or getattr(user, "name", None)
+            or f"#{getattr(user, 'id')}"
+        ).strip()
+        for user in users
+        if getattr(user, "id", None)
+    }
     groups = CreditAnalystGroup.query.filter_by(tenant_id=g.tenant.id).order_by(CreditAnalystGroup.name.asc()).all()
     functions = CreditAnalystFunction.query.filter_by(tenant_id=g.tenant.id).order_by(CreditAnalystFunction.label.asc()).all()
     function_options = [{"value": "", "label": _("None")}]
@@ -7844,6 +9115,7 @@ def approval_workflow():
             )
 
     approval_matrix_form = _credit_approval_matrix_form(g.tenant)
+    approval_matrix_meta = _credit_approval_matrix_meta(g.tenant, user_label_by_id)
     matrix_stage_options = _approval_matrix_stage_options(
         g.tenant,
         {
@@ -7865,6 +9137,7 @@ def approval_workflow():
         steps=steps,
         stage_options=_approval_stage_options(),
         approval_matrix=approval_matrix_form,
+        approval_matrix_meta=approval_matrix_meta,
         matrix_stage_options=matrix_stage_options,
         matrix_grade_options=_approval_matrix_grade_options(g.tenant, approval_matrix_form),
         workflow_catalog=catalog,
@@ -7875,6 +9148,8 @@ def approval_workflow():
         selected_workflow_steps=selected_workflow_steps,
         workflow_stage_options=workflow_stage_options,
         approval_step_templates=approval_step_templates,
+        workflow_decision_function_docs=_workflow_decision_function_docs(),
+        workflow_decision_expression_fields=_workflow_decision_expression_field_catalog(),
         workflow_by_id=workflow_by_id,
         workflow_label_fn=_workflow_label,
     )

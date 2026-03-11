@@ -175,7 +175,7 @@
               ) }}
 
               {% if module_access.bi %}
-              <a href="{{ url_for('portal.home') }}" class="btn btn-info w-100">
+              <a href="{{ url_for('portal.home', app_mode='bi') }}" class="btn btn-info w-100">
                 <i class="bi bi-box-arrow-up-right"></i> {{ _(bi.tenant_access_label) }}
               </a>
               {% else %}

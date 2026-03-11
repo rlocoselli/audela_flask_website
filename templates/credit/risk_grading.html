@@ -1,0 +1,210 @@
+{% extends "credit/page_base.html" %}
+{% set title = _('Audela Credit Risk Grading') %}
+{% set active_page = 'risk_grading' %}
+
+{% block credit_page_content %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary">{{ _('Risk grading engine') }}</div>
+  <div class="card-body">
+    <form method="post" class="row g-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="col-12 col-lg-5">
+        <label class="form-label">{{ _('Borrower') }}</label>
+        <select class="form-select" name="borrower_id" required>
+          <option value="">{{ _('Select borrower') }}</option>
+          {% for b in borrowers %}
+          <option value="{{ b.id }}" {% if selected_borrower_id == b.id %}selected{% endif %}>{{ b.name }}</option>
+          {% endfor %}
+        </select>
+        <div class="form-text">{{ _('Quantitative score uses latest spreading statement or latest ratio snapshot.') }}</div>
+      </div>
+
+      <div class="col-12 col-lg-4">
+        <label class="form-label">{{ _('Country risk enrichment') }}</label>
+        <div class="form-check form-switch mt-1">
+          <input class="form-check-input" type="checkbox" role="switch" id="useWebCountryData" name="use_web_country_data" {% if use_web_country_data %}checked{% endif %}>
+          <label class="form-check-label" for="useWebCountryData">{{ _('Use web macro data (World Bank API)') }}</label>
+        </div>
+        <div class="form-text">{{ _('If enabled, country score uses latest GDP growth, inflation and GDP per capita from web.') }}</div>
+      </div>
+
+      <div class="col-12 col-lg-3">
+        <label class="form-label d-block">{{ _('Action') }}</label>
+        <button class="btn btn-outline-primary w-100 mb-2" type="submit" name="action" value="preview">{{ _('Preview score') }}</button>
+        <button class="btn btn-primary w-100" type="submit" name="action" value="calculate">{{ _('Calculate and save rating') }}</button>
+      </div>
+
+      <div class="col-12">
+        <div class="border rounded-3 p-3 bg-body-tertiary">
+          <div class="fw-semibold mb-2">{{ _('Qualitative questionnaire (1 weak to 5 strong)') }}</div>
+          <div class="row g-2">
+            {% for q_key, q_label in qualitative_questions %}
+            <div class="col-12 col-md-6 col-xl-4">
+              <label class="form-label small">{{ _(q_label) }}</label>
+              <select class="form-select form-select-sm" name="qual_{{ q_key }}">
+                {% for score in [1, 2, 3, 4, 5] %}
+                <option value="{{ score }}" {% if qualitative_answers.get(q_key) == score %}selected{% endif %}>{{ score }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span>{{ _('Country local reference scores (tenant)') }}</span>
+    <span class="badge text-bg-light border">{{ _('Overrides') }}: {{ country_reference_override_count or 0 }}</span>
+  </div>
+  <div class="card-body">
+    {% if can_manage_country_reference %}
+    <form method="post" class="row g-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="save_country_reference_scores">
+      {% if selected_borrower_id %}<input type="hidden" name="borrower_id" value="{{ selected_borrower_id }}">{% endif %}
+      <div class="col-12 small text-secondary mb-1">
+        {{ _('Set a score between 0 and 100. Leave empty to use default global reference.') }}
+      </div>
+      <div class="col-12">
+        <div class="table-responsive" style="max-height: 22rem;">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th style="width: 8rem;">{{ _('ISO2') }}</th>
+                <th>{{ _('Country') }}</th>
+                <th style="width: 8rem;">{{ _('Default') }}</th>
+                <th style="width: 9rem;">{{ _('Tenant override') }}</th>
+                <th style="width: 8rem;">{{ _('Effective') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in country_reference_rows %}
+              <tr>
+                <td>
+                  <code>{{ row.iso2 }}</code>
+                  <input type="hidden" name="country_score_codes" value="{{ row.iso2 }}">
+                </td>
+                <td>{{ row.country_label }}</td>
+                <td>{{ '%.1f'|format(row.default_score) if row.default_score is not none else '-' }}</td>
+                <td>
+                  <input
+                    class="form-control form-control-sm"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="100"
+                    name="country_score__{{ row.iso2 }}"
+                    value="{{ '%.1f'|format(row.tenant_score) if row.tenant_score is not none else '' }}"
+                    placeholder="{{ _('default') }}"
+                  >
+                </td>
+                <td class="fw-semibold">{{ '%.1f'|format(row.effective_score or 0) }}</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="5" class="text-secondary">{{ _('No country references available.') }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="col-12">
+        <button class="btn btn-primary" type="submit">{{ _('Save country reference scores') }}</button>
+      </div>
+    </form>
+    {% else %}
+    <div class="alert alert-info py-2 mb-0">
+      {{ _('Only tenant admin or credit admin can edit local country reference scores.') }}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% if selected_borrower %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary">{{ _('Borrower context') }}</div>
+  <div class="card-body">
+    <div class="row g-2 small">
+      <div class="col-12 col-md-4"><strong>{{ _('Borrower') }}:</strong> {{ selected_borrower.name }}</div>
+      <div class="col-12 col-md-4"><strong>{{ _('Country') }}:</strong> {{ (selected_borrower.country_ref.display_name(g.lang) if selected_borrower.country_ref else (selected_borrower.country or '-')) }}</div>
+      <div class="col-12 col-md-4"><strong>{{ _('Current internal rating') }}:</strong> {{ selected_borrower.internal_rating or '-' }}</div>
+      {% if latest_snapshot %}
+      <div class="col-12"><strong>{{ _('Latest snapshot') }}:</strong> {{ latest_snapshot.snapshot_date }} | DSCR {{ latest_snapshot.dscr or '-' }} | Leverage {{ latest_snapshot.leverage or '-' }} | Liquidity {{ latest_snapshot.liquidity or '-' }} | {{ _('Risk grade') }} {{ latest_snapshot.risk_grade or '-' }}</div>
+      {% else %}
+      <div class="col-12 text-secondary">{{ _('No historical ratio snapshot for this borrower yet.') }}</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if result %}
+{% set metrics = result.get('metrics', {}) %}
+{% set component = result.get('component_scores', {}) %}
+{% set country = result.get('country', {}) %}
+{% set country_web = country.get('web', {}) if country else {} %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary">{{ _('Risk grading result') }}</div>
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-12 col-md-3">
+        <div class="border rounded-3 p-3 h-100">
+          <div class="text-secondary small">{{ _('Overall score') }}</div>
+          <div class="fs-4 fw-bold">{{ '%.1f'|format(result.get('overall_score', 0) or 0) }}</div>
+          <div class="small">{{ _('Final rating') }}: <span class="fw-semibold">{{ result.get('rating_code') or '-' }}</span></div>
+        </div>
+      </div>
+      <div class="col-12 col-md-3">
+        <div class="border rounded-3 p-3 h-100">
+          <div class="text-secondary small">{{ _('Quantitative score') }}</div>
+          <div class="fs-5 fw-semibold">{{ '%.1f'|format(component.get('quantitative', 0) or 0) }}</div>
+          <div class="small">DSCR {{ '%.2f'|format(metrics.get('dscr')) if metrics.get('dscr') is not none else '-' }}</div>
+          <div class="small">Leverage {{ '%.2f'|format(metrics.get('leverage')) if metrics.get('leverage') is not none else '-' }}</div>
+          <div class="small">Liquidity {{ '%.2f'|format(metrics.get('liquidity')) if metrics.get('liquidity') is not none else '-' }}</div>
+        </div>
+      </div>
+      <div class="col-12 col-md-3">
+        <div class="border rounded-3 p-3 h-100">
+          <div class="text-secondary small">{{ _('Country score') }}</div>
+          <div class="fs-5 fw-semibold">{{ '%.1f'|format(component.get('country', 0) or 0) }}</div>
+          <div class="small">{{ _('Source') }}:
+            {% if country.get('source') == 'local_reference' %}
+              {{ _('Local tenant reference') }}
+            {% elif country.get('source') == 'web' %}
+              {{ _('Web enrichment') }}
+            {% else %}
+              {{ country.get('source') or '-' }}
+            {% endif %}
+          </div>
+          {% if country_web and country_web.get('available') %}
+          <div class="small">{{ _('Web country grade') }}: {{ country_web.get('grade') or '-' }}</div>
+          {% elif country_web and country_web.get('error') %}
+          <div class="small text-warning">{{ country_web.get('error') }}</div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="col-12 col-md-3">
+        <div class="border rounded-3 p-3 h-100">
+          <div class="text-secondary small">{{ _('Qualitative score') }}</div>
+          <div class="fs-5 fw-semibold">{{ '%.1f'|format(component.get('qualitative', 0) or 0) }}</div>
+          <div class="small">{{ _('Questionnaire integrated in final rating.') }}</div>
+        </div>
+      </div>
+    </div>
+
+    {% if country_web and country_web.get('available') %}
+    {% set wm = country_web.get('metrics', {}) %}
+    <div class="mt-3 border rounded-3 p-3 bg-body-tertiary small">
+      <div class="fw-semibold mb-1">{{ _('Web macro indicators used') }}</div>
+      <div>{{ _('GDP growth') }}: {{ ('%.2f'|format(wm.get('gdp_growth')) ~ '%') if wm.get('gdp_growth') is not none else '-' }} ({{ wm.get('gdp_growth_year') or '-' }})</div>
+      <div>{{ _('Inflation') }}: {{ ('%.2f'|format(wm.get('inflation')) ~ '%') if wm.get('inflation') is not none else '-' }} ({{ wm.get('inflation_year') or '-' }})</div>
+      <div>{{ _('GDP per capita') }}: {{ ('%.0f'|format(wm.get('gdp_per_capita'))) if wm.get('gdp_per_capita') is not none else '-' }} ({{ wm.get('gdp_per_capita_year') or '-' }})</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

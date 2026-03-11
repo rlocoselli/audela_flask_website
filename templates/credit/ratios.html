@@ -149,9 +149,9 @@
   <div class="card-body">
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
       <div class="btn-group btn-group-sm" role="group" aria-label="ratio-series-toggles">
-        <button class="btn btn-outline-primary active" type="button" data-series-toggle="dscr">DSCR</button>
-        <button class="btn btn-outline-success active" type="button" data-series-toggle="leverage">Leverage</button>
-        <button class="btn btn-outline-warning active" type="button" data-series-toggle="liquidity">Liquidity</button>
+        <button class="btn btn-outline-primary active" type="button" data-series-toggle="dscr">{{ _('DSCR') }}</button>
+        <button class="btn btn-outline-success active" type="button" data-series-toggle="leverage">{{ _('Leverage') }}</button>
+        <button class="btn btn-outline-warning active" type="button" data-series-toggle="liquidity">{{ _('Liquidity') }}</button>
       </div>
       <div class="d-flex align-items-center gap-2">
         <span id="ratioHoverInfo" class="small text-secondary">{{ _('Hover graph for details.') }}</span>
@@ -226,7 +226,7 @@
         <div class="row g-3">
           <div class="col-12 col-md-6">
             <div class="ratio-help-card" data-help-card="1">
-              <h6 class="fw-semibold text-primary mb-2">DSCR</h6>
+              <h6 class="fw-semibold text-primary mb-2">{{ _('DSCR') }}</h6>
               <p class="mb-2 small">{{ _('Debt Service Coverage Ratio: ability to cover debt payments from operating cash generation.') }}</p>
               <p class="mb-2 small"><strong>{{ _('Formula') }}:</strong> {{ _('EBITDA / Total Debt') }}</p>
               <div class="ratio-help-scale">
@@ -238,7 +238,7 @@
           </div>
           <div class="col-12 col-md-6">
             <div class="ratio-help-card" data-help-card="1">
-              <h6 class="fw-semibold text-success mb-2">Leverage</h6>
+              <h6 class="fw-semibold text-success mb-2">{{ _('Leverage') }}</h6>
               <p class="mb-2 small">{{ _('Debt burden relative to operating profitability.') }}</p>
               <p class="mb-2 small"><strong>{{ _('Formula') }}:</strong> {{ _('Total Debt / EBITDA') }}</p>
               <div class="ratio-help-scale">
@@ -250,7 +250,7 @@
           </div>
           <div class="col-12 col-md-6">
             <div class="ratio-help-card" data-help-card="1">
-              <h6 class="fw-semibold text-warning mb-2">Liquidity</h6>
+              <h6 class="fw-semibold text-warning mb-2">{{ _('Liquidity') }}</h6>
               <p class="mb-2 small">{{ _('Immediate liquidity buffer against debt exposure.') }}</p>
               <p class="mb-2 small"><strong>{{ _('Formula') }}:</strong> {{ _('Cash / Total Debt') }}</p>
               <div class="ratio-help-scale">

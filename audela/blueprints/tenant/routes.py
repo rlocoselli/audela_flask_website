@@ -69,6 +69,7 @@ UAM_MENU_KEYS: dict[str, list[str]] = {
         "guarantors",
         "statements",
         "ratios",
+        "risk_grading",
         "memos",
         "approvals",
         "backlog",
@@ -151,6 +152,7 @@ UAM_MENU_LABELS: dict[str, dict[str, str]] = {
         "guarantors": "Guarantors",
         "statements": "Financial Statements",
         "ratios": "Ratio Snapshot",
+        "risk_grading": "Risk Grading",
         "memos": "Credit Memos",
         "approvals": "Approvals",
         "backlog": "Backlog",
@@ -453,7 +455,7 @@ def _handle_signup():
         db.session.commit()
         
         flash(
-            tr("Conta criada! Verifique seu email para ativar.", getattr(g, "lang", None)),
+            tr("Account created! Check your email to activate.", getattr(g, "lang", None)),
             "success"
         )
         return redirect(url_for("tenant.login"))
@@ -461,7 +463,7 @@ def _handle_signup():
     except Exception as e:
         current_app.logger.error(f"Signup error: {e}")
         db.session.rollback()
-        flash(tr("Erro ao criar conta. Tente novamente.", getattr(g, "lang", None)), "error")
+        flash(tr("Error creating account. Please try again.", getattr(g, "lang", None)), "error")
         return render_template("tenant/login.html")
 
 
@@ -479,6 +481,30 @@ def dashboard():
     
     # Get users
     users = TenantService.list_users(current_user.tenant_id)
+
+    role_label_keys = {
+        "tenant_admin": "Tenant admin",
+        "admin": "Admin",
+        "manager": "Manager",
+        "user": "User",
+        "viewer": "Viewer",
+        "credit_admin": "Credit admin",
+        "credit_analyst": "Credit analyst",
+        "credit_approver": "Credit approver",
+        "credit_viewer": "Credit viewer",
+    }
+
+    def _role_label(code: str) -> str:
+        token = str(code or "").strip().lower()
+        if token in role_label_keys:
+            return tr(role_label_keys[token], getattr(g, "lang", None))
+        return str(code or "").replace("_", " ").strip().title()
+
+    for user_row in users:
+        if not isinstance(user_row, dict):
+            continue
+        raw_roles = user_row.get("roles") if isinstance(user_row.get("roles"), list) else []
+        user_row["role_labels"] = [_role_label(str(code)) for code in raw_roles if str(code or "").strip()]
     
     # Check permissions
     is_admin = current_user.has_role("tenant_admin")

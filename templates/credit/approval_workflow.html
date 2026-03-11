@@ -173,11 +173,53 @@
       </div>
 
       <div class="col-12">
+        <div class="border rounded-3 bg-body-tertiary p-2">
+          <div class="fw-semibold small mb-1">{{ _('Decision function catalog') }}</div>
+          <div class="small text-secondary mb-2">
+            {{ _('Decision function keys are fixed in code and must stay in English.') }}
+          </div>
+          <div class="alert alert-light border py-2 small mb-2">
+            <div><strong>{{ _('Routing behavior') }}:</strong> <code>True</code> => <code>if_required</code>, <code>False</code> => <code>if_not_required</code>.</div>
+            <div>{{ _('Example') }}: <code>fn:require_risk_manager?true=if_required&amp;false=if_not_required</code>.</div>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm mb-0 align-middle">
+              <thead>
+                <tr>
+                  <th style="width: 15%;">{{ _('Function key') }}</th>
+                  <th style="width: 32%;">{{ _('Behavior') }}</th>
+                  <th style="width: 14%;">{{ _('Return type') }}</th>
+                  <th style="width: 19%;">{{ _('Example output') }}</th>
+                  <th style="width: 20%;">{{ _('Decision rule example') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in workflow_decision_function_docs %}
+                <tr>
+                  <td><code>{{ item.key }}</code></td>
+                  <td>{{ item.behavior or item.description }}</td>
+                  <td><code>{{ item.returns }}</code></td>
+                  <td class="small">{{ item.example_output }}</td>
+                  <td><code>{{ item.example }}</code></td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-12">
         <div class="d-flex flex-wrap gap-2 mb-2">
           <button class="btn btn-outline-primary btn-sm" type="button" id="addTaskNode">{{ _('Add task node') }}</button>
           <button class="btn btn-outline-secondary btn-sm" type="button" id="addDecisionNode">{{ _('Add decision node') }}</button>
+          <button class="btn btn-outline-dark btn-sm" type="button" id="autoArrangeDiagram">{{ _('Auto arrange') }}</button>
           <button class="btn btn-outline-success btn-sm" type="button" id="includeApprovalSteps">{{ _('Include approval steps') }}</button>
-          <span class="small text-secondary align-self-center">{{ _('Drag cards to reorder. Decision nodes are visual gates for BPM-style design.') }}</span>
+          <div class="form-check form-switch align-self-center ms-1">
+            <input class="form-check-input" type="checkbox" role="switch" id="diagramSnapGrid">
+            <label class="form-check-label small" for="diagramSnapGrid">{{ _('Snap to grid') }}</label>
+          </div>
+          <span class="small text-secondary align-self-center">{{ _('Drag cards to reorder, or drag nodes directly in the BPM preview to organize layout.') }}</span>
         </div>
         <div class="border rounded-3 bg-body-tertiary p-2 mb-3" id="workflowDiagramBox">
           <div class="small fw-semibold mb-2">{{ _('BPM diagram preview') }}</div>
@@ -204,46 +246,65 @@
             <input type="hidden" id="nodeEditorId">
             <div class="row g-2">
               <div class="col-md-3">
-                <label class="form-label small">Type</label>
+                <label class="form-label small">{{ _('Type') }}</label>
                 <select class="form-select form-select-sm" id="nodeEditorType">
-                  <option value="task">Task</option>
-                  <option value="decision">Decision</option>
+                  <option value="task">{{ _('Task') }}</option>
+                  <option value="decision">{{ _('Decision') }}</option>
                 </select>
               </div>
               <div class="col-md-5">
-                <label class="form-label small">Label FR</label>
+                <label class="form-label small">{{ _('Label FR') }}</label>
                 <input class="form-control form-control-sm" id="nodeEditorLabelFr">
               </div>
               <div class="col-md-4">
-                <label class="form-label small">Label EN</label>
+                <label class="form-label small">{{ _('Label EN') }}</label>
                 <input class="form-control form-control-sm" id="nodeEditorLabelEn">
               </div>
               <div class="col-md-4">
-                <label class="form-label small">Stage</label>
+                <label class="form-label small">{{ _('Stage') }}</label>
                 <select class="form-select form-select-sm" id="nodeEditorStage"></select>
               </div>
               <div class="col-md-2">
-                <label class="form-label small">SLA</label>
+                <label class="form-label small">{{ _('SLA') }}</label>
                 <input type="number" min="1" class="form-control form-control-sm" id="nodeEditorSla">
               </div>
               <div class="col-md-3">
-                <label class="form-label small">Group</label>
+                <label class="form-label small">{{ _('Group') }}</label>
                 <select class="form-select form-select-sm" id="nodeEditorGroup"></select>
               </div>
               <div class="col-md-3">
-                <label class="form-label small">Function</label>
+                <label class="form-label small">{{ _('Function') }}</label>
                 <select class="form-select form-select-sm" id="nodeEditorFunction"></select>
               </div>
               <div class="col-md-2 d-flex align-items-end">
                 <div class="form-check">
                   <input class="form-check-input" type="checkbox" id="nodeEditorRequired">
-                  <label class="form-check-label small" for="nodeEditorRequired">Required</label>
+                  <label class="form-check-label small" for="nodeEditorRequired">{{ _('Required') }}</label>
                 </div>
               </div>
               <div class="col-12">
-                <label class="form-label small">Decision rule</label>
-                <input class="form-control form-control-sm" id="nodeEditorDecisionRule" placeholder="fn:require_risk_manager">
-                <div class="form-text small">Use <code>fn:&lt;function_name&gt;</code> to route edges by function (example: <code>fn:require_risk_manager</code>).</div>
+                <label class="form-label small">{{ _('Decision rule') }}</label>
+                <div class="input-group input-group-sm">
+                  <input class="form-control" id="nodeEditorDecisionRule" placeholder="fn:require_risk_manager">
+                  <button type="button" class="btn btn-outline-secondary" id="openDecisionRuleBuilder">{{ _('Rule builder') }}</button>
+                </div>
+                <div class="form-text small">
+                  {{ _('Use fn:<function_name> (example: fn:require_risk_manager). Optional mapping:') }}
+                  <code>fn:require_risk_manager?true=if_required&amp;false=if_not_required</code>.
+                  {{ _('You can also route directly to a node/stage id:') }}
+                  <code>fn:require_risk_manager?true=risk_manager&amp;false=credit_committee</code>.
+                  {{ _('Expression mode example:') }}
+                  <code>fn:expression?expr=Borrower.sum_deals&gt;10000&amp;true=if_required&amp;false=if_not_required</code>.
+                  {{ _('Decision node outgoing edges should use labels like if_required and if_not_required (or if_escalated).') }}
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small">{{ _('True path target') }}</label>
+                <select class="form-select form-select-sm" id="nodeEditorTrueTarget"></select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small">{{ _('False path target') }}</label>
+                <select class="form-select form-select-sm" id="nodeEditorFalseTarget"></select>
               </div>
             </div>
           </div>
@@ -253,6 +314,88 @@
               <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ _('Cancel') }}</button>
               <button type="button" class="btn btn-primary" id="nodeEditorSave">{{ _('Apply') }}</button>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade" id="decisionRuleBuilderModal" tabindex="-1" aria-labelledby="decisionRuleBuilderModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="decisionRuleBuilderModalLabel">{{ _('Decision rule builder') }}</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="alert alert-light border small mb-3" id="decisionRuleBuilderHint">
+              {{ _('Build a boolean expression, then map True / False to your branch labels.') }}
+            </div>
+
+            <div class="row g-2 mb-2">
+              <div class="col-md-6">
+                <label class="form-label small">{{ _('Insert field token') }}</label>
+                <div class="input-group input-group-sm">
+                  <input class="form-control" id="decisionRuleQuickField" list="decisionRuleFieldTokens" placeholder="Borrower.sum_deals">
+                  <button type="button" class="btn btn-outline-secondary" id="decisionRuleInsertField">{{ _('Insert') }}</button>
+                </div>
+                <datalist id="decisionRuleFieldTokens">
+                  {% for field in workflow_decision_expression_fields %}
+                  <option value="{{ field.token }}">{{ field.label }}</option>
+                  {% endfor %}
+                </datalist>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small">{{ _('True label') }}</label>
+                <select class="form-select form-select-sm" id="decisionRuleTrueLabel">
+                  <option value="if_required">if_required</option>
+                  <option value="required">required</option>
+                  <option value="if_escalated">if_escalated</option>
+                  <option value="next">next</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small">{{ _('False label') }}</label>
+                <select class="form-select form-select-sm" id="decisionRuleFalseLabel">
+                  <option value="if_not_required">if_not_required</option>
+                  <option value="if_skipped">if_skipped</option>
+                  <option value="if_escalated">if_escalated</option>
+                  <option value="next">next</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label small">{{ _('Expression') }}</label>
+              <textarea class="form-control form-control-sm" id="decisionRuleExpression" rows="4" placeholder="Borrower.sum_deals > 10000 and RiskGrade in ['BB','B','CCC']"></textarea>
+              <div class="form-text small">
+                {{ _('Supported operators: and, or, not, >, >=, <, <=, ==, !=, in, not in, +, -, *, /, %, ** and ternary a if cond else b.') }}
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th style="width: 28%;">{{ _('Field') }}</th>
+                    <th style="width: 52%;">{{ _('Description') }}</th>
+                    <th style="width: 20%;">{{ _('Action') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for field in workflow_decision_expression_fields %}
+                  <tr>
+                    <td><code>{{ field.token }}</code></td>
+                    <td class="small">{{ field.description }}</td>
+                    <td><button type="button" class="btn btn-outline-primary btn-sm" data-insert-field="{{ field.token }}">{{ _('Insert') }}</button></td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="modal-footer d-flex justify-content-between">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ _('Cancel') }}</button>
+            <button type="button" class="btn btn-primary" id="decisionRuleApply">{{ _('Use this rule') }}</button>
           </div>
         </div>
       </div>
@@ -539,6 +682,57 @@
 <div class="card border-0 shadow-sm mb-3">
   <div class="card-header bg-body-tertiary">{{ _('Approval matrix by amount and risk') }}</div>
   <div class="card-body">
+    <div class="border rounded-3 p-3 mb-3 bg-body-tertiary">
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+        <div class="fw-semibold">{{ _('Quick matrix update and approval') }}</div>
+        <span class="badge text-bg-info">{{ _('Recommended') }}</span>
+      </div>
+      {% set quick_default_stage = matrix_stage_options[0][0] if matrix_stage_options else '' %}
+      {% set quick_default_data = approval_matrix.by_stage.get(quick_default_stage, {}) if quick_default_stage else {} %}
+      <form method="post" class="row g-2 align-items-end" id="quickMatrixForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="workflow_id" value="{{ active_workflow_id }}">
+        <div class="col-md-3">
+          <label class="form-label">{{ _('Stage') }}</label>
+          <select class="form-select" id="quickMatrixStage" name="quick_stage">
+            {% for stage_code, stage_label in matrix_stage_options %}
+            {% set stage_data = approval_matrix.by_stage.get(stage_code, {}) %}
+            <option
+              value="{{ stage_code }}"
+              data-min="{{ stage_data.get('min_amount', '') }}"
+              data-grades="{{ stage_data.get('risk_grades_list', [])|join(',') }}"
+              {% if stage_code == quick_default_stage %}selected{% endif %}
+            >{{ stage_label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">{{ _('Minimum amount') }}</label>
+          <input class="form-control" id="quickMatrixMinAmount" name="quick_min_amount" value="{{ quick_default_data.get('min_amount', '') }}" placeholder="0">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">{{ _('Risk grades') }}</label>
+          {% set quick_selected_grades = quick_default_data.get('risk_grades_list', []) %}
+          <select class="form-select" id="quickMatrixRiskGrades" name="quick_risk_grades" multiple size="4">
+            {% for grade in matrix_grade_options %}
+            <option value="{{ grade }}" {% if grade in quick_selected_grades %}selected{% endif %}>{{ grade }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2 d-grid gap-2">
+          <button class="btn btn-primary" type="submit" name="action" value="save_matrix_quick">{{ _('Save draft') }}</button>
+          <button class="btn btn-success" type="submit" name="action" value="save_matrix_quick_approve" onclick="return confirm('{{ _('Save and approve matrix for this stage?') }}');">{{ _('Save + approve') }}</button>
+        </div>
+        <div class="col-12 form-text">{{ _('Use this quick form for day-to-day updates. Use the full editor below for bulk stage changes.') }}</div>
+      </form>
+    </div>
+
+    <div class="small text-secondary mb-3">
+      <span><strong>{{ _('Last update') }}:</strong> {{ approval_matrix_meta.updated_at or '-' }}{% if approval_matrix_meta.updated_by %} ({{ approval_matrix_meta.updated_by }}){% endif %}</span>
+      <span class="mx-2">|</span>
+      <span><strong>{{ _('Last approval') }}:</strong> {{ approval_matrix_meta.approved_at or '-' }}{% if approval_matrix_meta.approved_by %} ({{ approval_matrix_meta.approved_by }}){% endif %}</span>
+    </div>
+
     <div class="alert alert-info py-2 small" role="alert">
       <div><strong>{{ _('How this matrix works') }}:</strong></div>
       <div>1. {{ _('For each stage, you can define an amount threshold and/or risk grades.') }}</div>
@@ -550,7 +744,6 @@
     </div>
     <form method="post" class="row g-2 align-items-end" id="approvalMatrixForm">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="action" value="save_matrix">
       <input type="hidden" name="workflow_id" value="{{ active_workflow_id }}">
       <div class="col-md-4">
         <label class="form-label">{{ _('Stage') }}</label>
@@ -586,8 +779,9 @@
 
       <div class="col-12 form-text">{{ _('Leave fields empty to keep this stage always required.') }}</div>
       <div class="col-12 form-text">{{ _('Use Ctrl/Cmd to select multiple grades in the dropdown list.') }}</div>
-      <div class="col-12">
-        <button class="btn btn-primary" type="submit">{{ _('Save matrix') }}</button>
+      <div class="col-12 d-flex flex-wrap gap-2">
+        <button class="btn btn-primary" type="submit" name="action" value="save_matrix">{{ _('Save matrix') }}</button>
+        <button class="btn btn-outline-success" type="submit" name="action" value="save_matrix_and_approve" onclick="return confirm('{{ _('Save and approve full matrix now?') }}');">{{ _('Save + approve full matrix') }}</button>
       </div>
     </form>
 
@@ -878,6 +1072,33 @@
   })();
 </script>
 
+<script>
+  (() => {
+    const stageSelect = document.getElementById('quickMatrixStage');
+    const amountInput = document.getElementById('quickMatrixMinAmount');
+    const gradesSelect = document.getElementById('quickMatrixRiskGrades');
+    if (!stageSelect || !amountInput || !gradesSelect) return;
+
+    const applyStageDefaults = () => {
+      const opt = stageSelect.options[stageSelect.selectedIndex];
+      if (!opt) return;
+
+      amountInput.value = opt.dataset.min || '';
+      const gradeTokens = String(opt.dataset.grades || '')
+        .split(',')
+        .map((token) => token.trim().toUpperCase())
+        .filter(Boolean);
+      const selected = new Set(gradeTokens);
+
+      Array.from(gradesSelect.options).forEach((gradeOpt) => {
+        gradeOpt.selected = selected.has(String(gradeOpt.value || '').trim().toUpperCase());
+      });
+    };
+
+    stageSelect.addEventListener('change', applyStageDefaults);
+  })();
+</script>
+
 {% if selected_workflow %}
 <script>
   (() => {
@@ -885,6 +1106,8 @@
     const diagram = document.getElementById('workflowDiagram');
     const addTaskBtn = document.getElementById('addTaskNode');
     const addDecisionBtn = document.getElementById('addDecisionNode');
+    const autoArrangeBtn = document.getElementById('autoArrangeDiagram');
+    const snapGridToggleEl = document.getElementById('diagramSnapGrid');
     const includeApprovalStepsBtn = document.getElementById('includeApprovalSteps');
     const form = document.getElementById('visualWorkflowForm');
     const payloadInput = document.getElementById('designerPayload');
@@ -899,8 +1122,19 @@
     const nodeEditorFunctionEl = document.getElementById('nodeEditorFunction');
     const nodeEditorRequiredEl = document.getElementById('nodeEditorRequired');
     const nodeEditorDecisionRuleEl = document.getElementById('nodeEditorDecisionRule');
+    const openDecisionRuleBuilderBtn = document.getElementById('openDecisionRuleBuilder');
+    const nodeEditorTrueTargetEl = document.getElementById('nodeEditorTrueTarget');
+    const nodeEditorFalseTargetEl = document.getElementById('nodeEditorFalseTarget');
     const nodeEditorSaveBtn = document.getElementById('nodeEditorSave');
     const nodeEditorDeleteBtn = document.getElementById('nodeEditorDelete');
+    const decisionRuleBuilderModalEl = document.getElementById('decisionRuleBuilderModal');
+    const decisionRuleBuilderHintEl = document.getElementById('decisionRuleBuilderHint');
+    const decisionRuleQuickFieldEl = document.getElementById('decisionRuleQuickField');
+    const decisionRuleInsertFieldBtn = document.getElementById('decisionRuleInsertField');
+    const decisionRuleExpressionEl = document.getElementById('decisionRuleExpression');
+    const decisionRuleTrueLabelEl = document.getElementById('decisionRuleTrueLabel');
+    const decisionRuleFalseLabelEl = document.getElementById('decisionRuleFalseLabel');
+    const decisionRuleApplyBtn = document.getElementById('decisionRuleApply');
     const designerFeedbackEl = document.getElementById('workflowDesignerFeedback');
     if (!canvas || !form || !payloadInput) return;
 
@@ -908,8 +1142,15 @@
     const groupOptions = {{ group_options|tojson }};
     const workflowStageOptions = {{ workflow_stage_options|tojson }};
     const approvalStepTemplates = {{ approval_step_templates|tojson }};
+    const noneLabel = {{ _('None')|tojson }};
+    const decisionNotSetLabel = {{ _('Decision rule not set')|tojson }};
+    const requiredBranchLabels = new Set(['if_required', 'required', 'yes', 'true']);
+    const falseBranchLabels = new Set(['if_not_required', 'if_skipped', 'if_escalated', 'escalated', 'skip', 'no', 'false', 'else']);
     const nodeEditorModal = (window.bootstrap && window.bootstrap.Modal && nodeEditorModalEl)
       ? new bootstrap.Modal(nodeEditorModalEl)
+      : null;
+    const decisionRuleBuilderModal = (window.bootstrap && window.bootstrap.Modal && decisionRuleBuilderModalEl)
+      ? new bootstrap.Modal(decisionRuleBuilderModalEl)
       : null;
     let fallbackBackdropEl = null;
 
@@ -917,6 +1158,12 @@
     let edges = {{ (selected_workflow.edges or [])|tojson }};
     let dragId = null;
     let selectedNodeId = null;
+    let diagramDrag = null;
+    let suppressNodeClickUntil = 0;
+    let currentDiagramSvgRoot = null;
+    const snapGridStorageKey = 'credit.approval_workflow.snap_grid';
+    const gridStep = 16;
+    let snapGridEnabled = true;
 
     const stageLabelByCode = {};
     workflowStageOptions.forEach((opt) => {
@@ -1010,6 +1257,126 @@
       removeFallbackBackdrop();
     }
 
+    function isDecisionRuleBuilderOpen() {
+      if (!decisionRuleBuilderModalEl) return false;
+      return decisionRuleBuilderModalEl.classList.contains('show');
+    }
+
+    function showDecisionRuleBuilderModal() {
+      if (!decisionRuleBuilderModalEl) return;
+      if (decisionRuleBuilderModal) {
+        decisionRuleBuilderModal.show();
+        return;
+      }
+
+      decisionRuleBuilderModalEl.style.display = 'block';
+      decisionRuleBuilderModalEl.removeAttribute('aria-hidden');
+      decisionRuleBuilderModalEl.setAttribute('aria-modal', 'true');
+      decisionRuleBuilderModalEl.classList.add('show');
+    }
+
+    function hideDecisionRuleBuilderModal() {
+      if (!decisionRuleBuilderModalEl) return;
+      if (decisionRuleBuilderModal) {
+        decisionRuleBuilderModal.hide();
+        return;
+      }
+
+      decisionRuleBuilderModalEl.classList.remove('show');
+      decisionRuleBuilderModalEl.style.display = 'none';
+      decisionRuleBuilderModalEl.setAttribute('aria-hidden', 'true');
+      decisionRuleBuilderModalEl.removeAttribute('aria-modal');
+    }
+
+    function insertAtCursor(el, text) {
+      if (!el || !text) return;
+      const value = String(el.value || '');
+      const start = Number.isInteger(el.selectionStart) ? el.selectionStart : value.length;
+      const end = Number.isInteger(el.selectionEnd) ? el.selectionEnd : value.length;
+      el.value = `${value.slice(0, start)}${text}${value.slice(end)}`;
+      const caret = start + text.length;
+      if (typeof el.setSelectionRange === 'function') {
+        el.setSelectionRange(caret, caret);
+      }
+      el.focus();
+    }
+
+    function parseDecisionRuleConfig(ruleRaw) {
+      const raw = String(ruleRaw || '').trim();
+      const out = {
+        functionKey: '',
+        expression: '',
+        trueLabel: 'if_required',
+        falseLabel: 'if_not_required',
+      };
+      if (!raw) return out;
+
+      if (raw.toLowerCase().startsWith('expr:')) {
+        out.functionKey = 'expression';
+        out.expression = raw.slice(5).trim();
+        return out;
+      }
+
+      const fnMatch = raw.match(/(?:^|\s)(?:fn|function)\s*:\s*([a-z0-9_\- ]+)/i);
+      out.functionKey = normalizeToken(fnMatch ? fnMatch[1] : raw);
+
+      if (raw.includes('?')) {
+        const query = raw.split('?', 2)[1] || '';
+        const params = new URLSearchParams(query);
+        const parsedTrue = normalizeToken(params.get('true') || out.trueLabel);
+        const parsedFalse = normalizeToken(params.get('false') || out.falseLabel);
+        out.trueLabel = parsedTrue || out.trueLabel;
+        out.falseLabel = parsedFalse || out.falseLabel;
+        out.expression = String(params.get('expr') || '').trim();
+      }
+
+      return out;
+    }
+
+    function buildExpressionDecisionRule(expression, trueLabel, falseLabel) {
+      const params = new URLSearchParams();
+      params.set('expr', String(expression || '').trim());
+      params.set('true', normalizeToken(trueLabel) || 'if_required');
+      params.set('false', normalizeToken(falseLabel) || 'if_not_required');
+      return `fn:expression?${params.toString()}`;
+    }
+
+    function openDecisionRuleBuilder() {
+      if (!nodeEditorDecisionRuleEl || !decisionRuleExpressionEl) return;
+
+      const parsed = parseDecisionRuleConfig(nodeEditorDecisionRuleEl.value || '');
+      decisionRuleExpressionEl.value = parsed.expression || '';
+      if (decisionRuleTrueLabelEl) decisionRuleTrueLabelEl.value = parsed.trueLabel || 'if_required';
+      if (decisionRuleFalseLabelEl) decisionRuleFalseLabelEl.value = parsed.falseLabel || 'if_not_required';
+      if (decisionRuleQuickFieldEl) decisionRuleQuickFieldEl.value = '';
+
+      if (decisionRuleBuilderHintEl) {
+        if (parsed.functionKey && parsed.functionKey !== 'expression') {
+          decisionRuleBuilderHintEl.textContent = `Current rule uses fn:${parsed.functionKey}. Applying this popup will switch it to fn:expression.`;
+        } else {
+          decisionRuleBuilderHintEl.textContent = 'Build a boolean expression, then map True / False to your branch labels.';
+        }
+      }
+
+      showDecisionRuleBuilderModal();
+    }
+
+    function applyDecisionRuleBuilder() {
+      if (!nodeEditorDecisionRuleEl || !decisionRuleExpressionEl) return;
+      const expression = String(decisionRuleExpressionEl.value || '').trim();
+      if (!expression) {
+        setDesignerFeedback('Expression is required to build fn:expression.', 'warning');
+        decisionRuleExpressionEl.focus();
+        return;
+      }
+
+      const trueLabel = (decisionRuleTrueLabelEl && decisionRuleTrueLabelEl.value) ? decisionRuleTrueLabelEl.value : 'if_required';
+      const falseLabel = (decisionRuleFalseLabelEl && decisionRuleFalseLabelEl.value) ? decisionRuleFalseLabelEl.value : 'if_not_required';
+      nodeEditorDecisionRuleEl.value = buildExpressionDecisionRule(expression, trueLabel, falseLabel);
+      setDesignerFeedback('Expression decision rule applied to the selected node.', 'success');
+      hideDecisionRuleBuilderModal();
+    }
+
     function stageOptionHtml(selected) {
       return optionHtml(workflowStageOptions, selected, stageLabelByCode[String(selected || '')] || String(selected || ''));
     }
@@ -1024,10 +1391,45 @@
       return String(raw || fallback).toLowerCase().replace(/[^a-z0-9_]+/g, '_');
     }
 
+    function normalizeToken(value) {
+      return String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9_]+/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_|_$/g, '');
+    }
+
+    function decisionTargetOptions(currentNodeId, selectedTargetId) {
+      const options = [{ value: '', label: noneLabel }];
+      nodes.forEach((n) => {
+        if (!n || !n.id || n.id === currentNodeId) return;
+        const lbl = String(n.label_fr || n.label_en || n.id);
+        options.push({ value: n.id, label: `${lbl} (${n.id})` });
+      });
+      return optionHtml(options, selectedTargetId || '');
+    }
+
+    function decisionTargetsForNode(nodeId) {
+      const out = { trueTarget: '', falseTarget: '' };
+      edges.forEach((edge) => {
+        if (!edge || edge.from !== nodeId) return;
+        const token = normalizeToken(edge.label || 'next');
+        if (!out.trueTarget && requiredBranchLabels.has(token)) {
+          out.trueTarget = String(edge.to || '');
+        } else if (!out.falseTarget && falseBranchLabels.has(token)) {
+          out.falseTarget = String(edge.to || '');
+        }
+      });
+      return out;
+    }
+
     function normalizeNode(node, index) {
       const type = (node.type === 'decision') ? 'decision' : 'task';
       const stageRaw = String(node.stage || '').trim();
       const stage = type === 'task' ? (stageRaw || defaultTaskStage) : '';
+      const posX = Number(node.pos_x);
+      const posY = Number(node.pos_y);
       return {
         id: normalizedNodeId(node.id, `node_${index + 1}`),
         type,
@@ -1039,7 +1441,93 @@
         sla_days: node.sla_days || '',
         is_required: (node.is_required !== false),
         decision_rule: String(node.decision_rule || ''),
+        decision_true_to: String(node.decision_true_to || ''),
+        decision_false_to: String(node.decision_false_to || ''),
+        pos_x: Number.isFinite(posX) ? posX : null,
+        pos_y: Number.isFinite(posY) ? posY : null,
       };
+    }
+
+    function defaultDiagramPosition(index) {
+      const columns = 4;
+      const col = index % columns;
+      const row = Math.floor(index / columns);
+      return {
+        x: 140 + (col * 270),
+        y: 78 + (row * 128),
+      };
+    }
+
+    function snapToGrid(value) {
+      return Math.round(Number(value || 0) / gridStep) * gridStep;
+    }
+
+    function refreshSnapGridToggle() {
+      if (!snapGridToggleEl) return;
+      snapGridToggleEl.checked = !!snapGridEnabled;
+    }
+
+    function loadSnapGridSetting() {
+      if (!window.localStorage) return;
+      const raw = String(window.localStorage.getItem(snapGridStorageKey) || '').trim().toLowerCase();
+      if (!raw) return;
+      snapGridEnabled = !(raw === '0' || raw === 'false' || raw === 'off' || raw === 'no');
+    }
+
+    function saveSnapGridSetting() {
+      if (!window.localStorage) return;
+      window.localStorage.setItem(snapGridStorageKey, snapGridEnabled ? '1' : '0');
+    }
+
+    function applyAutoArrange() {
+      nodes = nodes.map((node, index) => {
+        const pos = defaultDiagramPosition(index);
+        return {
+          ...node,
+          pos_x: pos.x,
+          pos_y: pos.y,
+        };
+      });
+      render();
+      setDesignerFeedback({{ _('Diagram auto-arranged.')|tojson }}, 'success');
+    }
+
+    function eventToSvgPoint(event) {
+      if (!currentDiagramSvgRoot) {
+        return { x: 0, y: 0 };
+      }
+      const pt = currentDiagramSvgRoot.createSVGPoint();
+      pt.x = event.clientX;
+      pt.y = event.clientY;
+      const matrix = currentDiagramSvgRoot.getScreenCTM();
+      if (!matrix) {
+        return { x: 0, y: 0 };
+      }
+      const transformed = pt.matrixTransform(matrix.inverse());
+      return { x: transformed.x, y: transformed.y };
+    }
+
+    function onDiagramPointerMove(event) {
+      if (!diagramDrag) return;
+      const pointer = eventToSvgPoint(event);
+      const movedX = diagramDrag.nodeStartX + (pointer.x - diagramDrag.startX);
+      const movedY = diagramDrag.nodeStartY + (pointer.y - diagramDrag.startY);
+      const node = getNodeById(diagramDrag.nodeId);
+      if (!node) return;
+      const clampedX = Math.max(70, movedX);
+      const clampedY = Math.max(50, movedY);
+      node.pos_x = snapGridEnabled ? snapToGrid(clampedX) : clampedX;
+      node.pos_y = snapGridEnabled ? snapToGrid(clampedY) : clampedY;
+      diagramDrag.moved = true;
+      renderDiagram();
+    }
+
+    function onDiagramPointerUp() {
+      if (!diagramDrag) return;
+      if (diagramDrag.moved) {
+        suppressNodeClickUntil = Date.now() + 180;
+      }
+      diagramDrag = null;
     }
 
     function getNodeById(id) {
@@ -1079,6 +1567,9 @@
       if (nodeEditorFunctionEl) nodeEditorFunctionEl.disabled = isDecision;
       if (nodeEditorRequiredEl) nodeEditorRequiredEl.disabled = isDecision;
       if (nodeEditorDecisionRuleEl) nodeEditorDecisionRuleEl.disabled = !isDecision;
+      if (openDecisionRuleBuilderBtn) openDecisionRuleBuilderBtn.disabled = !isDecision;
+      if (nodeEditorTrueTargetEl) nodeEditorTrueTargetEl.disabled = !isDecision;
+      if (nodeEditorFalseTargetEl) nodeEditorFalseTargetEl.disabled = !isDecision;
     }
 
     function openNodeEditor(id) {
@@ -1096,6 +1587,18 @@
       if (nodeEditorFunctionEl) nodeEditorFunctionEl.innerHTML = optionHtml(functionOptions, node.function_id);
       if (nodeEditorRequiredEl) nodeEditorRequiredEl.checked = !!node.is_required;
       if (nodeEditorDecisionRuleEl) nodeEditorDecisionRuleEl.value = node.decision_rule || '';
+      if (node.type === 'decision') {
+        const targets = decisionTargetsForNode(node.id);
+        if (nodeEditorTrueTargetEl) {
+          nodeEditorTrueTargetEl.innerHTML = decisionTargetOptions(node.id, targets.trueTarget || node.decision_true_to || '');
+        }
+        if (nodeEditorFalseTargetEl) {
+          nodeEditorFalseTargetEl.innerHTML = decisionTargetOptions(node.id, targets.falseTarget || node.decision_false_to || '');
+        }
+      } else {
+        if (nodeEditorTrueTargetEl) nodeEditorTrueTargetEl.innerHTML = decisionTargetOptions(node.id, '');
+        if (nodeEditorFalseTargetEl) nodeEditorFalseTargetEl.innerHTML = decisionTargetOptions(node.id, '');
+      }
 
       setNodeEditorStateByType(node.type);
       applySelectionDecorations();
@@ -1118,6 +1621,34 @@
         node.sla_days = '';
         node.is_required = false;
         node.decision_rule = (nodeEditorDecisionRuleEl && nodeEditorDecisionRuleEl.value) ? nodeEditorDecisionRuleEl.value : '';
+        node.decision_true_to = (nodeEditorTrueTargetEl && nodeEditorTrueTargetEl.value) ? nodeEditorTrueTargetEl.value : '';
+        node.decision_false_to = (nodeEditorFalseTargetEl && nodeEditorFalseTargetEl.value) ? nodeEditorFalseTargetEl.value : '';
+
+        const kept = [];
+        edges.forEach((edge) => {
+          if (!edge || edge.from !== node.id) {
+            kept.push(edge);
+            return;
+          }
+          const token = normalizeToken(edge.label || 'next');
+          if (!requiredBranchLabels.has(token) && !falseBranchLabels.has(token)) {
+            kept.push(edge);
+          }
+        });
+
+        const trueTarget = String(node.decision_true_to || '').trim();
+        const falseTarget = String(node.decision_false_to || '').trim();
+        if (trueTarget && trueTarget !== node.id) {
+          kept.push({ from: node.id, to: trueTarget, label: 'if_required' });
+        }
+        if (falseTarget && falseTarget !== node.id && falseTarget !== trueTarget) {
+          kept.push({ from: node.id, to: falseTarget, label: 'if_not_required' });
+        }
+        edges = kept;
+
+        if (!String(node.decision_rule || '').trim()) {
+          node.decision_rule = 'fn:require_risk_manager?true=if_required&false=if_not_required';
+        }
       } else {
         node.stage = (nodeEditorStageEl && nodeEditorStageEl.value) ? nodeEditorStageEl.value : defaultTaskStage;
         node.sla_days = (nodeEditorSlaEl && nodeEditorSlaEl.value) ? nodeEditorSlaEl.value : '';
@@ -1125,6 +1656,8 @@
         node.function_id = (nodeEditorFunctionEl && nodeEditorFunctionEl.value) ? nodeEditorFunctionEl.value : '';
         node.is_required = !!(nodeEditorRequiredEl && nodeEditorRequiredEl.checked);
         node.decision_rule = '';
+        node.decision_true_to = '';
+        node.decision_false_to = '';
       }
 
       render();
@@ -1167,7 +1700,16 @@
         }))
         .filter((edge) => edge.from && edge.to && validIds.has(edge.from) && validIds.has(edge.to));
 
-      edges = cleaned.length ? cleaned : buildSequentialEdges();
+      const seen = new Set();
+      const deduped = [];
+      cleaned.forEach((edge) => {
+        const key = `${edge.from}|${edge.to}|${normalizeToken(edge.label || 'next')}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        deduped.push(edge);
+      });
+
+      edges = deduped.length ? deduped : buildSequentialEdges();
     }
 
     function renderDiagram() {
@@ -1179,20 +1721,29 @@
 
       const nodeWidth = 206;
       const nodeHeight = 62;
-      const nodeGap = 52;
-      const marginX = 22;
-      const y = 48;
-      const totalWidth = Math.max(320, marginX * 2 + nodes.length * nodeWidth + (nodes.length - 1) * nodeGap);
-      const totalHeight = 170;
-      const centerY = y + (nodeHeight / 2);
+      const nodeHalfWidth = nodeWidth / 2;
+      const nodeHalfHeight = nodeHeight / 2;
+      let totalWidth = 640;
+      let totalHeight = 220;
 
       const byId = {};
+      const nodeById = {};
       nodes.forEach((node, idx) => {
+        const fallback = defaultDiagramPosition(idx);
+        const cx = Number.isFinite(Number(node.pos_x)) ? Number(node.pos_x) : fallback.x;
+        const cy = Number.isFinite(Number(node.pos_y)) ? Number(node.pos_y) : fallback.y;
+        node.pos_x = cx;
+        node.pos_y = cy;
+
+        totalWidth = Math.max(totalWidth, Math.ceil(cx + nodeHalfWidth + 80));
+        totalHeight = Math.max(totalHeight, Math.ceil(cy + nodeHalfHeight + 80));
+
         byId[node.id] = {
           index: idx,
-          x: marginX + idx * (nodeWidth + nodeGap),
-          y,
+          cx,
+          cy,
         };
+        nodeById[node.id] = node;
       });
 
       let svg = '';
@@ -1207,6 +1758,7 @@
       svg += '</defs>';
       svg += '<style>';
       svg += '.wf-node{cursor:pointer}';
+      svg += '.wf-node .wf-task-shape,.wf-node .wf-decision-shape{cursor:move}';
       svg += '.wf-node .wf-task-shape{fill:#e7f1ff;stroke:#0d6efd;stroke-width:1.6}';
       svg += '.wf-node.is-selected .wf-task-shape{fill:#cfe2ff;stroke:#084298;stroke-width:2.2}';
       svg += '.wf-node .wf-decision-shape{fill:#ffe39e;stroke:#9a5800;stroke-width:2;filter:url(#wfSoftShadow)}';
@@ -1220,12 +1772,22 @@
         const src = byId[edge.from];
         const dst = byId[edge.to];
         if (!src || !dst) return;
-        const x1 = src.x + nodeWidth;
-        const x2 = dst.x;
-        svg += `<line x1="${x1}" y1="${centerY}" x2="${x2}" y2="${centerY}" stroke="#6c757d" stroke-width="2" marker-end="url(#wfArrow)"></line>`;
+        const srcNode = nodeById[edge.from] || {};
+        const dstNode = nodeById[edge.to] || {};
+        const dx = dst.cx - src.cx;
+        const dy = dst.cy - src.cy;
+        const dist = Math.hypot(dx, dy) || 1;
+        const srcPad = srcNode.type === 'decision' ? 44 : 58;
+        const dstPad = dstNode.type === 'decision' ? 44 : 58;
+        const x1 = src.cx + ((dx / dist) * srcPad);
+        const y1 = src.cy + ((dy / dist) * srcPad);
+        const x2 = dst.cx - ((dx / dist) * dstPad);
+        const y2 = dst.cy - ((dy / dist) * dstPad);
+        svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#6c757d" stroke-width="2" marker-end="url(#wfArrow)"></line>`;
         if (edge.label && edge.label.toLowerCase() !== 'next') {
           const tx = (x1 + x2) / 2;
-          svg += `<text x="${tx}" y="${centerY - 7}" text-anchor="middle" font-size="10" fill="#495057">${esc(edge.label)}</text>`;
+          const ty = ((y1 + y2) / 2) - 7;
+          svg += `<text x="${tx}" y="${ty}" text-anchor="middle" font-size="10" fill="#495057">${esc(edge.label)}</text>`;
         }
       });
 
@@ -1236,8 +1798,8 @@
         const stageTxt = esc(node.type === 'task' ? stageLabel(node.stage || '-') : (node.decision_rule || 'Decision'));
         const selectedClass = selectedNodeId === node.id ? 'is-selected' : '';
         if (node.type === 'decision') {
-          const cx = pos.x + (nodeWidth / 2);
-          const cy = centerY;
+          const cx = pos.cx;
+          const cy = pos.cy;
           const hw = 58;
           const hh = 34;
           svg += `<g class="wf-node ${selectedClass}" data-node-id="${node.id}">`;
@@ -1246,10 +1808,12 @@
           svg += `<text class="wf-sub wf-decision-text" x="${cx}" y="${cy + 13}" text-anchor="middle">${stageTxt}</text>`;
           svg += '</g>';
         } else {
+          const x = pos.cx - nodeHalfWidth;
+          const y = pos.cy - nodeHalfHeight;
           svg += `<g class="wf-node ${selectedClass}" data-node-id="${node.id}">`;
-          svg += `<rect class="wf-task-shape" x="${pos.x}" y="${pos.y}" width="${nodeWidth}" height="${nodeHeight}" rx="11" ry="11"></rect>`;
-          svg += `<text class="wf-title" x="${pos.x + 10}" y="${pos.y + 24}">${title}</text>`;
-          svg += `<text class="wf-sub" x="${pos.x + 10}" y="${pos.y + 43}">${stageTxt}</text>`;
+          svg += `<rect class="wf-task-shape" x="${x}" y="${y}" width="${nodeWidth}" height="${nodeHeight}" rx="11" ry="11"></rect>`;
+          svg += `<text class="wf-title" x="${x + 10}" y="${y + 24}">${title}</text>`;
+          svg += `<text class="wf-sub" x="${x + 10}" y="${y + 43}">${stageTxt}</text>`;
           svg += '</g>';
         }
       });
@@ -1259,14 +1823,36 @@
 
       const svgRoot = diagram.querySelector('svg');
       if (!svgRoot) return;
+      currentDiagramSvgRoot = svgRoot;
+
+      svgRoot.querySelectorAll('g[data-node-id]').forEach((group) => {
+        group.addEventListener('mousedown', (event) => {
+          if (event.button !== 0) return;
+          const nodeId = group.getAttribute('data-node-id');
+          const node = getNodeById(nodeId);
+          if (!node) return;
+          const pointer = eventToSvgPoint(event);
+          diagramDrag = {
+            nodeId,
+            startX: pointer.x,
+            startY: pointer.y,
+            nodeStartX: Number(node.pos_x || 0),
+            nodeStartY: Number(node.pos_y || 0),
+            moved: false,
+          };
+          event.preventDefault();
+        });
+      });
 
       svgRoot.addEventListener('click', (event) => {
+        if (Date.now() < suppressNodeClickUntil) return;
         const nodeGroup = event.target.closest('g[data-node-id]');
         if (!nodeGroup) return;
         setSelectedNode(nodeGroup.getAttribute('data-node-id'));
       });
 
       svgRoot.addEventListener('dblclick', (event) => {
+        if (Date.now() < suppressNodeClickUntil) return;
         const nodeGroup = event.target.closest('g[data-node-id]');
         if (!nodeGroup) return;
         const nodeId = nodeGroup.getAttribute('data-node-id');
@@ -1279,7 +1865,12 @@
 
     function nodeSummary(node) {
       if (node.type === 'decision') {
-        return node.decision_rule || 'Decision rule not set';
+        const targets = decisionTargetsForNode(node.id);
+        const summary = [];
+        if (targets.trueTarget) summary.push(`true->${targets.trueTarget}`);
+        if (targets.falseTarget) summary.push(`false->${targets.falseTarget}`);
+        const base = node.decision_rule || decisionNotSetLabel;
+        return summary.length ? `${base} | ${summary.join(' | ')}` : base;
       }
       const stageText = stageLabel(node.stage || '-');
       const slaText = node.sla_days ? `${node.sla_days}d` : '-';
@@ -1386,10 +1977,32 @@
 
     addDecisionBtn && addDecisionBtn.addEventListener('click', () => {
       const idx = nodes.length + 1;
-      const added = normalizeNode({ id: `decision_${idx}`, type: 'decision' }, idx);
+      const added = normalizeNode(
+        {
+          id: `decision_${idx}`,
+          type: 'decision',
+          decision_rule: 'fn:require_risk_manager?true=if_required&false=if_not_required',
+        },
+        idx,
+      );
       nodes.push(added);
       selectedNodeId = added.id;
       render();
+    });
+
+    autoArrangeBtn && autoArrangeBtn.addEventListener('click', () => {
+      applyAutoArrange();
+    });
+
+    snapGridToggleEl && snapGridToggleEl.addEventListener('change', () => {
+      snapGridEnabled = !!snapGridToggleEl.checked;
+      saveSnapGridSetting();
+      setDesignerFeedback(
+        snapGridEnabled
+          ? {{ _('Snap to grid enabled.')|tojson }}
+          : {{ _('Snap to grid disabled.')|tojson }},
+        'success'
+      );
     });
 
     includeApprovalStepsBtn && includeApprovalStepsBtn.addEventListener('click', () => {
@@ -1448,6 +2061,30 @@
       setNodeEditorStateByType(nodeEditorTypeEl.value);
     });
 
+    openDecisionRuleBuilderBtn && openDecisionRuleBuilderBtn.addEventListener('click', () => {
+      openDecisionRuleBuilder();
+    });
+
+    decisionRuleInsertFieldBtn && decisionRuleInsertFieldBtn.addEventListener('click', () => {
+      if (!decisionRuleQuickFieldEl || !decisionRuleExpressionEl) return;
+      const token = String(decisionRuleQuickFieldEl.value || '').trim();
+      if (!token) return;
+      insertAtCursor(decisionRuleExpressionEl, token);
+    });
+
+    decisionRuleBuilderModalEl && decisionRuleBuilderModalEl.querySelectorAll('[data-insert-field]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (!decisionRuleExpressionEl) return;
+        const token = String(btn.getAttribute('data-insert-field') || '').trim();
+        if (!token) return;
+        insertAtCursor(decisionRuleExpressionEl, token);
+      });
+    });
+
+    decisionRuleApplyBtn && decisionRuleApplyBtn.addEventListener('click', () => {
+      applyDecisionRuleBuilder();
+    });
+
     nodeEditorSaveBtn && nodeEditorSaveBtn.addEventListener('click', () => {
       applyNodeEditorChanges();
       hideNodeEditorModal();
@@ -1474,7 +2111,27 @@
       });
     }
 
+    if (decisionRuleBuilderModalEl) {
+      decisionRuleBuilderModalEl.querySelectorAll('[data-bs-dismiss="modal"]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          hideDecisionRuleBuilderModal();
+        });
+      });
+
+      decisionRuleBuilderModalEl.addEventListener('click', (event) => {
+        if (event.target === decisionRuleBuilderModalEl) {
+          hideDecisionRuleBuilderModal();
+        }
+      });
+    }
+
     document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && isDecisionRuleBuilderOpen()) {
+        event.preventDefault();
+        hideDecisionRuleBuilderModal();
+        return;
+      }
+
       if (event.key === 'Escape' && isNodeEditorOpen()) {
         event.preventDefault();
         hideNodeEditorModal();
@@ -1487,6 +2144,12 @@
       event.preventDefault();
       removeNodeById(selectedNodeId);
     });
+
+    window.addEventListener('mousemove', onDiagramPointerMove);
+    window.addEventListener('mouseup', onDiagramPointerUp);
+
+    loadSnapGridSetting();
+    refreshSnapGridToggle();
 
     form.addEventListener('submit', () => {
       normalizeEdges();
@@ -1503,6 +2166,8 @@
           sla_days: node.type === 'task' ? node.sla_days : '',
           is_required: node.type === 'task' ? !!node.is_required : false,
           decision_rule: node.type === 'decision' ? node.decision_rule : '',
+          pos_x: Number.isFinite(Number(node.pos_x)) ? Math.round(Number(node.pos_x)) : null,
+          pos_y: Number.isFinite(Number(node.pos_y)) ? Math.round(Number(node.pos_y)) : null,
         })),
         edges: edges.map((edge) => ({
           from: edge.from,
