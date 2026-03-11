@@ -2,6 +2,15 @@ const editor = new Drawflow(document.getElementById("drawflow"));
 editor.start();
 const t = (window.t ? window.t : (k) => k);
 
+function _tf(key, vars) {
+  let out = String(t(key) || key);
+  if (!vars || typeof vars !== "object") return out;
+  Object.keys(vars).forEach((k) => {
+    out = out.replaceAll(`{${k}}`, String(vars[k]));
+  });
+  return out;
+}
+
 
 let _configModal = null;
 let _dbSources = [];
@@ -1003,7 +1012,7 @@ function refreshJobs() {
       if (!host) return;
 
       if (!_jobs.length) {
-        host.innerHTML = `<div class="text-secondary">No jobs</div>`;
+        host.innerHTML = `<div class="text-secondary">${_escapeHtml(t("Aucun job planifié."))}</div>`;
         return;
       }
 
@@ -1014,22 +1023,26 @@ function refreshJobs() {
         const wf = _escapeHtml(job.workflow_name || "-");
         const interval = Number(job.interval_minutes || 60);
         const badge = job.enabled
-          ? `<span class="badge text-bg-success">active</span>`
-          : `<span class="badge text-bg-secondary">paused</span>`;
+          ? `<span class="badge text-bg-success">${_escapeHtml(t("Actif"))}</span>`
+          : `<span class="badge text-bg-secondary">${_escapeHtml(t("Désactivé"))}</span>`;
+        const toggleBtn = job.enabled
+          ? `<button class="btn btn-sm btn-outline-warning" onclick="toggleJobEnabled('${_escapeHtml(job.id)}', false)">${_escapeHtml(t("Désactiver"))}</button>`
+          : `<button class="btn btn-sm btn-outline-secondary" onclick="toggleJobEnabled('${_escapeHtml(job.id)}', true)">${_escapeHtml(t("Activer"))}</button>`;
 
         return `
           <div class="border rounded p-2 mb-2">
             <div class="d-flex justify-content-between align-items-start gap-2">
               <div>
                 <div class="fw-semibold">${title}</div>
-                <div class="text-secondary">workflow: ${wf}</div>
-                <div class="text-secondary">every ${interval} min · ${badge}</div>
-                <div class="text-secondary">last: ${runAt} · status: ${status}</div>
+                <div class="text-secondary">${_escapeHtml(t("workflow"))}: ${wf}</div>
+                <div class="text-secondary">${_escapeHtml(_tf("toutes les {minutes} min", { minutes: interval }))} · ${badge}</div>
+                <div class="text-secondary">${_escapeHtml(t("dernière exécution"))}: ${runAt} · ${_escapeHtml(t("statut"))}: ${status}</div>
               </div>
               <div class="d-flex flex-column gap-1">
-                <button class="btn btn-sm btn-outline-primary" onclick="editJob('${_escapeHtml(job.id)}')">Edit</button>
-                <button class="btn btn-sm btn-outline-success" onclick="runJobNow('${_escapeHtml(job.id)}')">Run</button>
-                <button class="btn btn-sm btn-outline-danger" onclick="deleteJob('${_escapeHtml(job.id)}')">Delete</button>
+                <button class="btn btn-sm btn-outline-primary" onclick="editJob('${_escapeHtml(job.id)}')">${_escapeHtml(t("Modifier"))}</button>
+                <button class="btn btn-sm btn-outline-success" onclick="runJobNow('${_escapeHtml(job.id)}')">${_escapeHtml(t("Exécuter"))}</button>
+                ${toggleBtn}
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteJob('${_escapeHtml(job.id)}')">${_escapeHtml(t("Supprimer"))}</button>
               </div>
             </div>
           </div>`;
@@ -1050,11 +1063,11 @@ function editJob(jobId) {
 function saveJob() {
   const payload = _jobFormPayload();
   if (!payload.workflow_name) {
-    _showMessageModal("Select a workflow first", "Validation");
+    _showMessageModal(t("Sélectionnez un workflow d'abord."), t("Validation"));
     return;
   }
   if (!payload.name) {
-    _showMessageModal("Enter job name", "Validation");
+    _showMessageModal(t("Saisissez un nom de job."), t("Validation"));
     return;
   }
 
@@ -1066,9 +1079,32 @@ function saveJob() {
     .then(data => {
       _setJobForm(data.job || null);
       refreshJobs();
-      _showMessageModal("Job saved", "Success");
+      _showMessageModal(t("Job enregistré."), t("Succès"));
     })
-    .catch(err => _showMessageModal("Job save error: " + err.message, "Error"));
+    .catch(err => _showMessageModal(_tf("Erreur enregistrement job: {error}", { error: err.message }), t("Erreur")));
+}
+
+function toggleJobEnabled(jobId, enabled) {
+  const row = (_jobs || []).find(j => String(j.id) === String(jobId));
+  if (!row) return;
+
+  const payload = {
+    id: row.id,
+    name: row.name,
+    workflow_name: row.workflow_name,
+    interval_minutes: Number(row.interval_minutes || 60),
+    enabled: !!enabled,
+  };
+
+  _fetchJson("/etl/api/jobs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
+    .then(() => {
+      refreshJobs();
+    })
+    .catch(err => _showMessageModal(_tf("Erreur mise à jour job: {error}", { error: err.message }), t("Erreur")));
 }
 
 function runJobNow(jobId) {
@@ -1082,7 +1118,7 @@ function runJobNow(jobId) {
       if (el) el.textContent = _jsonPretty(data.result || data);
       refreshJobs();
     })
-    .catch(err => _showMessageModal("Job run error: " + err.message, "Error"));
+    .catch(err => _showMessageModal(_tf("Erreur exécution job: {error}", { error: err.message }), t("Erreur")));
 }
 
 function deleteJob(jobId) {
@@ -1095,7 +1131,7 @@ function deleteJob(jobId) {
       _setJobForm(null);
       refreshJobs();
     })
-    .catch(err => _showMessageModal("Job delete error: " + err.message, "Error"));
+    .catch(err => _showMessageModal(_tf("Erreur suppression job: {error}", { error: err.message }), t("Erreur")));
 }
 
 function loadSelectedWorkflow() {
