@@ -7,6 +7,7 @@ import secrets
 import re
 import csv
 import io
+import html
 
 import json
 import copy
@@ -548,6 +549,14 @@ def _to_date_value(value: Any) -> date | None:
         txt = str(value).strip()
         if not txt:
             return None
+
+        # Common BI period formats.
+        for fmt in ("%m/%Y", "%Y-%m", "%Y/%m"):
+            try:
+                dt = datetime.strptime(txt, fmt)
+                return date(dt.year, dt.month, 1)
+            except Exception:
+                continue
 
         normalized = txt.replace("Z", "+00:00")
         try:
@@ -7660,6 +7669,1150 @@ def _bi_ai_bool(value: Any) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _bi_ai_parse_selected_tables(payload: dict[str, Any]) -> list[str]:
+    raw = payload.get("selected_tables") if isinstance(payload, dict) else []
+    items: list[Any]
+    if isinstance(raw, str):
+        items = [x.strip() for x in raw.split(",") if x and str(x).strip()]
+    elif isinstance(raw, list):
+        items = raw
+    else:
+        items = []
+
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in items[:200]:
+        name = str(item or "").strip()
+        if not name:
+            continue
+        key = name.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(name[:180])
+    return out[:300]
+
+
+def _bi_ai_parse_selected_question_ids(payload: dict[str, Any]) -> list[int]:
+    raw = payload.get("selected_question_ids") if isinstance(payload, dict) else []
+    items: list[Any]
+    if isinstance(raw, str):
+        items = [x.strip() for x in raw.split(",") if x and str(x).strip()]
+    elif isinstance(raw, list):
+        items = raw
+    else:
+        items = []
+
+    out: list[int] = []
+    seen: set[int] = set()
+    for item in items[:200]:
+        try:
+            qid = int(item)
+        except Exception:
+            continue
+        if qid <= 0 or qid in seen:
+            continue
+        seen.add(qid)
+        out.append(qid)
+    return out[:80]
+
+
+def _bi_ai_normalize_table_ref(name: str) -> str:
+    raw = str(name or "").strip()
+    if not raw:
+        return ""
+    parts = [p.strip().strip('"`[]') for p in raw.split(".") if p and str(p).strip()]
+    return ".".join(parts).lower()
+
+
+def _bi_ai_extract_tables_from_sql(sql_text: str) -> list[str]:
+    cleaned = re.sub(r"--.*?\n", "\n", str(sql_text or ""))
+    cleaned = re.sub(r"/\*.*?\*/", " ", cleaned, flags=re.S)
+    refs = re.findall(r"\b(?:from|join)\s+([\w\"`\[\]\.]+)", cleaned, flags=re.I)
+    out: list[str] = []
+    seen: set[str] = set()
+    for ref in refs:
+        norm = _bi_ai_normalize_table_ref(ref)
+        if not norm or norm in seen:
+            continue
+        seen.add(norm)
+        out.append(norm)
+    return out
+
+
+def _bi_ai_allowed_tables_from_selected_questions(source: DataSource, question_ids: list[int]) -> tuple[list[str], str]:
+    if not question_ids:
+        return [], ""
+
+    questions = (
+        Question.query.filter(
+            Question.tenant_id == g.tenant.id,
+            Question.source_id == source.id,
+            Question.id.in_(question_ids),
+        )
+        .order_by(Question.updated_at.desc(), Question.id.desc())
+        .all()
+    )
+    if not questions:
+        return [], _("No valid questions were found for this source.")
+
+    allowed: list[str] = []
+    seen: set[str] = set()
+    for q in questions:
+        for ref in _bi_ai_extract_tables_from_sql(str(q.sql_text or "")):
+            if ref in seen:
+                continue
+            seen.add(ref)
+            allowed.append(ref)
+
+    if not allowed:
+        return [], _("Selected questions do not contain detectable SQL tables.")
+
+    return allowed, ""
+
+
+def _bi_ai_effective_table_scope(source: DataSource, payload: dict[str, Any]) -> tuple[list[str], list[int], str]:
+    selected_tables = _bi_ai_parse_selected_tables(payload)
+    selected_question_ids = _bi_ai_parse_selected_question_ids(payload)
+    if not selected_question_ids:
+        return selected_tables, [], ""
+
+    question_tables, scope_error = _bi_ai_allowed_tables_from_selected_questions(source, selected_question_ids)
+    if scope_error:
+        return [], selected_question_ids, scope_error
+    return question_tables, selected_question_ids, ""
+
+
+def _bi_ai_strip_markdown_sql_fence(sql_text: str) -> str:
+    s = str(sql_text or "").strip()
+    if not s.startswith("```"):
+        return s
+    m = re.match(r"^```(?:sql)?\s*(.*?)\s*```$", s, flags=re.I | re.S)
+    if m:
+        return str(m.group(1) or "").strip()
+    return s.strip("` \n\t")
+
+
+def _bi_ai_split_first_statement(sql_text: str) -> str:
+    s = str(sql_text or "")
+    if not s:
+        return ""
+
+    in_single = False
+    in_double = False
+    i = 0
+    while i < len(s):
+        ch = s[i]
+        if ch == "'" and not in_double:
+            if in_single and i + 1 < len(s) and s[i + 1] == "'":
+                i += 2
+                continue
+            in_single = not in_single
+        elif ch == '"' and not in_single:
+            if in_double and i + 1 < len(s) and s[i + 1] == '"':
+                i += 2
+                continue
+            in_double = not in_double
+        elif ch == ";" and not in_single and not in_double:
+            return s[:i].strip()
+        i += 1
+    return s.strip()
+
+
+def _bi_ai_normalize_sql(sql_text: str) -> tuple[str, str]:
+    """Return (normalized_sql, first_keyword) for safe BI route checks."""
+    s = _bi_ai_strip_markdown_sql_fence(sql_text)
+    s = _bi_ai_split_first_statement(s)
+    if not s:
+        return "", ""
+
+    # Remove leading comments before deciding statement type.
+    prev = None
+    while prev != s:
+        prev = s
+        s = re.sub(r"^\s*--.*?(?:\n|$)", "", s)
+        s = re.sub(r"^\s*/\*.*?\*/\s*", "", s, flags=re.S)
+        s = s.lstrip()
+
+    if not s:
+        return "", ""
+
+    s = _bi_ai_split_first_statement(s)
+    first = s.lstrip().lstrip("(").strip().split(None, 1)[0].lower() if s.strip() else ""
+    return s, first
+
+
+def _bi_ai_should_retry_numeric_aggregate(error_text: str) -> bool:
+    err = str(error_text or "").lower()
+    if "function sum(text) does not exist" in err or "function avg(text) does not exist" in err:
+        return True
+    if re.search(r"function\s+(sum|avg)\s*\((text|character varying|varchar)\)", err, flags=re.I):
+        return True
+    return False
+
+
+def _bi_ai_cast_text_aggregates_to_numeric(sql_text: str) -> str:
+    sql = str(sql_text or "")
+    if not sql:
+        return sql
+
+    ident = r'(?:"[^"]+"|[A-Za-z_][\w$]*)(?:\.(?:"[^"]+"|[A-Za-z_][\w$]*))?'
+    patt = re.compile(rf"\b(sum|avg)\s*\(\s*({ident})\s*\)", flags=re.I)
+
+    def _repl(m: re.Match[str]) -> str:
+        agg = str(m.group(1) or "").upper()
+        expr = str(m.group(2) or "").strip()
+        if not expr:
+            return m.group(0)
+        cast_expr = (
+            f"NULLIF(REPLACE(REGEXP_REPLACE(({expr})::text, '[^0-9,.-]', '', 'g'), ',', '.'), '')::numeric"
+        )
+        return f"{agg}({cast_expr})"
+
+    return patt.sub(_repl, sql)
+
+
+def _bi_ai_execute_sql_resilient(
+    source: DataSource,
+    sql_text: str,
+    *,
+    params: dict[str, Any] | None,
+    row_limit: int,
+) -> tuple[dict[str, Any], str, list[str]]:
+    try:
+        return execute_sql(source, sql_text, params=params, row_limit=row_limit), sql_text, []
+    except QueryExecutionError as e:
+        if not _bi_ai_should_retry_numeric_aggregate(str(e)):
+            raise
+
+        fixed_sql = _bi_ai_cast_text_aggregates_to_numeric(sql_text)
+        if not fixed_sql or fixed_sql.strip() == str(sql_text or "").strip():
+            raise
+
+        fixed_res = execute_sql(source, fixed_sql, params=params, row_limit=row_limit)
+        warning = _("Auto-cast applied for numeric aggregates on text columns.")
+        return fixed_res, fixed_sql, [warning]
+
+
+def _bi_source_tables_flat(source: DataSource) -> list[dict[str, str]]:
+    meta = introspect_source(source)
+
+    items: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for sch in (meta.get("schemas") or []):
+        schema_name = str(sch.get("name") or "").strip()
+        for tbl in (sch.get("tables") or []):
+            table_name = str(tbl.get("name") or "").strip()
+            if not table_name:
+                continue
+            full_name = f"{schema_name}.{table_name}" if schema_name else table_name
+            key = full_name.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            items.append({"schema": schema_name, "name": table_name, "full_name": full_name})
+
+    # Compatibility fallback for metadata providers returning top-level tables.
+    for tbl in (meta.get("tables") or []):
+        table_name = str((tbl or {}).get("name") or "").strip() if isinstance(tbl, dict) else str(tbl or "").strip()
+        if not table_name:
+            continue
+        key = table_name.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        items.append({"schema": "", "name": table_name, "full_name": table_name})
+
+    items.sort(key=lambda x: (str(x.get("schema") or "").lower(), str(x.get("name") or "").lower()))
+    return items
+
+
+def _bi_ai_is_full_table_selection(source: DataSource, selected_tables: list[str]) -> bool:
+    """True when selected tables cover the whole source table/view list."""
+    if not selected_tables:
+        return False
+
+    try:
+        source_items = _bi_source_tables_flat(source)
+    except Exception:
+        return False
+
+    all_tables = {
+        _bi_ai_normalize_table_ref(str(item.get("full_name") or ""))
+        for item in source_items
+        if _bi_ai_normalize_table_ref(str(item.get("full_name") or ""))
+    }
+    if not all_tables:
+        return False
+
+    selected = {
+        _bi_ai_normalize_table_ref(name)
+        for name in (selected_tables or [])
+        if _bi_ai_normalize_table_ref(name)
+    }
+    if not selected:
+        return False
+
+    return all_tables.issubset(selected)
+
+
+@bp.route("/api/ai/lite/source_tables", methods=["POST"])
+@login_required
+def api_ai_lite_source_tables():
+    """Return available table names for a BI Lite source selection popup."""
+    _require_tenant()
+    payload = request.get_json(silent=True) or {}
+    try:
+        source_id = int(payload.get("source_id") or 0)
+    except Exception:
+        source_id = 0
+
+    if not source_id:
+        return jsonify({"ok": False, "error": _("Please select a data source.")}), 400
+
+    source = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first()
+    if not source:
+        return jsonify({"ok": False, "error": _("Invalid data source.")}), 404
+
+    try:
+        tables = _bi_source_tables_flat(source)
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"ok": False, "error": _("Could not inspect source tables: {error}", error=str(e))}), 400
+
+    message = ""
+    if not tables:
+        message = _("No SQL tables/views were found for this source.")
+    return jsonify({"ok": True, "tables": tables, "count": len(tables), "message": message})
+
+
+@bp.route("/api/ai/lite/source_questions", methods=["POST"])
+@login_required
+def api_ai_lite_source_questions():
+    """Return available saved questions for a BI Lite source selection popup."""
+    _require_tenant()
+    payload = request.get_json(silent=True) or {}
+    try:
+        source_id = int(payload.get("source_id") or 0)
+    except Exception:
+        source_id = 0
+
+    if not source_id:
+        return jsonify({"ok": False, "error": _("Please select a data source.")}), 400
+
+    source = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first()
+    if not source:
+        return jsonify({"ok": False, "error": _("Invalid data source.")}), 404
+
+    questions = (
+        Question.query.filter_by(tenant_id=g.tenant.id, source_id=source.id)
+        .order_by(Question.updated_at.desc(), Question.id.desc())
+        .limit(300)
+        .all()
+    )
+    items = []
+    for q in questions:
+        items.append(
+            {
+                "id": q.id,
+                "name": q.name,
+                "updated_at": q.updated_at.isoformat() if q.updated_at else "",
+            }
+        )
+
+    message = ""
+    if not items:
+        message = _("No saved questions were found for this source.")
+    return jsonify({"ok": True, "questions": items, "count": len(items), "message": message})
+
+
+def _bi_lite_exec_requested_sections(prompt: str) -> dict[str, bool]:
+    text = str(prompt or "").lower()
+    kpi = any(tok in text for tok in ["kpi", "indicateur", "indicator", "metric", "métrique"])
+    trends = any(tok in text for tok in ["trend", "tendance", "evolution", "évolution", "growth", "croissance"])
+    timeline = any(tok in text for tok in ["timeline", "chronologie", "month", "mois", "quarter", "trimestre", "year", "année"])
+    data = any(tok in text for tok in ["table", "detail", "détail", "data", "dataset", "raw"])
+    if not any([kpi, trends, timeline, data]):
+        return {"kpi": True, "trends": True, "timeline": True, "data": True}
+    return {"kpi": kpi, "trends": trends, "timeline": timeline, "data": data}
+
+
+def _bi_lite_exec_kpis(columns: list[str], rows: list[list[Any]], max_items: int = 4) -> list[dict[str, Any]]:
+    if not columns or not rows:
+        return []
+
+    numeric_cols: list[int] = []
+    for idx in range(len(columns)):
+        seen = 0
+        numeric_seen = 0
+        for r in rows[:500]:
+            if not isinstance(r, (list, tuple)) or idx >= len(r):
+                continue
+            v = r[idx]
+            if v in (None, ""):
+                continue
+            seen += 1
+            if _to_number(v) is not None:
+                numeric_seen += 1
+        if seen and (numeric_seen / seen) >= 0.75:
+            numeric_cols.append(idx)
+
+    out: list[dict[str, Any]] = []
+    for idx in numeric_cols[:max_items]:
+        vals = []
+        for r in rows:
+            if not isinstance(r, (list, tuple)) or idx >= len(r):
+                continue
+            n = _to_number(r[idx])
+            if n is not None:
+                vals.append(float(n))
+        if not vals:
+            continue
+        total = sum(vals)
+        avg = total / max(1, len(vals))
+        out.append(
+            {
+                "label": str(columns[idx]),
+                "total": total,
+                "avg": avg,
+                "count": len(vals),
+            }
+        )
+    return out
+
+
+def _bi_lite_exec_trends(columns: list[str], rows: list[list[Any]], max_points: int = 18) -> list[dict[str, Any]]:
+    if not columns or not rows:
+        return []
+
+    date_cols = _date_fields(columns, rows)
+    if not date_cols:
+        return []
+    date_col = date_cols[0]
+    date_idx = next((i for i, c in enumerate(columns) if str(c) == date_col), -1)
+    if date_idx < 0:
+        return []
+
+    metric_idx = -1
+    for idx in range(len(columns)):
+        if idx == date_idx:
+            continue
+        seen = 0
+        num = 0
+        for r in rows[:500]:
+            if not isinstance(r, (list, tuple)) or idx >= len(r):
+                continue
+            v = r[idx]
+            if v in (None, ""):
+                continue
+            seen += 1
+            if _to_number(v) is not None:
+                num += 1
+        if seen and (num / seen) >= 0.7:
+            metric_idx = idx
+            break
+    if metric_idx < 0:
+        return []
+
+    buckets: dict[str, float] = {}
+    for r in rows:
+        if not isinstance(r, (list, tuple)) or date_idx >= len(r) or metric_idx >= len(r):
+            continue
+        d = _to_date_value(r[date_idx])
+        n = _to_number(r[metric_idx])
+        if d is None or n is None:
+            continue
+        key = d.strftime("%Y-%m")
+        buckets[key] = float(buckets.get(key, 0.0) + float(n))
+
+    points = [{"label": k, "value": float(v)} for k, v in sorted(buckets.items(), key=lambda kv: kv[0])]
+    if len(points) > max_points:
+        points = points[-max_points:]
+    return points
+
+
+def _bi_lite_exec_auto_charts(columns: list[str], rows: list[list[Any]], max_items: int = 3) -> list[dict[str, Any]]:
+    """Generate a few fallback charts when AI does not return chart options."""
+    if not columns or not rows:
+        return []
+
+    out: list[dict[str, Any]] = []
+    cols = [str(c) for c in columns]
+    sample_rows = [r for r in rows[:500] if isinstance(r, (list, tuple))]
+    if not sample_rows:
+        return []
+
+    numeric_idx: list[int] = []
+    for idx in range(len(cols)):
+        seen = 0
+        num = 0
+        for r in sample_rows:
+            if idx >= len(r):
+                continue
+            v = r[idx]
+            if v in (None, ""):
+                continue
+            seen += 1
+            if _to_number(v) is not None:
+                num += 1
+        if seen and (num / seen) >= 0.7:
+            numeric_idx.append(idx)
+
+    text_idx = [i for i in range(len(cols)) if i not in numeric_idx]
+    dim_idx = text_idx[0] if text_idx else (-1 if not cols else 0)
+    metric_idx = numeric_idx[0] if numeric_idx else (-1 if not cols else 0)
+
+    if dim_idx >= 0 and metric_idx >= 0 and dim_idx != metric_idx:
+        agg: dict[str, float] = {}
+        for r in rows:
+            if not isinstance(r, (list, tuple)) or dim_idx >= len(r) or metric_idx >= len(r):
+                continue
+            key = str(r[dim_idx] if r[dim_idx] is not None else "(empty)").strip() or "(empty)"
+            n = _to_number(r[metric_idx])
+            if n is None:
+                continue
+            agg[key] = float(agg.get(key, 0.0) + float(n))
+        if agg:
+            top = sorted(agg.items(), key=lambda kv: kv[1], reverse=True)[:12]
+            out.append(
+                {
+                    "title": f"Top {cols[dim_idx]} by {cols[metric_idx]}",
+                    "echarts_option": {
+                        "tooltip": {"trigger": "axis"},
+                        "xAxis": {"type": "category", "data": [k for k, _ in top]},
+                        "yAxis": {"type": "value"},
+                        "series": [{"type": "bar", "data": [float(v) for _, v in top], "name": cols[metric_idx]}],
+                        "grid": {"left": 40, "right": 20, "top": 30, "bottom": 45},
+                    },
+                }
+            )
+
+            pie = sorted(agg.items(), key=lambda kv: kv[1], reverse=True)[:8]
+            out.append(
+                {
+                    "title": f"{cols[metric_idx]} distribution by {cols[dim_idx]}",
+                    "echarts_option": {
+                        "tooltip": {"trigger": "item"},
+                        "legend": {"top": "bottom"},
+                        "series": [
+                            {
+                                "type": "pie",
+                                "radius": ["38%", "68%"],
+                                "data": [{"name": k, "value": float(v)} for k, v in pie],
+                            }
+                        ],
+                    },
+                }
+            )
+
+    trend_points = _bi_lite_exec_trends(columns, rows, max_points=18)
+    if trend_points:
+        out.append(
+            {
+                "title": "Trend over time",
+                "echarts_option": {
+                    "tooltip": {"trigger": "axis"},
+                    "xAxis": {"type": "category", "data": [str(p.get("label") or "") for p in trend_points]},
+                    "yAxis": {"type": "value"},
+                    "series": [
+                        {
+                            "type": "line",
+                            "smooth": True,
+                            "areaStyle": {},
+                            "data": [float(p.get("value") or 0.0) for p in trend_points],
+                        }
+                    ],
+                    "grid": {"left": 40, "right": 20, "top": 30, "bottom": 35},
+                },
+            }
+        )
+
+    return out[: max(1, int(max_items or 3))]
+
+
+def _bi_lite_exec_html(
+    *,
+    title: str,
+    source_name: str,
+    prompt: str,
+    analysis: str,
+    sql_text: str,
+    columns: list[str],
+    rows: list[list[Any]],
+        ai_charts: list[dict[str, Any]] | None = None,
+) -> str:
+        safe_title = html.escape(str(title or "Executive report"))
+        safe_source = html.escape(str(source_name or ""))
+        safe_prompt = html.escape(str(prompt or ""))
+        safe_analysis = html.escape(str(analysis or ""))
+        safe_sql = html.escape(str(sql_text or ""))
+
+        sections = _bi_lite_exec_requested_sections(prompt)
+        kpis = _bi_lite_exec_kpis(columns, rows)
+        trends = _bi_lite_exec_trends(columns, rows)
+        table_rows = rows[:200]
+
+        chart_items: list[dict[str, Any]] = []
+        for ch in (ai_charts or []):
+                if not isinstance(ch, dict):
+                        continue
+                title_val = str(ch.get("title") or "").strip()[:120]
+                option = ch.get("echarts_option")
+                if title_val and isinstance(option, dict):
+                        chart_items.append({"title": title_val, "echarts_option": option})
+
+        if len(chart_items) < 2:
+                auto = _bi_lite_exec_auto_charts(columns, rows, max_items=3)
+                existing = {str(c.get("title") or "").lower() for c in chart_items}
+                for ch in auto:
+                        key = str(ch.get("title") or "").lower()
+                        if key in existing:
+                                continue
+                        chart_items.append(ch)
+                        existing.add(key)
+                        if len(chart_items) >= 4:
+                                break
+
+        def _fmt_num(v: float) -> str:
+                try:
+                        return f"{float(v):,.2f}"
+                except Exception:
+                        return str(v)
+
+        kpi_cards = "".join(
+                [
+                        (
+                                '<div class="kpi-card">'
+                                f'<div class="kpi-label">{html.escape(str(item.get("label") or ""))}</div>'
+                                f'<div class="kpi-value">{_fmt_num(float(item.get("total") or 0.0))}</div>'
+                                f'<div class="kpi-sub">Avg: {_fmt_num(float(item.get("avg") or 0.0))} · N={int(item.get("count") or 0)}</div>'
+                                '</div>'
+                        )
+                        for item in kpis
+                ]
+        )
+
+        max_trend = max([float(p.get("value") or 0.0) for p in trends], default=0.0)
+        trend_items = "".join(
+                [
+                        (
+                                '<div class="trend-row">'
+                                f'<div class="trend-label">{html.escape(str(p.get("label") or ""))}</div>'
+                                f'<div class="trend-bar"><span style="width:{(0 if max_trend <= 0 else max(3.0, (float(p.get("value") or 0.0) / max_trend) * 100.0)):.2f}%"></span></div>'
+                                f'<div class="trend-val">{_fmt_num(float(p.get("value") or 0.0))}</div>'
+                                '</div>'
+                        )
+                        for p in trends
+                ]
+        )
+
+        timeline_items = "".join(
+                [
+                        (
+                                '<div class="timeline-item">'
+                                f'<div class="timeline-dot"></div><div class="timeline-content"><strong>{html.escape(str(p.get("label") or ""))}</strong><br>{_fmt_num(float(p.get("value") or 0.0))}</div>'
+                                '</div>'
+                        )
+                        for p in trends
+                ]
+        )
+
+        head_cells = "".join([f"<th>{html.escape(str(c))}</th>" for c in (columns or [])])
+        body_rows = "".join(
+                [
+                        "<tr>"
+                        + "".join(
+                                [f"<td>{html.escape(str(row[i])) if i < len(row) and row[i] is not None else ''}</td>" for i in range(len(columns or []))]
+                        )
+                        + "</tr>"
+                        for row in table_rows
+                        if isinstance(row, (list, tuple))
+                ]
+        )
+
+        trend_fallback = '<span style="color:var(--muted)">No trend axis detected in this dataset.</span>'
+        timeline_fallback = '<span style="color:var(--muted)">No timeline points available.</span>'
+        trend_content = trend_items if trend_items else trend_fallback
+        timeline_content = timeline_items if timeline_items else timeline_fallback
+
+        data_payload = {
+                "columns": [str(c) for c in (columns or [])],
+                "rows": [list(r) for r in (rows or []) if isinstance(r, (list, tuple))][:700],
+        }
+        data_json = json.dumps(data_payload, ensure_ascii=False, default=str).replace("</", "<\\/")
+        charts_json = json.dumps(chart_items[:6], ensure_ascii=False, default=str).replace("</", "<\\/")
+
+        return f"""<!doctype html>
+<html lang=\"en\">
+<head>
+    <meta charset=\"utf-8\" />
+    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+    <title>{safe_title}</title>
+    <script src=\"https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js\"></script>
+    <style>
+        :root {{ --bg:#f6f8fb; --card:#ffffff; --ink:#142033; --muted:#5a6b85; --line:#dbe3ef; --accent:#0b65d8; --accent2:#14a3a3; }}
+        * {{ box-sizing:border-box; }}
+        body {{ margin:0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color:var(--ink); background:var(--bg); }}
+        .hero {{ padding:24px 28px; background: linear-gradient(120deg, #0b65d8, #14a3a3); color:#fff; }}
+        .hero h1 {{ margin:0 0 8px 0; font-size:28px; }}
+        .hero .meta {{ opacity:.92; font-size:14px; }}
+        .wrap {{ padding:18px 22px 28px; }}
+        .tabs {{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }}
+        .tab-btn {{ border:1px solid var(--line); background:#fff; color:var(--ink); border-radius:10px; padding:8px 12px; cursor:pointer; font-weight:600; }}
+        .tab-btn.active {{ background:var(--accent); color:#fff; border-color:var(--accent); }}
+        .panel {{ display:none; }}
+        .panel.active {{ display:block; }}
+        .grid {{ display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:12px; }}
+        .card {{ background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; }}
+        .span-12 {{ grid-column: span 12; }}
+        .kpi-list {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; }}
+        .kpi-card {{ border:1px solid var(--line); border-radius:12px; padding:10px; background:#fff; }}
+        .kpi-label {{ color:var(--muted); font-size:12px; }}
+        .kpi-value {{ font-size:24px; font-weight:700; margin-top:4px; }}
+        .kpi-sub {{ color:var(--muted); font-size:12px; margin-top:4px; }}
+        .trend-row {{ display:grid; grid-template-columns:100px 1fr 130px; gap:8px; align-items:center; margin:7px 0; }}
+        .trend-label {{ color:var(--muted); font-size:12px; }}
+        .trend-bar {{ height:11px; background:#edf2fb; border-radius:999px; overflow:hidden; }}
+        .trend-bar span {{ display:block; height:100%; background:linear-gradient(90deg, var(--accent), var(--accent2)); }}
+        .trend-val {{ text-align:right; font-weight:600; font-size:12px; }}
+        .timeline-item {{ position:relative; padding-left:24px; margin:10px 0; }}
+        .timeline-dot {{ position:absolute; left:6px; top:4px; width:10px; height:10px; border-radius:50%; background:var(--accent); }}
+        .timeline-content {{ font-size:13px; color:var(--ink); }}
+        .filters {{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }}
+        .filters input, .filters select {{ border:1px solid var(--line); border-radius:10px; padding:7px 10px; background:#fff; }}
+        .filters button {{ border:1px solid var(--line); border-radius:10px; padding:7px 10px; background:#fff; cursor:pointer; }}
+        .ai-chart-grid {{ display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:12px; }}
+        .ai-chart-card {{ grid-column: span 6; background:#fff; border:1px solid var(--line); border-radius:12px; padding:10px; }}
+        .ai-chart-title {{ font-weight:700; font-size:13px; margin-bottom:8px; color:#24324a; }}
+        .ai-chart-box {{ height:320px; }}
+        .muted-note {{ color:var(--muted); font-size:12px; }}
+        .data-table {{ width:100%; border-collapse:collapse; font-size:12px; }}
+        .data-table th, .data-table td {{ border:1px solid var(--line); padding:6px 8px; text-align:left; }}
+        .data-table th {{ background:#eef3fb; }}
+        pre {{ background:#0f172a; color:#e2e8f0; border-radius:10px; padding:12px; overflow:auto; font-size:12px; }}
+        @media (max-width: 960px) {{ .trend-row {{ grid-template-columns:80px 1fr 100px; }} .ai-chart-card {{ grid-column: span 12; }} }}
+    </style>
+</head>
+<body>
+    <header class=\"hero\">
+        <h1>{safe_title}</h1>
+        <div class=\"meta\">Source: {safe_source} · Generated at {html.escape(datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC'))}</div>
+    </header>
+
+    <main class=\"wrap\">
+        <div class=\"tabs\">
+            <button class=\"tab-btn active\" data-tab=\"overview\">Overview</button>
+            <button class=\"tab-btn\" data-tab=\"charts\">AI Charts</button>
+            <button class=\"tab-btn\" data-tab=\"trends\">Trends</button>
+            <button class=\"tab-btn\" data-tab=\"timeline\">Timeline</button>
+            <button class=\"tab-btn\" data-tab=\"data\">Data</button>
+        </div>
+
+        <div class=\"card\" style=\"margin-bottom:12px;\">
+            <div class=\"filters\">
+                <input id=\"execFilterSearch\" type=\"search\" placeholder=\"Filter rows (text search)\" />
+                <select id=\"execFilterColumn\"></select>
+                <select id=\"execFilterValue\"></select>
+                <button id=\"execFilterReset\" type=\"button\">Reset filters</button>
+                <span id=\"execFilterCount\" class=\"muted-note\"></span>
+            </div>
+        </div>
+
+        <section class=\"panel active\" id=\"tab-overview\">
+            <div class=\"grid\">
+                <article class=\"card span-12\"><strong>Executive brief</strong><br><div style=\"margin-top:8px;color:var(--muted)\">{safe_analysis or 'Executive analysis generated from current BI Lite request.'}</div></article>
+                <article class=\"card span-12\"><strong>User request</strong><br><div style=\"margin-top:8px;color:var(--muted)\">{safe_prompt}</div></article>
+                <article class=\"card span-12\" style=\"display:{'block' if sections.get('kpi', True) else 'none'}\"><strong>KPIs</strong><div id=\"execKpiList\" class=\"kpi-list\" style=\"margin-top:10px\">{kpi_cards}</div></article>
+            </div>
+        </section>
+
+        <section class=\"panel\" id=\"tab-charts\">
+            <div class=\"card\">
+                <strong>AI-selected visualizations</strong>
+                <div class=\"muted-note\" style=\"margin-top:4px;\">Charts are proposed by AI from your executive request and data context.</div>
+                <div id=\"execAiCharts\" class=\"ai-chart-grid\" style=\"margin-top:10px;\"></div>
+            </div>
+        </section>
+
+        <section class=\"panel\" id=\"tab-trends\">
+            <div class=\"card\" style=\"display:{'block' if sections.get('trends', True) else 'none'}\">
+                <strong>Trends</strong>
+                <div id=\"execTrends\" style=\"margin-top:10px\">{trend_content}</div>
+            </div>
+        </section>
+
+        <section class=\"panel\" id=\"tab-timeline\">
+            <div class=\"card\" style=\"display:{'block' if sections.get('timeline', True) else 'none'}\">
+                <strong>Timeline</strong>
+                <div id=\"execTimeline\" style=\"margin-top:10px\">{timeline_content}</div>
+            </div>
+        </section>
+
+        <section class=\"panel\" id=\"tab-data\">
+            <div class=\"grid\">
+                <article class=\"card span-12\"><strong>SQL</strong><pre>{safe_sql}</pre></article>
+                <article class=\"card span-12\" style=\"display:{'block' if sections.get('data', True) else 'none'}\">
+                    <strong>Data sample</strong> <span id=\"execDataCount\" class=\"muted-note\"></span>
+                    <div style=\"overflow:auto; margin-top:8px;\">
+                        <table class=\"data-table\">
+                            <thead><tr>{head_cells}</tr></thead>
+                            <tbody id=\"execDataBody\">{body_rows}</tbody>
+                        </table>
+                    </div>
+                </article>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        (function () {{
+            var payload = {data_json};
+            var aiCharts = {charts_json};
+            var columns = Array.isArray(payload.columns) ? payload.columns : [];
+            var allRows = Array.isArray(payload.rows) ? payload.rows : [];
+            var filteredRows = allRows.slice();
+
+            var buttons = Array.prototype.slice.call(document.querySelectorAll('.tab-btn'));
+            buttons.forEach(function (btn) {{
+                btn.addEventListener('click', function () {{
+                    var id = String(btn.getAttribute('data-tab') || 'overview');
+                    buttons.forEach(function (b) {{ b.classList.toggle('active', b === btn); }});
+                    Array.prototype.slice.call(document.querySelectorAll('.panel')).forEach(function (p) {{
+                        p.classList.toggle('active', p.id === ('tab-' + id));
+                    }});
+                    if (id === 'charts') {{
+                        window.setTimeout(function () {{ renderAiCharts(true); }}, 80);
+                    }}
+                }});
+            }});
+
+            function esc(v) {{
+                return String(v == null ? '' : v)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/\"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            }}
+
+            function toNum(v) {{
+                if (v === null || v === undefined || v === '') return null;
+                var n = Number(v);
+                return Number.isFinite(n) ? n : null;
+            }}
+
+            function parseDateValue(v) {{
+                if (v === null || v === undefined || v === '') return null;
+
+                if (v instanceof Date) {{
+                    return Number.isNaN(v.getTime()) ? null : v;
+                }}
+
+                if (typeof v === 'number' && Number.isFinite(v)) {{
+                    // Accept only plausible unix timestamps; reject small numerics (e.g. IDs, totals).
+                    if (v >= 946684800000 && v <= 4102444800000) return new Date(v); // ms
+                    if (v >= 946684800 && v <= 4102444800) return new Date(v * 1000); // s
+                    return null;
+                }}
+
+                var txt = String(v).trim();
+                if (!txt) return null;
+
+                // Reject pure digits like "1039" to avoid 1970 false positives.
+                if (/^\d+$/.test(txt)) return null;
+
+                // MM/YYYY
+                var mmyyyy = txt.match(/^(\d{1,2})\/(\d{4})$/);
+                if (mmyyyy) {{
+                    var mm = Number(mmyyyy[1]);
+                    var yy = Number(mmyyyy[2]);
+                    if (mm >= 1 && mm <= 12 && yy >= 1900 && yy <= 2100) {{
+                        return new Date(Date.UTC(yy, mm - 1, 1));
+                    }}
+                    return null;
+                }}
+
+                // YYYY-MM or YYYY/MM
+                var yyyymm = txt.match(/^(\d{4})[-\/](\d{1,2})$/);
+                if (yyyymm) {{
+                    var y = Number(yyyymm[1]);
+                    var m = Number(yyyymm[2]);
+                    if (m >= 1 && m <= 12 && y >= 1900 && y <= 2100) {{
+                        return new Date(Date.UTC(y, m - 1, 1));
+                    }}
+                    return null;
+                }}
+
+                if (!/[\-\/T:]/.test(txt)) return null;
+                var d = new Date(txt);
+                if (Number.isNaN(d.getTime())) return null;
+                return d;
+            }}
+
+            function isDateLike(v) {{
+                return parseDateValue(v) !== null;
+            }}
+
+            var searchEl = document.getElementById('execFilterSearch');
+            var colEl = document.getElementById('execFilterColumn');
+            var valEl = document.getElementById('execFilterValue');
+            var resetEl = document.getElementById('execFilterReset');
+            var countEl = document.getElementById('execFilterCount');
+            var dataBodyEl = document.getElementById('execDataBody');
+            var dataCountEl = document.getElementById('execDataCount');
+            var kpiEl = document.getElementById('execKpiList');
+            var trendsEl = document.getElementById('execTrends');
+            var timelineEl = document.getElementById('execTimeline');
+            var aiChartsEl = document.getElementById('execAiCharts');
+            var aiChartInstances = [];
+
+            function disposeAiCharts() {{
+                aiChartInstances.forEach(function (inst) {{
+                    try {{ if (inst && typeof inst.dispose === 'function') inst.dispose(); }} catch (e) {{}}
+                }});
+                aiChartInstances = [];
+            }}
+
+            function resizeAiCharts() {{
+                aiChartInstances.forEach(function (inst) {{
+                    try {{ if (inst && typeof inst.resize === 'function') inst.resize(); }} catch (e) {{}}
+                }});
+            }}
+
+            function renderTable(rows) {{
+                if (!dataBodyEl) return;
+                if (!Array.isArray(rows) || !rows.length) {{
+                    dataBodyEl.innerHTML = '<tr><td colspan="' + Math.max(1, columns.length) + '" style="color:#5a6b85">No rows after filters.</td></tr>';
+                    return;
+                }}
+                var limited = rows.slice(0, 300);
+                dataBodyEl.innerHTML = limited.map(function (row) {{
+                    var cells = Array.isArray(row) ? row : [];
+                    return '<tr>' + columns.map(function (_, i) {{ return '<td>' + esc(cells[i]) + '</td>'; }}).join('') + '</tr>';
+                }}).join('');
+            }}
+
+            function renderKpis(rows) {{
+                if (!kpiEl) return;
+                if (!Array.isArray(rows) || !rows.length || !columns.length) {{
+                    kpiEl.innerHTML = '<div class="muted-note">No KPI available after filters.</div>';
+                    return;
+                }}
+                var numericIdx = [];
+                for (var i = 0; i < columns.length; i++) {{
+                    var seen = 0, num = 0;
+                    rows.slice(0, 500).forEach(function (r) {{
+                        if (!Array.isArray(r) || i >= r.length) return;
+                        var v = r[i];
+                        if (v === null || v === undefined || v === '') return;
+                        seen += 1;
+                        if (toNum(v) !== null) num += 1;
+                    }});
+                    if (seen && (num / seen) >= 0.7) numericIdx.push(i);
+                }}
+                numericIdx = numericIdx.slice(0, 4);
+                if (!numericIdx.length) {{
+                    kpiEl.innerHTML = '<div class="muted-note">No numeric KPI detected for current filters.</div>';
+                    return;
+                }}
+                function fmt(n) {{ return Number(n || 0).toLocaleString(undefined, {{ maximumFractionDigits: 2 }}); }}
+                kpiEl.innerHTML = numericIdx.map(function (idx) {{
+                    var vals = rows.map(function (r) {{ return Array.isArray(r) ? toNum(r[idx]) : null; }}).filter(function (v) {{ return v !== null; }});
+                    var total = vals.reduce(function (a, b) {{ return a + b; }}, 0);
+                    var avg = vals.length ? total / vals.length : 0;
+                    return '<div class="kpi-card"><div class="kpi-label">' + esc(columns[idx]) + '</div><div class="kpi-value">' + fmt(total) + '</div><div class="kpi-sub">Avg: ' + fmt(avg) + ' · N=' + vals.length + '</div></div>';
+                }}).join('');
+            }}
+
+            function trendPoints(rows) {{
+                if (!Array.isArray(rows) || !rows.length || !columns.length) return [];
+                var dateIdx = -1;
+                for (var i = 0; i < columns.length; i++) {{
+                    var seen = 0, ok = 0;
+                    rows.slice(0, 400).forEach(function (r) {{
+                        if (!Array.isArray(r) || i >= r.length) return;
+                        var v = r[i];
+                        if (v === null || v === undefined || v === '') return;
+                        seen += 1;
+                        if (isDateLike(v)) ok += 1;
+                    }});
+                    if (seen && (ok / seen) >= 0.6) {{ dateIdx = i; break; }}
+                }}
+                if (dateIdx < 0) return [];
+                var metricIdx = -1;
+                for (var j = 0; j < columns.length; j++) {{
+                    if (j === dateIdx) continue;
+                    var s2 = 0, n2 = 0;
+                    rows.slice(0, 400).forEach(function (r) {{
+                        if (!Array.isArray(r) || j >= r.length) return;
+                        var v = r[j];
+                        if (v === null || v === undefined || v === '') return;
+                        s2 += 1;
+                        if (toNum(v) !== null) n2 += 1;
+                    }});
+                    if (s2 && (n2 / s2) >= 0.6) {{ metricIdx = j; break; }}
+                }}
+                if (metricIdx < 0) return [];
+                var buckets = {{}};
+                rows.forEach(function (r) {{
+                    if (!Array.isArray(r) || dateIdx >= r.length || metricIdx >= r.length) return;
+                    var d = parseDateValue(r[dateIdx]);
+                    var n = toNum(r[metricIdx]);
+                    if (!d || Number.isNaN(d.getTime()) || n === null) return;
+                    var key = d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0');
+                    buckets[key] = (buckets[key] || 0) + n;
+                }});
+                return Object.keys(buckets).sort().slice(-18).map(function (k) {{ return {{ label: k, value: buckets[k] }}; }});
+            }}
+
+            function renderTrendsAndTimeline(rows) {{
+                var pts = trendPoints(rows);
+                if (trendsEl) {{
+                    if (!pts.length) trendsEl.innerHTML = '<span style="color:#5a6b85">No trend axis detected in filtered data.</span>';
+                    else {{
+                        var maxV = Math.max.apply(null, pts.map(function (p) {{ return Number(p.value || 0); }}));
+                        trendsEl.innerHTML = pts.map(function (p) {{
+                            var width = maxV <= 0 ? 0 : Math.max(3, (Number(p.value || 0) / maxV) * 100);
+                            return '<div class="trend-row"><div class="trend-label">' + esc(p.label) + '</div><div class="trend-bar"><span style="width:' + width.toFixed(2) + '%"></span></div><div class="trend-val">' + Number(p.value || 0).toLocaleString(undefined, {{ maximumFractionDigits: 2 }}) + '</div></div>';
+                        }}).join('');
+                    }}
+                }}
+                if (timelineEl) {{
+                    if (!pts.length) timelineEl.innerHTML = '<span style="color:#5a6b85">No timeline points available for filtered data.</span>';
+                    else timelineEl.innerHTML = pts.map(function (p) {{
+                        return '<div class="timeline-item"><div class="timeline-dot"></div><div class="timeline-content"><strong>' + esc(p.label) + '</strong><br>' + Number(p.value || 0).toLocaleString(undefined, {{ maximumFractionDigits: 2 }}) + '</div></div>';
+                    }}).join('');
+                }}
+            }}
+
+            function renderAiCharts(forceRender) {{
+                if (!aiChartsEl) return;
+                disposeAiCharts();
+                if (!Array.isArray(aiCharts) || !aiCharts.length) {{
+                    aiChartsEl.innerHTML = '<div class="muted-note">AI did not return chart recommendations for this request.</div>';
+                    return;
+                }}
+                aiChartsEl.innerHTML = aiCharts.map(function (c, idx) {{
+                    return '<div class="ai-chart-card"><div class="ai-chart-title">' + esc(c.title || ('Chart ' + (idx + 1))) + '</div><div id="execAiChart_' + idx + '" class="ai-chart-box"></div></div>';
+                }}).join('');
+
+                // srcdoc iframes may not load CDN scripts due CSP/network; reuse parent echarts when available.
+                if (!(window.echarts && typeof window.echarts.init === 'function')) {{
+                    try {{
+                        if (window.parent && window.parent !== window && window.parent.echarts && typeof window.parent.echarts.init === 'function') {{
+                            window.echarts = window.parent.echarts;
+                        }}
+                    }} catch (e) {{}}
+                }}
+
+                if (!(window.echarts && typeof window.echarts.init === 'function')) {{
+                    aiChartsEl.insertAdjacentHTML('beforeend', '<div class="muted-note">ECharts runtime unavailable (blocked CDN/CSP). Charts cannot be rendered in this preview.</div>');
+                    return;
+                }}
+
+                var renderedCount = 0;
+                aiCharts.forEach(function (c, idx) {{
+                    var el = document.getElementById('execAiChart_' + idx);
+                    if (!el) return;
+
+                    // When tab is hidden, chart boxes can be 0x0; postpone rendering until visible.
+                    if ((el.clientWidth || 0) < 20 || (el.clientHeight || 0) < 20) {{
+                        if (forceRender) {{
+                            el.innerHTML = '<div class="muted-note">Chart area is not ready yet. Reopen AI Charts tab.</div>';
+                        }}
+                        return;
+                    }}
+
+                    try {{
+                        var instance = window.echarts.init(el);
+                        instance.setOption(c.echarts_option || {{}}, true);
+                        aiChartInstances.push(instance);
+                        renderedCount += 1;
+                    }}
+                    catch (e) {{ el.innerHTML = '<div class="muted-note">Unable to render this AI chart.</div>'; }}
+                }});
+
+                if (!renderedCount && forceRender) {{
+                    aiChartsEl.insertAdjacentHTML('beforeend', '<div class="muted-note">Charts are available but could not be initialized in the current layout. Try opening preview in a new tab.</div>');
+                }}
+            }}
+
+            function buildColumnFilters() {{
+                if (!colEl || !valEl) return;
+                colEl.innerHTML = '<option value="">All columns</option>' + columns.map(function (c) {{ return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }}).join('');
+                valEl.innerHTML = '<option value="">All values</option>';
+            }}
+
+            function buildValueOptions() {{
+                if (!colEl || !valEl) return;
+                var col = String(colEl.value || '');
+                if (!col) {{ valEl.innerHTML = '<option value="">All values</option>'; return; }}
+                var idx = columns.indexOf(col);
+                if (idx < 0) {{ valEl.innerHTML = '<option value="">All values</option>'; return; }}
+                var values = [];
+                var seen = {{}};
+                allRows.forEach(function (r) {{
+                    if (!Array.isArray(r) || idx >= r.length) return;
+                    var v = String(r[idx] == null ? '' : r[idx]);
+                    if (seen[v]) return;
+                    seen[v] = true;
+                    values.push(v);
+                }});
+                values = values.slice(0, 400).sort();
+                valEl.innerHTML = '<option value="">All values</option>' + values.map(function (v) {{ return '<option value="' + esc(v) + '">' + esc(v || '(empty)') + '</option>'; }}).join('');
+            }}
+
+            function applyFilters() {{
+                var search = searchEl ? String(searchEl.value || '').toLowerCase().trim() : '';
+                var col = colEl ? String(colEl.value || '') : '';
+                var colIdx = col ? columns.indexOf(col) : -1;
+                var val = valEl ? String(valEl.value || '') : '';
+                filteredRows = allRows.filter(function (r) {{
+                    if (!Array.isArray(r)) return false;
+                    if (search) {{
+                        var joined = r.map(function (x) {{ return String(x == null ? '' : x).toLowerCase(); }}).join(' ');
+                        if (joined.indexOf(search) < 0) return false;
+                    }}
+                    if (colIdx >= 0 && val) {{
+                        if (String(r[colIdx] == null ? '' : r[colIdx]) !== val) return false;
+                    }}
+                    return true;
+                }});
+                if (countEl) countEl.textContent = filteredRows.length + ' / ' + allRows.length + ' rows';
+                if (dataCountEl) dataCountEl.textContent = '· ' + filteredRows.length + ' row(s)';
+                renderTable(filteredRows);
+                renderKpis(filteredRows);
+                renderTrendsAndTimeline(filteredRows);
+            }}
+
+            buildColumnFilters();
+            buildValueOptions();
+            renderAiCharts(false);
+            applyFilters();
+            if (window && typeof window.addEventListener === 'function') {{
+                window.addEventListener('resize', function () {{ resizeAiCharts(); }});
+            }}
+            if (searchEl) searchEl.addEventListener('input', applyFilters);
+            if (colEl) colEl.addEventListener('change', function () {{ buildValueOptions(); applyFilters(); }});
+            if (valEl) valEl.addEventListener('change', applyFilters);
+            if (resetEl) resetEl.addEventListener('click', function () {{
+                if (searchEl) searchEl.value = '';
+                if (colEl) colEl.value = '';
+                if (valEl) valEl.value = '';
+                buildValueOptions();
+                applyFilters();
+            }});
+
+            var chartsBtn = document.querySelector('.tab-btn[data-tab="charts"]');
+            if (chartsBtn && chartsBtn.classList.contains('active')) {{
+                window.setTimeout(function () {{ renderAiCharts(true); }}, 80);
+            }}
+        }})();
+    </script>
+</body>
+</html>
+"""
+
+
 def _bi_ai_normalize_viz_type(value: Any) -> str:
     raw = str(value or "").strip().lower()
     allowed = {"", "table", "bar", "line", "area", "pie", "scatter", "gauge", "kpi"}
@@ -7734,17 +8887,33 @@ def _bi_ai_create_dashboard_bundle(
     question_hint: str = "",
     title_suffix: str = "",
     preferred_viz: str = "",
+    selected_tables: list[str] | None = None,
+    strict_selected_tables: bool = False,
 ) -> dict[str, Any]:
-    sql_text, warnings = generate_sql_from_nl(source, message, lang=getattr(g, "lang", None))
-    sql_text = str(sql_text or "").strip()
+    sql_text, warnings = generate_sql_from_nl(
+        source,
+        message,
+        lang=getattr(g, "lang", None),
+        allowed_tables=selected_tables,
+        require_all_allowed_tables=bool(strict_selected_tables),
+    )
+    sql_text, sql_kw = _bi_ai_normalize_sql(str(sql_text or "").strip())
     if not sql_text:
-        raise ValueError(_("Could not generate SQL from this request."))
+        raise ValueError(str((warnings or [_("Could not generate SQL from this request.")])[0]))
 
-    if not sql_text.lower().lstrip().startswith(("select", "with")):
+    if sql_kw not in {"select", "with"}:
         raise ValueError(_("Only SELECT queries are allowed."))
 
     try:
-        result = execute_sql(source, sql_text, params={"tenant_id": g.tenant.id}, row_limit=800)
+        result, effective_sql, exec_warnings = _bi_ai_execute_sql_resilient(
+            source,
+            sql_text,
+            params={"tenant_id": g.tenant.id},
+            row_limit=800,
+        )
+        sql_text = effective_sql
+        if exec_warnings:
+            warnings = list(warnings or []) + list(exec_warnings)
     except QueryExecutionError as e:
         raise ValueError(str(e)) from e
 
@@ -7849,6 +9018,12 @@ def api_ai_dashboard_create():
 
     create_comparison = _bi_ai_bool(payload.get("create_comparison"))
     preferred_viz = _bi_ai_normalize_viz_type(payload.get("viz_type"))
+    selected_tables, selected_question_ids, scope_error = _bi_ai_effective_table_scope(source, payload)
+    if scope_error:
+        return jsonify({"ok": False, "error": scope_error}), 400
+    full_table_selection = bool(selected_tables) and not bool(selected_question_ids) and _bi_ai_is_full_table_selection(source, selected_tables)
+    generation_tables = [] if full_table_selection else selected_tables
+    strict_selected_tables = bool(generation_tables) and not bool(selected_question_ids)
     required_quota = 4 if create_comparison else 2
 
     if not _bi_quota_check(required_quota):
@@ -7861,6 +9036,8 @@ def api_ai_dashboard_create():
             dashboard_hint=str(payload.get("dashboard_name") or ""),
             question_hint=str(payload.get("question_name") or ""),
             preferred_viz=preferred_viz,
+            selected_tables=generation_tables,
+            strict_selected_tables=strict_selected_tables,
         )
     except ValueError as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
@@ -7881,6 +9058,8 @@ def api_ai_dashboard_create():
                 question_hint=str(payload.get("comparison_question_name") or "") or str(payload.get("question_name") or "") or message,
                 title_suffix="(Comparison)",
                 preferred_viz=preferred_viz,
+                selected_tables=generation_tables,
+                strict_selected_tables=strict_selected_tables,
             )
         except ValueError as exc:
             comparison_error = str(exc)
@@ -7919,6 +9098,11 @@ def api_ai_dashboard_create():
         "sql": primary_bundle["sql"],
         "warnings": primary_bundle.get("warnings") or [],
         "layout": primary_bundle.get("layout") or [],
+        "scope": {
+            "selected_questions": selected_question_ids,
+            "selected_tables": selected_tables,
+            "mode": "questions" if selected_question_ids else ("all" if full_table_selection or not selected_tables else "tables"),
+        },
         "comparison": {
             "requested": create_comparison,
             "created": bool(comparison_bundle),
@@ -7956,16 +9140,37 @@ def api_ai_lite():
     if not source:
         return jsonify({"ok": False, "error": _("Invalid data source.")}), 404
 
-    sql_text, warnings = generate_sql_from_nl(source, message, lang=getattr(g, "lang", None))
-    sql_text = str(sql_text or "").strip()
-    if not sql_text:
-        return jsonify({"ok": False, "error": _("Could not generate SQL from this request.")}), 400
+    selected_tables, selected_question_ids, scope_error = _bi_ai_effective_table_scope(source, payload)
+    if scope_error:
+        return jsonify({"ok": False, "error": scope_error}), 400
 
-    if not sql_text.lower().lstrip().startswith(("select", "with")):
+    full_table_selection = bool(selected_tables) and not bool(selected_question_ids) and _bi_ai_is_full_table_selection(source, selected_tables)
+    generation_tables = [] if full_table_selection else selected_tables
+
+    sql_text, warnings = generate_sql_from_nl(
+        source,
+        message,
+        lang=getattr(g, "lang", None),
+        allowed_tables=generation_tables,
+        require_all_allowed_tables=bool(generation_tables) and not bool(selected_question_ids),
+    )
+    sql_text, sql_kw = _bi_ai_normalize_sql(str(sql_text or "").strip())
+    if not sql_text:
+        return jsonify({"ok": False, "error": str((warnings or [_("Could not generate SQL from this request.")])[0]), "warnings": warnings or []}), 400
+
+    if sql_kw not in {"select", "with"}:
         return jsonify({"ok": False, "error": _("Only SELECT queries are allowed in BI Lite."), "sql": sql_text}), 400
 
     try:
-        res = execute_sql(source, sql_text, params={"tenant_id": g.tenant.id}, row_limit=400)
+        res, effective_sql, exec_warnings = _bi_ai_execute_sql_resilient(
+            source,
+            sql_text,
+            params={"tenant_id": g.tenant.id},
+            row_limit=400,
+        )
+        sql_text = effective_sql
+        if exec_warnings:
+            warnings = list(warnings or []) + list(exec_warnings)
     except QueryExecutionError as e:
         return jsonify({"ok": False, "error": str(e), "sql": sql_text, "warnings": warnings or []}), 400
 
@@ -8001,10 +9206,144 @@ def api_ai_lite():
             "analysis": analysis,
             "sql": sql_text,
             "warnings": warnings or [],
+            "scope": {
+                "selected_questions": selected_question_ids,
+                "selected_tables": selected_tables,
+                "mode": "questions" if selected_question_ids else ("all" if full_table_selection or not selected_tables else "tables"),
+            },
             "columns": cols,
             "rows": preview_rows,
             "row_count": len(rows),
             "source": {"id": source.id, "name": source.name},
+        }
+    )
+
+
+@bp.route("/api/ai/lite/executive_html", methods=["POST"])
+@login_required
+def api_ai_lite_executive_html():
+    """Generate a standalone executive HTML page from BI Lite request."""
+    _require_tenant()
+    payload = request.get_json(silent=True) or {}
+
+    try:
+        source_id = int(payload.get("source_id") or 0)
+    except Exception:
+        source_id = 0
+
+    message = str(payload.get("message") or "").strip()
+    page_title = str(payload.get("title") or "").strip()
+    supplied_analysis = str(payload.get("analysis") or "").strip()
+    if not message:
+        return jsonify({"ok": False, "error": _("Please enter an executive page request.")}), 400
+    if not source_id:
+        return jsonify({"ok": False, "error": _("Please select a data source.")}), 400
+
+    source = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first()
+    if not source:
+        return jsonify({"ok": False, "error": _("Invalid data source.")}), 404
+
+    selected_tables, selected_question_ids, scope_error = _bi_ai_effective_table_scope(source, payload)
+    if scope_error:
+        return jsonify({"ok": False, "error": scope_error}), 400
+
+    full_table_selection = bool(selected_tables) and not bool(selected_question_ids) and _bi_ai_is_full_table_selection(source, selected_tables)
+    generation_tables = [] if full_table_selection else selected_tables
+
+    # Keep executive generation responsive even when AI provider is slow.
+    sql_text, warnings = generate_sql_from_nl(
+        source,
+        message,
+        lang=getattr(g, "lang", None),
+        allowed_tables=generation_tables,
+        require_all_allowed_tables=bool(generation_tables) and not bool(selected_question_ids),
+        timeout_seconds=12,
+        allow_scope_retry=False,
+    )
+    sql_text, sql_kw = _bi_ai_normalize_sql(str(sql_text or "").strip())
+    if not sql_text:
+        return jsonify({"ok": False, "error": str((warnings or [_("Could not generate SQL from this request.")])[0]), "warnings": warnings or []}), 400
+
+    if sql_kw not in {"select", "with"}:
+        return jsonify({"ok": False, "error": _("Only SELECT queries are allowed in BI Lite."), "sql": sql_text}), 400
+
+    try:
+        res = execute_sql(source, sql_text, params={"tenant_id": g.tenant.id}, row_limit=600)
+    except QueryExecutionError as e:
+        return jsonify({"ok": False, "error": str(e), "sql": sql_text, "warnings": warnings or []}), 400
+
+    cols = [str(c) for c in (res.get("columns") or [])]
+    rows = res.get("rows") or []
+
+    analysis = supplied_analysis
+    ai_charts: list[dict[str, Any]] = []
+    # Reuse already generated BI Lite analysis to avoid an extra long AI request.
+    if not analysis:
+        ai = analyze_with_ai(
+            data_bundle={
+                "source": {"id": source.id, "name": source.name, "type": source.type},
+                "sql": sql_text,
+                "result": {
+                    "columns": cols,
+                    "rows_sample": rows[:80],
+                    "row_count": len(rows),
+                },
+            },
+            user_message=message,
+            history=[],
+            lang=getattr(g, "lang", None),
+            timeout_seconds=8,
+        )
+        if isinstance(ai, dict):
+            analysis = str(ai.get("analysis") or ai.get("reply") or ai.get("text") or "").strip()
+            charts_raw = ai.get("charts")
+            if isinstance(charts_raw, list):
+                ai_charts = [c for c in charts_raw if isinstance(c, dict)]
+
+    if len(ai_charts) < 2:
+        fallback = _bi_lite_exec_auto_charts(cols, rows, max_items=3)
+        existing = {str(c.get("title") or "").lower() for c in ai_charts}
+        for ch in fallback:
+            key = str(ch.get("title") or "").lower()
+            if key in existing:
+                continue
+            ai_charts.append(ch)
+            existing.add(key)
+            if len(ai_charts) >= 4:
+                break
+
+    if not analysis:
+        analysis = _("Executive page generated from BI Lite analysis.")
+
+    effective_title = page_title or _bi_ai_auto_title(message, _("Executive Report"), max_len=80)
+    html_doc = _bi_lite_exec_html(
+        title=effective_title,
+        source_name=source.name,
+        prompt=message,
+        analysis=analysis,
+        sql_text=sql_text,
+        columns=cols,
+        rows=rows,
+        ai_charts=ai_charts,
+    )
+
+    safe_name = re.sub(r"[^a-zA-Z0-9_-]+", "_", effective_title.strip())[:60].strip("_") or "executive_report"
+    filename = f"{safe_name}.html"
+    return jsonify(
+        {
+            "ok": True,
+            "filename": filename,
+            "html": html_doc,
+            "row_count": len(rows),
+            "sql": sql_text,
+            "warnings": warnings or [],
+            "analysis": analysis,
+            "charts_count": len(ai_charts),
+            "scope": {
+                "selected_questions": selected_question_ids,
+                "selected_tables": selected_tables,
+                "mode": "questions" if selected_question_ids else ("all" if full_table_selection or not selected_tables else "tables"),
+            },
         }
     )
 

@@ -47,6 +47,7 @@ def analyze_with_ai(
     user_message: str,
     history: list[dict[str, Any]] | None = None,
     lang: str | None = None,
+    timeout_seconds: int | None = None,
 ) -> dict[str, Any]:
     """Call OpenAI (optional) and return {analysis, charts, followups}.
 
@@ -132,12 +133,20 @@ def analyze_with_ai(
         "response_format": {"type": "json_object"},
     }
 
+    runtime_timeout = runtime.get("timeout_seconds")
+    runtime_connect_timeout = runtime.get("connect_timeout_seconds")
+    runtime_read_timeout = runtime.get("read_timeout_seconds")
+
+    read_timeout = max(5, int(timeout_seconds if timeout_seconds is not None else (runtime_read_timeout or runtime_timeout or 600)))
+    connect_timeout = max(3, int(runtime_connect_timeout or min(10, read_timeout)))
+    req_timeout: tuple[int, int] = (connect_timeout, read_timeout)
+
     try:
-        r = requests.post(url, headers=headers, json=body, timeout=60)
+        r = requests.post(url, headers=headers, json=body, timeout=req_timeout)
         if r.status_code >= 400:
             # Retry without response_format for older models
             body.pop("response_format", None)
-            r = requests.post(url, headers=headers, json=body, timeout=60)
+            r = requests.post(url, headers=headers, json=body, timeout=req_timeout)
         r.raise_for_status()
         data = r.json()
         content = (data.get("choices") or [{}])[0].get("message", {}).get("content")

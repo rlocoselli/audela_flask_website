@@ -209,8 +209,28 @@ def introspect_source(source: DataSource) -> dict[str, Any]:
             table_names = insp.get_table_names(schema=schema)
         except Exception:
             table_names = []
+        try:
+            view_names = insp.get_view_names(schema=schema)
+        except Exception:
+            view_names = []
+
+        names_with_kind: list[tuple[str, str]] = []
+        seen_names: set[str] = set()
+        for name in table_names:
+            n = str(name or "").strip()
+            if not n or n in seen_names:
+                continue
+            seen_names.add(n)
+            names_with_kind.append((n, "table"))
+        for name in view_names:
+            n = str(name or "").strip()
+            if not n or n in seen_names:
+                continue
+            seen_names.add(n)
+            names_with_kind.append((n, "view"))
+
         tables = []
-        for tname in sorted(table_names)[:200]:
+        for tname, kind in sorted(names_with_kind, key=lambda x: x[0])[:200]:
             try:
                 cols = insp.get_columns(tname, schema=schema)
             except Exception:
@@ -218,6 +238,7 @@ def introspect_source(source: DataSource) -> dict[str, Any]:
             tables.append(
                 {
                     "name": tname,
+                    "kind": kind,
                     "columns": [
                         {"name": c.get("name"), "type": str(c.get("type"))} for c in cols
                     ],

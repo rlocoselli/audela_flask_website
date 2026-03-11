@@ -12,6 +12,44 @@
     .viz-type-picker .vt-btn i { font-size: 1.05rem; }
     .viz-type-picker .vt-btn.active { border-width: 2px; }
     #biLiteVizPreview { min-height: 280px; }
+    #biLiteTablesList { max-height: 340px; overflow: auto; border: 1px solid #dbe3ef; border-radius: .6rem; }
+    #biLiteTablesList .tbl-item { display: flex; align-items: center; gap: .55rem; padding: .45rem .6rem; border-bottom: 1px solid #eef2f7; }
+    #biLiteTablesList .tbl-item:last-child { border-bottom: 0; }
+    #biLiteQuestionsList { max-height: 340px; overflow: auto; border: 1px solid #dbe3ef; border-radius: .6rem; }
+    #biLiteQuestionsList .q-item { display: flex; align-items: center; gap: .55rem; padding: .5rem .6rem; border-bottom: 1px solid #eef2f7; }
+    #biLiteQuestionsList .q-item:last-child { border-bottom: 0; }
+    #biLiteQuestionsList .q-name { font-weight: 600; }
+    #biLiteQuestionsList .q-meta { color: #64748b; font-size: .78rem; }
+    #biLiteTablesModal.modal.show {
+      display: block;
+      background: rgba(15, 23, 42, 0.42);
+    }
+    #biLiteTablesList .tbl-item code { font-size: .82rem; }
+    #biLiteExecutiveLoading {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.35);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1080;
+      padding: 1rem;
+    }
+    #biLiteExecutiveLoading.is-visible { display: flex; }
+    #biLiteExecutiveLoading .loader-card {
+      min-width: 260px;
+      background: #fff;
+      border-radius: 14px;
+      border: 1px solid #dbe3ef;
+      box-shadow: 0 16px 42px rgba(2, 6, 23, 0.22);
+      padding: 16px 18px;
+      text-align: center;
+    }
+    #biLiteExecutiveLoading .loader-time {
+      margin-top: .4rem;
+      font-weight: 600;
+      color: #344256;
+    }
   </style>
 {% endblock %}
 
@@ -40,6 +78,16 @@
               <option value="{{ src.id }}">{{ src.name }} ({{ src.type }})</option>
               {% endfor %}
             </select>
+            <div class="d-flex flex-wrap gap-2 mt-2">
+              <button id="biLitePickTables" type="button" class="btn btn-outline-secondary btn-sm" disabled>
+                <i class="bi bi-table me-1"></i>{{ _('Select tables') }}
+              </button>
+              <button id="biLitePickQuestions" type="button" class="btn btn-outline-secondary btn-sm" disabled>
+                <i class="bi bi-question-circle me-1"></i>{{ _('Select questions') }}
+              </button>
+              <span id="biLiteTablesSummary" class="badge text-bg-light border">{{ _('All tables') }}</span>
+              <span id="biLiteQuestionsSummary" class="badge text-bg-light border">{{ _('All questions') }}</span>
+            </div>
           </div>
           <div class="col-12 col-lg-8">
             <label class="form-label">{{ _('Ask in natural language') }}</label>
@@ -47,6 +95,7 @@
               <textarea id="biLitePrompt" class="form-control" rows="2" placeholder="{{ _('Example: show top 10 customers by revenue this month') }}" required></textarea>
               <button id="biLiteRun" class="btn btn-primary" type="submit">{{ _('Analyze') }}</button>
               <button id="biLiteCreateDashboard" class="btn btn-outline-success" type="button">{{ _('Create dashboard') }}</button>
+              <button id="biLiteCreateExecutive" class="btn btn-outline-warning" type="button">{{ _('Executive HTML') }}</button>
             </div>
           </div>
 
@@ -59,6 +108,28 @@
 
           <div class="col-12">
             <div id="biLiteDashboardStatus" class="small text-secondary"></div>
+          </div>
+
+          <div class="col-12">
+            <div id="biLiteExecutiveStatus" class="small text-secondary"></div>
+          </div>
+
+          <div class="col-12">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="biLiteExecutiveOpenTab" checked>
+              <label class="form-check-label" for="biLiteExecutiveOpenTab">{{ _('Open executive preview in a new tab') }}</label>
+            </div>
+          </div>
+
+          <div class="col-12 d-none" id="biLiteExecutiveQuickLinks">
+            <div class="d-flex flex-wrap gap-2">
+              <a id="biLiteExecutiveJumpTop" class="btn btn-sm btn-outline-warning" href="#biLiteExecutivePreviewSection">
+                <i class="bi bi-arrow-down-circle me-1"></i>{{ _('Go to executive preview') }}
+              </a>
+              <a id="biLiteExecutiveDownloadTop" class="btn btn-sm btn-outline-primary" href="#" download="executive_report.html">
+                <i class="bi bi-download me-1"></i>{{ _('Download HTML') }}
+              </a>
+            </div>
           </div>
 
           <div class="col-12">
@@ -148,15 +219,86 @@
     </div>
   </div>
   {% endif %}
+
+  <div class="col-12" id="biLiteExecutivePreviewSection">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center">
+        <span>{{ _('Executive page preview') }}</span>
+        <a id="biLiteExecutiveDownload" class="btn btn-outline-primary btn-sm d-none" href="#" download="executive_report.html">
+          <i class="bi bi-download me-1"></i>{{ _('Download HTML') }}
+        </a>
+      </div>
+      <div class="card-body p-0">
+        <iframe id="biLiteExecutiveFrame" title="Executive HTML preview" style="width:100%;min-height:520px;border:0;"></iframe>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="biLiteTablesModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">{{ _('Select source tables to use') }}</h5>
+        <button id="biLiteTablesModalClose" type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Close') }}"></button>
+      </div>
+      <div class="modal-body">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+          <input id="biLiteTablesSearch" type="search" class="form-control" style="max-width:360px" placeholder="{{ _('Search table...') }}" />
+          <div class="small text-secondary" id="biLiteTablesCount">0</div>
+        </div>
+        <div id="biLiteTablesList"></div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <button id="biLiteTablesClear" type="button" class="btn btn-outline-secondary">{{ _('Use all tables') }}</button>
+        <button id="biLiteTablesApply" type="button" class="btn btn-primary">{{ _('Apply selection') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="biLiteQuestionsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">{{ _('Select source questions to use') }}</h5>
+        <button id="biLiteQuestionsModalClose" type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Close') }}"></button>
+      </div>
+      <div class="modal-body">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+          <input id="biLiteQuestionsSearch" type="search" class="form-control" style="max-width:360px" placeholder="{{ _('Search question...') }}" />
+          <div class="small text-secondary" id="biLiteQuestionsCount">0</div>
+        </div>
+        <div id="biLiteQuestionsList"></div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <button id="biLiteQuestionsClear" type="button" class="btn btn-outline-secondary">{{ _('Use all questions') }}</button>
+        <button id="biLiteQuestionsApply" type="button" class="btn btn-primary">{{ _('Apply selection') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="biLiteExecutiveLoading" aria-live="polite" aria-busy="true">
+  <div class="loader-card">
+    <div class="spinner-border text-warning" role="status" aria-hidden="true"></div>
+    <div class="mt-2 fw-semibold">{{ _('Generating executive HTML...') }}</div>
+    <div class="loader-time" id="biLiteExecutiveLoadingTime">0s</div>
+  </div>
 </div>
 
 <script>
   (() => {
     const form = document.getElementById('biLiteForm');
     const sourceEl = document.getElementById('biLiteSource');
+    const pickTablesBtn = document.getElementById('biLitePickTables');
+    const pickQuestionsBtn = document.getElementById('biLitePickQuestions');
+    const tablesSummaryEl = document.getElementById('biLiteTablesSummary');
+    const questionsSummaryEl = document.getElementById('biLiteQuestionsSummary');
     const promptEl = document.getElementById('biLitePrompt');
     const runBtn = document.getElementById('biLiteRun');
     const createDashBtn = document.getElementById('biLiteCreateDashboard');
+    const createExecutiveBtn = document.getElementById('biLiteCreateExecutive');
     const createComparisonEl = document.getElementById('biLiteCreateComparison');
     const insightEl = document.getElementById('biLiteInsight');
     const sqlEl = document.getElementById('biLiteSql');
@@ -164,13 +306,128 @@
     const tableEl = document.getElementById('biLiteTable');
     const warningsEl = document.getElementById('biLiteWarnings');
     const dashboardStatusEl = document.getElementById('biLiteDashboardStatus');
+    const executiveStatusEl = document.getElementById('biLiteExecutiveStatus');
+    const executiveOpenTabEl = document.getElementById('biLiteExecutiveOpenTab');
+    const executiveQuickLinksEl = document.getElementById('biLiteExecutiveQuickLinks');
+    const executiveJumpTopEl = document.getElementById('biLiteExecutiveJumpTop');
+    const executiveDownloadTopEl = document.getElementById('biLiteExecutiveDownloadTop');
+    const executiveFrameEl = document.getElementById('biLiteExecutiveFrame');
+    const executiveDownloadEl = document.getElementById('biLiteExecutiveDownload');
+    const executiveLoadingEl = document.getElementById('biLiteExecutiveLoading');
+    const executiveLoadingTimeEl = document.getElementById('biLiteExecutiveLoadingTime');
+    const executivePreviewSectionEl = document.getElementById('biLiteExecutivePreviewSection');
+    const tablesModalEl = document.getElementById('biLiteTablesModal');
+    const tablesSearchEl = document.getElementById('biLiteTablesSearch');
+    const tablesListEl = document.getElementById('biLiteTablesList');
+    const tablesCountEl = document.getElementById('biLiteTablesCount');
+    const tablesApplyBtn = document.getElementById('biLiteTablesApply');
+    const tablesClearBtn = document.getElementById('biLiteTablesClear');
+    const tablesCloseBtn = document.getElementById('biLiteTablesModalClose');
+    const questionsModalEl = document.getElementById('biLiteQuestionsModal');
+    const questionsSearchEl = document.getElementById('biLiteQuestionsSearch');
+    const questionsListEl = document.getElementById('biLiteQuestionsList');
+    const questionsCountEl = document.getElementById('biLiteQuestionsCount');
+    const questionsApplyBtn = document.getElementById('biLiteQuestionsApply');
+    const questionsClearBtn = document.getElementById('biLiteQuestionsClear');
+    const questionsCloseBtn = document.getElementById('biLiteQuestionsModalClose');
     const chips = document.querySelectorAll('#biLitePromptChips [data-prompt]');
     const vizTypeEl = document.getElementById('biLiteVizType');
     const vizPreviewEl = document.getElementById('biLiteVizPreview');
     const vizBtns = Array.from(document.querySelectorAll('#biLiteVizPicker .vt-btn'));
-    if (!form || !sourceEl || !promptEl || !runBtn || !insightEl || !sqlEl || !rowCountEl || !tableEl || !warningsEl || !createDashBtn || !dashboardStatusEl || !createComparisonEl || !vizTypeEl || !vizPreviewEl) return;
+    if (!form || !sourceEl || !pickTablesBtn || !pickQuestionsBtn || !tablesSummaryEl || !questionsSummaryEl || !promptEl || !runBtn || !insightEl || !sqlEl || !rowCountEl || !tableEl || !warningsEl || !createDashBtn || !dashboardStatusEl || !createComparisonEl || !vizTypeEl || !vizPreviewEl || !createExecutiveBtn || !executiveStatusEl || !executiveOpenTabEl || !executiveQuickLinksEl || !executiveJumpTopEl || !executiveDownloadTopEl || !executiveFrameEl || !executiveDownloadEl || !executiveLoadingEl || !executiveLoadingTimeEl || !executivePreviewSectionEl || !tablesModalEl || !tablesSearchEl || !tablesListEl || !tablesCountEl || !tablesApplyBtn || !tablesClearBtn || !tablesCloseBtn || !questionsModalEl || !questionsSearchEl || !questionsListEl || !questionsCountEl || !questionsApplyBtn || !questionsClearBtn || !questionsCloseBtn) return;
 
     let rawData = { columns: [], rows: [] };
+    let executiveHtmlUrl = '';
+    let sourceTables = [];
+    let sourceQuestions = [];
+    let selectedTables = [];
+    let selectedQuestionIds = [];
+    let selectedTablesDraft = [];
+    let selectedQuestionIdsDraft = [];
+    let currentSourceId = Number(sourceEl.value || 0);
+    const selectedTablesBySource = {};
+    const selectedQuestionsBySource = {};
+    let executiveLoadingInterval = null;
+    let executiveStartedAt = 0;
+    const executiveGeneratingLabel = '{{ _('Generating executive HTML...') }}';
+    const OPEN_TAB_PREF_KEY = 'biLiteExecutiveOpenTab';
+    const allTablesLabel = '{{ _('All tables') }}';
+    const tablesSelectedSuffix = '{{ _('table(s) selected') }}';
+    const allQuestionsLabel = '{{ _('All questions') }}';
+    const questionsSelectedSuffix = '{{ _('question(s) selected') }}';
+    const tablesModal = (window.bootstrap && window.bootstrap.Modal)
+      ? new window.bootstrap.Modal(tablesModalEl)
+      : null;
+    const questionsModal = (window.bootstrap && window.bootstrap.Modal)
+      ? new window.bootstrap.Modal(questionsModalEl)
+      : null;
+
+    function openTablesModal() {
+      if (tablesModal) {
+        tablesModal.show();
+        return;
+      }
+      tablesModalEl.classList.add('show');
+      tablesModalEl.style.display = 'block';
+      tablesModalEl.removeAttribute('aria-hidden');
+      tablesModalEl.setAttribute('aria-modal', 'true');
+      document.body.classList.add('modal-open');
+    }
+
+    function closeTablesModal() {
+      if (tablesModal) {
+        tablesModal.hide();
+        return;
+      }
+      tablesModalEl.classList.remove('show');
+      tablesModalEl.style.display = 'none';
+      tablesModalEl.setAttribute('aria-hidden', 'true');
+      tablesModalEl.removeAttribute('aria-modal');
+      document.body.classList.remove('modal-open');
+    }
+
+    function openQuestionsModal() {
+      if (questionsModal) {
+        questionsModal.show();
+        return;
+      }
+      questionsModalEl.classList.add('show');
+      questionsModalEl.style.display = 'block';
+      questionsModalEl.removeAttribute('aria-hidden');
+      questionsModalEl.setAttribute('aria-modal', 'true');
+      document.body.classList.add('modal-open');
+    }
+
+    function closeQuestionsModal() {
+      if (questionsModal) {
+        questionsModal.hide();
+        return;
+      }
+      questionsModalEl.classList.remove('show');
+      questionsModalEl.style.display = 'none';
+      questionsModalEl.setAttribute('aria-hidden', 'true');
+      questionsModalEl.removeAttribute('aria-modal');
+      document.body.classList.remove('modal-open');
+    }
+
+    try {
+      const savedPref = window.localStorage.getItem(OPEN_TAB_PREF_KEY);
+      if (savedPref === '0') {
+        executiveOpenTabEl.checked = false;
+      } else if (savedPref === '1') {
+        executiveOpenTabEl.checked = true;
+      }
+    } catch (e) {
+      // Ignore storage read failures.
+    }
+
+    executiveOpenTabEl.addEventListener('change', () => {
+      try {
+        window.localStorage.setItem(OPEN_TAB_PREF_KEY, executiveOpenTabEl.checked ? '1' : '0');
+      } catch (e) {
+        // Ignore storage write failures.
+      }
+    });
 
     function esc(value) {
       return String(value == null ? '' : value)
@@ -191,6 +448,211 @@
       dashboardStatusEl.textContent = String(message || '').trim();
       dashboardStatusEl.classList.toggle('text-danger', !!isError);
       dashboardStatusEl.classList.toggle('text-secondary', !isError);
+    }
+
+    function setExecutiveStatus(message, isError) {
+      executiveStatusEl.textContent = String(message || '').trim();
+      executiveStatusEl.classList.toggle('text-danger', !!isError);
+      executiveStatusEl.classList.toggle('text-secondary', !isError);
+    }
+
+    function setTablesSummary() {
+      if (!selectedTables.length) {
+        tablesSummaryEl.textContent = allTablesLabel;
+        tablesSummaryEl.classList.remove('text-bg-primary');
+        tablesSummaryEl.classList.add('text-bg-light');
+        return;
+      }
+      tablesSummaryEl.textContent = `${selectedTables.length} ${tablesSelectedSuffix}`;
+      tablesSummaryEl.classList.remove('text-bg-light');
+      tablesSummaryEl.classList.add('text-bg-primary');
+    }
+
+    function setQuestionsSummary() {
+      if (!selectedQuestionIds.length) {
+        questionsSummaryEl.textContent = allQuestionsLabel;
+        questionsSummaryEl.classList.remove('text-bg-primary');
+        questionsSummaryEl.classList.add('text-bg-light');
+        return;
+      }
+      questionsSummaryEl.textContent = `${selectedQuestionIds.length} ${questionsSelectedSuffix}`;
+      questionsSummaryEl.classList.remove('text-bg-light');
+      questionsSummaryEl.classList.add('text-bg-primary');
+    }
+
+    function renderTablesList(filterText) {
+      const query = String(filterText || '').trim().toLowerCase();
+      const filtered = sourceTables.filter((item) => {
+        const full = String(item.full_name || '').toLowerCase();
+        const schema = String(item.schema || '').toLowerCase();
+        const name = String(item.name || '').toLowerCase();
+        return !query || full.includes(query) || schema.includes(query) || name.includes(query);
+      });
+
+      tablesCountEl.textContent = `${filtered.length} / ${sourceTables.length}`;
+      if (!filtered.length) {
+        tablesListEl.innerHTML = '<div class="p-3 text-secondary small">{{ _('No tables/views found for this source.') }}</div>';
+        return;
+      }
+
+      const selectedSet = new Set(selectedTablesDraft.map((x) => String(x || '').toLowerCase()));
+      tablesListEl.innerHTML = filtered.map((item, idx) => {
+        const fullName = String(item.full_name || '');
+        const label = String(item.schema || '') ? `${item.schema}.${item.name}` : String(item.name || fullName);
+        const checked = selectedSet.has(fullName.toLowerCase()) ? 'checked' : '';
+        return `
+          <label class="tbl-item" for="biLiteTbl_${idx}">
+            <input id="biLiteTbl_${idx}" class="form-check-input bi-lite-tbl-check" type="checkbox" value="${esc(fullName)}" ${checked} />
+            <span><code>${esc(label)}</code></span>
+          </label>
+        `;
+      }).join('');
+    }
+
+    async function loadSourceTables(sourceId) {
+      const sid = Number(sourceId || 0);
+      if (!sid) {
+        sourceTables = [];
+        selectedTablesDraft = [];
+        renderTablesList('');
+        return;
+      }
+
+      const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+      const resp = await fetch('{{ url_for('portal.api_ai_lite_source_tables') }}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(csrf ? { 'X-CSRFToken': csrf } : {}),
+        },
+        body: JSON.stringify({ source_id: sid }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data.ok) {
+        throw new Error(data.error || '{{ _('Unable to load source tables.') }}');
+      }
+      sourceTables = Array.isArray(data.tables) ? data.tables : [];
+      selectedTablesDraft = [...selectedTables];
+      renderTablesList(tablesSearchEl.value || '');
+      if (!sourceTables.length && data.message) {
+        tablesListEl.innerHTML = '<div class="p-3 text-secondary small">' + esc(String(data.message || '')) + '</div>';
+      }
+    }
+
+    function renderQuestionsList(filterText) {
+      const query = String(filterText || '').trim().toLowerCase();
+      const filtered = sourceQuestions.filter((item) => {
+        const name = String(item.name || '').toLowerCase();
+        return !query || name.includes(query) || String(item.id || '').includes(query);
+      });
+
+      questionsCountEl.textContent = `${filtered.length} / ${sourceQuestions.length}`;
+      if (!filtered.length) {
+        questionsListEl.innerHTML = '<div class="p-3 text-secondary small">{{ _('No questions found for this source.') }}</div>';
+        return;
+      }
+
+      const selectedSet = new Set(selectedQuestionIdsDraft.map((x) => Number(x)));
+      questionsListEl.innerHTML = filtered.map((item, idx) => {
+        const qid = Number(item.id || 0);
+        const checked = selectedSet.has(qid) ? 'checked' : '';
+        const updatedAt = String(item.updated_at || '');
+        return `
+          <label class="q-item" for="biLiteQ_${idx}">
+            <input id="biLiteQ_${idx}" class="form-check-input bi-lite-q-check" type="checkbox" value="${qid}" ${checked} />
+            <span>
+              <div class="q-name">${esc(String(item.name || ('Question #' + qid)))}</div>
+              <div class="q-meta">#${qid}${updatedAt ? (' · ' + esc(updatedAt)) : ''}</div>
+            </span>
+          </label>
+        `;
+      }).join('');
+    }
+
+    async function loadSourceQuestions(sourceId) {
+      const sid = Number(sourceId || 0);
+      if (!sid) {
+        sourceQuestions = [];
+        selectedQuestionIdsDraft = [];
+        renderQuestionsList('');
+        return;
+      }
+
+      const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+      const resp = await fetch('{{ url_for('portal.api_ai_lite_source_questions') }}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(csrf ? { 'X-CSRFToken': csrf } : {}),
+        },
+        body: JSON.stringify({ source_id: sid }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data.ok) {
+        throw new Error(data.error || '{{ _('Unable to load source questions.') }}');
+      }
+      sourceQuestions = Array.isArray(data.questions) ? data.questions : [];
+      selectedQuestionIdsDraft = [...selectedQuestionIds];
+      renderQuestionsList(questionsSearchEl.value || '');
+      if (!sourceQuestions.length && data.message) {
+        questionsListEl.innerHTML = '<div class="p-3 text-secondary small">' + esc(String(data.message || '')) + '</div>';
+      }
+    }
+
+    function collectDraftQuestionSelectionFromModal() {
+      const checks = Array.from(questionsListEl.querySelectorAll('.bi-lite-q-check'));
+      const nextSet = new Set(selectedQuestionIdsDraft.map((x) => Number(x)));
+      checks.forEach((el) => {
+        const qid = Number(el.value || 0);
+        if (!qid) return;
+        if (el.checked) nextSet.add(qid);
+        else nextSet.delete(qid);
+      });
+      selectedQuestionIdsDraft = sourceQuestions
+        .map((item) => Number(item.id || 0))
+        .filter((qid) => qid > 0 && nextSet.has(qid));
+    }
+
+    function collectDraftSelectionFromModal() {
+      const checks = Array.from(tablesListEl.querySelectorAll('.bi-lite-tbl-check'));
+      const nextSet = new Set(selectedTablesDraft.map((x) => String(x || '').toLowerCase()));
+      checks.forEach((el) => {
+        const val = String(el.value || '').trim();
+        const key = val.toLowerCase();
+        if (!val) return;
+        if (el.checked) nextSet.add(key);
+        else nextSet.delete(key);
+      });
+      selectedTablesDraft = sourceTables
+        .map((item) => String(item.full_name || '').trim())
+        .filter((name) => name && nextSet.has(name.toLowerCase()));
+    }
+
+    function setExecutiveQuickLinks(show) {
+      executiveQuickLinksEl.classList.toggle('d-none', !show);
+    }
+
+    function setExecutiveLoading(loading) {
+      if (loading) {
+        executiveStartedAt = Date.now();
+        executiveLoadingTimeEl.textContent = '0s';
+        executiveLoadingEl.classList.add('is-visible');
+        if (executiveLoadingInterval) {
+          window.clearInterval(executiveLoadingInterval);
+        }
+        executiveLoadingInterval = window.setInterval(() => {
+          const elapsed = Math.max(0, Math.floor((Date.now() - executiveStartedAt) / 1000));
+          executiveLoadingTimeEl.textContent = `${elapsed}s`;
+          setExecutiveStatus(`${executiveGeneratingLabel} (${elapsed}s)`, false);
+        }, 1000);
+        return;
+      }
+
+      executiveLoadingEl.classList.remove('is-visible');
+      if (executiveLoadingInterval) {
+        window.clearInterval(executiveLoadingInterval);
+        executiveLoadingInterval = null;
+      }
     }
 
     function renderTable(columns, rows) {
@@ -315,6 +777,134 @@
       });
     });
 
+    sourceEl.addEventListener('change', () => {
+      if (currentSourceId) {
+        selectedTablesBySource[String(currentSourceId)] = [...selectedTables];
+        selectedQuestionsBySource[String(currentSourceId)] = [...selectedQuestionIds];
+      }
+      currentSourceId = Number(sourceEl.value || 0);
+      selectedTables = [...(selectedTablesBySource[String(currentSourceId)] || [])];
+      selectedQuestionIds = [...(selectedQuestionsBySource[String(currentSourceId)] || [])];
+      setTablesSummary();
+      setQuestionsSummary();
+      pickTablesBtn.disabled = !currentSourceId;
+      pickQuestionsBtn.disabled = !currentSourceId;
+    });
+
+    pickTablesBtn.addEventListener('click', async () => {
+      const sourceId = Number(sourceEl.value || 0);
+      if (!sourceId) {
+        setExecutiveStatus('{{ _('Please select a data source first.') }}', true);
+        return;
+      }
+
+      selectedTablesDraft = [...selectedTables];
+      tablesSearchEl.value = '';
+      tablesListEl.innerHTML = '<div class="p-3 text-secondary small">{{ _('Loading tables...') }}</div>';
+      tablesCountEl.textContent = '...';
+      if (tablesModal) tablesModal.show();
+      else openTablesModal();
+
+      try {
+        await loadSourceTables(sourceId);
+      } catch (err) {
+        tablesListEl.innerHTML = '<div class="p-3 text-danger small">' + esc((err && err.message) ? err.message : '{{ _('Unable to load source tables.') }}') + '</div>';
+        tablesCountEl.textContent = '0';
+      }
+    });
+
+    tablesSearchEl.addEventListener('input', () => {
+      renderTablesList(tablesSearchEl.value || '');
+    });
+
+    tablesListEl.addEventListener('change', (event) => {
+      const target = event.target;
+      if (!target || !target.classList || !target.classList.contains('bi-lite-tbl-check')) return;
+      collectDraftSelectionFromModal();
+    });
+
+    tablesClearBtn.addEventListener('click', () => {
+      selectedTablesDraft = [];
+      renderTablesList(tablesSearchEl.value || '');
+    });
+
+    tablesApplyBtn.addEventListener('click', () => {
+      selectedTables = [...selectedTablesDraft];
+      selectedTablesBySource[String(Number(sourceEl.value || 0))] = [...selectedTables];
+      setTablesSummary();
+      closeTablesModal();
+      setExecutiveStatus(selectedTables.length ? '{{ _('Table filter applied for BI requests.') }}' : '{{ _('Using all source tables for BI requests.') }}', false);
+    });
+
+    pickQuestionsBtn.addEventListener('click', async () => {
+      const sourceId = Number(sourceEl.value || 0);
+      if (!sourceId) {
+        setExecutiveStatus('{{ _('Please select a data source first.') }}', true);
+        return;
+      }
+
+      selectedQuestionIdsDraft = [...selectedQuestionIds];
+      questionsSearchEl.value = '';
+      questionsListEl.innerHTML = '<div class="p-3 text-secondary small">{{ _('Loading questions...') }}</div>';
+      questionsCountEl.textContent = '...';
+      openQuestionsModal();
+
+      try {
+        await loadSourceQuestions(sourceId);
+      } catch (err) {
+        questionsListEl.innerHTML = '<div class="p-3 text-danger small">' + esc((err && err.message) ? err.message : '{{ _('Unable to load source questions.') }}') + '</div>';
+        questionsCountEl.textContent = '0';
+      }
+    });
+
+    questionsSearchEl.addEventListener('input', () => {
+      renderQuestionsList(questionsSearchEl.value || '');
+    });
+
+    questionsListEl.addEventListener('change', (event) => {
+      const target = event.target;
+      if (!target || !target.classList || !target.classList.contains('bi-lite-q-check')) return;
+      collectDraftQuestionSelectionFromModal();
+    });
+
+    questionsClearBtn.addEventListener('click', () => {
+      selectedQuestionIdsDraft = [];
+      renderQuestionsList(questionsSearchEl.value || '');
+    });
+
+    questionsApplyBtn.addEventListener('click', () => {
+      selectedQuestionIds = [...selectedQuestionIdsDraft];
+      selectedQuestionsBySource[String(Number(sourceEl.value || 0))] = [...selectedQuestionIds];
+      setQuestionsSummary();
+      closeQuestionsModal();
+      setExecutiveStatus(selectedQuestionIds.length ? '{{ _('Question scope applied for BI requests (priority over tables).') }}' : '{{ _('Using all questions for BI requests.') }}', false);
+    });
+
+    tablesCloseBtn.addEventListener('click', () => {
+      closeTablesModal();
+    });
+
+    tablesModalEl.addEventListener('click', (event) => {
+      if (event.target === tablesModalEl) {
+        closeTablesModal();
+      }
+    });
+
+    questionsCloseBtn.addEventListener('click', () => {
+      closeQuestionsModal();
+    });
+
+    questionsModalEl.addEventListener('click', (event) => {
+      if (event.target === questionsModalEl) {
+        closeQuestionsModal();
+      }
+    });
+
+    executiveJumpTopEl.addEventListener('click', (event) => {
+      event.preventDefault();
+      executivePreviewSectionEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
     createDashBtn.addEventListener('click', async () => {
       const sourceId = Number(sourceEl.value || 0);
       const message = String(promptEl.value || '').trim();
@@ -340,6 +930,8 @@
             message,
             viz_type: String(vizTypeEl.value || 'table'),
             create_comparison: createComparison,
+            selected_tables: selectedTables,
+            selected_question_ids: selectedQuestionIds,
           }),
         });
         const data = await resp.json();
@@ -377,6 +969,118 @@
       }
     });
 
+    const EXECUTIVE_CLIENT_TIMEOUT_MS = 11 * 60 * 1000;
+    const EXECUTIVE_TIMEOUT_MESSAGE = '{{ _('Generation timed out after waiting too long. Please simplify your request or try again.') }}';
+
+    createExecutiveBtn.addEventListener('click', async () => {
+      const sourceId = Number(sourceEl.value || 0);
+      const message = String(promptEl.value || '').trim();
+      const currentAnalysis = String(insightEl.textContent || '').trim();
+      if (!sourceId || !message) {
+        setExecutiveStatus('{{ _('Please choose a source and write the executive page request.') }}', true);
+        return;
+      }
+
+      // Open a placeholder tab during the user click to avoid popup blockers.
+      let previewWindow = null;
+      if (executiveOpenTabEl.checked) {
+        try {
+          previewWindow = window.open('', '_blank');
+          if (previewWindow && previewWindow.document) {
+            previewWindow.document.title = 'Executive preview';
+            previewWindow.document.body.innerHTML = '<div style="font-family:Segoe UI,Tahoma,Verdana,sans-serif;padding:20px;color:#334155">Preparing executive preview...</div>';
+          }
+        } catch (e) {
+          previewWindow = null;
+        }
+      }
+
+      createExecutiveBtn.disabled = true;
+      setExecutiveStatus('{{ _('Generating executive HTML...') }}', false);
+      setExecutiveQuickLinks(false);
+      let timeoutId = null;
+
+      try {
+        setExecutiveLoading(true);
+        const controller = new AbortController();
+        timeoutId = window.setTimeout(() => controller.abort(), EXECUTIVE_CLIENT_TIMEOUT_MS);
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        const resp = await fetch('{{ url_for('portal.api_ai_lite_executive_html') }}', {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            'Content-Type': 'application/json',
+            ...(csrf ? { 'X-CSRFToken': csrf } : {}),
+          },
+          body: JSON.stringify({
+            source_id: sourceId,
+            message,
+            title: message.slice(0, 80),
+            analysis: currentAnalysis,
+            selected_tables: selectedTables,
+            selected_question_ids: selectedQuestionIds,
+          }),
+        });
+        window.clearTimeout(timeoutId);
+        timeoutId = null;
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok || !data.ok) {
+          setExecutiveStatus(data.error || '{{ _('Unable to generate executive page.') }}', true);
+          return;
+        }
+
+        const htmlDoc = String(data.html || '');
+        const filename = String(data.filename || 'executive_report.html');
+        if (!htmlDoc.trim()) {
+          setExecutiveStatus('{{ _('Executive page generated but empty.') }}', true);
+          return;
+        }
+
+        executiveFrameEl.srcdoc = htmlDoc;
+
+        if (executiveHtmlUrl) {
+          try { URL.revokeObjectURL(executiveHtmlUrl); } catch (e) {}
+          executiveHtmlUrl = '';
+        }
+        const blob = new Blob([htmlDoc], { type: 'text/html;charset=utf-8' });
+        executiveHtmlUrl = URL.createObjectURL(blob);
+        executiveDownloadEl.href = executiveHtmlUrl;
+        executiveDownloadEl.setAttribute('download', filename || 'executive_report.html');
+        executiveDownloadEl.classList.remove('d-none');
+        executiveDownloadTopEl.href = executiveHtmlUrl;
+        executiveDownloadTopEl.setAttribute('download', filename || 'executive_report.html');
+        setExecutiveQuickLinks(true);
+
+        if (previewWindow && !previewWindow.closed) {
+          try {
+            previewWindow.location.href = executiveHtmlUrl;
+          } catch (e) {
+            // Ignore navigation errors and keep local preview links available.
+          }
+          setExecutiveStatus('{{ _('Executive HTML ready. Opened in a new tab.') }}', false);
+        } else if (executiveOpenTabEl.checked) {
+          setExecutiveStatus('{{ _('Executive HTML ready. Popup blocked. Use quick links above to preview or download.') }}', false);
+        } else {
+          setExecutiveStatus('{{ _('Executive HTML ready. Use quick links above to preview or download.') }}', false);
+        }
+      } catch (err) {
+        if (previewWindow && !previewWindow.closed) {
+          try { previewWindow.close(); } catch (e) {}
+        }
+        if (err && err.name === 'AbortError') {
+          setExecutiveStatus(EXECUTIVE_TIMEOUT_MESSAGE, true);
+        } else {
+          setExecutiveStatus('{{ _('Unexpected error while generating executive page.') }}', true);
+        }
+      } finally {
+        if (timeoutId) {
+          window.clearTimeout(timeoutId);
+        }
+        setExecutiveLoading(false);
+        createExecutiveBtn.disabled = false;
+      }
+    });
+
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       const sourceId = Number(sourceEl.value || 0);
@@ -400,6 +1104,8 @@
           body: JSON.stringify({
             source_id: sourceId,
             message,
+            selected_tables: selectedTables,
+            selected_question_ids: selectedQuestionIds,
           }),
         });
         const data = await resp.json();
@@ -435,6 +1141,13 @@
     if (sourceEl.options.length > 1) {
       sourceEl.selectedIndex = 1;
     }
+    currentSourceId = Number(sourceEl.value || 0);
+    pickTablesBtn.disabled = !currentSourceId;
+    pickQuestionsBtn.disabled = !currentSourceId;
+    selectedTables = [...(selectedTablesBySource[String(currentSourceId)] || [])];
+    selectedQuestionIds = [...(selectedQuestionsBySource[String(currentSourceId)] || [])];
+    setTablesSummary();
+    setQuestionsSummary();
   })();
 </script>
 {% endblock %}
