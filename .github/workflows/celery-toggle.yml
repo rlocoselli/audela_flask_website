@@ -48,6 +48,40 @@ jobs:
               COMPOSE_FILES="$COMPOSE_FILES -f docker-compose.letsencrypt.yml"
             fi
 
+            wait_service_running() {
+              svc="$1"
+              timeout="${2:-90}"
+              start_ts="$(date +%s)"
+
+              while true; do
+                cid="$($COMPOSE_CMD $COMPOSE_FILES ps -q "$svc" 2>/dev/null | head -n1 || true)"
+                if [ -n "$cid" ]; then
+                  running="$(docker inspect -f '{{.State.Running}}' "$cid" 2>/dev/null || echo false)"
+                  status="$(docker inspect -f '{{.State.Status}}' "$cid" 2>/dev/null || echo unknown)"
+                  if [ "$running" = "true" ]; then
+                    health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$cid" 2>/dev/null || echo none)"
+                    echo "✅ $svc running (status=$status, health=$health, container=$cid)"
+                    return 0
+                  fi
+                  echo "⏳ Waiting $svc (status=$status, container=$cid)"
+                else
+                  echo "⏳ Waiting $svc container to be created"
+                fi
+
+                now_ts="$(date +%s)"
+                if [ $((now_ts - start_ts)) -ge "$timeout" ]; then
+                  echo "❌ $svc did not reach running state within ${timeout}s"
+                  return 1
+                fi
+                sleep 3
+              done
+            }
+
+            print_celery_logs() {
+              echo "🪵 Recent logs"
+              $COMPOSE_CMD $COMPOSE_FILES logs --tail=120 celery-worker celery-beat || true
+            }
+
             case "$ACTION" in
               disable)
                 echo "⏸️ Stopping Celery services"
@@ -80,8 +114,22 @@ jobs:
             $COMPOSE_CMD $COMPOSE_FILES ps celery-worker celery-beat || true
 
             if [ "$ACTION" != "disable" ]; then
-              echo "🪵 Recent logs"
-              $COMPOSE_CMD $COMPOSE_FILES logs --tail=80 celery-worker celery-beat || true
+              wait_service_running celery-worker 120 || { print_celery_logs; exit 1; }
+              wait_service_running celery-beat 120 || { print_celery_logs; exit 1; }
+
+              echo "🧪 Verifying Celery task execution"
+              $COMPOSE_CMD $COMPOSE_FILES exec -T audela python - <<'PY'
+from audela.celery_app import celery_app
+
+job = celery_app.send_task("audela.tasks.celery_healthcheck")
+print(f"task_id={job.id}")
+result = job.get(timeout=25)
+print(f"result={result}")
+if not (isinstance(result, dict) and result.get("ok") is True):
+    raise SystemExit("Celery healthcheck task did not return ok=true")
+PY
+
+              print_celery_logs
             fi
 
             echo "✅ Celery action completed"
