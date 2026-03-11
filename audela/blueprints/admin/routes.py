@@ -356,7 +356,10 @@ def _build_celery_screen_context() -> dict:
     worker_ping: dict | None = None
     worker_ping_error: str | None = None
     try:
-        worker_ping = celery_app.control.inspect(timeout=1.0).ping()
+        # Use a slightly longer timeout to reduce false negatives on busy hosts.
+        worker_ping = celery_app.control.inspect(timeout=3.0).ping()
+        if not worker_ping:
+            worker_ping_error = "No worker replied to inspect ping."
     except Exception as exc:
         worker_ping_error = str(exc)
 
@@ -420,7 +423,16 @@ def _handle_celery_intent(intent: str) -> tuple[dict | None, dict | None, dict |
             except CeleryTimeoutError as exc:
                 task_result["state"] = "PENDING"
                 task_result["error"] = str(exc)
-                flash(tr("Celery task sent but no worker response yet.", getattr(g, "lang", None)), "warning")
+                if bool(current_app.config.get("CELERY_TASK_IGNORE_RESULT", False)):
+                    flash(
+                        tr(
+                            "Celery task sent. Result backend is disabled, so completion cannot be confirmed from the web app.",
+                            getattr(g, "lang", None),
+                        ),
+                        "warning",
+                    )
+                else:
+                    flash(tr("Celery task sent but no worker response yet.", getattr(g, "lang", None)), "warning")
             except Exception as exc:
                 task_result["state"] = "FAILURE"
                 task_result["error"] = str(exc)

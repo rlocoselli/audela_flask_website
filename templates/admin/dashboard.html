@@ -60,6 +60,9 @@
               <span class="badge text-bg-warning">{{ _('no response') }}</span>
             {% endif %}
           </div>
+          {% if celery_overview.worker_ping_error %}
+            <div class="small text-secondary mb-1">{{ celery_overview.worker_ping_error }}</div>
+          {% endif %}
           <div class="small text-secondary"><code>{{ celery_overview.default_queue }}</code> / {{ celery_overview.broker_url }}</div>
         </div>
         <div class="col-12 col-lg-7">
