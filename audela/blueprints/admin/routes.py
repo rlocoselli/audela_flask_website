@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import csv
+import os
+import shutil
+import subprocess
 from io import BytesIO
 from io import StringIO
 from collections import defaultdict
 from datetime import datetime
 from decimal import Decimal
 
-from flask import Response, flash, g, redirect, render_template, request, url_for
+from flask import Response, current_app, flash, g, redirect, render_template, request, url_for
 from flask_login import current_user, login_user, logout_user
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, LineChart, Reference
@@ -20,6 +23,7 @@ from . import bp
 
 
 ALLOWED_BILLING_CYCLES = {"monthly", "yearly"}
+CELERY_SERVICES = ("celery-worker", "celery-beat")
 
 
 def _month_start(value: datetime) -> datetime:
@@ -187,6 +191,276 @@ def _admin_guard_redirect():
     return None
 
 
+def _project_root() -> str:
+    return os.path.abspath(os.path.join(current_app.root_path, os.pardir))
+
+
+def _truncate_text(value: str, limit: int = 6000) -> str:
+    if len(value) <= limit:
+        return value
+    return f"{value[:limit]}\n... (truncated)"
+
+
+def _resolve_compose_command() -> list[str] | None:
+    docker_path = shutil.which("docker")
+    if docker_path:
+        try:
+            probe = subprocess.run(
+                [docker_path, "compose", "version"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=8,
+            )
+            if probe.returncode == 0:
+                return [docker_path, "compose"]
+        except Exception:
+            pass
+
+    docker_compose_path = shutil.which("docker-compose")
+    if docker_compose_path:
+        return [docker_compose_path]
+
+    return None
+
+
+def _compose_file_args(project_root: str) -> list[str]:
+    compose_args: list[str] = []
+    for filename in ("docker-compose.yml", "docker-compose.letsencrypt.yml"):
+        abs_path = os.path.join(project_root, filename)
+        if os.path.exists(abs_path):
+            compose_args.extend(["-f", filename])
+    return compose_args
+
+
+def _run_compose_command(action_label: str, command: list[str], project_root: str, timeout: int = 90) -> dict:
+    try:
+        proc = subprocess.run(
+            command,
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout,
+        )
+        return {
+            "step": action_label,
+            "ok": proc.returncode == 0,
+            "returncode": proc.returncode,
+            "command": " ".join(command),
+            "stdout": _truncate_text(proc.stdout or ""),
+            "stderr": _truncate_text(proc.stderr or ""),
+        }
+    except subprocess.TimeoutExpired:
+        return {
+            "step": action_label,
+            "ok": False,
+            "returncode": None,
+            "command": " ".join(command),
+            "stdout": "",
+            "stderr": f"Command timed out after {timeout}s.",
+        }
+    except Exception as exc:
+        return {
+            "step": action_label,
+            "ok": False,
+            "returncode": None,
+            "command": " ".join(command),
+            "stdout": "",
+            "stderr": str(exc),
+        }
+
+
+def _run_celery_service_action(action: str) -> dict:
+    compose_cmd = _resolve_compose_command()
+    if not compose_cmd:
+        return {
+            "ok": False,
+            "action": action,
+            "error": "Docker Compose command not available on this host.",
+            "steps": [],
+        }
+
+    project_root = _project_root()
+    compose_args = _compose_file_args(project_root)
+    base = [*compose_cmd, *compose_args]
+
+    plans: dict[str, list[tuple[str, list[str], int]]] = {
+        "enable": [
+            ("start", [*base, "up", "-d", "--no-deps", *CELERY_SERVICES], 120),
+            ("status", [*base, "ps", *CELERY_SERVICES], 45),
+            ("logs", [*base, "logs", "--tail=60", *CELERY_SERVICES], 60),
+        ],
+        "disable": [
+            ("stop", [*base, "stop", *CELERY_SERVICES], 60),
+            ("remove", [*base, "rm", "-f", *CELERY_SERVICES], 60),
+            ("status", [*base, "ps", *CELERY_SERVICES], 45),
+        ],
+        "restart": [
+            ("ensure-up", [*base, "up", "-d", "--no-deps", *CELERY_SERVICES], 120),
+            ("restart", [*base, "restart", *CELERY_SERVICES], 90),
+            ("status", [*base, "ps", *CELERY_SERVICES], 45),
+            ("logs", [*base, "logs", "--tail=60", *CELERY_SERVICES], 60),
+        ],
+        "status": [
+            ("status", [*base, "ps", *CELERY_SERVICES], 45),
+            ("logs", [*base, "logs", "--tail=60", *CELERY_SERVICES], 60),
+        ],
+    }
+
+    if action not in plans:
+        return {
+            "ok": False,
+            "action": action,
+            "error": "Unknown action.",
+            "steps": [],
+        }
+
+    steps: list[dict] = []
+    overall_ok = True
+    for label, command, timeout in plans[action]:
+        step_result = _run_compose_command(label, command, project_root, timeout=timeout)
+        steps.append(step_result)
+        if not step_result["ok"]:
+            overall_ok = False
+
+    return {
+        "ok": overall_ok,
+        "action": action,
+        "error": None,
+        "steps": steps,
+        "compose_command": " ".join(compose_cmd),
+        "compose_files": compose_args,
+    }
+
+
+def _build_celery_screen_context() -> dict:
+    from audela.celery_app import celery_app
+
+    broker = current_app.config.get("CELERY_BROKER_URL") or current_app.config.get("REDIS_URL")
+    backend = current_app.config.get("CELERY_RESULT_BACKEND") or broker
+
+    worker_ping: dict | None = None
+    worker_ping_error: str | None = None
+    try:
+        worker_ping = celery_app.control.inspect(timeout=1.0).ping()
+    except Exception as exc:
+        worker_ping_error = str(exc)
+
+    return {
+        "broker_url": broker,
+        "result_backend": backend,
+        "default_queue": current_app.config.get("CELERY_DEFAULT_QUEUE", "default"),
+        "task_ignore_result": bool(current_app.config.get("CELERY_TASK_IGNORE_RESULT", False)),
+        "worker_ping": worker_ping,
+        "worker_ping_error": worker_ping_error,
+        "compose_available": _resolve_compose_command() is not None,
+    }
+
+
+def _handle_celery_intent(intent: str) -> tuple[dict | None, dict | None, dict | None]:
+    service_action_result = None
+    task_result = None
+    task_lookup = None
+
+    if intent == "service_action":
+        action = (request.form.get("action") or "status").strip().lower()
+        service_action_result = _run_celery_service_action(action)
+        if service_action_result["ok"]:
+            flash(
+                tr("Celery action completed: {action}", getattr(g, "lang", None), action=action),
+                "success",
+            )
+        else:
+            flash(
+                tr("Celery action failed: {action}", getattr(g, "lang", None), action=action),
+                "error",
+            )
+
+    elif intent == "test_task":
+        from celery.exceptions import TimeoutError as CeleryTimeoutError
+        from audela.tasks.system_tasks import celery_healthcheck
+
+        wait_raw = (request.form.get("wait_seconds") or "8").strip()
+        try:
+            wait_seconds = max(1, min(int(wait_raw), 30))
+        except ValueError:
+            wait_seconds = 8
+
+        try:
+            job = celery_healthcheck.delay()
+            task_result = {
+                "task_id": job.id,
+                "state": "SENT",
+                "wait_seconds": wait_seconds,
+                "result": None,
+                "error": None,
+            }
+            try:
+                payload = job.get(timeout=wait_seconds)
+                task_result["state"] = "SUCCESS"
+                task_result["result"] = payload
+                flash(tr("Celery test succeeded.", getattr(g, "lang", None)), "success")
+            except CeleryTimeoutError as exc:
+                task_result["state"] = "PENDING"
+                task_result["error"] = str(exc)
+                flash(tr("Celery task sent but no worker response yet.", getattr(g, "lang", None)), "warning")
+            except Exception as exc:
+                task_result["state"] = "FAILURE"
+                task_result["error"] = str(exc)
+                flash(tr("Celery task failed during execution.", getattr(g, "lang", None)), "error")
+        except Exception as exc:
+            task_result = {
+                "task_id": None,
+                "state": "ERROR",
+                "wait_seconds": wait_seconds,
+                "result": None,
+                "error": str(exc),
+            }
+            flash(tr("Failed to send Celery test task.", getattr(g, "lang", None)), "error")
+
+    elif intent == "task_lookup":
+        from audela.celery_app import celery_app
+
+        task_id = (request.form.get("task_id") or "").strip()
+        if not task_id:
+            flash(tr("Provide a task id.", getattr(g, "lang", None)), "error")
+        else:
+            async_result = celery_app.AsyncResult(task_id)
+            task_lookup = {
+                "task_id": task_id,
+                "state": async_result.state,
+                "result": async_result.result if async_result.state == "SUCCESS" else None,
+                "error": str(async_result.result) if async_result.state in {"FAILURE", "REVOKED"} else None,
+            }
+
+    return service_action_result, task_result, task_lookup
+
+
+@bp.route("/celery", methods=["GET", "POST"])
+def celery_console():
+    guard = _admin_guard_redirect()
+    if guard is not None:
+        return guard
+
+    service_action_result = None
+    task_result = None
+    task_lookup = None
+
+    if request.method == "POST":
+        intent = (request.form.get("intent") or "").strip().lower()
+        service_action_result, task_result, task_lookup = _handle_celery_intent(intent)
+
+    context = _build_celery_screen_context()
+    return render_template(
+        "admin/celery.html",
+        service_action_result=service_action_result,
+        task_result=task_result,
+        task_lookup=task_lookup,
+        **context,
+    )
+
+
 @bp.route("/login", methods=["GET", "POST"])
 def login():
     if _is_platform_admin(current_user):
@@ -229,11 +503,18 @@ def logout():
     return redirect(url_for("admin.login"))
 
 
-@bp.route("/")
+@bp.route("/", methods=["GET", "POST"])
 def dashboard():
     guard = _admin_guard_redirect()
     if guard is not None:
         return guard
+
+    if request.method == "POST":
+        intent = (request.form.get("intent") or "").strip().lower()
+        if intent in {"service_action", "test_task"}:
+            _handle_celery_intent(intent)
+        selected_months = (request.form.get("months") or request.args.get("months") or "12").strip()
+        return redirect(url_for("admin.dashboard", months=selected_months))
 
     plans = (
         SubscriptionPlan.query
@@ -262,6 +543,7 @@ def dashboard():
             }
         )
     admin_finance = _build_admin_finance(subscriptions, request.args.get("months", "12"))
+    celery_overview = _build_celery_screen_context()
 
     return render_template(
         "admin/dashboard.html",
@@ -270,6 +552,7 @@ def dashboard():
         users_view=users_view,
         subscriptions=subscriptions,
         admin_finance=admin_finance,
+        celery_overview=celery_overview,
     )
 
 

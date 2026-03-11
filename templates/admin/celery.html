@@ -1,0 +1,175 @@
+{% extends "portal/base_portal.html" %}
+
+{% block title %}{{ _('Celery Console') }} - AUDELA{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <h1 class="h4 m-0">{{ _('Celery console') }}</h1>
+    <div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('admin.dashboard') }}">
+        <i class="bi bi-arrow-left me-1"></i>{{ _('Back to admin') }}
+      </a>
+      <a class="btn btn-outline-danger btn-sm" href="{{ url_for('admin.logout') }}">
+        <i class="bi bi-box-arrow-right me-1"></i>{{ _('Logout') }}
+      </a>
+    </div>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ 'danger' if category in ['error','danger'] else ('success' if category == 'success' else ('warning' if category == 'warning' else 'secondary')) }}">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-xl-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-body"><strong>{{ _('Configuration') }}</strong></div>
+        <div class="card-body">
+          <div class="mb-2"><span class="text-secondary">Broker:</span> <code>{{ broker_url }}</code></div>
+          <div class="mb-2"><span class="text-secondary">Backend:</span> <code>{{ result_backend }}</code></div>
+          <div class="mb-2"><span class="text-secondary">Queue:</span> <code>{{ default_queue }}</code></div>
+          <div class="mb-2"><span class="text-secondary">Ignore result:</span> <code>{{ task_ignore_result }}</code></div>
+          <div>
+            <span class="text-secondary">Compose available:</span>
+            {% if compose_available %}
+              <span class="badge text-bg-success">yes</span>
+            {% else %}
+              <span class="badge text-bg-danger">no</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-xl-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-body"><strong>{{ _('Worker ping') }}</strong></div>
+        <div class="card-body">
+          {% if worker_ping %}
+            <div class="alert alert-success py-2 mb-2">{{ _('At least one worker responded.') }}</div>
+            <pre class="bg-light border rounded p-2 mb-0" style="white-space: pre-wrap; max-height: 220px; overflow: auto;">{{ worker_ping|tojson(indent=2) }}</pre>
+          {% elif worker_ping_error %}
+            <div class="alert alert-warning py-2 mb-0">{{ worker_ping_error }}</div>
+          {% else %}
+            <div class="alert alert-secondary py-2 mb-0">{{ _('No worker response right now.') }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-body"><strong>{{ _('Activate / stop Celery services') }}</strong></div>
+    <div class="card-body">
+      <form method="post" class="d-flex flex-wrap gap-2">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <input type="hidden" name="intent" value="service_action" />
+        <button class="btn btn-success btn-sm" type="submit" name="action" value="enable">{{ _('Enable') }}</button>
+        <button class="btn btn-outline-primary btn-sm" type="submit" name="action" value="restart">{{ _('Restart') }}</button>
+        <button class="btn btn-outline-secondary btn-sm" type="submit" name="action" value="status">{{ _('Status') }}</button>
+        <button class="btn btn-outline-danger btn-sm" type="submit" name="action" value="disable">{{ _('Disable') }}</button>
+      </form>
+
+      {% if service_action_result %}
+        <hr />
+        <div class="small text-secondary mb-2">
+          {{ _('Action') }}: <strong>{{ service_action_result.action }}</strong>
+          {% if service_action_result.ok %}
+            <span class="badge text-bg-success ms-2">OK</span>
+          {% else %}
+            <span class="badge text-bg-danger ms-2">FAIL</span>
+          {% endif %}
+        </div>
+
+        {% if service_action_result.error %}
+          <div class="alert alert-danger py-2">{{ service_action_result.error }}</div>
+        {% endif %}
+
+        {% for step in service_action_result.steps %}
+          <div class="border rounded p-2 mb-2">
+            <div class="small d-flex flex-wrap align-items-center gap-2 mb-1">
+              <strong>{{ step.step }}</strong>
+              <code>{{ step.command }}</code>
+              {% if step.ok %}
+                <span class="badge text-bg-success">{{ step.returncode }}</span>
+              {% else %}
+                <span class="badge text-bg-danger">{{ step.returncode if step.returncode is not none else 'error' }}</span>
+              {% endif %}
+            </div>
+            {% if step.stdout %}
+              <div class="small text-secondary">stdout</div>
+              <pre class="bg-light border rounded p-2" style="white-space: pre-wrap; max-height: 180px; overflow: auto;">{{ step.stdout }}</pre>
+            {% endif %}
+            {% if step.stderr %}
+              <div class="small text-secondary">stderr</div>
+              <pre class="bg-light border rounded p-2 mb-0" style="white-space: pre-wrap; max-height: 180px; overflow: auto;">{{ step.stderr }}</pre>
+            {% endif %}
+          </div>
+        {% endfor %}
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-body"><strong>{{ _('Send Celery test task') }}</strong></div>
+    <div class="card-body">
+      <form method="post" class="row g-2 align-items-end">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <input type="hidden" name="intent" value="test_task" />
+        <div class="col-12 col-md-4">
+          <label class="form-label mb-1">{{ _('Wait seconds') }}</label>
+          <input class="form-control form-control-sm" type="number" name="wait_seconds" min="1" max="30" value="8" />
+        </div>
+        <div class="col-12 col-md-4">
+          <button class="btn btn-primary btn-sm" type="submit">{{ _('Run healthcheck task') }}</button>
+        </div>
+      </form>
+
+      {% if task_result %}
+        <hr />
+        <div class="small mb-2"><span class="text-secondary">Task ID:</span> <code>{{ task_result.task_id }}</code></div>
+        <div class="small mb-2"><span class="text-secondary">State:</span> <strong>{{ task_result.state }}</strong></div>
+        {% if task_result.result %}
+          <pre class="bg-light border rounded p-2" style="white-space: pre-wrap;">{{ task_result.result|tojson(indent=2) }}</pre>
+        {% endif %}
+        {% if task_result.error %}
+          <div class="alert alert-warning py-2 mb-0">{{ task_result.error }}</div>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm">
+    <div class="card-header bg-body"><strong>{{ _('Lookup task id') }}</strong></div>
+    <div class="card-body">
+      <form method="post" class="row g-2 align-items-end">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <input type="hidden" name="intent" value="task_lookup" />
+        <div class="col-12 col-md-8">
+          <label class="form-label mb-1">Task ID</label>
+          <input class="form-control form-control-sm" type="text" name="task_id" placeholder="e.g. 6e0e8f18-..." required />
+        </div>
+        <div class="col-12 col-md-4">
+          <button class="btn btn-outline-secondary btn-sm" type="submit">{{ _('Check state') }}</button>
+        </div>
+      </form>
+
+      {% if task_lookup %}
+        <hr />
+        <div class="small mb-2"><span class="text-secondary">Task ID:</span> <code>{{ task_lookup.task_id }}</code></div>
+        <div class="small mb-2"><span class="text-secondary">State:</span> <strong>{{ task_lookup.state }}</strong></div>
+        {% if task_lookup.result %}
+          <pre class="bg-light border rounded p-2" style="white-space: pre-wrap;">{{ task_lookup.result|tojson(indent=2) }}</pre>
+        {% endif %}
+        {% if task_lookup.error %}
+          <div class="alert alert-danger py-2 mb-0">{{ task_lookup.error }}</div>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
