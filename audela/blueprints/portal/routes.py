@@ -81,6 +81,52 @@ from . import bp
 _DATA_SOURCES_SCHEMA_READY = False
 
 
+def _resolve_bi_ui_mode(module_access: dict[str, bool], *, update_session: bool = True) -> str:
+    """Resolve current BI UI mode (lite/full) with session persistence.
+
+    Rules:
+    - If user only has BI Lite access, force lite.
+    - `?bi_ui_mode=lite|full` can switch mode when access allows.
+    - Defaults to full when both are available.
+    """
+    bi_enabled = bool(module_access.get("bi", True))
+    bi_lite_enabled = bool(module_access.get("bi_lite", bi_enabled))
+    forced_lite = bool(bi_lite_enabled and not bi_enabled)
+
+    requested_mode = (request.args.get("bi_ui_mode") or "").strip().lower()
+    if requested_mode not in {"lite", "full"}:
+        requested_mode = ""
+
+    session_mode = (session.get("bi_ui_mode") or "").strip().lower()
+    if session_mode not in {"lite", "full"}:
+        session_mode = ""
+
+    mode = session_mode or ("full" if bi_enabled else ("lite" if bi_lite_enabled else "full"))
+    if requested_mode:
+        mode = requested_mode
+
+    if forced_lite:
+        mode = "lite"
+    elif mode == "lite" and not bi_lite_enabled:
+        mode = "full"
+    elif mode == "full" and not bi_enabled and bi_lite_enabled:
+        mode = "lite"
+
+    if update_session:
+        session["bi_ui_mode"] = mode
+
+    return mode
+
+
+def _with_bi_ui_mode(url: str, mode: str | None = None) -> str:
+    """Append `bi_ui_mode` query parameter for stateful BI navigation."""
+    current_mode = (mode or session.get("bi_ui_mode") or "").strip().lower()
+    if current_mode != "lite":
+        return url
+    sep = "&" if "?" in url else "?"
+    return f"{url}{sep}bi_ui_mode=lite"
+
+
 def _ensure_data_sources_schema_compat() -> None:
     """Backfill legacy SQLite schema for data_sources missing newer columns.
 
@@ -157,18 +203,33 @@ def load_tenant_into_g() -> None:
         }:
             return None
         access = get_user_module_access(g.tenant, current_user.id)
-        if not access.get("bi", True):
+        bi_enabled = bool(access.get("bi", True))
+        bi_lite_enabled = bool(access.get("bi_lite", bi_enabled))
+        bi_ui_mode = _resolve_bi_ui_mode(access, update_session=True)
+
+        if not bi_enabled and not bi_lite_enabled:
             flash(tr("Acesso BI desativado para seu usuário.", getattr(g, "lang", None)), "warning")
             return redirect(url_for("tenant.dashboard"))
 
         bi_menu_access = get_user_menu_access(g.tenant, current_user.id, "bi")
+        if bi_ui_mode == "lite":
+            lite_defaults = _bi_lite_menu_access()
+            bi_menu_access = {
+                key: bool(lite_defaults.get(key, False) and bi_menu_access.get(key, True))
+                for key in lite_defaults.keys()
+            }
+
         endpoint_menu_key = {
             "portal.home": "home",
+            "portal.bi_lite": "home",
             "portal.credit_origination": "credit_origination",
             "portal.sources_list": "sources",
             "portal.sources_new": "sources",
             "portal.sources_view": "sources",
             "portal.sources_edit": "sources",
+            "portal.workspaces_list": "sources",
+            "portal.workspaces_new": "sources",
+            "portal.api_workspaces_draft_sql": "sources",
             "portal.api_sources_list": "api_sources",
             "portal.api_sources_new": "api_sources",
             "portal.api_sources_edit": "api_sources",
@@ -206,7 +267,7 @@ def load_tenant_into_g() -> None:
         menu_key = endpoint_menu_key.get(request.endpoint)
         if menu_key and not bi_menu_access.get(menu_key, True):
             flash(tr("Accès menu BI désactivé pour votre utilisateur.", getattr(g, "lang", None)), "warning")
-            return redirect(url_for("portal.home"))
+            return redirect(url_for("portal.bi_lite") if bi_ui_mode == "lite" else url_for("portal.home"))
 
 
 def _require_tenant() -> None:
@@ -216,18 +277,88 @@ def _require_tenant() -> None:
         abort(403)
 
 
+def _bi_lite_menu_access() -> dict[str, bool]:
+    keys = {
+        "home",
+        "credit_origination",
+        "sources",
+        "api_sources",
+        "web_extract",
+        "integrations",
+        "etl",
+        "sources_diagram",
+        "sql_editor",
+        "excel_ai",
+        "questions",
+        "dashboards",
+        "reports",
+        "files",
+        "statistics",
+        "ratios",
+        "ratio_indicator_create",
+        "ratio_create",
+        "alerting",
+        "what_if",
+        "explore",
+        "ai_chat",
+        "runs",
+        "audit",
+    }
+    out = {k: False for k in keys}
+    out["home"] = True
+    out["ai_chat"] = True
+    out["dashboards"] = True
+    out["excel_ai"] = True
+    out["sources"] = True
+    out["api_sources"] = True
+    out["files"] = True
+    return out
+
+
 @bp.app_context_processor
 def _portal_layout_context():
     tenant = getattr(g, "tenant", None)
     module_access = get_user_module_access(tenant, getattr(current_user, "id", None))
     bi_menu_access = get_user_menu_access(tenant, getattr(current_user, "id", None), "bi")
+    bi_enabled = bool(module_access.get("bi", True))
+    bi_lite_enabled = bool(module_access.get("bi_lite", bi_enabled))
+    bi_ui_mode = _resolve_bi_ui_mode(module_access, update_session=False)
+    bi_lite_mode = bool(bi_ui_mode == "lite")
+
+    def _portal_href(endpoint: str, **kwargs):
+        endpoint_name = str(endpoint or "").strip()
+        if endpoint_name.startswith("portal.") and bi_lite_mode and "bi_ui_mode" not in kwargs:
+            kwargs["bi_ui_mode"] = "lite"
+        return url_for(endpoint_name, **kwargs)
+
+    if bi_lite_mode:
+        lite_defaults = _bi_lite_menu_access()
+        bi_menu_access = {
+            key: bool(lite_defaults.get(key, False) and bi_menu_access.get(key, True))
+            for key in lite_defaults.keys()
+        }
+
     if not tenant or not getattr(tenant, "subscription", None):
-        return {"transaction_usage": None, "module_access": module_access, "bi_menu_access": bi_menu_access}
+        return {
+            "transaction_usage": None,
+            "module_access": module_access,
+            "bi_menu_access": bi_menu_access,
+            "bi_lite_mode": bi_lite_mode,
+            "bi_lite_home_href": url_for("portal.bi_lite", bi_ui_mode="lite") if bi_lite_mode else None,
+            "bi_lite_switch_href": url_for("portal.bi_lite", bi_ui_mode="lite"),
+            "bi_full_home_href": url_for("portal.home", bi_ui_mode="full"),
+            "portal_href": _portal_href,
+        }
 
     _, current_count, max_limit = SubscriptionService.check_limit(tenant.id, "transactions")
     return {
         "module_access": module_access,
         "bi_menu_access": bi_menu_access,
+        "bi_lite_mode": bi_lite_mode,
+        "bi_lite_home_href": url_for("portal.bi_lite", bi_ui_mode="lite") if bi_lite_mode else None,
+        "bi_lite_switch_href": url_for("portal.bi_lite", bi_ui_mode="lite"),
+        "bi_full_home_href": url_for("portal.home", bi_ui_mode="full"),
+        "portal_href": _portal_href,
         "transaction_usage": {
             "current": int(current_count),
             "max": int(max_limit),
@@ -957,6 +1088,11 @@ def _resolve_tenant_by_app_key(raw_key: str) -> tuple[Tenant | None, dict | None
 @login_required
 def home():
     _require_tenant()
+    access = get_user_module_access(g.tenant, current_user.id)
+    bi_ui_mode = _resolve_bi_ui_mode(access, update_session=True)
+    if bi_ui_mode == "lite":
+        return redirect(url_for("portal.bi_lite"))
+
     requested_mode = (request.args.get("app_mode") or "").strip().lower()
     if requested_mode in {"finance", "bi"}:
         session["app_mode"] = requested_mode
@@ -972,6 +1108,39 @@ def home():
         main = None
     dashes = Dashboard.query.filter_by(tenant_id=g.tenant.id).order_by(Dashboard.updated_at.desc()).all()
     return render_template("portal/home.html", tenant=g.tenant, dashboards=dashes, main_dashboard=main)
+
+
+@bp.route("/lite")
+@login_required
+def bi_lite():
+    """Minimal AI-first BI page for non-technical users."""
+    _require_tenant()
+
+    access = get_user_module_access(g.tenant, current_user.id)
+    if bool(access.get("bi_lite", access.get("bi", True))):
+        session["bi_ui_mode"] = "lite"
+
+    if session.get("app_mode") == "finance":
+        session["app_mode"] = "bi"
+
+    sources = (
+        DataSource.query.filter_by(tenant_id=g.tenant.id)
+        .order_by(DataSource.name.asc(), DataSource.id.asc())
+        .all()
+    )
+    dashboards = (
+        Dashboard.query.filter_by(tenant_id=g.tenant.id)
+        .order_by(Dashboard.updated_at.desc(), Dashboard.id.desc())
+        .limit(6)
+        .all()
+    )
+
+    return render_template(
+        "portal/bi_lite.html",
+        tenant=g.tenant,
+        sources=sources,
+        dashboards=dashboards,
+    )
 
 
 @bp.route("/credit-origination")
@@ -2866,7 +3035,7 @@ def api_export_pdf():
 def api_export_xlsx():
     """Export a result table to Excel.
 
-    Expected payload: {title, columns, rows, add_chart?}
+    Expected payload: {title, columns, rows, add_chart?, add_pivot?, template?, color_theme?}
     """
     _require_tenant()
     payload = request.get_json(silent=True) or {}
@@ -2874,6 +3043,9 @@ def api_export_xlsx():
     columns = payload.get("columns") or []
     rows = payload.get("rows") or []
     add_chart = bool(payload.get("add_chart", True))
+    add_pivot = bool(payload.get("add_pivot", False))
+    template_name = str(payload.get("template") or "clean").strip().lower() or "clean"
+    color_theme = str(payload.get("color_theme") or "").strip()
 
     if not isinstance(columns, list) or not isinstance(rows, list):
         return jsonify({"error": "Payload inválido."}), 400
@@ -2882,7 +3054,15 @@ def api_export_xlsx():
     if len(rows) > 50000:
         rows = rows[:50000]
 
-    xlsx_bytes = table_to_xlsx_bytes(title, [str(c) for c in columns], rows, add_chart=add_chart)
+    xlsx_bytes = table_to_xlsx_bytes(
+        title,
+        [str(c) for c in columns],
+        rows,
+        add_chart=add_chart,
+        add_pivot=add_pivot,
+        template=template_name,
+        color_theme=color_theme,
+    )
     resp = make_response(xlsx_bytes)
     resp.headers["Content-Type"] = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     resp.headers["Content-Disposition"] = f'attachment; filename="{title[:80].replace(" ", "_")}.xlsx"'
@@ -2902,6 +3082,9 @@ def api_excel_generate():
         title?: str,
         max_rows?: int,
         add_chart?: bool,
+        add_pivot?: bool,
+                template?: str,
+                color_theme?: str,
         store?: bool,
         folder_id?: int
       }
@@ -2920,8 +3103,11 @@ def api_excel_generate():
 
     title = (payload.get("title") or "Excel Export").strip() or "Excel Export"
     add_chart = bool(payload.get("add_chart", True))
+    add_pivot = bool(payload.get("add_pivot", False))
     store = bool(payload.get("store", True))
     folder_id = payload.get("folder_id")
+    template_name = str(payload.get("template") or "clean").strip().lower() or "clean"
+    color_theme = str(payload.get("color_theme") or "").strip()
 
     try:
         max_rows = int(payload.get("max_rows") or 5000)
@@ -2947,6 +3133,9 @@ def api_excel_generate():
         [str(c) for c in (result.get("columns") or [])],
         result.get("rows") or [],
         add_chart=add_chart,
+        add_pivot=add_pivot,
+        template=template_name,
+        color_theme=color_theme,
     )
 
     # Optionally store in tenant files
@@ -7372,6 +7561,452 @@ def api_ai_chat():
 
     ai = analyze_with_ai(data_bundle, message, history=history, lang=getattr(g, "lang", None))
     return jsonify(ai)
+
+
+def _bi_ai_auto_title(message: str, fallback: str, max_len: int = 120) -> str:
+    raw = re.sub(r"\s+", " ", str(message or "").strip())
+    if not raw:
+        return str(fallback)[:max_len]
+    title = raw[:max_len].strip()
+    return title or str(fallback)[:max_len]
+
+
+def _bi_ai_infer_viz(columns: list[Any], rows: list[Any]) -> dict[str, Any]:
+    cols = [str(c) for c in (columns or [])]
+    sample_rows = [r for r in (rows or []) if isinstance(r, (list, tuple))]
+
+    if not cols:
+        return {"type": "table"}
+
+    numeric_idx: list[int] = []
+    text_idx: list[int] = []
+    time_idx: list[int] = []
+
+    for idx, col_name in enumerate(cols):
+        values = []
+        for row in sample_rows[:200]:
+            if idx < len(row):
+                values.append(row[idx])
+        non_null = [v for v in values if v not in (None, "")]
+        if not non_null:
+            continue
+
+        numeric_count = 0
+        for value in non_null:
+            if _to_number(value) is not None:
+                numeric_count += 1
+
+        ratio = numeric_count / max(1, len(non_null))
+        low_name = col_name.lower()
+        looks_time = any(tok in low_name for tok in ("date", "month", "year", "period", "week", "day", "mes", "ano"))
+
+        if ratio >= 0.8:
+            numeric_idx.append(idx)
+        else:
+            text_idx.append(idx)
+
+        if looks_time:
+            time_idx.append(idx)
+
+    dim_idx = time_idx[0] if time_idx else (text_idx[0] if text_idx else -1)
+    metric_idx = -1
+    for idx in numeric_idx:
+        if idx != dim_idx:
+            metric_idx = idx
+            break
+    if metric_idx < 0 and numeric_idx:
+        metric_idx = numeric_idx[0]
+
+    if metric_idx >= 0 and dim_idx >= 0 and metric_idx != dim_idx:
+        viz_type = "line" if dim_idx in time_idx else "bar"
+        return {
+            "type": viz_type,
+            "dim": cols[dim_idx],
+            "metric": cols[metric_idx],
+        }
+
+    if metric_idx >= 0 and len(sample_rows) <= 2:
+        return {
+            "type": "kpi",
+            "metric": cols[metric_idx],
+        }
+
+    return {"type": "table"}
+
+
+def _bi_ai_auto_layout_positions(card_count: int) -> list[dict[str, int]]:
+    count = max(1, int(card_count or 1))
+    if count == 1:
+        return [{"x": 0, "y": 0, "w": 12, "h": 8}]
+    if count == 2:
+        return [
+            {"x": 0, "y": 0, "w": 12, "h": 7},
+            {"x": 0, "y": 7, "w": 12, "h": 6},
+        ]
+
+    positions: list[dict[str, int]] = []
+    for idx in range(count):
+        col = idx % 2
+        row = idx // 2
+        positions.append({"x": 6 * col, "y": 6 * row, "w": 6, "h": 6})
+    return positions
+
+
+def _bi_ai_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _bi_ai_normalize_viz_type(value: Any) -> str:
+    raw = str(value or "").strip().lower()
+    allowed = {"", "table", "bar", "line", "area", "pie", "scatter", "gauge", "kpi"}
+    return raw if raw in allowed else ""
+
+
+def _bi_ai_apply_viz_preference(
+    preferred_viz: str,
+    inferred_viz: dict[str, Any],
+    columns: list[str],
+    rows: list[Any],
+) -> dict[str, Any]:
+    preferred = _bi_ai_normalize_viz_type(preferred_viz)
+    if not preferred:
+        return inferred_viz
+    if preferred == "table":
+        return {"type": "table"}
+
+    cols = [str(c) for c in (columns or [])]
+    if not cols:
+        return {"type": "table"}
+
+    metric_idx = -1
+    dim_idx = 0
+    sample_rows = [r for r in (rows or []) if isinstance(r, (list, tuple))][:200]
+    for idx in range(len(cols)):
+        non_null = 0
+        numeric_hits = 0
+        for row in sample_rows:
+            if idx >= len(row):
+                continue
+            value = row[idx]
+            if value in (None, ""):
+                continue
+            non_null += 1
+            if _to_number(value) is not None:
+                numeric_hits += 1
+        if non_null and (numeric_hits / non_null) >= 0.8:
+            metric_idx = idx
+            break
+
+    inferred_dim = str((inferred_viz or {}).get("dim") or "").strip()
+    inferred_metric = str((inferred_viz or {}).get("metric") or "").strip()
+    dim = inferred_dim or (cols[dim_idx] if cols else "")
+    if inferred_metric:
+        metric = inferred_metric
+    elif metric_idx >= 0:
+        metric = cols[metric_idx]
+    elif len(cols) >= 2:
+        metric = cols[1]
+    else:
+        metric = cols[0]
+
+    if preferred in {"bar", "line", "area", "pie", "scatter"}:
+        cfg = {"type": preferred, "dim": dim, "metric": metric}
+        cfg["agg"] = {"func": "SUM", "dim": dim, "metric": metric}
+        return cfg
+
+    if preferred in {"kpi", "gauge"}:
+        cfg = {"type": preferred, "metric": metric}
+        cfg["agg"] = {"func": "SUM", "dim": "", "metric": metric}
+        return cfg
+
+    return inferred_viz
+
+
+def _bi_ai_create_dashboard_bundle(
+    source: DataSource,
+    message: str,
+    *,
+    dashboard_hint: str = "",
+    question_hint: str = "",
+    title_suffix: str = "",
+    preferred_viz: str = "",
+) -> dict[str, Any]:
+    sql_text, warnings = generate_sql_from_nl(source, message, lang=getattr(g, "lang", None))
+    sql_text = str(sql_text or "").strip()
+    if not sql_text:
+        raise ValueError(_("Could not generate SQL from this request."))
+
+    if not sql_text.lower().lstrip().startswith(("select", "with")):
+        raise ValueError(_("Only SELECT queries are allowed."))
+
+    try:
+        result = execute_sql(source, sql_text, params={"tenant_id": g.tenant.id}, row_limit=800)
+    except QueryExecutionError as e:
+        raise ValueError(str(e)) from e
+
+    columns = [str(c) for c in (result.get("columns") or [])]
+    rows = result.get("rows") or []
+    inferred_viz = _bi_ai_infer_viz(columns, rows)
+    viz_main = _bi_ai_apply_viz_preference(preferred_viz, inferred_viz, columns, rows)
+
+    suffix = str(title_suffix or "").strip()
+    q_seed = str(question_hint or "").strip() or message
+    d_seed = str(dashboard_hint or "").strip() or message
+    if suffix:
+        q_seed = f"{q_seed} {suffix}".strip()
+        d_seed = f"{d_seed} {suffix}".strip()
+
+    question_name = _bi_ai_auto_title(q_seed, _("AI question"), max_len=120)
+    dashboard_name = _bi_ai_auto_title(d_seed, _("AI dashboard"), max_len=120)
+
+    question = Question(
+        tenant_id=g.tenant.id,
+        source_id=source.id,
+        name=question_name,
+        sql_text=sql_text,
+        params_schema_json={},
+        viz_config_json=viz_main,
+        acl_json={},
+    )
+    db.session.add(question)
+    db.session.flush()
+
+    dashboard = Dashboard(
+        tenant_id=g.tenant.id,
+        name=dashboard_name,
+        layout_json={},
+        filters_json={},
+        acl_json={},
+    )
+    db.session.add(dashboard)
+    db.session.flush()
+
+    cards_viz = [viz_main]
+    if str(viz_main.get("type") or "").lower() != "table":
+        cards_viz.append({"type": "table"})
+
+    positions = _bi_ai_auto_layout_positions(len(cards_viz))
+    for idx, viz_cfg in enumerate(cards_viz):
+        pos = positions[idx] if idx < len(positions) else {"x": 0, "y": idx * 6, "w": 12, "h": 6}
+        db.session.add(
+            DashboardCard(
+                tenant_id=g.tenant.id,
+                dashboard_id=dashboard.id,
+                question_id=question.id,
+                viz_config_json=viz_cfg,
+                position_json=pos,
+            )
+        )
+
+    return {
+        "dashboard": {
+            "id": dashboard.id,
+            "name": dashboard.name,
+            "url": _with_bi_ui_mode(url_for("portal.dashboard_view", dashboard_id=dashboard.id)),
+        },
+        "question": {"id": question.id, "name": question.name},
+        "sql": sql_text,
+        "warnings": warnings or [],
+        "layout": positions,
+    }
+
+
+@bp.route("/api/ai/dashboard", methods=["POST"])
+@login_required
+def api_ai_dashboard_create():
+    """Create an auto-organized dashboard from a natural-language request."""
+    _require_tenant()
+    payload = request.get_json(silent=True) or {}
+
+    message = str(payload.get("message") or "").strip()
+    if not message:
+        return jsonify({"ok": False, "error": _("Please describe the dashboard to create.")}), 400
+
+    try:
+        source_id = int(payload.get("source_id") or 0)
+    except Exception:
+        source_id = 0
+
+    try:
+        question_id = int(payload.get("question_id") or 0)
+    except Exception:
+        question_id = 0
+
+    source = None
+    if source_id > 0:
+        source = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first()
+    elif question_id > 0:
+        base_question = Question.query.filter_by(id=question_id, tenant_id=g.tenant.id).first()
+        if base_question:
+            source = DataSource.query.filter_by(id=base_question.source_id, tenant_id=g.tenant.id).first()
+
+    if not source:
+        return jsonify({"ok": False, "error": _("Please select a data source or question.")}), 400
+
+    create_comparison = _bi_ai_bool(payload.get("create_comparison"))
+    preferred_viz = _bi_ai_normalize_viz_type(payload.get("viz_type"))
+    required_quota = 4 if create_comparison else 2
+
+    if not _bi_quota_check(required_quota):
+        return jsonify({"ok": False, "error": _("Plan limit reached for creating dashboard assets.")}), 400
+
+    try:
+        primary_bundle = _bi_ai_create_dashboard_bundle(
+            source,
+            message,
+            dashboard_hint=str(payload.get("dashboard_name") or ""),
+            question_hint=str(payload.get("question_name") or ""),
+            preferred_viz=preferred_viz,
+        )
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+    comparison_bundle: dict[str, Any] | None = None
+    comparison_error = ""
+    if create_comparison:
+        comparison_prompt = str(payload.get("comparison_prompt") or "").strip()
+        if not comparison_prompt:
+            comparison_prompt = (
+                f"{message}. Compare current period versus previous period and group by month and year."
+            )
+        try:
+            comparison_bundle = _bi_ai_create_dashboard_bundle(
+                source,
+                comparison_prompt,
+                dashboard_hint=str(payload.get("comparison_dashboard_name") or "") or str(payload.get("dashboard_name") or "") or message,
+                question_hint=str(payload.get("comparison_question_name") or "") or str(payload.get("question_name") or "") or message,
+                title_suffix="(Comparison)",
+                preferred_viz=preferred_viz,
+            )
+        except ValueError as exc:
+            comparison_error = str(exc)
+
+    _audit(
+        "bi.dashboard.ai_created",
+        {
+            "dashboard_id": primary_bundle["dashboard"]["id"],
+            "question_id": primary_bundle["question"]["id"],
+            "source_id": source.id,
+            "cards": len(primary_bundle.get("layout") or []),
+            "comparison_requested": create_comparison,
+        },
+    )
+
+    if comparison_bundle:
+        _audit(
+            "bi.dashboard.ai_created",
+            {
+                "dashboard_id": comparison_bundle["dashboard"]["id"],
+                "question_id": comparison_bundle["question"]["id"],
+                "source_id": source.id,
+                "cards": len(comparison_bundle.get("layout") or []),
+                "comparison": True,
+            },
+        )
+
+    consumed_quota = 2 + (2 if comparison_bundle else 0)
+    _bi_quota_consume(consumed_quota)
+    db.session.commit()
+
+    response = {
+        "ok": True,
+        "dashboard": primary_bundle["dashboard"],
+        "question": primary_bundle["question"],
+        "sql": primary_bundle["sql"],
+        "warnings": primary_bundle.get("warnings") or [],
+        "layout": primary_bundle.get("layout") or [],
+        "comparison": {
+            "requested": create_comparison,
+            "created": bool(comparison_bundle),
+            "error": comparison_error,
+        },
+    }
+    if comparison_bundle:
+        response["comparison_dashboard"] = comparison_bundle["dashboard"]
+        response["comparison_question"] = comparison_bundle["question"]
+        response["comparison_sql"] = comparison_bundle["sql"]
+        response["comparison_warnings"] = comparison_bundle.get("warnings") or []
+
+    return jsonify(response)
+
+
+@bp.route("/api/ai/lite", methods=["POST"])
+@login_required
+def api_ai_lite():
+    """Lightweight AI endpoint returning analysis + SQL + preview table."""
+    _require_tenant()
+    payload = request.get_json(silent=True) or {}
+
+    try:
+        source_id = int(payload.get("source_id") or 0)
+    except Exception:
+        source_id = 0
+
+    message = str(payload.get("message") or "").strip()
+    if not message:
+        return jsonify({"ok": False, "error": _("Please enter an analysis request.")}), 400
+    if not source_id:
+        return jsonify({"ok": False, "error": _("Please select a data source.")}), 400
+
+    source = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first()
+    if not source:
+        return jsonify({"ok": False, "error": _("Invalid data source.")}), 404
+
+    sql_text, warnings = generate_sql_from_nl(source, message, lang=getattr(g, "lang", None))
+    sql_text = str(sql_text or "").strip()
+    if not sql_text:
+        return jsonify({"ok": False, "error": _("Could not generate SQL from this request.")}), 400
+
+    if not sql_text.lower().lstrip().startswith(("select", "with")):
+        return jsonify({"ok": False, "error": _("Only SELECT queries are allowed in BI Lite."), "sql": sql_text}), 400
+
+    try:
+        res = execute_sql(source, sql_text, params={"tenant_id": g.tenant.id}, row_limit=400)
+    except QueryExecutionError as e:
+        return jsonify({"ok": False, "error": str(e), "sql": sql_text, "warnings": warnings or []}), 400
+
+    cols = [str(c) for c in (res.get("columns") or [])]
+    rows = res.get("rows") or []
+    preview_rows = rows[:120]
+
+    ai = analyze_with_ai(
+        data_bundle={
+            "source": {"id": source.id, "name": source.name, "type": source.type},
+            "sql": sql_text,
+            "result": {
+                "columns": cols,
+                "rows_sample": preview_rows[:80],
+                "row_count": len(rows),
+            },
+        },
+        user_message=message,
+        history=[],
+        lang=getattr(g, "lang", None),
+    )
+
+    analysis = ""
+    if isinstance(ai, dict):
+        analysis = str(ai.get("analysis") or ai.get("reply") or ai.get("text") or "").strip()
+
+    if not analysis:
+        analysis = _("Analysis generated. Check the preview table and SQL to validate the result.")
+
+    return jsonify(
+        {
+            "ok": True,
+            "analysis": analysis,
+            "sql": sql_text,
+            "warnings": warnings or [],
+            "columns": cols,
+            "rows": preview_rows,
+            "row_count": len(rows),
+            "source": {"id": source.id, "name": source.name},
+        }
+    )
 
 
 @bp.route("/api/tts", methods=["POST"])

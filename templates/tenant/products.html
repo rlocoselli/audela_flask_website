@@ -174,8 +174,10 @@
                 icon_color='text-info'
               ) }}
 
-              {% if module_access.bi %}
-              <a href="{{ url_for('portal.home', app_mode='bi') }}" class="btn btn-info w-100">
+              {% set has_bi_entry = (module_access.bi or module_access.bi_lite) %}
+              {% set bi_entry_href = (url_for('portal.home', app_mode='bi') if module_access.bi else url_for('portal.bi_lite')) %}
+              {% if has_bi_entry %}
+              <a href="{{ bi_entry_href }}" class="btn btn-info w-100">
                 <i class="bi bi-box-arrow-up-right"></i> {{ _(bi.tenant_access_label) }}
               </a>
               {% else %}

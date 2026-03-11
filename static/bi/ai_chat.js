@@ -150,6 +150,8 @@
     const log = qs('#ai-log');
     const input = qs('#ai-input');
     const sendBtn = qs('#ai-send');
+    const createDashboardBtn = qs('#ai-create-dashboard');
+    const createComparisonEl = qs('#ai-create-comparison');
     const clearBtn = qs('#ai-clear');
     const modeSel = qs('#ai-mode');
     const questionSel = qs('#ai-question');
@@ -161,6 +163,9 @@
     const status = qs('#ai-status');
 
     if (!log || !input || !sendBtn || !questionSel) return;
+
+    const query = new URLSearchParams(window.location.search || '');
+    const createDashboardMode = query.get('create_dashboard') === '1';
 
     let history = [];
 
@@ -261,6 +266,86 @@
       setStatus('');
     }
 
+    async function createDashboardFromPrompt () {
+      const mode = (modeSel?.value || 'question');
+      const qid = Number(questionSel.value || 0);
+      const sid = Number(sourceSel?.value || 0);
+      const msg = (input.value || '').trim();
+      const createComparison = !!(createComparisonEl && createComparisonEl.checked);
+
+      if (!msg) {
+        if (window.uiToast) window.uiToast(t('Digite o pedido do dashboard.'), { variant: 'danger' });
+        else uiAlert(t('Digite o pedido do dashboard.'), t('Validação'));
+        return;
+      }
+
+      if (mode === 'question' && !qid) {
+        if (window.uiToast) window.uiToast(t('Selecione uma pergunta'), { variant: 'danger' });
+        else uiAlert(t('Selecione uma pergunta'), t('Validação'));
+        return;
+      }
+
+      if (mode === 'source' && !sid) {
+        if (window.uiToast) window.uiToast(t('Selecione uma fonte.'), { variant: 'danger' });
+        else uiAlert(t('Selecione uma fonte.'), t('Validação'));
+        return;
+      }
+
+      setStatus(t('Criando dashboard automaticamente...'));
+
+      const resp = await fetchWithRetry('/app/api/ai/dashboard', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(getCsrfToken() ? { 'X-CSRFToken': getCsrfToken() } : {})
+        },
+        body: JSON.stringify({
+          message: msg,
+          question_id: mode === 'question' ? qid : 0,
+          source_id: mode === 'source' ? sid : 0,
+          create_comparison: createComparison
+        })
+      }, 1);
+
+      const payload = await resp.json().catch(() => ({}));
+      if (!resp.ok || !payload.ok) {
+        const err = payload.error || t('Erro ao criar dashboard.');
+        renderMessage(log, 'assistant', err);
+        setStatus('');
+        return;
+      }
+
+      const dashboard = (payload && payload.dashboard) ? payload.dashboard : {};
+      const dashboardName = String(dashboard.name || t('Dashboard'));
+      renderMessage(log, 'assistant', `${t('Dashboard criado')}: ${dashboardName}`);
+
+      const comparison = (payload && payload.comparison) ? payload.comparison : {};
+      const comparisonDashboard = (payload && payload.comparison_dashboard) ? payload.comparison_dashboard : {};
+      const comparisonUrl = String(comparisonDashboard.url || '').trim();
+      if (comparison && comparison.created) {
+        renderMessage(log, 'assistant', `${t('Dashboard comparativo criado')}: ${String(comparisonDashboard.name || t('Comparativo'))}`);
+      } else if (comparison && comparison.requested && comparison.error) {
+        renderMessage(log, 'assistant', `${t('Dashboard principal criado. Comparativo não criado')}: ${comparison.error}`);
+      }
+
+      const goUrl = String(dashboard.url || '').trim();
+      if (goUrl) {
+        if (comparison && comparison.created && comparisonUrl) {
+          try {
+            window.open(comparisonUrl, '_blank', 'noopener');
+          } catch (e) {
+            // Ignore popup blockers.
+          }
+        }
+        setStatus(t('Abrindo dashboard...'));
+        window.location.href = goUrl;
+        return;
+      }
+
+      setStatus('');
+    }
+
     sendBtn.addEventListener('click', (e) => {
       e.preventDefault();
       send().catch((err) => {
@@ -268,6 +353,16 @@
         renderMessage(log, 'assistant', String(err || t('Erro')));
       });
     });
+
+    if (createDashboardBtn) {
+      createDashboardBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        createDashboardFromPrompt().catch((err) => {
+          setStatus('');
+          renderMessage(log, 'assistant', String(err || t('Erro')));
+        });
+      });
+    }
 
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
@@ -278,6 +373,14 @@
 
     // Hello
     renderMessage(log, 'assistant', t('Select a question or a source and describe what you want to analyze.'));
+    if (createDashboardMode) {
+      setStatus(t('Describe your dashboard and click "Créer dashboard".'));
+      try {
+        input.focus();
+      } catch (e) {
+        // Ignore focus errors.
+      }
+    }
   }
 
   document.addEventListener('DOMContentLoaded', boot);

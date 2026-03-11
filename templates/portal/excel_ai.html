@@ -2,6 +2,17 @@
 
 {% block title %}{{ _('Excel IA') }} – {{ _('Portal BI') }}{% endblock %}
 
+{% block head_extra %}
+  {{ super() }}
+  <style>
+    .excel-style-picker .style-btn { min-width: 130px; display: flex; align-items: center; gap: .45rem; }
+    .excel-style-picker .style-btn.active { border-width: 2px; }
+    .excel-color-picker .color-btn { min-width: 115px; display: flex; align-items: center; gap: .45rem; }
+    .excel-color-picker .swatch { width: 14px; height: 14px; border-radius: 999px; border: 1px solid rgba(0,0,0,.15); }
+    .excel-color-picker .color-btn.active { border-width: 2px; }
+  </style>
+{% endblock %}
+
 {% block portal_content %}
 <div class="d-flex align-items-center justify-content-between mb-3">
   <div>
@@ -64,10 +75,55 @@
           </div>
         </div>
 
+        <div class="row g-2 mt-1">
+          <div class="col-12">
+            <label class="form-label">{{ _('Template visual') }}</label>
+            <div class="excel-style-picker d-flex flex-wrap gap-2" id="excel-template-picker" role="tablist" aria-label="{{ _('Template visual') }}">
+              <button type="button" class="btn btn-outline-secondary style-btn" data-value="clean" aria-pressed="false" title="{{ _('Clean (padrão)') }}"><i class="bi bi-layout-text-sidebar"></i><span>{{ _('Clean (padrão)') }}</span></button>
+              <button type="button" class="btn btn-outline-secondary style-btn" data-value="modern" aria-pressed="false" title="{{ _('Modern') }}"><i class="bi bi-stars"></i><span>{{ _('Modern') }}</span></button>
+              <button type="button" class="btn btn-outline-secondary style-btn" data-value="executive" aria-pressed="false" title="{{ _('Executive') }}"><i class="bi bi-briefcase"></i><span>{{ _('Executive') }}</span></button>
+              <button type="button" class="btn btn-outline-secondary style-btn" data-value="dark" aria-pressed="false" title="{{ _('Dark') }}"><i class="bi bi-moon-stars"></i><span>{{ _('Dark') }}</span></button>
+            </div>
+            <select class="form-select visually-hidden" id="excel-template">
+              <option value="clean">{{ _('Clean (padrão)') }}</option>
+              <option value="modern">{{ _('Modern') }}</option>
+              <option value="executive">{{ _('Executive') }}</option>
+              <option value="dark">{{ _('Dark') }}</option>
+            </select>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">{{ _('Cor principal') }}</label>
+            <div class="excel-color-picker d-flex flex-wrap gap-2" id="excel-color-picker" role="tablist" aria-label="{{ _('Cor principal') }}">
+              <button type="button" class="btn btn-outline-secondary color-btn" data-value="" aria-pressed="false" title="{{ _('Automática (template)') }}"><span class="swatch" style="background:linear-gradient(135deg,#1f4e78,#0e7490);"></span><span>{{ _('Auto') }}</span></button>
+              <button type="button" class="btn btn-outline-secondary color-btn" data-value="blue" aria-pressed="false" title="{{ _('Azul') }}"><span class="swatch" style="background:#1F4E78;"></span><span>{{ _('Azul') }}</span></button>
+              <button type="button" class="btn btn-outline-secondary color-btn" data-value="emerald" aria-pressed="false" title="{{ _('Esmeralda') }}"><span class="swatch" style="background:#1E7D4D;"></span><span>{{ _('Esmeralda') }}</span></button>
+              <button type="button" class="btn btn-outline-secondary color-btn" data-value="amber" aria-pressed="false" title="{{ _('Âmbar') }}"><span class="swatch" style="background:#B26A00;"></span><span>{{ _('Âmbar') }}</span></button>
+              <button type="button" class="btn btn-outline-secondary color-btn" data-value="slate" aria-pressed="false" title="{{ _('Slate') }}"><span class="swatch" style="background:#374151;"></span><span>{{ _('Slate') }}</span></button>
+              <button type="button" class="btn btn-outline-secondary color-btn" data-value="rose" aria-pressed="false" title="{{ _('Rose') }}"><span class="swatch" style="background:#9F1239;"></span><span>{{ _('Rose') }}</span></button>
+            </div>
+            <select class="form-select visually-hidden" id="excel-color-theme">
+              <option value="">{{ _('Automática (template)') }}</option>
+              <option value="blue">{{ _('Azul') }}</option>
+              <option value="emerald">{{ _('Esmeralda') }}</option>
+              <option value="amber">{{ _('Âmbar') }}</option>
+              <option value="slate">{{ _('Slate') }}</option>
+              <option value="rose">{{ _('Rose') }}</option>
+            </select>
+          </div>
+        </div>
+
         <div class="form-check mt-3">
           <input class="form-check-input" type="checkbox" value="1" id="excel-add-chart" checked>
           <label class="form-check-label" for="excel-add-chart">
             {{ _('Adicionar gráfico automático (se possível)') }}
+          </label>
+        </div>
+
+        <div class="form-check mt-2">
+          <input class="form-check-input" type="checkbox" value="1" id="excel-add-pivot" checked>
+          <label class="form-check-label" for="excel-add-pivot">
+            {{ _('Adicionar tableau croisé (feuille Pivot)') }}
           </label>
         </div>
 
@@ -118,6 +174,32 @@
       const btn = document.getElementById('excel-generate');
       const status = document.getElementById('excel-status');
       const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+      const templateSelect = document.getElementById('excel-template');
+      const colorSelect = document.getElementById('excel-color-theme');
+
+      function bindIconPicker(containerId, selectEl) {
+        const picker = document.getElementById(containerId);
+        if (!picker || !selectEl) return;
+        const buttons = Array.from(picker.querySelectorAll('[data-value]'));
+        const sync = (value) => {
+          buttons.forEach((b) => {
+            const active = String(b.getAttribute('data-value') || '') === String(value || '');
+            b.classList.toggle('active', active);
+            b.setAttribute('aria-pressed', active ? 'true' : 'false');
+          });
+        };
+        sync(selectEl.value || '');
+        buttons.forEach((b) => {
+          b.addEventListener('click', () => {
+            const value = String(b.getAttribute('data-value') || '');
+            selectEl.value = value;
+            sync(value);
+          });
+        });
+      }
+
+      bindIconPicker('excel-template-picker', templateSelect);
+      bindIconPicker('excel-color-picker', colorSelect);
 
       btn?.addEventListener('click', async () => {
         const sourceId = document.getElementById('excel-source')?.value;
@@ -126,6 +208,9 @@
         const addChart = document.getElementById('excel-add-chart')?.checked;
         const maxRows = Number(document.getElementById('excel-max-rows')?.value || 5000);
         const folderId = document.getElementById('excel-folder')?.value || '';
+        const templateName = document.getElementById('excel-template')?.value || 'clean';
+        const colorTheme = document.getElementById('excel-color-theme')?.value || '';
+        const addPivot = document.getElementById('excel-add-pivot')?.checked;
 
         if (!sourceId) {
           if (window.uiToast) window.uiToast(window.t('Selecione uma fonte.'), { variant: 'danger' });
@@ -150,6 +235,9 @@
               prompt: prompt,
               title: title,
               add_chart: !!addChart,
+              add_pivot: !!addPivot,
+              template: templateName,
+              color_theme: colorTheme,
               max_rows: maxRows,
               store: true,
               folder_id: folderId ? Number(folderId) : null

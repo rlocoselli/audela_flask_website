@@ -428,9 +428,11 @@
                 <i class="bi bi-graph-up"></i> {{ _('AUDELA BI') }}
               </h5>
               <p class="text-muted">{{ _('Business Intelligence et tableaux de bord') }}</p>
+              {% set has_bi_entry = (module_access.bi or module_access.bi_lite) %}
+              {% set bi_entry_href = (url_for('portal.home', app_mode='bi') if module_access.bi else url_for('portal.bi_lite')) %}
               {% if stats.has_bi %}
-              {% if module_access.bi %}
-              <a href="{{ url_for('portal.home', app_mode='bi') }}" class="btn btn-primary w-100">
+              {% if has_bi_entry %}
+              <a href="{{ bi_entry_href }}" class="btn btn-primary w-100">
                 <i class="bi bi-box-arrow-up-right"></i> {{ _('Accéder à BI') }}
               </a>
               {% else %}
@@ -439,8 +441,8 @@
               </button>
               {% endif %}
               {% elif stats.plan_code == 'free' %}
-              {% if module_access.bi %}
-              <a href="{{ url_for('portal.home', app_mode='bi') }}" class="btn btn-primary w-100">
+              {% if has_bi_entry %}
+              <a href="{{ bi_entry_href }}" class="btn btn-primary w-100">
                 <i class="bi bi-box-arrow-up-right"></i> {{ _('Découvrir BI') }}
               </a>
               {% else %}

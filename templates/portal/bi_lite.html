@@ -1,0 +1,440 @@
+{% extends "portal/layout.html" %}
+
+{% set title = _('BI Lite') %}
+{% set _p = portal_href if portal_href is defined else url_for %}
+
+{% block head_extra %}
+  {{ super() }}
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <script src="{{ url_for('static', filename='bi/bi_viz.js') }}"></script>
+  <style>
+    .viz-type-picker .vt-btn { min-width: 104px; display: flex; align-items: center; gap: .45rem; }
+    .viz-type-picker .vt-btn i { font-size: 1.05rem; }
+    .viz-type-picker .vt-btn.active { border-width: 2px; }
+    #biLiteVizPreview { min-height: 280px; }
+  </style>
+{% endblock %}
+
+{% block portal_content %}
+<div class="row g-3">
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+          <div>
+            <h1 class="h4 mb-1">{{ _('BI Lite') }}</h1>
+            <div class="text-secondary small">{{ _('Simple AI-first analytics for everyday users.') }}</div>
+          </div>
+          <div class="d-flex gap-2">
+            <a class="btn btn-outline-secondary btn-sm" href="{{ _p('portal.ai_chat') }}">{{ _('Open full AI chat') }}</a>
+            <a class="btn btn-outline-secondary btn-sm" href="{{ _p('portal.dashboards_list') }}">{{ _('Dashboards') }}</a>
+          </div>
+        </div>
+
+        <form id="biLiteForm" class="row g-2">
+          <div class="col-12 col-lg-4">
+            <label class="form-label">{{ _('Data source') }}</label>
+            <select class="form-select" id="biLiteSource" required>
+              <option value="">{{ _('Select a source') }}</option>
+              {% for src in sources %}
+              <option value="{{ src.id }}">{{ src.name }} ({{ src.type }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12 col-lg-8">
+            <label class="form-label">{{ _('Ask in natural language') }}</label>
+            <div class="input-group">
+              <textarea id="biLitePrompt" class="form-control" rows="2" placeholder="{{ _('Example: show top 10 customers by revenue this month') }}" required></textarea>
+              <button id="biLiteRun" class="btn btn-primary" type="submit">{{ _('Analyze') }}</button>
+              <button id="biLiteCreateDashboard" class="btn btn-outline-success" type="button">{{ _('Create dashboard') }}</button>
+            </div>
+          </div>
+
+          <div class="col-12">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="biLiteCreateComparison" />
+              <label class="form-check-label" for="biLiteCreateComparison">{{ _('Also create a comparison dashboard (current vs previous period)') }}</label>
+            </div>
+          </div>
+
+          <div class="col-12">
+            <div id="biLiteDashboardStatus" class="small text-secondary"></div>
+          </div>
+
+          <div class="col-12">
+            <div class="d-flex flex-wrap gap-2" id="biLitePromptChips">
+              <button class="btn btn-outline-secondary btn-sm" type="button" data-prompt="{{ _('Top 10 products by sales') }}">{{ _('Top products') }}</button>
+              <button class="btn btn-outline-secondary btn-sm" type="button" data-prompt="{{ _('Monthly revenue trend for the last 12 months') }}">{{ _('Revenue trend') }}</button>
+              <button class="btn btn-outline-secondary btn-sm" type="button" data-prompt="{{ _('Customers with highest growth rate') }}">{{ _('Top growth customers') }}</button>
+              <button class="btn btn-outline-secondary btn-sm" type="button" data-prompt="{{ _('Compare this month versus previous month') }}">{{ _('Month over month') }}</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-xl-4">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-body-tertiary">{{ _('AI Insight') }}</div>
+      <div class="card-body">
+        <div id="biLiteInsight" class="small text-secondary">{{ _('Run an analysis to get a concise explanation.') }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-xl-8">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center">
+        <span>{{ _('Result preview') }}</span>
+        <span class="badge text-bg-light border" id="biLiteRowCount">0</span>
+      </div>
+      <div class="card-body">
+        <div class="mb-2">
+          <label class="form-label mb-2">{{ _('Visualization') }}</label>
+          <div class="viz-type-picker d-flex flex-wrap gap-2" id="biLiteVizPicker" role="tablist" aria-label="{{ _('Visualization') }}">
+            <button type="button" class="btn btn-outline-secondary vt-btn" data-type="table" aria-pressed="false" title="{{ _('Table') }}"><i class="bi bi-table"></i><span>{{ _('Table') }}</span></button>
+            <button type="button" class="btn btn-outline-secondary vt-btn" data-type="bar" aria-pressed="false" title="{{ _('Bar') }}"><i class="bi bi-bar-chart"></i><span>{{ _('Bar') }}</span></button>
+            <button type="button" class="btn btn-outline-secondary vt-btn" data-type="line" aria-pressed="false" title="{{ _('Line') }}"><i class="bi bi-graph-up"></i><span>{{ _('Line') }}</span></button>
+            <button type="button" class="btn btn-outline-secondary vt-btn" data-type="area" aria-pressed="false" title="{{ _('Area') }}"><i class="bi bi-bar-chart-stacked"></i><span>{{ _('Area') }}</span></button>
+            <button type="button" class="btn btn-outline-secondary vt-btn" data-type="pie" aria-pressed="false" title="{{ _('Pie') }}"><i class="bi bi-pie-chart"></i><span>{{ _('Pie') }}</span></button>
+            <button type="button" class="btn btn-outline-secondary vt-btn" data-type="scatter" aria-pressed="false" title="{{ _('Scatter') }}"><i class="bi bi-dots"></i><span>{{ _('Scatter') }}</span></button>
+            <button type="button" class="btn btn-outline-secondary vt-btn" data-type="gauge" aria-pressed="false" title="{{ _('Gauge') }}"><i class="bi bi-speedometer2"></i><span>{{ _('Gauge') }}</span></button>
+            <button type="button" class="btn btn-outline-secondary vt-btn" data-type="kpi" aria-pressed="false" title="{{ _('KPI') }}"><i class="bi bi-123"></i><span>{{ _('KPI') }}</span></button>
+          </div>
+          <select class="form-select visually-hidden" id="biLiteVizType">
+            <option value="table">{{ _('Table') }}</option>
+            <option value="bar">{{ _('Bar') }}</option>
+            <option value="line">{{ _('Line') }}</option>
+            <option value="area">{{ _('Area') }}</option>
+            <option value="pie">{{ _('Pie') }}</option>
+            <option value="scatter">{{ _('Scatter') }}</option>
+            <option value="gauge">{{ _('Gauge') }}</option>
+            <option value="kpi">{{ _('KPI') }}</option>
+          </select>
+        </div>
+
+        <div id="biLiteVizPreview" class="border rounded bg-body-tertiary mb-3"></div>
+
+        <details class="mb-2">
+          <summary class="small">{{ _('Generated SQL') }}</summary>
+          <pre id="biLiteSql" class="small bg-body-tertiary border rounded p-2 mb-0" style="white-space:pre-wrap;">--</pre>
+        </details>
+
+        <div id="biLiteWarnings" class="small text-warning mb-2 d-none"></div>
+        <div class="table-responsive" style="max-height: 420px;">
+          <table class="table table-sm table-striped align-middle" id="biLiteTable">
+            <thead></thead>
+            <tbody>
+              <tr><td class="text-secondary">{{ _('No result yet.') }}</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if dashboards %}
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-body-tertiary">{{ _('Recent dashboards') }}</div>
+      <div class="card-body">
+        <div class="d-flex flex-wrap gap-2">
+          {% for d in dashboards %}
+          <a class="btn btn-outline-secondary btn-sm" href="{{ _p('portal.dashboard_view', dashboard_id=d.id) }}">{{ d.name }}</a>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+  (() => {
+    const form = document.getElementById('biLiteForm');
+    const sourceEl = document.getElementById('biLiteSource');
+    const promptEl = document.getElementById('biLitePrompt');
+    const runBtn = document.getElementById('biLiteRun');
+    const createDashBtn = document.getElementById('biLiteCreateDashboard');
+    const createComparisonEl = document.getElementById('biLiteCreateComparison');
+    const insightEl = document.getElementById('biLiteInsight');
+    const sqlEl = document.getElementById('biLiteSql');
+    const rowCountEl = document.getElementById('biLiteRowCount');
+    const tableEl = document.getElementById('biLiteTable');
+    const warningsEl = document.getElementById('biLiteWarnings');
+    const dashboardStatusEl = document.getElementById('biLiteDashboardStatus');
+    const chips = document.querySelectorAll('#biLitePromptChips [data-prompt]');
+    const vizTypeEl = document.getElementById('biLiteVizType');
+    const vizPreviewEl = document.getElementById('biLiteVizPreview');
+    const vizBtns = Array.from(document.querySelectorAll('#biLiteVizPicker .vt-btn'));
+    if (!form || !sourceEl || !promptEl || !runBtn || !insightEl || !sqlEl || !rowCountEl || !tableEl || !warningsEl || !createDashBtn || !dashboardStatusEl || !createComparisonEl || !vizTypeEl || !vizPreviewEl) return;
+
+    let rawData = { columns: [], rows: [] };
+
+    function esc(value) {
+      return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function setLoading(loading) {
+      runBtn.disabled = !!loading;
+      createDashBtn.disabled = !!loading;
+      runBtn.textContent = loading ? '{{ _('Analyzing...') }}' : '{{ _('Analyze') }}';
+    }
+
+    function setDashboardStatus(message, isError) {
+      dashboardStatusEl.textContent = String(message || '').trim();
+      dashboardStatusEl.classList.toggle('text-danger', !!isError);
+      dashboardStatusEl.classList.toggle('text-secondary', !isError);
+    }
+
+    function renderTable(columns, rows) {
+      const thead = tableEl.querySelector('thead');
+      const tbody = tableEl.querySelector('tbody');
+      if (!thead || !tbody) return;
+
+      if (!Array.isArray(columns) || !columns.length) {
+        thead.innerHTML = '';
+        tbody.innerHTML = '<tr><td class="text-secondary">{{ _('No result columns.') }}</td></tr>';
+        return;
+      }
+
+      thead.innerHTML = `<tr>${columns.map((c) => `<th>${esc(c)}</th>`).join('')}</tr>`;
+
+      const safeRows = Array.isArray(rows) ? rows : [];
+      if (!safeRows.length) {
+        tbody.innerHTML = `<tr><td class="text-secondary" colspan="${columns.length}">{{ _('No rows returned.') }}</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = safeRows.map((row) => {
+        const cells = Array.isArray(row) ? row : [];
+        return `<tr>${columns.map((_, i) => `<td>${esc(cells[i])}</td>`).join('')}</tr>`;
+      }).join('');
+    }
+
+    function setActiveVizButton(type) {
+      vizBtns.forEach((btn) => {
+        const isActive = String(btn.getAttribute('data-type') || '') === String(type || 'table');
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+      });
+    }
+
+    function inferVizFields(columns, rows) {
+      const cols = Array.isArray(columns) ? columns.map((c) => String(c)) : [];
+      const sample = Array.isArray(rows) ? rows.slice(0, 200) : [];
+      let dim = cols[0] || '';
+      let metric = cols[0] || '';
+
+      const isNumericCol = (idx) => {
+        let nonNull = 0;
+        let numericHits = 0;
+        sample.forEach((r) => {
+          if (!Array.isArray(r) || idx >= r.length) return;
+          const v = r[idx];
+          if (v === null || v === undefined || v === '') return;
+          nonNull += 1;
+          if (!Number.isNaN(Number(v))) numericHits += 1;
+        });
+        if (!nonNull) return false;
+        return (numericHits / nonNull) >= 0.7;
+      };
+
+      const numericCols = cols.filter((_, idx) => isNumericCol(idx));
+      const textCols = cols.filter((_, idx) => !isNumericCol(idx));
+      dim = textCols[0] || cols[0] || '';
+      metric = numericCols[0] || cols[0] || '';
+      return { dim, metric };
+    }
+
+    function currentVizCfg() {
+      const type = String(vizTypeEl.value || 'table');
+      if (type === 'table') return { type: 'table' };
+
+      const { dim, metric } = inferVizFields(rawData.columns || [], rawData.rows || []);
+      if (type === 'kpi' || type === 'gauge') {
+        return {
+          type,
+          metric,
+          agg: {
+            func: metric ? 'SUM' : 'COUNT_ROWS',
+            metric: metric || '',
+            dim: ''
+          }
+        };
+      }
+
+      return {
+        type,
+        dim,
+        metric,
+        agg: {
+          func: 'SUM',
+          metric: metric || '',
+          dim: dim || ''
+        }
+      };
+    }
+
+    function renderVizPreview() {
+      const columns = Array.isArray(rawData.columns) ? rawData.columns : [];
+      const rows = Array.isArray(rawData.rows) ? rawData.rows : [];
+      if (!columns.length || !rows.length) {
+        vizPreviewEl.innerHTML = '<div class="text-secondary small p-3">' + (window.t ? window.t('No result yet.') : 'No result yet.') + '</div>';
+        return;
+      }
+      if (!window.BI || typeof window.BI.renderViz !== 'function') {
+        vizPreviewEl.innerHTML = '<div class="text-danger small p-3">Visualizer not loaded.</div>';
+        return;
+      }
+      vizPreviewEl.innerHTML = '';
+      window.BI.renderViz(vizPreviewEl, { columns, rows }, currentVizCfg(), null);
+    }
+
+    setActiveVizButton(vizTypeEl.value || 'table');
+    vizBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const type = String(btn.getAttribute('data-type') || '').trim();
+        if (!type) return;
+        vizTypeEl.value = type;
+        setActiveVizButton(type);
+        renderVizPreview();
+      });
+    });
+
+    chips.forEach((chip) => {
+      chip.addEventListener('click', () => {
+        promptEl.value = String(chip.getAttribute('data-prompt') || '').trim();
+        promptEl.focus();
+      });
+    });
+
+    createDashBtn.addEventListener('click', async () => {
+      const sourceId = Number(sourceEl.value || 0);
+      const message = String(promptEl.value || '').trim();
+      const createComparison = !!createComparisonEl.checked;
+      if (!sourceId || !message) {
+        setDashboardStatus('{{ _('Please choose a source and write the dashboard request.') }}', true);
+        return;
+      }
+
+      setLoading(true);
+      setDashboardStatus('{{ _('Creating dashboard...') }}', false);
+
+      try {
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        const resp = await fetch('{{ url_for('portal.api_ai_dashboard_create') }}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(csrf ? { 'X-CSRFToken': csrf } : {}),
+          },
+          body: JSON.stringify({
+            source_id: sourceId,
+            message,
+            viz_type: String(vizTypeEl.value || 'table'),
+            create_comparison: createComparison,
+          }),
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.ok) {
+          setDashboardStatus(data.error || '{{ _('Unable to create dashboard.') }}', true);
+          return;
+        }
+
+        const dash = data.dashboard || {};
+        const url = String(dash.url || '').trim();
+        const comparison = data.comparison || {};
+        const comparisonDash = data.comparison_dashboard || {};
+        const comparisonUrl = String(comparisonDash.url || '').trim();
+        if (url) {
+          if (comparison && comparison.created && comparisonUrl) {
+            setDashboardStatus('{{ _('Two dashboards created (main + comparison). Opening comparison in a new tab...') }}', false);
+            try {
+              window.open(comparisonUrl, '_blank', 'noopener');
+            } catch (e) {
+              // Ignore popup blockers and continue to primary dashboard.
+            }
+          } else if (comparison && comparison.requested && !comparison.created && comparison.error) {
+            setDashboardStatus('{{ _('Main dashboard created. Comparison dashboard could not be created:') }} ' + comparison.error, true);
+          } else {
+            setDashboardStatus('{{ _('Dashboard created successfully.') }}', false);
+          }
+          window.location.href = url;
+          return;
+        }
+        setDashboardStatus('{{ _('Dashboard created, but link is unavailable.') }}', false);
+      } catch (err) {
+        setDashboardStatus('{{ _('Unexpected error while creating dashboard.') }}', true);
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const sourceId = Number(sourceEl.value || 0);
+      const message = String(promptEl.value || '').trim();
+      if (!sourceId || !message) {
+        return;
+      }
+
+      setLoading(true);
+      warningsEl.classList.add('d-none');
+      warningsEl.textContent = '';
+
+      try {
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        const resp = await fetch('{{ url_for('portal.api_ai_lite') }}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(csrf ? { 'X-CSRFToken': csrf } : {}),
+          },
+          body: JSON.stringify({
+            source_id: sourceId,
+            message,
+          }),
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.ok) {
+          insightEl.textContent = data.error || '{{ _('Unable to run BI Lite analysis.') }}';
+          if (data.sql) sqlEl.textContent = data.sql;
+          rowCountEl.textContent = '0';
+          renderTable([], []);
+          return;
+        }
+
+        insightEl.textContent = data.analysis || '{{ _('Analysis ready.') }}';
+        sqlEl.textContent = data.sql || '--';
+        rowCountEl.textContent = String(data.row_count || 0);
+        rawData = { columns: data.columns || [], rows: data.rows || [] };
+        renderTable(rawData.columns, rawData.rows);
+        renderVizPreview();
+
+        const warnings = Array.isArray(data.warnings) ? data.warnings.filter(Boolean) : [];
+        if (warnings.length) {
+          warningsEl.textContent = warnings.join(' | ');
+          warningsEl.classList.remove('d-none');
+        }
+      } catch (err) {
+        insightEl.textContent = '{{ _('Unexpected error while running analysis.') }}';
+        rawData = { columns: [], rows: [] };
+        renderVizPreview();
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    if (sourceEl.options.length > 1) {
+      sourceEl.selectedIndex = 1;
+    }
+  })();
+</script>
+{% endblock %}

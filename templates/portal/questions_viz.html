@@ -7,6 +7,11 @@
   <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.13.2/jquery-ui.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pivottable/2.23.0/pivot.min.js"></script>
+  <style>
+    .viz-type-picker .vt-btn { min-width: 112px; display: flex; align-items: center; gap: .5rem; }
+    .viz-type-picker .vt-btn i { font-size: 1.05rem; }
+    .viz-type-picker .vt-btn.active { border-width: 2px; }
+  </style>
 {% endblock %}
 
 {% block portal_content %}
@@ -63,7 +68,20 @@
 
             <div class="mb-3">
               <label class="form-label">{{ _('Tipo') }}</label>
-              <select class="form-select" id="viz_type">
+
+              <div class="viz-type-picker d-flex flex-wrap gap-2" role="tablist" aria-label="{{ _('Tipo') }}">
+                <button type="button" class="btn btn-outline-secondary vt-btn" data-type="table" aria-pressed="false" title="{{ _('Tabela') }}"><i class="bi bi-table"></i><span>{{ _('Tabela') }}</span></button>
+                <button type="button" class="btn btn-outline-secondary vt-btn" data-type="bar" aria-pressed="false" title="{{ _('Bar') }}"><i class="bi bi-bar-chart"></i><span>{{ _('Bar') }}</span></button>
+                <button type="button" class="btn btn-outline-secondary vt-btn" data-type="line" aria-pressed="false" title="{{ _('Line') }}"><i class="bi bi-graph-up"></i><span>{{ _('Line') }}</span></button>
+                <button type="button" class="btn btn-outline-secondary vt-btn" data-type="area" aria-pressed="false" title="{{ _('Area') }}"><i class="bi bi-bar-chart-stacked"></i><span>{{ _('Area') }}</span></button>
+                <button type="button" class="btn btn-outline-secondary vt-btn" data-type="pie" aria-pressed="false" title="{{ _('Pie') }}"><i class="bi bi-pie-chart"></i><span>{{ _('Pie') }}</span></button>
+                <button type="button" class="btn btn-outline-secondary vt-btn" data-type="scatter" aria-pressed="false" title="{{ _('Scatter') }}"><i class="bi bi-dots"></i><span>{{ _('Scatter') }}</span></button>
+                <button type="button" class="btn btn-outline-secondary vt-btn" data-type="gauge" aria-pressed="false" title="{{ _('Gauge') }}"><i class="bi bi-speedometer2"></i><span>{{ _('Gauge') }}</span></button>
+                <button type="button" class="btn btn-outline-secondary vt-btn" data-type="kpi" aria-pressed="false" title="{{ _('KPI') }}"><i class="bi bi-123"></i><span>{{ _('KPI') }}</span></button>
+                <button type="button" class="btn btn-outline-secondary vt-btn" data-type="pivot" aria-pressed="false" title="{{ _('Pivot') }}"><i class="bi bi-layout-text-window-reverse"></i><span>{{ _('Pivot') }}</span></button>
+              </div>
+
+              <select class="form-select visually-hidden" id="viz_type">
                 <option value="table">{{ _('Tabela') }}</option>
                 <option value="bar">{{ _('Bar') }}</option>
                 <option value="line">{{ _('Line') }}</option>

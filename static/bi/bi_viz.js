@@ -1454,6 +1454,7 @@ window.BI = window.BI || {};
     const elPC = document.getElementById('pivot_cols');
     const elPV = document.getElementById('pivot_val');
     const hidden = document.getElementById('viz_config_json');
+    const vtBtns = Array.from(document.querySelectorAll('.viz-type-picker .vt-btn'));
 
     function setIf(el, value) {
       if (!el || typeof value === 'undefined' || value === null) return;
@@ -1469,6 +1470,28 @@ window.BI = window.BI || {};
     setIf(elPR, savedCfg.pivot_rows);
     setIf(elPC, savedCfg.pivot_cols);
     setIf(elPV, savedCfg.pivot_val);
+
+    function setActiveTypeBtn(type) {
+      vtBtns.forEach((b) => {
+        const bt = b.getAttribute('data-type');
+        const active = bt === type;
+        b.classList.toggle('active', active);
+        b.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+    }
+
+    if (vtBtns.length && elType) {
+      setActiveTypeBtn(elType.value || 'table');
+      vtBtns.forEach((b) => {
+        b.addEventListener('click', () => {
+          const nextType = String(b.getAttribute('data-type') || '').trim();
+          if (!nextType) return;
+          elType.value = nextType;
+          setActiveTypeBtn(nextType);
+          render();
+        });
+      });
+    }
 
     function syncDrillUi() {
       const mode = String(elDrillMode ? elDrillMode.value : 'filter').toLowerCase();
@@ -1504,6 +1527,7 @@ window.BI = window.BI || {};
 
     function render() {
       const cfg = currentCfg();
+      setActiveTypeBtn(cfg.type || 'table');
       previewEl.innerHTML = '';
       if (cfg.type === 'pivot') {
         renderPivot(previewEl, data, cfg);

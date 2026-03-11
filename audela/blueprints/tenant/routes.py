@@ -284,6 +284,7 @@ def _save_tenant_user_module_access(tenant: Tenant, user_id: int, module_access:
     rows[str(int(user_id))] = {
         "finance": bool(module_access.get("finance", True)),
         "bi": bool(module_access.get("bi", True)),
+        "bi_lite": bool(module_access.get("bi_lite", module_access.get("bi", True))),
         "project": bool(module_access.get("project", True)),
         "credit": bool(module_access.get("credit", True)),
         "ifrs9": bool(module_access.get("ifrs9", True)),
@@ -735,12 +736,13 @@ def users_update_module_access(user_id: int):
 
     finance_enabled = str(request.form.get("finance_access") or "").lower() in ("1", "true", "on", "yes")
     bi_enabled = str(request.form.get("bi_access") or "").lower() in ("1", "true", "on", "yes")
+    bi_lite_enabled = str(request.form.get("bi_lite_access") or "").lower() in ("1", "true", "on", "yes")
     project_enabled = str(request.form.get("project_access") or "").lower() in ("1", "true", "on", "yes")
     credit_enabled = str(request.form.get("credit_access") or "").lower() in ("1", "true", "on", "yes")
     ifrs9_enabled = str(request.form.get("ifrs9_access") or "").lower() in ("1", "true", "on", "yes")
     test_user_enabled = str(request.form.get("test_user_access") or "").lower() in ("1", "true", "on", "yes")
 
-    if user.id == current_user.id and not any([finance_enabled, bi_enabled, project_enabled, credit_enabled, ifrs9_enabled, test_user_enabled]):
+    if user.id == current_user.id and not any([finance_enabled, bi_enabled, bi_lite_enabled, project_enabled, credit_enabled, ifrs9_enabled, test_user_enabled]):
         flash(tr("Au moins un produit doit rester activé pour votre propre compte.", getattr(g, "lang", None)), "error")
         return redirect(url_for("tenant.users"))
 
@@ -755,6 +757,7 @@ def users_update_module_access(user_id: int):
         {
             "finance": finance_enabled,
             "bi": bi_enabled,
+            "bi_lite": bi_lite_enabled,
             "project": project_enabled,
             "credit": credit_enabled,
             "ifrs9": ifrs9_enabled,

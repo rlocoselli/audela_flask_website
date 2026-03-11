@@ -3829,11 +3829,9 @@ def _load_tenant_into_g() -> None:
 def _credit_layout_context():
     tenant = getattr(g, "tenant", None)
     module_access = get_user_module_access(tenant, getattr(current_user, "id", None))
-    bi_menu_access = get_user_menu_access(tenant, getattr(current_user, "id", None), "bi")
     credit_menu_access = get_user_menu_access(tenant, getattr(current_user, "id", None), "credit")
     return {
         "module_access": module_access,
-        "bi_menu_access": bi_menu_access,
         "credit_menu_access": credit_menu_access,
     }
 

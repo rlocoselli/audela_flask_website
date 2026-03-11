@@ -29,6 +29,7 @@ from . import bp
 
 
 FINANCE_PLAN_CODES = {"free", "finance_starter", "finance_pro", "finance_banking", "all_in_one_pro"}
+BI_PLAN_CODES = {"bi_starter", "bi_pro"}
 PAYPAL_BUSINESS_EMAIL = "rlocoselli@yahoo.com.br"
 
 
@@ -82,7 +83,7 @@ def plans():
     if selected_product == "finance":
         plans = [plan for plan in plans if plan.code in FINANCE_PLAN_CODES]
     elif selected_product == "bi":
-        plans = [plan for plan in plans if (plan.has_bi or plan.code == "free")]
+        plans = [plan for plan in plans if plan.code in BI_PLAN_CODES]
     elif selected_product == "credit":
         plans = [plan for plan in plans if _has_credit(plan)]
     elif selected_product == "project":

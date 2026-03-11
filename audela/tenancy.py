@@ -158,6 +158,7 @@ def get_user_module_access(tenant, user_id: int | None) -> dict:
                         "<user_id>": {
                             "finance": true/false,
                             "bi": true/false,
+                            "bi_lite": true/false,
                             "project": true/false,
                             "credit": true/false
                         }
@@ -168,10 +169,10 @@ def get_user_module_access(tenant, user_id: int | None) -> dict:
         Defaults to full access when missing.
         """
         if not tenant or user_id is None:
-            return {"finance": True, "bi": True, "project": True, "credit": True, "ifrs9": True}
+            return {"finance": True, "bi": True, "bi_lite": True, "project": True, "credit": True, "ifrs9": True}
 
         if _is_test_user(tenant, user_id):
-            return {"finance": True, "bi": True, "project": True, "credit": True, "ifrs9": True}
+            return {"finance": True, "bi": True, "bi_lite": True, "project": True, "credit": True, "ifrs9": True}
 
         settings = tenant.settings_json if isinstance(getattr(tenant, "settings_json", None), dict) else {}
         uam = settings.get("uam") if isinstance(settings.get("uam"), dict) else {}
@@ -180,9 +181,11 @@ def get_user_module_access(tenant, user_id: int | None) -> dict:
         if not isinstance(row, dict):
                 row = {}
 
+        bi_enabled = bool(row.get("bi", True))
         return {
                 "finance": bool(row.get("finance", True)),
-                "bi": bool(row.get("bi", True)),
+            "bi": bi_enabled,
+            "bi_lite": bool(row.get("bi_lite", bi_enabled)),
                 "project": bool(row.get("project", True)),
             "credit": bool(row.get("credit", True)),
             "ifrs9": bool(row.get("ifrs9", True)),
