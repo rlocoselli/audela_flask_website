@@ -25,9 +25,9 @@ def celery_info():
 @click.option("--wait", "wait_seconds", default=8, type=int, show_default=True, help="Seconds to wait for task result.")
 @with_appcontext
 def celery_ping(wait_seconds: int):
-    from audela.tasks.system_tasks import celery_healthcheck
+    from audela.celery_app import celery_app
 
-    job = celery_healthcheck.delay()
+    job = celery_app.send_task("audela.tasks.celery_healthcheck")
     click.echo(f"Task sent: {job.id}")
 
     try:
@@ -41,9 +41,9 @@ def celery_ping(wait_seconds: int):
 @click.option("--wait", "wait_seconds", default=15, type=int, show_default=True, help="Seconds to wait for task result.")
 @with_appcontext
 def scan_project_notifications(wait_seconds: int):
-    from audela.tasks.project_notifications import project_notifications_scan
+    from audela.celery_app import celery_app
 
-    job = project_notifications_scan.delay()
+    job = celery_app.send_task("audela.tasks.project_notifications_scan")
     click.echo(f"Task sent: {job.id}")
     try:
         result = job.get(timeout=max(1, int(wait_seconds)))

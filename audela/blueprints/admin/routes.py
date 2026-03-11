@@ -398,7 +398,7 @@ def _handle_celery_intent(intent: str) -> tuple[dict | None, dict | None, dict |
 
     elif intent == "test_task":
         from celery.exceptions import TimeoutError as CeleryTimeoutError
-        from audela.tasks.system_tasks import celery_healthcheck
+        from audela.celery_app import celery_app
 
         wait_raw = (request.form.get("wait_seconds") or "8").strip()
         try:
@@ -407,7 +407,7 @@ def _handle_celery_intent(intent: str) -> tuple[dict | None, dict | None, dict |
             wait_seconds = 8
 
         try:
-            job = celery_healthcheck.delay()
+            job = celery_app.send_task("audela.tasks.celery_healthcheck")
             task_result = {
                 "task_id": job.id,
                 "state": "SENT",
