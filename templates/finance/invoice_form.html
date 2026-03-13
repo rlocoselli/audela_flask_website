@@ -31,10 +31,10 @@
             <label class="form-label">{{ _('Status') }}</label>
             <select class="form-select" name="status">
               {% set st = invoice.status if invoice else 'draft' %}
-              <option value="draft" {% if st=='draft' %}selected{% endif %}>draft</option>
-              <option value="sent" {% if st=='sent' %}selected{% endif %}>sent</option>
-              <option value="paid" {% if st=='paid' %}selected{% endif %}>paid</option>
-              <option value="void" {% if st=='void' %}selected{% endif %}>void</option>
+              <option value="draft" {% if st=='draft' %}selected{% endif %}>{{ _('draft') }}</option>
+              <option value="sent" {% if st=='sent' %}selected{% endif %}>{{ _('sent') }}</option>
+              <option value="paid" {% if st=='paid' %}selected{% endif %}>{{ _('paid') }}</option>
+              <option value="void" {% if st=='void' %}selected{% endif %}>{{ _('void') }}</option>
             </select>
           </div>
 
@@ -48,7 +48,24 @@
           </div>
           <div class="col-md-4">
             <label class="form-label">{{ _('Moeda') }}</label>
-            <input class="form-control" name="currency" value="{{ invoice.currency if invoice else company.base_currency }}">
+            {% set selected_currency = (invoice.currency if invoice else company.base_currency) %}
+            <select class="form-select" name="currency">
+              {% for c in currencies %}
+                <option value="{{ c.code }}" {% if selected_currency == c.code %}selected{% endif %}>{{ c.code }} - {{ c.name }}{% if c.symbol %} ({{ c.symbol }}){% endif %}</option>
+              {% endfor %}
+              {% if not currencies %}
+                <option value="{{ selected_currency }}" selected>{{ selected_currency }}</option>
+              {% endif %}
+            </select>
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label">{{ _('Tipo de fatura (UE/Brasil)') }}</label>
+            {% set fiscal_country = (invoice.fiscal_country if invoice and invoice.fiscal_country else 'EU') %}
+            <select class="form-select" name="fiscal_country" id="fiscalCountry">
+              <option value="EU" {% if fiscal_country != 'BR' %}selected{% endif %}>{{ _('UE (TVA)') }}</option>
+              <option value="BR" {% if fiscal_country == 'BR' %}selected{% endif %}>{{ _('Brasil (SEFAZ/NFe)') }}</option>
+            </select>
           </div>
 
           <div class="col-md-6">
@@ -71,6 +88,68 @@
           </div>
         </div>
 
+        <div id="brFiscalSection" class="border rounded p-3 mt-3" style="display:none;">
+          <h6 class="mb-3">{{ _('SEFAZ readiness fields') }}</h6>
+          <div class="row g-3">
+            <div class="col-md-2">
+              <label class="form-label">{{ _('Modelo') }}</label>
+              <input class="form-control" name="document_model" value="{{ invoice.document_model if invoice and invoice.document_model else '55' }}">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">{{ _('Série') }}</label>
+              <input class="form-control" name="document_series" value="{{ invoice.document_series if invoice and invoice.document_series else '1' }}">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">{{ _('cNF') }}</label>
+              <input class="form-control" name="cnf_code" value="{{ invoice.cnf_code if invoice and invoice.cnf_code else '' }}">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">{{ _('Ambiente SEFAZ') }}</label>
+              {% set sefaz_env = invoice.sefaz_environment if invoice and invoice.sefaz_environment else 'homologation' %}
+              <select class="form-select" name="sefaz_environment">
+                <option value="homologation" {% if sefaz_env != 'production' %}selected{% endif %}>{{ _('Homologação') }}</option>
+                <option value="production" {% if sefaz_env == 'production' %}selected{% endif %}>{{ _('Produção') }}</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">{{ _('Natureza da operação') }}</label>
+              <input class="form-control" name="natureza_operacao" value="{{ invoice.natureza_operacao if invoice and invoice.natureza_operacao else '' }}" placeholder="VENDA DE MERCADORIA">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">{{ _('Destino operação') }}</label>
+              <input class="form-control" name="operation_destination" value="{{ invoice.operation_destination if invoice and invoice.operation_destination else '1' }}" placeholder="1">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">{{ _('Ind. pagamento') }}</label>
+              <input class="form-control" name="payment_indicator" value="{{ invoice.payment_indicator if invoice and invoice.payment_indicator else '0' }}" placeholder="0">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">{{ _('Ind. presença') }}</label>
+              <input class="form-control" name="presence_indicator" value="{{ invoice.presence_indicator if invoice and invoice.presence_indicator else '1' }}" placeholder="1">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">{{ _('Finalidade') }}</label>
+              <input class="form-control" name="invoice_purpose" value="{{ invoice.invoice_purpose if invoice and invoice.invoice_purpose else '1' }}" placeholder="1">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">{{ _('Tipo emissão') }}</label>
+              <input class="form-control" name="emission_type" value="{{ invoice.emission_type if invoice and invoice.emission_type else '1' }}" placeholder="1">
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="final_consumer" name="final_consumer" {% if not invoice or invoice.final_consumer %}checked{% endif %}>
+                <label class="form-check-label" for="final_consumer">{{ _('Consumidor final') }}</label>
+              </div>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="needs_sefaz_validation" name="needs_sefaz_validation" {% if invoice and invoice.needs_sefaz_validation %}checked{% endif %}>
+                <label class="form-check-label" for="needs_sefaz_validation">{{ _('Marquer pour validation SEFAZ') }}</label>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <hr class="my-4">
 
         <div class="d-flex justify-content-between align-items-center mb-2">
@@ -85,7 +164,14 @@
                 <th>{{ _('Descrição') }}</th>
                 <th style="width:110px" class="text-end">{{ _('Qtd') }}</th>
                 <th style="width:140px" class="text-end">{{ _('Preço') }}</th>
-                <th style="width:110px" class="text-end">{{ _('IVA %') }}</th>
+                <th style="width:110px" class="text-end eu-col">{{ _('IVA %') }}</th>
+                <th class="text-end br-col" style="width:110px; display:none;">ICMS %</th>
+                <th class="text-end br-col" style="width:110px; display:none;">IPI %</th>
+                <th class="text-end br-col" style="width:110px; display:none;">PIS %</th>
+                <th class="text-end br-col" style="width:110px; display:none;">COFINS %</th>
+                <th class="br-col" style="width:120px; display:none;">NCM</th>
+                <th class="br-col" style="width:100px; display:none;">CFOP</th>
+                <th class="br-col" style="width:120px; display:none;">CEST</th>
                 <th style="width:60px"></th>
               </tr>
             </thead>
@@ -96,17 +182,43 @@
                     <td><input class="form-control line-description" name="line_description" value="{{ ln.description }}" list="productsList" required></td>
                     <td><input class="form-control text-end" name="line_quantity" type="number" step="0.0001" value="{{ ln.quantity }}"></td>
                     <td><input class="form-control text-end line-price" name="line_unit_price" type="number" step="0.0001" value="{{ ln.unit_price }}"></td>
-                    <td><input class="form-control text-end line-vat" name="line_vat_rate" type="number" step="0.01" value="{{ ln.vat_rate }}"></td>
-                    <td class="text-end"><button class="btn btn-sm btn-outline-danger" type="button" onclick="removeRow(this)">×</button></td>
+                    <td class="eu-col"><input class="form-control text-end line-vat" name="line_vat_rate" type="number" step="0.01" value="{{ ln.vat_rate }}"></td>
+                    <td class="br-col" style="display:none;"><input class="form-control text-end line-icms" name="line_icms_rate" type="number" step="0.01" value="{{ ln.icms_rate if ln.icms_rate is not none else 0 }}"></td>
+                    <td class="br-col" style="display:none;"><input class="form-control text-end line-ipi" name="line_ipi_rate" type="number" step="0.01" value="{{ ln.ipi_rate if ln.ipi_rate is not none else 0 }}"></td>
+                    <td class="br-col" style="display:none;"><input class="form-control text-end line-pis" name="line_pis_rate" type="number" step="0.01" value="{{ ln.pis_rate if ln.pis_rate is not none else 0 }}"></td>
+                    <td class="br-col" style="display:none;"><input class="form-control text-end line-cofins" name="line_cofins_rate" type="number" step="0.01" value="{{ ln.cofins_rate if ln.cofins_rate is not none else 0 }}"></td>
+                    <td class="br-col" style="display:none;"><input class="form-control line-ncm" name="line_ncm_code" value="{{ ln.ncm_code or '' }}"></td>
+                    <td class="br-col" style="display:none;"><input class="form-control line-cfop" name="line_cfop_code" value="{{ ln.cfop_code or '' }}"></td>
+                    <td class="br-col" style="display:none;"><input class="form-control line-cest" name="line_cest_code" value="{{ ln.cest_code or '' }}"></td>
+                    <td class="text-end">
+                      <input type="hidden" class="line-cst-icms" name="line_cst_icms" value="{{ ln.cst_icms or '' }}">
+                      <input type="hidden" class="line-cst-ipi" name="line_cst_ipi" value="{{ ln.cst_ipi or '' }}">
+                      <input type="hidden" class="line-cst-pis" name="line_cst_pis" value="{{ ln.cst_pis or '' }}">
+                      <input type="hidden" class="line-cst-cofins" name="line_cst_cofins" value="{{ ln.cst_cofins or '' }}">
+                      <button class="btn btn-sm btn-outline-danger" type="button" onclick="removeRow(this)">×</button>
+                    </td>
                   </tr>
                 {% endfor %}
               {% else %}
                 <tr>
-                  <td><input class="form-control line-description" name="line_description" placeholder="Service / produit" list="productsList" required></td>
+                  <td><input class="form-control line-description" name="line_description" placeholder="{{ _('Service / product') }}" list="productsList" required></td>
                   <td><input class="form-control text-end" name="line_quantity" type="number" step="0.0001" value="1"></td>
                   <td><input class="form-control text-end line-price" name="line_unit_price" type="number" step="0.0001" value="0"></td>
-                  <td><input class="form-control text-end line-vat" name="line_vat_rate" type="number" step="0.01" value="0"></td>
-                  <td class="text-end"><button class="btn btn-sm btn-outline-danger" type="button" onclick="removeRow(this)">×</button></td>
+                  <td class="eu-col"><input class="form-control text-end line-vat" name="line_vat_rate" type="number" step="0.01" value="0"></td>
+                  <td class="br-col" style="display:none;"><input class="form-control text-end line-icms" name="line_icms_rate" type="number" step="0.01" value="0"></td>
+                  <td class="br-col" style="display:none;"><input class="form-control text-end line-ipi" name="line_ipi_rate" type="number" step="0.01" value="0"></td>
+                  <td class="br-col" style="display:none;"><input class="form-control text-end line-pis" name="line_pis_rate" type="number" step="0.01" value="0"></td>
+                  <td class="br-col" style="display:none;"><input class="form-control text-end line-cofins" name="line_cofins_rate" type="number" step="0.01" value="0"></td>
+                  <td class="br-col" style="display:none;"><input class="form-control line-ncm" name="line_ncm_code"></td>
+                  <td class="br-col" style="display:none;"><input class="form-control line-cfop" name="line_cfop_code"></td>
+                  <td class="br-col" style="display:none;"><input class="form-control line-cest" name="line_cest_code"></td>
+                  <td class="text-end">
+                    <input type="hidden" class="line-cst-icms" name="line_cst_icms" value="00">
+                    <input type="hidden" class="line-cst-ipi" name="line_cst_ipi" value="50">
+                    <input type="hidden" class="line-cst-pis" name="line_cst_pis" value="01">
+                    <input type="hidden" class="line-cst-cofins" name="line_cst_cofins" value="01">
+                    <button class="btn btn-sm btn-outline-danger" type="button" onclick="removeRow(this)">×</button>
+                  </td>
                 </tr>
               {% endif %}
             </tbody>
@@ -142,10 +254,24 @@
         <td><input class="form-control line-description" name="line_description" list="productsList" required></td>
         <td><input class="form-control text-end" name="line_quantity" type="number" step="0.0001" value="1"></td>
         <td><input class="form-control text-end line-price" name="line_unit_price" type="number" step="0.0001" value="0"></td>
-        <td><input class="form-control text-end line-vat" name="line_vat_rate" type="number" step="0.01" value="0"></td>
-        <td class="text-end"><button class="btn btn-sm btn-outline-danger" type="button" onclick="removeRow(this)">×</button></td>
+        <td class="eu-col"><input class="form-control text-end line-vat" name="line_vat_rate" type="number" step="0.01" value="0"></td>
+        <td class="br-col" style="display:none;"><input class="form-control text-end line-icms" name="line_icms_rate" type="number" step="0.01" value="0"></td>
+        <td class="br-col" style="display:none;"><input class="form-control text-end line-ipi" name="line_ipi_rate" type="number" step="0.01" value="0"></td>
+        <td class="br-col" style="display:none;"><input class="form-control text-end line-pis" name="line_pis_rate" type="number" step="0.01" value="0"></td>
+        <td class="br-col" style="display:none;"><input class="form-control text-end line-cofins" name="line_cofins_rate" type="number" step="0.01" value="0"></td>
+        <td class="br-col" style="display:none;"><input class="form-control line-ncm" name="line_ncm_code"></td>
+        <td class="br-col" style="display:none;"><input class="form-control line-cfop" name="line_cfop_code"></td>
+        <td class="br-col" style="display:none;"><input class="form-control line-cest" name="line_cest_code"></td>
+        <td class="text-end">
+          <input type="hidden" class="line-cst-icms" name="line_cst_icms" value="00">
+          <input type="hidden" class="line-cst-ipi" name="line_cst_ipi" value="50">
+          <input type="hidden" class="line-cst-pis" name="line_cst_pis" value="01">
+          <input type="hidden" class="line-cst-cofins" name="line_cst_cofins" value="01">
+          <button class="btn btn-sm btn-outline-danger" type="button" onclick="removeRow(this)">×</button>
+        </td>
       `;
       tbody.appendChild(tr);
+      updateBrazilFieldsVisibility();
     }
 
     function removeRow(btn) {
@@ -160,6 +286,17 @@
       if (!row) return;
       const vatInput = row.querySelector('.line-vat');
       const priceInput = row.querySelector('.line-price');
+      const icmsInput = row.querySelector('.line-icms');
+      const ipiInput = row.querySelector('.line-ipi');
+      const pisInput = row.querySelector('.line-pis');
+      const cofinsInput = row.querySelector('.line-cofins');
+      const ncmInput = row.querySelector('.line-ncm');
+      const cfopInput = row.querySelector('.line-cfop');
+      const cestInput = row.querySelector('.line-cest');
+      const cstIcmsInput = row.querySelector('.line-cst-icms');
+      const cstIpiInput = row.querySelector('.line-cst-ipi');
+      const cstPisInput = row.querySelector('.line-cst-pis');
+      const cstCofinsInput = row.querySelector('.line-cst-cofins');
       const csrfMeta = document.querySelector('meta[name="csrf-token"]');
       const csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
 
@@ -182,9 +319,34 @@
             priceInput.value = data.unit_price;
           }
         }
+        if (icmsInput) icmsInput.value = data.br_icms_rate || 0;
+        if (ipiInput) ipiInput.value = data.br_ipi_rate || 0;
+        if (pisInput) pisInput.value = data.br_pis_rate || 0;
+        if (cofinsInput) cofinsInput.value = data.br_cofins_rate || 0;
+        if (ncmInput && data.br_ncm_code) ncmInput.value = data.br_ncm_code;
+        if (cfopInput && data.br_cfop_code) cfopInput.value = data.br_cfop_code;
+        if (cestInput && data.br_cest_code) cestInput.value = data.br_cest_code;
+        if (cstIcmsInput && data.br_cst_icms) cstIcmsInput.value = data.br_cst_icms;
+        if (cstIpiInput && data.br_cst_ipi) cstIpiInput.value = data.br_cst_ipi;
+        if (cstPisInput && data.br_cst_pis) cstPisInput.value = data.br_cst_pis;
+        if (cstCofinsInput && data.br_cst_cofins) cstCofinsInput.value = data.br_cst_cofins;
       } catch (err) {
         console.error('Product lookup failed', err);
       }
+    }
+
+    function updateBrazilFieldsVisibility() {
+      const isBr = (document.getElementById('fiscalCountry')?.value || 'EU') === 'BR';
+      const brSection = document.getElementById('brFiscalSection');
+      if (brSection) {
+        brSection.style.display = isBr ? 'block' : 'none';
+      }
+      document.querySelectorAll('.br-col').forEach((el) => {
+        el.style.display = isBr ? '' : 'none';
+      });
+      document.querySelectorAll('.eu-col').forEach((el) => {
+        el.style.display = isBr ? 'none' : '';
+      });
     }
 
     document.addEventListener('change', (event) => {
@@ -192,6 +354,13 @@
       if (target && target.classList.contains('line-description')) {
         applyProductDefaults(target);
       }
+      if (target && target.id === 'fiscalCountry') {
+        updateBrazilFieldsVisibility();
+      }
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      updateBrazilFieldsVisibility();
     });
   </script>
 {% endblock %}

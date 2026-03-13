@@ -1,14 +1,14 @@
 {% extends "portal/layout.html" %}
-{% set title = _("Novo workspace") %}
+{% set title = _('New workspace') %}
 
 {% block portal_content %}
   <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
     <div>
-      <h3 class="mb-0">{{ _('Novo workspace') }}</h3>
-      <div class="text-secondary small">{{ _('Workspace permite fazer JOIN entre arquivos (CSV/Excel/Parquet) e tabelas do banco, tudo em DuckDB.') }}</div>
+      <h3 class="mb-0">{{ _('New workspace') }}</h3>
+      <div class="text-secondary small">{{ _('Workspace lets you JOIN files (CSV/Excel/Parquet) with DB tables using DuckDB.') }}</div>
     </div>
     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.workspaces_list') }}">
-      <i class="bi bi-arrow-left"></i> {{ _('Voltar') }}
+      <i class="bi bi-arrow-left"></i> {{ _('Back') }}
     </a>
   </div>
 
@@ -22,39 +22,39 @@
       <div class="col-lg-6">
         <div class="card shadow-sm">
           <div class="card-body">
-            <h5 class="card-title">{{ _('Configuração') }}</h5>
+            <h5 class="card-title">{{ _('Configuration') }}</h5>
 
             <div class="mb-3">
-              <label class="form-label">{{ _('Nome') }}</label>
-              <input class="form-control" name="name" placeholder="{{ _('Ex.: BI - Vendas + Clientes') }}" required />
+              <label class="form-label">{{ _('Name') }}</label>
+              <input class="form-control" name="name" placeholder="{{ _('Ex.: BI - Sales + Customers') }}" required />
             </div>
 
             <div class="mb-3">
-              <label class="form-label">{{ _('Fonte de banco (opcional)') }}</label>
+              <label class="form-label">{{ _('Database source (optional)') }}</label>
               <select class="form-select" name="db_source_id" id="ws-db-source">
-                <option value="">({{ _('sem banco') }})</option>
+                <option value="">{{ _('(no database)') }}</option>
                 {% for s in db_sources %}
                   <option value="{{ s.id }}">{{ s.name }} ({{ s.type }})</option>
                 {% endfor %}
               </select>
-              <div class="form-text">{{ _('Para JOIN com banco, selecione as tabelas. Elas ficam acessíveis como db.<tabela>.') }}</div>
+              <div class="form-text">{{ _('To JOIN with database, pick tables. They are available as db.<table>.') }}</div>
             </div>
 
             <div class="mb-3">
-              <label class="form-label">{{ _('Tabelas do banco') }}</label>
+              <label class="form-label">{{ _('Database tables') }}</label>
               <div class="d-flex gap-2 flex-wrap align-items-center">
                 <button class="btn btn-outline-primary btn-sm" type="button" id="ws-pick-db-tables">
-                  <i class="bi bi-table"></i> {{ _('Selecionar tabelas') }}
+                  <i class="bi bi-table"></i> {{ _('Pick tables') }}
                 </button>
                 <div id="ws-db-table-tags" class="d-flex gap-2 flex-wrap"></div>
               </div>
-              <div class="form-text">{{ _('Dica: use o Construtor rápido de JOIN para gerar um SQL inicial.') }}</div>
+              <div class="form-text">{{ _('Tip: use the quick JOIN builder to generate starter SQL.') }}</div>
             </div>
 
             <div class="mb-0">
-              <label class="form-label">{{ _('Limite de linhas') }}</label>
+              <label class="form-label">{{ _('Max rows') }}</label>
               <input class="form-control" type="number" name="max_rows" value="5000" min="100" max="50000" />
-              <div class="form-text">{{ _('Usado para amostragem (segurança/performance).') }}</div>
+              <div class="form-text">{{ _('Used for sampling (safety/performance).') }}</div>
             </div>
           </div>
         </div>
@@ -62,18 +62,18 @@
         <div class="card shadow-sm mt-3">
           <div class="card-body">
             <div class="d-flex align-items-center justify-content-between">
-              <h5 class="card-title mb-0">{{ _('Arquivos') }}</h5>
+              <h5 class="card-title mb-0">{{ _('Files') }}</h5>
               <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.files_home') }}">
-                <i class="bi bi-folder2-open"></i> {{ _('Abrir File Explorer') }}
+                <i class="bi bi-folder2-open"></i> {{ _('Open files explorer') }}
               </a>
             </div>
 
             {% if not files %}
-              <p class="text-secondary mt-2"><em>{{ _('Nenhum arquivo uploadado ainda. Use o menu Arquivos.') }}</em></p>
+              <p class="text-secondary mt-2"><em>{{ _('No uploaded file yet. Use the Files menu.') }}</em></p>
             {% else %}
               <div class="input-group mt-3">
                 <span class="input-group-text"><i class="bi bi-search"></i></span>
-                <input class="form-control" id="ws-file-filter" placeholder="{{ _('Filtrar arquivos…') }}" />
+                <input class="form-control" id="ws-file-filter" placeholder="{{ _('Filter files...') }}" />
               </div>
 
               <div class="table-responsive mt-2" style="max-height: 360px; overflow:auto;">
@@ -81,9 +81,9 @@
                   <thead>
                     <tr>
                       <th style="width:40px;"></th>
-                      <th>{{ _('Arquivo') }}</th>
-                      <th style="width:90px;">{{ _('Formato') }}</th>
-                      <th style="width:200px;">{{ _('Alias (tabela)') }}</th>
+                      <th>{{ _('File') }}</th>
+                      <th style="width:90px;">{{ _('Format') }}</th>
+                      <th style="width:200px;">{{ _('Alias (table)') }}</th>
                       <th style="width:80px;"></th>
                     </tr>
                   </thead>
@@ -115,9 +115,9 @@
 
         <div class="d-flex gap-2 mt-3">
           <button class="btn btn-primary" type="submit">
-            <i class="bi bi-plus-circle"></i> {{ _('Criar workspace') }}
+            <i class="bi bi-plus-circle"></i> {{ _('Create workspace') }}
           </button>
-          <a class="btn btn-outline-secondary" href="{{ url_for('portal.workspaces_list') }}">{{ _('Cancelar') }}</a>
+          <a class="btn btn-outline-secondary" href="{{ url_for('portal.workspaces_list') }}">{{ _('Cancel') }}</a>
         </div>
       </div>
 
@@ -125,28 +125,28 @@
       <div class="col-lg-6">
         <div class="card shadow-sm">
           <div class="card-body">
-            <h5 class="card-title">{{ _('Construtor rápido de JOIN') }}</h5>
-            <p class="text-secondary small mb-3">{{ _('Selecione arquivos/tabelas e gere um SQL inicial com JOINs e autocomplete de colunas.') }}</p>
+            <h5 class="card-title">{{ _('Quick JOIN builder') }}</h5>
+            <p class="text-secondary small mb-3">{{ _('Select files/tables and generate starter SQL with JOINs and column autocomplete.') }}</p>
 
             <div class="mb-3">
-              <label class="form-label">{{ _('Tabela base') }}</label>
+              <label class="form-label">{{ _('Base table') }}</label>
               <select class="form-select" id="ws-base-table"></select>
             </div>
 
             <div class="mb-3">
               <div class="d-flex align-items-center justify-content-between">
-                <div class="fw-semibold">{{ _('Sugestões de JOIN') }}</div>
+                <div class="fw-semibold">{{ _('JOIN suggestions') }}</div>
                 <button class="btn btn-outline-secondary btn-sm" type="button" id="ws-refresh-suggestions">
-                  <i class="bi bi-arrow-repeat"></i> {{ _('Atualizar') }}
+                  <i class="bi bi-arrow-repeat"></i> {{ _('Refresh') }}
                 </button>
               </div>
               <div id="ws-suggestions" class="list-group mt-2" style="max-height: 180px; overflow:auto;"></div>
             </div>
 
             <div class="mb-2 d-flex align-items-center justify-content-between">
-              <div class="fw-semibold">{{ _('JOINs') }}</div>
+              <div class="fw-semibold">JOINs</div>
               <button class="btn btn-outline-primary btn-sm" type="button" id="ws-add-join">
-                <i class="bi bi-plus"></i> {{ _('Adicionar JOIN') }}
+                <i class="bi bi-plus"></i> {{ _('Add JOIN') }}
               </button>
             </div>
 
@@ -154,10 +154,10 @@
               <table class="table table-sm align-middle" id="ws-joins-table">
                 <thead>
                   <tr>
-                    <th style="width:110px;">{{ _('Tipo') }}</th>
-                    <th>{{ _('Tabela') }}</th>
-                    <th>{{ _('Coluna') }}</th>
-                    <th>{{ _('Coluna') }}</th>
+                    <th style="width:110px;">{{ _('Type') }}</th>
+                    <th>{{ _('Table') }}</th>
+                    <th>{{ _('Column') }}</th>
+                    <th>{{ _('Column') }}</th>
                     <th style="width:60px;"></th>
                   </tr>
                 </thead>
@@ -167,22 +167,22 @@
 
             <div class="mb-2 d-flex gap-2 flex-wrap">
               <button class="btn btn-success" type="button" id="ws-generate-sql">
-                <i class="bi bi-braces"></i> {{ _('Gerar SQL') }}
+                <i class="bi bi-braces"></i> {{ _('Generate SQL') }}
               </button>
               <button class="btn btn-outline-success" type="button" id="ws-ai-sql">
-                <i class="bi bi-stars"></i> {{ _('Gerar SQL com IA') }}
+                <i class="bi bi-stars"></i> {{ _('Generate SQL with AI') }}
               </button>
             </div>
 
             <div class="mb-2">
-              <label class="form-label">{{ _('Descreva sua análise') }}</label>
-              <input class="form-control" id="ws-ai-prompt" placeholder="{{ _('Ex.: total de vendas por mês e segmento, com ticket médio') }}" />
+              <label class="form-label">{{ _('Describe your analysis') }}</label>
+              <input class="form-control" id="ws-ai-prompt" placeholder="{{ _('Ex.: total sales by month and segment with average ticket') }}" />
             </div>
 
             <div class="mb-0">
-              <label class="form-label">{{ _('SQL inicial') }}</label>
-              <textarea class="form-control font-monospace" id="ws-sql-preview" rows="10" placeholder="{{ _('Seu SQL aparecerá aqui…') }}"></textarea>
-              <div class="form-text">{{ _('Ao criar o workspace, este SQL fica salvo como rascunho (starter_sql) para você copiar no Editor SQL.') }}</div>
+              <label class="form-label">{{ _('Starter SQL') }}</label>
+              <textarea class="form-control font-monospace" id="ws-sql-preview" rows="10" placeholder="{{ _('Your SQL will appear here...') }}"></textarea>
+              <div class="form-text">{{ _('When creating the workspace, this SQL is saved as draft (starter_sql) for reuse in SQL Editor.') }}</div>
             </div>
           </div>
         </div>
@@ -195,19 +195,19 @@
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">{{ _('Selecionar tabelas') }}</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Fechar') }}"></button>
+          <h5 class="modal-title">{{ _('Pick tables') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Close') }}"></button>
         </div>
         <div class="modal-body">
           <div class="input-group mb-2">
             <span class="input-group-text"><i class="bi bi-search"></i></span>
-            <input class="form-control" id="ws-db-table-search" placeholder="{{ _('Filtrar tabelas…') }}" />
+            <input class="form-control" id="ws-db-table-search" placeholder="{{ _('Filter tables...') }}" />
           </div>
           <div id="ws-db-table-list" class="list-group"></div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ _('Fechar') }}</button>
-          <button type="button" class="btn btn-primary" id="ws-db-table-apply">{{ _('Aplicar') }}</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ _('Close') }}</button>
+          <button type="button" class="btn btn-primary" id="ws-db-table-apply">{{ _('Apply') }}</button>
         </div>
       </div>
     </div>
@@ -219,7 +219,7 @@
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title" id="ws-schema-title">{{ _('Schema') }}</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Fechar') }}"></button>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Close') }}"></button>
         </div>
         <div class="modal-body">
           <div id="ws-schema-body" class="small"></div>

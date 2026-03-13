@@ -20,28 +20,74 @@
 
       <div class="collapse navbar-collapse finance-topbar-collapse" id="financeTopNav">
         <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('finance.dashboard') }}">{{ _('Vue d\'ensemble') }}</a></li>
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('finance.accounts_list') }}">{{ _('Comptes') }}</a></li>
-          <li class="nav-item">
-            <a class="nav-link dropdown-toggle" href="#" id="masterDataDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-              <i class="bi bi-database me-1"></i>{{ _('Données de référence') }}
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle finance-nav-pill finance-pill-master" href="#" id="masterDataDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-database-fill-gear me-1"></i>{{ _('Master data') }}
             </a>
             <ul class="dropdown-menu" aria-labelledby="masterDataDropdown">
-              <li><a class="dropdown-item" href="{{ url_for('finance_master.list_products') }}">
-                <i class="bi bi-box-seam me-2"></i>{{ _('Produits financiers') }}
-              </a></li>
-              <li><a class="dropdown-item" href="{{ url_for('finance_master.list_counterparties') }}">
-                <i class="bi bi-people me-2"></i>{{ _('Contreparties') }}
-              </a></li>
-              <li><a class="dropdown-item" href="{{ url_for('finance_master.bank_config') }}">
-                <i class="bi bi-bank me-2"></i>{{ _('Configuration bancaire') }}
-              </a></li>
+              <li><a class="dropdown-item" href="{{ url_for('finance_master.list_products') }}"><i class="bi bi-box-seam me-2 text-success"></i>{{ _('Produits financiers') }}</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('finance_master.list_counterparties') }}"><i class="bi bi-people me-2 text-primary"></i>{{ _('Contreparties') }}</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('finance_master.bank_config') }}"><i class="bi bi-bank me-2 text-info"></i>{{ _('Configuration bancaire') }}</a></li>
             </ul>
           </li>
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('finance.banks') }}">{{ _('Banques') }}</a></li>
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('finance.reconciliation') }}">{{ _('Rapprochement') }}</a></li>
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('finance.settings_categories') }}">{{ _('Paramètres') }}</a></li>
-          <li class="nav-item"><a class="nav-link" href="{{ url_for('finance.help_page') }}">{{ _('Aide') }}</a></li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle finance-nav-pill finance-pill-essentials" href="#" id="essentialsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-stars me-1"></i>{{ _('Essentiels') }}
+            </a>
+            <ul class="dropdown-menu" aria-labelledby="essentialsDropdown">
+              <li><a class="dropdown-item" href="{{ url_for('finance.dashboard') }}"><i class="bi bi-speedometer2 me-2 text-primary"></i>{{ _('Vue d\'ensemble') }}</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('finance.accounts_list') }}"><i class="bi bi-wallet2 me-2 text-success"></i>{{ _('Comptes') }}</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('finance.transactions_list') }}"><i class="bi bi-arrow-left-right me-2 text-info"></i>{{ _('Transactions') }}</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('finance.quick_entry') }}"><i class="bi bi-lightning-charge-fill me-2 text-warning"></i>{{ _('Entrée rapide') }}</a></li>
+            </ul>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle finance-nav-pill finance-pill-analysis" href="#" id="analysisDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-graph-up-arrow me-1"></i>{{ _('Analyse') }}
+            </a>
+            <ul class="dropdown-menu" aria-labelledby="analysisDropdown">
+              <li><a class="dropdown-item" href="{{ url_for('finance.reports_transactions') }}"><i class="bi bi-graph-up me-2 text-success"></i>{{ _('Rapports') }}</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('finance.reports_statistics') }}"><i class="bi bi-bar-chart-line me-2 text-primary"></i>{{ _('Statistiques') }}</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('finance.reports_accounting') }}"><i class="bi bi-journal-check me-2 text-secondary"></i>{{ _('Rapport comptable') }}</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('finance.pivot_page') }}"><i class="bi bi-grid-3x3-gap me-2 text-info"></i>{{ _('Pivot') }}</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('finance.invoices_list') }}"><i class="bi bi-receipt-cutoff me-2 text-warning"></i>{{ _('E-factures') }}</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('finance.invoices_cockpit') }}"><i class="bi bi-graph-up-arrow me-2 text-primary"></i>{{ _('Cockpit facturation') }}</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('finance.alerts_page') }}"><i class="bi bi-bell-fill me-2 text-danger"></i>{{ _('Alertes') }}</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('finance.regulation_page') }}"><i class="bi bi-shield-check me-2 text-primary"></i>{{ _('Régulation') }}</a></li>
+            </ul>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle finance-nav-pill finance-pill-treasury" href="#" id="treasuryDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-piggy-bank-fill me-1"></i>{{ _('Trésorerie') }}
+            </a>
+            <ul class="dropdown-menu" aria-labelledby="treasuryDropdown">
+              <li><a class="dropdown-item" href="{{ url_for('finance.banks') }}"><i class="bi bi-bank2 me-2 text-info"></i>{{ _('Banques') }}</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('finance.reconciliation') }}"><i class="bi bi-link-45deg me-2 text-success"></i>{{ _('Rapprochement') }}</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('finance.liabilities_list') }}"><i class="bi bi-credit-card-2-front me-2 text-warning"></i>{{ _('Financements') }}</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('finance.investments_list') }}"><i class="bi bi-rocket-takeoff me-2 text-danger"></i>{{ _('Investissements') }}</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('finance.recurring_list') }}"><i class="bi bi-arrow-repeat me-2 text-primary"></i>{{ _('Récurrents') }}</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('finance.cashflow') }}"><i class="bi bi-cash-stack me-2 text-success"></i>{{ _('Cashflow') }}</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('finance.nii') }}"><i class="bi bi-percent me-2 text-secondary"></i>{{ _('NII') }}</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('finance.gaps') }}"><i class="bi bi-slash-circle me-2 text-warning"></i>{{ _('Gaps') }}</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('finance.liquidity') }}"><i class="bi bi-droplet-half me-2 text-info"></i>{{ _('Liquidité') }}</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('finance.risk') }}"><i class="bi bi-exclamation-triangle-fill me-2 text-danger"></i>{{ _('Risque') }}</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('finance.ifrs9_tab') }}"><i class="bi bi-diagram-3-fill me-2 text-primary"></i>{{ _('IFRS9') }}</a></li>
+            </ul>
+          </li>
+
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle finance-nav-pill finance-pill-settings" href="#" id="settingsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-sliders2-vertical me-1"></i>{{ _('Réglages') }}
+            </a>
+            <ul class="dropdown-menu" aria-labelledby="settingsDropdown">
+              <li><a class="dropdown-item" href="{{ url_for('finance.settings_categories') }}"><i class="bi bi-sliders me-2 text-secondary"></i>{{ _('Paramètres') }}</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('finance.master_data_import') }}"><i class="bi bi-file-earmark-arrow-up me-2 text-primary"></i>{{ _('Imports CSV') }}</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('finance.help_page') }}"><i class="bi bi-question-circle-fill me-2 text-info"></i>{{ _('Aide') }}</a></li>
+            </ul>
+          </li>
         </ul>
 
         <div class="d-flex align-items-center gap-2 finance-top-actions finance-topbar-right flex-wrap">
@@ -195,6 +241,54 @@
 {% block head_extra %}
   {{ super() }}
   <style>
+    .finance-nav-pill {
+      margin-right: .25rem;
+      padding: .3rem .55rem !important;
+      border-radius: 999px;
+      font-size: .84rem;
+      line-height: 1.1;
+      border: 1px solid transparent;
+    }
+
+    .finance-nav-pill i {
+      opacity: .95;
+    }
+
+    .finance-pill-master {
+      background: #fff7e6;
+      border-color: #ffe7ba;
+      color: #8a5a00 !important;
+    }
+
+    .finance-pill-essentials {
+      background: #eef4ff;
+      border-color: #dbe7ff;
+      color: #1f4ea3 !important;
+    }
+
+    .finance-pill-analysis {
+      background: #ecfff4;
+      border-color: #d2f5e1;
+      color: #1a7f4b !important;
+    }
+
+    .finance-pill-treasury {
+      background: #eaf9ff;
+      border-color: #cfeefe;
+      color: #006d8f !important;
+    }
+
+    .finance-pill-settings {
+      background: #f4f6f8;
+      border-color: #e3e8ee;
+      color: #4b5563 !important;
+    }
+
+    .finance-nav-pill:hover,
+    .finance-nav-pill:focus {
+      filter: brightness(.97);
+    }
+
     #financeQuickActionsMenu .btn {
       display: inline-flex;
       align-items: center;
@@ -229,6 +323,11 @@
       .finance-topbar-collapse {
         max-height: min(70vh, 560px);
         overflow-y: auto;
+      }
+
+      .finance-nav-pill {
+        margin-right: 0;
+        margin-bottom: .25rem;
       }
     }
 

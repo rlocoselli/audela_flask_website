@@ -179,6 +179,10 @@ def create_product():
             vat_applies = form_data.get('vat_applies') == 'on'
             vat_rate = Decimal(form_data.get('vat_rate', '20.0')) if vat_applies else Decimal('0')
             tax_exempt_reason = form_data.get('tax_exempt_reason', '').strip() if not vat_applies else ''
+            br_icms_rate = Decimal((form_data.get('br_icms_rate') or '0').strip() or '0')
+            br_ipi_rate = Decimal((form_data.get('br_ipi_rate') or '0').strip() or '0')
+            br_pis_rate = Decimal((form_data.get('br_pis_rate') or '0').strip() or '0')
+            br_cofins_rate = Decimal((form_data.get('br_cofins_rate') or '0').strip() or '0')
         except (ValueError, TypeError):
             flash(_('Dados inválidos'), 'error')
             return redirect(url_for('finance_master.create_product', company_id=company.id))
@@ -196,6 +200,17 @@ def create_product():
                 vat_applies=vat_applies,
                 vat_rate=vat_rate,
                 tax_exempt_reason=tax_exempt_reason,
+                br_icms_rate=br_icms_rate,
+                br_ipi_rate=br_ipi_rate,
+                br_pis_rate=br_pis_rate,
+                br_cofins_rate=br_cofins_rate,
+                br_ncm_code=(form_data.get('br_ncm_code') or '').strip() or None,
+                br_cfop_code=(form_data.get('br_cfop_code') or '').strip() or None,
+                br_cest_code=(form_data.get('br_cest_code') or '').strip() or None,
+                br_cst_icms=(form_data.get('br_cst_icms') or '').strip() or None,
+                br_cst_ipi=(form_data.get('br_cst_ipi') or '').strip() or None,
+                br_cst_pis=(form_data.get('br_cst_pis') or '').strip() or None,
+                br_cst_cofins=(form_data.get('br_cst_cofins') or '').strip() or None,
             )
             
             db.session.add(product)
@@ -251,6 +266,18 @@ def edit_product(product_id):
             else:
                 product.vat_rate = Decimal('0')
                 product.tax_exempt_reason = form_data.get('tax_exempt_reason', '').strip()
+
+            product.br_icms_rate = Decimal((form_data.get('br_icms_rate') or '0').strip() or '0')
+            product.br_ipi_rate = Decimal((form_data.get('br_ipi_rate') or '0').strip() or '0')
+            product.br_pis_rate = Decimal((form_data.get('br_pis_rate') or '0').strip() or '0')
+            product.br_cofins_rate = Decimal((form_data.get('br_cofins_rate') or '0').strip() or '0')
+            product.br_ncm_code = (form_data.get('br_ncm_code') or '').strip() or None
+            product.br_cfop_code = (form_data.get('br_cfop_code') or '').strip() or None
+            product.br_cest_code = (form_data.get('br_cest_code') or '').strip() or None
+            product.br_cst_icms = (form_data.get('br_cst_icms') or '').strip() or None
+            product.br_cst_ipi = (form_data.get('br_cst_ipi') or '').strip() or None
+            product.br_cst_pis = (form_data.get('br_cst_pis') or '').strip() or None
+            product.br_cst_cofins = (form_data.get('br_cst_cofins') or '').strip() or None
             
             product.updated_at = datetime.utcnow()
             db.session.commit()

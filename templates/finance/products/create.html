@@ -96,6 +96,69 @@
                     </div>
                 </div>
 
+                <div class="accordion mt-4" id="productTaxAccordion">
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingBrazilTaxCreate">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseBrazilTaxCreate" aria-expanded="false" aria-controls="collapseBrazilTaxCreate">
+                                {{ _('Configuração fiscal Brasil (SEFAZ)') }}
+                            </button>
+                        </h2>
+                        <div id="collapseBrazilTaxCreate" class="accordion-collapse collapse" aria-labelledby="headingBrazilTaxCreate" data-bs-parent="#productTaxAccordion">
+                            <div class="accordion-body">
+                                <div class="row g-3">
+                                    <div class="col-md-3">
+                                        <label for="br_icms_rate" class="form-label">ICMS %</label>
+                                        <input type="number" class="form-control" id="br_icms_rate" name="br_icms_rate" step="0.01" min="0" max="100" value="0">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="br_ipi_rate" class="form-label">IPI %</label>
+                                        <input type="number" class="form-control" id="br_ipi_rate" name="br_ipi_rate" step="0.01" min="0" max="100" value="0">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="br_pis_rate" class="form-label">PIS %</label>
+                                        <input type="number" class="form-control" id="br_pis_rate" name="br_pis_rate" step="0.01" min="0" max="100" value="0">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="br_cofins_rate" class="form-label">COFINS %</label>
+                                        <input type="number" class="form-control" id="br_cofins_rate" name="br_cofins_rate" step="0.01" min="0" max="100" value="0">
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <label for="br_ncm_code" class="form-label">NCM</label>
+                                        <input type="text" class="form-control" id="br_ncm_code" name="br_ncm_code" placeholder="00000000">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="br_cfop_code" class="form-label">CFOP</label>
+                                        <input type="text" class="form-control" id="br_cfop_code" name="br_cfop_code" placeholder="5102">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="br_cest_code" class="form-label">CEST</label>
+                                        <input type="text" class="form-control" id="br_cest_code" name="br_cest_code" placeholder="0000000">
+                                    </div>
+
+                                    <div class="col-md-3">
+                                        <label for="br_cst_icms" class="form-label">CST ICMS</label>
+                                        <input type="text" class="form-control" id="br_cst_icms" name="br_cst_icms" placeholder="00">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="br_cst_ipi" class="form-label">CST IPI</label>
+                                        <input type="text" class="form-control" id="br_cst_ipi" name="br_cst_ipi" placeholder="50">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="br_cst_pis" class="form-label">CST PIS</label>
+                                        <input type="text" class="form-control" id="br_cst_pis" name="br_cst_pis" placeholder="01">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="br_cst_cofins" class="form-label">CST COFINS</label>
+                                        <input type="text" class="form-control" id="br_cst_cofins" name="br_cst_cofins" placeholder="01">
+                                    </div>
+                                </div>
+                                <small class="form-text text-muted">{{ _('Esses valores serão aplicados automaticamente nas linhas de faturas brasileiras.') }}</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="mt-4">
                     <button type="submit" class="btn btn-primary">
                         <i class="fas fa-save"></i> {{ _('Criar produto') }}

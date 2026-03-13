@@ -1,5 +1,5 @@
 {% extends "portal/layout.html" %}
-{% set title = "Novo dashboard" %}
+{% set title = _('New dashboard') %}
 
 {% block portal_content %}
 <div class="container-fluid px-0">
@@ -7,9 +7,9 @@
   <!-- HEADER -->
   <div class="card shadow-sm mb-4">
     <div class="card-body">
-      <h4 class="mb-1">📊 Novo dashboard</h4>
+      <h4 class="mb-1">📊 {{ _('New dashboard') }}</h4>
       <p class="text-muted mb-0">
-        Crie um dashboard selecionando perguntas que virarão cards.
+        {{ _('Create a dashboard by selecting questions that become cards.') }}
       </p>
     </div>
   </div>
@@ -21,26 +21,26 @@
       <form method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
-        <!-- Nome -->
+        <!-- Name -->
         <div class="mb-3">
-          <label class="form-label">Nome</label>
+          <label class="form-label">{{ _('Name') }}</label>
           <input
             type="text"
             name="name"
             class="form-control"
-            placeholder="Ex.: Visão geral de vendas"
+            placeholder="{{ _('Ex.: Sales overview') }}"
             required
           >
           <div class="form-text">
-            Nome exibido no menu e na página do dashboard.
+            {{ _('Name shown in the menu and on the dashboard page.') }}
           </div>
         </div>
 
         <!-- Cards -->
         <div class="mb-4">
-          <label class="form-label">Cards (perguntas)</label>
+          <label class="form-label">{{ _('Cards (questions)') }}</label>
           <div class="form-text mb-2">
-            Selecione as perguntas que serão exibidas como cards.
+            {{ _('Select the questions to display as cards.') }}
           </div>
 
           <div
@@ -70,10 +70,10 @@
             href="{{ url_for('portal.dashboards_list') }}"
             class="btn btn-outline-secondary"
           >
-            Cancelar
+            {{ _('Cancel') }}
           </a>
           <button type="submit" class="btn btn-primary">
-            ➕ Criar dashboard
+            ➕ {{ _('Create dashboard') }}
           </button>
         </div>
 

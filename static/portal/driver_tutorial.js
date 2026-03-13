@@ -150,7 +150,7 @@
     if (window.bootstrap && window.bootstrap.Modal) {
       window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
     } else {
-      alert(((titleEl && titleEl.textContent) || 'Tutorial') + '\n\n' + ((descEl && descEl.textContent) || ''));
+      alert(((titleEl && titleEl.textContent) || window.t('Tutorial')) + '\n\n' + ((descEl && descEl.textContent) || ''));
       clearHighlight();
     }
   }

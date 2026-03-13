@@ -61,6 +61,21 @@ class FinanceInvoice(db.Model):
 
     notes = db.Column(db.Text, nullable=True)
 
+    # Fiscal metadata (SEFAZ readiness for BR invoices)
+    fiscal_country = db.Column(db.String(8), nullable=False, default="EU")  # EU|BR
+    document_model = db.Column(db.String(8), nullable=False, default="55")
+    document_series = db.Column(db.String(8), nullable=False, default="1")
+    sefaz_environment = db.Column(db.String(16), nullable=False, default="homologation")  # homologation|production
+    natureza_operacao = db.Column(db.String(120), nullable=True)
+    operation_destination = db.Column(db.String(8), nullable=False, default="1")
+    payment_indicator = db.Column(db.String(8), nullable=False, default="0")
+    presence_indicator = db.Column(db.String(8), nullable=False, default="1")
+    final_consumer = db.Column(db.Boolean, nullable=False, default=True)
+    invoice_purpose = db.Column(db.String(8), nullable=False, default="1")
+    emission_type = db.Column(db.String(8), nullable=False, default="1")
+    cnf_code = db.Column(db.String(16), nullable=True)
+    needs_sefaz_validation = db.Column(db.Boolean, nullable=False, default=False)
+
     total_net = db.Column(db.Numeric(18, 2), nullable=False, default=0)
     total_tax = db.Column(db.Numeric(18, 2), nullable=False, default=0)
     total_gross = db.Column(db.Numeric(18, 2), nullable=False, default=0)
@@ -90,8 +105,27 @@ class FinanceInvoiceLine(db.Model):
     unit_price = db.Column(db.Numeric(18, 4), nullable=False, default=0)
     vat_rate = db.Column(db.Numeric(9, 4), nullable=False, default=0, doc="Percent, e.g. 20.0")
 
+    # Brazil fiscal fields (tax rates in percent)
+    icms_rate = db.Column(db.Numeric(9, 4), nullable=False, default=0)
+    ipi_rate = db.Column(db.Numeric(9, 4), nullable=False, default=0)
+    pis_rate = db.Column(db.Numeric(9, 4), nullable=False, default=0)
+    cofins_rate = db.Column(db.Numeric(9, 4), nullable=False, default=0)
+
+    # SEFAZ/NFe product tax classification
+    ncm_code = db.Column(db.String(16), nullable=True)
+    cfop_code = db.Column(db.String(8), nullable=True)
+    cest_code = db.Column(db.String(16), nullable=True)
+    cst_icms = db.Column(db.String(4), nullable=True)
+    cst_ipi = db.Column(db.String(4), nullable=True)
+    cst_pis = db.Column(db.String(4), nullable=True)
+    cst_cofins = db.Column(db.String(4), nullable=True)
+
     net_amount = db.Column(db.Numeric(18, 2), nullable=False, default=0)
     tax_amount = db.Column(db.Numeric(18, 2), nullable=False, default=0)
     gross_amount = db.Column(db.Numeric(18, 2), nullable=False, default=0)
+    icms_amount = db.Column(db.Numeric(18, 2), nullable=False, default=0)
+    ipi_amount = db.Column(db.Numeric(18, 2), nullable=False, default=0)
+    pis_amount = db.Column(db.Numeric(18, 2), nullable=False, default=0)
+    cofins_amount = db.Column(db.Numeric(18, 2), nullable=False, default=0)
 
     invoice = db.relationship("FinanceInvoice", back_populates="lines")

@@ -15,6 +15,59 @@
   </form>
 </div>
 
+<div class="card mb-3">
+  <div class="card-header fw-semibold">{{ _('Step-by-step (easy)') }}</div>
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-12 col-lg-4">
+        <div class="border rounded p-3 h-100">
+          <div class="fw-semibold mb-1">{{ _('1. Connect bank') }}</div>
+          <div class="small text-secondary mb-2">{{ _('Click "Conectar banco" and finish bank login/consent.') }}</div>
+          <form method="post" action="{{ url_for('finance.banks_connect') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <button class="btn btn-primary btn-sm" {% if not bridge_configured %}disabled{% endif %}>
+              <i class="bi bi-plug me-1"></i>{{ _('Conectar banco') }}
+            </button>
+          </form>
+        </div>
+      </div>
+      <div class="col-12 col-lg-4">
+        <div class="border rounded p-3 h-100">
+          <div class="fw-semibold mb-1">{{ _('2. Discover accounts') }}</div>
+          <div class="small text-secondary mb-2">{{ _('Run first sync on connection to fetch bank accounts.') }}</div>
+          <div class="small text-secondary">{{ _('Then each bank account appears below.') }}</div>
+        </div>
+      </div>
+      <div class="col-12 col-lg-4">
+        <div class="border rounded p-3 h-100">
+          <div class="fw-semibold mb-1">{{ _('3. Sync one account') }}</div>
+          <div class="small text-secondary mb-2">{{ _('Use "Sync this account" to import only that account transactions.') }}</div>
+          <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.reconciliation') }}">
+            <i class="bi bi-link-45deg me-1"></i>{{ _('Reconciliação') }}
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="alert alert-info small">
+  <div class="fw-semibold">{{ _('Option gratuite') }}</div>
+  <ul class="mb-0">
+    <li>{{ _('Bridge PSD2 peut etre utilise en sandbox gratuit pour tests/developpement.') }}</li>
+    <li>{{ _('Pour la production, les fournisseurs Open Banking sont souvent payants selon volume/pays.') }}</li>
+    <li>{{ _('Alternative 100% gratuite: importer vos releves CSV/PDF puis faire la reconciliation.') }}</li>
+  </ul>
+  <div class="mt-2 d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.master_data_import') }}">
+      <i class="bi bi-file-earmark-arrow-up me-1"></i>{{ _('Imports CSV') }}
+    </a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.reconciliation') }}">
+      <i class="bi bi-link-45deg me-1"></i>{{ _('Reconciliação') }}
+    </a>
+  </div>
+</div>
+
 {% if not bridge_configured %}
   <div class="alert alert-warning">
     <div class="fw-semibold">{{ _('API bancária não configurada') }}</div>
@@ -51,6 +104,68 @@
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
                     <button class="btn btn-outline-primary btn-sm"><i class="bi bi-arrow-repeat"></i> {{ _('Sync') }}</button>
                   </form>
+                </td>
+              </tr>
+              <tr>
+                <td colspan="5" class="bg-light">
+                  {% if c.accounts and c.accounts|length > 0 %}
+                    <div class="small fw-semibold mb-2">{{ _('Accounts for this connection') }}</div>
+                    <div class="table-responsive">
+                      <table class="table table-sm align-middle mb-0">
+                        <thead>
+                          <tr>
+                            <th>{{ _('Bank account') }}</th>
+                            <th>{{ _('Mapped finance account') }}</th>
+                            <th>{{ _('Currency') }}</th>
+                            <th class="text-end">{{ _('Action') }}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {% for link in c.accounts %}
+                            <tr>
+                              <td class="small">{{ link.provider_account_name or link.provider_account_id }}</td>
+                              <td>
+                                <form method="post" action="{{ url_for('finance.banks_map_link', conn_id=c.id, link_id=link.id) }}" class="d-flex gap-1 align-items-center justify-content-end flex-wrap">
+                                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                                  <select name="finance_account_id" class="form-select form-select-sm" style="min-width: 200px;">
+                                    <option value="">{{ _('Select finance account') }}</option>
+                                    {% for acc in company_accounts %}
+                                      <option value="{{ acc.id }}" {% if link.finance_account_id == acc.id %}selected{% endif %}>{{ acc.name }}</option>
+                                    {% endfor %}
+                                  </select>
+                                  <button class="btn btn-outline-primary btn-sm" type="submit">{{ _('Save link') }}</button>
+                                </form>
+                                {% if not company_accounts or company_accounts|length == 0 %}
+                                  <div class="small text-warning mt-1">{{ _('No finance account available. Create one in Accounts.') }}</div>
+                                {% endif %}
+                              </td>
+                              <td class="small">{{ link.currency_code or '-' }}</td>
+                              <td class="text-end">
+                                <div class="d-flex gap-1 justify-content-end flex-wrap">
+                                  <form method="post" action="{{ url_for('finance.banks_sync', conn_id=c.id) }}" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                                    <input type="hidden" name="link_id" value="{{ link.id }}" />
+                                    <button class="btn btn-outline-success btn-sm" {% if not link.finance_account_id %}disabled{% endif %}>
+                                      <i class="bi bi-arrow-repeat"></i> {{ _('Sync this account') }}
+                                    </button>
+                                  </form>
+                                  <form method="post" action="{{ url_for('finance.banks_map_link', conn_id=c.id, link_id=link.id) }}" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                                    <input type="hidden" name="finance_account_id" value="" />
+                                    <button class="btn btn-outline-secondary btn-sm" {% if not link.finance_account_id %}disabled{% endif %}>{{ _('Unlink') }}</button>
+                                  </form>
+                                </div>
+                              </td>
+                            </tr>
+                          {% endfor %}
+                        </tbody>
+                      </table>
+                    </div>
+                  {% else %}
+                    <div class="small text-secondary">
+                      {{ _('No account discovered yet. Click "Sync" on this connection first.') }}
+                    </div>
+                  {% endif %}
                 </td>
               </tr>
             {% endfor %}

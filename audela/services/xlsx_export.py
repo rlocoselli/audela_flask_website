@@ -19,6 +19,7 @@ from openpyxl import Workbook
 from openpyxl.chart import BarChart, Reference
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.datavalidation import DataValidation
 
 
 _TEMPLATE_STYLES: dict[str, dict[str, Any]] = {
@@ -129,6 +130,72 @@ def _is_numeric_column(rows: list[list[Any]], idx: int) -> bool:
     return (numeric / non_null) >= 0.7
 
 
+def _normalize_pivot_config(pivot_config: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(pivot_config, dict):
+        return {}
+
+    def _split_csv(value: Any) -> list[str]:
+        if isinstance(value, list):
+            out = []
+            for item in value:
+                txt = str(item or "").strip()
+                if txt:
+                    out.append(txt)
+            return out
+        txt = str(value or "").strip()
+        if not txt:
+            return []
+        return [p.strip() for p in txt.split(",") if p.strip()]
+
+    rows = _split_csv(pivot_config.get("rows"))
+    cols = _split_csv(pivot_config.get("columns"))
+    value = str(pivot_config.get("value") or "").strip()
+    agg = str(pivot_config.get("agg") or "sum").strip().lower()
+    if agg not in {"sum", "count", "avg", "min", "max"}:
+        agg = "sum"
+
+    return {
+        "rows": rows,
+        "columns": cols,
+        "value": value,
+        "agg": agg,
+    }
+
+
+def _find_col_idx(columns: list[str], target: str) -> int:
+    if not target:
+        return -1
+    wanted = str(target).strip().lower()
+    for idx, col in enumerate(columns):
+        if str(col).strip().lower() == wanted:
+            return idx
+    return -1
+
+
+def _agg_value(current: dict[str, Any], metric: float | None, agg: str) -> None:
+    current["count"] = int(current.get("count", 0)) + 1
+    if metric is None:
+        return
+    current["sum"] = float(current.get("sum", 0.0)) + float(metric)
+    if current.get("min") is None or metric < float(current.get("min")):
+        current["min"] = float(metric)
+    if current.get("max") is None or metric > float(current.get("max")):
+        current["max"] = float(metric)
+
+
+def _agg_result(state: dict[str, Any], agg: str) -> float:
+    if agg == "count":
+        return float(int(state.get("count", 0)))
+    if agg == "avg":
+        cnt = int(state.get("count", 0))
+        return float(state.get("sum", 0.0)) / cnt if cnt > 0 else 0.0
+    if agg == "min":
+        return float(state.get("min", 0.0) if state.get("min") is not None else 0.0)
+    if agg == "max":
+        return float(state.get("max", 0.0) if state.get("max") is not None else 0.0)
+    return float(state.get("sum", 0.0))
+
+
 def _add_pivot_sheet(
     wb: Workbook,
     title: str,
@@ -138,19 +205,34 @@ def _add_pivot_sheet(
     header_fill_color: str,
     header_font_color: str,
     stripe_fill_color: str | None,
+    pivot_config: dict[str, Any] | None = None,
 ) -> None:
     if not columns or not rows:
         return
 
-    # Identify metric and dimensions heuristically from the tabular data.
+    cfg = _normalize_pivot_config(pivot_config)
+
+    # Auto fallback when user didn't pick explicit pivot fields.
     numeric_idxs = [idx for idx in range(len(columns)) if _is_numeric_column(rows, idx)]
     text_idxs = [idx for idx in range(len(columns)) if idx not in numeric_idxs]
-    if not numeric_idxs:
-        return
 
-    value_idx = numeric_idxs[0]
-    row_idx = text_idxs[0] if text_idxs else 0
-    col_idx = text_idxs[1] if len(text_idxs) > 1 else -1
+    row_fields = cfg.get("rows") or []
+    col_fields = cfg.get("columns") or []
+    row_idxs = [_find_col_idx(columns, f) for f in row_fields]
+    row_idxs = [i for i in row_idxs if i >= 0]
+    col_idx = _find_col_idx(columns, col_fields[0]) if col_fields else -1
+    value_idx = _find_col_idx(columns, str(cfg.get("value") or ""))
+    agg = str(cfg.get("agg") or "sum")
+
+    if value_idx < 0:
+        value_idx = numeric_idxs[0] if numeric_idxs else -1
+    if not row_idxs:
+        row_idxs = [text_idxs[0] if text_idxs else 0]
+    if col_idx < 0:
+        col_idx = text_idxs[1] if len(text_idxs) > 1 and text_idxs[1] not in row_idxs else -1
+
+    if value_idx < 0 and agg != "count":
+        return
 
     ws = wb.create_sheet(title="Pivot")
     ws["A1"].value = f"{(title or 'Export').strip() or 'Export'} - Pivot"
@@ -162,33 +244,44 @@ def _add_pivot_sheet(
     if col_idx >= 0:
         row_keys: list[str] = []
         col_keys: list[str] = []
-        matrix: dict[tuple[str, str], float] = defaultdict(float)
-        row_totals: dict[str, float] = defaultdict(float)
-        col_totals: dict[str, float] = defaultdict(float)
-        grand_total = 0.0
+        matrix: dict[tuple[str, str], dict[str, Any]] = {}
+        row_totals: dict[str, dict[str, Any]] = {}
+        col_totals: dict[str, dict[str, Any]] = {}
+        grand_total: dict[str, Any] = {}
 
         for r in rows:
-            if row_idx >= len(r) or col_idx >= len(r) or value_idx >= len(r):
+            if col_idx >= len(r):
                 continue
-            metric = _to_float(r[value_idx])
-            if metric is None:
+            metric = _to_float(r[value_idx]) if value_idx >= 0 and value_idx < len(r) else None
+            if agg != "count" and metric is None:
                 continue
-            rk = str(r[row_idx] if r[row_idx] not in (None, "") else "(empty)")
+            rk_parts = []
+            for ridx in row_idxs:
+                rk_parts.append(str(r[ridx] if ridx < len(r) and r[ridx] not in (None, "") else "(empty)"))
+            rk = " | ".join(rk_parts)
             ck = str(r[col_idx] if r[col_idx] not in (None, "") else "(empty)")
             if rk not in row_keys:
                 row_keys.append(rk)
             if ck not in col_keys:
                 col_keys.append(ck)
-            matrix[(rk, ck)] += metric
-            row_totals[rk] += metric
-            col_totals[ck] += metric
-            grand_total += metric
+            key = (rk, ck)
+            if key not in matrix:
+                matrix[key] = {}
+            if rk not in row_totals:
+                row_totals[rk] = {}
+            if ck not in col_totals:
+                col_totals[ck] = {}
+            _agg_value(matrix[key], metric, agg)
+            _agg_value(row_totals[rk], metric, agg)
+            _agg_value(col_totals[ck], metric, agg)
+            _agg_value(grand_total, metric, agg)
 
         if not row_keys or not col_keys:
             ws["A3"].value = "No pivotable rows found"
             return
 
-        ws.cell(row=header_row, column=1).value = str(columns[row_idx])
+        row_label = " / ".join([str(columns[i]) for i in row_idxs])
+        ws.cell(row=header_row, column=1).value = row_label
         for i, ck in enumerate(col_keys, start=2):
             ws.cell(row=header_row, column=i).value = ck
         ws.cell(row=header_row, column=2 + len(col_keys)).value = "Total"
@@ -203,8 +296,8 @@ def _add_pivot_sheet(
         for ridx, rk in enumerate(row_keys, start=start_data_row):
             ws.cell(row=ridx, column=1).value = rk
             for cidx, ck in enumerate(col_keys, start=2):
-                ws.cell(row=ridx, column=cidx).value = float(matrix.get((rk, ck), 0.0))
-            ws.cell(row=ridx, column=2 + len(col_keys)).value = float(row_totals.get(rk, 0.0))
+                ws.cell(row=ridx, column=cidx).value = float(_agg_result(matrix.get((rk, ck), {}), agg))
+            ws.cell(row=ridx, column=2 + len(col_keys)).value = float(_agg_result(row_totals.get(rk, {}), agg))
             if stripe_fill is not None and ((ridx - start_data_row) % 2 == 1):
                 for c in range(1, 3 + len(col_keys)):
                     ws.cell(row=ridx, column=c).fill = stripe_fill
@@ -212,8 +305,8 @@ def _add_pivot_sheet(
         total_row = start_data_row + len(row_keys)
         ws.cell(row=total_row, column=1).value = "Total"
         for cidx, ck in enumerate(col_keys, start=2):
-            ws.cell(row=total_row, column=cidx).value = float(col_totals.get(ck, 0.0))
-        ws.cell(row=total_row, column=2 + len(col_keys)).value = float(grand_total)
+            ws.cell(row=total_row, column=cidx).value = float(_agg_result(col_totals.get(ck, {}), agg))
+        ws.cell(row=total_row, column=2 + len(col_keys)).value = float(_agg_result(grand_total, agg))
         for c in range(1, 3 + len(col_keys)):
             cell = ws.cell(row=total_row, column=c)
             cell.font = Font(bold=True)
@@ -221,17 +314,22 @@ def _add_pivot_sheet(
         ws.freeze_panes = ws.cell(row=start_data_row, column=2)
         ws.auto_filter.ref = f"A{header_row}:{get_column_letter(2 + len(col_keys))}{total_row}"
     else:
-        label = str(columns[row_idx])
-        metric_label = str(columns[value_idx])
-        totals: dict[str, float] = defaultdict(float)
+        label = " / ".join([str(columns[i]) for i in row_idxs])
+        metric_label = str(columns[value_idx]) if value_idx >= 0 else "Count"
+        totals: dict[str, dict[str, Any]] = {}
         for r in rows:
-            if row_idx >= len(r) or value_idx >= len(r):
+            if not row_idxs:
                 continue
-            metric = _to_float(r[value_idx])
-            if metric is None:
+            metric = _to_float(r[value_idx]) if value_idx >= 0 and value_idx < len(r) else None
+            if agg != "count" and metric is None:
                 continue
-            rk = str(r[row_idx] if r[row_idx] not in (None, "") else "(empty)")
-            totals[rk] += metric
+            rk_parts = []
+            for ridx in row_idxs:
+                rk_parts.append(str(r[ridx] if ridx < len(r) and r[ridx] not in (None, "") else "(empty)"))
+            rk = " | ".join(rk_parts)
+            if rk not in totals:
+                totals[rk] = {}
+            _agg_value(totals[rk], metric, agg)
 
         ws.cell(row=header_row, column=1).value = label
         ws.cell(row=header_row, column=2).value = metric_label
@@ -244,7 +342,7 @@ def _add_pivot_sheet(
         start_data_row = header_row + 1
         for i, (k, v) in enumerate(totals.items(), start=start_data_row):
             ws.cell(row=i, column=1).value = k
-            ws.cell(row=i, column=2).value = float(v)
+            ws.cell(row=i, column=2).value = float(_agg_result(v, agg))
             if stripe_fill is not None and ((i - start_data_row) % 2 == 1):
                 ws.cell(row=i, column=1).fill = stripe_fill
                 ws.cell(row=i, column=2).fill = stripe_fill
@@ -255,6 +353,116 @@ def _add_pivot_sheet(
     max_cols = max(2, int(getattr(ws, "max_column", 2) or 2))
     for i in range(1, max_cols + 1):
         ws.column_dimensions[get_column_letter(i)].width = 14 if i > 1 else 22
+
+
+def _add_pivot_dynamic_sheet(
+    wb: Workbook,
+    columns: list[str],
+    rows: list[list[Any]],
+    pivot_config: dict[str, Any] | None = None,
+) -> None:
+    if not columns or not rows:
+        return
+
+    cfg = _normalize_pivot_config(pivot_config)
+    numeric_idxs = [idx for idx in range(len(columns)) if _is_numeric_column(rows, idx)]
+    text_idxs = [idx for idx in range(len(columns)) if idx not in numeric_idxs]
+
+    default_row = (cfg.get("rows") or [columns[text_idxs[0] if text_idxs else 0]])[0]
+    if str(default_row or "").strip() not in columns:
+        default_row = columns[text_idxs[0] if text_idxs else 0]
+
+    default_col = (cfg.get("columns") or [columns[text_idxs[1]] if len(text_idxs) > 1 else (columns[text_idxs[0]] if text_idxs else columns[0])])[0]
+    if str(default_col or "").strip() not in columns:
+        default_col = columns[text_idxs[1]] if len(text_idxs) > 1 else (columns[text_idxs[0]] if text_idxs else columns[0])
+
+    default_val = str(cfg.get("value") or "").strip()
+    if default_val not in columns:
+        if numeric_idxs:
+            default_val = columns[numeric_idxs[0]]
+        else:
+            default_val = columns[0]
+
+    default_agg = str(cfg.get("agg") or "sum").strip().upper()
+    if default_agg not in {"SUM", "COUNT", "AVERAGE", "MIN", "MAX"}:
+        default_agg = "SUM"
+
+    ws = wb.create_sheet(title="PivotDynamic")
+    ws["A1"].value = "Dynamic pivot (Excel 365)"
+    ws["A1"].font = Font(size=13, bold=True)
+    ws["A2"].value = "Select fields below. The matrix updates automatically."
+
+    ws["A4"].value = "Row field"
+    ws["C4"].value = "Column field"
+    ws["E4"].value = "Value field"
+    ws["G4"].value = "Aggregation"
+    for cell in ("A4", "C4", "E4", "G4"):
+        ws[cell].font = Font(bold=True)
+
+    ws["A5"].value = str(default_row)
+    ws["C5"].value = str(default_col)
+    ws["E5"].value = str(default_val)
+    ws["G5"].value = str(default_agg)
+
+    # Header list for dropdowns.
+    ws["J3"].value = "Fields"
+    ws["J3"].font = Font(bold=True)
+    for idx, col in enumerate(columns, start=4):
+        ws.cell(row=idx, column=10).value = str(col)
+
+    data_first_row = 4
+    data_last_row = 3 + len(rows)
+    data_last_col = get_column_letter(len(columns))
+    data_range = f"Data!$A${data_first_row}:${data_last_col}${data_last_row}"
+    header_range = f"Data!$A$3:${data_last_col}$3"
+    fields_ref = f"$J$4:$J${3 + len(columns)}"
+
+    dv_fields = DataValidation(type="list", formula1=fields_ref, allow_blank=False)
+    ws.add_data_validation(dv_fields)
+    dv_fields.add(ws["A5"])
+    dv_fields.add(ws["C5"])
+    dv_fields.add(ws["E5"])
+
+    dv_agg = DataValidation(type="list", formula1='"SUM,COUNT,AVERAGE,MIN,MAX"', allow_blank=False)
+    ws.add_data_validation(dv_agg)
+    dv_agg.add(ws["G5"])
+
+    ws["A7"].value = "Rows"
+    ws["B7"].value = "Columns"
+    ws["A7"].font = Font(bold=True)
+    ws["B7"].font = Font(bold=True)
+
+    # Dynamic arrays for row and column members.
+    ws["A8"].value = (
+        f"=SORT(UNIQUE(FILTER(INDEX({data_range},0,MATCH($A$5,{header_range},0)),"
+        f"INDEX({data_range},0,MATCH($A$5,{header_range},0))<>\"\")))"
+    )
+    ws["B7"].value = (
+        f"=TRANSPOSE(SORT(UNIQUE(FILTER(INDEX({data_range},0,MATCH($C$5,{header_range},0)),"
+        f"INDEX({data_range},0,MATCH($C$5,{header_range},0))<>\"\"))))"
+    )
+
+    # Build matrix with MAKEARRAY/LAMBDA (Excel 365).
+    ws["B8"].value = (
+        f"=MAKEARRAY(ROWS($A$8#),COLUMNS($B$7#),"
+        f"LAMBDA(r,c,LET(rv,INDEX($A$8#,r),cv,INDEX($B$7#,c),"
+        f"vals,INDEX({data_range},0,MATCH($E$5,{header_range},0)),"
+        f"rvals,INDEX({data_range},0,MATCH($A$5,{header_range},0)),"
+        f"cvals,INDEX({data_range},0,MATCH($C$5,{header_range},0)),"
+        f"IF($G$5=\"COUNT\",COUNTIFS(rvals,rv,cvals,cv),"
+        f"IF($G$5=\"AVERAGE\",AVERAGEIFS(vals,rvals,rv,cvals,cv),"
+        f"IF($G$5=\"MIN\",MINIFS(vals,rvals,rv,cvals,cv),"
+        f"IF($G$5=\"MAX\",MAXIFS(vals,rvals,rv,cvals,cv),"
+        f"SUMIFS(vals,rvals,rv,cvals,cv))))))))"
+    )
+
+    ws.column_dimensions["A"].width = 20
+    ws.column_dimensions["B"].width = 14
+    ws.column_dimensions["C"].width = 20
+    ws.column_dimensions["E"].width = 20
+    ws.column_dimensions["G"].width = 14
+    ws.column_dimensions["J"].width = 24
+    ws.freeze_panes = "A8"
 
 
 def table_to_xlsx_bytes(
@@ -268,6 +476,7 @@ def table_to_xlsx_bytes(
     template: str = "clean",
     color_theme: str | None = None,
     add_pivot: bool = False,
+    pivot_config: dict[str, Any] | None = None,
 ) -> bytes:
     """Create an .xlsx file from a tabular dataset.
 
@@ -386,6 +595,13 @@ def table_to_xlsx_bytes(
             header_fill_color=header_fill_color,
             header_font_color=header_font_color,
             stripe_fill_color=stripe_fill_color,
+            pivot_config=pivot_config,
+        )
+        _add_pivot_dynamic_sheet(
+            wb,
+            columns,
+            rows,
+            pivot_config=pivot_config,
         )
 
     bio = BytesIO()

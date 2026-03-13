@@ -1,13 +1,13 @@
 {% extends "portal/base_portal.html" %}
 
-{% block title %}Bootstrap – AUDELA BI{% endblock %}
+{% block title %}{{ _('Bootstrap (dev)') }} – AUDELA BI{% endblock %}
 
 {% block content %}
 <section id="main" class="wrapper style1">
   <div class="container">
     <header class="major">
-      <h2>Bootstrap (dev)</h2>
-      <p>Cria um tenant e um usuário admin. Remova esta tela em produção.</p>
+      <h2>{{ _('Bootstrap (dev)') }}</h2>
+      <p>{{ _('Creates a tenant and an admin user. Remove this screen in production.') }}</p>
     </header>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -24,21 +24,21 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <div class="row gtr-uniform gtr-50">
         <div class="col-6 col-12-medium">
-          <input type="text" name="tenant_slug" placeholder="tenant slug (ex.: acme)" required />
+          <input type="text" name="tenant_slug" placeholder="{{ _('Tenant slug (ex.: acme)') }}" required />
         </div>
         <div class="col-6 col-12-medium">
-          <input type="text" name="tenant_name" placeholder="nome do tenant" required />
+          <input type="text" name="tenant_name" placeholder="{{ _('Tenant name') }}" required />
         </div>
         <div class="col-6 col-12-medium">
-          <input type="email" name="email" placeholder="email do admin" required />
+          <input type="email" name="email" placeholder="{{ _('Admin email') }}" required />
         </div>
         <div class="col-6 col-12-medium">
-          <input type="password" name="password" placeholder="senha" required />
+          <input type="password" name="password" placeholder="{{ _('Password') }}" required />
         </div>
         <div class="col-12">
           <ul class="actions">
-            <li><input type="submit" value="Criar" class="primary" /></li>
-            <li><a href="{{ url_for('auth.login') }}" class="button">Voltar</a></li>
+            <li><input type="submit" value="{{ _('Create') }}" class="primary" /></li>
+            <li><a href="{{ url_for('auth.login') }}" class="button">{{ _('Back') }}</a></li>
           </ul>
         </div>
       </div>

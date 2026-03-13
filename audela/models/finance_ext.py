@@ -335,6 +335,19 @@ class FinanceProduct(db.Model):
     vat_reverse_charge = db.Column(db.Boolean, nullable=False, default=False)  # for reverse charge scenarios
     tax_exempt_reason = db.Column(db.String(255), nullable=True)  # e.g., "export", "intra-EU", etc.
 
+    # Brazil defaults (used to prefill invoice lines)
+    br_icms_rate = db.Column(db.Numeric(9, 4), nullable=False, default=0)
+    br_ipi_rate = db.Column(db.Numeric(9, 4), nullable=False, default=0)
+    br_pis_rate = db.Column(db.Numeric(9, 4), nullable=False, default=0)
+    br_cofins_rate = db.Column(db.Numeric(9, 4), nullable=False, default=0)
+    br_ncm_code = db.Column(db.String(16), nullable=True)
+    br_cfop_code = db.Column(db.String(8), nullable=True)
+    br_cest_code = db.Column(db.String(16), nullable=True)
+    br_cst_icms = db.Column(db.String(4), nullable=True)
+    br_cst_ipi = db.Column(db.String(4), nullable=True)
+    br_cst_pis = db.Column(db.String(4), nullable=True)
+    br_cst_cofins = db.Column(db.String(4), nullable=True)
+
     # Optional GL account mapping
     gl_account_id = db.Column(db.Integer, db.ForeignKey("finance_gl_accounts.id", ondelete="SET NULL"), nullable=True, index=True)
     vat_gl_account_id = db.Column(db.Integer, db.ForeignKey("finance_gl_accounts.id", ondelete="SET NULL"), nullable=True)

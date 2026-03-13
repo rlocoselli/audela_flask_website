@@ -136,13 +136,13 @@
                   <thead>
                     <tr>
                       <th>{{ _('Coluna') }}</th>
-                      <th class="text-end">mean</th>
-                      <th class="text-end">std</th>
-                      <th class="text-end">min</th>
-                      <th class="text-end">p5</th>
-                      <th class="text-end">median</th>
-                      <th class="text-end">p95</th>
-                      <th class="text-end">max</th>
+                      <th class="text-end">{{ _('mean') }}</th>
+                      <th class="text-end">{{ _('std') }}</th>
+                      <th class="text-end">{{ _('min') }}</th>
+                      <th class="text-end">{{ _('p5') }}</th>
+                      <th class="text-end">{{ _('median') }}</th>
+                      <th class="text-end">{{ _('p95') }}</th>
+                      <th class="text-end">{{ _('max') }}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -214,7 +214,7 @@
                             <div class="fw-semibold">{{ r.x }}</div>
                           </div>
                           <div class="col-6">
-                            <div class="small text-secondary">Slope</div>
+                            <div class="small text-secondary">{{ _('Slope') }}</div>
                             <div class="fw-semibold">{{ '%.2f'|format(r.slope) if r.slope is not none else '' }}</div>
                           </div>
                           <div class="col-6">
@@ -224,7 +224,7 @@
 
                           {% if r.intercept is defined %}
                             <div class="col-6">
-                              <div class="small text-secondary">Intercept</div>
+                              <div class="small text-secondary">{{ _('Intercept') }}</div>
                               <div class="fw-semibold">{{ '%.2f'|format(r.intercept) if r.intercept is not none else '' }}</div>
                             </div>
                           {% endif %}
@@ -282,7 +282,7 @@
                       <div class="accordion-body">
 
                         <div class="d-flex justify-content-between small text-secondary">
-                          <span>P5</span><span>P50</span><span>P95</span>
+                          <span>{{ _('P5') }}</span><span>{{ _('P50') }}</span><span>{{ _('P95') }}</span>
                         </div>
                         <div class="progress" style="height: .8rem;">
                           <div class="progress-bar" role="progressbar" style="width: 100%"></div>
@@ -298,13 +298,13 @@
                           <div class="row g-2">
                             {% if mc.mean is defined %}
                               <div class="col-6">
-                                <div class="small text-secondary">mean</div>
+                                <div class="small text-secondary">{{ _('mean') }}</div>
                                 <div class="fw-semibold">{{ '%.2f'|format(mc.mean) if mc.mean is not none else '' }}</div>
                               </div>
                             {% endif %}
                             {% if mc.std is defined %}
                               <div class="col-6">
-                                <div class="small text-secondary">std</div>
+                                <div class="small text-secondary">{{ _('std') }}</div>
                                 <div class="fw-semibold">{{ '%.2f'|format(mc.std) if mc.std is not none else '' }}</div>
                               </div>
                             {% endif %}

@@ -337,7 +337,7 @@
       if (metricValue === null) continue;
       const keyRaw = dimField ? row[dimField.idx] : t('Não agrupado');
       const key = (keyRaw === null || keyRaw === undefined || keyRaw === '') ? t('Não agrupado') : String(keyRaw);
-      out.push({ key, metric: metricValue });
+      out.push({ key, metric: metricValue, raw: row });
     }
     return out;
   }
@@ -357,6 +357,37 @@
       item.base += row.metric;
     }
     return { groups, baseTotal };
+  }
+
+  function estimateLinearImpactModel (rows, xIdx, yIdx) {
+    const pairs = [];
+    for (const row of rows || []) {
+      if (!row || !Array.isArray(row.raw)) continue;
+      const x = toNumber(row.raw[xIdx]);
+      const y = toNumber(row.raw[yIdx]);
+      if (x === null || y === null) continue;
+      pairs.push({ key: row.key, x, y });
+    }
+    if (pairs.length < 5) return null;
+
+    const xs = pairs.map((p) => p.x);
+    const ys = pairs.map((p) => p.y);
+    const mx = mean(xs);
+    const my = mean(ys);
+    const varX = xs.reduce((acc, v) => acc + ((v - mx) ** 2), 0);
+    if (!Number.isFinite(varX) || varX <= 1e-12) return null;
+    const covXY = pairs.reduce((acc, p) => acc + ((p.x - mx) * (p.y - my)), 0);
+    const beta = covXY / varX;
+
+    const stdX = Math.sqrt(varX / Math.max(1, pairs.length - 1));
+    const stdY = stdDev(ys);
+    const corr = (stdX > 0 && stdY > 0) ? (covXY / Math.max(1, pairs.length - 1)) / (stdX * stdY) : 0;
+    return {
+      pairs,
+      beta,
+      corr: Number.isFinite(corr) ? corr : 0,
+      n: pairs.length
+    };
   }
 
   function hypothesisTestTwoSample (baseSample, simSample) {
@@ -424,6 +455,7 @@
     const selQuestion = document.getElementById('wf-question');
     const txtParams = document.getElementById('wf-params');
     const selMetric = document.getElementById('wf-metric');
+    const selTarget = document.getElementById('wf-target');
     const selDim = document.getElementById('wf-dim');
     const inpPct = document.getElementById('wf-pct');
     const inpDelta = document.getElementById('wf-delta');
@@ -445,12 +477,18 @@
     const resultsCard = document.getElementById('wf-results-card');
     const kpiBase = document.getElementById('wf-kpi-base');
     const kpiSim = document.getElementById('wf-kpi-sim');
+    const kpiBaseLabel = document.getElementById('wf-kpi-base-label');
+    const kpiSimLabel = document.getElementById('wf-kpi-sim-label');
     const kpiDiff = document.getElementById('wf-kpi-diff');
     const kpiDiffPct = document.getElementById('wf-kpi-diff-pct');
     const thDim = document.getElementById('wf-th-dim');
+    const thBase = document.getElementById('wf-th-base');
+    const thSim = document.getElementById('wf-th-sim');
+    const thDiff = document.getElementById('wf-th-diff');
     const tbody = document.getElementById('wf-tbody');
     const limitNote = document.getElementById('wf-limit-note');
     const explanationBox = document.getElementById('wf-explanation');
+    const impactModelBox = document.getElementById('wf-impact-model');
     const advancedTbody = document.getElementById('wf-advanced-tbody');
     const monteCarloHistBox = document.getElementById('wf-mc-hist-box');
     const monteCarloHistWrap = document.getElementById('wf-mc-hist-wrap');
@@ -511,6 +549,7 @@
       return {
         question: String(selQuestion?.value || '').trim(),
         metric: String(selMetric?.value || '').trim(),
+        target: String(selTarget?.value || '').trim(),
         dim: String(selDim?.value || '').trim(),
         params: String(txtParams?.value || '{}'),
         pct: toNumber(inpPct?.value) ?? 0,
@@ -538,6 +577,7 @@
       if (txtStressJson && typeof cfg.stressJson === 'string' && cfg.stressJson.trim()) txtStressJson.value = cfg.stressJson;
       if (chkHypothesis && typeof cfg.hypothesis === 'boolean') chkHypothesis.checked = cfg.hypothesis;
       if (selSort && ['impact_desc', 'base_desc', 'sim_desc', 'key_asc'].includes(String(cfg.sort || ''))) selSort.value = String(cfg.sort);
+      if (selTarget && typeof cfg.target === 'string') selTarget.value = cfg.target;
       setMethodUi();
     }
 
@@ -585,6 +625,10 @@
         selMetric.innerHTML = '';
         selMetric.disabled = true;
       }
+      if (selTarget) {
+        selTarget.innerHTML = '';
+        selTarget.disabled = true;
+      }
       if (selDim) {
         selDim.innerHTML = '';
         selDim.disabled = true;
@@ -593,6 +637,10 @@
 
     function clearAdvancedOutput () {
       if (explanationBox) explanationBox.textContent = '';
+      if (impactModelBox) {
+        impactModelBox.textContent = '';
+        impactModelBox.classList.add('d-none');
+      }
       if (advancedTbody) advancedTbody.innerHTML = '';
       if (monteCarloHistMeta) monteCarloHistMeta.textContent = '';
       if (monteCarloHistBox) monteCarloHistBox.classList.add('d-none');
@@ -885,6 +933,15 @@
         selMetric.disabled = false;
       }
 
+      if (selTarget) {
+        const opts = [`<option value="">${t('None')}</option>`];
+        for (const f of numericFields) {
+          opts.push(`<option value="${escapeHtml(f.name)}">${escapeHtml(f.name)}</option>`);
+        }
+        selTarget.innerHTML = opts.join('');
+        selTarget.disabled = false;
+      }
+
       if (selDim) {
         const options = [`<option value="">${t('Não agrupado')}</option>`];
         for (const f of state.fields) {
@@ -982,6 +1039,10 @@
         return;
       }
 
+      const target = String(selTarget?.value || '').trim();
+      const targetField = target ? state.fields.find((f) => f.name === target) : null;
+      const impactRequested = !!(targetField && targetField.idx !== metricField.idx);
+
       const dim = String(selDim?.value || '').trim();
       const dimField = dim ? state.fields.find((f) => f.name === dim) : null;
       const pct = toNumber(inpPct?.value);
@@ -999,8 +1060,54 @@
         showError(t('Sem dados para simulação.'));
         return;
       }
-      const baseSample = simRows.map((r) => r.metric);
-      const { groups: baseGroups, baseTotal } = baseGroupStats(simRows);
+
+      const impactModel = impactRequested
+        ? estimateLinearImpactModel(simRows, metricField.idx, targetField.idx)
+        : null;
+      if (impactRequested && !impactModel) {
+        showError(t('Unable to estimate impact model between selected variables (not enough variance/data).'));
+        return;
+      }
+
+      let baseGroups;
+      let baseTotal;
+      let baseSample;
+      if (impactModel) {
+        baseGroups = new Map();
+        baseTotal = 0;
+        baseSample = [];
+        for (const p of impactModel.pairs) {
+          baseTotal += p.y;
+          baseSample.push(p.y);
+          if (!baseGroups.has(p.key)) baseGroups.set(p.key, { key: p.key, rows: 0, base: 0 });
+          const it = baseGroups.get(p.key);
+          it.rows += 1;
+          it.base += p.y;
+        }
+      } else {
+        baseSample = simRows.map((r) => r.metric);
+        const baseStats = baseGroupStats(simRows);
+        baseGroups = baseStats.groups;
+        baseTotal = baseStats.baseTotal;
+      }
+
+      const displayLabel = impactModel ? String(targetField.name) : String(metricField.name);
+      if (kpiBaseLabel) kpiBaseLabel.textContent = `${t('Base')} (${displayLabel})`;
+      if (kpiSimLabel) kpiSimLabel.textContent = `${t('Simulado')} (${displayLabel})`;
+      if (thBase) thBase.textContent = `${t('Valor base')} (${displayLabel})`;
+      if (thSim) thSim.textContent = `${t('Valor simulado')} (${displayLabel})`;
+      if (thDiff) thDiff.textContent = `${t('Diferença')} (${displayLabel})`;
+
+      if (impactModelBox) {
+        if (impactModel) {
+          impactModelBox.classList.remove('d-none');
+          impactModelBox.textContent = `${t('Impact model')}: ${targetField.name} = ${t('Base')} + beta * Delta(${metricField.name}) · beta=${formatNumber(impactModel.beta)} · corr=${formatNumber(impactModel.corr)} · n=${impactModel.n}`;
+        } else {
+          impactModelBox.classList.add('d-none');
+          impactModelBox.textContent = '';
+        }
+      }
+
       const expectedGroupSims = new Map();
       let simulatedTotal = 0;
       const advancedRows = [];
@@ -1023,10 +1130,19 @@
           expectedShockPct += scenario.pct * scenario.prob;
           let scenarioTotal = 0;
           const sFactor = 1 + (((pct === null ? 0 : pct) + scenario.pct) / 100);
-          for (const row of simRows) {
-            const sim = (row.metric * sFactor) + addDelta;
-            scenarioTotal += sim;
-            addToMap(expectedGroupSims, row.key, sim * scenario.prob);
+          if (impactModel) {
+            for (const p of impactModel.pairs) {
+              const xSim = (p.x * sFactor) + addDelta;
+              const ySim = p.y + (impactModel.beta * (xSim - p.x));
+              scenarioTotal += ySim;
+              addToMap(expectedGroupSims, p.key, ySim * scenario.prob);
+            }
+          } else {
+            for (const row of simRows) {
+              const sim = (row.metric * sFactor) + addDelta;
+              scenarioTotal += sim;
+              addToMap(expectedGroupSims, row.key, sim * scenario.prob);
+            }
           }
           scenarioTotals.push({ name: scenario.name, prob: scenario.prob, total: scenarioTotal });
           advancedRows.push({
@@ -1036,7 +1152,15 @@
           });
         }
         simulatedTotal = scenarioTotals.reduce((acc, s) => acc + (s.total * s.prob), 0);
-        simSample = simRows.map((row) => (row.metric * (1 + (((pct === null ? 0 : pct) + expectedShockPct) / 100))) + addDelta);
+        if (impactModel) {
+          const f = 1 + (((pct === null ? 0 : pct) + expectedShockPct) / 100);
+          simSample = impactModel.pairs.map((p) => {
+            const xSim = (p.x * f) + addDelta;
+            return p.y + (impactModel.beta * (xSim - p.x));
+          });
+        } else {
+          simSample = simRows.map((row) => (row.metric * (1 + (((pct === null ? 0 : pct) + expectedShockPct) / 100))) + addDelta);
+        }
         const lossProb = scenarioTotals.filter((s) => s.total < baseTotal).reduce((acc, s) => acc + s.prob, 0) * 100;
         advancedRows.unshift({
           label: t('Valeur attendue (pondérée)'),
@@ -1051,12 +1175,23 @@
         for (let run = 0; run < runs; run += 1) {
           let runTotal = 0;
           const runGroup = new Map();
-          for (const row of simRows) {
-            const center = (row.metric * pctFactor) + addDelta;
-            const shock = drawShockMultiplier(distribution, volatility);
-            const sim = center * shock;
-            runTotal += sim;
-            addToMap(runGroup, row.key, sim);
+          if (impactModel) {
+            for (const p of impactModel.pairs) {
+              const center = (p.x * pctFactor) + addDelta;
+              const shock = drawShockMultiplier(distribution, volatility);
+              const xSim = center * shock;
+              const ySim = p.y + (impactModel.beta * (xSim - p.x));
+              runTotal += ySim;
+              addToMap(runGroup, p.key, ySim);
+            }
+          } else {
+            for (const row of simRows) {
+              const center = (row.metric * pctFactor) + addDelta;
+              const shock = drawShockMultiplier(distribution, volatility);
+              const sim = center * shock;
+              runTotal += sim;
+              addToMap(runGroup, row.key, sim);
+            }
           }
           totals.push(runTotal);
           for (const [key, value] of runGroup.entries()) {
@@ -1088,11 +1223,21 @@
           details: t('Dispersion des résultats simulés')
         });
       } else {
-        for (const row of simRows) {
-          const sim = (row.metric * pctFactor) + addDelta;
-          simulatedTotal += sim;
-          addToMap(expectedGroupSims, row.key, sim);
-          simSample.push(sim);
+        if (impactModel) {
+          for (const p of impactModel.pairs) {
+            const xSim = (p.x * pctFactor) + addDelta;
+            const ySim = p.y + (impactModel.beta * (xSim - p.x));
+            simulatedTotal += ySim;
+            addToMap(expectedGroupSims, p.key, ySim);
+            simSample.push(ySim);
+          }
+        } else {
+          for (const row of simRows) {
+            const sim = (row.metric * pctFactor) + addDelta;
+            simulatedTotal += sim;
+            addToMap(expectedGroupSims, row.key, sim);
+            simSample.push(sim);
+          }
         }
         advancedRows.push({
           label: t('Hypothèse centrale'),
@@ -1146,7 +1291,11 @@
 
       if (explanationBox) {
         const expl = String(buildExplanation(method, distribution, runs) || '').trim();
-        explanationBox.textContent = expl || t('Analyse avancée: résultats déterministes/probabilistes, dispersion et significativité statistique.');
+        if (impactModel) {
+          explanationBox.textContent = `${expl} ${t('Impact on Y is estimated from observed relation between X and Y.')}`;
+        } else {
+          explanationBox.textContent = expl || t('Analyse avancée: résultats déterministes/probabilistes, dispersion et significativité statistique.');
+        }
       }
 
       if (!advancedRows.length) {
@@ -1292,6 +1441,7 @@
       const loaded = await loadData();
       if (!loaded) return;
       if (selMetric && cfg.metric) selMetric.value = String(cfg.metric);
+      if (selTarget && typeof cfg.target === 'string') selTarget.value = String(cfg.target);
       if (selDim && typeof cfg.dim === 'string') selDim.value = cfg.dim;
       runSimulation();
     });

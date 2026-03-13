@@ -48,6 +48,7 @@ def analyze_with_ai(
     history: list[dict[str, Any]] | None = None,
     lang: str | None = None,
     timeout_seconds: int | None = None,
+    extra_json_keys: list[str] | None = None,
 ) -> dict[str, Any]:
     """Call OpenAI (optional) and return {analysis, charts, followups}.
 
@@ -182,8 +183,22 @@ def analyze_with_ai(
             if isinstance(s, str) and s.strip():
                 safe_followups.append(s.strip()[:200])
 
-    return {
+    response: dict[str, Any] = {
         "analysis": analysis,
         "charts": safe_charts,
         "followups": safe_followups,
     }
+
+    # Optional pass-through for extra structured keys requested by a caller.
+    if extra_json_keys:
+        for key in extra_json_keys:
+            k = str(key or "").strip()
+            if not k:
+                continue
+            if k not in parsed:
+                continue
+            value = parsed.get(k)
+            if isinstance(value, (dict, list, str, int, float, bool)) or value is None:
+                response[k] = value
+
+    return response

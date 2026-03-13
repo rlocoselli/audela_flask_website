@@ -37,7 +37,7 @@
     const m = ensureModal();
     m.title.textContent = title || t('Information');
     m.body.textContent = String(message || '');
-    m.footer.innerHTML = `<button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>`;
+    m.footer.innerHTML = `<button type="button" class="btn btn-primary" data-bs-dismiss="modal">${t('OK')}</button>`;
     m.bs.show();
   }
 
@@ -46,8 +46,8 @@
     m.title.textContent = title || t('Confirmation');
     m.body.textContent = String(message || '');
     m.footer.innerHTML = `
-      <button type="button" class="btn btn-outline-secondary" data-ui-no>${window.t ? window.t('Cancelar') : 'Cancel'}</button>
-      <button type="button" class="btn btn-primary" data-ui-yes>${window.t ? window.t('Confirmer') : 'Confirm'}</button>
+      <button type="button" class="btn btn-outline-secondary" data-ui-no>${t('Cancel')}</button>
+      <button type="button" class="btn btn-primary" data-ui-yes>${t('Confirm')}</button>
     `;
     return new Promise(resolve => {
       const yes = m.footer.querySelector('[data-ui-yes]');

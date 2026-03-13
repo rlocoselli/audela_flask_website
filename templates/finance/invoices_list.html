@@ -1,18 +1,142 @@
 {% extends "finance/base_finance.html" %}
 
 {% block finance_content %}
+  {% set has_filters = filters.q or filters.status or filters.invoice_type or filters.counterparty_id or filters.issue_from or filters.issue_to or filters.due_from or filters.due_to or filters.kpi %}
   <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
-      <h4 class="mb-0">{{ _('E-faturas') }}</h4>
+      <h4 class="mb-0">{{ _('E-factures') }}</h4>
       <div class="text-secondary small">{{ _('PDF + XML (Factur-X FR / FatturaPA IT)') }}</div>
     </div>
     {% if current_user and current_user.is_authenticated %}
       <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary" href="{{ url_for('finance.invoices_cockpit') }}">{{ _('Cockpit facturation') }}</a>
         <a class="btn btn-outline-secondary" href="{{ url_for('finance.pivot_page') }}">{{ _('Pivot') }}</a>
         <a class="btn btn-outline-secondary" href="{{ url_for('finance.invoice_template_settings') }}">{{ _('Template facture') }}</a>
         <a class="btn btn-primary" href="{{ url_for('finance.invoice_new') }}">{{ _('Nova fatura') }}</a>
       </div>
     {% endif %}
+  </div>
+
+  <div class="accordion mb-3" id="invoiceOpsAccordion">
+    <div class="accordion-item">
+      <h2 class="accordion-header" id="headingInvoiceFilters">
+        <button class="accordion-button {% if not has_filters %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapseInvoiceFilters" aria-expanded="{{ 'true' if has_filters else 'false' }}" aria-controls="collapseInvoiceFilters">
+          {{ _('Filtres factures') }}
+        </button>
+      </h2>
+      <div id="collapseInvoiceFilters" class="accordion-collapse collapse {% if has_filters %}show{% endif %}" aria-labelledby="headingInvoiceFilters" data-bs-parent="#invoiceOpsAccordion">
+        <div class="accordion-body">
+      <form method="get" action="{{ url_for('finance.invoices_list') }}" class="row g-2 align-items-end">
+        {% if filters.kpi %}
+          <input type="hidden" name="kpi" value="{{ filters.kpi }}" />
+        {% endif %}
+        <div class="col-12 col-lg-3">
+          <label class="form-label small">{{ _('Recherche') }}</label>
+          <input class="form-control form-control-sm" type="text" name="q" value="{{ filters.q }}" placeholder="{{ _('Rechercher (numéro, contrepartie, notes)') }}" />
+        </div>
+        <div class="col-6 col-lg-2">
+          <label class="form-label small">{{ _('Status') }}</label>
+          <select class="form-select form-select-sm" name="status">
+            <option value="">{{ _('Tous les statuts') }}</option>
+            <option value="open" {% if filters.status=='open' %}selected{% endif %}>{{ _('Ouvertes (brouillon + envoyée)') }}</option>
+            <option value="draft" {% if filters.status=='draft' %}selected{% endif %}>{{ _('Brouillon') }}</option>
+            <option value="sent" {% if filters.status=='sent' %}selected{% endif %}>{{ _('Envoyée') }}</option>
+            <option value="paid" {% if filters.status=='paid' %}selected{% endif %}>{{ _('Payée') }}</option>
+            <option value="void" {% if filters.status=='void' %}selected{% endif %}>{{ _('Annulée') }}</option>
+          </select>
+        </div>
+        <div class="col-6 col-lg-2">
+          <label class="form-label small">{{ _('Tipo') }}</label>
+          <select class="form-select form-select-sm" name="invoice_type">
+            <option value="">{{ _('Tous les types') }}</option>
+            <option value="sale" {% if filters.invoice_type=='sale' %}selected{% endif %}>{{ _('Venda') }}</option>
+            <option value="purchase" {% if filters.invoice_type=='purchase' %}selected{% endif %}>{{ _('Compra') }}</option>
+          </select>
+        </div>
+        <div class="col-12 col-lg-3">
+          <label class="form-label small">{{ _('Contraparte') }}</label>
+          <select class="form-select form-select-sm" name="counterparty_id">
+            <option value="">{{ _('Toutes les contreparties') }}</option>
+            {% for cp in counterparties %}
+              <option value="{{ cp.id }}" {% if filters.counterparty_id == cp.id %}selected{% endif %}>{{ cp.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-6 col-lg-2">
+          <label class="form-label small">{{ _('Émission du') }}</label>
+          <input class="form-control form-control-sm" type="date" name="issue_from" value="{{ filters.issue_from }}" />
+        </div>
+        <div class="col-6 col-lg-2">
+          <label class="form-label small">{{ _('Émission au') }}</label>
+          <input class="form-control form-control-sm" type="date" name="issue_to" value="{{ filters.issue_to }}" />
+        </div>
+        <div class="col-6 col-lg-2">
+          <label class="form-label small">{{ _('Échéance du') }}</label>
+          <input class="form-control form-control-sm" type="date" name="due_from" value="{{ filters.due_from }}" />
+        </div>
+        <div class="col-6 col-lg-2">
+          <label class="form-label small">{{ _('Échéance au') }}</label>
+          <input class="form-control form-control-sm" type="date" name="due_to" value="{{ filters.due_to }}" />
+        </div>
+        <div class="col-6 col-lg-2">
+          <label class="form-label small">{{ _('Éléments par page') }}</label>
+          <select class="form-select form-select-sm" name="per_page">
+            {% for opt in [10, 25, 50, 100] %}
+              <option value="{{ opt }}" {% if filters.per_page == opt %}selected{% endif %}>{{ opt }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-lg-2 d-flex gap-2">
+          <button class="btn btn-primary btn-sm w-100" type="submit">{{ _('Filtrer') }}</button>
+          <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.invoices_list') }}">{{ _('Réinitialiser') }}</a>
+        </div>
+      </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-lg-3 col-md-6">
+      <a class="text-decoration-none" href="{{ url_for('finance.invoices_list', kpi='due_soon', per_page=filters.per_page) }}">
+        <div class="card shadow-sm h-100 {% if filters.kpi=='due_soon' %}border-primary{% endif %}">
+          <div class="card-body">
+            <div class="text-secondary small">{{ _('À échéance ({days} jours)', days=reports.due_soon_days) }}</div>
+            <div class="h4 mb-0">{{ reports.due_soon|length }}</div>
+          </div>
+        </div>
+      </a>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <a class="text-decoration-none" href="{{ url_for('finance.invoices_list', kpi='unpaid', per_page=filters.per_page) }}">
+        <div class="card shadow-sm h-100 {% if filters.kpi=='unpaid' %}border-primary{% endif %}">
+          <div class="card-body">
+            <div class="text-secondary small">{{ _('Impayées') }}</div>
+            <div class="h4 mb-0">{{ reports.unpaid|length }}</div>
+          </div>
+        </div>
+      </a>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <a class="text-decoration-none" href="{{ url_for('finance.invoices_list', kpi='overdue', per_page=filters.per_page) }}">
+        <div class="card shadow-sm h-100 border-danger {% if filters.kpi=='overdue' %}border-2{% endif %}">
+          <div class="card-body">
+            <div class="text-secondary small">{{ _('Expirées') }}</div>
+            <div class="h4 mb-0 text-danger">{{ reports.overdue|length }}</div>
+          </div>
+        </div>
+      </a>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <a class="text-decoration-none" href="{{ url_for('finance.invoices_list', kpi='debtors', per_page=filters.per_page) }}">
+        <div class="card shadow-sm h-100 {% if filters.kpi=='debtors' %}border-primary{% endif %}">
+          <div class="card-body">
+            <div class="text-secondary small">{{ _('Contreparties débiteurs') }}</div>
+            <div class="h4 mb-0">{{ reports.debtors|length }}</div>
+          </div>
+        </div>
+      </a>
+    </div>
   </div>
 
   <div class="card shadow-sm">
@@ -48,7 +172,11 @@
                 </td>
                 <td>
                   <span class="badge {% if inv.status=='paid' %}bg-success{% elif inv.status=='sent' %}bg-info{% elif inv.status=='void' %}bg-dark{% else %}bg-warning text-dark{% endif %}">
-                    {{ inv.status }}
+                    {% if inv.status == 'draft' %}{{ _('Brouillon') }}
+                    {% elif inv.status == 'sent' %}{{ _('Envoyée') }}
+                    {% elif inv.status == 'paid' %}{{ _('Payée') }}
+                    {% elif inv.status == 'void' %}{{ _('Annulée') }}
+                    {% else %}{{ inv.status }}{% endif %}
                   </span>
                 </td>
                 <td>{{ inv.issue_date }}</td>
@@ -57,9 +185,31 @@
                 <td class="text-end">{{ '%.2f'|format(inv.total_gross or 0) }} {{ inv.currency }}</td>
                 <td class="text-end">
                   <div class="finance-row-actions justify-content-end">
+                    <button class="btn btn-outline-info btn-sm js-invoice-preview" type="button" data-preview-url="{{ url_for('finance.invoice_pdf_preview', invoice_id=inv.id) }}" data-invoice-label="{{ inv.invoice_number }}">{{ _('Aperçu') }}</button>
                     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.invoice_edit', invoice_id=inv.id) }}">{{ _('Editar') }}</a>
+                    <form method="post" action="{{ url_for('finance.invoice_status_update', invoice_id=inv.id) }}" class="d-inline-flex gap-1 align-items-center">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <input type="hidden" name="next" value="{{ request.full_path }}">
+                      <select class="form-select form-select-sm" name="status" style="min-width: 115px;">
+                        <option value="draft" {% if inv.status=='draft' %}selected{% endif %}>{{ _('Brouillon') }}</option>
+                        <option value="sent" {% if inv.status=='sent' %}selected{% endif %}>{{ _('Envoyée') }}</option>
+                        <option value="paid" {% if inv.status=='paid' %}selected{% endif %}>{{ _('Payée') }}</option>
+                        <option value="void" {% if inv.status=='void' %}selected{% endif %}>{{ _('Annulée') }}</option>
+                      </select>
+                      <button class="btn btn-outline-dark btn-sm" type="submit">{{ _('Status') }}</button>
+                    </form>
+                    {% if inv.status != 'paid' %}
+                      <form method="post" action="{{ url_for('finance.invoice_mark_paid', invoice_id=inv.id) }}" class="d-inline-block">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="next" value="{{ request.full_path }}">
+                        <input type="hidden" name="account_id" value="{{ inv.settlement_account_id or default_settlement_account_id or '' }}">
+                        <input type="hidden" name="payment_date" value="{{ today }}">
+                        <button class="btn btn-success btn-sm" type="submit">{{ _('Marquer payée') }}</button>
+                      </form>
+                    {% endif %}
                     <a class="btn btn-outline-primary btn-sm" href="{{ url_for('finance.invoice_export', invoice_id=inv.id, country='fr') }}">{{ _('FR ZIP') }}</a>
                     <a class="btn btn-outline-primary btn-sm" href="{{ url_for('finance.invoice_export', invoice_id=inv.id, country='it') }}">{{ _('IT ZIP') }}</a>
+                    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('finance.invoice_export', invoice_id=inv.id, country='br') }}">{{ _('BR ZIP') }}</a>
                   </div>
                 </td>
               </tr>
@@ -70,6 +220,82 @@
             {% endfor %}
           </tbody>
         </table>
+      </div>
+    </div>
+  </div>
+
+  {% if pagination and pagination.pages > 1 %}
+    <nav aria-label="{{ _('Pagination factures') }}" class="mt-3">
+      <ul class="pagination pagination-sm mb-0 justify-content-end">
+        <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('finance.invoices_list', page=(pagination.prev_num if pagination.has_prev else pagination.page), per_page=filters.per_page, q=filters.q, status=filters.status, invoice_type=filters.invoice_type, counterparty_id=filters.counterparty_id, issue_from=filters.issue_from, issue_to=filters.issue_to, due_from=filters.due_from, due_to=filters.due_to) }}">{{ _('Précédent') }}</a>
+        </li>
+        {% for p in pagination.iter_pages(left_edge=1, left_current=1, right_current=2, right_edge=1) %}
+          {% if p %}
+            <li class="page-item {% if p == pagination.page %}active{% endif %}">
+              <a class="page-link" href="{{ url_for('finance.invoices_list', page=p, per_page=filters.per_page, q=filters.q, status=filters.status, invoice_type=filters.invoice_type, counterparty_id=filters.counterparty_id, issue_from=filters.issue_from, issue_to=filters.issue_to, due_from=filters.due_from, due_to=filters.due_to) }}">{{ p }}</a>
+            </li>
+          {% else %}
+            <li class="page-item disabled"><span class="page-link">…</span></li>
+          {% endif %}
+        {% endfor %}
+        <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+          <a class="page-link" href="{{ url_for('finance.invoices_list', page=(pagination.next_num if pagination.has_next else pagination.page), per_page=filters.per_page, q=filters.q, status=filters.status, invoice_type=filters.invoice_type, counterparty_id=filters.counterparty_id, issue_from=filters.issue_from, issue_to=filters.issue_to, due_from=filters.due_from, due_to=filters.due_to) }}">{{ _('Suivant') }}</a>
+        </li>
+      </ul>
+    </nav>
+  {% endif %}
+
+  <div class="accordion mt-3" id="invoiceReportsAccordion">
+    <div class="accordion-item">
+      <h2 class="accordion-header" id="headingDebtors">
+        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseDebtors" aria-expanded="false" aria-controls="collapseDebtors">
+          {{ _('Contreparties débiteurs') }}
+        </button>
+      </h2>
+      <div id="collapseDebtors" class="accordion-collapse collapse" aria-labelledby="headingDebtors" data-bs-parent="#invoiceReportsAccordion">
+        <div class="accordion-body">
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>{{ _('Contraparte') }}</th>
+                  <th class="text-end">{{ _('Factures ouvertes') }}</th>
+                  <th class="text-end">{{ _('Expirées') }}</th>
+                  <th class="text-end">{{ _('Total dû') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in reports.debtors %}
+                  <tr>
+                    <td>{{ row.counterparty.name }}</td>
+                    <td class="text-end">{{ row.invoice_count }}</td>
+                    <td class="text-end">{{ row.overdue_count }}</td>
+                    <td class="text-end">{{ '%.2f'|format(row.total_due or 0) }}</td>
+                  </tr>
+                {% else %}
+                  <tr>
+                    <td colspan="4" class="text-center text-secondary py-3">{{ _('Aucun débiteur en cours.') }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="invoicePreviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="invoicePreviewTitle">{{ _('Prévisualisation facture') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Fermer') }}"></button>
+        </div>
+        <div class="modal-body p-0" style="height: 80vh;">
+          <iframe id="invoicePreviewFrame" src="" style="width:100%;height:100%;border:0;" title="{{ _('Prévisualisation facture') }}"></iframe>
+        </div>
       </div>
     </div>
   </div>
@@ -95,4 +321,32 @@
       }
     }
   </style>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script>
+    window.onReady(function() {
+      const previewTitleBase = "{{ _('Prévisualisation facture') }}";
+      const modalEl = document.getElementById('invoicePreviewModal');
+      const frame = document.getElementById('invoicePreviewFrame');
+      const title = document.getElementById('invoicePreviewTitle');
+      if (!modalEl || !frame || !title || !window.bootstrap) return;
+
+      const modal = window.bootstrap.Modal.getOrCreateInstance(modalEl);
+      document.querySelectorAll('.js-invoice-preview').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          const url = btn.getAttribute('data-preview-url') || '';
+          const label = btn.getAttribute('data-invoice-label') || '';
+          title.textContent = previewTitleBase + (label ? (' - ' + label) : '');
+          frame.src = url;
+          modal.show();
+        });
+      });
+
+      modalEl.addEventListener('hidden.bs.modal', function() {
+        frame.src = '';
+      });
+    });
+  </script>
 {% endblock %}

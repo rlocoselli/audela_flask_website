@@ -140,6 +140,34 @@
               <button class="btn btn-outline-secondary btn-sm" type="button" data-prompt="{{ _('Compare this month versus previous month') }}">{{ _('Month over month') }}</button>
             </div>
           </div>
+
+          <div class="col-12">
+            <label class="form-label mb-1" for="biLiteExecutiveGuide">{{ _('Executive output style guide (free text)') }}</label>
+            <textarea id="biLiteExecutiveGuide" class="form-control" rows="2" placeholder="{{ _('Example: style editorial, palette ocean blue, sections KPI + charts + timeline, hide SQL, concise tone for CEO') }}"></textarea>
+            <div class="d-none d-flex flex-wrap align-items-center gap-2 mt-2" id="biLiteExecutiveGuideChips">
+              <span class="small text-secondary">{{ _('Shortcuts') }}:</span>
+              <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="palette ocean blue">{{ _('Palette: Ocean') }}</button>
+              <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="palette forest green">{{ _('Palette: Forest') }}</button>
+              <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="style editorial">{{ _('Style: Editorial') }}</button>
+              <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="style corporate board">{{ _('Style: Board') }}</button>
+              <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="sections kpi charts trends timeline data">{{ _('Sections: Full') }}</button>
+              <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="without sql">{{ _('Hide SQL') }}</button>
+              <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="images football stadium supporters club">{{ _('Images: Football') }}</button>
+              <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="images banking finance executive">{{ _('Images: Banking') }}</button>
+              <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="images enterprise corporate strategy">{{ _('Images: Enterprise') }}</button>
+              <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="tone concise for executive committee">{{ _('Tone: Concise') }}</button>
+            </div>
+            <div class="d-none d-flex flex-wrap align-items-center gap-2 mt-2" id="biLiteExecutiveGuidePresets">
+              <span class="small text-secondary">{{ _('Preset packs') }}:</span>
+              <button class="btn btn-outline-primary btn-sm" type="button" data-guide-preset="style corporate board; palette graphite; sections kpi charts trends timeline data; without sql; tone concise for board">{{ _('Board pack') }}</button>
+              <button class="btn btn-outline-primary btn-sm" type="button" data-guide-preset="style editorial; palette ocean blue; sections kpi charts trends timeline data; tone concise with strategic highlights">{{ _('Investor pack') }}</button>
+              <button class="btn btn-outline-primary btn-sm" type="button" data-guide-preset="style modern tech; palette forest green; sections kpi charts data timeline; tone operational and actionable">{{ _('Operational pack') }}</button>
+              <button class="btn btn-outline-warning btn-sm" type="button" data-guide-preset="style editorial; palette ocean blue; sections kpi charts trends timeline images data; images football stadium supporters club team; tone concise and competitive for club board">{{ _('Football Club pack') }}</button>
+              <button class="btn btn-outline-warning btn-sm" type="button" data-guide-preset="style corporate board; palette graphite; sections kpi charts trends timeline images data; images banking finance executive risk management; tone concise for banking committee">{{ _('Banking pack') }}</button>
+              <button class="btn btn-outline-warning btn-sm" type="button" data-guide-preset="style modern tech; palette forest green; sections kpi charts trends timeline images data; images enterprise corporate strategy leadership; tone concise for enterprise leadership">{{ _('Enterprise pack') }}</button>
+              <button class="btn btn-outline-secondary btn-sm" type="button" id="biLiteExecutiveGuideReset">{{ _('Reset guide') }}</button>
+            </div>
+          </div>
         </form>
       </div>
     </div>
@@ -308,6 +336,7 @@
     const dashboardStatusEl = document.getElementById('biLiteDashboardStatus');
     const executiveStatusEl = document.getElementById('biLiteExecutiveStatus');
     const executiveOpenTabEl = document.getElementById('biLiteExecutiveOpenTab');
+    const executiveGuideEl = document.getElementById('biLiteExecutiveGuide');
     const executiveQuickLinksEl = document.getElementById('biLiteExecutiveQuickLinks');
     const executiveJumpTopEl = document.getElementById('biLiteExecutiveJumpTop');
     const executiveDownloadTopEl = document.getElementById('biLiteExecutiveDownloadTop');
@@ -331,10 +360,13 @@
     const questionsClearBtn = document.getElementById('biLiteQuestionsClear');
     const questionsCloseBtn = document.getElementById('biLiteQuestionsModalClose');
     const chips = document.querySelectorAll('#biLitePromptChips [data-prompt]');
+    const executiveGuideChips = document.querySelectorAll('#biLiteExecutiveGuideChips [data-guide]');
+    const executiveGuidePresetBtns = document.querySelectorAll('#biLiteExecutiveGuidePresets [data-guide-preset]');
+    const executiveGuideResetBtn = document.getElementById('biLiteExecutiveGuideReset');
     const vizTypeEl = document.getElementById('biLiteVizType');
     const vizPreviewEl = document.getElementById('biLiteVizPreview');
     const vizBtns = Array.from(document.querySelectorAll('#biLiteVizPicker .vt-btn'));
-    if (!form || !sourceEl || !pickTablesBtn || !pickQuestionsBtn || !tablesSummaryEl || !questionsSummaryEl || !promptEl || !runBtn || !insightEl || !sqlEl || !rowCountEl || !tableEl || !warningsEl || !createDashBtn || !dashboardStatusEl || !createComparisonEl || !vizTypeEl || !vizPreviewEl || !createExecutiveBtn || !executiveStatusEl || !executiveOpenTabEl || !executiveQuickLinksEl || !executiveJumpTopEl || !executiveDownloadTopEl || !executiveFrameEl || !executiveDownloadEl || !executiveLoadingEl || !executiveLoadingTimeEl || !executivePreviewSectionEl || !tablesModalEl || !tablesSearchEl || !tablesListEl || !tablesCountEl || !tablesApplyBtn || !tablesClearBtn || !tablesCloseBtn || !questionsModalEl || !questionsSearchEl || !questionsListEl || !questionsCountEl || !questionsApplyBtn || !questionsClearBtn || !questionsCloseBtn) return;
+    if (!form || !sourceEl || !pickTablesBtn || !pickQuestionsBtn || !tablesSummaryEl || !questionsSummaryEl || !promptEl || !runBtn || !insightEl || !sqlEl || !rowCountEl || !tableEl || !warningsEl || !createDashBtn || !dashboardStatusEl || !createComparisonEl || !vizTypeEl || !vizPreviewEl || !createExecutiveBtn || !executiveStatusEl || !executiveOpenTabEl || !executiveGuideEl || !executiveQuickLinksEl || !executiveJumpTopEl || !executiveDownloadTopEl || !executiveFrameEl || !executiveDownloadEl || !executiveLoadingEl || !executiveLoadingTimeEl || !executivePreviewSectionEl || !tablesModalEl || !tablesSearchEl || !tablesListEl || !tablesCountEl || !tablesApplyBtn || !tablesClearBtn || !tablesCloseBtn || !questionsModalEl || !questionsSearchEl || !questionsListEl || !questionsCountEl || !questionsApplyBtn || !questionsClearBtn || !questionsCloseBtn) return;
 
     let rawData = { columns: [], rows: [] };
     let executiveHtmlUrl = '';
@@ -748,11 +780,11 @@
       const columns = Array.isArray(rawData.columns) ? rawData.columns : [];
       const rows = Array.isArray(rawData.rows) ? rawData.rows : [];
       if (!columns.length || !rows.length) {
-        vizPreviewEl.innerHTML = '<div class="text-secondary small p-3">' + (window.t ? window.t('No result yet.') : 'No result yet.') + '</div>';
+        vizPreviewEl.innerHTML = '<div class="text-secondary small p-3">{{ _('No result yet.') }}</div>';
         return;
       }
       if (!window.BI || typeof window.BI.renderViz !== 'function') {
-        vizPreviewEl.innerHTML = '<div class="text-danger small p-3">Visualizer not loaded.</div>';
+        vizPreviewEl.innerHTML = '<div class="text-danger small p-3">{{ _('Visualizer not loaded.') }}</div>';
         return;
       }
       vizPreviewEl.innerHTML = '';
@@ -776,6 +808,32 @@
         promptEl.focus();
       });
     });
+
+    executiveGuideChips.forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const snippet = String(chip.getAttribute('data-guide') || '').trim();
+        if (!snippet) return;
+        const current = String(executiveGuideEl.value || '').trim();
+        executiveGuideEl.value = current ? `${current}; ${snippet}` : snippet;
+        executiveGuideEl.focus();
+      });
+    });
+
+    executiveGuidePresetBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const preset = String(btn.getAttribute('data-guide-preset') || '').trim();
+        if (!preset) return;
+        executiveGuideEl.value = preset;
+        executiveGuideEl.focus();
+      });
+    });
+
+    if (executiveGuideResetBtn) {
+      executiveGuideResetBtn.addEventListener('click', () => {
+        executiveGuideEl.value = '';
+        executiveGuideEl.focus();
+      });
+    }
 
     sourceEl.addEventListener('change', () => {
       if (currentSourceId) {
@@ -976,6 +1034,7 @@
       const sourceId = Number(sourceEl.value || 0);
       const message = String(promptEl.value || '').trim();
       const currentAnalysis = String(insightEl.textContent || '').trim();
+      const executiveGuide = String(executiveGuideEl.value || '').trim();
       if (!sourceId || !message) {
         setExecutiveStatus('{{ _('Please choose a source and write the executive page request.') }}', true);
         return;
@@ -987,8 +1046,8 @@
         try {
           previewWindow = window.open('', '_blank');
           if (previewWindow && previewWindow.document) {
-            previewWindow.document.title = 'Executive preview';
-            previewWindow.document.body.innerHTML = '<div style="font-family:Segoe UI,Tahoma,Verdana,sans-serif;padding:20px;color:#334155">Preparing executive preview...</div>';
+            previewWindow.document.title = '{{ _('Executive preview') }}';
+            previewWindow.document.body.innerHTML = '<div style="font-family:Segoe UI,Tahoma,Verdana,sans-serif;padding:20px;color:#334155">{{ _('Preparing executive preview...') }}</div>';
           }
         } catch (e) {
           previewWindow = null;
@@ -1017,6 +1076,7 @@
             message,
             title: message.slice(0, 80),
             analysis: currentAnalysis,
+            executive_guide: executiveGuide,
             selected_tables: selectedTables,
             selected_question_ids: selectedQuestionIds,
           }),

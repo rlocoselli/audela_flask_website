@@ -123,8 +123,38 @@
         <div class="form-check mt-2">
           <input class="form-check-input" type="checkbox" value="1" id="excel-add-pivot" checked>
           <label class="form-check-label" for="excel-add-pivot">
-            {{ _('Adicionar tableau croisé (feuille Pivot)') }}
+            {{ _('Adicionar pivot (feuille Pivot + PivotDynamic interactif)') }}
           </label>
+        </div>
+
+        <div class="row g-2 mt-1" id="excel-pivot-config-box">
+          <div class="col-12">
+            <div class="small fw-semibold text-uppercase text-secondary">{{ _('Pivot') }}</div>
+          </div>
+          <div class="col-12 col-lg-4">
+            <label class="form-label">{{ _('Pivot linhas') }}</label>
+            <input class="form-control" id="excel-pivot-rows" placeholder="{{ _('Ex.: país, produto') }}" />
+            <div class="form-text">{{ _('Liste des champs ligne (séparés par virgule).') }}</div>
+          </div>
+          <div class="col-12 col-lg-4">
+            <label class="form-label">{{ _('Pivot colunas') }}</label>
+            <input class="form-control" id="excel-pivot-cols" placeholder="{{ _('Ex.: mês') }}" />
+            <div class="form-text">{{ _('Champ colonne optionnel.') }}</div>
+          </div>
+          <div class="col-12 col-lg-2">
+            <label class="form-label">{{ _('Pivot valor') }}</label>
+            <input class="form-control" id="excel-pivot-value" placeholder="{{ _('Ex.: receita') }}" />
+          </div>
+          <div class="col-12 col-lg-2">
+            <label class="form-label">{{ _('Agrégation') }}</label>
+            <select class="form-select" id="excel-pivot-agg">
+              <option value="sum">SUM</option>
+              <option value="count">COUNT</option>
+              <option value="avg">AVG</option>
+              <option value="min">MIN</option>
+              <option value="max">MAX</option>
+            </select>
+          </div>
         </div>
 
         <div class="d-flex align-items-center gap-2 mt-4">
@@ -176,6 +206,12 @@
       const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
       const templateSelect = document.getElementById('excel-template');
       const colorSelect = document.getElementById('excel-color-theme');
+      const addPivotEl = document.getElementById('excel-add-pivot');
+      const pivotConfigBox = document.getElementById('excel-pivot-config-box');
+      const pivotRowsEl = document.getElementById('excel-pivot-rows');
+      const pivotColsEl = document.getElementById('excel-pivot-cols');
+      const pivotValueEl = document.getElementById('excel-pivot-value');
+      const pivotAggEl = document.getElementById('excel-pivot-agg');
 
       function bindIconPicker(containerId, selectEl) {
         const picker = document.getElementById(containerId);
@@ -201,6 +237,21 @@
       bindIconPicker('excel-template-picker', templateSelect);
       bindIconPicker('excel-color-picker', colorSelect);
 
+      function parseCsvFields(raw) {
+        return String(raw || '')
+          .split(',')
+          .map((v) => v.trim())
+          .filter((v) => !!v);
+      }
+
+      function refreshPivotVisibility() {
+        if (!pivotConfigBox || !addPivotEl) return;
+        pivotConfigBox.classList.toggle('d-none', !addPivotEl.checked);
+      }
+
+      addPivotEl?.addEventListener('change', refreshPivotVisibility);
+      refreshPivotVisibility();
+
       btn?.addEventListener('click', async () => {
         const sourceId = document.getElementById('excel-source')?.value;
         const prompt = document.getElementById('excel-prompt')?.value || '';
@@ -211,6 +262,10 @@
         const templateName = document.getElementById('excel-template')?.value || 'clean';
         const colorTheme = document.getElementById('excel-color-theme')?.value || '';
         const addPivot = document.getElementById('excel-add-pivot')?.checked;
+        const pivotRows = parseCsvFields(pivotRowsEl?.value);
+        const pivotCols = parseCsvFields(pivotColsEl?.value);
+        const pivotValue = (pivotValueEl?.value || '').trim();
+        const pivotAgg = (pivotAggEl?.value || 'sum').trim().toLowerCase();
 
         if (!sourceId) {
           if (window.uiToast) window.uiToast(window.t('Selecione uma fonte.'), { variant: 'danger' });
@@ -236,6 +291,12 @@
               title: title,
               add_chart: !!addChart,
               add_pivot: !!addPivot,
+              pivot_config: addPivot ? {
+                rows: pivotRows,
+                columns: pivotCols,
+                value: pivotValue,
+                agg: pivotAgg,
+              } : null,
               template: templateName,
               color_theme: colorTheme,
               max_rows: maxRows,
@@ -246,7 +307,7 @@
 
           if (!resp.ok) {
             const err = await resp.json().catch(() => ({}));
-            if (window.uiToast) window.uiToast(err.error || 'Falha ao gerar XLSX', { variant: 'danger' });
+            if (window.uiToast) window.uiToast(err.error || window.t('Unable to generate XLSX'), { variant: 'danger' });
             status.textContent = '';
             return;
           }

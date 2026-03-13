@@ -15,107 +15,169 @@
   <div class="card border-0 shadow-sm rounded-4 mb-3">
     <div class="card-body">
       <div class="row g-3">
-        <div class="col-12 col-xl-4">
-          <label class="form-label">{{ _('Pergunta') }}</label>
-          <select id="wf-question" class="form-select">
-            <option value="">—</option>
-            {% for q in questions %}
-              <option value="{{ q.id }}">{{ q.name }}</option>
-            {% endfor %}
-          </select>
-          <div class="form-text">{{ _('Escolha a pergunta BI usada como base da simulação.') }}</div>
-        </div>
+        <div class="col-12">
+          <div class="accordion" id="wfPhasesAccordion">
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="wf-phase-1-header">
+                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#wf-phase-1" aria-expanded="true" aria-controls="wf-phase-1">
+                  1) {{ _('Data context') }}
+                </button>
+              </h2>
+              <div id="wf-phase-1" class="accordion-collapse collapse show" aria-labelledby="wf-phase-1-header" data-bs-parent="#wfPhasesAccordion">
+                <div class="accordion-body">
+                  <div class="row g-3">
+                    <div class="col-12 col-xl-4">
+                      <label class="form-label">{{ _('Pergunta') }}</label>
+                      <select id="wf-question" class="form-select">
+                        <option value="">—</option>
+                        {% for q in questions %}
+                          <option value="{{ q.id }}">{{ q.name }}</option>
+                        {% endfor %}
+                      </select>
+                      <div class="form-text">{{ _('Escolha a pergunta BI usada como base da simulação.') }}</div>
+                    </div>
 
-        <div class="col-12 col-xl-4">
-          <label class="form-label">{{ _('Métrica numérica') }}</label>
-          <select id="wf-metric" class="form-select" disabled></select>
-          <div class="form-text">{{ _('Selecione a coluna numérica sobre a qual aplicar variação e delta.') }}</div>
-        </div>
+                    <div class="col-12 col-xl-4">
+                      <label class="form-label">{{ _('Input variable (X)') }}</label>
+                      <select id="wf-metric" class="form-select" disabled></select>
+                      <div class="form-text">{{ _('Select the numeric variable to change in your scenario.') }}</div>
+                    </div>
 
-        <div class="col-12 col-xl-4">
-          <label class="form-label">{{ _('Dimensão (opcional)') }}</label>
-          <select id="wf-dim" class="form-select" disabled></select>
-          <div class="form-text">{{ _('Agrupa os resultados por uma coluna (ex.: país, produto, canal).') }}</div>
-        </div>
+                    <div class="col-12 col-xl-4">
+                      <label class="form-label">{{ _('Impacted variable (Y, optional)') }}</label>
+                      <select id="wf-target" class="form-select" disabled></select>
+                      <div class="form-text">{{ _('Estimate the impact of X on another numeric variable Y.') }}</div>
+                    </div>
 
-        <div class="col-12 col-xl-6">
-          <label class="form-label">{{ _('Parâmetros (JSON)') }}</label>
-          <textarea id="wf-params" class="form-control" rows="4" placeholder='{"ano": 2026}'>{}</textarea>
-          <div class="form-text">{{ _('Use um objeto JSON para filtros da pergunta.') }}</div>
-        </div>
+                    <div class="col-12 col-xl-4">
+                      <label class="form-label">{{ _('Dimensão (opcional)') }}</label>
+                      <select id="wf-dim" class="form-select" disabled></select>
+                      <div class="form-text">{{ _('Agrupa os resultados por uma coluna (ex.: país, produto, canal).') }}</div>
+                    </div>
 
-        <div class="col-12 col-sm-6 col-xl-2">
-          <label class="form-label">{{ _('Variação (%)') }}</label>
-          <input id="wf-pct" type="number" step="0.1" class="form-control" value="10">
-          <div class="form-text">{{ _('10 aumenta 10% cada valor; -10 reduz 10%.') }}</div>
-        </div>
+                    <div class="col-12 col-xl-6">
+                      <label class="form-label">{{ _('Parâmetros (JSON)') }}</label>
+                      <textarea id="wf-params" class="form-control" rows="4" placeholder='{"ano": 2026}'>{}</textarea>
+                      <div class="form-text">{{ _('Use um objeto JSON para filtros da pergunta.') }}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-        <div class="col-12 col-sm-6 col-xl-2">
-          <label class="form-label">{{ _('Delta por linha') }}</label>
-          <input id="wf-delta" type="number" step="any" class="form-control" value="0">
-          <div class="form-text">{{ _('Valor fixo somado a cada linha após aplicar a variação.') }}</div>
-        </div>
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="wf-phase-2-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#wf-phase-2" aria-expanded="false" aria-controls="wf-phase-2">
+                  2) {{ _('Scenario shock') }}
+                </button>
+              </h2>
+              <div id="wf-phase-2" class="accordion-collapse collapse" aria-labelledby="wf-phase-2-header" data-bs-parent="#wfPhasesAccordion">
+                <div class="accordion-body">
+                  <div class="row g-3">
+                    <div class="col-12 col-sm-6 col-xl-3">
+                      <label class="form-label">{{ _('Variação (%)') }}</label>
+                      <input id="wf-pct" type="number" step="0.1" class="form-control" value="10">
+                      <div class="form-text">{{ _('10 aumenta 10% cada valor; -10 reduz 10%.') }}</div>
+                    </div>
 
-        <div class="col-12 col-sm-6 col-xl-2">
-          <label class="form-label">{{ _('Méthode') }}</label>
-          <select id="wf-method" class="form-select">
-            <option value="deterministic">{{ _('Déterministe') }}</option>
-            <option value="stress">{{ _('Stress test (probabilisé)') }}</option>
-            <option value="montecarlo">{{ _('Monte Carlo') }}</option>
-          </select>
-          <div class="form-text">{{ _('Choisissez le type de simulation avancée.') }}</div>
-        </div>
+                    <div class="col-12 col-sm-6 col-xl-3">
+                      <label class="form-label">{{ _('Delta por linha') }}</label>
+                      <input id="wf-delta" type="number" step="any" class="form-control" value="0">
+                      <div class="form-text">{{ _('Valor fixo somado a cada linha após aplicar a variação.') }}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-        <div class="col-12 col-sm-6 col-xl-2">
-          <label class="form-label">{{ _('Distribution (Monte Carlo)') }}</label>
-          <select id="wf-dist" class="form-select">
-            <option value="normal">{{ _('Normale') }}</option>
-            <option value="uniform">{{ _('Uniforme') }}</option>
-            <option value="triangular">{{ _('Triangulaire') }}</option>
-          </select>
-          <div class="form-text">{{ _('Loi utilisée pour tirer les chocs aléatoires.') }}</div>
-        </div>
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="wf-phase-3-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#wf-phase-3" aria-expanded="false" aria-controls="wf-phase-3">
+                  3) {{ _('Advanced simulation') }}
+                </button>
+              </h2>
+              <div id="wf-phase-3" class="accordion-collapse collapse" aria-labelledby="wf-phase-3-header" data-bs-parent="#wfPhasesAccordion">
+                <div class="accordion-body">
+                  <div class="row g-3">
+                    <div class="col-12 col-sm-6 col-xl-2">
+                      <label class="form-label">{{ _('Méthode') }}</label>
+                      <select id="wf-method" class="form-select">
+                        <option value="deterministic">{{ _('Déterministe') }}</option>
+                        <option value="stress">{{ _('Stress test (probabilisé)') }}</option>
+                        <option value="montecarlo">{{ _('Monte Carlo') }}</option>
+                      </select>
+                      <div class="form-text">{{ _('Choisissez le type de simulation avancée.') }}</div>
+                    </div>
 
-        <div class="col-12 col-sm-6 col-xl-2">
-          <label class="form-label">{{ _('Volatilité (%)') }}</label>
-          <input id="wf-vol" type="number" step="0.1" class="form-control" value="10">
-          <div class="form-text">{{ _('Amplitude du choc aléatoire autour du scénario central.') }}</div>
-        </div>
+                    <div class="col-12 col-sm-6 col-xl-2">
+                      <label class="form-label">{{ _('Distribution (Monte Carlo)') }}</label>
+                      <select id="wf-dist" class="form-select">
+                        <option value="normal">{{ _('Normale') }}</option>
+                        <option value="uniform">{{ _('Uniforme') }}</option>
+                        <option value="triangular">{{ _('Triangulaire') }}</option>
+                      </select>
+                      <div class="form-text">{{ _('Loi utilisée pour tirer les chocs aléatoires.') }}</div>
+                    </div>
 
-        <div class="col-12 col-sm-6 col-xl-2">
-          <label class="form-label">{{ _('Runs Monte Carlo') }}</label>
-          <input id="wf-runs" type="number" min="100" max="5000" step="100" class="form-control" value="1000">
-          <div class="form-text">{{ _('Nombre de tirages pour estimer la distribution.') }}</div>
-        </div>
+                    <div class="col-12 col-sm-6 col-xl-2">
+                      <label class="form-label">{{ _('Volatilité (%)') }}</label>
+                      <input id="wf-vol" type="number" step="0.1" class="form-control" value="10">
+                      <div class="form-text">{{ _('Amplitude du choc aléatoire autour du scénario central.') }}</div>
+                    </div>
 
-        <div class="col-12 col-xl-6">
-          <label class="form-label">{{ _('Scénarios stress (JSON)') }}</label>
-          <textarea id="wf-stress-json" class="form-control" rows="4">[
+                    <div class="col-12 col-sm-6 col-xl-2">
+                      <label class="form-label">{{ _('Runs Monte Carlo') }}</label>
+                      <input id="wf-runs" type="number" min="100" max="5000" step="100" class="form-control" value="1000">
+                      <div class="form-text">{{ _('Nombre de tirages pour estimer la distribution.') }}</div>
+                    </div>
+
+                    <div class="col-12 col-xl-6">
+                      <label class="form-label">{{ _('Scénarios stress (JSON)') }}</label>
+                      <textarea id="wf-stress-json" class="form-control" rows="4">[
   {"name":"Adverse","pct":-20,"prob":0.25},
   {"name":"Central","pct":0,"prob":0.5},
   {"name":"Optimiste","pct":15,"prob":0.25}
 ]</textarea>
-          <div class="form-text">{{ _('Liste des scénarios: nom, choc %, probabilité. Les probabilités sont normalisées automatiquement.') }}</div>
-        </div>
+                      <div class="form-text">{{ _('Liste des scénarios: nom, choc %, probabilité. Les probabilités sont normalisées automatiquement.') }}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-        <div class="col-12 col-xl-6">
-          <label class="form-label">{{ _('Scénarios enregistrés') }}</label>
-          <div class="row g-2">
-            <div class="col-12 col-md-5">
-              <input id="wf-scenario-name" type="text" class="form-control" placeholder="{{ _('Nom du scénario') }}">
-            </div>
-            <div class="col-12 col-md-7 d-flex gap-2">
-              <button id="wf-save-scenario" class="btn btn-outline-primary flex-fill" type="button">{{ _('Sauvegarder') }}</button>
-              <button id="wf-load-scenario" class="btn btn-outline-secondary flex-fill" type="button">{{ _('Charger') }}</button>
-              <button id="wf-delete-scenario" class="btn btn-outline-danger flex-fill" type="button">{{ _('Supprimer') }}</button>
-            </div>
-            <div class="col-12">
-              <select id="wf-saved-scenarios" class="form-select">
-                <option value="">—</option>
-              </select>
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="wf-phase-4-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#wf-phase-4" aria-expanded="false" aria-controls="wf-phase-4">
+                  4) {{ _('Saved scenarios') }}
+                </button>
+              </h2>
+              <div id="wf-phase-4" class="accordion-collapse collapse" aria-labelledby="wf-phase-4-header" data-bs-parent="#wfPhasesAccordion">
+                <div class="accordion-body">
+                  <div class="row g-3">
+                    <div class="col-12 col-xl-8">
+                      <label class="form-label">{{ _('Scénarios enregistrés') }}</label>
+                      <div class="row g-2">
+                        <div class="col-12 col-md-5">
+                          <input id="wf-scenario-name" type="text" class="form-control" placeholder="{{ _('Nom du scénario') }}">
+                        </div>
+                        <div class="col-12 col-md-7 d-flex gap-2">
+                          <button id="wf-save-scenario" class="btn btn-outline-primary flex-fill" type="button">{{ _('Sauvegarder') }}</button>
+                          <button id="wf-load-scenario" class="btn btn-outline-secondary flex-fill" type="button">{{ _('Charger') }}</button>
+                          <button id="wf-delete-scenario" class="btn btn-outline-danger flex-fill" type="button">{{ _('Supprimer') }}</button>
+                        </div>
+                        <div class="col-12">
+                          <select id="wf-saved-scenarios" class="form-select">
+                            <option value="">—</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div class="form-text">{{ _('Sauvegarde locale navigateur (profil utilisateur).') }}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-          <div class="form-text">{{ _('Sauvegarde locale navigateur (profil utilisateur).') }}</div>
         </div>
 
         <div class="col-12">
@@ -143,13 +205,13 @@
       <div class="row g-3 mb-3">
         <div class="col-12 col-md-3">
           <div class="border rounded-3 p-2">
-            <div class="text-secondary small">{{ _('Base') }}</div>
+            <div class="text-secondary small" id="wf-kpi-base-label">{{ _('Base') }}</div>
             <div class="h5 mb-0" id="wf-kpi-base">0</div>
           </div>
         </div>
         <div class="col-12 col-md-3">
           <div class="border rounded-3 p-2">
-            <div class="text-secondary small">{{ _('Simulado') }}</div>
+            <div class="text-secondary small" id="wf-kpi-sim-label">{{ _('Simulado') }}</div>
             <div class="h5 mb-0" id="wf-kpi-sim">0</div>
           </div>
         </div>
@@ -181,6 +243,7 @@
       </div>
 
       <div class="alert alert-info py-2" id="wf-explanation"></div>
+      <div class="alert alert-secondary py-2 d-none" id="wf-impact-model"></div>
 
       <div class="table-responsive">
         <table class="table table-sm align-middle" id="wf-table">
@@ -188,9 +251,9 @@
             <tr>
               <th id="wf-th-dim">{{ _('Dimensão') }}</th>
               <th class="text-end">{{ _('Linhas') }}</th>
-              <th class="text-end">{{ _('Valor base') }}</th>
-              <th class="text-end">{{ _('Valor simulado') }}</th>
-              <th class="text-end">{{ _('Diferença') }}</th>
+              <th class="text-end" id="wf-th-base">{{ _('Valor base') }}</th>
+              <th class="text-end" id="wf-th-sim">{{ _('Valor simulado') }}</th>
+              <th class="text-end" id="wf-th-diff">{{ _('Diferença') }}</th>
             </tr>
           </thead>
           <tbody id="wf-tbody"></tbody>

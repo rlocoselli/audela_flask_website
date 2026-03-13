@@ -22,7 +22,7 @@
           <button class="btn btn-sm btn-primary" id="pm-add-card">{{ _('Nouvelle carte') }}</button>
         </div>
         <div class="row g-2" id="pm-kanban">
-          <div class="col-md-3"><div class="border rounded p-2" data-col="backlog"><div class="fw-semibold small mb-2">Backlog</div><div class="d-grid gap-2 pm-col-body"></div></div></div>
+          <div class="col-md-3"><div class="border rounded p-2" data-col="backlog"><div class="fw-semibold small mb-2">{{ _('Backlog') }}</div><div class="d-grid gap-2 pm-col-body"></div></div></div>
           <div class="col-md-3"><div class="border rounded p-2" data-col="todo"><div class="fw-semibold small mb-2">{{ _('À faire') }}</div><div class="d-grid gap-2 pm-col-body"></div></div></div>
           <div class="col-md-3"><div class="border rounded p-2" data-col="doing"><div class="fw-semibold small mb-2">{{ _('En cours') }}</div><div class="d-grid gap-2 pm-col-body"></div></div></div>
           <div class="col-md-3"><div class="border rounded p-2" data-col="done"><div class="fw-semibold small mb-2">{{ _('Terminé') }}</div><div class="d-grid gap-2 pm-col-body"></div></div></div>
@@ -219,7 +219,7 @@
         const el = document.getElementById('pm-deliverables');
         el.innerHTML = '';
         if (!state.deliverables.length) {
-          el.innerHTML = '<span class="text-secondary">Aucun item</span>';
+          el.innerHTML = '<span class="text-secondary">{{ _('No items') }}</span>';
           return;
         }
         const ul = document.createElement('ul');

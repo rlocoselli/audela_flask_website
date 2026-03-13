@@ -1,0 +1,345 @@
+{% extends "finance/base_finance.html" %}
+
+{% block finance_content %}
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div>
+      <h4 class="mb-0">{{ _('Cockpit facturation') }}</h4>
+      <div class="text-secondary small">{{ _('Vue graphique des encaissements à recevoir et du risque d\'échéance.') }}</div>
+    </div>
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.invoices_list') }}">{{ _('E-factures') }}</a>
+      <form method="get" action="{{ url_for('finance.invoices_cockpit') }}" class="d-flex gap-2">
+        <select class="form-select form-select-sm" name="horizon_days" onchange="this.form.submit()">
+          {% for opt in [7, 14, 30, 60, 90] %}
+            <option value="{{ opt }}" {% if horizon_days == opt %}selected{% endif %}>{{ opt }}j</option>
+          {% endfor %}
+        </select>
+      </form>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-lg-3 col-md-6">
+      <a class="text-decoration-none" href="{{ url_for('finance.invoices_list', kpi='unpaid') }}">
+        <div class="card border-0 shadow-sm h-100 invoice-kpi-card js-kpi-card" data-kpi-key="unpaid">
+          <div class="card-body">
+            <div class="text-secondary small">{{ _('Montant à recevoir') }}</div>
+            <div class="h5 mb-1">{{ '%.2f'|format(kpis.open_amount) }} {{ company.base_currency }}</div>
+            <div class="small text-muted">{{ kpis.open_count }} {{ _('Impayées') }}</div>
+          </div>
+        </div>
+      </a>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <a class="text-decoration-none" href="{{ url_for('finance.invoices_list', kpi='overdue') }}">
+        <div class="card border-danger shadow-sm h-100 invoice-kpi-card js-kpi-card" data-kpi-key="overdue">
+          <div class="card-body">
+            <div class="text-secondary small">{{ _('Montant en retard') }}</div>
+            <div class="h5 mb-1 text-danger">{{ '%.2f'|format(kpis.overdue_amount) }} {{ company.base_currency }}</div>
+            <div class="small text-muted">{{ kpis.overdue_count }} {{ _('Expirées') }}</div>
+          </div>
+        </div>
+      </a>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <a class="text-decoration-none" href="{{ url_for('finance.invoices_list', kpi='due_soon') }}">
+        <div class="card border-0 shadow-sm h-100 invoice-kpi-card js-kpi-card" data-kpi-key="due_soon">
+          <div class="card-body">
+            <div class="text-secondary small">{{ _('À recevoir (7 jours)') }}</div>
+            <div class="h5 mb-1">{{ '%.2f'|format(kpis.due_7_amount) }} {{ company.base_currency }}</div>
+            <div class="small text-muted">{{ kpis.due_7_count }} {{ _('À échéance (7 jours)') }}</div>
+          </div>
+        </div>
+      </a>
+    </div>
+    <div class="col-lg-3 col-md-6">
+      <a class="text-decoration-none" href="{{ url_for('finance.invoices_list', kpi='unpaid') }}">
+        <div class="card border-0 shadow-sm h-100 invoice-kpi-card js-kpi-card" data-kpi-key="due_30">
+          <div class="card-body">
+            <div class="text-secondary small">{{ _('À recevoir (30 jours)') }}</div>
+            <div class="h5 mb-1">{{ '%.2f'|format(kpis.due_30_amount) }} {{ company.base_currency }}</div>
+            <div class="small text-muted">{{ kpis.due_30_count }} {{ _('À échéance (30 jours)') }}</div>
+          </div>
+        </div>
+      </a>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-xl-5">
+      <div class="card shadow-sm h-100">
+        <div class="card-header fw-semibold">{{ _('Répartition des échéances') }}</div>
+        <div class="card-body">
+          <div id="invoice-cockpit-buckets" style="height: 320px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-7">
+      <div class="card shadow-sm h-100">
+        <div class="card-header fw-semibold">{{ _('Prévisions d\'encaissement ({days} jours)', days=horizon_days) }}</div>
+        <div class="card-body">
+          <div id="invoice-cockpit-daily" style="height: 320px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-12">
+      <div class="card shadow-sm">
+        <div class="card-header fw-semibold">{{ _('Top contreparties débitrices') }}</div>
+        <div class="card-body">
+          <div id="invoice-cockpit-debtors" style="height: 320px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="invoiceCockpitDrillModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="invoiceCockpitDrillTitle">{{ _('Drill-down facturation') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Fermer') }}"></button>
+        </div>
+        <div class="modal-body">
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>{{ _('Facture') }}</th>
+                  <th>{{ _('Contraparte') }}</th>
+                  <th>{{ _('Status') }}</th>
+                  <th>{{ _('Échéance') }}</th>
+                  <th class="text-end">{{ _('Jours restants') }}</th>
+                  <th class="text-end">{{ _('Total') }}</th>
+                </tr>
+              </thead>
+              <tbody id="invoiceCockpitDrillBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <a id="invoiceCockpitDrillOpenList" class="btn btn-outline-primary btn-sm" href="{{ url_for('finance.invoices_list') }}">{{ _('Ouvrir la liste filtrée') }}</a>
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">{{ _('Fermer') }}</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="application/json" id="invoiceCockpitBucketData">{{ buckets|tojson }}</script>
+  <script type="application/json" id="invoiceCockpitDailyData">{{ daily_series|tojson }}</script>
+  <script type="application/json" id="invoiceCockpitDebtorsData">{{ debtors|tojson }}</script>
+  <script type="application/json" id="invoiceCockpitRowsData">{{ invoice_rows|tojson }}</script>
+{% endblock %}
+
+{% block head_extra %}
+  {{ super() }}
+  <style>
+    .invoice-kpi-card {
+      transition: box-shadow .18s ease, transform .18s ease, border-color .18s ease;
+    }
+
+    .invoice-kpi-card:hover {
+      transform: translateY(-1px);
+    }
+
+    .invoice-kpi-card.is-active {
+      border-color: #0d6efd !important;
+      box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.2) !important;
+    }
+  </style>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script>
+    (window.onReady || function(fn){ window.addEventListener('load', fn); })(function(){
+      if (!window.echarts) {
+        return;
+      }
+
+      const currency = "{{ company.base_currency or 'EUR' }}";
+      const listBaseUrl = "{{ url_for('finance.invoices_list') }}";
+      const listOverdueUrl = "{{ url_for('finance.invoices_list', kpi='overdue') }}";
+      const listDueSoonUrl = "{{ url_for('finance.invoices_list', kpi='due_soon') }}";
+      const listUnpaidUrl = "{{ url_for('finance.invoices_list', kpi='unpaid') }}";
+      const listDebtorsUrl = "{{ url_for('finance.invoices_list', kpi='debtors') }}";
+      const invoiceViewBase = "{{ url_for('finance.invoice_view', invoice_id=0) }}";
+
+      const bucketData = JSON.parse(document.getElementById('invoiceCockpitBucketData').textContent || '[]');
+      const dailyData = JSON.parse(document.getElementById('invoiceCockpitDailyData').textContent || '[]');
+      const debtorsData = JSON.parse(document.getElementById('invoiceCockpitDebtorsData').textContent || '[]');
+      const invoiceRows = JSON.parse(document.getElementById('invoiceCockpitRowsData').textContent || '[]');
+
+      const drillModalEl = document.getElementById('invoiceCockpitDrillModal');
+      const drillTitleEl = document.getElementById('invoiceCockpitDrillTitle');
+      const drillBodyEl = document.getElementById('invoiceCockpitDrillBody');
+      const drillOpenListEl = document.getElementById('invoiceCockpitDrillOpenList');
+      const drillModal = window.bootstrap?.Modal ? window.bootstrap.Modal.getOrCreateInstance(drillModalEl) : null;
+
+      const textNoRows = "{{ _('Aucune facture pour ce segment.') }}";
+      const textDrill = "{{ _('Drill-down facturation') }}";
+      const textSegment = "{{ _('Segment') }}";
+      let selectedKpiKey = null;
+
+      function applyKpiActiveState() {
+        document.querySelectorAll('.js-kpi-card').forEach(function(card) {
+          const on = selectedKpiKey && card.getAttribute('data-kpi-key') === selectedKpiKey;
+          card.classList.toggle('is-active', !!on);
+        });
+      }
+
+      function setActiveKpi(key) {
+        selectedKpiKey = key || null;
+        applyKpiActiveState();
+      }
+
+      function formatMoney(value) {
+        const n = Number(value || 0);
+        return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ' + currency;
+      }
+
+      function renderDrillRows(title, rows, queryUrl) {
+        drillTitleEl.textContent = textDrill + ' - ' + title + ' (' + rows.length + ')';
+        drillOpenListEl.setAttribute('href', queryUrl || listBaseUrl);
+
+        if (!rows.length) {
+          drillBodyEl.innerHTML = '<tr><td colspan="6" class="text-center text-secondary py-3">' + textNoRows + '</td></tr>';
+          if (drillModal) drillModal.show();
+          return;
+        }
+
+        drillBodyEl.innerHTML = rows.slice(0, 300).map(function(row) {
+          const due = row.due_date || '';
+          const days = (row.days_to_due === null || row.days_to_due === undefined) ? '-' : row.days_to_due;
+          return '<tr>' +
+            '<td><a href="' + invoiceViewBase.replace('/0', '/' + row.id) + '">' + (row.number || '') + '</a></td>' +
+            '<td>' + (row.counterparty || '') + '</td>' +
+            '<td>' + (row.status || '') + '</td>' +
+            '<td>' + due + '</td>' +
+            '<td class="text-end">' + days + '</td>' +
+            '<td class="text-end">' + formatMoney(row.amount) + '</td>' +
+          '</tr>';
+        }).join('');
+
+        if (drillModal) drillModal.show();
+      }
+
+      function rowsByBucket(bucketKey) {
+        return invoiceRows.filter(function(r){ return r.bucket === bucketKey; });
+      }
+
+      function rowsByDueDate(dateIso) {
+        return invoiceRows.filter(function(r){ return r.due_date === dateIso; });
+      }
+
+      function rowsByCounterparty(name) {
+        return invoiceRows.filter(function(r){ return r.counterparty === name; });
+      }
+
+      const bucketChart = echarts.init(document.getElementById('invoice-cockpit-buckets'));
+      bucketChart.setOption({
+        tooltip: {
+          trigger: 'axis',
+          axisPointer: { type: 'shadow' },
+          valueFormatter: function(v){ return formatMoney(v); }
+        },
+        xAxis: { type: 'category', data: bucketData.map(function(b){ return b.label; }) },
+        yAxis: { type: 'value' },
+        series: [{
+          type: 'bar',
+          data: bucketData.map(function(b){ return b.amount; }),
+          itemStyle: {
+            color: function(params) {
+              return params.dataIndex === 0 ? '#d9534f' : '#3b82f6';
+            }
+          }
+        }]
+      });
+
+      bucketChart.on('click', function(params) {
+        const clicked = bucketData[params.dataIndex];
+        if (!clicked) return;
+        const rows = rowsByBucket(clicked.key);
+        let queryUrl = listBaseUrl;
+        if (clicked.key === 'overdue') {
+          queryUrl = listOverdueUrl;
+          setActiveKpi('overdue');
+        } else if (clicked.key === 'd0_7') {
+          queryUrl = listDueSoonUrl;
+          setActiveKpi('due_soon');
+        } else if (clicked.key === 'd8_30') {
+          queryUrl = listUnpaidUrl;
+          setActiveKpi('due_30');
+        } else {
+          queryUrl = listUnpaidUrl;
+          setActiveKpi('unpaid');
+        }
+        renderDrillRows(textSegment + ': ' + clicked.label, rows, queryUrl);
+      });
+
+      const dailyChart = echarts.init(document.getElementById('invoice-cockpit-daily'));
+      dailyChart.setOption({
+        tooltip: {
+          trigger: 'axis',
+          valueFormatter: function(v){ return formatMoney(v); }
+        },
+        xAxis: {
+          type: 'category',
+          data: dailyData.map(function(d){ return d.date; }),
+        },
+        yAxis: { type: 'value' },
+        series: [{
+          type: 'line',
+          smooth: true,
+          areaStyle: { opacity: 0.12 },
+          data: dailyData.map(function(d){ return d.amount; })
+        }]
+      });
+
+      dailyChart.on('click', function(params) {
+        const point = dailyData[params.dataIndex];
+        if (!point) return;
+        const rows = rowsByDueDate(point.date);
+        const qUrl = listUnpaidUrl + '&due_from=' + encodeURIComponent(point.date) + '&due_to=' + encodeURIComponent(point.date);
+        setActiveKpi('due_30');
+        renderDrillRows(point.date, rows, qUrl);
+      });
+
+      const debtorChart = echarts.init(document.getElementById('invoice-cockpit-debtors'));
+      debtorChart.setOption({
+        tooltip: {
+          trigger: 'item',
+          valueFormatter: function(v){ return formatMoney(v); }
+        },
+        series: [{
+          type: 'pie',
+          radius: ['35%', '70%'],
+          data: debtorsData.map(function(d){ return { value: d.amount, name: d.counterparty }; })
+        }]
+      });
+
+      debtorChart.on('click', function(params) {
+        const cpName = params.name;
+        const rows = rowsByCounterparty(cpName);
+        const cp = debtorsData.find(function(d){ return d.counterparty === cpName; });
+        let qUrl = listDebtorsUrl;
+        if (cp && cp.counterparty_id) {
+          qUrl += '&counterparty_id=' + encodeURIComponent(cp.counterparty_id);
+        }
+        setActiveKpi('unpaid');
+        renderDrillRows(cpName, rows, qUrl);
+      });
+
+      document.querySelectorAll('.js-kpi-card').forEach(function(card) {
+        card.addEventListener('click', function() {
+          setActiveKpi(card.getAttribute('data-kpi-key'));
+        });
+      });
+
+      window.addEventListener('resize', function(){
+        try { bucketChart.resize(); } catch (_e) {}
+        try { dailyChart.resize(); } catch (_e) {}
+        try { debtorChart.resize(); } catch (_e) {}
+      });
+    });
+  </script>
+{% endblock %}

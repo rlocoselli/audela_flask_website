@@ -54,6 +54,7 @@ def build_invoice_pdf_bytes(
     company: FinanceCompany,
     cp: FinanceCounterparty | None,
     logo_path: str | None = None,
+    lang: str | None = None,
 ) -> bytes:
     """Generate a simple invoice PDF.
 
@@ -64,13 +65,109 @@ def build_invoice_pdf_bytes(
     c = canvas.Canvas(buf, pagesize=A4)
     w, h = A4
 
+    lang = (lang or "en").split("-")[0].lower()
+    is_br = (getattr(inv, "fiscal_country", "EU") or "EU").upper() == "BR"
+
+    labels = {
+        "fr": {
+            "invoice": "Facture",
+            "nota_fiscal": "Note fiscale",
+            "issue_date": "Date d'emission",
+            "due_date": "Date d'echeance",
+            "seller": "Vendeur",
+            "buyer": "Acheteur",
+            "vat": "TVA",
+            "tax": "Impots",
+            "description": "Description",
+            "qty": "Qt",
+            "unit": "Unite",
+            "total": "Total",
+            "net": "Net",
+        },
+        "pt": {
+            "invoice": "Fatura",
+            "nota_fiscal": "Nota Fiscal",
+            "issue_date": "Data de emissao",
+            "due_date": "Data de vencimento",
+            "seller": "Emitente",
+            "buyer": "Cliente",
+            "vat": "IVA",
+            "tax": "Impostos",
+            "description": "Descricao",
+            "qty": "Qtd",
+            "unit": "Unit",
+            "total": "Total",
+            "net": "Liquido",
+        },
+        "es": {
+            "invoice": "Factura",
+            "nota_fiscal": "Factura fiscal",
+            "issue_date": "Fecha de emision",
+            "due_date": "Fecha de vencimiento",
+            "seller": "Emisor",
+            "buyer": "Cliente",
+            "vat": "IVA",
+            "tax": "Impuestos",
+            "description": "Descripcion",
+            "qty": "Cant.",
+            "unit": "Unit.",
+            "total": "Total",
+            "net": "Neto",
+        },
+        "it": {
+            "invoice": "Fattura",
+            "nota_fiscal": "Nota fiscale",
+            "issue_date": "Data emissione",
+            "due_date": "Scadenza",
+            "seller": "Cedente",
+            "buyer": "Cessionario",
+            "vat": "IVA",
+            "tax": "Imposte",
+            "description": "Descrizione",
+            "qty": "Qta",
+            "unit": "Unita",
+            "total": "Totale",
+            "net": "Netto",
+        },
+        "de": {
+            "invoice": "Rechnung",
+            "nota_fiscal": "Steuerrechnung",
+            "issue_date": "Ausstellungsdatum",
+            "due_date": "Falligkeitsdatum",
+            "seller": "Verkaufer",
+            "buyer": "Kaufer",
+            "vat": "MwSt",
+            "tax": "Steuern",
+            "description": "Beschreibung",
+            "qty": "Menge",
+            "unit": "Einheit",
+            "total": "Gesamt",
+            "net": "Netto",
+        },
+    }.get(lang, {
+        "invoice": "Invoice",
+        "nota_fiscal": "Tax Invoice",
+        "issue_date": "Issue date",
+        "due_date": "Due date",
+        "seller": "Seller",
+        "buyer": "Buyer",
+        "vat": "VAT",
+        "tax": "Taxes",
+        "description": "Description",
+        "qty": "Qty",
+        "unit": "Unit",
+        "total": "Total",
+        "net": "Net",
+    })
+
     # Header
     c.setFont("Helvetica-Bold", 14)
-    c.drawString(20 * mm, h - 20 * mm, f"Invoice {inv.invoice_number}")
+    title_label = labels["nota_fiscal"] if is_br else labels["invoice"]
+    c.drawString(20 * mm, h - 20 * mm, f"{title_label} {inv.invoice_number}")
     c.setFont("Helvetica", 10)
-    c.drawString(20 * mm, h - 28 * mm, f"Issue date: {_iso(inv.issue_date)}")
+    c.drawString(20 * mm, h - 28 * mm, f"{labels['issue_date']}: {_iso(inv.issue_date)}")
     if inv.due_date:
-        c.drawString(20 * mm, h - 34 * mm, f"Due date: {_iso(inv.due_date)}")
+        c.drawString(20 * mm, h - 34 * mm, f"{labels['due_date']}: {_iso(inv.due_date)}")
 
     if logo_path:
         try:
@@ -82,7 +179,7 @@ def build_invoice_pdf_bytes(
     # Company block
     y = h - 50 * mm
     c.setFont("Helvetica-Bold", 10)
-    c.drawString(20 * mm, y, "Seller")
+    c.drawString(20 * mm, y, labels["seller"])
     c.setFont("Helvetica", 10)
     y -= 5 * mm
     c.drawString(20 * mm, y, company.name)
@@ -101,13 +198,13 @@ def build_invoice_pdf_bytes(
         c.drawString(20 * mm, y, company.country_code)
         y -= 5 * mm
     if company.vat_number:
-        c.drawString(20 * mm, y, f"VAT: {company.vat_number}")
+        c.drawString(20 * mm, y, f"{labels['vat']}: {company.vat_number}")
         y -= 5 * mm
 
     # Buyer block
     y2 = h - 50 * mm
     c.setFont("Helvetica-Bold", 10)
-    c.drawString(120 * mm, y2, "Buyer")
+    c.drawString(120 * mm, y2, labels["buyer"])
     c.setFont("Helvetica", 10)
     y2 -= 5 * mm
     if cp:
@@ -127,15 +224,15 @@ def build_invoice_pdf_bytes(
             c.drawString(120 * mm, y2, cp.country_code)
             y2 -= 5 * mm
         if cp.vat_number:
-            c.drawString(120 * mm, y2, f"VAT: {cp.vat_number}")
+            c.drawString(120 * mm, y2, f"{labels['vat']}: {cp.vat_number}")
 
     # Lines table header
     y = h - 90 * mm
     c.setFont("Helvetica-Bold", 10)
-    c.drawString(20 * mm, y, "Description")
-    c.drawString(120 * mm, y, "Qty")
-    c.drawString(140 * mm, y, "Unit")
-    c.drawString(165 * mm, y, "Total")
+    c.drawString(20 * mm, y, labels["description"])
+    c.drawString(120 * mm, y, labels["qty"])
+    c.drawString(140 * mm, y, labels["unit"])
+    c.drawString(165 * mm, y, labels["total"])
     c.line(20 * mm, y - 2 * mm, 190 * mm, y - 2 * mm)
 
     c.setFont("Helvetica", 10)
@@ -155,13 +252,23 @@ def build_invoice_pdf_bytes(
     c.line(120 * mm, y, 190 * mm, y)
     y -= 7 * mm
     c.setFont("Helvetica-Bold", 10)
-    c.drawRightString(160 * mm, y, "Net")
+    c.drawRightString(160 * mm, y, labels["net"])
     c.drawRightString(190 * mm, y, f"{totals.net:.2f} {inv.currency}")
     y -= 6 * mm
-    c.drawRightString(160 * mm, y, "VAT")
+    tax_label = labels["tax"] if is_br else labels["vat"]
+    c.drawRightString(160 * mm, y, tax_label)
     c.drawRightString(190 * mm, y, f"{totals.tax:.2f} {inv.currency}")
+    if is_br:
+        y -= 6 * mm
+        total_icms = sum((_d(getattr(ln, "icms_amount", 0)) for ln in inv.lines), Decimal("0"))
+        total_ipi = sum((_d(getattr(ln, "ipi_amount", 0)) for ln in inv.lines), Decimal("0"))
+        total_pis = sum((_d(getattr(ln, "pis_amount", 0)) for ln in inv.lines), Decimal("0"))
+        total_cofins = sum((_d(getattr(ln, "cofins_amount", 0)) for ln in inv.lines), Decimal("0"))
+        c.setFont("Helvetica", 9)
+        c.drawRightString(190 * mm, y, f"ICMS {total_icms:.2f} | IPI {total_ipi:.2f} | PIS {total_pis:.2f} | COFINS {total_cofins:.2f}")
+        c.setFont("Helvetica-Bold", 10)
     y -= 6 * mm
-    c.drawRightString(160 * mm, y, "Total")
+    c.drawRightString(160 * mm, y, labels["total"])
     c.drawRightString(190 * mm, y, f"{totals.gross:.2f} {inv.currency}")
 
     c.showPage()
@@ -413,6 +520,166 @@ def build_fatturapa_xml_bytes(inv: FinanceInvoice, company: FinanceCompany, cp: 
     return tostring(root, encoding="utf-8", xml_declaration=True)
 
 
+def _compute_br_tax_components(base: Decimal, icms_rate: Decimal, ipi_rate: Decimal, pis_rate: Decimal, cofins_rate: Decimal) -> dict[str, Decimal]:
+    icms = (base * icms_rate / Decimal("100")).quantize(Decimal("0.01"))
+    ipi = (base * ipi_rate / Decimal("100")).quantize(Decimal("0.01"))
+    pis = (base * pis_rate / Decimal("100")).quantize(Decimal("0.01"))
+    cofins = (base * cofins_rate / Decimal("100")).quantize(Decimal("0.01"))
+    return {
+        "icms": icms,
+        "ipi": ipi,
+        "pis": pis,
+        "cofins": cofins,
+        "tax_total": (icms + ipi + pis + cofins).quantize(Decimal("0.01")),
+    }
+
+
+def build_nfe_br_xml_bytes(
+    inv: FinanceInvoice,
+    company: FinanceCompany,
+    cp: FinanceCounterparty | None,
+    *,
+    icms_rate: Decimal = Decimal("18.00"),
+    ipi_rate: Decimal = Decimal("0.00"),
+    pis_rate: Decimal = Decimal("1.65"),
+    cofins_rate: Decimal = Decimal("7.60"),
+) -> bytes:
+    """Build a pragmatic NFe-like XML payload for Brazil with core tax blocks.
+
+    This is an integration starter and not a complete SEFAZ submission payload.
+    """
+    root = Element("NFe")
+    inf = SubElement(root, "infNFe", {
+        "versao": "4.00",
+        "Id": f"NFe{inv.invoice_number}",
+    })
+
+    ide = SubElement(inf, "ide")
+    SubElement(ide, "cNF").text = str(inv.cnf_code or inv.id)
+    SubElement(ide, "natOp").text = str(inv.natureza_operacao or ("VENDA" if (inv.invoice_type or "sale") == "sale" else "COMPRA"))
+    SubElement(ide, "mod").text = str(inv.document_model or "55")
+    SubElement(ide, "serie").text = str(inv.document_series or "1")
+    SubElement(ide, "nNF").text = inv.invoice_number
+    SubElement(ide, "dhEmi").text = _iso(inv.issue_date)
+    SubElement(ide, "tpNF").text = "1" if (inv.invoice_type or "sale") == "sale" else "0"
+    SubElement(ide, "idDest").text = str(inv.operation_destination or "1")
+    SubElement(ide, "indPag").text = str(inv.payment_indicator or "0")
+    SubElement(ide, "indPres").text = str(inv.presence_indicator or "1")
+    SubElement(ide, "finNFe").text = str(inv.invoice_purpose or "1")
+    SubElement(ide, "tpEmis").text = str(inv.emission_type or "1")
+    SubElement(ide, "tpAmb").text = "1" if (inv.sefaz_environment or "homologation") == "production" else "2"
+
+    emit = SubElement(inf, "emit")
+    SubElement(emit, "xNome").text = company.name
+    company_tax_id = (
+        getattr(company, "tax_id", None)
+        or getattr(company, "vat_number", None)
+        or getattr(company, "registration_number", None)
+    )
+    if company_tax_id:
+        normalized_tax_id = "".join(ch for ch in str(company_tax_id) if ch.isdigit())
+        if len(normalized_tax_id) <= 11:
+            SubElement(emit, "CPF").text = normalized_tax_id or str(company_tax_id)
+        else:
+            SubElement(emit, "CNPJ").text = normalized_tax_id or str(company_tax_id)
+    end_emit = SubElement(emit, "enderEmit")
+    SubElement(end_emit, "xLgr").text = company.address_line1 or ""
+    SubElement(end_emit, "xMun").text = company.city or ""
+    SubElement(end_emit, "UF").text = (company.state or "").upper()[:2] or "SP"
+    SubElement(end_emit, "CEP").text = (company.postal_code or "").replace("-", "")[:8]
+    SubElement(end_emit, "cPais").text = "1058"
+    SubElement(end_emit, "xPais").text = "BRASIL"
+
+    dest = SubElement(inf, "dest")
+    SubElement(dest, "xNome").text = (cp.name if cp else "CONSUMIDOR FINAL")
+    if cp and cp.tax_id:
+        if len((cp.tax_id or "").strip()) <= 11:
+            SubElement(dest, "CPF").text = cp.tax_id
+        else:
+            SubElement(dest, "CNPJ").text = cp.tax_id
+    SubElement(dest, "indFinal").text = "1" if bool(inv.final_consumer) else "0"
+
+    total_base = Decimal("0")
+    total_icms = Decimal("0")
+    total_ipi = Decimal("0")
+    total_pis = Decimal("0")
+    total_cofins = Decimal("0")
+
+    for idx, ln in enumerate(inv.lines, start=1):
+        det = SubElement(inf, "det", {"nItem": str(idx)})
+        prod = SubElement(det, "prod")
+        SubElement(prod, "cProd").text = str(idx)
+        SubElement(prod, "xProd").text = ln.description
+        SubElement(prod, "qCom").text = f"{_d(ln.quantity):.4f}"
+        SubElement(prod, "vUnCom").text = f"{_d(ln.unit_price):.4f}"
+        SubElement(prod, "vProd").text = f"{_d(ln.net_amount):.2f}"
+        SubElement(prod, "NCM").text = str(getattr(ln, "ncm_code", None) or "00000000")
+        SubElement(prod, "CFOP").text = str(getattr(ln, "cfop_code", None) or "5102")
+        if getattr(ln, "cest_code", None):
+            SubElement(prod, "CEST").text = str(ln.cest_code)
+
+        imposto = SubElement(det, "imposto")
+        base = _d(ln.net_amount)
+        line_icms_rate = _d(getattr(ln, "icms_rate", None) if getattr(ln, "icms_rate", None) is not None else icms_rate)
+        line_ipi_rate = _d(getattr(ln, "ipi_rate", None) if getattr(ln, "ipi_rate", None) is not None else ipi_rate)
+        line_pis_rate = _d(getattr(ln, "pis_rate", None) if getattr(ln, "pis_rate", None) is not None else pis_rate)
+        line_cofins_rate = _d(getattr(ln, "cofins_rate", None) if getattr(ln, "cofins_rate", None) is not None else cofins_rate)
+        taxes = _compute_br_tax_components(base, line_icms_rate, line_ipi_rate, line_pis_rate, line_cofins_rate)
+
+        line_icms_amount = _d(getattr(ln, "icms_amount", None)) if getattr(ln, "icms_amount", None) is not None else taxes["icms"]
+        line_ipi_amount = _d(getattr(ln, "ipi_amount", None)) if getattr(ln, "ipi_amount", None) is not None else taxes["ipi"]
+        line_pis_amount = _d(getattr(ln, "pis_amount", None)) if getattr(ln, "pis_amount", None) is not None else taxes["pis"]
+        line_cofins_amount = _d(getattr(ln, "cofins_amount", None)) if getattr(ln, "cofins_amount", None) is not None else taxes["cofins"]
+
+        icms = SubElement(imposto, "ICMS")
+        icms00 = SubElement(icms, "ICMS00")
+        SubElement(icms00, "orig").text = "0"
+        SubElement(icms00, "CST").text = str(getattr(ln, "cst_icms", None) or "00")
+        SubElement(icms00, "vBC").text = f"{base:.2f}"
+        SubElement(icms00, "pICMS").text = f"{line_icms_rate:.2f}"
+        SubElement(icms00, "vICMS").text = f"{line_icms_amount:.2f}"
+
+        ipi = SubElement(imposto, "IPI")
+        ipitrib = SubElement(ipi, "IPITrib")
+        SubElement(ipitrib, "CST").text = str(getattr(ln, "cst_ipi", None) or "50")
+        SubElement(ipitrib, "vBC").text = f"{base:.2f}"
+        SubElement(ipitrib, "pIPI").text = f"{line_ipi_rate:.2f}"
+        SubElement(ipitrib, "vIPI").text = f"{line_ipi_amount:.2f}"
+
+        pis = SubElement(imposto, "PIS")
+        pisaliq = SubElement(pis, "PISAliq")
+        SubElement(pisaliq, "CST").text = str(getattr(ln, "cst_pis", None) or "01")
+        SubElement(pisaliq, "vBC").text = f"{base:.2f}"
+        SubElement(pisaliq, "pPIS").text = f"{line_pis_rate:.2f}"
+        SubElement(pisaliq, "vPIS").text = f"{line_pis_amount:.2f}"
+
+        cofins = SubElement(imposto, "COFINS")
+        cofinsaliq = SubElement(cofins, "COFINSAliq")
+        SubElement(cofinsaliq, "CST").text = str(getattr(ln, "cst_cofins", None) or "01")
+        SubElement(cofinsaliq, "vBC").text = f"{base:.2f}"
+        SubElement(cofinsaliq, "pCOFINS").text = f"{line_cofins_rate:.2f}"
+        SubElement(cofinsaliq, "vCOFINS").text = f"{line_cofins_amount:.2f}"
+
+        total_base += base
+        total_icms += line_icms_amount
+        total_ipi += line_ipi_amount
+        total_pis += line_pis_amount
+        total_cofins += line_cofins_amount
+
+    total = SubElement(inf, "total")
+    icmstot = SubElement(total, "ICMSTot")
+    SubElement(icmstot, "vBC").text = f"{total_base:.2f}"
+    SubElement(icmstot, "vICMS").text = f"{total_icms:.2f}"
+    SubElement(icmstot, "vIPI").text = f"{total_ipi:.2f}"
+    SubElement(icmstot, "vPIS").text = f"{total_pis:.2f}"
+    SubElement(icmstot, "vCOFINS").text = f"{total_cofins:.2f}"
+    SubElement(icmstot, "vProd").text = f"{total_base:.2f}"
+    vnf = (total_base + total_icms + total_ipi + total_pis + total_cofins).quantize(Decimal("0.01"))
+    SubElement(icmstot, "vNF").text = f"{vnf:.2f}"
+
+    return tostring(root, encoding="utf-8", xml_declaration=True)
+
+
 def build_invoice_export_zip(
     *,
     inv: FinanceInvoice,
@@ -421,16 +688,21 @@ def build_invoice_export_zip(
     country: str,
     logo_path: str | None = None,
 ) -> Tuple[str, bytes]:
-    """Return (filename, zip_bytes). country in {'fr','it'}"""
+    """Return (filename, zip_bytes). country in {'fr','it','br'}"""
     pdf = build_invoice_pdf_bytes(inv, company, cp, logo_path=logo_path)
-    if country.lower() == "fr":
+    c = (country or "fr").lower()
+    if c == "fr":
         xml = build_facturx_cii_xml_bytes(inv, company, cp)
         xml_name = f"invoice_{inv.invoice_number}_facturx.xml"
         zip_name = f"invoice_{inv.invoice_number}_FR.zip"
-    else:
+    elif c == "it":
         xml = build_fatturapa_xml_bytes(inv, company, cp)
         xml_name = f"invoice_{inv.invoice_number}_fatturapa.xml"
         zip_name = f"invoice_{inv.invoice_number}_IT.zip"
+    else:
+        xml = build_nfe_br_xml_bytes(inv, company, cp)
+        xml_name = f"invoice_{inv.invoice_number}_nfe_br.xml"
+        zip_name = f"invoice_{inv.invoice_number}_BR.zip"
 
     out = BytesIO()
     with zipfile.ZipFile(out, mode="w", compression=zipfile.ZIP_DEFLATED) as z:

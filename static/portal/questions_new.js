@@ -1,4 +1,6 @@
 (function(){
+  const t = (window.t && typeof window.t === 'function') ? window.t : (s) => String(s || '');
+
   function getCsrf() {
     const m = document.querySelector('meta[name="csrf-token"]');
     return m ? m.getAttribute('content') : '';
@@ -14,7 +16,7 @@
     const items = warnings.map(w => `<li>${escapeHtml(w)}</li>`).join('');
     container.innerHTML = `
       <div class="alert alert-warning mb-0" role="alert">
-        <div class="fw-semibold mb-1"><i class="bi bi-exclamation-triangle me-1"></i> Avisos</div>
+        <div class="fw-semibold mb-1"><i class="bi bi-exclamation-triangle me-1"></i> ${escapeHtml(t('Warnings'))}</div>
         <ul class="mb-0">${items}</ul>
       </div>
     `;
@@ -41,13 +43,13 @@
 
     const sourceId = parseInt(srcSel.value || '0', 10);
     if (!sourceId) {
-      showWarnings(warn, ['Selecione uma fonte de dados antes de gerar o SQL.']);
+      showWarnings(warn, [t('Select a data source before generating SQL.')]);
       srcSel.focus();
       return;
     }
 
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Gerando...';
+    btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>${escapeHtml(t('Generating...'))}`;
     try {
       const r = await fetch('/app/api/nlq', {
         method: 'POST',
@@ -59,7 +61,7 @@
       });
       const data = await r.json().catch(()=> ({}));
       if (!r.ok) {
-        showWarnings(warn, [data.error || 'Falha ao gerar SQL.']);
+        showWarnings(warn, [data.error || t('Unable to generate SQL.')]);
         return;
       }
       if (data.sql) {
@@ -68,10 +70,10 @@
       showWarnings(warn, data.warnings || []);
       sql.focus();
     } catch (e) {
-      showWarnings(warn, ['Erro ao chamar o servidor: ' + e]);
+      showWarnings(warn, [`${t('Error calling server:')} ${e}`]);
     } finally {
       btn.disabled = false;
-      btn.innerHTML = '<i class="bi bi-magic"></i> Gerar SQL';
+      btn.innerHTML = `<i class="bi bi-magic"></i> ${escapeHtml(t('Generate SQL'))}`;
     }
   }
 

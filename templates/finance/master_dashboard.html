@@ -73,7 +73,7 @@
                         </div>
                         <h5 class="card-title">{{ _('Configuração Bancária') }}</h5>
                         <p class="card-text text-muted small">
-                            {{ _('IBAN e sincronização bancária via GoCardless/Nordigen') }}
+                            {{ _('IBAN e sincronização bancária via Bridge PSD2') }}
                         </p>
                         <a href="{{ url_for('finance_master.bank_config') }}" 
                            class="btn btn-sm btn-outline-primary w-100">
@@ -181,7 +181,7 @@
                             <h6><i class="fas fa-link text-primary"></i> {{ _('Documentação') }}</h6>
                             <ul class="small">
                                 <li><a href="#" target="_blank">{{ _('Guia de IBAN') }} &rarr;</a></li>
-                                <li><a href="#" target="_blank">{{ _('Configuração GoCardless') }} &rarr;</a></li>
+                                <li><a href="#" target="_blank">{{ _('Configuração Bridge PSD2') }} &rarr;</a></li>
                                 <li><a href="#" target="_blank">{{ _('Gestão de Produtos') }} &rarr;</a></li>
                                 <li><a href="{{ url_for('finance_master.list_products') }}" target="_blank">{{ _('Começar') }} &rarr;</a></li>
                             </ul>

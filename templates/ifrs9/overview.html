@@ -71,160 +71,202 @@
             <input type="hidden" name="action" value="save_config">
 
             <div class="col-12">
-              <label for="company_id" class="form-label">{{ _('Société Finance') }}</label>
-              <select id="company_id" name="company_id" class="form-select" required>
-                {% for company in companies %}
-                <option value="{{ company.id }}" {% if selected_company_id == company.id %}selected{% endif %}>
-                  {{ company.name }} ({{ company.base_currency }})
-                </option>
-                {% endfor %}
-              </select>
-            </div>
+              <h6 class="mb-2">{{ _('Assistant What-if (3 étapes)') }}</h6>
+              <div class="accordion" id="ifrs9ConfigAccordion">
+                <div class="accordion-item">
+                  <h2 class="accordion-header" id="ifrs9-config-step-1-header">
+                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#ifrs9-config-step-1" aria-expanded="true" aria-controls="ifrs9-config-step-1">
+                      1. {{ _('Périmètre et paramètres de base') }}
+                    </button>
+                  </h2>
+                  <div id="ifrs9-config-step-1" class="accordion-collapse collapse show" aria-labelledby="ifrs9-config-step-1-header" data-bs-parent="#ifrs9ConfigAccordion">
+                    <div class="accordion-body">
+                      <div class="row g-3">
+                        <div class="col-12">
+                          <label for="company_id" class="form-label">{{ _('Société Finance') }}</label>
+                          <select id="company_id" name="company_id" class="form-select" required>
+                            {% for company in companies %}
+                            <option value="{{ company.id }}" {% if selected_company_id == company.id %}selected{% endif %}>
+                              {{ company.name }} ({{ company.base_currency }})
+                            </option>
+                            {% endfor %}
+                          </select>
+                        </div>
 
-            <div class="col-md-6">
-              <label for="expense_gl_account_id" class="form-label">{{ _('Compte de charge IFRS9 (Débit)') }}</label>
-              <select id="expense_gl_account_id" name="expense_gl_account_id" class="form-select" required>
-                <option value="">{{ _('Sélectionner un compte') }}</option>
-                {% for gl in gl_accounts %}
-                <option value="{{ gl.id }}" {% if selected_expense_id == gl.id %}selected{% endif %}>{{ gl.code }} - {{ gl.name }}</option>
-                {% endfor %}
-              </select>
-            </div>
+                        <div class="col-md-6">
+                          <label for="expense_gl_account_id" class="form-label">{{ _('Compte de charge IFRS9 (Débit)') }}</label>
+                          <select id="expense_gl_account_id" name="expense_gl_account_id" class="form-select" required>
+                            <option value="">{{ _('Sélectionner un compte') }}</option>
+                            {% for gl in gl_accounts %}
+                            <option value="{{ gl.id }}" {% if selected_expense_id == gl.id %}selected{% endif %}>{{ gl.code }} - {{ gl.name }}</option>
+                            {% endfor %}
+                          </select>
+                        </div>
 
-            <div class="col-md-6">
-              <label for="provision_gl_account_id" class="form-label">{{ _('Compte de provision IFRS9 (Crédit)') }}</label>
-              <select id="provision_gl_account_id" name="provision_gl_account_id" class="form-select" required>
-                <option value="">{{ _('Sélectionner un compte') }}</option>
-                {% for gl in gl_accounts %}
-                <option value="{{ gl.id }}" {% if selected_provision_id == gl.id %}selected{% endif %}>{{ gl.code }} - {{ gl.name }}</option>
-                {% endfor %}
-              </select>
-            </div>
+                        <div class="col-md-6">
+                          <label for="provision_gl_account_id" class="form-label">{{ _('Compte de provision IFRS9 (Crédit)') }}</label>
+                          <select id="provision_gl_account_id" name="provision_gl_account_id" class="form-select" required>
+                            <option value="">{{ _('Sélectionner un compte') }}</option>
+                            {% for gl in gl_accounts %}
+                            <option value="{{ gl.id }}" {% if selected_provision_id == gl.id %}selected{% endif %}>{{ gl.code }} - {{ gl.name }}</option>
+                            {% endfor %}
+                          </select>
+                        </div>
 
-            <div class="col-md-4">
-              <label for="pd_percent" class="form-label">{{ _('PD (%)') }}</label>
-              <input id="pd_percent" name="pd_percent" type="number" min="0" max="100" step="0.01" value="{{ pd_percent }}" class="form-control" required>
-            </div>
+                        <div class="col-12">
+                          <label for="ead_source" class="form-label">{{ _('Source EAD') }}
+                            <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Manuelle: valeur saisie. Depuis Finance: somme des factures de vente ouvertes selon la configuration Finance IFRS9.') }}"><i class="bi bi-info-circle"></i></button>
+                          </label>
+                          <select id="ead_source" name="ead_source" class="form-select">
+                            <option value="manual" {% if ead_source != 'finance' %}selected{% endif %}>{{ _('Manuelle') }}</option>
+                            <option value="finance" {% if ead_source == 'finance' %}selected{% endif %}>{{ _('Depuis Finance (factures ouvertes)') }}</option>
+                          </select>
+                        </div>
 
-            <div class="col-md-4">
-              <label for="lgd_percent" class="form-label">{{ _('LGD (%)') }}</label>
-              <input id="lgd_percent" name="lgd_percent" type="number" min="0" max="100" step="0.01" value="{{ lgd_percent }}" class="form-control" required>
-            </div>
+                        <div class="col-12">
+                          <label for="ead_amount" class="form-label">{{ _('EAD (montant exposé)') }}</label>
+                          <input id="ead_amount" name="ead_amount" type="number" min="0" step="0.01" value="{{ ead_amount }}" class="form-control" required>
+                          <div class="form-text">{{ _('Vous pouvez laisser une valeur manuelle ou utiliser l\'exposition Finance (factures de vente ouvertes).') }}</div>
+                        </div>
 
-            <div class="col-md-4">
-              <label for="stage" class="form-label">{{ _('Stage IFRS9') }}</label>
-              <select id="stage" name="stage" class="form-select" required>
-                <option value="stage1" {% if stage == 'stage1' %}selected{% endif %}>Stage 1</option>
-                <option value="stage2" {% if stage == 'stage2' %}selected{% endif %}>Stage 2</option>
-                <option value="stage3" {% if stage == 'stage3' %}selected{% endif %}>Stage 3</option>
-              </select>
-            </div>
-
-            <div class="col-md-4">
-              <label for="stage_mode" class="form-label">{{ _('Mode de staging') }}
-                <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Manuel: stage fixé par l\'utilisateur. Auto: stage proposé selon les jours de retard (DPD).') }}"><i class="bi bi-info-circle"></i></button>
-              </label>
-              <select id="stage_mode" name="stage_mode" class="form-select" required>
-                <option value="manual" {% if stage_mode != 'auto' %}selected{% endif %}>{{ _('Manuel') }}</option>
-                <option value="auto" {% if stage_mode == 'auto' %}selected{% endif %}>{{ _('Auto (depuis DPD Finance)') }}</option>
-              </select>
-            </div>
-
-            <div class="col-12">
-              <label for="ead_amount" class="form-label">{{ _('EAD (montant exposé)') }}</label>
-              <input id="ead_amount" name="ead_amount" type="number" min="0" step="0.01" value="{{ ead_amount }}" class="form-control" required>
-              <div class="form-text">{{ _('Vous pouvez laisser une valeur manuelle ou utiliser l\'exposition Finance (factures de vente ouvertes).') }}</div>
-            </div>
-
-            <div class="col-12"><hr class="my-1"></div>
-            <div class="col-12"><h6 class="mb-1">{{ _('Scénarios macro (pondération ECL)') }}</h6></div>
-            <div class="col-md-4">
-              <label class="form-label">{{ _('Poids base') }}
-                <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Poids du scénario central. Les poids des 3 scénarios sont normalisés automatiquement à 100%.') }}"><i class="bi bi-info-circle"></i></button>
-              </label>
-              <input name="scenario_base_weight" type="number" min="0" step="0.01" class="form-control" value="{{ scenario_base_weight }}">
-            </div>
-            <div class="col-md-4">
-              <label class="form-label">{{ _('Poids favorable') }}
-                <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Poids du scénario favorable (amélioration macro).') }}"><i class="bi bi-info-circle"></i></button>
-              </label>
-              <input name="scenario_upside_weight" type="number" min="0" step="0.01" class="form-control" value="{{ scenario_upside_weight }}">
-            </div>
-            <div class="col-md-4">
-              <label class="form-label">{{ _('Poids défavorable') }}
-                <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Poids du scénario défavorable (stress macro).') }}"><i class="bi bi-info-circle"></i></button>
-              </label>
-              <input name="scenario_downside_weight" type="number" min="0" step="0.01" class="form-control" value="{{ scenario_downside_weight }}">
-            </div>
-
-            <div class="col-md-4">
-              <label class="form-label">{{ _('Multiplicateur base') }}
-                <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Facteur appliqué à l\'ECL du scénario base (1.00 = neutre).') }}"><i class="bi bi-info-circle"></i></button>
-              </label>
-              <input name="scenario_base_multiplier" type="number" min="0" step="0.01" class="form-control" value="{{ scenario_base_multiplier }}">
-            </div>
-            <div class="col-md-4">
-              <label class="form-label">{{ _('Multiplicateur favorable') }}
-                <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Facteur appliqué à l\'ECL du scénario favorable (souvent < 1).') }}"><i class="bi bi-info-circle"></i></button>
-              </label>
-              <input name="scenario_upside_multiplier" type="number" min="0" step="0.01" class="form-control" value="{{ scenario_upside_multiplier }}">
-            </div>
-            <div class="col-md-4">
-              <label class="form-label">{{ _('Multiplicateur défavorable') }}
-                <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Facteur appliqué à l\'ECL du scénario défavorable (souvent > 1).') }}"><i class="bi bi-info-circle"></i></button>
-              </label>
-              <input name="scenario_downside_multiplier" type="number" min="0" step="0.01" class="form-control" value="{{ scenario_downside_multiplier }}">
-            </div>
-
-            <div class="col-12"><h6 class="mb-1">{{ _('Politique SICR (jours en retard)') }}</h6></div>
-            <div class="col-md-6">
-              <label class="form-label">{{ _('Seuil Stage 2 (DPD)') }}
-                <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Nombre de jours de retard à partir duquel l\'exposition passe en Stage 2 (SICR).') }}"><i class="bi bi-info-circle"></i></button>
-              </label>
-              <input name="sicr_stage2_dpd" type="number" min="1" step="1" class="form-control" value="{{ sicr_stage2_dpd }}">
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">{{ _('Seuil Stage 3 (DPD)') }}
-                <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Nombre de jours de retard à partir duquel l\'exposition est considérée en Stage 3 (défaut).') }}"><i class="bi bi-info-circle"></i></button>
-              </label>
-              <input name="sicr_stage3_dpd" type="number" min="1" step="1" class="form-control" value="{{ sicr_stage3_dpd }}">
-            </div>
-
-            <div class="col-12">
-              <label for="ead_source" class="form-label">{{ _('Source EAD') }}
-                <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Manuelle: valeur saisie. Depuis Finance: somme des factures de vente ouvertes selon la configuration Finance IFRS9.') }}"><i class="bi bi-info-circle"></i></button>
-              </label>
-              <select id="ead_source" name="ead_source" class="form-select">
-                <option value="manual" {% if ead_source != 'finance' %}selected{% endif %}>{{ _('Manuelle') }}</option>
-                <option value="finance" {% if ead_source == 'finance' %}selected{% endif %}>{{ _('Depuis Finance (factures ouvertes)') }}</option>
-              </select>
-            </div>
-
-            <div class="col-12">
-              <div class="alert alert-light border mb-0">
-                <div class="small text-muted">{{ _('Exposition calculée depuis Finance') }}</div>
-                <div class="fw-semibold">{{ '%.2f'|format(finance_ead_total) }} {{ selected_company.base_currency if selected_company else 'EUR' }}</div>
-                <div class="small text-muted">
-                  {{ _('Factures ouvertes') }}: {{ finance_invoice_count }}
-                  · {{ _('En retard') }}: {{ finance_overdue_count }}
-                  · {{ _('Inclut brouillons') }}: {{ _('Oui') if finance_include_draft_invoices else _('Non') }}
+                        <div class="col-12">
+                          <div class="alert alert-light border mb-0">
+                            <div class="small text-muted">{{ _('Exposition calculée depuis Finance') }}</div>
+                            <div class="fw-semibold">{{ '%.2f'|format(finance_ead_total) }} {{ selected_company.base_currency if selected_company else 'EUR' }}</div>
+                            <div class="small text-muted">
+                              {{ _('Factures ouvertes') }}: {{ finance_invoice_count }}
+                              · {{ _('En retard') }}: {{ finance_overdue_count }}
+                              · {{ _('Inclut brouillons') }}: {{ _('Oui') if finance_include_draft_invoices else _('Non') }}
+                            </div>
+                            <div class="small text-muted mt-1">
+                              {{ _('Répartition EAD') }}: S1 {{ '%.2f'|format(finance_stage1_ead) }} · S2 {{ '%.2f'|format(finance_stage2_ead) }} · S3 {{ '%.2f'|format(finance_stage3_ead) }}
+                              · {{ _('Stage suggéré') }}: {{ finance_suggested_stage|upper }}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div class="small text-muted mt-1">
-                  {{ _('Répartition EAD') }}: S1 {{ '%.2f'|format(finance_stage1_ead) }} · S2 {{ '%.2f'|format(finance_stage2_ead) }} · S3 {{ '%.2f'|format(finance_stage3_ead) }}
-                  · {{ _('Stage suggéré') }}: {{ finance_suggested_stage|upper }}
+
+                <div class="accordion-item">
+                  <h2 class="accordion-header" id="ifrs9-config-step-2-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#ifrs9-config-step-2" aria-expanded="false" aria-controls="ifrs9-config-step-2">
+                      2. {{ _('Hypothèses de risque et scénarios') }}
+                    </button>
+                  </h2>
+                  <div id="ifrs9-config-step-2" class="accordion-collapse collapse" aria-labelledby="ifrs9-config-step-2-header" data-bs-parent="#ifrs9ConfigAccordion">
+                    <div class="accordion-body">
+                      <div class="row g-3">
+                        <div class="col-md-4">
+                          <label for="pd_percent" class="form-label">{{ _('PD (%)') }}</label>
+                          <input id="pd_percent" name="pd_percent" type="number" min="0" max="100" step="0.01" value="{{ pd_percent }}" class="form-control" required>
+                        </div>
+
+                        <div class="col-md-4">
+                          <label for="lgd_percent" class="form-label">{{ _('LGD (%)') }}</label>
+                          <input id="lgd_percent" name="lgd_percent" type="number" min="0" max="100" step="0.01" value="{{ lgd_percent }}" class="form-control" required>
+                        </div>
+
+                        <div class="col-md-4">
+                          <label for="stage" class="form-label">{{ _('Stage IFRS9') }}</label>
+                          <select id="stage" name="stage" class="form-select" required>
+                            <option value="stage1" {% if stage == 'stage1' %}selected{% endif %}>Stage 1</option>
+                            <option value="stage2" {% if stage == 'stage2' %}selected{% endif %}>Stage 2</option>
+                            <option value="stage3" {% if stage == 'stage3' %}selected{% endif %}>Stage 3</option>
+                          </select>
+                        </div>
+
+                        <div class="col-md-4">
+                          <label for="stage_mode" class="form-label">{{ _('Mode de staging') }}
+                            <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Manuel: stage fixé par l\'utilisateur. Auto: stage proposé selon les jours de retard (DPD).') }}"><i class="bi bi-info-circle"></i></button>
+                          </label>
+                          <select id="stage_mode" name="stage_mode" class="form-select" required>
+                            <option value="manual" {% if stage_mode != 'auto' %}selected{% endif %}>{{ _('Manuel') }}</option>
+                            <option value="auto" {% if stage_mode == 'auto' %}selected{% endif %}>{{ _('Auto (depuis DPD Finance)') }}</option>
+                          </select>
+                        </div>
+
+                        <div class="col-12"><h6 class="mb-1">{{ _('Scénarios macro (pondération ECL)') }}</h6></div>
+                        <div class="col-md-4">
+                          <label class="form-label">{{ _('Poids base') }}
+                            <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Poids du scénario central. Les poids des 3 scénarios sont normalisés automatiquement à 100%.') }}"><i class="bi bi-info-circle"></i></button>
+                          </label>
+                          <input name="scenario_base_weight" type="number" min="0" step="0.01" class="form-control" value="{{ scenario_base_weight }}">
+                        </div>
+                        <div class="col-md-4">
+                          <label class="form-label">{{ _('Poids favorable') }}
+                            <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Poids du scénario favorable (amélioration macro).') }}"><i class="bi bi-info-circle"></i></button>
+                          </label>
+                          <input name="scenario_upside_weight" type="number" min="0" step="0.01" class="form-control" value="{{ scenario_upside_weight }}">
+                        </div>
+                        <div class="col-md-4">
+                          <label class="form-label">{{ _('Poids défavorable') }}
+                            <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Poids du scénario défavorable (stress macro).') }}"><i class="bi bi-info-circle"></i></button>
+                          </label>
+                          <input name="scenario_downside_weight" type="number" min="0" step="0.01" class="form-control" value="{{ scenario_downside_weight }}">
+                        </div>
+
+                        <div class="col-md-4">
+                          <label class="form-label">{{ _('Multiplicateur base') }}
+                            <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Facteur appliqué à l\'ECL du scénario base (1.00 = neutre).') }}"><i class="bi bi-info-circle"></i></button>
+                          </label>
+                          <input name="scenario_base_multiplier" type="number" min="0" step="0.01" class="form-control" value="{{ scenario_base_multiplier }}">
+                        </div>
+                        <div class="col-md-4">
+                          <label class="form-label">{{ _('Multiplicateur favorable') }}
+                            <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Facteur appliqué à l\'ECL du scénario favorable (souvent < 1).') }}"><i class="bi bi-info-circle"></i></button>
+                          </label>
+                          <input name="scenario_upside_multiplier" type="number" min="0" step="0.01" class="form-control" value="{{ scenario_upside_multiplier }}">
+                        </div>
+                        <div class="col-md-4">
+                          <label class="form-label">{{ _('Multiplicateur défavorable') }}
+                            <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Facteur appliqué à l\'ECL du scénario défavorable (souvent > 1).') }}"><i class="bi bi-info-circle"></i></button>
+                          </label>
+                          <input name="scenario_downside_multiplier" type="number" min="0" step="0.01" class="form-control" value="{{ scenario_downside_multiplier }}">
+                        </div>
+
+                        <div class="col-12"><h6 class="mb-1">{{ _('Politique SICR (jours en retard)') }}</h6></div>
+                        <div class="col-md-6">
+                          <label class="form-label">{{ _('Seuil Stage 2 (DPD)') }}
+                            <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Nombre de jours de retard à partir duquel l\'exposition passe en Stage 2 (SICR).') }}"><i class="bi bi-info-circle"></i></button>
+                          </label>
+                          <input name="sicr_stage2_dpd" type="number" min="1" step="1" class="form-control" value="{{ sicr_stage2_dpd }}">
+                        </div>
+                        <div class="col-md-6">
+                          <label class="form-label">{{ _('Seuil Stage 3 (DPD)') }}
+                            <button type="button" class="btn btn-link btn-sm p-0 ms-1 text-decoration-none" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="{{ _('Nombre de jours de retard à partir duquel l\'exposition est considérée en Stage 3 (défaut).') }}"><i class="bi bi-info-circle"></i></button>
+                          </label>
+                          <input name="sicr_stage3_dpd" type="number" min="1" step="1" class="form-control" value="{{ sicr_stage3_dpd }}">
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="accordion-item">
+                  <h2 class="accordion-header" id="ifrs9-config-step-3-header">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#ifrs9-config-step-3" aria-expanded="false" aria-controls="ifrs9-config-step-3">
+                      3. {{ _('Valider et enregistrer') }}
+                    </button>
+                  </h2>
+                  <div id="ifrs9-config-step-3" class="accordion-collapse collapse" aria-labelledby="ifrs9-config-step-3-header" data-bs-parent="#ifrs9ConfigAccordion">
+                    <div class="accordion-body">
+                      <p class="small text-muted mb-3">{{ _('Vérifiez la simulation ECL à droite, puis enregistrez votre configuration what-if.') }}</p>
+                      <div class="d-flex flex-wrap gap-2">
+                        <button type="submit" class="btn btn-primary">
+                          <i class="bi bi-save"></i> {{ _('Enregistrer la configuration') }}
+                        </button>
+                        {% if selected_company_id %}
+                        <a href="{{ url_for('finance.settings_gl', company_id=selected_company_id) }}" class="btn btn-outline-secondary">
+                          <i class="bi bi-diagram-3"></i> {{ _('Gérer le plan de comptes') }}
+                        </a>
+                        {% endif %}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-
-            <div class="col-12 d-flex flex-wrap gap-2">
-              <button type="submit" class="btn btn-primary">
-                <i class="bi bi-save"></i> {{ _('Enregistrer la configuration') }}
-              </button>
-              {% if selected_company_id %}
-              <a href="{{ url_for('finance.settings_gl', company_id=selected_company_id) }}" class="btn btn-outline-secondary">
-                <i class="bi bi-diagram-3"></i> {{ _('Gérer le plan de comptes') }}
-              </a>
-              {% endif %}
             </div>
           </form>
         </div>
@@ -370,40 +412,41 @@
           <h5 class="mb-3">{{ _('Help IFRS9') }}</h5>
           <p class="text-muted small mb-3">{{ _('Guide rapide pour configurer IFRS9 avec Finance et le plan de comptes.') }}</p>
 
+          <h6 class="mb-2">{{ _('What-if IFRS9 en 3 étapes') }}</h6>
           <div class="accordion" id="ifrs9HelpAccordion">
             <div class="accordion-item">
-              <h2 class="accordion-header" id="h1">
-                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#c1" aria-expanded="true" aria-controls="c1">
-                  1. {{ _('Relier IFRS9 à la comptabilité') }}
+              <h2 class="accordion-header" id="ifrs9-step-1-header">
+                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#ifrs9-step-1" aria-expanded="true" aria-controls="ifrs9-step-1">
+                  1. {{ _('Définir le périmètre (société, comptes, source EAD)') }}
                 </button>
               </h2>
-              <div id="c1" class="accordion-collapse collapse show" aria-labelledby="h1" data-bs-parent="#ifrs9HelpAccordion">
+              <div id="ifrs9-step-1" class="accordion-collapse collapse show" aria-labelledby="ifrs9-step-1-header" data-bs-parent="#ifrs9HelpAccordion">
                 <div class="accordion-body small text-muted">
-                  {{ _('Choisissez la société Finance puis mappez les comptes de charge et de provision IFRS9.') }}
+                  {{ _('Sélectionnez la société Finance, mappez les comptes IFRS9 (charge/provision) et choisissez la source EAD (manuelle ou Finance).') }}
                 </div>
               </div>
             </div>
             <div class="accordion-item">
-              <h2 class="accordion-header" id="h2">
-                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c2" aria-expanded="false" aria-controls="c2">
-                  2. {{ _('Régler les hypothèses ECL') }}
+              <h2 class="accordion-header" id="ifrs9-step-2-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#ifrs9-step-2" aria-expanded="false" aria-controls="ifrs9-step-2">
+                  2. {{ _('Tester les hypothèses (PD, LGD, Stage, scénarios)') }}
                 </button>
               </h2>
-              <div id="c2" class="accordion-collapse collapse" aria-labelledby="h2" data-bs-parent="#ifrs9HelpAccordion">
+              <div id="ifrs9-step-2" class="accordion-collapse collapse" aria-labelledby="ifrs9-step-2-header" data-bs-parent="#ifrs9HelpAccordion">
                 <div class="accordion-body small text-muted">
-                  {{ _('Saisissez PD, LGD, EAD et le stage IFRS9 pour obtenir une estimation immédiate de la provision.') }}
+                  {{ _('Ajustez PD/LGD, le mode de stage (manuel/auto) et les pondérations de scénarios pour comparer les impacts dans la simulation ECL.') }}
                 </div>
               </div>
             </div>
             <div class="accordion-item">
-              <h2 class="accordion-header" id="h3">
-                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#c3" aria-expanded="false" aria-controls="c3">
-                  3. {{ _('Comptabiliser et contrôler') }}
+              <h2 class="accordion-header" id="ifrs9-step-3-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#ifrs9-step-3" aria-expanded="false" aria-controls="ifrs9-step-3">
+                  3. {{ _('Valider le scénario retenu et comptabiliser') }}
                 </button>
               </h2>
-              <div id="c3" class="accordion-collapse collapse" aria-labelledby="h3" data-bs-parent="#ifrs9HelpAccordion">
+              <div id="ifrs9-step-3" class="accordion-collapse collapse" aria-labelledby="ifrs9-step-3-header" data-bs-parent="#ifrs9HelpAccordion">
                 <div class="accordion-body small text-muted">
-                  {{ _('Validez l\'écriture IFRS9 puis vérifiez les lignes dans les rapports comptables Finance.') }}
+                  {{ _('Une fois le what-if validé, enregistrez la configuration, comptabilisez l\'écriture IFRS9 puis contrôlez les résultats dans les rapports Finance.') }}
                 </div>
               </div>
             </div>

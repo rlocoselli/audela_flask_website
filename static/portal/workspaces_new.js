@@ -130,7 +130,7 @@
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.innerHTML = '<i class="bi bi-x"></i>';
-      btn.title = window.t('Remover');
+      btn.title = window.t('Remove');
       btn.onclick = () => setDbTables(state.selectedDbTables.filter(x => x !== tname));
       span.appendChild(btn);
       elDbTableTags.appendChild(span);
@@ -171,7 +171,7 @@ function toast(msg, variant){
       state.dbSchema = { tables };
       return state.dbSchema;
     } catch (e) {
-      toast(window.t('Erro ao carregar.'), 'danger');
+      toast(window.t('Unable to load.'), 'danger');
       return null;
     }
   }
@@ -179,7 +179,7 @@ function toast(msg, variant){
   function openDbTablesModal(){
     const id = (elDbSource && elDbSource.value) ? elDbSource.value : '';
     if (!id) {
-      toast(window.t('Selecione uma fonte de banco para listar tabelas.'), 'info');
+      toast(window.t('Select a database source to list tables.'), 'info');
       return;
     }
     dbModal?.show();
@@ -188,10 +188,10 @@ function toast(msg, variant){
 
   async function renderDbTablesList(){
     if (!elDbTableList) return;
-    elDbTableList.innerHTML = `<div class="text-secondary small">${escapeHtml(window.t('Carregando...'))}</div>`;
+    elDbTableList.innerHTML = `<div class="text-secondary small">${escapeHtml(window.t('Loading...'))}</div>`;
     const schema = state.dbSchema || await ensureDbSchema();
     if (!schema) {
-      elDbTableList.innerHTML = `<div class="text-secondary small">${escapeHtml(window.t('Erro ao carregar.'))}</div>`;
+      elDbTableList.innerHTML = `<div class="text-secondary small">${escapeHtml(window.t('Unable to load.'))}</div>`;
       return;
     }
     const term = String(elDbTableSearch?.value || '').trim().toLowerCase();
@@ -200,7 +200,7 @@ function toast(msg, variant){
       .sort((a,b) => a.localeCompare(b));
     const filtered = term ? all.filter(n => n.toLowerCase().includes(term)) : all;
     if (!filtered.length) {
-      elDbTableList.innerHTML = `<div class="text-secondary small">${escapeHtml(window.t('Nenhuma tabela encontrada.'))}</div>`;
+      elDbTableList.innerHTML = `<div class="text-secondary small">${escapeHtml(window.t('No tables found.'))}</div>`;
       return;
     }
 
@@ -250,14 +250,14 @@ function toast(msg, variant){
           <div class="ws-mono">${escapeHtml(c.name || '')}</div>
           <div class="text-secondary">${escapeHtml(c.type || '')}</div>
         </div>
-      `).join('') || `<div class="text-secondary">${escapeHtml(window.t('Nenhuma tabela encontrada.'))}</div>`;
+      `).join('') || `<div class="text-secondary">${escapeHtml(window.t('No tables found.'))}</div>`;
       const tr = filesTable?.querySelector(`tr[data-file-id="${fileId}"]`);
       const fileName = tr?.getAttribute('data-file-name') || ('#' + fileId);
       elSchemaTitle.textContent = window.tf('Schema: {name}', { name: fileName });
       elSchemaBody.innerHTML = rows;
       schemaModal?.show();
     } catch (e) {
-      toast(window.t('Falha ao carregar schema.'), 'danger');
+      toast(window.t('Unable to load schema.'), 'danger');
     }
   }
 
@@ -300,7 +300,7 @@ function toast(msg, variant){
     if (!catalog.tables.length) {
       const opt = document.createElement('option');
       opt.value = '';
-      opt.textContent = '(' + window.t('Selecione arquivos/tabelas') + ')';
+      opt.textContent = '(' + window.t('Select files/tables') + ')';
       elBaseTable.appendChild(opt);
     } else {
       catalog.tables.forEach(t => {
@@ -362,23 +362,23 @@ function toast(msg, variant){
       // right table
       const tdTable = document.createElement('td');
       const opts = tables.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
-      tdTable.innerHTML = `<select class="form-select form-select-sm ws-join-right"><option value="">(${escapeHtml(window.t('Tabela'))})</option>${opts}</select>`;
+      tdTable.innerHTML = `<select class="form-select form-select-sm ws-join-right"><option value="">(${escapeHtml(window.t('Table'))})</option>${opts}</select>`;
       tdTable.querySelector('select').value = j.right || '';
 
       // left col
       const tdLeft = document.createElement('td');
-      tdLeft.innerHTML = `<input class="form-control form-control-sm ws-join-left" placeholder="${escapeHtml(window.t('Coluna'))}" />`;
+      tdLeft.innerHTML = `<input class="form-control form-control-sm ws-join-left" placeholder="${escapeHtml(window.t('Column'))}" />`;
       tdLeft.querySelector('input').value = j.leftCol || '';
 
       // right col
       const tdRight = document.createElement('td');
-      tdRight.innerHTML = `<input class="form-control form-control-sm ws-join-rightcol" placeholder="${escapeHtml(window.t('Coluna'))}" />`;
+      tdRight.innerHTML = `<input class="form-control form-control-sm ws-join-rightcol" placeholder="${escapeHtml(window.t('Column'))}" />`;
       tdRight.querySelector('input').value = j.rightCol || '';
 
       // remove
       const tdRm = document.createElement('td');
       tdRm.className = 'text-end';
-      tdRm.innerHTML = `<button class="btn btn-outline-danger btn-sm" type="button" title="${escapeHtml(window.t('Remover'))}"><i class="bi bi-trash"></i></button>`;
+      tdRm.innerHTML = `<button class="btn btn-outline-danger btn-sm" type="button" title="${escapeHtml(window.t('Remove'))}"><i class="bi bi-trash"></i></button>`;
 
       tr.appendChild(tdType);
       tr.appendChild(tdTable);
@@ -486,14 +486,14 @@ function toast(msg, variant){
     elSuggestions.innerHTML = '';
     const sugs = computeSuggestions(catalog);
     if (!sugs.length) {
-      elSuggestions.innerHTML = `<div class="text-secondary small">${escapeHtml(window.t('Nenhuma sugestão disponível.'))}</div>`;
+      elSuggestions.innerHTML = `<div class="text-secondary small">${escapeHtml(window.t('No suggestions available.'))}</div>`;
       return;
     }
     sugs.forEach((s) => {
       const item = document.createElement('div');
       item.className = 'list-group-item d-flex align-items-center justify-content-between gap-2';
       const text = `<div class="small"><span class="ws-mono">${escapeHtml(s.left)}</span> ↔ <span class="ws-mono">${escapeHtml(s.right)}</span><br><span class="text-secondary ws-mono">${escapeHtml(s.leftCol)} = ${escapeHtml(s.rightCol)}</span></div>`;
-      item.innerHTML = `${text}<button class="btn btn-outline-primary btn-sm" type="button">${escapeHtml(window.t('Aplicar'))}</button>`;
+      item.innerHTML = `${text}<button class="btn btn-outline-primary btn-sm" type="button">${escapeHtml(window.t('Apply'))}</button>`;
       item.querySelector('button').addEventListener('click', () => applySuggestion(s));
       elSuggestions.appendChild(item);
     });
@@ -607,7 +607,7 @@ function toast(msg, variant){
   if (elAddJoin) elAddJoin.addEventListener('click', async () => {
     const catalog = await buildCatalog();
     if ((catalog.tables || []).length < 2) {
-      toast(window.t('Selecione pelo menos duas tabelas para sugerir joins.'), 'info');
+      toast(window.t('Select at least two tables to suggest joins.'), 'info');
       return;
     }
     const tables = allTablesForSelect(catalog).filter(t => t !== elBaseTable.value);
@@ -618,13 +618,13 @@ function toast(msg, variant){
   if (elGenerateSql) elGenerateSql.addEventListener('click', () => {
     const sql = buildSql();
     setSqlPreview(sql);
-    toast(window.t('SQL gerado.'), 'success');
+    toast(window.t('SQL generated.'), 'success');
   });
 
   if (elAiSql) elAiSql.addEventListener('click', async () => {
     const prompt = String(elAiPrompt.value || '').trim();
     if (!prompt) {
-      toast(window.t('Descreva sua análise.'), 'info');
+      toast(window.t('Describe your analysis.'), 'info');
       return;
     }
     const files = getSelectedFiles();
@@ -639,10 +639,10 @@ function toast(msg, variant){
       max_rows: getMaxRows(),
     };
 
-    toast(window.t('Carregando...'), 'info');
+    toast(window.t('Loading...'), 'info');
     const res = await postJSON(apiUrl('/api/workspaces/draft_sql'), payload);
     if (!res.ok) {
-      const err = res.json?.error || window.t('Falha ao gerar SQL.');
+      const err = res.json?.error || window.t('Unable to generate SQL.');
       toast(err, 'danger');
       return;
     }
@@ -650,7 +650,7 @@ function toast(msg, variant){
     setSqlPreview(sql);
     const warnings = res.json?.warnings || [];
     if (warnings.length) toast(warnings.join(' / '), 'info');
-    else toast(window.t('SQL gerado.'), 'success');
+    else toast(window.t('SQL generated.'), 'success');
   });
 
   // Persist starter_sql on submit

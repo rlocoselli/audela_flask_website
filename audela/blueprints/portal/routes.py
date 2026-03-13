@@ -12,8 +12,9 @@ import html
 import json
 import copy
 from typing import Any
+from urllib.parse import quote_plus
 
-from flask import abort, flash, g, jsonify, make_response, redirect, render_template, request, url_for, send_file, session
+from flask import abort, current_app, flash, g, jsonify, make_response, redirect, render_template, request, url_for, send_file, session
 from flask_login import current_user, login_required
 from sqlalchemy import inspect, text
 from sqlalchemy.orm.attributes import flag_modified
@@ -35,6 +36,7 @@ from ...models.core import User, Role
 from ...models.finance import FinanceCompany
 from ...models.finance_invoices import FinanceSetting
 from ...models.project_management import ProjectWorkspace
+from ...models.etl_catalog import ETLConnection
 from ...security import require_roles
 from ...services.query_service import QueryExecutionError, execute_sql
 from ...services.datasource_service import decrypt_config, introspect_source
@@ -49,10 +51,15 @@ from ...services.alerting_dispatch import dispatch_alerting_for_result
 from ...services.file_storage_service import (
     delete_folder_tree,
     delete_stored_file,
+    ensure_tenant_root,
     resolve_abs_path,
     store_bytes,
     store_upload,
     store_stream,
+)
+from ...services.bi_sample_sqlite_service import (
+    create_audela_sample_sqlite,
+    sample_sqlite_filename,
 )
 from ...services.file_introspect_service import introspect_file_schema
 from ...services.finance_ratio_service import (
@@ -1178,6 +1185,391 @@ def sources_list():
     return render_template("portal/sources_list.html", tenant=g.tenant, sources=sources)
 
 
+@bp.post("/sources/sample-sqlite/create")
+@login_required
+@require_roles("tenant_admin", "creator")
+def sources_create_sample_sqlite():
+    _require_tenant()
+
+    tenant_root = ensure_tenant_root(g.tenant.id)
+    samples_dir = f"{tenant_root}/bi_samples"
+    sqlite_filename = sample_sqlite_filename(g.tenant.id, getattr(g.tenant, "name", "tenant"))
+    sqlite_abs_path = f"{samples_dir}/{sqlite_filename}"
+
+    row_counts = create_audela_sample_sqlite(
+        sqlite_abs_path,
+        seed=int(g.tenant.id) * 9973,
+    )
+
+    from ...services.crypto import encrypt_json
+    from ...services.datasource_service import clear_engine_cache
+    from ...etl.crypto import encrypt_json as etl_encrypt_json
+
+    sqlite_url = f"sqlite:////{sqlite_abs_path.lstrip('/')}"
+    cfg = {
+        "url": sqlite_url,
+        "default_schema": None,
+        "tenant_column": None,
+        "conn": {
+            "sqlite_path": sqlite_abs_path,
+            "database": sqlite_abs_path,
+            "host": "",
+            "port": "",
+            "username": "",
+            "password": "",
+            "driver": "",
+            "service_name": "",
+            "sid": "",
+        },
+    }
+
+    source_name = f"audelasampledata (Tenant {g.tenant.id})"
+    ds = (
+        DataSource.query.filter_by(
+            tenant_id=g.tenant.id,
+            name=source_name,
+            type="sqlite",
+        )
+        .order_by(DataSource.id.desc())
+        .first()
+    )
+
+    if ds is None:
+        ds = DataSource(
+            tenant_id=g.tenant.id,
+            type="sqlite",
+            name=source_name,
+            config_encrypted=encrypt_json(cfg),
+            policy_json={
+                "timeout_seconds": 30,
+                "max_rows": 15000,
+                "read_only": True,
+            },
+        )
+        db.session.add(ds)
+        db.session.flush()
+        action = "created"
+    else:
+        ds.config_encrypted = encrypt_json(cfg)
+        ds.policy_json = {
+            "timeout_seconds": 30,
+            "max_rows": 15000,
+            "read_only": True,
+        }
+        action = "updated"
+
+    # Seed a BI demo pack to showcase capabilities (idempotent upsert behavior).
+    question_prefix = "audelasampledata"
+    question_specs = [
+        {
+            "name": f"{question_prefix} - Monthly Sales",
+            "sql": """
+SELECT
+  month,
+  customer_country,
+  ROUND(gross_sales, 2) AS gross_sales,
+  ROUND(total_cost, 2) AS total_cost,
+  ROUND(gross_margin, 2) AS gross_margin
+FROM v_sales_by_month
+ORDER BY month DESC, gross_sales DESC
+LIMIT 120
+""".strip(),
+            "viz": {"type": "line", "dim": "month", "metric": "gross_sales", "agg": {"func": "sum"}},
+        },
+        {
+            "name": f"{question_prefix} - Top Customers",
+            "sql": """
+SELECT
+  c.company_name,
+  c.country,
+  ROUND(SUM(oi.quantity * oi.unit_price * (1.0 - oi.discount)), 2) AS revenue,
+  SUM(oi.quantity) AS units
+FROM orders o
+JOIN customers c ON c.id = o.customer_id
+JOIN order_items oi ON oi.order_id = o.id
+GROUP BY c.id, c.company_name, c.country
+ORDER BY revenue DESC
+LIMIT 20
+""".strip(),
+            "viz": {"type": "bar", "dim": "company_name", "metric": "revenue"},
+        },
+        {
+            "name": f"{question_prefix} - Category Margin",
+            "sql": """
+SELECT
+  cat.name AS category,
+  ROUND(SUM(oi.quantity * oi.unit_price * (1.0 - oi.discount)), 2) AS sales,
+  ROUND(SUM(oi.quantity * p.cost_price), 2) AS costs,
+  ROUND(SUM(oi.quantity * oi.unit_price * (1.0 - oi.discount)) - SUM(oi.quantity * p.cost_price), 2) AS margin
+FROM order_items oi
+JOIN products p ON p.id = oi.product_id
+JOIN categories cat ON cat.id = p.category_id
+GROUP BY cat.id, cat.name
+ORDER BY margin DESC
+""".strip(),
+            "viz": {"type": "bar", "dim": "category", "metric": "margin"},
+        },
+        {
+            "name": f"{question_prefix} - Orders by Status",
+            "sql": """
+SELECT
+  status,
+  COUNT(*) AS orders_count,
+  ROUND(SUM(freight), 2) AS total_freight
+FROM orders
+GROUP BY status
+ORDER BY orders_count DESC
+""".strip(),
+            "viz": {"type": "pie", "dim": "status", "metric": "orders_count"},
+        },
+    ]
+
+    questions_created = 0
+    demo_questions: list[Question] = []
+    for spec in question_specs:
+        q_name = spec["name"]
+        q = Question.query.filter_by(
+            tenant_id=g.tenant.id,
+            source_id=ds.id,
+            name=q_name,
+        ).first()
+        if q is None:
+            q = Question(
+                tenant_id=g.tenant.id,
+                source_id=ds.id,
+                name=q_name,
+                sql_text=str(spec["sql"]),
+                params_schema_json={},
+                viz_config_json=spec.get("viz") or {},
+                acl_json={
+                    "sample_pack": True,
+                    "sample_source_id": int(ds.id),
+                    "sample_source_name": source_name,
+                },
+            )
+            db.session.add(q)
+            db.session.flush()
+            questions_created += 1
+        else:
+            q.sql_text = str(spec["sql"])
+            q.viz_config_json = spec.get("viz") or {}
+        demo_questions.append(q)
+
+    dashboard_name = f"audelasampledata Dashboard (Source {ds.id})"
+    dash = Dashboard.query.filter_by(tenant_id=g.tenant.id, name=dashboard_name).first()
+    dashboard_created = False
+    if dash is None:
+        dash = Dashboard(
+            tenant_id=g.tenant.id,
+            name=dashboard_name,
+            layout_json={},
+            filters_json={},
+            acl_json={
+                "sample_pack": True,
+                "sample_source_id": int(ds.id),
+                "sample_source_name": source_name,
+            },
+            is_primary=not bool(Dashboard.query.filter_by(tenant_id=g.tenant.id, is_primary=True).first()),
+        )
+        db.session.add(dash)
+        db.session.flush()
+        dashboard_created = True
+    else:
+        dash.acl_json = {
+            "sample_pack": True,
+            "sample_source_id": int(ds.id),
+            "sample_source_name": source_name,
+        }
+
+    existing_cards = {
+        int(card.question_id): card
+        for card in DashboardCard.query.filter_by(tenant_id=g.tenant.id, dashboard_id=dash.id).all()
+    }
+    y = 0
+    for q in demo_questions:
+        card = existing_cards.get(int(q.id))
+        if card is None:
+            card = DashboardCard(
+                tenant_id=g.tenant.id,
+                dashboard_id=dash.id,
+                question_id=q.id,
+                viz_config_json=q.viz_config_json or {},
+                position_json={"x": 0, "y": y, "w": 12, "h": 6},
+            )
+            db.session.add(card)
+        else:
+            card.viz_config_json = q.viz_config_json or {}
+            card.position_json = {"x": 0, "y": y, "w": 12, "h": 6}
+        y += 6
+
+    report_name = f"audelasampledata Executive Report (Source {ds.id})"
+    rep = Report.query.filter_by(tenant_id=g.tenant.id, name=report_name).first()
+    report_created = False
+    report_layout = {
+        "version": 4,
+        "meta": {
+            "sample_pack": True,
+            "sample_source_id": int(ds.id),
+            "sample_source_name": source_name,
+        },
+        "page": {"size": "A4", "orientation": "portrait"},
+        "settings": {"page_number": True, "page_number_label": "Page {page} / {pages}"},
+        "bands": {
+            "report_header": [
+                {
+                    "type": "text",
+                    "title": "AUDELA BI Demo",
+                    "content": "Executive report generated from audelasampledata on {{date}}.",
+                }
+            ],
+            "page_header": [],
+            "detail": [
+                {
+                    "type": "question",
+                    "question_id": int(demo_questions[0].id) if demo_questions else 0,
+                    "title": "Monthly sales snapshot",
+                    "config": {
+                        "table": {
+                            "zebra": True,
+                            "repeat_header": True,
+                            "decimals": 2,
+                        }
+                    },
+                }
+            ],
+            "page_footer": [],
+            "report_footer": [
+                {
+                    "type": "text",
+                    "content": "KPIs, dashboard, report, what-if and ETL integration seeded for BI showcase.",
+                }
+            ],
+        },
+        "sections": {"header": [], "body": [], "footer": []},
+    }
+    if rep is None:
+        rep = Report(
+            tenant_id=g.tenant.id,
+            source_id=ds.id,
+            name=report_name,
+            layout_json=report_layout,
+        )
+        db.session.add(rep)
+        report_created = True
+    else:
+        rep.source_id = ds.id
+        rep.layout_json = report_layout
+
+    ws_name = f"audelasampledata Workspace (Source {ds.id})"
+    ws = DataSource.query.filter_by(tenant_id=g.tenant.id, type="workspace", name=ws_name).first()
+    ws_cfg = {
+        "db_source_id": int(ds.id),
+        "db_tables": ["orders", "order_items", "products", "customers", "v_sales_by_month"],
+        "db_views": ["v_sales_by_month"],
+        "files": [],
+        "max_rows": 20000,
+        "starter_sql": "SELECT month, customer_country, gross_sales, gross_margin FROM v_sales_by_month ORDER BY month DESC LIMIT 200",
+    }
+    ws_policy = {"read_only": True, "max_rows": 20000, "timeout_seconds": 30}
+    workspace_created = False
+    if ws is None:
+        ws = DataSource(
+            tenant_id=g.tenant.id,
+            name=ws_name,
+            type="workspace",
+            config_encrypted=encrypt_json(ws_cfg),
+            policy_json=ws_policy,
+        )
+        db.session.add(ws)
+        workspace_created = True
+    else:
+        ws.config_encrypted = encrypt_json(ws_cfg)
+        ws.policy_json = ws_policy
+
+    state = _what_if_state_for_tenant(g.tenant)
+    scenarios = state.get("what_if", {}).get("scenarios", {}) if isinstance(state.get("what_if"), dict) else {}
+    scenarios["AUD Demo Revenue Stress"] = _sanitize_what_if_scenario_config(
+        {
+            "question": str(demo_questions[0].id) if demo_questions else "",
+            "metric": "gross_sales",
+            "dim": "customer_country",
+            "params": "{}",
+            "pct": -12,
+            "delta": 0,
+            "method": "stress",
+            "dist": "normal",
+            "vol": 15,
+            "runs": 1000,
+            "stressJson": '[{"name":"Downside","pct":-18,"prob":0.3},{"name":"Base","pct":0,"prob":0.5},{"name":"Upside","pct":8,"prob":0.2}]',
+            "hypothesis": True,
+            "sort": "impact_desc",
+        }
+    )
+    state["what_if"] = {"scenarios": scenarios}
+    _persist_what_if_state(g.tenant, state)
+
+    etl_name = f"audelasampledata_sqlite_t{g.tenant.id}"
+    etl_conn = ETLConnection.query.filter_by(name=etl_name).first()
+    etl_created = False
+    etl_payload = {
+        "url": sqlite_url,
+        "sqlite_path": sqlite_abs_path,
+        "driver": "sqlite",
+        "read_only": True,
+    }
+    if etl_conn is None:
+        etl_conn = ETLConnection(
+            tenant_id=g.tenant.id,
+            name=etl_name,
+            type="sqlite",
+            encrypted_payload=etl_encrypt_json(current_app, etl_payload),
+        )
+        db.session.add(etl_conn)
+        etl_created = True
+    else:
+        etl_conn.tenant_id = g.tenant.id
+        etl_conn.type = "sqlite"
+        etl_conn.encrypted_payload = etl_encrypt_json(current_app, etl_payload)
+
+    _audit(
+        "bi.datasource.sample_sqlite_generated",
+        {
+            "name": source_name,
+            "path": sqlite_abs_path,
+            "rows": row_counts,
+            "action": action,
+            "questions_created": questions_created,
+            "dashboard": dashboard_name,
+            "report": report_name,
+            "workspace": ws_name,
+            "etl_connection": etl_name,
+        },
+    )
+    db.session.commit()
+    clear_engine_cache()
+
+    flash(
+        tr(
+            "Amostra BI audelasampledata pronta ({orders} pedidos, {items} itens, {questions} perguntas).",
+            getattr(g, "lang", None),
+            orders=row_counts.get("orders", 0),
+            items=row_counts.get("order_items", 0),
+            questions=len(demo_questions),
+        ),
+        "success",
+    )
+
+    if any([dashboard_created, report_created, workspace_created, etl_created, questions_created > 0]):
+        flash(
+            tr(
+                "Demo BI: dashboard, report, workspace, what-if e integração ETL configurados automaticamente.",
+                getattr(g, "lang", None),
+            ),
+            "info",
+        )
+    return redirect(url_for("portal.sources_list"))
+
+
 @bp.route("/sources/new", methods=["GET", "POST"])
 @login_required
 @require_roles("tenant_admin", "creator")
@@ -2257,10 +2649,32 @@ def integrations_question_api(slug: str):
 def sources_delete(source_id: int):
     _require_tenant()
     src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first_or_404()
-    _audit("bi.datasource.deleted", {"id": src.id, "name": src.name})
-    db.session.delete(src)
+
+    cleanup = _delete_source_with_relations(src, g.tenant)
+    _audit(
+        "bi.datasource.deleted",
+        {
+            "id": src.id,
+            "name": src.name,
+            "cleanup": cleanup,
+        },
+    )
     db.session.commit()
     flash(tr("Fonte removida.", getattr(g, "lang", None)), "success")
+    flash(
+        tr(
+            "Relacionamentos removidos: {questions} perguntas, {cards} cards, {dashboards} dashboards, {reports} reports, {runs} execucoes, {workspaces} workspaces, {scenarios} cenarios what-if.",
+            getattr(g, "lang", None),
+            questions=cleanup.get("questions_deleted", 0),
+            cards=cleanup.get("cards_deleted", 0),
+            dashboards=cleanup.get("dashboards_deleted", 0),
+            reports=cleanup.get("reports_deleted", 0),
+            runs=cleanup.get("query_runs_deleted", 0),
+            workspaces=cleanup.get("workspaces_deleted", 0),
+            scenarios=cleanup.get("what_if_scenarios_removed", 0),
+        ),
+        "info",
+    )
     return redirect(url_for("portal.sources_list"))
 
 @bp.route("/apisources/<int:source_id>/delete", methods=["POST"])
@@ -2269,11 +2683,125 @@ def sources_delete(source_id: int):
 def apisources_delete(source_id: int):
     _require_tenant()
     src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first_or_404()
-    _audit("bi.datasource.deleted", {"id": src.id, "name": src.name})
-    db.session.delete(src)
+
+    cleanup = _delete_source_with_relations(src, g.tenant)
+    _audit(
+        "bi.datasource.deleted",
+        {
+            "id": src.id,
+            "name": src.name,
+            "cleanup": cleanup,
+        },
+    )
     db.session.commit()
     flash(tr("Fonte removida.", getattr(g, "lang", None)), "success")
+    flash(
+        tr(
+            "Relacionamentos removidos: {questions} perguntas, {cards} cards, {dashboards} dashboards, {reports} reports, {runs} execucoes, {workspaces} workspaces, {scenarios} cenarios what-if.",
+            getattr(g, "lang", None),
+            questions=cleanup.get("questions_deleted", 0),
+            cards=cleanup.get("cards_deleted", 0),
+            dashboards=cleanup.get("dashboards_deleted", 0),
+            reports=cleanup.get("reports_deleted", 0),
+            runs=cleanup.get("query_runs_deleted", 0),
+            workspaces=cleanup.get("workspaces_deleted", 0),
+            scenarios=cleanup.get("what_if_scenarios_removed", 0),
+        ),
+        "info",
+    )
     return redirect(url_for("portal.api_sources_list"))
+
+
+def _delete_source_with_relations(src: DataSource, tenant: Tenant) -> dict[str, int]:
+    """Delete a source and all tenant relations tied to it (application-level cascade)."""
+
+    q_rows = Question.query.filter_by(tenant_id=tenant.id, source_id=src.id).all()
+    question_ids = [int(q.id) for q in q_rows]
+
+    cards_deleted = 0
+    dashboards_deleted = 0
+    runs_deleted = 0
+    questions_deleted = 0
+    reports_deleted = 0
+    workspaces_deleted = 0
+    scenarios_removed = 0
+
+    if question_ids:
+        cards = DashboardCard.query.filter(
+            DashboardCard.tenant_id == tenant.id,
+            DashboardCard.question_id.in_(question_ids),
+        ).all()
+        dashboards_touched = {int(c.dashboard_id) for c in cards}
+        cards_deleted = len(cards)
+        for c in cards:
+            db.session.delete(c)
+
+        runs = QueryRun.query.filter(
+            QueryRun.tenant_id == tenant.id,
+            QueryRun.question_id.in_(question_ids),
+        ).all()
+        runs_deleted = len(runs)
+        for r in runs:
+            db.session.delete(r)
+
+        for q in q_rows:
+            db.session.delete(q)
+        questions_deleted = len(q_rows)
+
+        # Remove dashboards left without any card after deleting question cards.
+        if dashboards_touched:
+            for dash_id in dashboards_touched:
+                has_cards = DashboardCard.query.filter_by(
+                    tenant_id=tenant.id,
+                    dashboard_id=int(dash_id),
+                ).first()
+                if has_cards is None:
+                    dash = Dashboard.query.filter_by(tenant_id=tenant.id, id=int(dash_id)).first()
+                    if dash is not None:
+                        db.session.delete(dash)
+                        dashboards_deleted += 1
+
+        # Remove what-if scenarios linked to deleted questions.
+        state = _what_if_state_for_tenant(tenant)
+        scenarios = state.get("what_if", {}).get("scenarios", {}) if isinstance(state.get("what_if"), dict) else {}
+        for name, cfg in list(scenarios.items()):
+            qid_raw = str((cfg or {}).get("question") or "").strip()
+            if qid_raw and qid_raw.isdigit() and int(qid_raw) in set(question_ids):
+                scenarios.pop(name, None)
+                scenarios_removed += 1
+        if scenarios_removed > 0:
+            state["what_if"] = {"scenarios": scenarios}
+            _persist_what_if_state(tenant, state)
+
+    reps = Report.query.filter_by(tenant_id=tenant.id, source_id=src.id).all()
+    reports_deleted = len(reps)
+    for rep in reps:
+        db.session.delete(rep)
+
+    # Delete workspace data sources that explicitly point to this DB source.
+    workspaces = DataSource.query.filter_by(tenant_id=tenant.id, type="workspace").all()
+    for ws in workspaces:
+        try:
+            ws_cfg = decrypt_config(ws) or {}
+        except Exception:
+            ws_cfg = {}
+        db_source_id = ws_cfg.get("db_source_id")
+        if str(db_source_id).strip().isdigit() and int(db_source_id) == int(src.id):
+            db.session.delete(ws)
+            workspaces_deleted += 1
+
+    db.session.delete(src)
+
+    return {
+        "source_deleted": 1,
+        "questions_deleted": questions_deleted,
+        "cards_deleted": cards_deleted,
+        "dashboards_deleted": dashboards_deleted,
+        "reports_deleted": reports_deleted,
+        "query_runs_deleted": runs_deleted,
+        "workspaces_deleted": workspaces_deleted,
+        "what_if_scenarios_removed": scenarios_removed,
+    }
 
 @bp.route("/sources/<int:source_id>")
 @login_required
@@ -3044,7 +3572,7 @@ def api_export_pdf():
 def api_export_xlsx():
     """Export a result table to Excel.
 
-    Expected payload: {title, columns, rows, add_chart?, add_pivot?, template?, color_theme?}
+    Expected payload: {title, columns, rows, add_chart?, add_pivot?, template?, color_theme?, pivot_config?}
     """
     _require_tenant()
     payload = request.get_json(silent=True) or {}
@@ -3053,6 +3581,7 @@ def api_export_xlsx():
     rows = payload.get("rows") or []
     add_chart = bool(payload.get("add_chart", True))
     add_pivot = bool(payload.get("add_pivot", False))
+    pivot_config = payload.get("pivot_config") if isinstance(payload.get("pivot_config"), dict) else None
     template_name = str(payload.get("template") or "clean").strip().lower() or "clean"
     color_theme = str(payload.get("color_theme") or "").strip()
 
@@ -3071,6 +3600,7 @@ def api_export_xlsx():
         add_pivot=add_pivot,
         template=template_name,
         color_theme=color_theme,
+        pivot_config=pivot_config,
     )
     resp = make_response(xlsx_bytes)
     resp.headers["Content-Type"] = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -3092,6 +3622,7 @@ def api_excel_generate():
         max_rows?: int,
         add_chart?: bool,
         add_pivot?: bool,
+            pivot_config?: {rows?: string[]|string, columns?: string[]|string, value?: string, agg?: string},
                 template?: str,
                 color_theme?: str,
         store?: bool,
@@ -3113,6 +3644,7 @@ def api_excel_generate():
     title = (payload.get("title") or "Excel Export").strip() or "Excel Export"
     add_chart = bool(payload.get("add_chart", True))
     add_pivot = bool(payload.get("add_pivot", False))
+    pivot_config = payload.get("pivot_config") if isinstance(payload.get("pivot_config"), dict) else None
     store = bool(payload.get("store", True))
     folder_id = payload.get("folder_id")
     template_name = str(payload.get("template") or "clean").strip().lower() or "clean"
@@ -3145,6 +3677,7 @@ def api_excel_generate():
         add_pivot=add_pivot,
         template=template_name,
         color_theme=color_theme,
+        pivot_config=pivot_config,
     )
 
     # Optionally store in tenant files
@@ -5639,10 +6172,9 @@ def api_questions_preview():
 def questions_view(question_id: int):
     _require_tenant()
     q = Question.query.filter_by(id=question_id, tenant_id=g.tenant.id).first_or_404()
-    src = DataSource.query.filter_by(id=q.source_id, tenant_id=g.tenant.id).first_or_404()
     _audit("bi.question.viewed", {"id": q.id})
     db.session.commit()
-    return render_template("portal/questions_view.html", tenant=g.tenant, question=q, source=src)
+    return redirect(url_for("portal.questions_run", question_id=q.id))
 
 
 @bp.route("/questions/<int:question_id>/viz", methods=["GET", "POST"])
@@ -8025,15 +8557,235 @@ def api_ai_lite_source_questions():
     return jsonify({"ok": True, "questions": items, "count": len(items), "message": message})
 
 
-def _bi_lite_exec_requested_sections(prompt: str) -> dict[str, bool]:
-    text = str(prompt or "").lower()
-    kpi = any(tok in text for tok in ["kpi", "indicateur", "indicator", "metric", "métrique"])
-    trends = any(tok in text for tok in ["trend", "tendance", "evolution", "évolution", "growth", "croissance"])
-    timeline = any(tok in text for tok in ["timeline", "chronologie", "month", "mois", "quarter", "trimestre", "year", "année"])
-    data = any(tok in text for tok in ["table", "detail", "détail", "data", "dataset", "raw"])
-    if not any([kpi, trends, timeline, data]):
-        return {"kpi": True, "trends": True, "timeline": True, "data": True}
-    return {"kpi": kpi, "trends": trends, "timeline": timeline, "data": data}
+def _bi_lite_exec_requested_sections(prompt: str, executive_guide: str = "") -> dict[str, bool]:
+    text = f"{str(prompt or '')} {str(executive_guide or '')}".lower()
+    section_aliases = {
+        "kpi": ["kpi", "indicateur", "indicator", "metric", "metrique"],
+        "charts": ["chart", "graph", "graphe", "visual", "viz", "plot"],
+        "trends": ["trend", "tendance", "evolution", "growth", "croissance"],
+        "timeline": ["timeline", "chronologie", "month", "mois", "quarter", "trimestre", "year", "annee"],
+        "data": ["table", "detail", "raw data", "dataset", "donnees", "donnees brutes"],
+        "sql": ["sql", "query", "requete"],
+        "images": [
+            "image", "images", "photo", "illustration",
+            "football", "soccer", "club", "stadium",
+            "bank", "banking", "finance", "financial",
+            "enterprise", "business", "corporate",
+        ],
+    }
+    out = {"kpi": True, "charts": True, "trends": True, "timeline": True, "data": True, "sql": True, "images": False}
+
+    positive = {key: any(tok in text for tok in tokens) for key, tokens in section_aliases.items()}
+    if positive.get("images"):
+        out["images"] = True
+
+    for key, tokens in section_aliases.items():
+        for tok in tokens:
+            if re.search(rf"(without|sans|hide|skip|omit)\s+{re.escape(tok)}", text):
+                out[key] = False
+
+    return out
+
+
+def _bi_lite_exec_image_urls(prompt: str, executive_guide: str = "", max_items: int = 3) -> list[dict[str, str]]:
+    text = f"{str(prompt or '')} {str(executive_guide or '')}".strip()
+    lowered = text.lower()
+
+    if not text:
+        return []
+    if re.search(r"\b(without|sans|hide|skip|omit)\s+(image|images|photo|photos)\b", lowered):
+        return []
+
+    queries: list[str] = []
+    if any(tok in lowered for tok in ["football", "soccer", "club", "stadium", "supporter"]):
+        queries.extend([
+            "football stadium crowd",
+            "football team training",
+            "soccer club supporters",
+        ])
+
+    if any(tok in lowered for tok in ["finance", "revenue", "bank", "banking", "risk", "ifrs", "dashboard", "analytics"]):
+        queries.extend([
+            "business analytics dashboard",
+            "executive meeting presentation",
+            "banking office teamwork",
+        ])
+
+    if any(tok in lowered for tok in ["enterprise", "business", "corporate", "company"]):
+        queries.extend([
+            "enterprise strategy meeting",
+            "corporate headquarters teamwork",
+        ])
+
+    words = [w for w in re.findall(r"[a-zA-Z]{4,}", lowered) if w not in {"style", "palette", "section", "sections", "without", "hide", "kpi", "sql"}]
+    if words:
+        queries.append(" ".join(words[:3]))
+
+    if not queries:
+        return []
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for q in queries:
+        key = q.strip().lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        deduped.append(q.strip())
+
+    out: list[dict[str, str]] = []
+    for idx, q in enumerate(deduped[: max(1, int(max_items or 3))]):
+        encoded = quote_plus(q)
+        seed = quote_plus(re.sub(r"\s+", "-", q.strip().lower()))
+        out.append(
+            {
+                "caption": q,
+                # Public query-based image source; each query returns a thematic photo.
+                "url": f"https://source.unsplash.com/1200x700/?{encoded}&sig={idx + 1}",
+                # Stable fallback image to avoid blank cards when external providers fail.
+                "fallback_url": f"https://picsum.photos/seed/{seed}/1200/700",
+            }
+        )
+    return out
+
+
+def _bi_lite_exec_theme_tokens(executive_guide: str, ai_theme: str = "") -> dict[str, str]:
+    text = f"{str(executive_guide or '')} {str(ai_theme or '')}".lower()
+    theme = {
+        "bg": "#f6f8fb",
+        "card": "#ffffff",
+        "ink": "#142033",
+        "muted": "#5a6b85",
+        "line": "#dbe3ef",
+        "accent": "#0b65d8",
+        "accent2": "#14a3a3",
+        "hero": "linear-gradient(120deg, #0b65d8, #14a3a3)",
+    }
+
+    palettes = [
+        (["ocean", "marine", "bleu", "blue"], {
+            "bg": "#f3f8ff", "card": "#ffffff", "ink": "#10223d", "muted": "#4f6485", "line": "#cfe0f5",
+            "accent": "#0c63e7", "accent2": "#1a8ec8", "hero": "linear-gradient(120deg, #0c63e7, #1a8ec8)",
+        }),
+        (["forest", "green", "vert", "nature"], {
+            "bg": "#f2faf5", "card": "#ffffff", "ink": "#153525", "muted": "#4c6f5c", "line": "#d3e8dc",
+            "accent": "#1f8f57", "accent2": "#4aa83a", "hero": "linear-gradient(120deg, #1f8f57, #4aa83a)",
+        }),
+        (["sunset", "orange", "amber", "warm", "chaud"], {
+            "bg": "#fff7f1", "card": "#ffffff", "ink": "#3a2214", "muted": "#7a5a49", "line": "#f0d9ca",
+            "accent": "#d4631d", "accent2": "#ed9a2c", "hero": "linear-gradient(120deg, #d4631d, #ed9a2c)",
+        }),
+        (["graphite", "gray", "grey", "minimal", "sobre"], {
+            "bg": "#f6f7f9", "card": "#ffffff", "ink": "#1d2430", "muted": "#5f6673", "line": "#d8dde6",
+            "accent": "#3a4a63", "accent2": "#6a7485", "hero": "linear-gradient(120deg, #3a4a63, #6a7485)",
+        }),
+    ]
+    for keywords, palette in palettes:
+        if any(tok in text for tok in keywords):
+            theme.update(palette)
+            break
+
+    return theme
+
+
+def _bi_lite_exec_style_tokens(executive_guide: str, ai_style: str = "") -> dict[str, str]:
+    text = f"{str(executive_guide or '')} {str(ai_style or '')}".lower()
+    style = {
+        "font": "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+        "radius": "14px",
+        "shadow": "0 8px 24px rgba(15, 23, 42, 0.06)",
+    }
+
+    if any(tok in text for tok in ["executive", "corporate", "board"]):
+        style["font"] = "'Trebuchet MS', 'Segoe UI', Tahoma, sans-serif"
+        style["radius"] = "12px"
+    elif any(tok in text for tok in ["editorial", "magazine", "story"]):
+        style["font"] = "Georgia, 'Times New Roman', serif"
+        style["radius"] = "16px"
+    elif any(tok in text for tok in ["modern", "tech", "digital"]):
+        style["font"] = "'Arial', 'Helvetica Neue', sans-serif"
+        style["radius"] = "10px"
+
+    if any(tok in text for tok in ["bold", "impact", "strong"]):
+        style["shadow"] = "0 12px 30px rgba(2, 6, 23, 0.14)"
+
+    return style
+
+
+def _bi_lite_exec_prerequisites(columns: list[str], rows: list[list[Any]]) -> dict[str, Any]:
+    kpis = _bi_lite_exec_kpis(columns, rows, max_items=4)
+    trends = _bi_lite_exec_trends(columns, rows, max_points=18)
+    auto_charts = _bi_lite_exec_auto_charts(columns, rows, max_items=3)
+    return {
+        "row_count": int(len(rows or [])),
+        "column_count": int(len(columns or [])),
+        "has_kpi": bool(kpis),
+        "has_trend": bool(trends),
+        "has_chart_candidates": bool(auto_charts),
+        "max_kpis": int(len(kpis)),
+        "max_trend_points": int(len(trends)),
+    }
+
+
+def _bi_lite_exec_layout_plan(
+    *,
+    prompt: str,
+    executive_guide: str,
+    columns: list[str],
+    rows: list[list[Any]],
+    source_name: str,
+    sql_text: str,
+) -> dict[str, Any]:
+    prereq = _bi_lite_exec_prerequisites(columns, rows)
+
+    # AI layout planner: pick sections/style/theme from prerequisites and business intent.
+    ai_layout = analyze_with_ai(
+        data_bundle={
+            "source": {"name": source_name},
+            "sql": sql_text,
+            "result": {
+                "columns": [str(c) for c in (columns or [])],
+                "rows_sample": (rows or [])[:50],
+                "row_count": len(rows or []),
+            },
+            "profile": {"prerequisites": prereq},
+        },
+        user_message=(
+            "Decide the best executive HTML layout based on prerequisites and request intent. "
+            "Return JSON with keys analysis, charts, followups and layout. "
+            "layout must be an object with optional keys: "
+            "sections={kpi,charts,trends,timeline,data,sql,images}, theme, style. "
+            f"User request: {prompt}. Guide: {executive_guide}."
+        ),
+        history=[],
+        lang=getattr(g, "lang", None),
+        timeout_seconds=6,
+        extra_json_keys=["layout"],
+    )
+
+    raw_layout = ai_layout.get("layout") if isinstance(ai_layout, dict) else None
+    if not isinstance(raw_layout, dict):
+        raw_layout = {}
+
+    out: dict[str, Any] = {"prerequisites": prereq}
+    theme = str(raw_layout.get("theme") or "").strip().lower()
+    style = str(raw_layout.get("style") or "").strip().lower()
+    if theme:
+        out["theme"] = theme
+    if style:
+        out["style"] = style
+
+    sections_raw = raw_layout.get("sections")
+    if isinstance(sections_raw, dict):
+        allowed = {"kpi", "charts", "trends", "timeline", "data", "sql", "images"}
+        sec: dict[str, bool] = {}
+        for key in allowed:
+            if key in sections_raw:
+                sec[key] = bool(sections_raw.get(key))
+        if sec:
+            out["sections"] = sec
+
+    return out
 
 
 def _bi_lite_exec_kpis(columns: list[str], rows: list[list[Any]], max_items: int = 4) -> list[dict[str, Any]]:
@@ -8239,17 +8991,58 @@ def _bi_lite_exec_html(
     columns: list[str],
     rows: list[list[Any]],
         ai_charts: list[dict[str, Any]] | None = None,
+        executive_guide: str = "",
+        layout_plan: dict[str, Any] | None = None,
 ) -> str:
         safe_title = html.escape(str(title or "Executive report"))
         safe_source = html.escape(str(source_name or ""))
         safe_prompt = html.escape(str(prompt or ""))
         safe_analysis = html.escape(str(analysis or ""))
         safe_sql = html.escape(str(sql_text or ""))
+        safe_lbl_overview = html.escape(_("Overview"))
+        safe_lbl_ai_charts = html.escape(_("AI Charts"))
+        safe_lbl_trends = html.escape(_("Trends"))
+        safe_lbl_timeline = html.escape(_("Timeline"))
+        safe_lbl_images = html.escape(_("Images"))
+        safe_lbl_data = html.escape(_("Data"))
+        safe_lbl_context_images = html.escape(_("Context images"))
+        safe_lbl_context_images_help = html.escape(_("Images are selected from your text guide (ex: football/club)."))
+        safe_lbl_data_sample = html.escape(_("Data sample"))
+        safe_lbl_exec_brief = html.escape(_("Executive brief"))
+        safe_lbl_user_request = html.escape(_("User request"))
+        safe_lbl_customization_guide = html.escape(_("Customization guide"))
+        safe_lbl_kpis = html.escape(_("KPIs"))
+        safe_lbl_sql = html.escape(_("SQL"))
+        safe_lbl_filter_rows = html.escape(_("Filter rows (text search)"))
+        safe_lbl_reset_filters = html.escape(_("Reset filters"))
+        safe_lbl_ai_selected_visualizations = html.escape(_("AI-selected visualizations"))
+        safe_lbl_ai_selected_visualizations_help = html.escape(_("Charts are proposed by AI from your executive request and data context."))
 
-        sections = _bi_lite_exec_requested_sections(prompt)
+        sections = _bi_lite_exec_requested_sections(prompt, executive_guide)
+        plan_sections = (layout_plan or {}).get("sections")
+        if isinstance(plan_sections, dict):
+            for key in ("kpi", "charts", "trends", "timeline", "data", "sql", "images"):
+                if key in plan_sections:
+                    sections[key] = bool(plan_sections.get(key))
+
+        # Enforce data prerequisites regardless of style preferences.
+        prereq = (layout_plan or {}).get("prerequisites") if isinstance(layout_plan, dict) else {}
+        if isinstance(prereq, dict):
+            if not bool(prereq.get("has_kpi", True)):
+                sections["kpi"] = False
+            if not bool(prereq.get("has_trend", True)):
+                sections["trends"] = False
+                sections["timeline"] = False
+            if not bool(prereq.get("has_chart_candidates", True)) and not ai_charts:
+                sections["charts"] = False
+
+        theme_tokens = _bi_lite_exec_theme_tokens(executive_guide, ai_theme=str((layout_plan or {}).get("theme") or ""))
+        style_tokens = _bi_lite_exec_style_tokens(executive_guide, ai_style=str((layout_plan or {}).get("style") or ""))
         kpis = _bi_lite_exec_kpis(columns, rows)
         trends = _bi_lite_exec_trends(columns, rows)
         table_rows = rows[:200]
+        safe_executive_guide = html.escape(str(executive_guide or ""))
+        image_items = _bi_lite_exec_image_urls(prompt, executive_guide, max_items=4) if sections.get("images", False) else []
 
         chart_items: list[dict[str, Any]] = []
         for ch in (ai_charts or []):
@@ -8333,6 +9126,19 @@ def _bi_lite_exec_html(
         timeline_fallback = '<span style="color:var(--muted)">No timeline points available.</span>'
         trend_content = trend_items if trend_items else trend_fallback
         timeline_content = timeline_items if timeline_items else timeline_fallback
+        image_cards_html = "".join(
+            [
+                (
+                    '<figure class="exec-image-card">'
+                    f'<img src="{html.escape(str(item.get("url") or ""))}" alt="{html.escape(str(item.get("caption") or "Executive image"))}" loading="lazy" referrerpolicy="no-referrer" '
+                    f'onerror="if(this.dataset.fallbackApplied!==\'1\'){{this.dataset.fallbackApplied=\'1\';this.src=\'{html.escape(str(item.get("fallback_url") or ""))}\';return;}}this.style.display=\'none\';var fb=this.parentNode&&this.parentNode.querySelector(\'.exec-image-fallback\');if(fb){{fb.style.display=\'flex\';}}" />'
+                    f'<div class="exec-image-fallback">{html.escape(str(item.get("caption") or "Image unavailable"))}</div>'
+                    f'<figcaption>{html.escape(str(item.get("caption") or ""))}</figcaption>'
+                    '</figure>'
+                )
+                for item in image_items
+            ]
+        )
 
         data_payload = {
                 "columns": [str(c) for c in (columns or [])],
@@ -8340,6 +9146,27 @@ def _bi_lite_exec_html(
         }
         data_json = json.dumps(data_payload, ensure_ascii=False, default=str).replace("</", "<\\/")
         charts_json = json.dumps(chart_items[:6], ensure_ascii=False, default=str).replace("</", "<\\/")
+        js_i18n = json.dumps(
+            {
+                "no_rows_after_filters": _("No rows after filters."),
+                "no_kpi_after_filters": _("No KPI available after filters."),
+                "no_numeric_kpi_after_filters": _("No numeric KPI detected for current filters."),
+                "avg": _("Avg"),
+                "no_trend_filtered": _("No trend axis detected in filtered data."),
+                "no_timeline_filtered": _("No timeline points available for filtered data."),
+                "ai_no_chart_reco": _("AI did not return chart recommendations for this request."),
+                "chart": _("Chart"),
+                "echarts_runtime_unavailable": _("ECharts runtime unavailable (blocked CDN/CSP). Charts cannot be rendered in this preview."),
+                "chart_area_not_ready": _("Chart area is not ready yet. Reopen AI Charts tab."),
+                "unable_render_ai_chart": _("Unable to render this AI chart."),
+                "charts_not_initialized": _("Charts are available but could not be initialized in the current layout. Try opening preview in a new tab."),
+                "all_columns": _("All columns"),
+                "all_values": _("All values"),
+                "rows": _("rows"),
+                "row_count_suffix": _("row(s)"),
+            },
+            ensure_ascii=False,
+        ).replace("</", "<\\/")
 
         return f"""<!doctype html>
 <html lang=\"en\">
@@ -8349,10 +9176,10 @@ def _bi_lite_exec_html(
     <title>{safe_title}</title>
     <script src=\"https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js\"></script>
     <style>
-        :root {{ --bg:#f6f8fb; --card:#ffffff; --ink:#142033; --muted:#5a6b85; --line:#dbe3ef; --accent:#0b65d8; --accent2:#14a3a3; }}
+        :root {{ --bg:{theme_tokens['bg']}; --card:{theme_tokens['card']}; --ink:{theme_tokens['ink']}; --muted:{theme_tokens['muted']}; --line:{theme_tokens['line']}; --accent:{theme_tokens['accent']}; --accent2:{theme_tokens['accent2']}; }}
         * {{ box-sizing:border-box; }}
-        body {{ margin:0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color:var(--ink); background:var(--bg); }}
-        .hero {{ padding:24px 28px; background: linear-gradient(120deg, #0b65d8, #14a3a3); color:#fff; }}
+        body {{ margin:0; font-family: {style_tokens['font']}; color:var(--ink); background:var(--bg); }}
+        .hero {{ padding:24px 28px; background: {theme_tokens['hero']}; color:#fff; }}
         .hero h1 {{ margin:0 0 8px 0; font-size:28px; }}
         .hero .meta {{ opacity:.92; font-size:14px; }}
         .wrap {{ padding:18px 22px 28px; }}
@@ -8362,10 +9189,10 @@ def _bi_lite_exec_html(
         .panel {{ display:none; }}
         .panel.active {{ display:block; }}
         .grid {{ display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:12px; }}
-        .card {{ background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; }}
+        .card {{ background:var(--card); border:1px solid var(--line); border-radius:{style_tokens['radius']}; padding:14px; box-shadow:{style_tokens['shadow']}; }}
         .span-12 {{ grid-column: span 12; }}
         .kpi-list {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; }}
-        .kpi-card {{ border:1px solid var(--line); border-radius:12px; padding:10px; background:#fff; }}
+        .kpi-card {{ border:1px solid var(--line); border-radius:{style_tokens['radius']}; padding:10px; background:#fff; }}
         .kpi-label {{ color:var(--muted); font-size:12px; }}
         .kpi-value {{ font-size:24px; font-weight:700; margin-top:4px; }}
         .kpi-sub {{ color:var(--muted); font-size:12px; margin-top:4px; }}
@@ -8385,6 +9212,11 @@ def _bi_lite_exec_html(
         .ai-chart-title {{ font-weight:700; font-size:13px; margin-bottom:8px; color:#24324a; }}
         .ai-chart-box {{ height:320px; }}
         .muted-note {{ color:var(--muted); font-size:12px; }}
+        .exec-image-grid {{ display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:12px; }}
+        .exec-image-card {{ grid-column: span 6; margin:0; border:1px solid var(--line); border-radius:{style_tokens['radius']}; overflow:hidden; background:#fff; }}
+        .exec-image-card img {{ width:100%; height:220px; object-fit:cover; display:block; background:#e7edf6; }}
+        .exec-image-fallback {{ width:100%; height:220px; display:none; align-items:center; justify-content:center; padding:12px; text-align:center; background:linear-gradient(120deg,#ecf2fb,#e5edf9); color:var(--muted); font-weight:600; }}
+        .exec-image-card figcaption {{ padding:8px 10px; font-size:12px; color:var(--muted); }}
         .data-table {{ width:100%; border-collapse:collapse; font-size:12px; }}
         .data-table th, .data-table td {{ border:1px solid var(--line); padding:6px 8px; text-align:left; }}
         .data-table th {{ background:#eef3fb; }}
@@ -8400,58 +9232,68 @@ def _bi_lite_exec_html(
 
     <main class=\"wrap\">
         <div class=\"tabs\">
-            <button class=\"tab-btn active\" data-tab=\"overview\">Overview</button>
-            <button class=\"tab-btn\" data-tab=\"charts\">AI Charts</button>
-            <button class=\"tab-btn\" data-tab=\"trends\">Trends</button>
-            <button class=\"tab-btn\" data-tab=\"timeline\">Timeline</button>
-            <button class=\"tab-btn\" data-tab=\"data\">Data</button>
+            <button class=\"tab-btn active\" data-tab=\"overview\">{safe_lbl_overview}</button>
+            <button class=\"tab-btn\" data-tab=\"charts\" style=\"display:{'inline-block' if sections.get('charts', True) else 'none'}\">{safe_lbl_ai_charts}</button>
+            <button class=\"tab-btn\" data-tab=\"trends\" style=\"display:{'inline-block' if sections.get('trends', True) else 'none'}\">{safe_lbl_trends}</button>
+            <button class=\"tab-btn\" data-tab=\"timeline\" style=\"display:{'inline-block' if sections.get('timeline', True) else 'none'}\">{safe_lbl_timeline}</button>
+            <button class=\"tab-btn\" data-tab=\"images\" style=\"display:{'inline-block' if sections.get('images', False) and image_items else 'none'}\">{safe_lbl_images}</button>
+            <button class=\"tab-btn\" data-tab=\"data\" style=\"display:{'inline-block' if sections.get('data', True) or sections.get('sql', True) else 'none'}\">{safe_lbl_data}</button>
         </div>
 
         <div class=\"card\" style=\"margin-bottom:12px;\">
             <div class=\"filters\">
-                <input id=\"execFilterSearch\" type=\"search\" placeholder=\"Filter rows (text search)\" />
+                <input id=\"execFilterSearch\" type=\"search\" placeholder=\"{safe_lbl_filter_rows}\" />
                 <select id=\"execFilterColumn\"></select>
                 <select id=\"execFilterValue\"></select>
-                <button id=\"execFilterReset\" type=\"button\">Reset filters</button>
+                <button id=\"execFilterReset\" type=\"button\">{safe_lbl_reset_filters}</button>
                 <span id=\"execFilterCount\" class=\"muted-note\"></span>
             </div>
         </div>
 
         <section class=\"panel active\" id=\"tab-overview\">
             <div class=\"grid\">
-                <article class=\"card span-12\"><strong>Executive brief</strong><br><div style=\"margin-top:8px;color:var(--muted)\">{safe_analysis or 'Executive analysis generated from current BI Lite request.'}</div></article>
-                <article class=\"card span-12\"><strong>User request</strong><br><div style=\"margin-top:8px;color:var(--muted)\">{safe_prompt}</div></article>
-                <article class=\"card span-12\" style=\"display:{'block' if sections.get('kpi', True) else 'none'}\"><strong>KPIs</strong><div id=\"execKpiList\" class=\"kpi-list\" style=\"margin-top:10px\">{kpi_cards}</div></article>
+                <article class=\"card span-12\"><strong>{safe_lbl_exec_brief}</strong><br><div style=\"margin-top:8px;color:var(--muted)\">{safe_analysis or html.escape(_("Executive analysis generated from current BI Lite request."))}</div></article>
+                <article class=\"card span-12\"><strong>{safe_lbl_user_request}</strong><br><div style=\"margin-top:8px;color:var(--muted)\">{safe_prompt}</div></article>
+                <article class=\"card span-12\" style=\"display:{'block' if safe_executive_guide else 'none'}\"><strong>{safe_lbl_customization_guide}</strong><br><div style=\"margin-top:8px;color:var(--muted)\">{safe_executive_guide}</div></article>
+                <article class=\"card span-12\" style=\"display:{'block' if sections.get('kpi', True) else 'none'}\"><strong>{safe_lbl_kpis}</strong><div id=\"execKpiList\" class=\"kpi-list\" style=\"margin-top:10px\">{kpi_cards}</div></article>
             </div>
         </section>
 
-        <section class=\"panel\" id=\"tab-charts\">
+        <section class=\"panel\" id=\"tab-charts\" style=\"display:{'block' if sections.get('charts', True) else 'none'}\">
             <div class=\"card\">
-                <strong>AI-selected visualizations</strong>
-                <div class=\"muted-note\" style=\"margin-top:4px;\">Charts are proposed by AI from your executive request and data context.</div>
+                <strong>{safe_lbl_ai_selected_visualizations}</strong>
+                <div class=\"muted-note\" style=\"margin-top:4px;\">{safe_lbl_ai_selected_visualizations_help}</div>
                 <div id=\"execAiCharts\" class=\"ai-chart-grid\" style=\"margin-top:10px;\"></div>
             </div>
         </section>
 
         <section class=\"panel\" id=\"tab-trends\">
             <div class=\"card\" style=\"display:{'block' if sections.get('trends', True) else 'none'}\">
-                <strong>Trends</strong>
+                <strong>{safe_lbl_trends}</strong>
                 <div id=\"execTrends\" style=\"margin-top:10px\">{trend_content}</div>
             </div>
         </section>
 
         <section class=\"panel\" id=\"tab-timeline\">
             <div class=\"card\" style=\"display:{'block' if sections.get('timeline', True) else 'none'}\">
-                <strong>Timeline</strong>
+                <strong>{safe_lbl_timeline}</strong>
                 <div id=\"execTimeline\" style=\"margin-top:10px\">{timeline_content}</div>
+            </div>
+        </section>
+
+        <section class=\"panel\" id=\"tab-images\" style=\"display:{'block' if sections.get('images', False) and image_items else 'none'}\">
+            <div class=\"card\">
+                <strong>{safe_lbl_context_images}</strong>
+                <div class=\"muted-note\" style=\"margin-top:4px;\">{safe_lbl_context_images_help}</div>
+                <div class=\"exec-image-grid\" style=\"margin-top:10px\">{image_cards_html}</div>
             </div>
         </section>
 
         <section class=\"panel\" id=\"tab-data\">
             <div class=\"grid\">
-                <article class=\"card span-12\"><strong>SQL</strong><pre>{safe_sql}</pre></article>
+                <article class=\"card span-12\" style=\"display:{'block' if sections.get('sql', True) else 'none'}\"><strong>{safe_lbl_sql}</strong><pre>{safe_sql}</pre></article>
                 <article class=\"card span-12\" style=\"display:{'block' if sections.get('data', True) else 'none'}\">
-                    <strong>Data sample</strong> <span id=\"execDataCount\" class=\"muted-note\"></span>
+                    <strong>{safe_lbl_data_sample}</strong> <span id=\"execDataCount\" class=\"muted-note\"></span>
                     <div style=\"overflow:auto; margin-top:8px;\">
                         <table class=\"data-table\">
                             <thead><tr>{head_cells}</tr></thead>
@@ -8467,6 +9309,7 @@ def _bi_lite_exec_html(
         (function () {{
             var payload = {data_json};
             var aiCharts = {charts_json};
+            var I18N = {js_i18n};
             var columns = Array.isArray(payload.columns) ? payload.columns : [];
             var allRows = Array.isArray(payload.rows) ? payload.rows : [];
             var filteredRows = allRows.slice();
@@ -8581,7 +9424,7 @@ def _bi_lite_exec_html(
             function renderTable(rows) {{
                 if (!dataBodyEl) return;
                 if (!Array.isArray(rows) || !rows.length) {{
-                    dataBodyEl.innerHTML = '<tr><td colspan="' + Math.max(1, columns.length) + '" style="color:#5a6b85">No rows after filters.</td></tr>';
+                    dataBodyEl.innerHTML = '<tr><td colspan="' + Math.max(1, columns.length) + '" style="color:#5a6b85">' + esc(I18N.no_rows_after_filters || 'No rows after filters.') + '</td></tr>';
                     return;
                 }}
                 var limited = rows.slice(0, 300);
@@ -8594,7 +9437,7 @@ def _bi_lite_exec_html(
             function renderKpis(rows) {{
                 if (!kpiEl) return;
                 if (!Array.isArray(rows) || !rows.length || !columns.length) {{
-                    kpiEl.innerHTML = '<div class="muted-note">No KPI available after filters.</div>';
+                    kpiEl.innerHTML = '<div class="muted-note">' + esc(I18N.no_kpi_after_filters || 'No KPI available after filters.') + '</div>';
                     return;
                 }}
                 var numericIdx = [];
@@ -8611,7 +9454,7 @@ def _bi_lite_exec_html(
                 }}
                 numericIdx = numericIdx.slice(0, 4);
                 if (!numericIdx.length) {{
-                    kpiEl.innerHTML = '<div class="muted-note">No numeric KPI detected for current filters.</div>';
+                    kpiEl.innerHTML = '<div class="muted-note">' + esc(I18N.no_numeric_kpi_after_filters || 'No numeric KPI detected for current filters.') + '</div>';
                     return;
                 }}
                 function fmt(n) {{ return Number(n || 0).toLocaleString(undefined, {{ maximumFractionDigits: 2 }}); }}
@@ -8619,7 +9462,7 @@ def _bi_lite_exec_html(
                     var vals = rows.map(function (r) {{ return Array.isArray(r) ? toNum(r[idx]) : null; }}).filter(function (v) {{ return v !== null; }});
                     var total = vals.reduce(function (a, b) {{ return a + b; }}, 0);
                     var avg = vals.length ? total / vals.length : 0;
-                    return '<div class="kpi-card"><div class="kpi-label">' + esc(columns[idx]) + '</div><div class="kpi-value">' + fmt(total) + '</div><div class="kpi-sub">Avg: ' + fmt(avg) + ' · N=' + vals.length + '</div></div>';
+                    return '<div class="kpi-card"><div class="kpi-label">' + esc(columns[idx]) + '</div><div class="kpi-value">' + fmt(total) + '</div><div class="kpi-sub">' + esc(I18N.avg || 'Avg') + ': ' + fmt(avg) + ' · N=' + vals.length + '</div></div>';
                 }}).join('');
             }}
 
@@ -8667,7 +9510,7 @@ def _bi_lite_exec_html(
             function renderTrendsAndTimeline(rows) {{
                 var pts = trendPoints(rows);
                 if (trendsEl) {{
-                    if (!pts.length) trendsEl.innerHTML = '<span style="color:#5a6b85">No trend axis detected in filtered data.</span>';
+                    if (!pts.length) trendsEl.innerHTML = '<span style="color:#5a6b85">' + esc(I18N.no_trend_filtered || 'No trend axis detected in filtered data.') + '</span>';
                     else {{
                         var maxV = Math.max.apply(null, pts.map(function (p) {{ return Number(p.value || 0); }}));
                         trendsEl.innerHTML = pts.map(function (p) {{
@@ -8677,7 +9520,7 @@ def _bi_lite_exec_html(
                     }}
                 }}
                 if (timelineEl) {{
-                    if (!pts.length) timelineEl.innerHTML = '<span style="color:#5a6b85">No timeline points available for filtered data.</span>';
+                    if (!pts.length) timelineEl.innerHTML = '<span style="color:#5a6b85">' + esc(I18N.no_timeline_filtered || 'No timeline points available for filtered data.') + '</span>';
                     else timelineEl.innerHTML = pts.map(function (p) {{
                         return '<div class="timeline-item"><div class="timeline-dot"></div><div class="timeline-content"><strong>' + esc(p.label) + '</strong><br>' + Number(p.value || 0).toLocaleString(undefined, {{ maximumFractionDigits: 2 }}) + '</div></div>';
                     }}).join('');
@@ -8688,11 +9531,11 @@ def _bi_lite_exec_html(
                 if (!aiChartsEl) return;
                 disposeAiCharts();
                 if (!Array.isArray(aiCharts) || !aiCharts.length) {{
-                    aiChartsEl.innerHTML = '<div class="muted-note">AI did not return chart recommendations for this request.</div>';
+                    aiChartsEl.innerHTML = '<div class="muted-note">' + esc(I18N.ai_no_chart_reco || 'AI did not return chart recommendations for this request.') + '</div>';
                     return;
                 }}
                 aiChartsEl.innerHTML = aiCharts.map(function (c, idx) {{
-                    return '<div class="ai-chart-card"><div class="ai-chart-title">' + esc(c.title || ('Chart ' + (idx + 1))) + '</div><div id="execAiChart_' + idx + '" class="ai-chart-box"></div></div>';
+                    return '<div class="ai-chart-card"><div class="ai-chart-title">' + esc(c.title || ((I18N.chart || 'Chart') + ' ' + (idx + 1))) + '</div><div id="execAiChart_' + idx + '" class="ai-chart-box"></div></div>';
                 }}).join('');
 
                 // srcdoc iframes may not load CDN scripts due CSP/network; reuse parent echarts when available.
@@ -8705,7 +9548,7 @@ def _bi_lite_exec_html(
                 }}
 
                 if (!(window.echarts && typeof window.echarts.init === 'function')) {{
-                    aiChartsEl.insertAdjacentHTML('beforeend', '<div class="muted-note">ECharts runtime unavailable (blocked CDN/CSP). Charts cannot be rendered in this preview.</div>');
+                    aiChartsEl.insertAdjacentHTML('beforeend', '<div class="muted-note">' + esc(I18N.echarts_runtime_unavailable || 'ECharts runtime unavailable (blocked CDN/CSP). Charts cannot be rendered in this preview.') + '</div>');
                     return;
                 }}
 
@@ -8717,7 +9560,7 @@ def _bi_lite_exec_html(
                     // When tab is hidden, chart boxes can be 0x0; postpone rendering until visible.
                     if ((el.clientWidth || 0) < 20 || (el.clientHeight || 0) < 20) {{
                         if (forceRender) {{
-                            el.innerHTML = '<div class="muted-note">Chart area is not ready yet. Reopen AI Charts tab.</div>';
+                            el.innerHTML = '<div class="muted-note">' + esc(I18N.chart_area_not_ready || 'Chart area is not ready yet. Reopen AI Charts tab.') + '</div>';
                         }}
                         return;
                     }}
@@ -8728,26 +9571,26 @@ def _bi_lite_exec_html(
                         aiChartInstances.push(instance);
                         renderedCount += 1;
                     }}
-                    catch (e) {{ el.innerHTML = '<div class="muted-note">Unable to render this AI chart.</div>'; }}
+                    catch (e) {{ el.innerHTML = '<div class="muted-note">' + esc(I18N.unable_render_ai_chart || 'Unable to render this AI chart.') + '</div>'; }}
                 }});
 
                 if (!renderedCount && forceRender) {{
-                    aiChartsEl.insertAdjacentHTML('beforeend', '<div class="muted-note">Charts are available but could not be initialized in the current layout. Try opening preview in a new tab.</div>');
+                    aiChartsEl.insertAdjacentHTML('beforeend', '<div class="muted-note">' + esc(I18N.charts_not_initialized || 'Charts are available but could not be initialized in the current layout. Try opening preview in a new tab.') + '</div>');
                 }}
             }}
 
             function buildColumnFilters() {{
                 if (!colEl || !valEl) return;
-                colEl.innerHTML = '<option value="">All columns</option>' + columns.map(function (c) {{ return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }}).join('');
-                valEl.innerHTML = '<option value="">All values</option>';
+                colEl.innerHTML = '<option value="">' + esc(I18N.all_columns || 'All columns') + '</option>' + columns.map(function (c) {{ return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }}).join('');
+                valEl.innerHTML = '<option value="">' + esc(I18N.all_values || 'All values') + '</option>';
             }}
 
             function buildValueOptions() {{
                 if (!colEl || !valEl) return;
                 var col = String(colEl.value || '');
-                if (!col) {{ valEl.innerHTML = '<option value="">All values</option>'; return; }}
+                if (!col) {{ valEl.innerHTML = '<option value="">' + esc(I18N.all_values || 'All values') + '</option>'; return; }}
                 var idx = columns.indexOf(col);
-                if (idx < 0) {{ valEl.innerHTML = '<option value="">All values</option>'; return; }}
+                if (idx < 0) {{ valEl.innerHTML = '<option value="">' + esc(I18N.all_values || 'All values') + '</option>'; return; }}
                 var values = [];
                 var seen = {{}};
                 allRows.forEach(function (r) {{
@@ -8758,7 +9601,7 @@ def _bi_lite_exec_html(
                     values.push(v);
                 }});
                 values = values.slice(0, 400).sort();
-                valEl.innerHTML = '<option value="">All values</option>' + values.map(function (v) {{ return '<option value="' + esc(v) + '">' + esc(v || '(empty)') + '</option>'; }}).join('');
+                valEl.innerHTML = '<option value="">' + esc(I18N.all_values || 'All values') + '</option>' + values.map(function (v) {{ return '<option value="' + esc(v) + '">' + esc(v || '(empty)') + '</option>'; }}).join('');
             }}
 
             function applyFilters() {{
@@ -8777,8 +9620,8 @@ def _bi_lite_exec_html(
                     }}
                     return true;
                 }});
-                if (countEl) countEl.textContent = filteredRows.length + ' / ' + allRows.length + ' rows';
-                if (dataCountEl) dataCountEl.textContent = '· ' + filteredRows.length + ' row(s)';
+                if (countEl) countEl.textContent = filteredRows.length + ' / ' + allRows.length + ' ' + (I18N.rows || 'rows');
+                if (dataCountEl) dataCountEl.textContent = '· ' + filteredRows.length + ' ' + (I18N.row_count_suffix || 'row(s)');
                 renderTable(filteredRows);
                 renderKpis(filteredRows);
                 renderTrendsAndTimeline(filteredRows);
@@ -9234,6 +10077,7 @@ def api_ai_lite_executive_html():
     message = str(payload.get("message") or "").strip()
     page_title = str(payload.get("title") or "").strip()
     supplied_analysis = str(payload.get("analysis") or "").strip()
+    executive_guide = str(payload.get("executive_guide") or payload.get("executive_style_prompt") or "").strip()
     if not message:
         return jsonify({"ok": False, "error": _("Please enter an executive page request.")}), 400
     if not source_id:
@@ -9315,6 +10159,15 @@ def api_ai_lite_executive_html():
     if not analysis:
         analysis = _("Executive page generated from BI Lite analysis.")
 
+    layout_plan = _bi_lite_exec_layout_plan(
+        prompt=message,
+        executive_guide=executive_guide,
+        columns=cols,
+        rows=rows,
+        source_name=source.name,
+        sql_text=sql_text,
+    )
+
     effective_title = page_title or _bi_ai_auto_title(message, _("Executive Report"), max_len=80)
     html_doc = _bi_lite_exec_html(
         title=effective_title,
@@ -9325,6 +10178,8 @@ def api_ai_lite_executive_html():
         columns=cols,
         rows=rows,
         ai_charts=ai_charts,
+        executive_guide=executive_guide,
+        layout_plan=layout_plan,
     )
 
     safe_name = re.sub(r"[^a-zA-Z0-9_-]+", "_", effective_title.strip())[:60].strip("_") or "executive_report"

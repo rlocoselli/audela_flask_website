@@ -7,6 +7,7 @@
   <!-- CodeMirror -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pivottable/2.23.0/pivot.min.css" />
 
   <style>
     .bi-panel {
@@ -31,6 +32,9 @@
       border-radius: .75rem;
       font-size: .95rem;
     }
+
+    .viz-type-picker .vt-btn { min-width: 104px; display:flex; align-items:center; gap:.45rem; }
+    .viz-type-picker .vt-btn.active { border-width: 2px; }
   </style>
 {% endblock %}
 
@@ -48,7 +52,7 @@
           </div>
         </div>
         <div class="d-flex gap-2">
-          <a class="btn btn-outline-secondary" href="{{ url_for('portal.questions_view', question_id=question.id) }}">
+          <a class="btn btn-outline-secondary" href="{{ url_for('portal.questions_run', question_id=question.id) }}">
             ← {{ _('Voltar') }}
           </a>
           {% if result and result.columns %}
@@ -196,6 +200,78 @@
           </h5>
 
           {% if result.columns %}
+            <div class="card border-0 bg-body-tertiary mb-3">
+              <div class="card-body">
+                <div class="mb-2 fw-semibold">{{ _('Visualização') }}</div>
+
+                <div class="viz-type-picker d-flex flex-wrap gap-2 mb-3" role="tablist" aria-label="{{ _('Visualização') }}">
+                  <button type="button" class="btn btn-outline-secondary btn-sm vt-btn" data-type="table"><i class="bi bi-table"></i><span>{{ _('Table') }}</span></button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm vt-btn" data-type="bar"><i class="bi bi-bar-chart"></i><span>{{ _('Bar') }}</span></button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm vt-btn" data-type="line"><i class="bi bi-graph-up"></i><span>{{ _('Line') }}</span></button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm vt-btn" data-type="area"><i class="bi bi-bar-chart-stacked"></i><span>{{ _('Area') }}</span></button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm vt-btn" data-type="pie"><i class="bi bi-pie-chart"></i><span>{{ _('Pie') }}</span></button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm vt-btn" data-type="scatter"><i class="bi bi-dots"></i><span>{{ _('Scatter') }}</span></button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm vt-btn" data-type="gauge"><i class="bi bi-speedometer2"></i><span>{{ _('Gauge') }}</span></button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm vt-btn" data-type="kpi"><i class="bi bi-123"></i><span>{{ _('KPI') }}</span></button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm vt-btn" data-type="pivot"><i class="bi bi-layout-text-window-reverse"></i><span>{{ _('Pivot') }}</span></button>
+                </div>
+
+                <div class="row g-2">
+                  <div class="col-12 col-md-4">
+                    <label class="form-label mb-1">{{ _('X / Dimension') }}</label>
+                    <select class="form-select form-select-sm" id="run-viz-dim">
+                      <option value="">--</option>
+                      {% for c in result.columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+                    </select>
+                  </div>
+                  <div class="col-12 col-md-4">
+                    <label class="form-label mb-1">{{ _('Y / Metric') }}</label>
+                    <select class="form-select form-select-sm" id="run-viz-metric">
+                      <option value="">--</option>
+                      {% for c in result.columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+                    </select>
+                  </div>
+                  <div class="col-12 col-md-4">
+                    <label class="form-label mb-1">{{ _('Agregação') }}</label>
+                    <select class="form-select form-select-sm" id="run-viz-agg-func">
+                      <option value="">—</option>
+                      <option value="COUNT_ROWS">{{ _('Contagem de linhas') }}</option>
+                      <option value="SUM">{{ _('Soma') }}</option>
+                      <option value="AVG">{{ _('Média') }}</option>
+                      <option value="COUNT">{{ _('Contagem') }}</option>
+                      <option value="MIN">{{ _('Mínimo') }}</option>
+                      <option value="MAX">{{ _('Máximo') }}</option>
+                      <option value="STDDEV">{{ _('Desvio padrão') }}</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="row g-2 mt-1">
+                  <div class="col-12 col-md-4">
+                    <label class="form-label mb-1">{{ _('Rows') }}</label>
+                    <select class="form-select form-select-sm" id="run-pivot-rows">
+                      <option value="">--</option>
+                      {% for c in result.columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+                    </select>
+                  </div>
+                  <div class="col-12 col-md-4">
+                    <label class="form-label mb-1">{{ _('Cols') }}</label>
+                    <select class="form-select form-select-sm" id="run-pivot-cols">
+                      <option value="">--</option>
+                      {% for c in result.columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+                    </select>
+                  </div>
+                  <div class="col-12 col-md-4">
+                    <label class="form-label mb-1">{{ _('Value') }}</label>
+                    <select class="form-select form-select-sm" id="run-pivot-val">
+                      <option value="">--</option>
+                      {% for c in result.columns %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div id="run-viz" style="min-height:420px;"></div>
 
             <div class="d-flex align-items-center gap-3 mt-3">
@@ -239,6 +315,9 @@
 
   <!-- Charts -->
   <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.13.2/jquery-ui.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pivottable/2.23.0/pivot.min.js"></script>
 
   <!-- BI logic -->
   <script src="{{ url_for('static', filename='bi/bi_viz.js') }}"></script>
@@ -267,7 +346,74 @@
         let cfg = {};
         try { data = JSON.parse(dataEl.textContent); } catch (e) {}
         try { cfg = JSON.parse(cfgEl.textContent); } catch (e) {}
-        BI.renderViz(container, data, cfg, null);
+
+        const typeBtns = Array.from(document.querySelectorAll('.viz-type-picker .vt-btn'));
+        const dimEl = document.getElementById('run-viz-dim');
+        const metricEl = document.getElementById('run-viz-metric');
+        const aggFuncEl = document.getElementById('run-viz-agg-func');
+        const pRowsEl = document.getElementById('run-pivot-rows');
+        const pColsEl = document.getElementById('run-pivot-cols');
+        const pValEl = document.getElementById('run-pivot-val');
+
+        function currentType () {
+          const active = typeBtns.find((b) => b.classList.contains('active'));
+          return active ? String(active.dataset.type || 'table') : 'table';
+        }
+
+        function setActiveType (t) {
+          typeBtns.forEach((b) => {
+            const on = String(b.dataset.type || '') === String(t || 'table');
+            b.classList.toggle('active', on);
+            b.setAttribute('aria-pressed', on ? 'true' : 'false');
+          });
+        }
+
+        function buildCfgFromUi () {
+          const out = {
+            type: currentType(),
+            dim: dimEl ? String(dimEl.value || '') : '',
+            metric: metricEl ? String(metricEl.value || '') : '',
+            pivot: {
+              rows: pRowsEl && pRowsEl.value ? [String(pRowsEl.value)] : [],
+              cols: pColsEl && pColsEl.value ? [String(pColsEl.value)] : [],
+              val: pValEl ? String(pValEl.value || '') : '',
+            },
+          };
+          if (aggFuncEl && aggFuncEl.value) {
+            out.agg = { func: String(aggFuncEl.value) };
+          }
+          return out;
+        }
+
+        function applyUiFromCfg (srcCfg) {
+          const c = (srcCfg && typeof srcCfg === 'object') ? srcCfg : {};
+          setActiveType(c.type || 'table');
+          if (dimEl) dimEl.value = c.dim || '';
+          if (metricEl) metricEl.value = c.metric || '';
+          if (aggFuncEl) aggFuncEl.value = (c.agg && c.agg.func) ? String(c.agg.func) : '';
+          const p = (c.pivot && typeof c.pivot === 'object') ? c.pivot : {};
+          if (pRowsEl) pRowsEl.value = Array.isArray(p.rows) && p.rows.length ? String(p.rows[0]) : '';
+          if (pColsEl) pColsEl.value = Array.isArray(p.cols) && p.cols.length ? String(p.cols[0]) : '';
+          if (pValEl) pValEl.value = p.val ? String(p.val) : '';
+        }
+
+        function renderPreview () {
+          BI.renderViz(container, data, buildCfgFromUi(), null);
+        }
+
+        applyUiFromCfg(cfg);
+        renderPreview();
+
+        typeBtns.forEach((btn) => {
+          btn.addEventListener('click', () => {
+            setActiveType(btn.dataset.type || 'table');
+            renderPreview();
+          });
+        });
+        [dimEl, metricEl, aggFuncEl, pRowsEl, pColsEl, pValEl].forEach((el) => {
+          if (!el) return;
+          el.addEventListener('change', renderPreview);
+        });
 
         const btn = document.getElementById('export-pdf');
         if (btn) {

@@ -19,7 +19,7 @@
             <select class="form-select" name="account_type">
               {% set v = account.account_type if account else 'bank' %}
               {% for t in ['cash','bank','loan','deposit','receivable','payable','credit_line','other'] %}
-                <option value="{{ t }}" {% if v==t %}selected{% endif %}>{{ t }}</option>
+                <option value="{{ t }}" {% if v==t %}selected{% endif %}>{{ _(t) }}</option>
               {% endfor %}
             </select>
           </div>
@@ -27,8 +27,8 @@
             <label class="form-label">{{ _('Side') }}</label>
             {% set v = account.side if account else 'asset' %}
             <select class="form-select" name="side">
-              <option value="asset" {% if v=='asset' %}selected{% endif %}>asset</option>
-              <option value="liability" {% if v=='liability' %}selected{% endif %}>liability</option>
+              <option value="asset" {% if v=='asset' %}selected{% endif %}>{{ _('asset') }}</option>
+              <option value="liability" {% if v=='liability' %}selected{% endif %}>{{ _('liability') }}</option>
             </select>
           </div>
 
@@ -68,8 +68,8 @@
             <label class="form-label">{{ _('Tipo de taxa') }}</label>
             {% set v = account.rate_type if account else 'fixed' %}
             <select class="form-select" name="rate_type">
-              <option value="fixed" {% if v=='fixed' %}selected{% endif %}>fixed</option>
-              <option value="float" {% if v=='float' %}selected{% endif %}>float</option>
+              <option value="fixed" {% if v=='fixed' %}selected{% endif %}>{{ _('fixed') }}</option>
+              <option value="float" {% if v=='float' %}selected{% endif %}>{{ _('float') }}</option>
             </select>
           </div>
 
@@ -99,7 +99,7 @@
               <div class="col-md-4">
                 <select class="form-select" name="counterparty_kind">
                   {% for k in ['bank','customer','supplier','employee','tax_authority','other'] %}
-                    <option value="{{ k }}">{{ k }}</option>
+                    <option value="{{ k }}">{{ _(k) }}</option>
                   {% endfor %}
                 </select>
               </div>

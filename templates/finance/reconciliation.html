@@ -12,6 +12,15 @@
   </a>
 </div>
 
+<div class="d-flex gap-2 flex-wrap mb-3">
+  <a class="btn btn-outline-primary btn-sm" href="{{ url_for('finance.banks') }}">
+    <i class="bi bi-bank me-1"></i>{{ _('Conectar banco (API)') }}
+  </a>
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.master_data_import') }}">
+    <i class="bi bi-file-earmark-arrow-up me-1"></i>{{ _('Imports CSV') }}
+  </a>
+</div>
+
 <div class="alert alert-info small">
   <div class="fw-semibold">{{ _('Como é feito') }}</div>
   <ul class="mb-0">

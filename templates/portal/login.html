@@ -1,6 +1,6 @@
 {% extends "portal/base_portal.html" %}
 
-{% block title %}Login – AUDELA BI{% endblock %}
+{% block title %}{{ _('Login') }} – AUDELA BI{% endblock %}
 
 {% block content %}
 <div class="container py-5">
@@ -29,35 +29,35 @@
       <div class="card shadow-sm border-0" style="border-radius: 1rem;">
         <div class="card-body p-4">
           <h1 class="h5 mb-1">{{ _('Área BI') }}</h1>
-          <div class="text-secondary mb-3">Login</div>
+          <div class="text-secondary mb-3">{{ _('Login') }}</div>
 
           <form method="post" autocomplete="off">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
 
             <div class="mb-3">
-              <label class="form-label">Tenant</label>
+              <label class="form-label">{{ _('Tenant') }}</label>
               <input type="text" class="form-control" name="tenant_slug" placeholder="acme" required />
             </div>
 
             <div class="mb-3">
-              <label class="form-label">Email</label>
+              <label class="form-label">{{ _('Email') }}</label>
               <input type="email" class="form-control" name="email" placeholder="you@example.com" required />
             </div>
 
             <div class="mb-3">
-              <label class="form-label">Senha</label>
+              <label class="form-label">{{ _('Password') }}</label>
               <input type="password" class="form-control" name="password" required />
             </div>
 
             <div class="d-flex gap-2">
-              <button class="btn btn-primary" type="submit">Entrar</button>
-              <a class="btn btn-outline-secondary" href="{{ url_for('auth.bootstrap') }}">Bootstrap (dev)</a>
+              <button class="btn btn-primary" type="submit">{{ _('Sign in') }}</button>
+              <a class="btn btn-outline-secondary" href="{{ url_for('auth.bootstrap') }}">{{ _('Bootstrap (dev)') }}</a>
             </div>
           </form>
 
           <hr class="my-4" />
           <div class="small text-secondary">
-            Este portal é isolado por tenant.
+            {{ _('This portal is isolated by tenant.') }}
           </div>
         </div>
       </div>

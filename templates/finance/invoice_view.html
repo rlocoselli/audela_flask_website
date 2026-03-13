@@ -1,11 +1,25 @@
 {% extends "finance/base_finance.html" %}
 
 {% block finance_content %}
+  {% set is_br = (invoice.fiscal_country or 'EU') == 'BR' %}
   <div class="d-flex justify-content-between align-items-start mb-3">
     <div>
-      <h4 class="mb-0">{{ _('Fatura') }} {{ invoice.invoice_number }}</h4>
+      <h4 class="mb-0">
+        {% if is_br %}
+          {{ _('Nota Fiscal') }} {{ invoice.invoice_number }}
+        {% else %}
+          {{ _('Fatura') }} {{ invoice.invoice_number }}
+        {% endif %}
+      </h4>
       <div class="text-secondary small">
         {{ invoice.issue_date }}{% if invoice.due_date %} • {{ _('Vence') }} {{ invoice.due_date }}{% endif %}
+      </div>
+      <div class="mt-1">
+        {% if is_br %}
+          <span class="badge text-bg-success">{{ _('Compliance fiscal BR ativo') }}</span>
+        {% else %}
+          <span class="badge text-bg-secondary">{{ _('Fatura UE (TVA)') }}</span>
+        {% endif %}
       </div>
     </div>
     <div class="btn-group">
@@ -13,6 +27,7 @@
       <a class="btn btn-outline-secondary" href="{{ url_for('finance.invoice_pdf', invoice_id=invoice.id) }}">{{ _('PDF') }}</a>
       <a class="btn btn-outline-primary" href="{{ url_for('finance.invoice_export', invoice_id=invoice.id, country='fr') }}">{{ _('Export FR (ZIP)') }}</a>
       <a class="btn btn-outline-primary" href="{{ url_for('finance.invoice_export', invoice_id=invoice.id, country='it') }}">{{ _('Export IT (ZIP)') }}</a>
+      <a class="btn btn-outline-primary" href="{{ url_for('finance.invoice_export', invoice_id=invoice.id, country='br') }}">{{ _('Export BR (ZIP)') }}</a>
     </div>
   </div>
 
@@ -33,10 +48,32 @@
               <div class="text-secondary small">{{ _('Moeda') }}</div>
               <div class="fw-semibold">{{ invoice.currency }}</div>
             </div>
+            <div class="col-md-4">
+              <div class="text-secondary small">{{ _('Tipo fiscal') }}</div>
+              <div class="fw-semibold">{{ 'BR' if is_br else 'UE' }}</div>
+            </div>
             <div class="col-md-12">
               <div class="text-secondary small">{{ _('Contraparte') }}</div>
               <div class="fw-semibold">{{ invoice.counterparty.name if invoice.counterparty else '' }}</div>
             </div>
+            {% if is_br %}
+              <div class="col-md-4">
+                <div class="text-secondary small">{{ _('Modelo') }}</div>
+                <div class="fw-semibold">{{ invoice.document_model or '55' }}</div>
+              </div>
+              <div class="col-md-4">
+                <div class="text-secondary small">{{ _('Série') }}</div>
+                <div class="fw-semibold">{{ invoice.document_series or '1' }}</div>
+              </div>
+              <div class="col-md-4">
+                <div class="text-secondary small">{{ _('Ambiente SEFAZ') }}</div>
+                <div class="fw-semibold">{{ invoice.sefaz_environment or 'homologation' }}</div>
+              </div>
+              <div class="col-md-12">
+                <div class="text-secondary small">{{ _('Natureza da operação') }}</div>
+                <div class="fw-semibold">{{ invoice.natureza_operacao or '-' }}</div>
+              </div>
+            {% endif %}
           </div>
 
           <hr class="my-3">
@@ -48,7 +85,14 @@
                   <th>{{ _('Descrição') }}</th>
                   <th class="text-end">{{ _('Qtd') }}</th>
                   <th class="text-end">{{ _('Preço') }}</th>
-                  <th class="text-end">{{ _('IVA %') }}</th>
+                  {% if is_br %}
+                    <th class="text-end">ICMS %</th>
+                    <th class="text-end">IPI %</th>
+                    <th class="text-end">PIS %</th>
+                    <th class="text-end">COFINS %</th>
+                  {% else %}
+                    <th class="text-end">{{ _('IVA %') }}</th>
+                  {% endif %}
                   <th class="text-end">{{ _('Total') }}</th>
                 </tr>
               </thead>
@@ -58,19 +102,40 @@
                     <td>{{ ln.description }}</td>
                     <td class="text-end">{{ '%.2f'|format(ln.quantity) }}</td>
                     <td class="text-end">{{ '%.2f'|format(ln.unit_price) }}</td>
-                    <td class="text-end">{{ '%.2f'|format(ln.vat_rate) }}</td>
+                    {% if is_br %}
+                      <td class="text-end">{{ '%.2f'|format(ln.icms_rate or 0) }}</td>
+                      <td class="text-end">{{ '%.2f'|format(ln.ipi_rate or 0) }}</td>
+                      <td class="text-end">{{ '%.2f'|format(ln.pis_rate or 0) }}</td>
+                      <td class="text-end">{{ '%.2f'|format(ln.cofins_rate or 0) }}</td>
+                    {% else %}
+                      <td class="text-end">{{ '%.2f'|format(ln.vat_rate) }}</td>
+                    {% endif %}
                     <td class="text-end">{{ '%.2f'|format(ln.gross_amount) }}</td>
                   </tr>
                 {% endfor %}
               </tbody>
               <tfoot>
                 <tr>
-                  <th colspan="4" class="text-end">{{ _('Total') }}</th>
+                  <th colspan="{{ 8 if is_br else 4 }}" class="text-end">{{ _('Total') }}</th>
                   <th class="text-end">{{ '%.2f'|format(invoice.total_gross or 0) }} {{ invoice.currency }}</th>
                 </tr>
               </tfoot>
             </table>
           </div>
+
+          {% if is_br %}
+            <div class="alert alert-light border mt-3 mb-0">
+              <div class="fw-semibold mb-2">{{ _('Resumo fiscal Brasil') }}</div>
+              {% set total_icms = (invoice.lines | sum(attribute='icms_amount')) if invoice.lines else 0 %}
+              {% set total_ipi = (invoice.lines | sum(attribute='ipi_amount')) if invoice.lines else 0 %}
+              {% set total_pis = (invoice.lines | sum(attribute='pis_amount')) if invoice.lines else 0 %}
+              {% set total_cofins = (invoice.lines | sum(attribute='cofins_amount')) if invoice.lines else 0 %}
+              <div class="small text-secondary">ICMS: {{ '%.2f'|format(total_icms or 0) }} {{ invoice.currency }}</div>
+              <div class="small text-secondary">IPI: {{ '%.2f'|format(total_ipi or 0) }} {{ invoice.currency }}</div>
+              <div class="small text-secondary">PIS: {{ '%.2f'|format(total_pis or 0) }} {{ invoice.currency }}</div>
+              <div class="small text-secondary">COFINS: {{ '%.2f'|format(total_cofins or 0) }} {{ invoice.currency }}</div>
+            </div>
+          {% endif %}
 
           {% if invoice.notes %}
             <div class="mt-3">
@@ -145,7 +210,7 @@
         <div class="card-body">
           <h6 class="card-title">{{ _('Dica') }}</h6>
           <div class="text-secondary small">
-            {{ _('FR ZIP gera PDF + XML Factur-X (CII/EN16931). IT ZIP gera PDF + XML FatturaPA (FPR12).') }}
+            {{ _('FR ZIP gera PDF + XML Factur-X (CII/EN16931). IT ZIP gera PDF + XML FatturaPA (FPR12). BR ZIP gera PDF + XML NFe (modelo 55) com ICMS/IPI/PIS/COFINS.') }}
           </div>
         </div>
       </div>

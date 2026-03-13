@@ -1,6 +1,88 @@
 {% extends "portal/layout.html" %}
 {% set title = _('Chat IA') %}
 
+{% block head_extra %}
+  {{ super() }}
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <style>
+    #aiLoadingOverlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.35);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1100;
+      padding: 1rem;
+    }
+    #aiLoadingOverlay.is-visible { display: flex; }
+    #aiLoadingOverlay .loader-card {
+      min-width: 280px;
+      max-width: min(92vw, 420px);
+      background: #fff;
+      border-radius: 14px;
+      border: 1px solid #dbe3ef;
+      box-shadow: 0 18px 45px rgba(2, 6, 23, 0.22);
+      padding: 16px 18px;
+      text-align: center;
+    }
+    #aiLoadingOverlay .loader-text {
+      margin-top: .6rem;
+      font-weight: 600;
+      color: #334155;
+    }
+    #ai-kpis {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: .75rem;
+    }
+    .ai-kpi-card {
+      border: 1px solid #dbe3ef;
+      border-radius: .9rem;
+      background: #fff;
+      padding: .75rem .85rem;
+      box-shadow: 0 8px 20px rgba(2, 6, 23, 0.05);
+    }
+    .ai-kpi-label {
+      color: #64748b;
+      font-size: .78rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .ai-kpi-value {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin-top: .2rem;
+    }
+    .ai-kpi-sub {
+      color: #64748b;
+      font-size: .72rem;
+      margin-top: .1rem;
+    }
+    #ai-charts.ai-chart-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: .9rem;
+    }
+    body.ai-dense-enabled #ai-kpis {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+    body.ai-dense-enabled #ai-charts.ai-chart-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    #ai-charts .ai-chart-card {
+      margin: 0;
+      border-radius: .95rem;
+    }
+    @media (max-width: 992px) {
+      #ai-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      #ai-charts.ai-chart-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+{% endblock %}
+
 {% block portal_content %}
 <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
   <div>
@@ -60,6 +142,11 @@
           <button class="btn btn-outline-secondary" id="ai-theme" type="button" onclick="__toggleTheme()"><i class="bi bi-moon-stars"></i> {{ _('Tema') }}</button>
         </div>
 
+        <div class="form-check form-switch mt-3">
+          <input class="form-check-input" type="checkbox" role="switch" id="ai-dense-toggle" checked>
+          <label class="form-check-label" for="ai-dense-toggle">{{ _('Dense mode') }}</label>
+        </div>
+
         <hr class="my-3" />
         <div class="small text-secondary">
           <div><strong>OpenAI</strong>: {{ _('Configure OPENAI_API_KEY no servidor.') }}</div>
@@ -85,7 +172,15 @@
       <div class="form-text" id="ai-status"></div>
     </div>
 
+    <div class="mt-3 d-none" id="ai-kpis"></div>
     <div class="mt-3 d-none" id="ai-charts"></div>
+  </div>
+</div>
+
+<div id="aiLoadingOverlay" aria-live="polite" aria-busy="true">
+  <div class="loader-card">
+    <div class="spinner-border text-primary" role="status" aria-hidden="true"></div>
+    <div class="loader-text" id="aiLoadingText">{{ _('Analyzing your request...') }}</div>
   </div>
 </div>
 {% endblock %}

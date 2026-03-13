@@ -86,6 +86,68 @@
                     </div>
                 </div>
 
+                <div class="accordion mt-4" id="productTaxAccordionEdit">
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="headingBrazilTaxEdit">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseBrazilTaxEdit" aria-expanded="false" aria-controls="collapseBrazilTaxEdit">
+                                {{ _('Configuração fiscal Brasil (SEFAZ)') }}
+                            </button>
+                        </h2>
+                        <div id="collapseBrazilTaxEdit" class="accordion-collapse collapse" aria-labelledby="headingBrazilTaxEdit" data-bs-parent="#productTaxAccordionEdit">
+                            <div class="accordion-body">
+                                <div class="row g-3">
+                                    <div class="col-md-3">
+                                        <label for="br_icms_rate" class="form-label">ICMS %</label>
+                                        <input type="number" class="form-control" id="br_icms_rate" name="br_icms_rate" step="0.01" min="0" max="100" value="{{ product.br_icms_rate or 0 }}">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="br_ipi_rate" class="form-label">IPI %</label>
+                                        <input type="number" class="form-control" id="br_ipi_rate" name="br_ipi_rate" step="0.01" min="0" max="100" value="{{ product.br_ipi_rate or 0 }}">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="br_pis_rate" class="form-label">PIS %</label>
+                                        <input type="number" class="form-control" id="br_pis_rate" name="br_pis_rate" step="0.01" min="0" max="100" value="{{ product.br_pis_rate or 0 }}">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="br_cofins_rate" class="form-label">COFINS %</label>
+                                        <input type="number" class="form-control" id="br_cofins_rate" name="br_cofins_rate" step="0.01" min="0" max="100" value="{{ product.br_cofins_rate or 0 }}">
+                                    </div>
+
+                                    <div class="col-md-4">
+                                        <label for="br_ncm_code" class="form-label">NCM</label>
+                                        <input type="text" class="form-control" id="br_ncm_code" name="br_ncm_code" value="{{ product.br_ncm_code or '' }}">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="br_cfop_code" class="form-label">CFOP</label>
+                                        <input type="text" class="form-control" id="br_cfop_code" name="br_cfop_code" value="{{ product.br_cfop_code or '' }}">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label for="br_cest_code" class="form-label">CEST</label>
+                                        <input type="text" class="form-control" id="br_cest_code" name="br_cest_code" value="{{ product.br_cest_code or '' }}">
+                                    </div>
+
+                                    <div class="col-md-3">
+                                        <label for="br_cst_icms" class="form-label">CST ICMS</label>
+                                        <input type="text" class="form-control" id="br_cst_icms" name="br_cst_icms" value="{{ product.br_cst_icms or '' }}">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="br_cst_ipi" class="form-label">CST IPI</label>
+                                        <input type="text" class="form-control" id="br_cst_ipi" name="br_cst_ipi" value="{{ product.br_cst_ipi or '' }}">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="br_cst_pis" class="form-label">CST PIS</label>
+                                        <input type="text" class="form-control" id="br_cst_pis" name="br_cst_pis" value="{{ product.br_cst_pis or '' }}">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="br_cst_cofins" class="form-label">CST COFINS</label>
+                                        <input type="text" class="form-control" id="br_cst_cofins" name="br_cst_cofins" value="{{ product.br_cst_cofins or '' }}">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="alert alert-warning mt-4">
                     <i class="fas fa-clock"></i>
                     <strong>{{ _('Importante') }}:</strong> {{ _('As alterações afetarão apenas transações futuras. As transações existentes manterão a configuração original de IVA.') }}

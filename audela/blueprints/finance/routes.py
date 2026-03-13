@@ -276,6 +276,7 @@ def _load_tenant_into_g() -> None:
             "finance.reports_accounting": "accounting",
             "finance.pivot_page": "pivot",
             "finance.invoices_list": "invoices",
+            "finance.invoices_cockpit": "invoices",
             "finance.invoice_view": "invoices",
             "finance.alerts_page": "alerts",
             "finance.regulation_page": "regulation",
@@ -1234,11 +1235,11 @@ def dashboard():
         "ebitda_12m": ebitda_12m,
         "debt_total": debt_total,
         "leverage_ratio": leverage_ratio,
+        "net_debt_to_ebitda": net_debt_to_ebitda,
         "debt_to_assets_ratio": debt_to_assets_ratio,
         "debt_to_equity_ratio": debt_to_equity_ratio,
         "debt_to_capital_ratio": debt_to_capital_ratio,
         "net_debt": net_debt,
-        "net_debt_to_ebitda": net_debt_to_ebitda,
         "assets_total": assets_total,
         "liabilities_total": liabilities_total,
         "equity_total": equity_total,
@@ -1627,8 +1628,11 @@ def transaction_new():
             reference=reference,
         )
         db.session.add(t)
+        matched_inv = _auto_reconcile_invoice_payment(company, t)
         db.session.commit()
         flash(_("Transação criada."), "success")
+        if matched_inv:
+            flash(_("Fatura conciliada automaticamente: {inv}", inv=matched_inv.invoice_number), "info")
         return redirect(url_for("finance.account_view", account_id=acc.id))
 
     accounts = _q_accounts(company).order_by(FinanceAccount.name.asc()).all()
@@ -1705,8 +1709,11 @@ def transaction_edit(txn_id: int):
         txn.counterparty_id = (cp_obj.id if cp_obj else None)
         txn.counterparty = None
         txn.reference = reference
+        matched_inv = _auto_reconcile_invoice_payment(company, txn)
         db.session.commit()
         flash(_("Transação atualizada."), "success")
+        if matched_inv:
+            flash(_("Fatura conciliada automaticamente: {inv}", inv=matched_inv.invoice_number), "info")
 
         next_url = (request.form.get("next") or "").strip()
         if next_url.startswith("/") and not next_url.startswith("//"):
@@ -1803,6 +1810,7 @@ def transactions_import():
     existing = { (cp.name or "").strip().lower(): cp for cp in get_counterparties(company) if (cp.name or "").strip() }
 
     n = 0
+    auto_reconciled = 0
     for r in rows[:remaining]:
         cp_name = (r.get("counterparty") or "").strip()
         cp_obj = None
@@ -1815,24 +1823,27 @@ def transactions_import():
                 db.session.flush()
                 existing[key] = cp_obj
 
-        db.session.add(
-            FinanceTransaction(
-                tenant_id=g.tenant.id,
-                company_id=company.id,
-                account_id=acc.id,
-                txn_date=r["txn_date"],
-                amount=r["amount"],
-                description=r.get("description"),
-                category=r.get("category"),
-                counterparty_id=cp_obj.id if cp_obj else None,
-                counterparty=None if cp_obj else (cp_name or None),
-                reference=r.get("reference"),
-            )
+        txn = FinanceTransaction(
+            tenant_id=g.tenant.id,
+            company_id=company.id,
+            account_id=acc.id,
+            txn_date=r["txn_date"],
+            amount=r["amount"],
+            description=r.get("description"),
+            category=r.get("category"),
+            counterparty_id=cp_obj.id if cp_obj else None,
+            counterparty=None if cp_obj else (cp_name or None),
+            reference=r.get("reference"),
         )
+        db.session.add(txn)
+        if _auto_reconcile_invoice_payment(company, txn):
+            auto_reconciled += 1
         n += 1
 
     db.session.commit()
     flash(_("Importação concluída: {n} linhas.", n=n), "success")
+    if auto_reconciled:
+        flash(_("Faturas conciliadas automaticamente: {n}.", n=auto_reconciled), "info")
     if len(rows) > remaining:
         flash(_("Importação limitada pelo plano: {n} linhas não importadas.", n=(len(rows) - remaining)), "warning")
     return redirect(url_for("finance.account_view", account_id=acc.id))
@@ -2238,6 +2249,7 @@ def statement_import(account_id: int):
 
         created = 0
         skipped = 0
+        auto_reconciled = 0
         allowed, remaining, current_count, max_limit = _transaction_quota_info()
         if not allowed or remaining <= 0:
             flash(_("Limite de transações do plano atingida ({current}/{max}).", current=current_count, max=max_limit), "error")
@@ -2305,6 +2317,8 @@ def statement_import(account_id: int):
                 txn_preview.gl_account_id = select_gl_account_by_rules(company, txn_preview)
 
             db.session.add(txn_preview)
+            if _auto_reconcile_invoice_payment(company, txn_preview):
+                auto_reconciled += 1
             created += 1
             existing_sigs.add(sig)
 
@@ -2327,6 +2341,8 @@ def statement_import(account_id: int):
             flash(_("Importação limitada pelo plano de transações."), "warning")
         if skipped:
             flash(_("Linhas ignoradas (duplicadas): {n}.", n=skipped), "info")
+        if auto_reconciled:
+            flash(_("Faturas conciliadas automaticamente: {n}.", n=auto_reconciled), "info")
         return redirect(url_for("finance.account_view", account_id=acc.id))
 
     return render_template(
@@ -4019,6 +4035,13 @@ def gl_delete(gl_id: int):
 def banks():
     company = _get_company()
     bridge = BridgeClient()
+    company_accounts = (
+        FinanceAccount.query
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+        .filter(FinanceAccount.account_type.in_(["bank", "cash"]))
+        .order_by(FinanceAccount.name.asc())
+        .all()
+    )
     connections = (
         FinanceBankConnection.query
         .filter_by(tenant_id=g.tenant.id, company_id=company.id)
@@ -4030,8 +4053,43 @@ def banks():
         tenant=g.tenant,
         company=company,
         bridge_configured=bridge.is_configured(),
+        company_accounts=company_accounts,
         connections=connections,
     )
+
+
+@bp.route("/banks/<int:conn_id>/links/<int:link_id>/map", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def banks_map_link(conn_id: int, link_id: int):
+    company = _get_company()
+    conn = FinanceBankConnection.query.filter_by(id=conn_id, tenant_id=g.tenant.id, company_id=company.id).first_or_404()
+    link = FinanceBankAccountLink.query.filter_by(
+        id=link_id,
+        tenant_id=g.tenant.id,
+        company_id=company.id,
+        connection_id=conn.id,
+    ).first_or_404()
+
+    finance_account_id = request.form.get("finance_account_id", type=int)
+    if finance_account_id:
+        acc = FinanceAccount.query.filter_by(
+            id=finance_account_id,
+            tenant_id=g.tenant.id,
+            company_id=company.id,
+        ).first()
+        if not acc:
+            flash(_("Compte finance invalide."), "error")
+            return redirect(url_for("finance.banks"))
+        link.finance_account_id = acc.id
+        db.session.commit()
+        flash(_("Compte lié à la connexion bancaire."), "success")
+        return redirect(url_for("finance.banks"))
+
+    link.finance_account_id = None
+    db.session.commit()
+    flash(_("Liaison du compte supprimée."), "success")
+    return redirect(url_for("finance.banks"))
 
 
 @bp.route("/banks/connect", methods=["POST"])
@@ -4104,12 +4162,74 @@ def _dedupe_sig(txn_date, amount, description, reference):
     return (txn_date, str(amount), (description or "").strip(), (reference or "").strip())
 
 
+def _auto_match_invoice_for_transaction(company: FinanceCompany, txn: FinanceTransaction) -> FinanceInvoice | None:
+    """Try to auto-match an open invoice from transaction reference/description.
+
+    Matching strategy:
+    - filter open invoices by direction (sale for inflow, purchase for outflow)
+    - check if invoice_number appears in transaction reference/description
+    - verify amount coherence with small tolerance
+    """
+    ref_text = (txn.reference or "").strip().upper()
+    desc_text = (txn.description or "").strip().upper()
+    if not ref_text and not desc_text:
+        return None
+
+    target_type = "sale" if Decimal(str(txn.amount or 0)) >= 0 else "purchase"
+    candidates = (
+        FinanceInvoice.query
+        .filter_by(
+            tenant_id=g.tenant.id,
+            company_id=company.id,
+            invoice_type=target_type,
+        )
+        .filter(FinanceInvoice.status.in_(["draft", "sent"]))
+        .all()
+    )
+    if not candidates:
+        return None
+
+    amount_abs = abs(Decimal(str(txn.amount or 0)))
+    tolerance = Decimal("0.05")
+
+    matched: list[tuple[Decimal, FinanceInvoice]] = []
+    haystack = f"{ref_text} {desc_text}".strip()
+    for inv in candidates:
+        inv_no = (inv.invoice_number or "").strip().upper()
+        if not inv_no:
+            continue
+        if inv_no not in haystack:
+            continue
+
+        inv_total = abs(Decimal(str(inv.total_gross or 0)))
+        diff = abs(amount_abs - inv_total)
+        if diff <= tolerance:
+            matched.append((diff, inv))
+
+    if not matched:
+        return None
+
+    matched.sort(key=lambda row: (row[0], row[1].due_date or date.max, row[1].issue_date or date.max))
+    return matched[0][1]
+
+
+def _auto_reconcile_invoice_payment(company: FinanceCompany, txn: FinanceTransaction) -> FinanceInvoice | None:
+    inv = _auto_match_invoice_for_transaction(company, txn)
+    if not inv:
+        return None
+
+    inv.status = "paid"
+    inv.settlement_account_id = inv.settlement_account_id or txn.account_id
+    return inv
+
+
 @bp.route("/banks/<int:conn_id>/sync", methods=["POST"])
 @login_required
 @require_roles("tenant_admin", "creator")
 def banks_sync(conn_id: int):
     company = _get_company()
     conn = FinanceBankConnection.query.filter_by(id=conn_id, tenant_id=g.tenant.id, company_id=company.id).first_or_404()
+    link_id = request.form.get("link_id", type=int)
 
     if conn.provider != "bridge":
         flash(_("Provedor não suportado."), "error")
@@ -4129,6 +4249,20 @@ def banks_sync(conn_id: int):
         bearer, _exp = bridge.get_user_token(external_user_id=conn.external_user_id)
         accounts = bridge.list_accounts(bearer=bearer, item_id=conn.item_id)
 
+        # Optional account-scoped sync: only sync one mapped provider account link.
+        target_provider_account_id = None
+        if link_id:
+            link_scope = FinanceBankAccountLink.query.filter_by(
+                id=link_id,
+                tenant_id=g.tenant.id,
+                company_id=company.id,
+                connection_id=conn.id,
+            ).first()
+            if not link_scope:
+                flash(_("Conta bancária vinculada não encontrada para esta conexão."), "error")
+                return redirect(url_for("finance.banks"))
+            target_provider_account_id = str(link_scope.provider_account_id or "").strip() or None
+
         # existing txns signature set for dedupe (last 120 days)
         date_from = (date.today() - timedelta(days=120)).isoformat()
         existing = (
@@ -4143,10 +4277,14 @@ def banks_sync(conn_id: int):
 
         created_accounts = 0
         created_txns = 0
+        skipped_unmapped = 0
+        auto_reconciled = 0
 
         for a in accounts:
             provider_account_id = str(a.get("id") or a.get("uuid") or "").strip()
             if not provider_account_id:
+                continue
+            if target_provider_account_id and provider_account_id != target_provider_account_id:
                 continue
 
             link = FinanceBankAccountLink.query.filter_by(
@@ -4171,20 +4309,10 @@ def banks_sync(conn_id: int):
                 db.session.add(link)
                 db.session.flush()
 
-            # Ensure there is a FinanceAccount mapped
+            # Transactions are imported only for explicitly mapped links.
             if not link.finance_account_id:
-                fa = FinanceAccount(
-                    tenant_id=g.tenant.id,
-                    company_id=company.id,
-                    name=name,
-                    account_type="bank",
-                    currency=ccy,
-                    balance=float(a.get("balance") or 0),
-                )
-                db.session.add(fa)
-                db.session.flush()
-                link.finance_account_id = fa.id
-                created_accounts += 1
+                skipped_unmapped += 1
+                continue
 
             # Sync transactions for this account
             txns = bridge.list_transactions(bearer=bearer, account_id=provider_account_id, date_from=date_from)
@@ -4226,23 +4354,24 @@ def banks_sync(conn_id: int):
                 if gl_account_id and not _is_leaf_gl_account(gl_account_id, company):
                     gl_account_id = None
 
-                db.session.add(
-                    FinanceTransaction(
-                        tenant_id=g.tenant.id,
-                        company_id=company.id,
-                        account_id=link.finance_account_id,
-                        txn_date=txn_date,
-                        amount=amount,
-                        description=desc,
-                        category=cat_obj.name if cat_obj else None,
-                        category_id=cat_obj.id if cat_obj else None,
-                        gl_account_id=gl_account_id,
-                        counterparty_id=cp_obj.id if cp_obj else None,
-                        counterparty=None if cp_obj else (cp_name or None),
-                        reference=ref,
-                        source="bridge",
-                    )
+                txn_obj = FinanceTransaction(
+                    tenant_id=g.tenant.id,
+                    company_id=company.id,
+                    account_id=link.finance_account_id,
+                    txn_date=txn_date,
+                    amount=amount,
+                    description=desc,
+                    category=cat_obj.name if cat_obj else None,
+                    category_id=cat_obj.id if cat_obj else None,
+                    gl_account_id=gl_account_id,
+                    counterparty_id=cp_obj.id if cp_obj else None,
+                    counterparty=None if cp_obj else (cp_name or None),
+                    reference=ref,
+                    source="bridge",
                 )
+                db.session.add(txn_obj)
+                if _auto_reconcile_invoice_payment(company, txn_obj):
+                    auto_reconciled += 1
                 created_txns += 1
                 existing_sigs.add(sig)
 
@@ -4251,7 +4380,14 @@ def banks_sync(conn_id: int):
 
         conn.last_sync_at = datetime.utcnow()
         db.session.commit()
-        flash(_("Sincronização concluída: {a} contas, {t} transações.", a=created_accounts, t=created_txns), "success")
+        if target_provider_account_id:
+            flash(_("Sincronização da conta concluída: {a} conta(s), {t} transações.", a=created_accounts, t=created_txns), "success")
+        else:
+            flash(_("Sincronização concluída: {a} contas, {t} transações.", a=created_accounts, t=created_txns), "success")
+        if skipped_unmapped > 0:
+            flash(_("{n} compte(s) bancaire(s) non mappé(s): import ignoré. Associez-les à un compte finance.", n=skipped_unmapped), "warning")
+        if auto_reconciled:
+            flash(_("Faturas conciliadas automaticamente: {n}.", n=auto_reconciled), "info")
         if created_txns >= remaining:
             flash(_("Sincronização limitada pelo plano de transações."), "warning")
     except BridgeError as e:
@@ -7259,14 +7395,125 @@ def regulation_export_it_ledger():
 @require_roles("tenant_admin", "creator", "viewer")
 def invoices_list():
     company = _get_company()
-    invoices = (
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 25, type=int)
+    if per_page not in {10, 25, 50, 100}:
+        per_page = 25
+
+    q = (request.args.get("q") or "").strip()
+    status = (request.args.get("status") or "").strip().lower()
+    invoice_type = (request.args.get("invoice_type") or "").strip().lower()
+    counterparty_id = request.args.get("counterparty_id", type=int)
+    issue_from = (request.args.get("issue_from") or "").strip()
+    issue_to = (request.args.get("issue_to") or "").strip()
+    due_from = (request.args.get("due_from") or "").strip()
+    due_to = (request.args.get("due_to") or "").strip()
+    kpi = (request.args.get("kpi") or "").strip().lower()
+
+    today_dt = date.today()
+    if kpi in {"unpaid", "due_soon", "overdue", "debtors"}:
+        if not status:
+            status = "open"
+        if not invoice_type:
+            invoice_type = "sale"
+        if kpi == "due_soon":
+            if not due_from:
+                due_from = today_dt.isoformat()
+            if not due_to:
+                due_to = (today_dt + timedelta(days=7)).isoformat()
+        elif kpi == "overdue" and not due_to:
+            due_to = (today_dt - timedelta(days=1)).isoformat()
+
+    qry = (
         FinanceInvoice.query.options(joinedload(FinanceInvoice.counterparty))
         .filter_by(tenant_id=g.tenant.id, company_id=company.id)
-        .order_by(FinanceInvoice.issue_date.desc())
-        .all()
     )
+
+    if q:
+        like = f"%{q}%"
+        qry = qry.filter(
+            or_(
+                FinanceInvoice.invoice_number.ilike(like),
+                FinanceInvoice.notes.ilike(like),
+                FinanceCounterparty.name.ilike(like),
+            )
+        ).outerjoin(FinanceCounterparty, FinanceCounterparty.id == FinanceInvoice.counterparty_id)
+
+    if status in {"draft", "sent", "paid", "void"}:
+        qry = qry.filter(FinanceInvoice.status == status)
+    elif status == "open":
+        qry = qry.filter(FinanceInvoice.status.in_(["draft", "sent"]))
+
+    if invoice_type in {"sale", "purchase"}:
+        qry = qry.filter(FinanceInvoice.invoice_type == invoice_type)
+
+    if counterparty_id:
+        qry = qry.filter(FinanceInvoice.counterparty_id == counterparty_id)
+
+    if issue_from:
+        try:
+            qry = qry.filter(FinanceInvoice.issue_date >= datetime.strptime(issue_from, "%Y-%m-%d").date())
+        except Exception:
+            pass
+
+    if issue_to:
+        try:
+            qry = qry.filter(FinanceInvoice.issue_date <= datetime.strptime(issue_to, "%Y-%m-%d").date())
+        except Exception:
+            pass
+
+    if due_from:
+        try:
+            qry = qry.filter(FinanceInvoice.due_date >= datetime.strptime(due_from, "%Y-%m-%d").date())
+        except Exception:
+            pass
+
+    if due_to:
+        try:
+            qry = qry.filter(FinanceInvoice.due_date <= datetime.strptime(due_to, "%Y-%m-%d").date())
+        except Exception:
+            pass
+
+    ordered_qry = qry.order_by(FinanceInvoice.issue_date.desc(), FinanceInvoice.id.desc())
+    all_filtered_invoices = ordered_qry.all()
+    pagination = ordered_qry.paginate(page=page, per_page=per_page, error_out=False)
+    invoices = pagination.items
     cps = FinanceCounterparty.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).order_by(FinanceCounterparty.name.asc()).all()
     accounts = _q_accounts(company).all()
+    default_settlement_account_id = accounts[0].id if accounts else None
+
+    # Invoice health reports for operations follow-up
+    due_soon_days = 7
+    open_sales = [
+        i for i in all_filtered_invoices
+        if (i.invoice_type or "sale") == "sale" and (i.status or "draft") in {"draft", "sent"}
+    ]
+    due_soon = [
+        i for i in open_sales
+        if i.due_date and today_dt <= i.due_date <= (today_dt + timedelta(days=due_soon_days))
+    ]
+    overdue = [
+        i for i in open_sales
+        if i.due_date and i.due_date < today_dt
+    ]
+
+    debtor_rows_map: dict[int, dict] = {}
+    for inv in open_sales:
+        cp = inv.counterparty
+        if not cp:
+            continue
+        row = debtor_rows_map.setdefault(cp.id, {
+            "counterparty": cp,
+            "total_due": Decimal("0"),
+            "invoice_count": 0,
+            "overdue_count": 0,
+        })
+        row["total_due"] += Decimal(str(inv.total_gross or 0))
+        row["invoice_count"] += 1
+        if inv.due_date and inv.due_date < today_dt:
+            row["overdue_count"] += 1
+    debtor_rows = sorted(debtor_rows_map.values(), key=lambda x: x["total_due"], reverse=True)
+
     return render_template(
         "finance/invoices_list.html",
         tenant=g.tenant,
@@ -7275,8 +7522,217 @@ def invoices_list():
         invoices=invoices,
         counterparties=cps,
         accounts=accounts,
+        default_settlement_account_id=default_settlement_account_id,
+        reports={
+            "due_soon": due_soon,
+            "overdue": overdue,
+            "unpaid": open_sales,
+            "debtors": debtor_rows,
+            "due_soon_days": due_soon_days,
+        },
+        pagination=pagination,
+        filters={
+            "q": q,
+            "status": status,
+            "invoice_type": invoice_type,
+            "counterparty_id": counterparty_id,
+            "issue_from": issue_from,
+            "issue_to": issue_to,
+            "due_from": due_from,
+            "due_to": due_to,
+            "kpi": kpi,
+            "per_page": per_page,
+        },
         today=date.today().isoformat(),
     )
+
+
+@bp.route("/invoices/cockpit")
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def invoices_cockpit():
+    company = _get_company()
+    horizon_days = request.args.get("horizon_days", 30, type=int)
+    if horizon_days not in {7, 14, 30, 60, 90}:
+        horizon_days = 30
+
+    today_dt = date.today()
+    horizon_end = today_dt + timedelta(days=horizon_days)
+
+    invoices = (
+        FinanceInvoice.query.options(joinedload(FinanceInvoice.counterparty))
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id, invoice_type="sale")
+        .filter(FinanceInvoice.status.in_(["draft", "sent"]))
+        .order_by(FinanceInvoice.due_date.asc(), FinanceInvoice.issue_date.desc())
+        .all()
+    )
+
+    def _bucket_for_due_date(due_dt: date | None) -> str:
+        if not due_dt:
+            return "no_due"
+        if due_dt < today_dt:
+            return "overdue"
+        delta_days = (due_dt - today_dt).days
+        if delta_days <= 7:
+            return "d0_7"
+        if delta_days <= 30:
+            return "d8_30"
+        return "d31_plus"
+
+    bucket_labels = {
+        "overdue": _("Expirées"),
+        "d0_7": _("À échéance (7 jours)"),
+        "d8_30": _("À échéance (30 jours)"),
+        "d31_plus": _("Au-delà de 30 jours"),
+        "no_due": _("Sans échéance"),
+    }
+
+    kpis = {
+        "open_count": 0,
+        "open_amount": Decimal("0"),
+        "overdue_count": 0,
+        "overdue_amount": Decimal("0"),
+        "due_7_count": 0,
+        "due_7_amount": Decimal("0"),
+        "due_30_count": 0,
+        "due_30_amount": Decimal("0"),
+    }
+
+    bucket_stats: dict[str, dict] = {
+        key: {"key": key, "label": label, "count": 0, "amount": Decimal("0")}
+        for key, label in bucket_labels.items()
+    }
+    daily_stats: dict[str, Decimal] = {}
+    debtors_map: dict[int, dict] = {}
+    invoice_rows: list[dict] = []
+
+    for inv in invoices:
+        amount = Decimal(str(inv.total_gross or 0))
+        due_dt = inv.due_date
+        bucket = _bucket_for_due_date(due_dt)
+        cp = inv.counterparty
+        cp_name = cp.name if cp else _("Sans contrepartie")
+        due_iso = due_dt.isoformat() if due_dt else ""
+        days_to_due = (due_dt - today_dt).days if due_dt else None
+
+        kpis["open_count"] += 1
+        kpis["open_amount"] += amount
+        bucket_stats[bucket]["count"] += 1
+        bucket_stats[bucket]["amount"] += amount
+
+        if due_dt and due_dt < today_dt:
+            kpis["overdue_count"] += 1
+            kpis["overdue_amount"] += amount
+        if due_dt and today_dt <= due_dt <= (today_dt + timedelta(days=7)):
+            kpis["due_7_count"] += 1
+            kpis["due_7_amount"] += amount
+        if due_dt and today_dt <= due_dt <= (today_dt + timedelta(days=30)):
+            kpis["due_30_count"] += 1
+            kpis["due_30_amount"] += amount
+
+        if due_dt and today_dt <= due_dt <= horizon_end:
+            dkey = due_dt.isoformat()
+            daily_stats[dkey] = daily_stats.get(dkey, Decimal("0")) + amount
+
+        cp_id = cp.id if cp else 0
+        cp_row = debtors_map.setdefault(cp_id, {
+            "counterparty_id": cp_id,
+            "counterparty": cp_name,
+            "count": 0,
+            "amount": Decimal("0"),
+            "overdue_count": 0,
+        })
+        cp_row["count"] += 1
+        cp_row["amount"] += amount
+        if due_dt and due_dt < today_dt:
+            cp_row["overdue_count"] += 1
+
+        invoice_rows.append({
+            "id": inv.id,
+            "number": inv.invoice_number,
+            "counterparty": cp_name,
+            "counterparty_id": cp_id,
+            "status": inv.status or "draft",
+            "due_date": due_iso,
+            "amount": float(amount),
+            "bucket": bucket,
+            "days_to_due": days_to_due,
+        })
+
+    bucket_order = ["overdue", "d0_7", "d8_30", "d31_plus", "no_due"]
+    buckets = [
+        {
+            "key": key,
+            "label": bucket_stats[key]["label"],
+            "count": int(bucket_stats[key]["count"]),
+            "amount": float(bucket_stats[key]["amount"]),
+        }
+        for key in bucket_order
+    ]
+
+    sorted_dates = sorted(daily_stats.keys())
+    daily_series = [{"date": d, "amount": float(daily_stats[d])} for d in sorted_dates]
+
+    debtors = sorted(
+        [
+            {
+                "counterparty_id": row["counterparty_id"],
+                "counterparty": row["counterparty"],
+                "count": int(row["count"]),
+                "overdue_count": int(row["overdue_count"]),
+                "amount": float(row["amount"]),
+            }
+            for row in debtors_map.values()
+        ],
+        key=lambda r: r["amount"],
+        reverse=True,
+    )
+
+    return render_template(
+        "finance/invoices_cockpit.html",
+        tenant=g.tenant,
+        company=company,
+        active="invoice_cockpit",
+        kpis={
+            "open_count": kpis["open_count"],
+            "open_amount": float(kpis["open_amount"]),
+            "overdue_count": kpis["overdue_count"],
+            "overdue_amount": float(kpis["overdue_amount"]),
+            "due_7_count": kpis["due_7_count"],
+            "due_7_amount": float(kpis["due_7_amount"]),
+            "due_30_count": kpis["due_30_count"],
+            "due_30_amount": float(kpis["due_30_amount"]),
+        },
+        buckets=buckets,
+        daily_series=daily_series,
+        debtors=debtors[:8],
+        invoice_rows=invoice_rows,
+        horizon_days=horizon_days,
+        today=today_dt.isoformat(),
+    )
+
+
+@bp.route("/invoices/<int:invoice_id>/status", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def invoice_status_update(invoice_id: int):
+    company = _get_company()
+    inv = FinanceInvoice.query.filter_by(id=invoice_id, tenant_id=g.tenant.id, company_id=company.id).first_or_404()
+    new_status = (request.form.get("status") or "").strip().lower()
+    if new_status not in {"draft", "sent", "paid", "void"}:
+        flash(_("Status inválido."), "error")
+        next_url = (request.form.get("next") or "").strip()
+        if next_url.startswith("/") and not next_url.startswith("//"):
+            return redirect(next_url)
+        return redirect(url_for("finance.invoices_list"))
+
+    inv.status = new_status
+    db.session.commit()
+    flash(_("Status da fatura atualizado."), "success")
+    next_url = (request.form.get("next") or "").strip()
+    if next_url.startswith("/") and not next_url.startswith("//"):
+        return redirect(next_url)
+    return redirect(url_for("finance.invoices_list"))
 
 
 @bp.route("/products/lookup")
@@ -7301,6 +7757,17 @@ def product_lookup():
         "found": True,
         "vat_rate": float(product.vat_rate or 0),
         "unit_price": float(product.unit_price or 0),
+        "br_icms_rate": float(product.br_icms_rate or 0),
+        "br_ipi_rate": float(product.br_ipi_rate or 0),
+        "br_pis_rate": float(product.br_pis_rate or 0),
+        "br_cofins_rate": float(product.br_cofins_rate or 0),
+        "br_ncm_code": product.br_ncm_code or "",
+        "br_cfop_code": product.br_cfop_code or "",
+        "br_cest_code": product.br_cest_code or "",
+        "br_cst_icms": product.br_cst_icms or "",
+        "br_cst_ipi": product.br_cst_ipi or "",
+        "br_cst_pis": product.br_cst_pis or "",
+        "br_cst_cofins": product.br_cst_cofins or "",
     })
 
 
@@ -7311,7 +7778,14 @@ def _recalc_invoice_totals(inv: FinanceInvoice) -> None:
     inv.total_gross = totals.gross
 
 
-def _get_or_create_product(company: FinanceCompany, name: str, unit_price: Decimal, vat_rate: Decimal, currency: str) -> FinanceProduct | None:
+def _get_or_create_product(
+    company: FinanceCompany,
+    name: str,
+    unit_price: Decimal,
+    vat_rate: Decimal,
+    currency: str,
+    br_defaults: dict | None = None,
+) -> FinanceProduct | None:
     product = (
         FinanceProduct.query
         .filter_by(tenant_id=g.tenant.id, company_id=company.id)
@@ -7336,51 +7810,152 @@ def _get_or_create_product(company: FinanceCompany, name: str, unit_price: Decim
         vat_applies=vat_rate > 0,
         vat_reverse_charge=False,
         status="active",
+        br_icms_rate=Decimal(str((br_defaults or {}).get("icms_rate") or 0)),
+        br_ipi_rate=Decimal(str((br_defaults or {}).get("ipi_rate") or 0)),
+        br_pis_rate=Decimal(str((br_defaults or {}).get("pis_rate") or 0)),
+        br_cofins_rate=Decimal(str((br_defaults or {}).get("cofins_rate") or 0)),
+        br_ncm_code=((br_defaults or {}).get("ncm_code") or None),
+        br_cfop_code=((br_defaults or {}).get("cfop_code") or None),
+        br_cest_code=((br_defaults or {}).get("cest_code") or None),
+        br_cst_icms=((br_defaults or {}).get("cst_icms") or None),
+        br_cst_ipi=((br_defaults or {}).get("cst_ipi") or None),
+        br_cst_pis=((br_defaults or {}).get("cst_pis") or None),
+        br_cst_cofins=((br_defaults or {}).get("cst_cofins") or None),
     )
     db.session.add(product)
     return product
 
 
-def _parse_lines_from_form(company: FinanceCompany, currency: str) -> list[dict]:
+def _dec_or_zero(raw: str | None, quant: str | None = None) -> Decimal:
+    try:
+        val = Decimal(str(raw if raw is not None else "0"))
+    except Exception:
+        val = Decimal("0")
+    if quant:
+        return val.quantize(Decimal(quant))
+    return val
+
+
+def _parse_lines_from_form(company: FinanceCompany, currency: str, fiscal_country: str = "EU") -> list[dict]:
     descs = request.form.getlist("line_description")
     qtys = request.form.getlist("line_quantity")
     prices = request.form.getlist("line_unit_price")
     vats = request.form.getlist("line_vat_rate")
+    icmss = request.form.getlist("line_icms_rate")
+    ipis = request.form.getlist("line_ipi_rate")
+    piss = request.form.getlist("line_pis_rate")
+    cofinss = request.form.getlist("line_cofins_rate")
+    ncm_codes = request.form.getlist("line_ncm_code")
+    cfop_codes = request.form.getlist("line_cfop_code")
+    cest_codes = request.form.getlist("line_cest_code")
+    cst_icms_list = request.form.getlist("line_cst_icms")
+    cst_ipi_list = request.form.getlist("line_cst_ipi")
+    cst_pis_list = request.form.getlist("line_cst_pis")
+    cst_cofins_list = request.form.getlist("line_cst_cofins")
+
+    is_br = (fiscal_country or "EU").strip().upper() == "BR"
     lines: list[dict] = []
-    for i in range(max(len(descs), len(qtys), len(prices), len(vats))):
+    total_len = max(
+        len(descs),
+        len(qtys),
+        len(prices),
+        len(vats),
+        len(icmss),
+        len(ipis),
+        len(piss),
+        len(cofinss),
+    )
+    for i in range(total_len):
         desc = (descs[i] if i < len(descs) else "").strip()
         if not desc:
             continue
-        try:
-            q = Decimal(str(qtys[i] if i < len(qtys) else "1"))
-        except Exception:
-            q = Decimal("1")
-        try:
-            up = Decimal(str(prices[i] if i < len(prices) else "0"))
-        except Exception:
-            up = Decimal("0")
-        try:
-            vr = Decimal(str(vats[i] if i < len(vats) else "0"))
-        except Exception:
-            vr = Decimal("0")
+        q = _dec_or_zero(qtys[i] if i < len(qtys) else "1") or Decimal("1")
+        up = _dec_or_zero(prices[i] if i < len(prices) else "0")
+        vr = _dec_or_zero(vats[i] if i < len(vats) else "0")
+        icms_rate = _dec_or_zero(icmss[i] if i < len(icmss) else "0")
+        ipi_rate = _dec_or_zero(ipis[i] if i < len(ipis) else "0")
+        pis_rate = _dec_or_zero(piss[i] if i < len(piss) else "0")
+        cofins_rate = _dec_or_zero(cofinss[i] if i < len(cofinss) else "0")
 
-        product = _get_or_create_product(company, desc, up, vr, currency)
-        if product and product.vat_rate is not None:
-            try:
-                vr = Decimal(str(product.vat_rate))
-            except Exception:
-                pass
+        line_ncm_code = (ncm_codes[i] if i < len(ncm_codes) else "").strip() or None
+        line_cfop_code = (cfop_codes[i] if i < len(cfop_codes) else "").strip() or None
+        line_cest_code = (cest_codes[i] if i < len(cest_codes) else "").strip() or None
+        line_cst_icms = (cst_icms_list[i] if i < len(cst_icms_list) else "").strip() or None
+        line_cst_ipi = (cst_ipi_list[i] if i < len(cst_ipi_list) else "").strip() or None
+        line_cst_pis = (cst_pis_list[i] if i < len(cst_pis_list) else "").strip() or None
+        line_cst_cofins = (cst_cofins_list[i] if i < len(cst_cofins_list) else "").strip() or None
+
+        product = _get_or_create_product(
+            company,
+            desc,
+            up,
+            vr,
+            currency,
+            {
+                "icms_rate": icms_rate,
+                "ipi_rate": ipi_rate,
+                "pis_rate": pis_rate,
+                "cofins_rate": cofins_rate,
+                "ncm_code": line_ncm_code,
+                "cfop_code": line_cfop_code,
+                "cest_code": line_cest_code,
+                "cst_icms": line_cst_icms,
+                "cst_ipi": line_cst_ipi,
+                "cst_pis": line_cst_pis,
+                "cst_cofins": line_cst_cofins,
+            },
+        )
+        if product:
+            if product.vat_rate is not None:
+                vr = _dec_or_zero(product.vat_rate)
+            if is_br:
+                if icms_rate == 0 and product.br_icms_rate is not None:
+                    icms_rate = _dec_or_zero(product.br_icms_rate)
+                if ipi_rate == 0 and product.br_ipi_rate is not None:
+                    ipi_rate = _dec_or_zero(product.br_ipi_rate)
+                if pis_rate == 0 and product.br_pis_rate is not None:
+                    pis_rate = _dec_or_zero(product.br_pis_rate)
+                if cofins_rate == 0 and product.br_cofins_rate is not None:
+                    cofins_rate = _dec_or_zero(product.br_cofins_rate)
+                line_ncm_code = line_ncm_code or (product.br_ncm_code or None)
+                line_cfop_code = line_cfop_code or (product.br_cfop_code or None)
+                line_cest_code = line_cest_code or (product.br_cest_code or None)
+                line_cst_icms = line_cst_icms or (product.br_cst_icms or None)
+                line_cst_ipi = line_cst_ipi or (product.br_cst_ipi or None)
+                line_cst_pis = line_cst_pis or (product.br_cst_pis or None)
+                line_cst_cofins = line_cst_cofins or (product.br_cst_cofins or None)
+
         net = (q * up).quantize(Decimal("0.01"))
-        tax = (net * vr / Decimal("100")).quantize(Decimal("0.01"))
+        vat_tax = (net * vr / Decimal("100")).quantize(Decimal("0.01"))
+        icms_amount = (net * icms_rate / Decimal("100")).quantize(Decimal("0.01"))
+        ipi_amount = (net * ipi_rate / Decimal("100")).quantize(Decimal("0.01"))
+        pis_amount = (net * pis_rate / Decimal("100")).quantize(Decimal("0.01"))
+        cofins_amount = (net * cofins_rate / Decimal("100")).quantize(Decimal("0.01"))
+        tax = (icms_amount + ipi_amount + pis_amount + cofins_amount).quantize(Decimal("0.01")) if is_br else vat_tax
         gross = (net + tax).quantize(Decimal("0.01"))
         lines.append({
             "description": desc,
             "quantity": q,
             "unit_price": up,
             "vat_rate": vr,
+            "icms_rate": icms_rate,
+            "ipi_rate": ipi_rate,
+            "pis_rate": pis_rate,
+            "cofins_rate": cofins_rate,
+            "ncm_code": line_ncm_code,
+            "cfop_code": line_cfop_code,
+            "cest_code": line_cest_code,
+            "cst_icms": line_cst_icms,
+            "cst_ipi": line_cst_ipi,
+            "cst_pis": line_cst_pis,
+            "cst_cofins": line_cst_cofins,
             "net_amount": net,
             "tax_amount": tax,
             "gross_amount": gross,
+            "icms_amount": icms_amount,
+            "ipi_amount": ipi_amount,
+            "pis_amount": pis_amount,
+            "cofins_amount": cofins_amount,
         })
     return lines
 
@@ -7393,6 +7968,7 @@ def invoice_new():
     cps = FinanceCounterparty.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).order_by(FinanceCounterparty.name.asc()).all()
     accounts = _q_accounts(company).all()
     products = FinanceProduct.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).order_by(FinanceProduct.name.asc()).all()
+    currencies = get_currencies()
 
     if request.method == "POST":
         invoice_number = (request.form.get("invoice_number") or "").strip()
@@ -7412,6 +7988,9 @@ def invoice_new():
         cp_id = request.form.get("counterparty_id")
         settlement_account_id = request.form.get("settlement_account_id")
         notes = (request.form.get("notes") or "").strip() or None
+        fiscal_country = (request.form.get("fiscal_country") or "EU").strip().upper()
+        if fiscal_country not in ("EU", "BR"):
+            fiscal_country = "EU"
 
         if not invoice_number:
             flash(_("Número da fatura é obrigatório."), "danger")
@@ -7429,9 +8008,22 @@ def invoice_new():
             counterparty_id=int(cp_id) if cp_id else None,
             settlement_account_id=int(settlement_account_id) if settlement_account_id else None,
             notes=notes,
+            fiscal_country=fiscal_country,
+            document_model=(request.form.get("document_model") or "55").strip()[:8],
+            document_series=(request.form.get("document_series") or "1").strip()[:8],
+            sefaz_environment=(request.form.get("sefaz_environment") or "homologation").strip().lower(),
+            natureza_operacao=(request.form.get("natureza_operacao") or "").strip() or None,
+            operation_destination=(request.form.get("operation_destination") or "1").strip()[:8],
+            payment_indicator=(request.form.get("payment_indicator") or "0").strip()[:8],
+            presence_indicator=(request.form.get("presence_indicator") or "1").strip()[:8],
+            final_consumer=request.form.get("final_consumer") == "on",
+            invoice_purpose=(request.form.get("invoice_purpose") or "1").strip()[:8],
+            emission_type=(request.form.get("emission_type") or "1").strip()[:8],
+            cnf_code=(request.form.get("cnf_code") or "").strip() or None,
+            needs_sefaz_validation=request.form.get("needs_sefaz_validation") == "on",
         )
 
-        for ln in _parse_lines_from_form(company, currency):
+        for ln in _parse_lines_from_form(company, currency, fiscal_country=fiscal_country):
             inv.lines.append(FinanceInvoiceLine(
                 tenant_id=g.tenant.id,
                 company_id=company.id,
@@ -7452,6 +8044,7 @@ def invoice_new():
         counterparties=cps,
         accounts=accounts,
         products=products,
+        currencies=currencies,
         today=date.today().isoformat(),
     )
 
@@ -7504,6 +8097,7 @@ def invoice_edit(invoice_id: int):
     cps = FinanceCounterparty.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).order_by(FinanceCounterparty.name.asc()).all()
     accounts = _q_accounts(company).all()
     products = FinanceProduct.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).order_by(FinanceProduct.name.asc()).all()
+    currencies = get_currencies()
 
     if request.method == "POST":
         inv.invoice_number = (request.form.get("invoice_number") or inv.invoice_number).strip()
@@ -7524,10 +8118,25 @@ def invoice_edit(invoice_id: int):
         settlement_account_id = request.form.get("settlement_account_id")
         inv.settlement_account_id = int(settlement_account_id) if settlement_account_id else None
         inv.notes = (request.form.get("notes") or "").strip() or None
+        inv.fiscal_country = (request.form.get("fiscal_country") or inv.fiscal_country or "EU").strip().upper()
+        if inv.fiscal_country not in ("EU", "BR"):
+            inv.fiscal_country = "EU"
+        inv.document_model = (request.form.get("document_model") or inv.document_model or "55").strip()[:8]
+        inv.document_series = (request.form.get("document_series") or inv.document_series or "1").strip()[:8]
+        inv.sefaz_environment = (request.form.get("sefaz_environment") or inv.sefaz_environment or "homologation").strip().lower()
+        inv.natureza_operacao = (request.form.get("natureza_operacao") or "").strip() or None
+        inv.operation_destination = (request.form.get("operation_destination") or inv.operation_destination or "1").strip()[:8]
+        inv.payment_indicator = (request.form.get("payment_indicator") or inv.payment_indicator or "0").strip()[:8]
+        inv.presence_indicator = (request.form.get("presence_indicator") or inv.presence_indicator or "1").strip()[:8]
+        inv.final_consumer = request.form.get("final_consumer") == "on"
+        inv.invoice_purpose = (request.form.get("invoice_purpose") or inv.invoice_purpose or "1").strip()[:8]
+        inv.emission_type = (request.form.get("emission_type") or inv.emission_type or "1").strip()[:8]
+        inv.cnf_code = (request.form.get("cnf_code") or "").strip() or None
+        inv.needs_sefaz_validation = request.form.get("needs_sefaz_validation") == "on"
 
         # replace lines
         inv.lines.clear()
-        for ln in _parse_lines_from_form(company, inv.currency):
+        for ln in _parse_lines_from_form(company, inv.currency, fiscal_country=inv.fiscal_country):
             inv.lines.append(FinanceInvoiceLine(
                 tenant_id=g.tenant.id,
                 company_id=company.id,
@@ -7547,6 +8156,7 @@ def invoice_edit(invoice_id: int):
         counterparties=cps,
         accounts=accounts,
         products=products,
+        currencies=currencies,
         today=date.today().isoformat(),
     )
 
@@ -7574,11 +8184,20 @@ def invoice_mark_paid(invoice_id: int):
 
     acc_id = request.form.get("account_id") or inv.settlement_account_id
     if not acc_id:
+        fallback_acc = _q_accounts(company).order_by(FinanceAccount.id.asc()).first()
+        acc_id = fallback_acc.id if fallback_acc else None
+    if not acc_id:
         flash(_("Selecione a conta de liquidação."), "danger")
+        next_url = (request.form.get("next") or "").strip()
+        if next_url.startswith("/") and not next_url.startswith("//"):
+            return redirect(next_url)
         return redirect(url_for("finance.invoice_view", invoice_id=inv.id))
     account = FinanceAccount.query.filter_by(id=int(acc_id), tenant_id=g.tenant.id, company_id=company.id).first()
     if not account:
         flash(_("Conta inválida."), "danger")
+        next_url = (request.form.get("next") or "").strip()
+        if next_url.startswith("/") and not next_url.startswith("//"):
+            return redirect(next_url)
         return redirect(url_for("finance.invoice_view", invoice_id=inv.id))
 
     try:
@@ -7594,6 +8213,9 @@ def invoice_mark_paid(invoice_id: int):
         amount = abs(amount)
 
     if not _ensure_transaction_quota(1):
+        next_url = (request.form.get("next") or "").strip()
+        if next_url.startswith("/") and not next_url.startswith("//"):
+            return redirect(next_url)
         return redirect(url_for("finance.invoice_view", invoice_id=inv.id))
 
     txn = FinanceTransaction(
@@ -7612,6 +8234,9 @@ def invoice_mark_paid(invoice_id: int):
     inv.settlement_account_id = account.id
     db.session.commit()
     flash(_("Fatura marcada como paga e transação criada."), "success")
+    next_url = (request.form.get("next") or "").strip()
+    if next_url.startswith("/") and not next_url.startswith("//"):
+        return redirect(next_url)
     return redirect(url_for("finance.invoice_view", invoice_id=inv.id))
 
 
@@ -7624,7 +8249,7 @@ def invoice_export(invoice_id: int):
         id=invoice_id, tenant_id=g.tenant.id, company_id=company.id
     ).first_or_404()
     country = (request.args.get("country") or "fr").strip().lower()
-    if country not in ("fr", "it"):
+    if country not in ("fr", "it", "br"):
         country = "fr"
 
     template_settings = _get_invoice_template_settings(company)
@@ -7655,11 +8280,42 @@ def invoice_pdf(invoice_id: int):
     ).first_or_404()
     template_settings = _get_invoice_template_settings(company)
     logo_path = _resolve_logo_static_path(template_settings.get("logo_url"))
-    pdf_bytes = build_invoice_pdf_bytes(inv=inv, company=company, cp=inv.counterparty, logo_path=logo_path)
+    pdf_bytes = build_invoice_pdf_bytes(
+        inv=inv,
+        company=company,
+        cp=inv.counterparty,
+        logo_path=logo_path,
+        lang=getattr(g, "lang", DEFAULT_LANG),
+    )
     return send_file(
         BytesIO(pdf_bytes),
         mimetype="application/pdf",
         as_attachment=True,
+        download_name=f"invoice_{inv.invoice_number}.pdf",
+    )
+
+
+@bp.route("/invoices/<int:invoice_id>/pdf/preview")
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def invoice_pdf_preview(invoice_id: int):
+    company = _get_company()
+    inv = FinanceInvoice.query.options(joinedload(FinanceInvoice.lines), joinedload(FinanceInvoice.counterparty)).filter_by(
+        id=invoice_id, tenant_id=g.tenant.id, company_id=company.id
+    ).first_or_404()
+    template_settings = _get_invoice_template_settings(company)
+    logo_path = _resolve_logo_static_path(template_settings.get("logo_url"))
+    pdf_bytes = build_invoice_pdf_bytes(
+        inv=inv,
+        company=company,
+        cp=inv.counterparty,
+        logo_path=logo_path,
+        lang=getattr(g, "lang", DEFAULT_LANG),
+    )
+    return send_file(
+        BytesIO(pdf_bytes),
+        mimetype="application/pdf",
+        as_attachment=False,
         download_name=f"invoice_{inv.invoice_number}.pdf",
     )
 
@@ -7784,7 +8440,13 @@ def invoice_send_email(invoice_id: int):
         subject = f"Facture {inv.invoice_number}"
 
     logo_path = _resolve_logo_static_path(template_settings.get("logo_url"))
-    pdf_bytes = build_invoice_pdf_bytes(inv=inv, company=company, cp=inv.counterparty, logo_path=logo_path)
+    pdf_bytes = build_invoice_pdf_bytes(
+        inv=inv,
+        company=company,
+        cp=inv.counterparty,
+        logo_path=logo_path,
+        lang=selected_lang,
+    )
     filename = f"invoice_{inv.invoice_number}.pdf"
 
     sent = EmailService.send_email(

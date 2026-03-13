@@ -105,7 +105,58 @@
     const wrap = qs('#ai-charts');
     if (!wrap) return;
     wrap.innerHTML = '';
+    wrap.classList.remove('ai-chart-grid');
     wrap.classList.add('d-none');
+  }
+
+  function clearKpis () {
+    const wrap = qs('#ai-kpis');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    wrap.classList.add('d-none');
+  }
+
+  function renderKpis (payload) {
+    const wrap = qs('#ai-kpis');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+
+    const profile = (payload && payload.profile && Array.isArray(payload.profile.columns))
+      ? payload.profile.columns
+      : [];
+    const numericCols = profile.filter((c) => String(c.type || '').toLowerCase() === 'number').slice(0, 4);
+    const rowCount = Number(payload && payload.result && payload.result.row_count) || 0;
+
+    if (!numericCols.length && !rowCount) {
+      wrap.classList.add('d-none');
+      return;
+    }
+
+    const cards = [];
+    if (rowCount > 0) {
+      cards.push(
+        `<div class="ai-kpi-card"><div class="ai-kpi-label">${t('Rows')}</div><div class="ai-kpi-value">${rowCount.toLocaleString()}</div><div class="ai-kpi-sub">${t('Current query')}</div></div>`
+      );
+    }
+
+    numericCols.forEach((col) => {
+      const name = String(col.name || t('Metric'));
+      const avg = Number(col.avg);
+      const min = Number(col.min);
+      const max = Number(col.max);
+      const fmt = (n) => Number.isFinite(n) ? n.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '-';
+      cards.push(
+        `<div class="ai-kpi-card"><div class="ai-kpi-label">${name}</div><div class="ai-kpi-value">${fmt(avg)}</div><div class="ai-kpi-sub">${t('min')} ${fmt(min)} · ${t('max')} ${fmt(max)}</div></div>`
+      );
+    });
+
+    if (!cards.length) {
+      wrap.classList.add('d-none');
+      return;
+    }
+
+    wrap.innerHTML = cards.join('');
+    wrap.classList.remove('d-none');
   }
 
   function renderCharts (charts) {
@@ -118,17 +169,18 @@
     }
 
     wrap.classList.remove('d-none');
+    wrap.classList.add('ai-chart-grid');
 
     for (const ch of charts.slice(0, 5)) {
       const title = ch.title || '';
       const opt = ch.echarts_option;
-      const card = el('div', 'card border-0 shadow-sm mb-3');
+      const card = el('div', 'card border-0 shadow-sm ai-chart-card');
       card.style.borderRadius = '1rem';
       const body = el('div', 'card-body');
       const h = el('div', 'fw-semibold mb-2');
       h.textContent = title;
       const chartDiv = el('div');
-      chartDiv.style.height = '360px';
+      chartDiv.style.height = '320px';
       body.appendChild(h);
       body.appendChild(chartDiv);
       card.appendChild(body);
@@ -161,6 +213,9 @@
     const sourceWrap = qs('#ai-source-wrap');
     const paramsWrap = qs('#ai-params-wrap');
     const status = qs('#ai-status');
+    const loadingOverlay = qs('#aiLoadingOverlay');
+    const loadingText = qs('#aiLoadingText');
+    const denseToggle = qs('#ai-dense-toggle');
 
     if (!log || !input || !sendBtn || !questionSel) return;
 
@@ -168,6 +223,42 @@
     const createDashboardMode = query.get('create_dashboard') === '1';
 
     let history = [];
+    const DENSE_PREF_KEY = 'aiChatDenseMode';
+
+    function applyDenseMode (enabled) {
+      document.body.classList.toggle('ai-dense-enabled', !!enabled);
+      if (denseToggle) denseToggle.checked = !!enabled;
+      try {
+        window.localStorage.setItem(DENSE_PREF_KEY, enabled ? '1' : '0');
+      } catch (e) {
+        // Ignore storage errors.
+      }
+    }
+
+    try {
+      const saved = window.localStorage.getItem(DENSE_PREF_KEY);
+      applyDenseMode(saved !== '0');
+    } catch (e) {
+      applyDenseMode(true);
+    }
+
+    if (denseToggle) {
+      denseToggle.addEventListener('change', () => {
+        applyDenseMode(!!denseToggle.checked);
+      });
+    }
+
+    function setLoading (isLoading, text) {
+      if (loadingOverlay) {
+        loadingOverlay.classList.toggle('is-visible', !!isLoading);
+      }
+      if (loadingText && text) {
+        loadingText.textContent = String(text);
+      }
+      if (sendBtn) sendBtn.disabled = !!isLoading;
+      if (createDashboardBtn) createDashboardBtn.disabled = !!isLoading;
+      if (input) input.disabled = !!isLoading;
+    }
 
     function setStatus (s) {
       if (status) status.textContent = s || '';
@@ -177,7 +268,9 @@
       log.innerHTML = '';
       history = [];
       clearCharts();
+      clearKpis();
       setStatus('');
+      setLoading(false, '');
     }
 
     if (clearBtn) clearBtn.addEventListener('click', (e) => {
@@ -229,8 +322,10 @@
       history.push({ role: 'user', content: msg });
       input.value = '';
       clearCharts();
+      clearKpis();
 
       setStatus(t('Gerando resposta...'));
+      setLoading(true, t('Analyzing your request...'));
 
       const resp = await fetchWithRetry('/app/api/ai/chat', {
         method: 'POST',
@@ -255,6 +350,7 @@
         renderMessage(log, 'assistant', err);
         history.push({ role: 'assistant', content: err });
         setStatus('');
+        setLoading(false, '');
         return;
       }
 
@@ -262,8 +358,69 @@
       renderMessage(log, 'assistant', analysis);
       history.push({ role: 'assistant', content: analysis });
 
-      renderCharts(payload.charts || []);
+      renderKpis(payload);
+      const baseCharts = Array.isArray(payload.charts) ? payload.charts : [];
+      const enriched = enrichChartsWithGauges(baseCharts, payload);
+      renderCharts(enriched);
       setStatus('');
+      setLoading(false, '');
+    }
+
+    function enrichChartsWithGauges (charts, payload) {
+      const out = Array.isArray(charts) ? charts.slice(0, 8) : [];
+      const profile = (payload && payload.profile && Array.isArray(payload.profile.columns))
+        ? payload.profile.columns
+        : [];
+      const numericCols = profile.filter((c) => String(c.type || '').toLowerCase() === 'number');
+      if (!numericCols.length) return out;
+
+      const existingGaugeCount = out.filter((c) => {
+        const opt = c && c.echarts_option;
+        const series = (opt && Array.isArray(opt.series)) ? opt.series : [];
+        return series.some((s) => String((s && s.type) || '').toLowerCase() === 'gauge');
+      }).length;
+
+      // Keep at least 2-3 gauges if possible.
+      const needed = Math.max(0, 3 - existingGaugeCount);
+      if (!needed) return out;
+
+      const picked = numericCols.slice(0, needed);
+      picked.forEach((col) => {
+        const name = String(col.name || t('Metric'));
+        const min = Number.isFinite(Number(col.min)) ? Number(col.min) : 0;
+        const maxRaw = Number.isFinite(Number(col.max)) ? Number(col.max) : 100;
+        const avgRaw = Number.isFinite(Number(col.avg)) ? Number(col.avg) : min;
+        const max = maxRaw <= min ? (min + 100) : maxRaw;
+        const avg = Math.min(max, Math.max(min, avgRaw));
+
+        out.push({
+          title: `${name} · ${t('Gauge')}`,
+          echarts_option: {
+            tooltip: { formatter: '{a}<br/>{b}: {c}' },
+            series: [
+              {
+                type: 'gauge',
+                min,
+                max,
+                detail: { formatter: '{value}' },
+                axisLine: {
+                  lineStyle: {
+                    width: 16,
+                    color: [
+                      [0.5, '#22c55e'],
+                      [0.8, '#f59e0b'],
+                      [1, '#ef4444']
+                    ]
+                  }
+                },
+                progress: { show: true, width: 16 },
+                data: [{ value: Number(avg.toFixed(2)), name }]
+              }
+            ]
+          }
+        });
+      });
+      return out.slice(0, 10);
     }
 
     async function createDashboardFromPrompt () {
@@ -292,6 +449,7 @@
       }
 
       setStatus(t('Criando dashboard automaticamente...'));
+      setLoading(true, t('Creating dashboard...'));
 
       const resp = await fetchWithRetry('/app/api/ai/dashboard', {
         method: 'POST',
@@ -313,6 +471,7 @@
         const err = payload.error || t('Erro ao criar dashboard.');
         renderMessage(log, 'assistant', err);
         setStatus('');
+        setLoading(false, '');
         return;
       }
 
@@ -344,12 +503,14 @@
       }
 
       setStatus('');
+      setLoading(false, '');
     }
 
     sendBtn.addEventListener('click', (e) => {
       e.preventDefault();
       send().catch((err) => {
         setStatus('');
+        setLoading(false, '');
         renderMessage(log, 'assistant', String(err || t('Erro')));
       });
     });
@@ -359,6 +520,7 @@
         e.preventDefault();
         createDashboardFromPrompt().catch((err) => {
           setStatus('');
+          setLoading(false, '');
           renderMessage(log, 'assistant', String(err || t('Erro')));
         });
       });

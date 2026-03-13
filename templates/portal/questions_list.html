@@ -19,10 +19,10 @@
           <tbody>
             {% for q in questions %}
               <tr>
-                <td><a href="{{ url_for('portal.questions_view', question_id=q.id) }}">{{ q.name }}</a></td>
+                <td><a href="{{ url_for('portal.questions_run', question_id=q.id) }}">{{ q.name }}</a></td>
                 <td>{{ q.updated_at }}</td>
                 <td>
-                  <form method="post" action="{{ url_for('portal.questions_delete', question_id=q.id) }}" style="display:inline;" onsubmit="return confirm('{{ _('Excluir pergunta?') }}');">
+                  <form method="post" action="{{ url_for('portal.questions_delete', question_id=q.id) }}" style="display:inline;" class="js-question-delete-form">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
                     <button type="submit" class="button small">{{ _('Excluir') }}</button>
                   </form>
@@ -34,4 +34,53 @@
       </div>
     {% endif %}
   </div>
+
+  <div class="modal fade" id="questionDeleteConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">{{ _('Confirm') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Close') }}"></button>
+        </div>
+        <div class="modal-body">
+          {{ _('Excluir pergunta?') }}
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ _('Cancel') }}</button>
+          <button type="button" class="btn btn-danger" id="questionDeleteConfirmBtn">{{ _('Excluir') }}</button>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      var modalEl = document.getElementById('questionDeleteConfirmModal');
+      var confirmBtn = document.getElementById('questionDeleteConfirmBtn');
+      if (!modalEl || !confirmBtn || !(window.bootstrap && window.bootstrap.Modal)) return;
+
+      var modal = new window.bootstrap.Modal(modalEl);
+      var pendingForm = null;
+
+      document.querySelectorAll('.js-question-delete-form').forEach(function (form) {
+        form.addEventListener('submit', function (ev) {
+          ev.preventDefault();
+          pendingForm = form;
+          modal.show();
+        });
+      });
+
+      confirmBtn.addEventListener('click', function () {
+        if (!pendingForm) return;
+        pendingForm.submit();
+      });
+
+      modalEl.addEventListener('hidden.bs.modal', function () {
+        pendingForm = null;
+      });
+    });
+  </script>
 {% endblock %}
