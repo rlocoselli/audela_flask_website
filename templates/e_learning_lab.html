@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t.lab_title }} - AUDELA{% endblock %}
+{% block meta_description %}{{ t.lab_hero }}{% endblock %}
+
+{% block head_extra %}
+{{ super() }}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --lab-bg: linear-gradient(150deg, #f7efe7 0%, #e9f6f1 55%, #e8f1fb 100%);
+    --lab-ink: #0f172a;
+    --lab-muted: #334155;
+    --lab-brand: #0f766e;
+    --lab-brand-2: #0284c7;
+  }
+  .lab-wrap {
+    max-width: 1200px;
+    margin: 7rem auto 3rem;
+    padding: 0 1rem;
+    font-family: "Space Grotesk", "Segoe UI", sans-serif;
+  }
+  .lab-hero {
+    background: var(--lab-bg);
+    border: 1px solid #cbd5e1;
+    border-radius: 18px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+  }
+  .lab-hero h1 {
+    margin: 0 0 .3rem;
+    color: var(--lab-ink);
+    font-size: clamp(1.4rem, 2.6vw, 2rem);
+  }
+  .lab-hero p {
+    margin: 0;
+    color: var(--lab-muted);
+  }
+  .lab-grid {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 1rem;
+  }
+  .panel {
+    background: #fff;
+    border: 1px solid #dbe3ec;
+    border-radius: 14px;
+    padding: 1rem;
+    box-shadow: 0 10px 18px rgba(15, 23, 42, 0.06);
+  }
+  .panel h2 {
+    margin: 0 0 .65rem;
+    color: #0f172a;
+    font-size: 1.03rem;
+  }
+  .step-list {
+    margin: 0;
+    padding-left: 1rem;
+    color: #334155;
+    line-height: 1.5;
+    font-size: .93rem;
+  }
+  .snippet-list {
+    display: grid;
+    gap: .55rem;
+    margin-top: .7rem;
+  }
+  .snippet-btn {
+    width: 100%;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    background: #f8fafc;
+    color: #0f172a;
+    text-align: left;
+    padding: .55rem .65rem;
+    cursor: pointer;
+    font-size: .9rem;
+  }
+  .editor-panel {
+    display: grid;
+    gap: .75rem;
+  }
+  .editor-box {
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  #pythonEditor {
+    width: 100%;
+    height: 420px;
+  }
+  .lab-actions {
+    display: flex;
+    gap: .6rem;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .lab-run {
+    border: 0;
+    border-radius: 999px;
+    padding: .5rem 1rem;
+    font-weight: 700;
+    color: #fff;
+    background: linear-gradient(90deg, var(--lab-brand) 0%, var(--lab-brand-2) 100%);
+    cursor: pointer;
+  }
+  .lab-run:disabled {
+    opacity: .7;
+    cursor: wait;
+  }
+  .security-note {
+    color: #475569;
+    font-size: .9rem;
+  }
+  .lab-result {
+    min-height: 120px;
+    border-radius: 12px;
+    padding: .8rem;
+    background: #0b1220;
+    color: #dbeafe;
+    white-space: pre-wrap;
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .86rem;
+  }
+  .math-box {
+    margin-top: .8rem;
+    border-top: 1px dashed #cbd5e1;
+    padding-top: .7rem;
+  }
+  .eq {
+    display: block;
+    margin-bottom: .45rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: .35rem .45rem;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    color: #0f172a;
+  }
+  @media (max-width: 960px) {
+    .lab-grid {
+      grid-template-columns: 1fr;
+    }
+    #pythonEditor {
+      height: 340px;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<section
+  class="lab-wrap"
+  id="pythonLabPage"
+  data-run-url="{{ url_for('public.e_learning_run_custom') }}"
+  data-run-label="{{ t.lab_run }}"
+  data-running-label="{{ t.lab_running }}"
+  data-placeholder="{{ t.lab_placeholder }}"
+  data-no-output="{{ t.no_output }}"
+>
+  <div class="lab-hero">
+    <h1>{{ t.lab_title }}</h1>
+    <p>{{ t.lab_hero }}</p>
+  </div>
+
+  <div class="lab-grid">
+    <aside class="panel">
+      <h2>{{ t.lab_steps_title }}</h2>
+      <ol class="step-list">
+        <li>{{ t.lab_step_1 }}</li>
+        <li>{{ t.lab_step_2 }}</li>
+        <li>{{ t.lab_step_3 }}</li>
+        <li>{{ t.lab_step_4 }}</li>
+      </ol>
+
+      <h2 style="margin-top:1rem;">{{ t.lab_snippets }}</h2>
+      <div class="snippet-list">
+        <button type="button" class="snippet-btn" data-snippet="risk">Risk classifier</button>
+        <button type="button" class="snippet-btn" data-snippet="dot">Dot product + bias</button>
+        <button type="button" class="snippet-btn" data-snippet="softmax">Softmax probabilities</button>
+        <button type="button" class="snippet-btn" data-snippet="bigram">Bigram counter</button>
+        <button type="button" class="snippet-btn" data-snippet="pytorch">PyTorch tiny net</button>
+        <button type="button" class="snippet-btn" data-snippet="tensorflow">TensorFlow tiny net</button>
+        <button type="button" class="snippet-btn" data-snippet="tinyllm">Tiny LLM logits</button>
+      </div>
+
+      <div class="math-box">
+        <h2>{{ t.lab_math_title }}</h2>
+        <span class="eq">{{ t.lab_math_1 }}</span>
+        <span class="eq">{{ t.lab_math_2 }}</span>
+        <span class="eq">{{ t.lab_math_3 }}</span>
+      </div>
+    </aside>
+
+    <div class="editor-panel">
+      <div class="panel">
+        <h2>{{ t.lab_editor_title }}</h2>
+        <div class="editor-box"><div id="pythonEditor"></div></div>
+        <div class="lab-actions" style="margin-top:.7rem;">
+          <button type="button" class="lab-run" id="runCustomCodeBtn">{{ t.lab_run }}</button>
+          <span class="security-note">{{ t.lab_security }}</span>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>{{ t.output }}</h2>
+        <div class="lab-result" id="labResult">{{ t.no_output }}</div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block body_scripts %}
+{{ super() }}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs/loader.min.js"></script>
+<script>
+(function () {
+  const page = document.getElementById('pythonLabPage');
+  if (!page) return;
+
+  const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+  const runUrl = page.getAttribute('data-run-url') || '';
+  const runLabel = page.getAttribute('data-run-label') || 'Run code';
+  const runningLabel = page.getAttribute('data-running-label') || 'Running...';
+  const editorPlaceholder = page.getAttribute('data-placeholder') || "print('Hello AI Lab')";
+  const noOutput = page.getAttribute('data-no-output') || 'No output.';
+
+  const snippets = {
+    risk: "loans = [1200, 3400, 900, 5100, 2200]\nthreshold = 2500\nlabels = ['high' if x >= threshold else 'low' for x in loans]\nprint(labels)",
+    dot: "x = [2.0, 1.5]\nw = [0.8, -0.3]\nb = 0.2\ny = w[0]*x[0] + w[1]*x[1] + b\nprint('y =', round(y, 4))",
+    softmax: "scores = [2.3, 1.1, 0.2]\nexp_scores = [2.71828**s for s in scores]\nz = sum(exp_scores)\nprobs = [round(v/z, 4) for v in exp_scores]\nprint('probs =', probs)",
+    bigram: "text = 'ai helps teams make better decisions with data'\nwords = text.split()\ncounts = {}\nfor i in range(len(words)-1):\n    pair = (words[i], words[i+1])\n    counts[pair] = counts.get(pair, 0) + 1\nprint(counts)",
+    pytorch: "# PyTorch import is blocked in custom mode\n# Use this to understand the equation shape\nprint('y = W2 * ReLU(W1 * x + b1) + b2')",
+    tensorflow: "# TensorFlow import is blocked in custom mode\n# Use this to understand dense layers\nprint('Dense(x) = activation(x * W + b)')",
+    tinyllm: "tokens = ['h','e','l','l','o']\npairs = list(zip(tokens[:-1], tokens[1:]))\nprint('pairs:', pairs)\nprint('Idea: estimate P(next|current) from counts')"
+  };
+
+  const runBtn = document.getElementById('runCustomCodeBtn');
+  const resultEl = document.getElementById('labResult');
+  let editor;
+
+  function setResult(message, isError) {
+    resultEl.style.color = isError ? '#fecaca' : '#dbeafe';
+    resultEl.textContent = message;
+  }
+
+  function setupEditor() {
+    window.require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs' } });
+    window.require(['vs/editor/editor.main'], function () {
+      editor = monaco.editor.create(document.getElementById('pythonEditor'), {
+        value: editorPlaceholder,
+        language: 'python',
+        theme: 'vs-dark',
+        fontFamily: 'IBM Plex Mono, monospace',
+        fontSize: 14,
+        minimap: { enabled: false },
+        automaticLayout: true,
+        quickSuggestions: true,
+        suggestOnTriggerCharacters: true,
+        tabSize: 4,
+        insertSpaces: true
+      });
+
+      monaco.languages.registerCompletionItemProvider('python', {
+        provideCompletionItems: function () {
+          return {
+            suggestions: [
+              {
+                label: 'for-range',
+                kind: monaco.languages.CompletionItemKind.Snippet,
+                insertText: 'for i in range(${1:10}):\n    ${2:print(i)}',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Loop template'
+              },
+              {
+                label: 'if-else',
+                kind: monaco.languages.CompletionItemKind.Snippet,
+                insertText: 'if ${1:condition}:\n    ${2:pass}\nelse:\n    ${3:pass}',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Conditional template'
+              },
+              {
+                label: 'dot-product',
+                kind: monaco.languages.CompletionItemKind.Snippet,
+                insertText: 'x = [${1:1.0}, ${2:2.0}]\nw = [${3:0.4}, ${4:-0.8}]\nb = ${5:0.0}\ny = w[0]*x[0] + w[1]*x[1] + b\nprint(y)',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Linear model core equation'
+              }
+            ]
+          };
+        }
+      });
+
+      document.querySelectorAll('[data-snippet]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-snippet');
+          if (!id || !snippets[id] || !editor) return;
+          editor.setValue(snippets[id]);
+        });
+      });
+    });
+  }
+
+  async function runCustom() {
+    if (!editor) return;
+    const code = editor.getValue();
+    runBtn.disabled = true;
+    runBtn.textContent = runningLabel;
+    setResult('...', false);
+    try {
+      const res = await fetch(runUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(csrfToken ? { 'X-CSRFToken': csrfToken } : {})
+        },
+        body: JSON.stringify({ code })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setResult(data.output || noOutput, false);
+      } else {
+        setResult((data.error || 'Error') + (data.output ? '\n' + data.output : ''), true);
+      }
+    } catch (err) {
+      setResult('Execution failed.', true);
+    } finally {
+      runBtn.disabled = false;
+      runBtn.textContent = runLabel;
+    }
+  }
+
+  runBtn.addEventListener('click', runCustom);
+  setupEditor();
+})();
+</script>
+{% endblock %}

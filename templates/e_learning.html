@@ -1,0 +1,528 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t.title }} - AUDELA{% endblock %}
+{% block meta_description %}{{ t.hero }}{% endblock %}
+
+{% block head_extra %}
+{{ super() }}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --el-bg: linear-gradient(160deg, #f5efe6 0%, #eaf5fb 55%, #f8f8ff 100%);
+    --el-ink: #0f172a;
+    --el-muted: #334155;
+    --el-border: #d4d4d8;
+    --el-brand: #0f766e;
+    --el-brand-2: #0ea5e9;
+    --el-code-bg: #0b1220;
+  }
+  .elearn-wrap {
+    max-width: 1160px;
+    margin: 7rem auto 3rem;
+    padding: 0 1rem;
+    font-family: "Space Grotesk", "Segoe UI", sans-serif;
+  }
+  .elearn-hero {
+    background: var(--el-bg);
+    border: 1px solid #cbd5e1;
+    border-radius: 20px;
+    padding: 1.6rem;
+    margin-bottom: 1.35rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .elearn-hero::after {
+    content: "";
+    position: absolute;
+    width: 260px;
+    height: 260px;
+    border-radius: 999px;
+    right: -80px;
+    top: -80px;
+    background: radial-gradient(circle, rgba(14,165,233,.22) 0%, rgba(14,165,233,0) 70%);
+  }
+  .elearn-hero h1 {
+    margin: 0 0 .3rem;
+    color: var(--el-ink);
+    font-size: clamp(1.45rem, 2.4vw, 2.05rem);
+  }
+  .elearn-hero p {
+    margin: 0;
+    color: var(--el-muted);
+  }
+  .elearn-note {
+    margin-top: .7rem;
+    font-size: .92rem;
+    color: #475569;
+  }
+  .hero-actions {
+    margin-top: .95rem;
+  }
+  .hero-actions .button {
+    background: linear-gradient(90deg, var(--el-brand) 0%, var(--el-brand-2) 100%);
+    border: 0;
+    color: #fff;
+  }
+  .requirements-box {
+    margin-top: .9rem;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    padding: .8rem;
+    color: #0f172a;
+  }
+  .requirements-box h3 {
+    margin: 0 0 .45rem;
+    font-size: .98rem;
+  }
+  .requirements-box pre {
+    margin: 0;
+    background: #0b1220;
+    color: #dbeafe;
+    border-radius: 10px;
+    padding: .6rem;
+    overflow: auto;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .82rem;
+  }
+  .services-box {
+    margin-top: 1rem;
+    background: linear-gradient(120deg, #fff7ed 0%, #eef2ff 100%);
+    border: 1px solid #cbd5e1;
+    border-radius: 14px;
+    padding: 1rem;
+    color: #0f172a;
+  }
+  .services-box h2 {
+    margin: 0 0 .45rem;
+    font-size: 1.1rem;
+  }
+  .services-box p {
+    margin: .35rem 0;
+    color: #1e293b;
+  }
+  .topic-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+  .topic-card {
+    background: #ffffff;
+    border: 1px solid #dbe3ec;
+    border-radius: 16px;
+    padding: 1rem;
+    box-shadow: 0 12px 24px rgba(15, 23, 42, 0.07);
+  }
+  .topic-card h2 {
+    margin: 0 0 .45rem;
+    font-size: 1.12rem;
+    color: var(--el-ink);
+  }
+  .topic-card p {
+    margin: 0 0 .8rem;
+    color: var(--el-muted);
+  }
+  .topic-card pre {
+    margin: 0 0 .8rem;
+    background: var(--el-code-bg);
+    color: #e2e8f0;
+    border-radius: 12px;
+    padding: .8rem;
+    overflow: auto;
+    font-size: .86rem;
+    line-height: 1.4;
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  .mini-section {
+    margin-top: .85rem;
+    border-top: 1px dashed #cbd5e1;
+    padding-top: .75rem;
+    background: #f8fafc;
+    border-radius: 10px;
+    padding-left: .6rem;
+    padding-right: .6rem;
+  }
+  .mini-title {
+    font-size: .82rem;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: #0f172a;
+    margin-bottom: .3rem;
+    font-weight: 700;
+  }
+  .mini-section ol, .mini-section ul {
+    margin: 0;
+    padding-left: 1.1rem;
+    color: #1e293b;
+    font-size: .9rem;
+  }
+  .run-row {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    flex-wrap: wrap;
+  }
+  .run-btn {
+    border: 0;
+    border-radius: 999px;
+    padding: .48rem .95rem;
+    background: linear-gradient(90deg, #0f766e 0%, #0284c7 100%);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .run-btn:disabled {
+    opacity: .7;
+    cursor: wait;
+  }
+  .result {
+    margin-top: .65rem;
+    border-radius: 10px;
+    padding: .65rem;
+    display: none;
+    white-space: pre-wrap;
+    font-size: .86rem;
+    line-height: 1.4;
+  }
+  .result.ok {
+    display: block;
+    background: #ecfdf3;
+    border: 1px solid #bbf7d0;
+    color: #14532d;
+  }
+  .result.err {
+    display: block;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+  }
+  .equation {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    background: #e2e8f0;
+    border: 1px solid #94a3b8;
+    border-radius: 8px;
+    padding: .35rem .45rem;
+    display: inline-block;
+    margin-bottom: .35rem;
+    color: #0b1324;
+    font-weight: 600;
+  }
+  .expected {
+    margin-top: .45rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #f8fafc;
+    padding: .45rem;
+    color: #0f172a;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .8rem;
+    white-space: pre-wrap;
+  }
+  @media (max-width: 820px) {
+    .topic-grid {
+      grid-template-columns: 1fr;
+    }
+    .elearn-wrap {
+      margin-top: 6.4rem;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<section
+  class="elearn-wrap"
+  id="elearnPage"
+  data-run-url="{{ url_for('public.e_learning_run_example') }}"
+  data-label-running="{{ t.running }}"
+  data-label-output="{{ t.output }}"
+  data-label-error="{{ t.error }}"
+  data-label-no-output="{{ t.no_output }}"
+  data-label-run-failed="{{ t.run_failed }}"
+>
+  <div class="elearn-hero">
+    <h1>{{ t.title }}</h1>
+    <p>{{ t.hero }}</p>
+    <div class="elearn-note">{{ t.security_note }}</div>
+    <div class="hero-actions">
+      <a class="button" href="{{ url_for('public.e_learning_lab') }}">{{ t.open_lab }}</a>
+    </div>
+    <div class="requirements-box">
+      <h3>Requirements for full ML examples</h3>
+      <pre>pip install -r requirements.txt
+# Includes: torch, tensorflow-cpu</pre>
+    </div>
+  </div>
+
+  <div class="topic-grid">
+    <article class="topic-card" data-example-id="ai">
+      <h2>{{ t.ai_title }}</h2>
+      <p>{{ t.ai_desc }}</p>
+      <pre>{{ examples[0].code }}</pre>
+      <div class="run-row">
+        <button class="run-btn" type="button" data-run>{{ t.run }}</button>
+      </div>
+      <div class="mini-section">
+        <div class="mini-title">{{ t.step_by_step }}</div>
+        <ol>
+          <li>Define a rule and a threshold.</li>
+          <li>Compute one label per observation.</li>
+          <li>Compare output labels with your expected risk classes.</li>
+          <li>This is a deterministic classifier baseline before neural models.</li>
+        </ol>
+      </div>
+      <div class="mini-section">
+        <div class="mini-title">{{ t.math_behind }}</div>
+        <div class="equation">y = 1 if x &gt;= t else 0</div>
+        <div class="expected">{{ t.expected_output_label }}:
+      {{ t.expected_ai }}</div>
+      </div>
+      <div class="result" data-result></div>
+    </article>
+
+    <article class="topic-card" data-example-id="llm">
+      <h2>{{ t.llm_title }}</h2>
+      <p>{{ t.llm_desc }}</p>
+      <pre>{{ examples[1].code }}</pre>
+      <div class="run-row">
+        <button class="run-btn" type="button" data-run>{{ t.run }}</button>
+      </div>
+      <div class="mini-section">
+        <div class="mini-title">{{ t.step_by_step }}</div>
+        <ol>
+          <li>Split text into tokens.</li>
+          <li>Count each adjacent token pair.</li>
+          <li>Use counts to estimate next-word likelihood.</li>
+          <li>This is the conceptual bridge to autoregressive LLM decoding.</li>
+        </ol>
+      </div>
+      <div class="mini-section">
+        <div class="mini-title">{{ t.math_behind }}</div>
+        <div class="equation">P(w_t|w_{t-1}) ~= count(w_{t-1}, w_t) / count(w_{t-1})</div>
+        <div class="expected">{{ t.expected_output_label }}:
+      {{ t.expected_bigram }}</div>
+      </div>
+      <div class="result" data-result></div>
+    </article>
+
+    <article class="topic-card" data-example-id="mcp">
+      <h2>{{ t.mcp_title }}</h2>
+      <p>{{ t.mcp_desc }}</p>
+      <pre>{{ examples[2].code }}</pre>
+      <div class="run-row">
+        <button class="run-btn" type="button" data-run>{{ t.run }}</button>
+      </div>
+      <div class="mini-section">
+        <div class="mini-title">{{ t.step_by_step }}</div>
+        <ol>
+          <li>Collect user intent.</li>
+          <li>Attach tool and constraints metadata.</li>
+          <li>Pass context to model and execute deterministic tool call.</li>
+          <li>Observe that routing quality depends on context quality.</li>
+        </ol>
+      </div>
+      <div class="mini-section">
+        <div class="mini-title">{{ t.math_behind }}</div>
+        <div class="equation">Decision = argmax score(tool_i | context)</div>
+        <div class="expected">{{ t.expected_output_label }}:
+      {{ t.expected_mcp }}</div>
+      </div>
+      <div class="result" data-result></div>
+    </article>
+
+    <article class="topic-card" data-example-id="tensor">
+      <h2>{{ t.tensor_title }}</h2>
+      <p>{{ t.tensor_desc }}</p>
+      <pre>{{ examples[3].code }}</pre>
+      <div class="run-row">
+        <button class="run-btn" type="button" data-run>{{ t.run }}</button>
+      </div>
+      <div class="mini-section">
+        <div class="mini-title">{{ t.step_by_step }}</div>
+        <ol>
+          <li>Represent data as matrix X (rows, cols).</li>
+          <li>Compute summaries per axis.</li>
+          <li>Reuse same structure for transformations.</li>
+          <li>The same concept scales to 3D/4D tensors for batches and channels.</li>
+        </ol>
+      </div>
+      <div class="mini-section">
+        <div class="mini-title">{{ t.math_behind }}</div>
+        <div class="equation">X in R^(m x n), s_j = sum_i X_ij</div>
+        <div class="expected">{{ t.expected_output_label }}:
+      {{ t.expected_tensor }}</div>
+      </div>
+      <div class="result" data-result></div>
+    </article>
+
+    <article class="topic-card" data-example-id="pytorch">
+      <h2>{{ t.pytorch_title }}</h2>
+      <p>{{ t.pytorch_desc }}</p>
+      <pre>{{ examples[4].code }}</pre>
+      <div class="run-row">
+        <button class="run-btn" type="button" data-run>{{ t.run }}</button>
+      </div>
+      <div class="mini-section">
+        <div class="mini-title">{{ t.step_by_step }}</div>
+        <ol>
+          <li>Create input tensor x with shape [batch, features].</li>
+          <li>Apply linear layer, non-linearity, then output layer.</li>
+          <li>Inspect output shape and first prediction value.</li>
+        </ol>
+      </div>
+      <div class="mini-section">
+        <div class="mini-title">{{ t.math_behind }}</div>
+        <div class="equation">y = W2 * ReLU(W1 * x + b1) + b2</div>
+        <div class="expected">{{ t.expected_output_label }}:
+      {{ t.expected_pytorch }}</div>
+      </div>
+      <div class="result" data-result></div>
+    </article>
+
+    <article class="topic-card" data-example-id="tensorflow">
+      <h2>{{ t.tensorflow_title }}</h2>
+      <p>{{ t.tensorflow_desc }}</p>
+      <pre>{{ examples[5].code }}</pre>
+      <div class="run-row">
+        <button class="run-btn" type="button" data-run>{{ t.run }}</button>
+      </div>
+      <div class="mini-section">
+        <div class="mini-title">{{ t.step_by_step }}</div>
+        <ol>
+          <li>Build a Sequential model with Dense layers.</li>
+          <li>Feed batch tensor and run forward inference.</li>
+          <li>Read tensor shape and sample output.</li>
+        </ol>
+      </div>
+      <div class="mini-section">
+        <div class="mini-title">{{ t.math_behind }}</div>
+        <div class="equation">Dense(x) = activation(x * W + b)</div>
+        <div class="expected">{{ t.expected_output_label }}:
+      {{ t.expected_tensorflow }}</div>
+      </div>
+      <div class="result" data-result></div>
+    </article>
+
+    <article class="topic-card" data-example-id="tiny_llm">
+      <h2>{{ t.tiny_llm_title }}</h2>
+      <p>{{ t.tiny_llm_desc }}</p>
+      <pre>{{ examples[6].code }}</pre>
+      <div class="run-row">
+        <button class="run-btn" type="button" data-run>{{ t.run }}</button>
+      </div>
+      <div class="mini-section">
+        <div class="mini-title">{{ t.step_by_step }}</div>
+        <ol>
+          <li>Build a character vocabulary and token IDs.</li>
+          <li>Use embedding table as learnable logits producer.</li>
+          <li>Apply softmax and read top-k next-token probabilities.</li>
+        </ol>
+      </div>
+      <div class="mini-section">
+        <div class="mini-title">{{ t.math_behind }}</div>
+        <div class="equation">p(next) = softmax(logits_last_token)</div>
+        <div class="expected">{{ t.expected_output_label }}:
+      {{ t.expected_tiny_llm }}</div>
+      </div>
+      <div class="result" data-result></div>
+    </article>
+
+    <article class="topic-card" data-example-id="rag">
+      <h2>{{ t.rag_title }}</h2>
+      <p>{{ t.rag_desc }}</p>
+      <pre>{{ examples[7].code }}</pre>
+      <div class="run-row">
+        <button class="run-btn" type="button" data-run>{{ t.run }}</button>
+      </div>
+      <div class="mini-section">
+        <div class="mini-title">{{ t.step_by_step }}</div>
+        <ol>
+          <li>{{ t.rag_step_1 }}</li>
+          <li>{{ t.rag_step_2 }}</li>
+          <li>{{ t.rag_step_3 }}</li>
+        </ol>
+      </div>
+      <div class="mini-section">
+        <div class="mini-title">{{ t.math_behind }}</div>
+        <div class="equation">argmax_d sim(query, doc_d) -> prompt = [query + top_doc]</div>
+        <div class="expected">{{ t.expected_output_label }}:
+{{ t.expected_rag }}</div>
+      </div>
+      <div class="result" data-result></div>
+    </article>
+  </div>
+
+  <section class="services-box">
+    <h2>{{ t.services_title }}</h2>
+    <p>{{ t.services_dedicated }}</p>
+    <p>{{ t.services_lgpd }}</p>
+    <p><strong>{{ t.services_cta }}</strong></p>
+    <p><a class="button" href="{{ url_for('public.index') }}#five">{{ _('Contact') }}</a></p>
+  </section>
+</section>
+{% endblock %}
+
+{% block body_scripts %}
+{{ super() }}
+<script>
+(function () {
+  const pageEl = document.getElementById('elearnPage');
+  if (!pageEl) return;
+
+  const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+  const runUrl = pageEl.getAttribute('data-run-url') || '';
+  const labels = {
+    running: pageEl.getAttribute('data-label-running') || 'Running...',
+    output: pageEl.getAttribute('data-label-output') || 'Output',
+    error: pageEl.getAttribute('data-label-error') || 'Error',
+    noOutput: pageEl.getAttribute('data-label-no-output') || 'No output.',
+    runFailed: pageEl.getAttribute('data-label-run-failed') || 'Failed to run the example.'
+  };
+
+  async function runExample(card, button) {
+    const exampleId = card.getAttribute('data-example-id');
+    const resultEl = card.querySelector('[data-result]');
+    const originalLabel = button.textContent;
+    button.disabled = true;
+    button.textContent = labels.running;
+    resultEl.className = 'result';
+    resultEl.textContent = '';
+
+    try {
+      const res = await fetch(runUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(csrfToken ? { 'X-CSRFToken': csrfToken } : {})
+        },
+        body: JSON.stringify({ example_id: exampleId })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        resultEl.classList.add('ok');
+        resultEl.textContent = labels.output + ':\n' + (data.output || labels.noOutput);
+      } else {
+        resultEl.classList.add('err');
+        resultEl.textContent = labels.error + ':\n' + (data.error || labels.runFailed);
+      }
+    } catch (err) {
+      resultEl.classList.add('err');
+      resultEl.textContent = labels.error + ':\n' + labels.runFailed;
+    } finally {
+      button.disabled = false;
+      button.textContent = originalLabel;
+    }
+  }
+
+  document.querySelectorAll('[data-run]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const card = btn.closest('.topic-card');
+      if (!card) return;
+      runExample(card, btn);
+    });
+  });
+})();
+</script>
+{% endblock %}

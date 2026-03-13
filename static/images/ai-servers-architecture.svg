@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="760" viewBox="0 0 1400 760" role="img" aria-label="Dedicated AI servers architecture">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#eef6ff"/>
+      <stop offset="100%" stop-color="#fff7ed"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#334155"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1400" height="760" fill="url(#bg)"/>
+  <text x="60" y="70" font-family="Segoe UI, Arial, sans-serif" font-size="34" fill="#0f172a" font-weight="700">Dedicated AI Server Architecture</text>
+  <text x="60" y="105" font-family="Segoe UI, Arial, sans-serif" font-size="18" fill="#334155">Secure, private, and compliance-ready deployment for LLM, RAG, and ML workloads</text>
+
+  <g font-family="Segoe UI, Arial, sans-serif" font-size="18" fill="#0f172a">
+    <rect x="70" y="170" rx="14" ry="14" width="230" height="96" fill="#ffffff" stroke="#93c5fd"/>
+    <text x="110" y="215" font-weight="600">Users / Apps</text>
+    <text x="97" y="240" font-size="14" fill="#475569">Web, Mobile, API clients</text>
+
+    <rect x="360" y="170" rx="14" ry="14" width="240" height="96" fill="#ffffff" stroke="#93c5fd"/>
+    <text x="410" y="215" font-weight="600">Secure Gateway</text>
+    <text x="389" y="240" font-size="14" fill="#475569">WAF, OAuth2, rate limits</text>
+
+    <rect x="670" y="170" rx="14" ry="14" width="260" height="96" fill="#ffffff" stroke="#93c5fd"/>
+    <text x="740" y="215" font-weight="600">Inference API</text>
+    <text x="701" y="240" font-size="14" fill="#475569">Prompt policies + routing</text>
+
+    <rect x="1010" y="170" rx="14" ry="14" width="300" height="96" fill="#ffffff" stroke="#93c5fd"/>
+    <text x="1085" y="215" font-weight="600">Orchestrator</text>
+    <text x="1040" y="240" font-size="14" fill="#475569">RAG, tools, guardrails, cache</text>
+
+    <rect x="300" y="360" rx="14" ry="14" width="270" height="112" fill="#ffffff" stroke="#86efac"/>
+    <text x="360" y="405" font-weight="600">Model Servers</text>
+    <text x="333" y="430" font-size="14" fill="#475569">LLM, embeddings, rerankers</text>
+    <text x="333" y="452" font-size="14" fill="#475569">Private GPU nodes</text>
+
+    <rect x="620" y="360" rx="14" ry="14" width="260" height="112" fill="#ffffff" stroke="#86efac"/>
+    <text x="700" y="405" font-weight="600">Vector DB</text>
+    <text x="664" y="430" font-size="14" fill="#475569">Tenant-scoped retrieval</text>
+    <text x="664" y="452" font-size="14" fill="#475569">Encrypted storage</text>
+
+    <rect x="940" y="360" rx="14" ry="14" width="320" height="112" fill="#ffffff" stroke="#86efac"/>
+    <text x="1026" y="405" font-weight="600">Business Data Zone</text>
+    <text x="978" y="430" font-size="14" fill="#475569">ERP / CRM / DWH / Documents</text>
+    <text x="978" y="452" font-size="14" fill="#475569">Connectors + ETL pipelines</text>
+
+    <rect x="240" y="560" rx="14" ry="14" width="430" height="118" fill="#ffffff" stroke="#f59e0b"/>
+    <text x="325" y="603" font-weight="700">Privacy &amp; Compliance Layer</text>
+    <text x="270" y="628" font-size="14" fill="#475569">LGPD: minimization, consent, retention policy</text>
+    <text x="270" y="650" font-size="14" fill="#475569">Data subject rights + legal traceability</text>
+
+    <rect x="730" y="560" rx="14" ry="14" width="490" height="118" fill="#ffffff" stroke="#f59e0b"/>
+    <text x="850" y="603" font-weight="700">Operations &amp; Audit</text>
+    <text x="760" y="628" font-size="14" fill="#475569">Observability, SIEM logs, cost metrics, anomaly alerts</text>
+    <text x="760" y="650" font-size="14" fill="#475569">Backups, DR plans, runbooks, SLA monitoring</text>
+  </g>
+
+  <g stroke="#334155" stroke-width="3" fill="none" marker-end="url(#arrow)">
+    <path d="M300 218 L360 218"/>
+    <path d="M600 218 L670 218"/>
+    <path d="M930 218 L1010 218"/>
+    <path d="M1160 266 L1160 330"/>
+    <path d="M1090 330 L440 330 L440 360"/>
+    <path d="M1090 330 L750 330 L750 360"/>
+    <path d="M1090 330 L1100 330 L1100 360"/>
+    <path d="M435 472 L435 560"/>
+    <path d="M750 472 L750 560"/>
+    <path d="M1100 472 L1100 560"/>
+  </g>
+</svg>

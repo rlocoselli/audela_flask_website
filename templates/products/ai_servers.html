@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t.title }} - AUDELA{% endblock %}
+{% block meta_description %}{{ t.subtitle }}{% endblock %}
+
+{% block head_extra %}
+{{ super() }}
+<style>
+  .ai-offer, .ai-offer * {
+    box-sizing: border-box;
+  }
+  .ai-offer {
+    max-width: 1160px;
+    margin: 7rem auto 3rem;
+    padding: 0 1rem;
+    color: #0f172a !important;
+  }
+  .ai-hero {
+    border: 1px solid #bae6fd;
+    border-radius: 22px;
+    padding: 1.6rem;
+    background:
+      radial-gradient(circle at 82% 22%, rgba(14, 165, 233, .15), transparent 38%),
+      radial-gradient(circle at 16% 86%, rgba(16, 185, 129, .12), transparent 38%),
+      linear-gradient(135deg, #f8fbff 0%, #f1f5ff 52%, #fff8ef 100%);
+    box-shadow: 0 16px 34px rgba(15, 23, 42, .08);
+  }
+  .ai-hero h1 {
+    margin: 0 0 .45rem;
+    color: #0b1324 !important;
+    font-size: clamp(1.7rem, 2.8vw, 2.4rem);
+    line-height: 1.15;
+    letter-spacing: -.02em;
+  }
+  .ai-hero p {
+    margin: .28rem 0;
+    color: #1e293b !important;
+    font-size: 1.02rem;
+  }
+
+  .hero-badges {
+    margin-top: .9rem;
+    display: flex;
+    gap: .55rem;
+    flex-wrap: wrap;
+  }
+  .hero-badges span {
+    border-radius: 999px;
+    padding: .33rem .68rem;
+    font-size: .8rem;
+    font-weight: 700;
+    letter-spacing: .02em;
+    color: #0b1324;
+    border: 1px solid #bfdbfe;
+    background: #ffffff;
+  }
+
+  .ai-visuals {
+    margin-top: 1rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .8rem;
+  }
+  .ai-visual {
+    border: 1px solid #dbeafe;
+    border-radius: 14px;
+    overflow: hidden;
+    background: #fff;
+    min-height: 160px;
+  }
+  .ai-visual img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .ai-grid {
+    margin-top: 1.15rem;
+    display: grid;
+    grid-template-columns: 1.05fr .95fr;
+    gap: 1rem;
+  }
+  .ai-card {
+    background: #fff;
+    border: 1px solid #dbe4ef;
+    border-radius: 16px;
+    padding: 1.05rem;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, .07);
+  }
+  .ai-card h2 {
+    margin: 0 0 .55rem;
+    font-size: 1.16rem;
+    color: #0b1324 !important;
+  }
+  .ai-card p {
+    color: #334155 !important;
+  }
+  .ai-card ul {
+    margin: 0;
+    padding-left: 1.05rem;
+    color: #334155 !important;
+  }
+  .ai-card li {
+    margin: .42rem 0;
+    line-height: 1.35;
+  }
+
+  .arch-img {
+    border: 1px solid #bfdbfe;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #f8fbff;
+  }
+  .arch-object {
+    width: 100%;
+    min-height: 290px;
+    display: block;
+  }
+  .arch-img img {
+    width: 100%;
+    display: block;
+    min-height: 290px;
+    object-fit: cover;
+  }
+  .arch-caption {
+    color: #334155 !important;
+    margin-top: .6rem;
+    font-size: .93rem;
+    line-height: 1.35;
+  }
+
+  .diagram-note {
+    margin-top: .55rem;
+    border-radius: 10px;
+    background: #eef2ff;
+    border: 1px solid #c7d2fe;
+    color: #1e293b !important;
+    padding: .52rem .6rem;
+    font-size: .84rem;
+  }
+
+  .privacy-band {
+    margin-top: 1.1rem;
+    background:
+      radial-gradient(circle at 90% 10%, rgba(34, 197, 94, .12), transparent 38%),
+      linear-gradient(120deg, #f0fdf4 0%, #ecfeff 100%);
+    border: 1px solid #86efac;
+    border-radius: 16px;
+    padding: 1rem;
+  }
+  .privacy-band h3 {
+    margin: 0 0 .45rem;
+    color: #14532d !important;
+  }
+  .privacy-band ul {
+    margin: 0;
+    padding-left: 1rem;
+    color: #14532d !important;
+  }
+  .privacy-band li {
+    margin: .33rem 0;
+  }
+
+  .cta {
+    margin-top: 1.1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    border: 1px solid #fed7aa;
+    border-radius: 14px;
+    background: linear-gradient(95deg, #fff7ed 0%, #fff1f2 100%);
+    padding: .95rem;
+  }
+  .cta p {
+    margin: 0;
+    color: #7c2d12 !important;
+  }
+  .cta .button.primary {
+    background: #0f766e;
+    border-color: #0f766e;
+  }
+
+  @media (max-width: 900px) {
+    .ai-grid { grid-template-columns: 1fr; }
+    .ai-offer { margin-top: 6.5rem; }
+    .ai-visuals { grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="ai-offer">
+  <header class="ai-hero">
+    <h1>{{ t.title }}</h1>
+    <p><strong>{{ t.subtitle }}</strong></p>
+    <p>{{ t.overview }}</p>
+    <div class="hero-badges">
+      {% for badge in t.badges %}
+      <span>{{ badge }}</span>
+      {% endfor %}
+    </div>
+    <div class="ai-visuals">
+      <div class="ai-visual">
+        <img src="{{ url_for('static', filename='images/pic06.jpg') }}" alt="{{ t.visual_1_alt }}" loading="lazy" />
+      </div>
+      <div class="ai-visual">
+        <img src="{{ url_for('static', filename='images/banner.jpg') }}" alt="{{ t.visual_2_alt }}" loading="lazy" />
+      </div>
+    </div>
+  </header>
+
+  <div class="ai-grid">
+    <article class="ai-card">
+      <h2>{{ t.offer_title }}</h2>
+      <ul>
+        {% for item in t.highlights %}
+        <li>{{ item }}</li>
+        {% endfor %}
+      </ul>
+      <p style="margin-top:.8rem;">{{ t.offer_note }}</p>
+    </article>
+
+    <article class="ai-card">
+      <h2>{{ t.architecture_title }}</h2>
+      <div class="arch-img">
+        <object
+          class="arch-object"
+          data="{{ url_for('static', filename='images/ai-servers-architecture.svg', v='20260313b') }}"
+          type="image/svg+xml"
+          aria-label="{{ t.architecture_alt }}"
+        >
+          <img src="{{ url_for('static', filename='images/pic08.jpg') }}" alt="{{ t.architecture_alt }}" loading="lazy" />
+        </object>
+      </div>
+      <p class="arch-caption">{{ t.architecture_caption }}</p>
+      <p class="diagram-note">{{ t.image_note }}</p>
+    </article>
+  </div>
+
+  <section class="privacy-band">
+    <h3>{{ t.privacy_title }}</h3>
+    <ul>
+      {% for item in t.privacy_items %}
+      <li>{{ item }}</li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <div class="cta">
+    <p><strong>{{ t.contact_cta }}</strong></p>
+    <div>
+      <a class="button primary" href="{{ url_for('public.index') }}#five">{{ _('Contact') }}</a>
+      <a class="button" href="mailto:admin@audeladedonees.fr">{{ _('Email') }}</a>
+    </div>
+  </div>
+</section>
+{% endblock %}
