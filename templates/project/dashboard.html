@@ -18,7 +18,7 @@
 <datalist id="pm-managers-datalist"></datalist>
 
 <div class="row g-3">
-  <div class="col-12 col-xl-3 col-xxl-2">
+  <div class="col-12 col-xl-3 col-xxl-2" id="pm-left-nav-col">
     <div class="card border-0 shadow-sm pm-side-nav-wrap">
       <div class="card-body p-2">
         <div class="nav nav-pills flex-column gap-1" id="pm-main-tabs" role="tablist" aria-orientation="vertical">
@@ -34,6 +34,9 @@
           <button class="nav-link text-start" id="pm-tab-reporting" data-bs-toggle="tab" data-bs-target="#pm-pane-reporting" type="button" role="tab" aria-controls="pm-pane-reporting" aria-selected="false">
             <i class="bi bi-graph-up-arrow me-2"></i>{{ _('Reporting') }}
           </button>
+          <button class="nav-link text-start" id="pm-tab-gantt" data-bs-toggle="tab" data-bs-target="#pm-pane-gantt" type="button" role="tab" aria-controls="pm-pane-gantt" aria-selected="false">
+            <i class="bi bi-bar-chart-steps me-2"></i>{{ _('Gantt') }}
+          </button>
           <button class="nav-link text-start" id="pm-tab-notifications" data-bs-toggle="tab" data-bs-target="#pm-pane-notifications" type="button" role="tab" aria-controls="pm-pane-notifications" aria-selected="false">
             <i class="bi bi-bell me-2"></i>{{ _('Notifications') }}
           </button>
@@ -42,16 +45,21 @@
     </div>
   </div>
 
-  <div class="col-12 col-xl-9 col-xxl-10">
+  <div class="col-12 col-xl-9 col-xxl-10" id="pm-main-col">
 <div class="tab-content" id="pm-main-tabs-content">
 <div class="tab-pane fade show active" id="pm-pane-execution" role="tabpanel" aria-labelledby="pm-tab-execution" tabindex="0">
-<div class="row g-3 mb-3">
-  <div class="col-12">
-    <div class="card border-0 shadow-sm h-100" id="pm-section-kanban">
-      <div class="card-body">
-        <div class="d-flex align-items-center justify-content-between mb-2">
+<div class="accordion pm-reporting-accordion mb-3" id="pm-execution-accordion">
+  <div class="accordion-item" id="pm-section-kanban">
+    <h2 class="accordion-header" id="pm-exec-kanban-header">
+      <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#pm-exec-kanban-body" aria-expanded="true" aria-controls="pm-exec-kanban-body">
+        {{ _('Kanban') }}
+      </button>
+    </h2>
+    <div id="pm-exec-kanban-body" class="accordion-collapse collapse show" aria-labelledby="pm-exec-kanban-header" data-bs-parent="#pm-execution-accordion">
+      <div class="accordion-body">
+        <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
           <h5 class="mb-0">{{ _('Kanban') }}</h5>
-          <div class="d-flex align-items-center gap-2">
+          <div class="d-flex align-items-center gap-2 flex-wrap">
             <select class="form-select form-select-sm" id="pm-sprint-filter" style="min-width: 180px;">
               <option value="">{{ _('Tous les sprints') }}</option>
             </select>
@@ -68,28 +76,47 @@
     </div>
   </div>
 
-  <div class="col-lg-4">
-    <div class="card border-0 shadow-sm mb-3" id="pm-section-ceremonies">
-      <div class="card-body">
+  <div class="accordion-item" id="pm-section-ceremonies">
+    <h2 class="accordion-header" id="pm-exec-ceremonies-header">
+      <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#pm-exec-ceremonies-body" aria-expanded="false" aria-controls="pm-exec-ceremonies-body">
+        {{ _('Cérémonies Scrum') }}
+      </button>
+    </h2>
+    <div id="pm-exec-ceremonies-body" class="accordion-collapse collapse" aria-labelledby="pm-exec-ceremonies-header" data-bs-parent="#pm-execution-accordion">
+      <div class="accordion-body">
         <h5 class="mb-2">{{ _('Cérémonies Scrum') }}</h5>
         <ul class="list-group list-group-flush" id="pm-ceremonies"></ul>
         <button class="btn btn-sm btn-outline-primary mt-2" id="pm-add-ceremony">{{ _('Ajouter cérémonie') }}</button>
       </div>
     </div>
+  </div>
 
-    <div class="card border-0 shadow-sm mb-3" id="pm-section-deliverables">
-      <div class="card-body">
+  <div class="accordion-item" id="pm-section-deliverables">
+    <h2 class="accordion-header" id="pm-exec-deliverables-header">
+      <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#pm-exec-deliverables-body" aria-expanded="false" aria-controls="pm-exec-deliverables-body">
+        {{ _('Arbre des livrables') }}
+      </button>
+    </h2>
+    <div id="pm-exec-deliverables-body" class="accordion-collapse collapse" aria-labelledby="pm-exec-deliverables-header" data-bs-parent="#pm-execution-accordion">
+      <div class="accordion-body">
         <h5 class="mb-2">{{ _('Arbre des livrables') }}</h5>
         <div id="pm-deliverables" class="small"></div>
         <button class="btn btn-sm btn-outline-primary mt-2" id="pm-add-deliverable">{{ _('Ajouter item') }}</button>
       </div>
     </div>
+  </div>
 
-    <div class="card border-0 shadow-sm" id="pm-section-managers-shortcut">
-      <div class="card-body">
+  <div class="accordion-item" id="pm-section-managers-shortcut">
+    <h2 class="accordion-header" id="pm-exec-managers-shortcut-header">
+      <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#pm-exec-managers-shortcut-body" aria-expanded="false" aria-controls="pm-exec-managers-shortcut-body">
+        {{ _('Responsables') }}
+      </button>
+    </h2>
+    <div id="pm-exec-managers-shortcut-body" class="accordion-collapse collapse" aria-labelledby="pm-exec-managers-shortcut-header" data-bs-parent="#pm-execution-accordion">
+      <div class="accordion-body">
         <div class="d-flex align-items-center justify-content-between mb-2">
           <h5 class="mb-0">{{ _('Responsables') }}</h5>
-          <a href="#pm-section-managers" class="btn btn-sm btn-outline-primary">{{ _('Ecran dedie') }}</a>
+          <a href="#pm-section-managers" class="btn btn-sm btn-outline-primary">{{ _('Écran dédié') }}</a>
         </div>
         <div id="pm-managers-quick-summary" class="small text-secondary">{{ _('Charge des responsables en cours de calcul...') }}</div>
       </div>
@@ -105,7 +132,7 @@
     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
       <div>
         <h5 class="mb-1">{{ _('Registre responsables') }}</h5>
-        <div class="small text-secondary">{{ _('Gestion centralisee des responsables, capacite, tarification et surcharge.') }}</div>
+        <div class="small text-secondary">{{ _('Gestion centralisée des responsables, capacité, tarification et surcharge.') }}</div>
       </div>
       <button class="btn btn-sm btn-outline-primary" id="pm-add-manager">{{ _('Ajouter') }}</button>
     </div>
@@ -168,73 +195,102 @@
   </div>
 </div>
 
-<div class="row g-3 mb-3" id="pm-section-risks">
-  <div class="col-lg-4">
-    <div class="card border-0 shadow-sm h-100">
-      <div class="card-body">
-        <div class="d-flex align-items-center justify-content-between mb-2">
-          <h5 class="mb-0">{{ _('Registre risques') }}</h5>
-          <button class="btn btn-sm btn-outline-primary" id="pm-add-risk">{{ _('Ajouter') }}</button>
+<div class="accordion pm-reporting-accordion mb-3" id="pm-governance-accordion">
+  <div class="accordion-item" id="pm-section-risks">
+    <h2 class="accordion-header" id="pm-governance-registers-header">
+      <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#pm-governance-registers-body" aria-expanded="true" aria-controls="pm-governance-registers-body">
+        {{ _('Registres gouvernance') }}
+      </button>
+    </h2>
+    <div id="pm-governance-registers-body" class="accordion-collapse collapse show" aria-labelledby="pm-governance-registers-header" data-bs-parent="#pm-governance-accordion">
+      <div class="accordion-body">
+        <div class="row g-3">
+          <div class="col-lg-4">
+            <div class="card border-0 shadow-sm h-100">
+              <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <h5 class="mb-0">{{ _('Registre risques') }}</h5>
+                  <button class="btn btn-sm btn-outline-primary" id="pm-add-risk">{{ _('Ajouter') }}</button>
+                </div>
+                <div id="pm-risks" class="small"></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-4">
+            <div class="card border-0 shadow-sm h-100">
+              <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <h5 class="mb-0">{{ _('Incidents / problèmes') }}</h5>
+                  <button class="btn btn-sm btn-outline-primary" id="pm-add-issue">{{ _('Ajouter') }}</button>
+                </div>
+                <div id="pm-issues" class="small"></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-4">
+            <div class="card border-0 shadow-sm h-100">
+              <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <h5 class="mb-0">{{ _('Registre décisions') }}</h5>
+                  <button class="btn btn-sm btn-outline-primary" id="pm-add-decision">{{ _('Ajouter') }}</button>
+                </div>
+                <div id="pm-decisions" class="small"></div>
+              </div>
+            </div>
+          </div>
         </div>
-        <div id="pm-risks" class="small"></div>
       </div>
     </div>
   </div>
-  <div class="col-lg-4">
-    <div class="card border-0 shadow-sm h-100">
-      <div class="card-body">
-        <div class="d-flex align-items-center justify-content-between mb-2">
-          <h5 class="mb-0">{{ _('Incidents / problèmes') }}</h5>
-          <button class="btn btn-sm btn-outline-primary" id="pm-add-issue">{{ _('Ajouter') }}</button>
-        </div>
-        <div id="pm-issues" class="small"></div>
-      </div>
-    </div>
-  </div>
-  <div class="col-lg-4">
-    <div class="card border-0 shadow-sm h-100">
-      <div class="card-body">
-        <div class="d-flex align-items-center justify-content-between mb-2">
-          <h5 class="mb-0">{{ _('Registre décisions') }}</h5>
-          <button class="btn btn-sm btn-outline-primary" id="pm-add-decision">{{ _('Ajouter') }}</button>
-        </div>
-        <div id="pm-decisions" class="small"></div>
-      </div>
-    </div>
-  </div>
-</div>
 
-<div class="row g-3 mb-3" id="pm-section-change">
-  <div class="col-lg-4">
-    <div class="card border-0 shadow-sm h-100">
-      <div class="card-body">
-        <div class="d-flex align-items-center justify-content-between mb-2">
-          <h5 class="mb-0">{{ _('Gestion des changements') }}</h5>
-          <button class="btn btn-sm btn-outline-primary" id="pm-add-change">{{ _('Ajouter') }}</button>
+  <div class="accordion-item" id="pm-section-change">
+    <h2 class="accordion-header" id="pm-governance-docs-header">
+      <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#pm-governance-docs-body" aria-expanded="false" aria-controls="pm-governance-docs-body">
+        {{ _('Changements, documents et comptes-rendus') }}
+      </button>
+    </h2>
+    <div id="pm-governance-docs-body" class="accordion-collapse collapse" aria-labelledby="pm-governance-docs-header" data-bs-parent="#pm-governance-accordion">
+      <div class="accordion-body">
+        <div class="row g-3">
+          <div class="col-lg-4">
+            <div class="card border-0 shadow-sm h-100">
+              <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <h5 class="mb-0">{{ _('Gestion des changements') }}</h5>
+                  <button class="btn btn-sm btn-outline-primary" id="pm-add-change">{{ _('Ajouter') }}</button>
+                </div>
+                <div id="pm-changes" class="small"></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-4">
+            <div class="card border-0 shadow-sm h-100">
+              <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <h5 class="mb-0">{{ _('Documentation') }}</h5>
+                  <button class="btn btn-sm btn-outline-primary" id="pm-add-document">{{ _('Ajouter') }}</button>
+                </div>
+                <div class="pm-doc-dropzone mb-2" id="pm-doc-dropzone" role="button" tabindex="0">
+                  <div class="small fw-semibold">{{ _('Glisser-déposer des fichiers ici') }}</div>
+                  <div class="small text-secondary">{{ _('ou cliquer pour sélectionner') }}</div>
+                  <input type="file" id="pm-doc-file-input" class="d-none" multiple>
+                </div>
+                <div id="pm-documents" class="small"></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-4">
+            <div class="card border-0 shadow-sm h-100">
+              <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <h5 class="mb-0">{{ _('Comptes-rendus & actions') }}</h5>
+                  <button class="btn btn-sm btn-outline-primary" id="pm-add-meeting">{{ _('Ajouter') }}</button>
+                </div>
+                <div id="pm-meetings" class="small"></div>
+              </div>
+            </div>
+          </div>
         </div>
-        <div id="pm-changes" class="small"></div>
-      </div>
-    </div>
-  </div>
-  <div class="col-lg-4">
-    <div class="card border-0 shadow-sm h-100">
-      <div class="card-body">
-        <div class="d-flex align-items-center justify-content-between mb-2">
-          <h5 class="mb-0">{{ _('Documentation') }}</h5>
-          <button class="btn btn-sm btn-outline-primary" id="pm-add-document">{{ _('Ajouter') }}</button>
-        </div>
-        <div id="pm-documents" class="small"></div>
-      </div>
-    </div>
-  </div>
-  <div class="col-lg-4">
-    <div class="card border-0 shadow-sm h-100">
-      <div class="card-body">
-        <div class="d-flex align-items-center justify-content-between mb-2">
-          <h5 class="mb-0">{{ _('Comptes-rendus & actions') }}</h5>
-          <button class="btn btn-sm btn-outline-primary" id="pm-add-meeting">{{ _('Ajouter') }}</button>
-        </div>
-        <div id="pm-meetings" class="small"></div>
       </div>
     </div>
   </div>
@@ -250,49 +306,148 @@
         <h5 class="mb-2">{{ _('Tableau de bord & reporting') }}</h5>
         <div id="pm-reporting" class="small"></div>
         <hr class="my-3">
-        <div class="d-flex align-items-center justify-content-between mb-2">
-          <h6 class="mb-0">{{ _('Versionnement projet & baseline') }}</h6>
-          <button class="btn btn-sm btn-outline-primary" id="pm-add-version">{{ _('Créer version') }}</button>
+        <div id="pm-reporting-charts" class="small">
+          <h6 class="mb-2">{{ _('Graphiques de pilotage') }}</h6>
+          <div class="row g-2 mb-2" id="pm-reporting-filters">
+            <div class="col-md-4">
+              <label class="form-label form-label-sm mb-1">{{ _('Filtre responsable') }}</label>
+              <select class="form-select form-select-sm" id="pm-report-owner-filter">
+                <option value="">{{ _('Tous') }}</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label form-label-sm mb-1">{{ _('Filtre statut') }}</label>
+              <select class="form-select form-select-sm" id="pm-report-status-filter">
+                <option value="all">{{ _('Tous') }}</option>
+                <option value="not_started">{{ _('Non démarré') }}</option>
+                <option value="in_progress">{{ _('En cours') }}</option>
+                <option value="done">{{ _('Terminé') }}</option>
+                <option value="blocked">{{ _('Bloqué') }}</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label form-label-sm mb-1">{{ _('Filtre santé') }}</label>
+              <select class="form-select form-select-sm" id="pm-report-health-filter">
+                <option value="all">{{ _('Toutes les tâches') }}</option>
+                <option value="critical">{{ _('Critiques') }}</option>
+                <option value="delayed">{{ _('Retards') }}</option>
+                <option value="overloaded">{{ _('Surcharges') }}</option>
+                <option value="blocked">{{ _('Bloqués') }}</option>
+              </select>
+            </div>
+          </div>
+          <div class="row g-2">
+            <div class="col-lg-4">
+              <div class="border rounded p-2 h-100">
+                <div class="small text-secondary mb-1">{{ _('Statut des tâches (camembert)') }}</div>
+                <div id="pm-chart-status-pie" class="pm-mini-chart"></div>
+              </div>
+            </div>
+            <div class="col-lg-4">
+              <div class="border rounded p-2 h-100">
+                <div class="small text-secondary mb-1">{{ _('Points critiques (barres)') }}</div>
+                <div id="pm-chart-critical-bars" class="pm-mini-chart"></div>
+              </div>
+            </div>
+            <div class="col-lg-4">
+              <div class="border rounded p-2 h-100">
+                <div class="small text-secondary mb-1">{{ _('Tendance hebdomadaire (ligne)') }}</div>
+                <div id="pm-chart-weekly-line" class="pm-mini-chart"></div>
+              </div>
+            </div>
+          </div>
+          <div class="mt-2 border rounded p-2 bg-body-tertiary">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+              <div class="small fw-semibold">{{ _('KPI clés') }}</div>
+            </div>
+            <div id="pm-reporting-kpis" class="row g-2"></div>
+          </div>
         </div>
-        <div id="pm-versions" class="small"></div>
-        <div class="row g-2 mt-2">
-          <div class="col-md-4">
-            <label class="form-label form-label-sm small mb-1">{{ _('Version A') }}</label>
-            <select id="pm-version-a" class="form-select form-select-sm"></select>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label form-label-sm small mb-1">{{ _('Version B') }}</label>
-            <select id="pm-version-b" class="form-select form-select-sm"></select>
-          </div>
-          <div class="col-md-4 d-flex align-items-end">
-            <button class="btn btn-sm btn-outline-secondary w-100" id="pm-compare-versions">{{ _('Comparer A vs B') }}</button>
-          </div>
-        </div>
-        <div id="pm-version-compare" class="small mt-2"></div>
         <hr class="my-3">
         <div id="pm-section-productivity">
           <h6 class="mb-2">{{ _('Rapport productivité') }}</h6>
           <div id="pm-productivity-report" class="small"></div>
+          <div id="pm-productivity-help" class="small mt-2"></div>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<div class="card border-0 shadow-sm" id="pm-section-gantt">
-  <div class="card-body">
-    <div class="d-flex align-items-center justify-content-between mb-2">
-      <h5 class="mb-0">{{ _('Diagramme de Gantt avancé') }}</h5>
+</div>
+<div class="tab-pane fade" id="pm-pane-gantt" role="tabpanel" aria-labelledby="pm-tab-gantt" tabindex="0">
+
+<div class="card border-0 shadow-sm pm-gantt-shell" id="pm-section-gantt">
+  <div class="card-body p-0">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 pm-gantt-head">
+      <h5 class="mb-0 text-white fw-bold">{{ _('Diagramme de Gantt avancé') }}</h5>
       <div class="d-flex gap-2">
-        <button class="btn btn-sm btn-outline-secondary" id="pm-gantt-maximize" type="button">
+        <button class="btn btn-sm btn-light" id="pm-gantt-maximize" type="button">
           <i class="bi bi-arrows-fullscreen me-1"></i>{{ _('Maximiser') }}
         </button>
-        <button class="btn btn-sm btn-outline-secondary" id="pm-gantt-capture-baseline" type="button">{{ _('Capturer baseline') }}</button>
-        <button class="btn btn-sm btn-outline-primary" id="pm-add-gantt">{{ _('Ajouter tâche') }}</button>
+        <button class="btn btn-sm btn-light" id="pm-gantt-capture-baseline" type="button">{{ _('Capturer baseline') }}</button>
+        <button class="btn btn-sm btn-warning text-dark" id="pm-add-gantt">{{ _('Ajouter tâche') }}</button>
+      </div>
+    </div>
+    <div class="p-3">
+    <div class="accordion pm-reporting-accordion mb-3" id="pm-gantt-versioning-accordion">
+      <div class="accordion-item" id="pm-section-versioning">
+        <h2 class="accordion-header" id="pm-gantt-versions-header">
+          <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#pm-gantt-versions-body" aria-expanded="true" aria-controls="pm-gantt-versions-body">
+            {{ _('Versionnement projet & baseline') }}
+          </button>
+        </h2>
+        <div id="pm-gantt-versions-body" class="accordion-collapse collapse show" aria-labelledby="pm-gantt-versions-header" data-bs-parent="#pm-gantt-versioning-accordion">
+          <div class="accordion-body">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+              <h6 class="mb-0">{{ _('Historique des versions') }}</h6>
+              <button class="btn btn-sm btn-outline-primary" id="pm-add-version">{{ _('Créer version') }}</button>
+            </div>
+            <div id="pm-versions" class="small"></div>
+            <div class="row g-2 mt-2">
+              <div class="col-md-4">
+                <label class="form-label form-label-sm small mb-1">{{ _('Version A') }}</label>
+                <select id="pm-version-a" class="form-select form-select-sm"></select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label form-label-sm small mb-1">{{ _('Version B') }}</label>
+                <select id="pm-version-b" class="form-select form-select-sm"></select>
+              </div>
+              <div class="col-md-4 d-flex align-items-end">
+                <button class="btn btn-sm btn-outline-secondary w-100" id="pm-compare-versions">{{ _('Comparer A vs B') }}</button>
+              </div>
+            </div>
+            <div id="pm-version-compare" class="small mt-2"></div>
+          </div>
+        </div>
+      </div>
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="pm-gantt-versions-graph-header">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#pm-gantt-versions-graph-body" aria-expanded="false" aria-controls="pm-gantt-versions-graph-body">
+            {{ _('Gantt des versions (accordion)') }}
+          </button>
+        </h2>
+        <div id="pm-gantt-versions-graph-body" class="accordion-collapse collapse" aria-labelledby="pm-gantt-versions-graph-header" data-bs-parent="#pm-gantt-versioning-accordion">
+          <div class="accordion-body">
+            <div id="pm-version-gantt-accordion" class="small"></div>
+          </div>
+        </div>
+      </div>
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="pm-gantt-version-help-header">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#pm-gantt-version-help-body" aria-expanded="false" aria-controls="pm-gantt-version-help-body">
+            {{ _('Aide versioning & productivité') }}
+          </button>
+        </h2>
+        <div id="pm-gantt-version-help-body" class="accordion-collapse collapse" aria-labelledby="pm-gantt-version-help-header" data-bs-parent="#pm-gantt-versioning-accordion">
+          <div class="accordion-body">
+            <div id="pm-versioning-help" class="small"></div>
+          </div>
+        </div>
       </div>
     </div>
     <div class="row g-2 mb-2" id="pm-gantt-toolbar">
-      <div class="col-12 col-lg-3">
+      <div class="col-12 col-lg-2">
         <label class="form-label form-label-sm mb-1">{{ _('Zoom') }}</label>
         <select class="form-select form-select-sm" id="pm-gantt-zoom">
           <option value="day">{{ _('Jour') }}</option>
@@ -306,7 +461,18 @@
           <option value="">{{ _('Tous') }}</option>
         </select>
       </div>
-      <div class="col-12 col-lg-6 d-flex align-items-end gap-3">
+      <div class="col-12 col-lg-3">
+        <label class="form-label form-label-sm mb-1">{{ _('Filtre santé') }}</label>
+        <select class="form-select form-select-sm" id="pm-gantt-health-filter">
+          <option value="all">{{ _('Toutes les tâches') }}</option>
+          <option value="alerts">{{ _('Alertes') }}</option>
+          <option value="critical">{{ _('Critiques') }}</option>
+          <option value="delayed">{{ _('Retards') }}</option>
+          <option value="overloaded">{{ _('Surcharges') }}</option>
+          <option value="blocked">{{ _('Bloqués') }}</option>
+        </select>
+      </div>
+      <div class="col-12 col-lg-4 d-flex align-items-end gap-3">
         <div class="form-check form-switch">
           <input class="form-check-input" type="checkbox" id="pm-gantt-show-baseline" checked>
           <label class="form-check-label" for="pm-gantt-show-baseline">{{ _('Afficher baseline') }}</label>
@@ -318,10 +484,10 @@
       </div>
       <div class="col-12">
         <div class="d-flex flex-wrap gap-2 small">
-          <span class="badge rounded-pill text-bg-secondary pm-gantt-status-badge">{{ _('Non démarré') }}</span>
-          <span class="badge rounded-pill text-bg-primary pm-gantt-status-badge">{{ _('En cours') }}</span>
-          <span class="badge rounded-pill text-bg-success pm-gantt-status-badge">{{ _('Terminé') }}</span>
-          <span class="badge rounded-pill text-bg-dark pm-gantt-status-badge">{{ _('Bloqué') }}</span>
+          <span class="badge rounded-pill pm-gantt-status-badge pm-gantt-badge-not-started">{{ _('Non démarré') }}</span>
+          <span class="badge rounded-pill pm-gantt-status-badge pm-gantt-badge-progress">{{ _('En cours') }}</span>
+          <span class="badge rounded-pill pm-gantt-status-badge pm-gantt-badge-done">{{ _('Terminé') }}</span>
+          <span class="badge rounded-pill pm-gantt-status-badge pm-gantt-badge-blocked">{{ _('Bloqué') }}</span>
         </div>
       </div>
     </div>
@@ -333,7 +499,7 @@
             <th style="width:60px;">#</th>
             <th>{{ _('Tâche') }}</th>
             <th>{{ _('Responsable') }}</th>
-            <th>{{ _('Prédecesseur') }}</th>
+            <th>{{ _('Prédécesseur') }}</th>
             <th>{{ _('Type lien') }}</th>
             <th>{{ _('Lag (j)') }}</th>
             <th>{{ _('Statut') }}</th>
@@ -348,14 +514,20 @@
             <th>{{ _('Heures (calc)') }}</th>
             <th>{{ _('Tarif/h (resp.)') }}</th>
             <th>{{ _('Coût (calc)') }}</th>
-            <th>{{ _('Timeline') }}</th>
+            <th class="pm-gantt-timeline-col">
+              <div class="pm-gantt-timeline-col-title">{{ _('Timeline') }}</div>
+              <div id="pm-gantt-timeline-header" class="pm-gantt-timeline-header"></div>
+            </th>
           </tr>
         </thead>
         <tbody></tbody>
       </table>
     </div>
     <div id="pm-finance-summary" class="mt-3"></div>
+    </div>
   </div>
+</div>
+
 </div>
 
   </div>
@@ -478,35 +650,171 @@
     overflow: auto;
   }
   .pm-gantt-track {
+    --pm-day-px: 24px;
     position: relative;
-    height: 20px;
-    background: repeating-linear-gradient(
-      to right,
-      rgba(13, 110, 253, 0.05),
-      rgba(13, 110, 253, 0.05) 1px,
-      transparent 1px,
-      transparent 24px
-    );
-    border-radius: 999px;
+    height: 28px;
+    border: 1px solid rgba(70, 123, 205, 0.24);
+    background-color: #ffffff;
+    background-image:
+      repeating-linear-gradient(
+        to right,
+        rgba(37, 93, 185, 0.14),
+        rgba(37, 93, 185, 0.14) 1px,
+        transparent 1px,
+        transparent var(--pm-day-px)
+      ),
+      repeating-linear-gradient(
+        to right,
+        rgba(37, 93, 185, 0.06),
+        rgba(37, 93, 185, 0.06) calc(var(--pm-day-px) * 5),
+        rgba(37, 93, 185, 0.02) calc(var(--pm-day-px) * 5),
+        rgba(37, 93, 185, 0.02) calc(var(--pm-day-px) * 10)
+      );
+    border-radius: 10px;
     overflow: visible;
+  }
+  .pm-gantt-shell {
+    border: 1px solid rgba(13, 110, 253, 0.18);
+    overflow: hidden;
+  }
+  .pm-gantt-head {
+    padding: 0.9rem 1rem;
+    background: linear-gradient(110deg, #1f5db8 0%, #2f7fe0 52%, #58a9f4 100%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  .pm-gantt-head .btn-light {
+    border-color: rgba(255, 255, 255, 0.45);
+  }
+  .pm-gantt-timeline-col {
+    min-width: 860px;
+  }
+  .pm-gantt-timeline-col-title {
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+  }
+  .pm-gantt-timeline-header {
+    border: 1px solid rgba(37, 93, 185, 0.24);
+    border-radius: 0.5rem;
+    background: linear-gradient(180deg, #f5f9ff 0%, #eef4ff 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    overflow: hidden;
+  }
+  .pm-gantt-timeline-months,
+  .pm-gantt-timeline-weeks,
+  .pm-gantt-timeline-days {
+    display: flex;
+    width: 100%;
+  }
+  .pm-gantt-timeline-months {
+    border-bottom: 1px solid rgba(13, 110, 253, 0.2);
+    background: rgba(13, 110, 253, 0.08);
+  }
+  .pm-gantt-timeline-month {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-right: 1px solid rgba(13, 110, 253, 0.2);
+    padding: 3px 4px;
+  }
+  .pm-gantt-timeline-month-label {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.32rem;
+    max-width: 100%;
+    padding: 1px 8px;
+    border: 1px solid rgba(56, 102, 178, 0.24);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.85);
+    box-shadow: 0 1px 2px rgba(29, 66, 128, 0.08);
+  }
+  .pm-gantt-timeline-month-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 10px;
+    font-weight: 700;
+    color: #234a86;
+    text-transform: capitalize;
+  }
+  .pm-gantt-timeline-month-year {
+    font-size: 9px;
+    font-weight: 700;
+    color: #4b6695;
+  }
+  .pm-gantt-timeline-month-compact .pm-gantt-timeline-month-label {
+    padding: 1px 6px;
+  }
+  .pm-gantt-timeline-month-compact .pm-gantt-timeline-month-year {
+    display: none;
+  }
+  .pm-gantt-timeline-month-current .pm-gantt-timeline-month-label {
+    border-color: rgba(220, 53, 69, 0.42);
+    background: rgba(255, 239, 241, 0.92);
+  }
+  .pm-gantt-timeline-weeks {
+    border-bottom: 1px solid rgba(13, 110, 253, 0.16);
+    background: rgba(13, 110, 253, 0.04);
+  }
+  .pm-gantt-timeline-week {
+    text-align: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: #45628f;
+    border-right: 1px dashed rgba(13, 110, 253, 0.2);
+    padding: 2px 0;
+  }
+  .pm-gantt-timeline-day {
+    text-align: center;
+    font-size: 10px;
+    color: #486b9f;
+    border-right: 1px dashed rgba(13, 110, 253, 0.18);
+    font-weight: 600;
+    padding: 2px 0;
+  }
+  .pm-gantt-timeline-day-weekend {
+    background: rgba(13, 110, 253, 0.06);
+    color: #355a8f;
+  }
+  .pm-gantt-timeline-day-today {
+    background: rgba(220, 53, 69, 0.16);
+    color: #8a1e2d;
+    font-weight: 700;
+  }
+  .pm-gantt-badge-not-started {
+    background: #8c97ab;
+    color: #fff;
+  }
+  .pm-gantt-badge-progress {
+    background: #f4b400;
+    color: #fff;
+  }
+  .pm-gantt-badge-done {
+    background: #39a845;
+    color: #fff;
+  }
+  .pm-gantt-badge-blocked {
+    background: #5f6f8f;
+    color: #fff;
   }
   .pm-gantt-today-marker {
     position: absolute;
-    top: -2px;
-    bottom: -2px;
+    top: -3px;
+    bottom: -3px;
     width: 2px;
     background: var(--bs-danger);
     opacity: 0.9;
     z-index: 5;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.65);
   }
   .pm-gantt-bar {
     position: absolute;
-    top: 2px;
-    height: 16px;
+    top: 4px;
+    height: 20px;
     border-radius: 999px;
     cursor: grab;
     overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    box-shadow: 0 2px 5px rgba(16, 38, 83, 0.3);
   }
   .pm-gantt-bar-label {
     position: absolute;
@@ -557,13 +865,13 @@
     top: 0;
     left: 0;
     bottom: 0;
-    background: rgba(255, 255, 255, 0.45);
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.38) 0%, rgba(255, 255, 255, 0.58) 100%);
   }
   .pm-gantt-bar-handle {
     position: absolute;
     top: 0;
     width: 7px;
-    height: 16px;
+    height: 20px;
     background: rgba(255, 255, 255, 0.9);
     border: 1px solid rgba(0, 0, 0, 0.2);
     z-index: 7;
@@ -580,19 +888,341 @@
   }
   .pm-gantt-baseline {
     position: absolute;
-    top: 8px;
-    height: 4px;
+    top: 11px;
+    height: 5px;
     background: rgba(108, 117, 125, 0.75);
     border-radius: 999px;
     z-index: 3;
   }
+  .pm-gantt-cell {
+    padding-top: 0.45rem !important;
+    padding-bottom: 0.45rem !important;
+  }
+  .pm-reporting-accordion .accordion-button {
+    font-weight: 600;
+    background: linear-gradient(180deg, #f7fbff 0%, #eef5ff 100%);
+  }
+  .pm-reporting-accordion .accordion-button:not(.collapsed) {
+    color: #184e9d;
+    box-shadow: inset 0 -1px 0 rgba(24, 78, 157, 0.14);
+  }
+  body.pm-left-nav-hidden #pm-left-nav-col {
+    display: none;
+  }
+  body.pm-left-nav-hidden #pm-main-col {
+    width: 100%;
+    flex: 0 0 auto;
+  }
+  .pm-mini-chart {
+    min-height: 170px;
+  }
+  .pm-mini-chart svg {
+    width: 100%;
+    height: 170px;
+    display: block;
+  }
+  .pm-chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.8rem;
+    margin-top: 0.35rem;
+    font-size: 11px;
+  }
+  .pm-chart-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 0.3rem;
+  }
+  .pm-kpi-card {
+    border: 1px solid rgba(13, 110, 253, 0.2);
+    border-radius: 0.45rem;
+    background: #fff;
+    padding: 0.55rem 0.6rem;
+  }
+  .pm-kpi-title {
+    font-size: 11px;
+    color: #4a638c;
+    margin-bottom: 0.2rem;
+  }
+  .pm-kpi-value {
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #173f78;
+  }
+  .pm-kpi-note {
+    font-size: 11px;
+    color: #6b7f9f;
+    margin-top: 0.15rem;
+  }
+  .pm-kpi-badge {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 0.35rem;
+    vertical-align: middle;
+  }
+  .pm-kpi-card[data-kpi-kind="critical"] .pm-kpi-value,
+  .pm-kpi-card[data-kpi-kind="delayed"] .pm-kpi-value,
+  .pm-kpi-card[data-kpi-kind="blocked"] .pm-kpi-value,
+  .pm-kpi-card[data-kpi-kind="overloaded"] .pm-kpi-value {
+    color: #9a1c2d;
+  }
+  .pm-mini-chart-compact {
+    width: 100%;
+    height: 95px;
+    display: block;
+  }
+  .pm-risk-choice-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+  .pm-risk-choice-group .btn {
+    border-radius: 999px;
+    font-size: 12px;
+    line-height: 1.1;
+    padding: 0.32rem 0.6rem;
+    border-width: 1px;
+  }
+  .pm-risk-choice-group .btn::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 0.35rem;
+    vertical-align: middle;
+  }
+  .pm-risk-choice-group .pm-risk-low::before { background: #2ea84a; }
+  .pm-risk-choice-group .pm-risk-medium::before { background: #d6a100; }
+  .pm-risk-choice-group .pm-risk-high::before { background: #d6455d; }
+  .pm-risk-choice-group .btn-check:checked + .pm-risk-low {
+    color: #1f6f35;
+    background: #e7f6eb;
+    border-color: #bce7c7;
+  }
+  .pm-risk-choice-group .btn-check:checked + .pm-risk-medium {
+    color: #8a6200;
+    background: #fff6dc;
+    border-color: #f5e1a0;
+  }
+  .pm-risk-choice-group .btn-check:checked + .pm-risk-high {
+    color: #8f1d2f;
+    background: #feecef;
+    border-color: #f6bec8;
+  }
+  .pm-risk-level-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border-radius: 999px;
+    padding: 0.06rem 0.45rem;
+    font-size: 11px;
+    border: 1px solid transparent;
+    margin-right: 0.28rem;
+  }
+  .pm-risk-level-badge::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .pm-risk-level-low {
+    color: #1f6f35;
+    background: #e7f6eb;
+    border-color: #bce7c7;
+  }
+  .pm-risk-level-low::before { background: #2ea84a; }
+  .pm-risk-level-medium {
+    color: #8a6200;
+    background: #fff6dc;
+    border-color: #f5e1a0;
+  }
+  .pm-risk-level-medium::before { background: #d6a100; }
+  .pm-risk-level-high {
+    color: #8f1d2f;
+    background: #feecef;
+    border-color: #f6bec8;
+  }
+  .pm-risk-level-high::before { background: #d6455d; }
+  .pm-doc-dropzone {
+    border: 1px dashed rgba(22, 94, 198, 0.35);
+    border-radius: 0.55rem;
+    background: linear-gradient(180deg, #f8fbff 0%, #f2f7ff 100%);
+    padding: 0.7rem;
+    text-align: center;
+    transition: border-color .15s ease, background .15s ease, transform .15s ease;
+  }
+  .pm-doc-dropzone:hover,
+  .pm-doc-dropzone.pm-drag-over {
+    border-color: #2f7fe0;
+    background: #eaf3ff;
+    transform: translateY(-1px);
+  }
+  .pm-registry-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  .pm-registry-actions {
+    display: inline-flex;
+    gap: 0.3rem;
+  }
+  .pm-governance-detail-label {
+    font-size: 11px;
+    color: #6b7f9f;
+    margin-bottom: 0.15rem;
+  }
+  .pm-governance-detail-value {
+    border: 1px solid rgba(13, 110, 253, 0.14);
+    border-radius: 0.45rem;
+    padding: 0.4rem 0.5rem;
+    background: #fbfdff;
+    min-height: 34px;
+  }
+  .pm-governance-select {
+    border-color: rgba(13, 110, 253, 0.24);
+    background-image: linear-gradient(180deg, #ffffff 0%, #f6faff 100%);
+    font-weight: 600;
+  }
+  .pm-deliverable-root-drop {
+    border: 1px dashed rgba(13, 110, 253, 0.3);
+    border-radius: 0.45rem;
+    padding: 0.35rem 0.5rem;
+    font-size: 11px;
+    color: #5f769b;
+    background: #f8fbff;
+    margin-bottom: 0.45rem;
+  }
+  .pm-deliverable-root-drop.pm-drag-over {
+    border-color: #2f7fe0;
+    background: #e9f2ff;
+  }
+  .pm-deliverable-node {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.45rem;
+    border: 1px solid rgba(13, 110, 253, 0.16);
+    border-radius: 0.45rem;
+    padding: 0.3rem 0.45rem;
+    margin-bottom: 0.35rem;
+    background: #fff;
+  }
+  .pm-deliverable-node.pm-drag-over {
+    border-color: #2f7fe0;
+    background: #eef5ff;
+  }
+  .pm-deliverable-node .form-check-label {
+    font-size: 13px;
+  }
+  .pm-deliverable-node.is-done .form-check-label {
+    text-decoration: line-through;
+    color: #6f7f98;
+  }
+  .pm-deliverable-actions {
+    display: inline-flex;
+    gap: 0.25rem;
+  }
+  .pm-deliverable-children {
+    margin-left: 1.1rem;
+    border-left: 1px dashed rgba(13, 110, 253, 0.25);
+    padding-left: 0.6rem;
+  }
+  .pm-drillable {
+    cursor: pointer;
+    transition: opacity .15s ease;
+  }
+  .pm-drillable:hover {
+    opacity: 0.78;
+  }
+  .pm-version-gantt-wrap {
+    border: 1px solid rgba(13, 110, 253, 0.2);
+    border-radius: 0.5rem;
+    padding: 0.65rem;
+    background: #fafcff;
+  }
+  .pm-version-gantt-row {
+    display: grid;
+    grid-template-columns: 72px 1fr 64px;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.35rem;
+  }
+  .pm-version-gantt-row:last-child {
+    margin-bottom: 0;
+  }
+  .pm-version-gantt-track {
+    position: relative;
+    height: 14px;
+    border-radius: 999px;
+    background: repeating-linear-gradient(
+      to right,
+      rgba(13, 110, 253, 0.08),
+      rgba(13, 110, 253, 0.08) 1px,
+      transparent 1px,
+      transparent 10%
+    );
+    border: 1px solid rgba(13, 110, 253, 0.16);
+    overflow: hidden;
+  }
+  .pm-version-gantt-bar {
+    position: absolute;
+    top: 1px;
+    bottom: 1px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #2f7fe0 0%, #6bb6ff 100%);
+  }
+  .pm-version-gantt-progress {
+    position: absolute;
+    top: 1px;
+    bottom: 1px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, rgba(39, 167, 69, 0.8) 0%, rgba(39, 167, 69, 0.4) 100%);
+  }
   #pm-gantt-table {
     min-width: 2280px;
+  }
+  #pm-gantt-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    background: var(--bs-body-bg);
   }
   #pm-gantt-table th,
   #pm-gantt-table td {
     white-space: nowrap;
     vertical-align: middle;
+  }
+  #pm-gantt-table td:nth-child(1),
+  #pm-gantt-table th:nth-child(1) {
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    background: var(--bs-body-bg);
+  }
+  #pm-gantt-table td:nth-child(2),
+  #pm-gantt-table th:nth-child(2) {
+    position: sticky;
+    left: 52px;
+    z-index: 3;
+    background: var(--bs-body-bg);
+  }
+  #pm-gantt-table td:nth-child(3),
+  #pm-gantt-table th:nth-child(3) {
+    position: sticky;
+    left: 272px;
+    z-index: 3;
+    background: var(--bs-body-bg);
+  }
+  #pm-gantt-table tbody tr:hover td {
+    background-color: rgba(13, 110, 253, 0.05);
   }
   #pm-gantt-table th:nth-child(1),
   #pm-gantt-table td:nth-child(1) { min-width: 52px; }
@@ -746,6 +1376,98 @@
     </form>
   </div>
 </div>
+
+<div class="modal fade" id="pmGovernanceItemModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <form class="modal-content" id="pm-governance-item-form">
+      <div class="modal-header">
+        <h5 class="modal-title" id="pm-governance-item-title">{{ _('Détail gouvernance') }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="pm-governance-item-body"></div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">{{ _('Annuler') }}</button>
+        <button class="btn btn-primary" type="submit" id="pm-governance-item-save">{{ _('Mettre à jour') }}</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal fade" id="pmKpiDrillModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="pm-kpi-drill-title">{{ _('Détail KPI') }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="pm-kpi-drill-summary" class="small text-secondary mb-2"></div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th>{{ _('Tâche') }}</th>
+                <th>{{ _('Responsable') }}</th>
+                <th>{{ _('Statut') }}</th>
+                <th>{{ _('Début') }}</th>
+                <th>{{ _('Fin') }}</th>
+                <th>{{ _('Alerte') }}</th>
+              </tr>
+            </thead>
+            <tbody id="pm-kpi-drill-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">{{ _('Fermer') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="pmContextualTutorialModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">{{ _('Tutoriel contextuel projet') }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="border rounded p-2 h-100">
+              <div class="fw-semibold mb-1">{{ _('Par où commencer') }}</div>
+              <ol class="small mb-0 ps-3">
+                <li>{{ _('Créez les tâches Kanban et assignez les responsables.') }}</li>
+                <li>{{ _('Passez dans Gantt pour fixer dates, dépendances et baseline.') }}</li>
+                <li>{{ _('Créez la Version A comme référence.') }}</li>
+                <li>{{ _('Après mise à jour, créez la Version B puis comparez A vs B.') }}</li>
+              </ol>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="border rounded p-2 h-100">
+              <div class="fw-semibold mb-1">{{ _('Comment lire le reporting') }}</div>
+              <ul class="small mb-0 ps-3">
+                <li>{{ _('Utilisez les filtres responsable/statut/santé.') }}</li>
+                <li>{{ _('Cliquez un KPI, une barre ou une part camembert pour drilldown.') }}</li>
+                <li>{{ _('Consultez les KPI clés pour prioriser les actions.') }}</li>
+                <li>{{ _('Révisez le plan selon retards, surcharges et tâches bloquées.') }}</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <button class="btn btn-outline-secondary" id="pm-tutorial-dont-show" type="button">{{ _('Ne plus afficher') }}</button>
+        <div class="d-flex gap-2">
+          <a class="btn btn-outline-primary" href="#pm-section-versioning" data-bs-dismiss="modal">{{ _('Aller au versioning Gantt') }}</a>
+          <button class="btn btn-primary" type="button" data-bs-dismiss="modal">{{ _('Compris') }}</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block body_scripts %}
@@ -767,6 +1489,7 @@
       const ganttView = {
         zoom: 'week',
         ownerFilter: '',
+        healthFilter: 'all',
         showBaseline: true,
         autoSchedule: true,
       };
@@ -963,6 +1686,258 @@
       }
       function managerKey(name){
         return normalizeManagerName(name).toLowerCase();
+      }
+      function riskLevelCode(value){
+        const raw = (value || '').toString().trim().toLowerCase();
+        if (!raw) return 'medium';
+        if (['low', '{{ _('Faible') }}'.toLowerCase(), 'faible', 'baixo', 'bajo', 'bassa', 'niedrig'].includes(raw)) return 'low';
+        if (['high', '{{ _('Élevée') }}'.toLowerCase(), '{{ _('Élevé') }}'.toLowerCase(), 'elevee', 'eleve', 'élevée', 'élevé', 'alto', 'alta', 'haute', 'hoch'].includes(raw)) return 'high';
+        return 'medium';
+      }
+      function riskLevelLabel(value){
+        const code = riskLevelCode(value);
+        if (code === 'low') return '{{ _('Faible') }}';
+        if (code === 'high') return '{{ _('Élevée') }}';
+        return '{{ _('Moyenne') }}';
+      }
+      function riskLevelBadge(value){
+        const code = riskLevelCode(value);
+        return '<span class="pm-risk-level-badge pm-risk-level-' + code + '">' + riskLevelLabel(code) + '</span>';
+      }
+      function stakeholderRoleCode(value){
+        const raw = (value || '').toString().trim().toLowerCase();
+        if (!raw) return 'team';
+        if (['sponsor'].includes(raw)) return 'sponsor';
+        if (['pmo'].includes(raw)) return 'pmo';
+        if (['po', 'product_owner', 'product owner'].includes(raw)) return 'product_owner';
+        if (['business', 'metier', 'métier'].includes(raw)) return 'business';
+        if (['external', 'externe'].includes(raw)) return 'external';
+        return 'team';
+      }
+      function stakeholderRoleLabel(value){
+        const code = stakeholderRoleCode(value);
+        if (code === 'sponsor') return '{{ _('Sponsor') }}';
+        if (code === 'pmo') return 'PMO';
+        if (code === 'product_owner') return '{{ _('Product Owner') }}';
+        if (code === 'business') return '{{ _('Métier') }}';
+        if (code === 'external') return '{{ _('Externe') }}';
+        return '{{ _('Équipe') }}';
+      }
+      function issuePriorityCode(value){
+        const raw = (value || '').toString().trim().toLowerCase();
+        if (['p1', 'high', 'haute', 'élevée', 'elevee'].includes(raw)) return 'high';
+        if (['p3', 'low', 'faible', 'basse'].includes(raw)) return 'low';
+        return 'medium';
+      }
+      function issuePriorityLabel(value){
+        const code = issuePriorityCode(value);
+        if (code === 'high') return 'P1 - {{ _('Élevée') }}';
+        if (code === 'low') return 'P3 - {{ _('Faible') }}';
+        return 'P2 - {{ _('Moyenne') }}';
+      }
+      function issueStatusCode(value){
+        const raw = (value || '').toString().trim().toLowerCase();
+        if (['in_progress', 'in progress', 'en cours'].includes(raw)) return 'in_progress';
+        if (['resolved', 'done', 'fermé', 'ferme', 'closed'].includes(raw)) return 'resolved';
+        if (['blocked', 'bloqué', 'bloque'].includes(raw)) return 'blocked';
+        return 'open';
+      }
+      function issueStatusLabel(value){
+        const code = issueStatusCode(value);
+        if (code === 'in_progress') return '{{ _('En cours') }}';
+        if (code === 'resolved') return '{{ _('Résolu') }}';
+        if (code === 'blocked') return '{{ _('Bloqué') }}';
+        return '{{ _('Ouvert') }}';
+      }
+      function changeImpactCode(value){
+        const raw = (value || '').toString().trim().toLowerCase();
+        if (['scope', 'perimeter', 'périmètre', 'perimetre'].includes(raw)) return 'scope';
+        if (['budget', 'cost', 'coût', 'cout'].includes(raw)) return 'budget';
+        if (['planning', 'schedule', 'delai'].includes(raw)) return 'planning';
+        if (['quality', 'qualité', 'qualite'].includes(raw)) return 'quality';
+        if (['compliance', 'conformité', 'conformite'].includes(raw)) return 'compliance';
+        return 'scope';
+      }
+      function changeImpactLabel(value){
+        const code = changeImpactCode(value);
+        if (code === 'budget') return '{{ _('Budget') }}';
+        if (code === 'planning') return '{{ _('Planning') }}';
+        if (code === 'quality') return '{{ _('Qualité') }}';
+        if (code === 'compliance') return '{{ _('Conformité') }}';
+        return '{{ _('Périmètre') }}';
+      }
+      function changeStatusCode(value){
+        const raw = (value || '').toString().trim().toLowerCase();
+        if (['review', 'revue'].includes(raw)) return 'review';
+        if (['approved', 'approuvé', 'approuve'].includes(raw)) return 'approved';
+        if (['rejected', 'rejeté', 'rejete'].includes(raw)) return 'rejected';
+        return 'draft';
+      }
+      function changeStatusLabel(value){
+        const code = changeStatusCode(value);
+        if (code === 'review') return '{{ _('Revue') }}';
+        if (code === 'approved') return '{{ _('Approuvé') }}';
+        if (code === 'rejected') return '{{ _('Rejeté') }}';
+        return '{{ _('Brouillon') }}';
+      }
+      function documentKindCode(value){
+        const raw = (value || '').toString().trim().toLowerCase();
+        if (['spec', 'specification', 'spécification'].includes(raw)) return 'spec';
+        if (['cr', 'minutes', 'compte-rendu'].includes(raw)) return 'cr';
+        if (['contract', 'contrat'].includes(raw)) return 'contract';
+        if (['architecture', 'archi'].includes(raw)) return 'architecture';
+        if (['test', 'tests'].includes(raw)) return 'test';
+        if (['report', 'rapport'].includes(raw)) return 'report';
+        return 'other';
+      }
+      function documentKindLabel(value){
+        const code = documentKindCode(value);
+        if (code === 'spec') return '{{ _('Spécification') }}';
+        if (code === 'cr') return '{{ _('Compte-rendu') }}';
+        if (code === 'contract') return '{{ _('Contrat') }}';
+        if (code === 'architecture') return '{{ _('Architecture') }}';
+        if (code === 'test') return '{{ _('Test') }}';
+        if (code === 'report') return '{{ _('Rapport') }}';
+        return '{{ _('Autre') }}';
+      }
+      function governanceCollection(kind){
+        if (kind === 'stakeholder') return state.stakeholders;
+        if (kind === 'risk') return state.risks;
+        if (kind === 'issue') return state.issues;
+        if (kind === 'decision') return state.decisions;
+        if (kind === 'change') return state.changes;
+        if (kind === 'document') return state.documents;
+        if (kind === 'meeting') return state.meetings;
+        return null;
+      }
+      function governanceFields(kind){
+        if (kind === 'stakeholder') return [
+          { name: 'name', label: '{{ _('Nom') }}', type: 'text', required: true },
+          { name: 'role', label: '{{ _('Rôle') }}', type: 'select', options: [
+            { value: 'sponsor', label: '{{ _('Sponsor') }}' },
+            { value: 'pmo', label: 'PMO' },
+            { value: 'product_owner', label: '{{ _('Product Owner') }}' },
+            { value: 'team', label: '{{ _('Équipe') }}' },
+            { value: 'business', label: '{{ _('Métier') }}' },
+            { value: 'external', label: '{{ _('Externe') }}' }
+          ] },
+          { name: 'contact', label: '{{ _('Contact') }}', type: 'text' }
+        ];
+        if (kind === 'risk') return [
+          { name: 'title', label: '{{ _('Risque') }}', type: 'text', required: true },
+          { name: 'probability', label: '{{ _('Probabilité') }}', type: 'select', options: [
+            { value: 'low', label: '{{ _('Faible') }}' },
+            { value: 'medium', label: '{{ _('Moyenne') }}' },
+            { value: 'high', label: '{{ _('Élevée') }}' }
+          ] },
+          { name: 'impact', label: '{{ _('Impact') }}', type: 'select', options: [
+            { value: 'low', label: '{{ _('Faible') }}' },
+            { value: 'medium', label: '{{ _('Moyenne') }}' },
+            { value: 'high', label: '{{ _('Élevée') }}' }
+          ] },
+          { name: 'mitigation', label: '{{ _('Mitigation') }}', type: 'textarea' },
+          { name: 'owner', label: '{{ _('Responsable') }}', type: 'text' }
+        ];
+        if (kind === 'issue') return [
+          { name: 'title', label: '{{ _('Incident') }}', type: 'text', required: true },
+          { name: 'priority', label: '{{ _('Priorité') }}', type: 'select', options: [
+            { value: 'high', label: 'P1 - {{ _('Élevée') }}' },
+            { value: 'medium', label: 'P2 - {{ _('Moyenne') }}' },
+            { value: 'low', label: 'P3 - {{ _('Faible') }}' }
+          ] },
+          { name: 'status', label: '{{ _('Statut') }}', type: 'select', options: [
+            { value: 'open', label: '{{ _('Ouvert') }}' },
+            { value: 'in_progress', label: '{{ _('En cours') }}' },
+            { value: 'resolved', label: '{{ _('Résolu') }}' },
+            { value: 'blocked', label: '{{ _('Bloqué') }}' }
+          ] },
+          { name: 'owner', label: '{{ _('Responsable') }}', type: 'text' }
+        ];
+        if (kind === 'decision') return [
+          { name: 'title', label: '{{ _('Décision') }}', type: 'text', required: true },
+          { name: 'by', label: '{{ _('Décideur') }}', type: 'text' },
+          { name: 'date', label: '{{ _('Date') }}', type: 'date' }
+        ];
+        if (kind === 'change') return [
+          { name: 'title', label: '{{ _('Changement') }}', type: 'text', required: true },
+          { name: 'impact', label: '{{ _('Impact') }}', type: 'select', options: [
+            { value: 'scope', label: '{{ _('Périmètre') }}' },
+            { value: 'budget', label: '{{ _('Budget') }}' },
+            { value: 'planning', label: '{{ _('Planning') }}' },
+            { value: 'quality', label: '{{ _('Qualité') }}' },
+            { value: 'compliance', label: '{{ _('Conformité') }}' }
+          ] },
+          { name: 'status', label: '{{ _('Workflow') }}', type: 'select', options: [
+            { value: 'draft', label: '{{ _('Brouillon') }}' },
+            { value: 'review', label: '{{ _('Revue') }}' },
+            { value: 'approved', label: '{{ _('Approuvé') }}' },
+            { value: 'rejected', label: '{{ _('Rejeté') }}' }
+          ] }
+        ];
+        if (kind === 'document') return [
+          { name: 'title', label: '{{ _('Titre') }}', type: 'text', required: true },
+          { name: 'kind', label: '{{ _('Type') }}', type: 'select', options: [
+            { value: 'spec', label: '{{ _('Spécification') }}' },
+            { value: 'cr', label: '{{ _('Compte-rendu') }}' },
+            { value: 'contract', label: '{{ _('Contrat') }}' },
+            { value: 'architecture', label: '{{ _('Architecture') }}' },
+            { value: 'test', label: '{{ _('Test') }}' },
+            { value: 'report', label: '{{ _('Rapport') }}' },
+            { value: 'other', label: '{{ _('Autre') }}' }
+          ] },
+          { name: 'url', label: '{{ _('Lien') }}', type: 'text' }
+        ];
+        if (kind === 'meeting') return [
+          { name: 'title', label: '{{ _('Réunion') }}', type: 'text', required: true },
+          { name: 'date', label: '{{ _('Date') }}', type: 'date' },
+          { name: 'actions', label: '{{ _('Actions') }}', type: 'textarea' }
+        ];
+        return [];
+      }
+      function governanceNormalize(kind, field, value){
+        if (kind === 'stakeholder' && field === 'role') return stakeholderRoleCode(value);
+        if (kind === 'risk' && (field === 'probability' || field === 'impact')) return riskLevelCode(value);
+        if (kind === 'issue' && field === 'priority') return issuePriorityCode(value);
+        if (kind === 'issue' && field === 'status') return issueStatusCode(value);
+        if (kind === 'change' && field === 'impact') return changeImpactCode(value);
+        if (kind === 'change' && field === 'status') return changeStatusCode(value);
+        if (kind === 'document' && field === 'kind') return documentKindCode(value);
+        return (value || '').toString().trim();
+      }
+      function openGovernanceItemModal(kind, id){
+        const list = governanceCollection(kind);
+        if (!list) return;
+        const row = list.find(function(x){ return String(x.id) === String(id); });
+        if (!row) return;
+        const body = document.getElementById('pm-governance-item-body');
+        const title = document.getElementById('pm-governance-item-title');
+        const saveBtn = document.getElementById('pm-governance-item-save');
+        const form = document.getElementById('pm-governance-item-form');
+        if (!body || !title || !saveBtn || !form) return;
+        const fields = governanceFields(kind);
+        title.textContent = '{{ _('Voir / modifier') }}';
+        form.dataset.kind = kind;
+        form.dataset.id = String(id);
+        body.innerHTML = fields.map(function(f){
+          const current = row[f.name] == null ? '' : String(row[f.name]);
+          if (f.type === 'textarea') {
+            return '<div class="mb-2"><label class="form-label">' + f.label + '</label><textarea class="form-control" rows="3" name="' + f.name + '">' + current.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</textarea></div>';
+          }
+          if (f.type === 'select') {
+            return '<div class="mb-2"><label class="form-label">' + f.label + '</label><select class="form-select pm-governance-select" name="' + f.name + '">' +
+              f.options.map(function(opt){
+                const selected = governanceNormalize(kind, f.name, current) === String(opt.value) ? ' selected' : '';
+                return '<option value="' + opt.value + '"' + selected + '>' + opt.label + '</option>';
+              }).join('') +
+            '</select></div>';
+          }
+          const type = f.type === 'date' ? 'date' : 'text';
+          return '<div class="mb-2"><label class="form-label">' + f.label + '</label><input type="' + type + '" class="form-control" name="' + f.name + '" value="' + current.replace(/"/g, '&quot;') + '"' + (f.required ? ' required' : '') + '></div>';
+        }).join('');
+        const readonly = !canWrite();
+        body.querySelectorAll('input,select,textarea').forEach(function(ctrl){ ctrl.disabled = readonly; });
+        saveBtn.classList.toggle('d-none', readonly);
+        window.pmGovernanceItemModal.show();
       }
       function eachTaskDay(task, cb){
         const s = dt(task && task.start);
@@ -1350,6 +2325,10 @@
         const actualCost = tasks.reduce(function(acc, t){ return acc + taskComputedCost(t); }, 0);
         const revised = Math.max(0, num((meta.budget && (meta.budget.revised || meta.budget.initial)) || 0));
         const baselineBudget = Math.max(0, num(meta.baseline && meta.baseline.budget));
+        const starts = tasks.map(function(t){ return dt(t.start); }).filter(Boolean);
+        const ends = tasks.map(function(t){ return dt(t.end); }).filter(Boolean);
+        const timelineStart = starts.length ? fmtDate(new Date(Math.min.apply(null, starts))) : '';
+        const timelineEnd = ends.length ? fmtDate(new Date(Math.max.apply(null, ends))) : '';
         const versionNo = projectVersionsForCurrent().length + 1;
         const item = {
           id: uid(),
@@ -1364,6 +2343,8 @@
             },
             current: {
               planning_window: currentPlanningWindow(tasks),
+              timeline_start: timelineStart,
+              timeline_end: timelineEnd,
               budget_revised: revised,
               budget_actual: actualCost,
               scope: (meta.charter && meta.charter.scope) || '',
@@ -1376,6 +2357,468 @@
         addAudit('project.version.created', { label: item.label });
       }
 
+      function parseVersionPlanningWindow(windowText){
+        const txt = String(windowText || '');
+        const match = txt.match(/(\d{4}-\d{2}-\d{2}).*?(\d{4}-\d{2}-\d{2})/);
+        if (!match) return { start: null, end: null };
+        return { start: dt(match[1]), end: dt(match[2]) };
+      }
+
+      function renderVersionGanttAccordion(){
+        const el = document.getElementById('pm-version-gantt-accordion');
+        if (!el) return;
+        const rows = projectVersionsForCurrent().slice().sort(function(a, b){
+          return String(a.created_at || '').localeCompare(String(b.created_at || ''));
+        });
+        if (!rows.length) {
+          el.innerHTML = '<div class="text-secondary">{{ _('Aucune version pour ce projet.') }}</div>';
+          return;
+        }
+
+        const normalized = rows.map(function(v){
+          const cur = (v.snapshot && v.snapshot.current) || {};
+          const parsed = parseVersionPlanningWindow(cur.planning_window);
+          const start = dt(cur.timeline_start) || parsed.start;
+          const end = dt(cur.timeline_end) || parsed.end;
+          const total = Math.max(0, num(cur.total_tasks));
+          const done = Math.max(0, num(cur.done_tasks));
+          const progress = total > 0 ? Math.max(0, Math.min(1, done / total)) : 0;
+          return { version: v, start: start, end: end, progress: progress };
+        });
+
+        const starts = normalized.map(function(x){ return x.start; }).filter(Boolean);
+        const ends = normalized.map(function(x){ return x.end; }).filter(Boolean);
+        const minStart = starts.length ? new Date(Math.min.apply(null, starts)) : null;
+        const maxEnd = ends.length ? new Date(Math.max.apply(null, ends)) : null;
+        const totalDays = (minStart && maxEnd) ? Math.max(1, daysBetween(minStart, maxEnd)) : 1;
+
+        const body = normalized.map(function(row){
+          const s = row.start || minStart;
+          const e = row.end || maxEnd || s || new Date();
+          let left = 0;
+          let width = 100;
+          if (minStart && maxEnd && s && e) {
+            left = Math.max(0, Math.min(100, (dayOffset(minStart, s) / totalDays) * 100));
+            width = Math.max(3, Math.min(100 - left, (daysBetween(s, e) / totalDays) * 100));
+          }
+          const pctTxt = Math.round(row.progress * 100) + '%';
+          const period = s && e ? (fmtDate(s) + ' -> ' + fmtDate(e)) : '-';
+          return '' +
+            '<div class="pm-version-gantt-row" title="' + period + '">' +
+              '<div class="fw-semibold">' + (row.version.label || '-') + '</div>' +
+              '<div class="pm-version-gantt-track">' +
+                '<div class="pm-version-gantt-bar" style="left:' + left + '%;width:' + width + '%;"></div>' +
+                '<div class="pm-version-gantt-progress" style="left:' + left + '%;width:' + (width * row.progress) + '%;"></div>' +
+              '</div>' +
+              '<div class="text-end small text-secondary">' + pctTxt + '</div>' +
+            '</div>';
+        }).join('');
+
+        el.innerHTML =
+          '<div class="pm-version-gantt-wrap">' +
+            '<div class="small text-secondary mb-2">{{ _('Vue planning des versions avec avancement superposé.') }}</div>' +
+            body +
+          '</div>';
+      }
+
+      function svgSlicePath(cx, cy, r, startAngle, endAngle){
+        const x1 = cx + r * Math.cos(startAngle);
+        const y1 = cy + r * Math.sin(startAngle);
+        const x2 = cx + r * Math.cos(endAngle);
+        const y2 = cy + r * Math.sin(endAngle);
+        const large = (endAngle - startAngle) > Math.PI ? 1 : 0;
+        return 'M ' + cx + ' ' + cy + ' L ' + x1 + ' ' + y1 + ' A ' + r + ' ' + r + ' 0 ' + large + ' 1 ' + x2 + ' ' + y2 + ' Z';
+      }
+
+      function reportingOwnerOptions(tasks){
+        const sel = document.getElementById('pm-report-owner-filter');
+        if (!sel) return;
+        const current = sel.value || '';
+        const owners = Array.from(new Set(tasks.map(function(t){ return normalizeManagerName(t.owner); }).filter(Boolean))).sort(function(a, b){ return a.localeCompare(b); });
+        sel.innerHTML = '<option value="">{{ _('Tous') }}</option>' + owners.map(function(owner){
+          const selected = current === owner ? ' selected' : '';
+          return '<option value="' + owner.replace(/"/g, '&quot;') + '"' + selected + '>' + owner + '</option>';
+        }).join('');
+      }
+
+      function filteredReportingTasks(tasks, criticalIds, workload, today){
+        const ownerFilter = (document.getElementById('pm-report-owner-filter')?.value || '').toString();
+        const statusFilter = (document.getElementById('pm-report-status-filter')?.value || 'all').toString();
+        const healthFilter = (document.getElementById('pm-report-health-filter')?.value || 'all').toString();
+        return (tasks || []).filter(function(t){
+          const st = statusNorm(t.status);
+          if (ownerFilter && normalizeManagerName(t.owner) !== ownerFilter) return false;
+          if (statusFilter !== 'all' && st !== statusFilter) return false;
+          if (healthFilter === 'all') return true;
+          const isCritical = criticalIds.has(String(t.id));
+          const isOverloaded = workload.overloadedTaskIds.has(String(t.id));
+          const end = dt(t.end);
+          const isDelayed = !!(end && today && end < today && st !== 'done');
+          const isBlocked = st === 'blocked';
+          if (healthFilter === 'critical') return isCritical;
+          if (healthFilter === 'delayed') return isDelayed;
+          if (healthFilter === 'overloaded') return isOverloaded;
+          if (healthFilter === 'blocked') return isBlocked;
+          return true;
+        });
+      }
+
+      function taskAlertLabel(t, criticalIds, workload, today){
+        const st = statusNorm(t.status);
+        const end = dt(t.end);
+        if (st === 'blocked') return '{{ _('Bloqué') }}';
+        if (criticalIds.has(String(t.id))) return '{{ _('Critique') }}';
+        if (workload.overloadedTaskIds.has(String(t.id))) return '{{ _('Surcharge') }}';
+        if (end && end < today && st !== 'done') return '{{ _('Retard') }}';
+        return '{{ _('RAS') }}';
+      }
+
+      function drillTaskFilter(kind, value, tasks, criticalIds, workload, today){
+        if (kind === 'all') return tasks;
+        if (kind === 'alerts') return tasks.filter(function(t){
+          const st = statusNorm(t.status);
+          const end = dt(t.end);
+          const isDelayed = !!(end && end < today && st !== 'done');
+          return st === 'blocked' || isDelayed || criticalIds.has(String(t.id)) || workload.overloadedTaskIds.has(String(t.id));
+        });
+        if (kind === 'status') return tasks.filter(function(t){ return statusNorm(t.status) === value; });
+        if (kind === 'critical') return tasks.filter(function(t){ return criticalIds.has(String(t.id)); });
+        if (kind === 'delayed') return tasks.filter(function(t){ const end = dt(t.end); return !!(end && end < today && statusNorm(t.status) !== 'done'); });
+        if (kind === 'overloaded') return tasks.filter(function(t){ return workload.overloadedTaskIds.has(String(t.id)); });
+        if (kind === 'blocked') return tasks.filter(function(t){ return statusNorm(t.status) === 'blocked'; });
+        if (kind === 'owner') return tasks.filter(function(t){ return normalizeManagerName(t.owner) === value; });
+        return tasks;
+      }
+
+      function renderDrilldownRows(tasks, criticalIds, workload, today){
+        const body = document.getElementById('pm-kpi-drill-body');
+        if (!body) return;
+        if (!tasks.length) {
+          body.innerHTML = '<tr><td colspan="6" class="text-secondary">{{ _('Aucune tâche pour ce filtre.') }}</td></tr>';
+          return;
+        }
+        body.innerHTML = tasks.map(function(t){
+          return '<tr>' +
+            '<td>' + (t.task || '-') + '</td>' +
+            '<td>' + (normalizeManagerName(t.owner) || '-') + '</td>' +
+            '<td><span class="badge text-bg-light border">' + (statusNorm(t.status) || '-') + '</span></td>' +
+            '<td>' + (fmtDate(t.start) || '-') + '</td>' +
+            '<td>' + (fmtDate(t.end) || '-') + '</td>' +
+            '<td>' + taskAlertLabel(t, criticalIds, workload, today) + '</td>' +
+          '</tr>';
+        }).join('');
+      }
+
+      function tinySparkSvg(points, color){
+        const w = 240;
+        const h = 95;
+        const p = 8;
+        const chartW = w - (p * 2);
+        const chartH = h - (p * 2);
+        const maxV = Math.max.apply(null, points.concat([1]));
+        const step = points.length > 1 ? chartW / (points.length - 1) : 0;
+        const line = points.map(function(v, i){
+          const x = p + (i * step);
+          const y = p + chartH - ((Math.max(0, num(v)) / maxV) * chartH);
+          return (i === 0 ? 'M ' : ' L ') + x + ' ' + y;
+        }).join('');
+        const area = line + ' L ' + (p + chartW) + ' ' + (p + chartH) + ' L ' + p + ' ' + (p + chartH) + ' Z';
+        return '<svg class="pm-mini-chart-compact" viewBox="0 0 240 95" preserveAspectRatio="xMidYMid meet">' +
+          '<rect x="' + p + '" y="' + p + '" width="' + chartW + '" height="' + chartH + '" fill="#f7fbff" stroke="#dde9ff"></rect>' +
+          '<path d="' + area + '" fill="rgba(47,127,224,0.14)"></path>' +
+          '<path d="' + line + '" fill="none" stroke="' + color + '" stroke-width="2"></path>' +
+        '</svg>';
+      }
+
+      function renderReportingKpis(filteredTasks, criticalIds, workload, today){
+        const host = document.getElementById('pm-reporting-kpis');
+        if (!host) return;
+
+        function safeNum(v){ return Math.max(0, num(v)); }
+        function weeklySeries(taskSubset, metricFn){
+          const arr = [];
+          for (let i = 11; i >= 0; i -= 1) {
+            const from = addDays(today, -(7 * i));
+            const to = addDays(from, 6);
+            let acc = 0;
+            taskSubset.forEach(function(t){
+              const d = dt(t.end) || dt(t.start);
+              if (!d || d < from || d > to) return;
+              acc += safeNum(metricFn(t));
+            });
+            arr.push(acc);
+          }
+          return arr;
+        }
+
+        const total = Math.max(1, filteredTasks.length);
+        const doneCount = filteredTasks.filter(function(t){ return statusNorm(t.status) === 'done'; }).length;
+        const blockedCount = filteredTasks.filter(function(t){ return statusNorm(t.status) === 'blocked'; }).length;
+        const delayedCount = filteredTasks.filter(function(t){
+          const end = dt(t.end);
+          return !!end && end < today && statusNorm(t.status) !== 'done';
+        }).length;
+        const criticalCount = filteredTasks.filter(function(t){ return criticalIds.has(String(t.id)); }).length;
+        const overloadedCount = filteredTasks.filter(function(t){ return workload.overloadedTaskIds.has(String(t.id)); }).length;
+        const actualCost = filteredTasks.reduce(function(sum, t){ return sum + taskComputedCost(t); }, 0);
+        const completionPct = Math.round((doneCount / total) * 100);
+        const eac = actualCost + filteredTasks.filter(function(t){ return statusNorm(t.status) !== 'done'; }).reduce(function(sum, t){
+          return sum + Math.max(0, num(t.planned_cost) - num(t.actual_cost));
+        }, 0);
+
+        const cardDefs = [
+          {
+            title: '{{ _('Taux de complétion') }}',
+            value: completionPct + '%',
+            note: doneCount + '/' + filteredTasks.length + ' {{ _('Tâches') }}',
+            color: '#2ea84a',
+            drillKind: 'status',
+            drillValue: 'done',
+            trend: weeklySeries(filteredTasks, function(t){ return statusNorm(t.status) === 'done' ? 1 : 0; }),
+            kpiKind: 'done'
+          },
+          {
+            title: '{{ _('Tâches critiques') }}',
+            value: String(criticalCount),
+            note: '{{ _('Priorité haute') }}',
+            color: '#dc3545',
+            drillKind: 'critical',
+            drillValue: 'critical',
+            trend: weeklySeries(filteredTasks, function(t){ return criticalIds.has(String(t.id)) ? 1 : 0; }),
+            kpiKind: 'critical'
+          },
+          {
+            title: '{{ _('Tâches en retard') }}',
+            value: String(delayedCount),
+            note: '{{ _('Échéance dépassée') }}',
+            color: '#f4b400',
+            drillKind: 'delayed',
+            drillValue: 'delayed',
+            trend: weeklySeries(filteredTasks, function(t){ const end = dt(t.end); return !!(end && end < today && statusNorm(t.status) !== 'done') ? 1 : 0; }),
+            kpiKind: 'delayed'
+          },
+          {
+            title: '{{ _('Tâches bloquées') }}',
+            value: String(blockedCount),
+            note: '{{ _('Blocage actif') }}',
+            color: '#6c757d',
+            drillKind: 'blocked',
+            drillValue: 'blocked',
+            trend: weeklySeries(filteredTasks, function(t){ return statusNorm(t.status) === 'blocked' ? 1 : 0; }),
+            kpiKind: 'blocked'
+          },
+          {
+            title: '{{ _('Surcharge capacité') }}',
+            value: String(overloadedCount),
+            note: '{{ _('Ressources au-delà du seuil') }}',
+            color: '#fd7e14',
+            drillKind: 'overloaded',
+            drillValue: 'overloaded',
+            trend: weeklySeries(filteredTasks, function(t){ return workload.overloadedTaskIds.has(String(t.id)) ? 1 : 0; }),
+            kpiKind: 'overloaded'
+          },
+          {
+            title: '{{ _('Prévision finale (EAC)') }}',
+            value: money(eac),
+            note: '{{ _('Coût consommé') }}: ' + money(actualCost),
+            color: '#2f7fe0',
+            drillKind: 'all',
+            drillValue: 'all',
+            trend: weeklySeries(filteredTasks, function(t){ return taskComputedCost(t) / 1000; }),
+            kpiKind: 'cost'
+          }
+        ];
+
+        host.innerHTML = cardDefs.map(function(card){
+          return '<div class="col-12 col-md-6 col-xl-4">' +
+            '<div class="pm-kpi-card pm-drillable" data-kpi-kind="' + card.kpiKind + '" data-drill-kind="' + card.drillKind + '" data-drill-value="' + card.drillValue + '">' +
+              '<div class="pm-kpi-title"><span class="pm-kpi-badge" style="background:' + card.color + '"></span>' + card.title + '</div>' +
+              '<div class="pm-kpi-value">' + card.value + '</div>' +
+              '<div class="pm-kpi-note">' + card.note + '</div>' +
+              tinySparkSvg(card.trend, card.color) +
+            '</div>' +
+          '</div>';
+        }).join('');
+      }
+
+      function renderStatusPieChart(el, labels, values, colors){
+        if (!el) return;
+        const total = values.reduce(function(a, b){ return a + Math.max(0, num(b)); }, 0);
+        if (!total) {
+          el.innerHTML = '<div class="text-secondary">{{ _('Aucune donnée de tâches pour le camembert.') }}</div>';
+          return;
+        }
+        const cx = 90;
+        const cy = 84;
+        const r = 62;
+        let angle = -Math.PI / 2;
+        const slices = [];
+        const statusKeys = ['not_started', 'in_progress', 'done', 'blocked'];
+        for (let i = 0; i < values.length; i += 1) {
+          const val = Math.max(0, num(values[i]));
+          if (!val) continue;
+          const next = angle + (val / total) * Math.PI * 2;
+          slices.push('<path class="pm-drillable" data-drill-kind="status" data-drill-value="' + statusKeys[i] + '" d="' + svgSlicePath(cx, cy, r, angle, next) + '" fill="' + colors[i] + '"></path>');
+          angle = next;
+        }
+        const legend = labels.map(function(label, i){
+          const pct = total > 0 ? Math.round((Math.max(0, num(values[i])) / total) * 100) : 0;
+          return '<span><span class="pm-chart-dot" style="background:' + colors[i] + '"></span>' + label + ' (' + pct + '%)</span>';
+        }).join('');
+        el.innerHTML =
+          '<svg viewBox="0 0 280 170" preserveAspectRatio="xMidYMid meet">' +
+            '<circle cx="90" cy="84" r="66" fill="#f5f8ff" stroke="#d7e4ff"></circle>' +
+            slices.join('') +
+            '<circle cx="90" cy="84" r="29" fill="#ffffff" stroke="#d7e4ff"></circle>' +
+            '<text x="90" y="80" text-anchor="middle" class="small" fill="#385988">{{ _('Tâches') }}</text>' +
+            '<text x="90" y="97" text-anchor="middle" font-size="14" font-weight="700" fill="#1a4f9b">' + total + '</text>' +
+          '</svg>' +
+          '<div class="pm-chart-legend">' + legend + '</div>';
+      }
+
+      function renderCriticalBarsChart(el, points){
+        if (!el) return;
+        const safe = points.map(function(p){ return { label: p.label, value: Math.max(0, num(p.value)), color: p.color, kind: p.kind }; });
+        const maxVal = Math.max.apply(null, safe.map(function(p){ return p.value; }).concat([1]));
+        const rowH = 30;
+        const height = safe.length * rowH + 20;
+        const bars = safe.map(function(p, idx){
+          const y = 10 + idx * rowH;
+          const w = (p.value / maxVal) * 165;
+          const kind = (p.kind || '').toString();
+          return '' +
+            '<text x="4" y="' + (y + 12) + '" font-size="10" fill="#4e6793">' + p.label + '</text>' +
+            '<rect x="92" y="' + y + '" width="172" height="14" rx="7" fill="#edf3ff"></rect>' +
+            '<rect class="pm-drillable" data-drill-kind="' + kind + '" data-drill-value="' + kind + '" x="92" y="' + y + '" width="' + w + '" height="14" rx="7" fill="' + p.color + '"></rect>' +
+            '<text x="268" y="' + (y + 12) + '" font-size="10" text-anchor="end" fill="#1a4f9b" font-weight="700">' + p.value + '</text>';
+        }).join('');
+        el.innerHTML =
+          '<svg viewBox="0 0 280 ' + height + '" preserveAspectRatio="xMidYMid meet">' + bars + '</svg>';
+      }
+
+      function renderWeeklyLineChart(el, points){
+        if (!el) return;
+        if (!points.length) {
+          el.innerHTML = '<div class="text-secondary">{{ _('Aucune tendance disponible.') }}</div>';
+          return;
+        }
+        const width = 280;
+        const height = 170;
+        const padL = 30;
+        const padR = 8;
+        const padT = 12;
+        const padB = 24;
+        const chartW = width - padL - padR;
+        const chartH = height - padT - padB;
+        const maxVal = Math.max.apply(null, points.map(function(p){ return Math.max(0, num(p.value)); }).concat([1]));
+        const stepX = points.length > 1 ? (chartW / (points.length - 1)) : 0;
+        const path = points.map(function(p, i){
+          const x = padL + (i * stepX);
+          const y = padT + chartH - ((Math.max(0, num(p.value)) / maxVal) * chartH);
+          return (i === 0 ? 'M ' : ' L ') + x + ' ' + y;
+        }).join('');
+        const area = path + ' L ' + (padL + ((points.length - 1) * stepX)) + ' ' + (padT + chartH) + ' L ' + padL + ' ' + (padT + chartH) + ' Z';
+        const dots = points.map(function(p, i){
+          const x = padL + (i * stepX);
+          const y = padT + chartH - ((Math.max(0, num(p.value)) / maxVal) * chartH);
+          return '<circle cx="' + x + '" cy="' + y + '" r="3" fill="#2f7fe0"></circle>';
+        }).join('');
+        const labels = points.map(function(p, i){
+          if (i % 2 !== 0 && points.length > 6) return '';
+          const x = padL + (i * stepX);
+          return '<text x="' + x + '" y="' + (height - 6) + '" text-anchor="middle" font-size="9" fill="#6079a1">' + p.label + '</text>';
+        }).join('');
+        el.innerHTML =
+          '<svg viewBox="0 0 280 170" preserveAspectRatio="xMidYMid meet">' +
+            '<rect x="' + padL + '" y="' + padT + '" width="' + chartW + '" height="' + chartH + '" fill="#f8fbff" stroke="#dce8ff"></rect>' +
+            '<path d="' + area + '" fill="rgba(47,127,224,0.14)"></path>' +
+            '<path d="' + path + '" fill="none" stroke="#2f7fe0" stroke-width="2"></path>' +
+            dots +
+            labels +
+          '</svg>';
+      }
+
+      function reportingWeeklyTrend(tasks){
+        const doneTasks = tasks.filter(function(t){ return statusNorm(t.status) === 'done'; });
+        if (!doneTasks.length) return [];
+        const counts = {};
+        doneTasks.forEach(function(t){
+          const d = dt(t.end) || dt(t.start);
+          if (!d) return;
+          const ws = new Date(d);
+          ws.setDate(ws.getDate() - ((ws.getDay() + 6) % 7));
+          const key = fmtDate(ws);
+          counts[key] = (counts[key] || 0) + 1;
+        });
+        const keys = Object.keys(counts).sort();
+        const recent = keys.slice(-8);
+        return recent.map(function(k){
+          return { label: k.slice(5), value: counts[k] };
+        });
+      }
+
+      function renderReportingCharts(tasks, criticalIds, workload, today){
+        reportingOwnerOptions(tasks);
+        const filtered = filteredReportingTasks(tasks, criticalIds, workload, today);
+        const pieEl = document.getElementById('pm-chart-status-pie');
+        const barEl = document.getElementById('pm-chart-critical-bars');
+        const lineEl = document.getElementById('pm-chart-weekly-line');
+        if (!pieEl || !barEl || !lineEl) return;
+
+        const statusMap = { not_started: 0, in_progress: 0, done: 0, blocked: 0 };
+        filtered.forEach(function(t){
+          const st = statusNorm(t.status);
+          if (statusMap[st] === undefined) statusMap.not_started += 1;
+          else statusMap[st] += 1;
+        });
+
+        renderStatusPieChart(
+          pieEl,
+          ['{{ _('Non démarré') }}', '{{ _('En cours') }}', '{{ _('Terminé') }}', '{{ _('Bloqué') }}'],
+          [statusMap.not_started, statusMap.in_progress, statusMap.done, statusMap.blocked],
+          ['#8c97ab', '#f4b400', '#39a845', '#5f6f8f']
+        );
+
+        const delayedCount = filtered.filter(function(t){
+          const end = dt(t.end);
+          return !!end && end < today && statusNorm(t.status) !== 'done';
+        }).length;
+        const blockedCount = statusMap.blocked;
+        const overloadedCount = filtered.filter(function(t){ return workload.overloadedTaskIds.has(String(t.id)); }).length;
+        const criticalCount = filtered.filter(function(t){ return criticalIds.has(String(t.id)); }).length;
+
+        renderCriticalBarsChart(barEl, [
+          { label: '{{ _('Critiques') }}', value: criticalCount, color: '#dc3545', kind: 'critical' },
+          { label: '{{ _('Retards') }}', value: delayedCount, color: '#f4b400', kind: 'delayed' },
+          { label: '{{ _('Surcharges') }}', value: overloadedCount, color: '#fd7e14', kind: 'overloaded' },
+          { label: '{{ _('Bloqués') }}', value: blockedCount, color: '#6c757d', kind: 'blocked' },
+        ]);
+
+        renderWeeklyLineChart(lineEl, reportingWeeklyTrend(filtered));
+        renderReportingKpis(filtered, criticalIds, workload, today);
+
+        const host = document.getElementById('pm-reporting-charts');
+        const bindDrillNodes = function(container){
+          if (!container) return;
+          container.querySelectorAll('.pm-drillable[data-drill-kind]').forEach(function(node){
+            node.onclick = function(){
+              const kind = (node.getAttribute('data-drill-kind') || '').toString();
+              const value = (node.getAttribute('data-drill-value') || '').toString();
+              const rows = drillTaskFilter(kind, value, filtered, criticalIds, workload, today);
+              const title = '{{ _('Drilldown') }}: ' + kind + (value ? (' - ' + value) : '');
+              const titleEl = document.getElementById('pm-kpi-drill-title');
+              const summary = document.getElementById('pm-kpi-drill-summary');
+              if (titleEl) titleEl.textContent = title;
+              if (summary) summary.textContent = '{{ _('Tâches trouvées') }}: ' + rows.length;
+              renderDrilldownRows(rows, criticalIds, workload, today);
+              if (window.pmKpiDrillModal) window.pmKpiDrillModal.show();
+            };
+          });
+        };
+        bindDrillNodes(host);
+        bindDrillNodes(document.getElementById('pm-reporting'));
+      }
+
       function renderProjectVersions(){
         const el = document.getElementById('pm-versions');
         if (!el) return;
@@ -1384,6 +2827,7 @@
         });
         if (!rows.length) {
           el.innerHTML = '<div class="text-secondary">{{ _('Aucune version pour ce projet.') }}</div>';
+          renderVersionGanttAccordion();
           return;
         }
 
@@ -1439,6 +2883,7 @@
         }
 
         renderVersionComparison();
+        renderVersionGanttAccordion();
       }
 
       function versionById(id){
@@ -1713,8 +3158,11 @@
         const rows = forCurrentProject(state.stakeholders);
         if (!rows.length) { el.innerHTML = '<span class="text-secondary">{{ _('Aucune partie prenante') }}</span>'; return; }
         el.innerHTML = '<div class="list-group list-group-flush">' + rows.map(function(r){
-          return '<div class="list-group-item px-0 d-flex justify-content-between align-items-start"><div><div class="fw-semibold">' + (r.name || '-') + '</div><div class="small text-secondary">' + (r.role || '-') + ' · ' + (r.contact || '-') + '</div></div><button class="btn btn-sm btn-outline-danger" data-stakeholder-id="' + r.id + '">×</button></div>';
+          return '<div class="list-group-item px-0 d-flex justify-content-between align-items-start"><div><div class="fw-semibold">' + (r.name || '-') + '</div><div class="small text-secondary">' + stakeholderRoleLabel(r.role) + ' · ' + (r.contact || '-') + '</div></div><div class="pm-registry-actions"><button class="btn btn-sm btn-outline-primary" data-stakeholder-edit="' + r.id + '">{{ _('Éditer') }}</button><button class="btn btn-sm btn-outline-danger" data-stakeholder-id="' + r.id + '">×</button></div></div>';
         }).join('') + '</div>';
+        el.querySelectorAll('[data-stakeholder-edit]').forEach(function(btn){
+          btn.addEventListener('click', function(){ openGovernanceItemModal('stakeholder', btn.getAttribute('data-stakeholder-edit')); });
+        });
         el.querySelectorAll('[data-stakeholder-id]').forEach(function(btn){
           btn.addEventListener('click', function(){
             const id = btn.getAttribute('data-stakeholder-id');
@@ -1732,8 +3180,11 @@
         const rows = forCurrentProject(items);
         if (!rows.length) { el.innerHTML = '<span class="text-secondary">' + emptyText + '</span>'; return; }
         el.innerHTML = '<div class="list-group list-group-flush">' + rows.map(function(r){
-          return '<div class="list-group-item px-0 d-flex justify-content-between align-items-start"><div><div class="fw-semibold">' + (r.title || '-') + '</div><div class="small text-secondary">' + subtitleFn(r) + '</div></div><button class="btn btn-sm btn-outline-danger" data-del="' + r.id + '">×</button></div>';
+          return '<div class="list-group-item px-0 d-flex justify-content-between align-items-start"><div><div class="fw-semibold">' + (r.title || '-') + '</div><div class="small text-secondary">' + subtitleFn(r) + '</div></div><div class="pm-registry-actions"><button class="btn btn-sm btn-outline-primary" data-edit="' + r.id + '">{{ _('Éditer') }}</button><button class="btn btn-sm btn-outline-danger" data-del="' + r.id + '">×</button></div></div>';
         }).join('') + '</div>';
+        el.querySelectorAll('[data-edit]').forEach(function(btn){
+          btn.addEventListener('click', function(){ openGovernanceItemModal(idAttr, btn.getAttribute('data-edit')); });
+        });
         el.querySelectorAll('[data-del]').forEach(function(btn){
           btn.addEventListener('click', function(){
             const id = btn.getAttribute('data-del');
@@ -1757,21 +3208,25 @@
         }
         const statusOptions = ['draft', 'review', 'approved', 'rejected'];
         el.innerHTML = '<div class="list-group list-group-flush">' + rows.map(function(r){
-          const st = (r.status || 'draft').toLowerCase();
+          const st = changeStatusCode(r.status);
           return '<div class="list-group-item px-0">' +
             '<div class="d-flex justify-content-between align-items-start gap-2">' +
-              '<div><div class="fw-semibold">' + (r.title || '-') + '</div><div class="small text-secondary">' + (r.impact || '-') + ' · v' + (r.version || 1) + '</div></div>' +
-              '<button class="btn btn-sm btn-outline-danger" data-change-del="' + r.id + '">×</button>' +
+              '<div><div class="fw-semibold">' + (r.title || '-') + '</div><div class="small text-secondary">' + changeImpactLabel(r.impact) + ' · v' + (r.version || 1) + '</div></div>' +
+              '<div class="pm-registry-actions"><button class="btn btn-sm btn-outline-primary" data-change-edit="' + r.id + '">{{ _('Éditer') }}</button><button class="btn btn-sm btn-outline-danger" data-change-del="' + r.id + '">×</button></div>' +
             '</div>' +
             '<div class="d-flex align-items-center gap-2 mt-2">' +
               '<select class="form-select form-select-sm" data-change-status="' + r.id + '" style="max-width:150px;">' +
-                statusOptions.map(function(s){ return '<option value="' + s + '"' + (s === st ? ' selected' : '') + '>' + s + '</option>'; }).join('') +
+                statusOptions.map(function(s){ return '<option value="' + s + '"' + (s === st ? ' selected' : '') + '>' + changeStatusLabel(s) + '</option>'; }).join('') +
               '</select>' +
               '<button class="btn btn-sm btn-outline-success" data-change-approve="' + r.id + '">{{ _('Approuver') }}</button>' +
               '<button class="btn btn-sm btn-outline-warning" data-change-reject="' + r.id + '">{{ _('Rejeter') }}</button>' +
             '</div>' +
           '</div>';
         }).join('') + '</div>';
+
+        el.querySelectorAll('[data-change-edit]').forEach(function(btn){
+          btn.addEventListener('click', function(){ openGovernanceItemModal('change', btn.getAttribute('data-change-edit')); });
+        });
 
         el.querySelectorAll('[data-change-del]').forEach(function(btn){
           btn.addEventListener('click', function(){
@@ -1789,7 +3244,7 @@
             const id = sel.getAttribute('data-change-status');
             const row = state.changes.find(function(x){ return String(x.id) === String(id); });
             if (!row) return;
-            const next = (sel.value || 'draft').toLowerCase();
+            const next = changeStatusCode(sel.value || 'draft');
             const approvalState = (next === 'approved' || next === 'rejected');
             if (!canWrite() || (approvalState && !canApprove())) {
               sel.value = row.status || 'draft';
@@ -1844,11 +3299,11 @@
         document.getElementById('pm-baseline-scope').value = (meta.baseline && meta.baseline.scope) || '';
 
         renderStakeholders();
-        renderSimpleRegistry('pm-risks', state.risks, 'risk', function(r){ return (r.probability || '-') + ' · ' + (r.impact || '-') + ' · ' + (r.owner || '-'); }, '{{ _('Aucun risque') }}');
-        renderSimpleRegistry('pm-issues', state.issues, 'issue', function(r){ return (r.priority || '-') + ' · ' + (r.owner || '-') + ' · ' + (r.status || '-'); }, '{{ _('Aucun incident') }}');
+        renderSimpleRegistry('pm-risks', state.risks, 'risk', function(r){ return riskLevelBadge(r.probability) + riskLevelBadge(r.impact) + ' · ' + (r.owner || '-'); }, '{{ _('Aucun risque') }}');
+        renderSimpleRegistry('pm-issues', state.issues, 'issue', function(r){ return issuePriorityLabel(r.priority) + ' · ' + (r.owner || '-') + ' · ' + issueStatusLabel(r.status); }, '{{ _('Aucun incident') }}');
         renderSimpleRegistry('pm-decisions', state.decisions, 'decision', function(r){ return (r.by || '-') + ' · ' + (r.date || '-'); }, '{{ _('Aucune décision') }}');
         renderChangesRegistry();
-        renderSimpleRegistry('pm-documents', state.documents, 'document', function(r){ return (r.kind || '-') + ' · ' + (r.url || '-'); }, '{{ _('Aucun document') }}');
+        renderSimpleRegistry('pm-documents', state.documents, 'document', function(r){ return documentKindLabel(r.kind) + ' · ' + (r.url || '-'); }, '{{ _('Aucun document') }}');
         renderSimpleRegistry('pm-meetings', state.meetings, 'meeting', function(r){ return (r.date || '-') + ' · ' + (r.actions || '-'); }, '{{ _('Aucun compte-rendu') }}');
 
         const tasks = currentProjectGantt();
@@ -1939,11 +3394,11 @@
 
           report.innerHTML =
             '<div class="row g-2">' +
-              '<div class="col-md-3"><div class="border rounded p-2"><div class="text-secondary small">{{ _('Progrès Kanban') }}</div><div class="fw-semibold">' + Math.round(kanbanProgressRatio * 100) + '%</div><div class="small text-secondary">' + doneKanbanTasks + '/' + totalKanbanTasks + '</div></div></div>' +
-              '<div class="col-md-3"><div class="border rounded p-2"><div class="text-secondary small">{{ _('Progrès projet (Gantt)') }}</div><div class="fw-semibold">' + Math.round(ganttProgressRatio * 100) + '%</div><div class="small text-secondary">' + ganttCompletedTasks + '/' + tasks.length + ' {{ _('Tâches') }}</div></div></div>' +
-              '<div class="col-md-3"><div class="border rounded p-2"><div class="text-secondary small">{{ _('Retards/Bloquants') }}</div><div class="fw-semibold">' + delaysAndBlocks + '</div></div></div>' +
-              '<div class="col-md-3"><div class="border rounded p-2"><div class="text-secondary small">{{ _('Consommé') }}</div><div class="fw-semibold">' + money(actualCost) + '</div></div></div>' +
-              '<div class="col-md-3"><div class="border rounded p-2"><div class="text-secondary small">EAC</div><div class="fw-semibold">' + money(eac) + '</div></div></div>' +
+              '<div class="col-md-3"><div class="border rounded p-2 pm-drillable" data-drill-kind="all" data-drill-value="all"><div class="text-secondary small">{{ _('Progrès Kanban') }}</div><div class="fw-semibold">' + Math.round(kanbanProgressRatio * 100) + '%</div><div class="small text-secondary">' + doneKanbanTasks + '/' + totalKanbanTasks + '</div></div></div>' +
+              '<div class="col-md-3"><div class="border rounded p-2 pm-drillable" data-drill-kind="all" data-drill-value="all"><div class="text-secondary small">{{ _('Progrès projet (Gantt)') }}</div><div class="fw-semibold">' + Math.round(ganttProgressRatio * 100) + '%</div><div class="small text-secondary">' + ganttCompletedTasks + '/' + tasks.length + ' {{ _('Tâches') }}</div></div></div>' +
+              '<div class="col-md-3"><div class="border rounded p-2 pm-drillable" data-drill-kind="alerts" data-drill-value="alerts"><div class="text-secondary small">{{ _('Retards/Bloquants') }}</div><div class="fw-semibold">' + delaysAndBlocks + '</div></div></div>' +
+              '<div class="col-md-3"><div class="border rounded p-2 pm-drillable" data-drill-kind="all" data-drill-value="all"><div class="text-secondary small">{{ _('Consommé') }}</div><div class="fw-semibold">' + money(actualCost) + '</div></div></div>' +
+              '<div class="col-md-3"><div class="border rounded p-2 pm-drillable" data-drill-kind="all" data-drill-value="all"><div class="text-secondary small">EAC</div><div class="fw-semibold">' + money(eac) + '</div></div></div>' +
             '</div>' +
             '<div class="row g-2 mt-1">' +
               '<div class="col-md-2"><div class="border rounded p-2"><div class="text-secondary small">' + pvLabel + '</div><div class="fw-semibold">' + money(pv) + '</div></div></div>' +
@@ -1960,6 +3415,8 @@
             });
           }
         }
+
+        renderReportingCharts(tasks, criticalPathIds(tasks), ganttWorkloadSnapshot(tasks), today);
 
         applyPermissionsUI();
       }
@@ -2030,17 +3487,138 @@
 
       function renderDeliverables(){
         const el = document.getElementById('pm-deliverables');
+        if (!el) return;
         el.innerHTML = '';
-        if (!state.deliverables.length) { el.innerHTML = '<span class="text-secondary">Aucun item</span>'; return; }
-        const ul = document.createElement('ul');
-        ul.className = 'mb-0';
-        state.deliverables.forEach(function(d){
-          const li = document.createElement('li');
-          li.innerHTML = '<label><input type="checkbox" ' + (d.done ? 'checked' : '') + '> ' + d.label + '</label>';
-          li.querySelector('input').addEventListener('change', function(e){ d.done = !!e.target.checked; scheduleSave(); });
-          ul.appendChild(li);
+        const rows = state.deliverables.map(function(d){
+          return {
+            id: String(d.id || uid()),
+            label: (d.label || '').toString(),
+            done: !!d.done,
+            parent_id: d.parent_id ? String(d.parent_id) : null,
+          };
         });
-        el.appendChild(ul);
+        state.deliverables = rows;
+
+        if (!rows.length) { el.innerHTML = '<span class="text-secondary">{{ _('Aucun item') }}</span>'; return; }
+
+        const byParent = new Map();
+        rows.forEach(function(d){
+          const key = d.parent_id || '__root__';
+          if (!byParent.has(key)) byParent.set(key, []);
+          byParent.get(key).push(d);
+        });
+
+        const isDescendant = function(candidateParentId, childId){
+          let cursor = candidateParentId;
+          let guard = 0;
+          while (cursor && guard < 500) {
+            if (String(cursor) === String(childId)) return true;
+            const found = rows.find(function(x){ return String(x.id) === String(cursor); });
+            cursor = found && found.parent_id ? String(found.parent_id) : null;
+            guard += 1;
+          }
+          return false;
+        };
+
+        let draggedId = null;
+        const rootDrop = document.createElement('div');
+        rootDrop.className = 'pm-deliverable-root-drop';
+        rootDrop.textContent = '{{ _('Déposer ici pour remettre à la racine') }}';
+        rootDrop.addEventListener('dragover', function(e){ e.preventDefault(); rootDrop.classList.add('pm-drag-over'); });
+        rootDrop.addEventListener('dragleave', function(){ rootDrop.classList.remove('pm-drag-over'); });
+        rootDrop.addEventListener('drop', function(e){
+          e.preventDefault();
+          rootDrop.classList.remove('pm-drag-over');
+          if (!draggedId) return;
+          const row = rows.find(function(x){ return String(x.id) === String(draggedId); });
+          if (!row) return;
+          row.parent_id = null;
+          renderDeliverables();
+          scheduleSave();
+        });
+        el.appendChild(rootDrop);
+
+        function renderNode(node, container){
+          const row = document.createElement('div');
+          row.className = 'pm-deliverable-node' + (node.done ? ' is-done' : '');
+          row.draggable = true;
+          row.dataset.deliverableId = node.id;
+
+          const left = document.createElement('div');
+          left.className = 'form-check mb-0';
+          left.innerHTML = '<input class="form-check-input" type="checkbox" id="pm-deliverable-' + node.id + '" ' + (node.done ? 'checked' : '') + '>' +
+            '<label class="form-check-label" for="pm-deliverable-' + node.id + '">' + (node.label || '-') + '</label>';
+          left.querySelector('input').addEventListener('change', function(e){
+            node.done = !!e.target.checked;
+            renderDeliverables();
+            scheduleSave();
+          });
+
+          const actions = document.createElement('div');
+          actions.className = 'pm-deliverable-actions';
+          actions.innerHTML =
+            '<button class="btn btn-sm btn-outline-primary" type="button" data-deliverable-sub="' + node.id + '">+</button>' +
+            '<button class="btn btn-sm btn-outline-danger" type="button" data-deliverable-del="' + node.id + '">×</button>';
+
+          row.appendChild(left);
+          row.appendChild(actions);
+
+          row.addEventListener('dragstart', function(e){
+            draggedId = node.id;
+            try { e.dataTransfer.setData('text/plain', node.id); } catch (__) {}
+          });
+          row.addEventListener('dragover', function(e){ e.preventDefault(); row.classList.add('pm-drag-over'); });
+          row.addEventListener('dragleave', function(){ row.classList.remove('pm-drag-over'); });
+          row.addEventListener('drop', function(e){
+            e.preventDefault();
+            row.classList.remove('pm-drag-over');
+            if (!draggedId || String(draggedId) === String(node.id)) return;
+            const dragged = rows.find(function(x){ return String(x.id) === String(draggedId); });
+            if (!dragged) return;
+            if (isDescendant(node.id, dragged.id)) return;
+            dragged.parent_id = String(node.id);
+            renderDeliverables();
+            scheduleSave();
+          });
+
+          actions.querySelector('[data-deliverable-sub]').addEventListener('click', function(){
+            document.getElementById('simpleModalTitle').textContent = '{{ _('Ajouter sous-item') }}';
+            document.getElementById('simpleModalBody').innerHTML =
+              '<input type="hidden" name="parent_id" value="' + node.id + '">' +
+              '<div><label class="form-label">{{ _('Item') }}</label><input class="form-control" name="label" required></div>';
+            document.getElementById('simpleForm').dataset.kind = 'deliverable';
+            simpleModal.show();
+          });
+          actions.querySelector('[data-deliverable-del]').addEventListener('click', function(){
+            const toDelete = new Set([String(node.id)]);
+            let changed = true;
+            while (changed) {
+              changed = false;
+              rows.forEach(function(x){
+                if (x.parent_id && toDelete.has(String(x.parent_id)) && !toDelete.has(String(x.id))) {
+                  toDelete.add(String(x.id));
+                  changed = true;
+                }
+              });
+            }
+            state.deliverables = rows.filter(function(x){ return !toDelete.has(String(x.id)); });
+            renderDeliverables();
+            scheduleSave();
+          });
+
+          container.appendChild(row);
+
+          const children = byParent.get(String(node.id)) || [];
+          if (children.length) {
+            const childWrap = document.createElement('div');
+            childWrap.className = 'pm-deliverable-children';
+            children.forEach(function(ch){ renderNode(ch, childWrap); });
+            container.appendChild(childWrap);
+          }
+        }
+
+        const roots = byParent.get('__root__') || [];
+        roots.forEach(function(root){ renderNode(root, el); });
       }
 
       function recalcTask(task){
@@ -2059,10 +3637,12 @@
 
       function renderGanttToolbar(tasks){
         const ownerFilter = document.getElementById('pm-gantt-owner-filter');
+        const healthFilter = document.getElementById('pm-gantt-health-filter');
         const zoomSelect = document.getElementById('pm-gantt-zoom');
         const showBaseline = document.getElementById('pm-gantt-show-baseline');
         const autoSchedule = document.getElementById('pm-gantt-auto-schedule');
         if (zoomSelect) zoomSelect.value = ganttView.zoom;
+        if (healthFilter) healthFilter.value = ganttView.healthFilter || 'all';
         if (showBaseline) showBaseline.checked = !!ganttView.showBaseline;
         if (autoSchedule) autoSchedule.checked = !!ganttView.autoSchedule;
 
@@ -2076,9 +3656,21 @@
         }
       }
 
-      function filteredGanttTasks(rows){
+      function filteredGanttTasks(rows, criticalIds, workload, today){
         return (rows || []).filter(function(t){
           if (ganttView.ownerFilter && normalizeManagerName(t.owner) !== ganttView.ownerFilter) return false;
+          const key = ganttView.healthFilter || 'all';
+          if (key === 'all') return true;
+          const isCritical = criticalIds && criticalIds.has(String(t.id));
+          const isOverloaded = workload && workload.overloadedTaskIds && workload.overloadedTaskIds.has(String(t.id));
+          const end = dt(t.end);
+          const isDelayed = !!(end && today && end < today);
+          const isBlocked = statusNorm(t.status) === 'blocked';
+          if (key === 'alerts') return isCritical || isOverloaded || isDelayed || isBlocked;
+          if (key === 'critical') return isCritical;
+          if (key === 'delayed') return isDelayed;
+          if (key === 'overloaded') return isOverloaded;
+          if (key === 'blocked') return isBlocked;
           return true;
         });
       }
@@ -2229,6 +3821,7 @@
       function renderGantt(){
         const tbody = document.querySelector('#pm-gantt-table tbody');
         const insightsEl = document.getElementById('pm-gantt-insights');
+        const headerEl = document.getElementById('pm-gantt-timeline-header');
         tbody.innerHTML = '';
         const allTasks = currentProjectGantt();
         allTasks.forEach(function(t){ Object.assign(t, normalizeGanttTask(t)); recalcTask(t); });
@@ -2240,7 +3833,11 @@
         }
 
         renderGanttToolbar(allTasks);
-        const tasks = filteredGanttTasks(allTasks);
+        const criticalIds = criticalPathIds(allTasks);
+        const workload = ganttWorkloadSnapshot(allTasks);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tasks = filteredGanttTasks(allTasks, criticalIds, workload, today);
         if (!allTasks.length) {
           if (insightsEl) insightsEl.innerHTML = '<div class="text-secondary">{{ _('Aucune tâche Gantt pour ce projet.') }}</div>';
           return;
@@ -2249,8 +3846,6 @@
           if (insightsEl) insightsEl.innerHTML = '<div class="text-secondary">{{ _('Aucune tâche pour ce filtre.') }}</div>';
           return;
         }
-        const criticalIds = criticalPathIds(allTasks);
-        const workload = ganttWorkloadSnapshot(allTasks);
 
         const allStart = tasks.map(g => dt(g.start)).filter(Boolean);
         const allEnd = tasks.map(g => dt(g.end)).filter(Boolean);
@@ -2265,9 +3860,89 @@
         const max = new Date(Math.max.apply(null, allEnd));
         const total = daysBetween(min, max);
         const unitPx = zoomPx();
-        const trackWidth = Math.max(520, total * unitPx + 16);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const trackWidth = Math.max(520, total * unitPx);
+
+        if (headerEl) {
+          const lang = '{{ current_lang if current_lang else "fr" }}';
+          const capitalize = function(txt){ return txt ? (txt.charAt(0).toUpperCase() + txt.slice(1)) : txt; };
+          const monthFmtLong = new Intl.DateTimeFormat(lang, { month: 'long' });
+          const monthFmtShort = new Intl.DateTimeFormat(lang, { month: 'short' });
+          const months = [];
+          const weeks = [];
+          const monthCursor = new Date(min);
+          monthCursor.setDate(1);
+          while (monthCursor <= max) {
+            const mStart = new Date(monthCursor);
+            const mEnd = new Date(monthCursor.getFullYear(), monthCursor.getMonth() + 1, 0);
+            const segStart = mStart < min ? min : mStart;
+            const segEnd = mEnd > max ? max : mEnd;
+            const width = Math.max(unitPx, daysBetween(segStart, segEnd) * unitPx);
+            const monthLong = capitalize(monthFmtLong.format(mStart).replace(/\.$/, ''));
+            const monthShort = capitalize(monthFmtShort.format(mStart).replace(/\.$/, ''));
+            const compact = width < 120;
+            const isCurrentMonth = mStart.getMonth() === today.getMonth() && mStart.getFullYear() === today.getFullYear();
+            const monthClass = 'pm-gantt-timeline-month'
+              + (compact ? ' pm-gantt-timeline-month-compact' : '')
+              + (isCurrentMonth ? ' pm-gantt-timeline-month-current' : '');
+            const monthName = compact ? monthShort : monthLong;
+            months.push(
+              '<div class="' + monthClass + '" style="width:' + width + 'px">' +
+                '<span class="pm-gantt-timeline-month-label">' +
+                  '<span class="pm-gantt-timeline-month-name">' + monthName + '</span>' +
+                  '<span class="pm-gantt-timeline-month-year">' + mStart.getFullYear() + '</span>' +
+                '</span>' +
+              '</div>'
+            );
+            monthCursor.setMonth(monthCursor.getMonth() + 1);
+          }
+
+          function isoWeekNumber(dateValue) {
+            const d = new Date(Date.UTC(dateValue.getFullYear(), dateValue.getMonth(), dateValue.getDate()));
+            const dayNum = d.getUTCDay() || 7;
+            d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+            const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+            return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+          }
+
+          const weekCursor = new Date(min);
+          let weekGuard = 0;
+          while (weekCursor <= max && weekGuard < 400) {
+            const weekEnd = addDays(weekCursor, 6);
+            const segEnd = weekEnd > max ? max : weekEnd;
+            const width = Math.max(unitPx, daysBetween(weekCursor, segEnd) * unitPx);
+            const weekLabel = 'S' + String(isoWeekNumber(weekCursor)).padStart(2, '0');
+            weeks.push('<div class="pm-gantt-timeline-week" style="width:' + width + 'px">' + weekLabel + '</div>');
+            weekCursor.setDate(weekCursor.getDate() + 7);
+            weekGuard += 1;
+          }
+
+          const days = [];
+          const dayCursor = new Date(min);
+          let guard = 0;
+          while (dayCursor <= max && guard < 2000) {
+            const weekDay = dayCursor.getDay();
+            const idx = weekDay === 0 ? 6 : weekDay - 1;
+            const isWeekend = idx >= 5;
+            const isToday = dayCursor.getTime() === today.getTime();
+            const narrow = dayCursor.toLocaleDateString(lang, { weekday: 'narrow' });
+            const short = dayCursor.toLocaleDateString(lang, { weekday: 'short' });
+            const dayNum = String(dayCursor.getDate()).padStart(2, '0');
+            const txt = unitPx >= 30
+              ? (dayNum + ' ' + short)
+              : (unitPx >= 18 ? dayNum : (unitPx >= 10 ? narrow : ''));
+            const dayClass = 'pm-gantt-timeline-day'
+              + (isWeekend ? ' pm-gantt-timeline-day-weekend' : '')
+              + (isToday ? ' pm-gantt-timeline-day-today' : '');
+            days.push('<div class="' + dayClass + '" style="width:' + unitPx + 'px">' + txt + '</div>');
+            dayCursor.setDate(dayCursor.getDate() + 1);
+            guard += 1;
+          }
+
+          headerEl.innerHTML =
+            '<div class="pm-gantt-timeline-months" style="width:' + trackWidth + 'px">' + months.join('') + '</div>' +
+            '<div class="pm-gantt-timeline-weeks" style="width:' + trackWidth + 'px">' + weeks.join('') + '</div>' +
+            '<div class="pm-gantt-timeline-days" style="width:' + trackWidth + 'px">' + days.join('') + '</div>';
+        }
 
         tasks.forEach(function(g, rowIndex){
           const s = dt(g.start), e = dt(g.end); if (!s || !e) return;
@@ -2360,8 +4035,8 @@
             '<td><span class="badge text-bg-light border">' + hours.toFixed(2) + '</span></td>' +
             '<td><span class="badge text-bg-light border">' + money(rate) + '</span></td>' +
             '<td><span class="badge text-bg-light border">' + money(lineCost) + '</span></td>' +
-            '<td>' +
-              '<div class="pm-gantt-track" style="width:' + trackWidth + 'px;">' +
+            '<td class="pm-gantt-cell">' +
+              '<div class="pm-gantt-track" style="width:' + trackWidth + 'px;--pm-day-px:' + unitPx + 'px;">' +
                 (ganttView.showBaseline && baselineWidthPx > 0 ? '<div class="pm-gantt-baseline" style="left:' + baselineLeftPx + 'px;width:' + baselineWidthPx + 'px;"></div>' : '') +
                 '<div class="pm-gantt-today-marker" style="left:' + todayLeft + 'px;"></div>' +
                 '<div class="pm-gantt-bar ' + statusBarClass + '" data-task-id="' + g.id + '" style="left:' + leftPx + 'px;width:' + widthPx + 'px;background:' + barColor + ';">' +
@@ -2483,8 +4158,19 @@
         const el = document.getElementById('pm-productivity-report');
         if (!el) return;
         const cards = currentProjectCards();
+        const tasks = currentProjectGantt();
+        const versionsCount = projectVersionsForCurrent().length;
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
         if (!cards.length) {
-          el.innerHTML = '<div class="text-secondary">{{ _('Aucune donnée de productivité.') }}</div>';
+          const blockedTasksOnly = tasks.filter(function(t){ return statusNorm(t.status) === 'blocked'; }).length;
+          el.innerHTML =
+            '<div class="text-secondary mb-2">{{ _('Aucune donnée de productivité.') }}</div>' +
+            '<div class="d-flex flex-wrap gap-2">' +
+              '<span class="badge text-bg-light border">{{ _('Versions') }}: ' + versionsCount + '</span>' +
+              '<span class="badge ' + (blockedTasksOnly ? 'text-bg-danger' : 'text-bg-success') + '">{{ _('Bloqués') }}: ' + blockedTasksOnly + '</span>' +
+            '</div>';
+          renderVersioningHelp(versionsCount);
           return;
         }
 
@@ -2523,18 +4209,66 @@
         }).join('');
 
         const globalRate = totalWeighted > 0 ? ((doneWeighted / totalWeighted) * 100) : 0;
+        const doingWeighted = cards.filter(function(c){ return c.col === 'doing'; }).length;
+        const todoWeighted = cards.filter(function(c){ return c.col === 'todo' || c.col === 'backlog'; }).length;
+        const blockedTasks = tasks.filter(function(t){ return statusNorm(t.status) === 'blocked'; }).length;
+        const delayedTasks = tasks.filter(function(t){
+          const end = dt(t.end);
+          return !!end && end < today && statusNorm(t.status) !== 'done';
+        }).length;
+        const doneLast14 = tasks.filter(function(t){
+          if (statusNorm(t.status) !== 'done') return false;
+          const end = dt(t.end);
+          if (!end) return false;
+          return daysBetween(end, today) <= 14;
+        }).length;
+        const throughputHintClass = doneLast14 < 2 ? 'text-bg-warning text-dark' : 'text-bg-success';
         const sampleRecipients = notificationMailRecipientsForCard(cards[0] || {}).join(', ');
         el.innerHTML =
-          '<div class="mb-2">' +
-            '<span class="badge text-bg-light border">{{ _('Cartes') }}: ' + totalWeighted + '</span> ' +
-            '<span class="badge text-bg-light border">{{ _('Terminées') }}: ' + doneWeighted + '</span> ' +
-            '<span class="badge text-bg-success">{{ _('Taux global') }}: ' + globalRate.toFixed(1) + '%</span>' +
+          '<div class="row g-2 mb-2">' +
+            '<div class="col-md-3"><div class="border rounded p-2"><div class="small text-secondary">{{ _('Taux global') }}</div><div class="fw-semibold">' + globalRate.toFixed(1) + '%</div></div></div>' +
+            '<div class="col-md-3"><div class="border rounded p-2"><div class="small text-secondary">{{ _('WIP (Kanban en cours)') }}</div><div class="fw-semibold">' + doingWeighted + '</div></div></div>' +
+            '<div class="col-md-3"><div class="border rounded p-2"><div class="small text-secondary">{{ _('Retards + bloqués') }}</div><div class="fw-semibold">' + (delayedTasks + blockedTasks) + '</div></div></div>' +
+            '<div class="col-md-3"><div class="border rounded p-2"><div class="small text-secondary">{{ _('Versions') }}</div><div class="fw-semibold">' + versionsCount + '</div></div></div>' +
+          '</div>' +
+          '<div class="mb-2 d-flex flex-wrap gap-2">' +
+            '<span class="badge text-bg-light border">{{ _('Cartes') }}: ' + totalWeighted + '</span>' +
+            '<span class="badge text-bg-light border">{{ _('Terminées') }}: ' + doneWeighted + '</span>' +
+            '<span class="badge text-bg-light border">{{ _('À faire + Arriéré') }}: ' + todoWeighted + '</span>' +
+            '<span class="badge ' + throughputHintClass + '">{{ _('Débit 14 jours') }}: ' + doneLast14 + '</span>' +
           '</div>' +
           (sampleRecipients ? '<div class="small text-secondary mb-2">{{ _('Exemple destinataires email (règle owner + settings)') }}: ' + sampleRecipients + '</div>' : '') +
           '<div class="table-responsive"><table class="table table-sm mb-0">' +
             '<thead><tr><th>{{ _('Responsable') }}</th><th class="text-end">{{ _('Cartes') }}</th><th class="text-end">{{ _('Terminées') }}</th><th class="text-end">{{ _('En cours') }}</th><th class="text-end">{{ _('À faire + Arriéré') }}</th><th class="text-end">{{ _('Taux') }}</th></tr></thead>' +
             '<tbody>' + rows + '</tbody>' +
           '</table></div>';
+
+        renderVersioningHelp(versionsCount);
+      }
+
+      function renderVersioningHelp(versionsCount){
+        const ganttHelp = document.getElementById('pm-versioning-help');
+        const productivityHelp = document.getElementById('pm-productivity-help');
+        const badgeClass = versionsCount > 0 ? 'text-bg-success' : 'text-bg-warning text-dark';
+        const helpHtml =
+          '<div class="border rounded p-2 bg-body-tertiary">' +
+            '<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">' +
+              '<div class="fw-semibold">{{ _('Guide rapide du versioning') }}</div>' +
+              '<span class="badge ' + badgeClass + '">{{ _('Versions créées') }}: ' + versionsCount + '</span>' +
+            '</div>' +
+            '<ol class="mb-2 ps-3">' +
+              '<li>{{ _('Créez une baseline initiale (version A) depuis le bouton Créer version.') }}</li>' +
+              '<li>{{ _('Mettez à jour planning, coûts et statuts dans le Gantt.') }}</li>' +
+              '<li>{{ _('Créez une nouvelle version (B), puis utilisez Comparer A vs B.') }}</li>' +
+              '<li>{{ _('Analysez les écarts budget/planning et les points critiques pour prioriser.') }}</li>' +
+            '</ol>' +
+            '<div class="d-flex flex-wrap gap-2">' +
+              '<a class="btn btn-sm btn-outline-primary" href="#pm-section-versioning">{{ _('Aller au versioning Gantt') }}</a>' +
+              '<span class="small text-secondary">{{ _('Conseil: créez une version à chaque fin de sprint ou jalon majeur.') }}</span>' +
+            '</div>' +
+          '</div>';
+        if (ganttHelp) ganttHelp.innerHTML = helpHtml;
+        if (productivityHelp) productivityHelp.innerHTML = helpHtml;
       }
 
       function renderAll(){
@@ -2552,9 +4286,19 @@
         renderNotificationsSettings();
       }
 
+      function refreshReportingVisuals(){
+        const tasks = currentProjectGantt();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        renderReportingCharts(tasks, criticalPathIds(tasks), ganttWorkloadSnapshot(tasks), today);
+      }
+
       const projectModal = window.bootstrap.Modal.getOrCreateInstance(document.getElementById('projectModal'));
       const todoModal = window.bootstrap.Modal.getOrCreateInstance(document.getElementById('todoModal'));
       const simpleModal = window.bootstrap.Modal.getOrCreateInstance(document.getElementById('simpleModal'));
+      window.pmGovernanceItemModal = window.bootstrap.Modal.getOrCreateInstance(document.getElementById('pmGovernanceItemModal'));
+      window.pmKpiDrillModal = window.bootstrap.Modal.getOrCreateInstance(document.getElementById('pmKpiDrillModal'));
+      const pmContextualTutorialModal = window.bootstrap.Modal.getOrCreateInstance(document.getElementById('pmContextualTutorialModal'));
 
       document.getElementById('pm-new-project-btn').addEventListener('click', function(){
         document.getElementById('projectForm').reset();
@@ -2671,7 +4415,7 @@
 
       document.getElementById('pm-add-deliverable').addEventListener('click', function(){
         document.getElementById('simpleModalTitle').textContent = '{{ _('Ajouter item') }}';
-        document.getElementById('simpleModalBody').innerHTML = '<div><label class="form-label">{{ _('Item') }}</label><input class="form-control" name="label" required></div>';
+        document.getElementById('simpleModalBody').innerHTML = '<input type="hidden" name="parent_id" value=""><div><label class="form-label">{{ _('Item') }}</label><input class="form-control" name="label" required></div>';
         document.getElementById('simpleForm').dataset.kind = 'deliverable';
         simpleModal.show();
       });
@@ -2691,7 +4435,7 @@
         document.getElementById('simpleModalTitle').textContent = '{{ _('Ajouter partie prenante') }}';
         document.getElementById('simpleModalBody').innerHTML =
           '<div class="mb-2"><label class="form-label">{{ _('Nom') }}</label><input class="form-control" name="name" required></div>' +
-          '<div class="mb-2"><label class="form-label">{{ _('Rôle') }}</label><input class="form-control" name="role" placeholder="{{ _('sponsor / chef de projet / équipe') }}"></div>' +
+          '<div class="mb-2"><label class="form-label">{{ _('Rôle') }}</label><select class="form-select pm-governance-select" name="role"><option value="sponsor">{{ _('Sponsor') }}</option><option value="pmo">PMO</option><option value="product_owner">{{ _('Product Owner') }}</option><option value="team" selected>{{ _('Équipe') }}</option><option value="business">{{ _('Métier') }}</option><option value="external">{{ _('Externe') }}</option></select></div>' +
           '<div><label class="form-label">{{ _('Contact') }}</label><input class="form-control" name="contact"></div>';
         document.getElementById('simpleForm').dataset.kind = 'stakeholder';
         simpleModal.show();
@@ -2701,7 +4445,30 @@
         document.getElementById('simpleModalTitle').textContent = '{{ _('Ajouter risque') }}';
         document.getElementById('simpleModalBody').innerHTML =
           '<div class="mb-2"><label class="form-label">{{ _('Risque') }}</label><input class="form-control" name="title" required></div>' +
-          '<div class="row g-2 mb-2"><div class="col"><label class="form-label">{{ _('Probabilité') }}</label><input class="form-control" name="probability" placeholder="{{ _('Faible/Moyenne/Élevée') }}"></div><div class="col"><label class="form-label">{{ _('Impact') }}</label><input class="form-control" name="impact" placeholder="{{ _('Faible/Moyen/Élevé') }}"></div></div>' +
+          '<div class="row g-2 mb-2">' +
+            '<div class="col">' +
+              '<label class="form-label">{{ _('Probabilité') }}</label>' +
+              '<div class="pm-risk-choice-group">' +
+                '<input class="btn-check" type="radio" name="probability" id="pm-risk-prob-low" value="low">' +
+                '<label class="btn btn-outline-success pm-risk-low" for="pm-risk-prob-low">{{ _('Faible') }}</label>' +
+                '<input class="btn-check" type="radio" name="probability" id="pm-risk-prob-medium" value="medium" checked>' +
+                '<label class="btn btn-outline-warning pm-risk-medium" for="pm-risk-prob-medium">{{ _('Moyenne') }}</label>' +
+                '<input class="btn-check" type="radio" name="probability" id="pm-risk-prob-high" value="high">' +
+                '<label class="btn btn-outline-danger pm-risk-high" for="pm-risk-prob-high">{{ _('Élevée') }}</label>' +
+              '</div>' +
+            '</div>' +
+            '<div class="col">' +
+              '<label class="form-label">{{ _('Impact') }}</label>' +
+              '<div class="pm-risk-choice-group">' +
+                '<input class="btn-check" type="radio" name="impact" id="pm-risk-impact-low" value="low">' +
+                '<label class="btn btn-outline-success pm-risk-low" for="pm-risk-impact-low">{{ _('Faible') }}</label>' +
+                '<input class="btn-check" type="radio" name="impact" id="pm-risk-impact-medium" value="medium" checked>' +
+                '<label class="btn btn-outline-warning pm-risk-medium" for="pm-risk-impact-medium">{{ _('Moyenne') }}</label>' +
+                '<input class="btn-check" type="radio" name="impact" id="pm-risk-impact-high" value="high">' +
+                '<label class="btn btn-outline-danger pm-risk-high" for="pm-risk-impact-high">{{ _('Élevée') }}</label>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
           '<div class="mb-2"><label class="form-label">{{ _('Mitigation') }}</label><input class="form-control" name="mitigation"></div>' +
           '<div><label class="form-label">{{ _('Responsable') }}</label><input class="form-control" name="owner" list="pm-managers-datalist"></div>';
         document.getElementById('simpleForm').dataset.kind = 'risk';
@@ -2712,7 +4479,7 @@
         document.getElementById('simpleModalTitle').textContent = '{{ _('Ajouter incident') }}';
         document.getElementById('simpleModalBody').innerHTML =
           '<div class="mb-2"><label class="form-label">{{ _('Incident') }}</label><input class="form-control" name="title" required></div>' +
-          '<div class="row g-2 mb-2"><div class="col"><label class="form-label">{{ _('Priorité') }}</label><input class="form-control" name="priority" placeholder="{{ _('P1/P2/P3') }}"></div><div class="col"><label class="form-label">{{ _('Statut') }}</label><input class="form-control" name="status" placeholder="{{ _('ouvert/en-cours/fermé') }}"></div></div>' +
+          '<div class="row g-2 mb-2"><div class="col"><label class="form-label">{{ _('Priorité') }}</label><select class="form-select pm-governance-select" name="priority"><option value="high">P1 - {{ _('Élevée') }}</option><option value="medium" selected>P2 - {{ _('Moyenne') }}</option><option value="low">P3 - {{ _('Faible') }}</option></select></div><div class="col"><label class="form-label">{{ _('Statut') }}</label><select class="form-select pm-governance-select" name="status"><option value="open" selected>{{ _('Ouvert') }}</option><option value="in_progress">{{ _('En cours') }}</option><option value="resolved">{{ _('Résolu') }}</option><option value="blocked">{{ _('Bloqué') }}</option></select></div></div>' +
           '<div><label class="form-label">{{ _('Responsable') }}</label><input class="form-control" name="owner" list="pm-managers-datalist"></div>';
         document.getElementById('simpleForm').dataset.kind = 'issue';
         simpleModal.show();
@@ -2731,8 +4498,8 @@
         document.getElementById('simpleModalTitle').textContent = '{{ _('Demande de changement') }}';
         document.getElementById('simpleModalBody').innerHTML =
           '<div class="mb-2"><label class="form-label">{{ _('Changement') }}</label><input class="form-control" name="title" required></div>' +
-          '<div class="mb-2"><label class="form-label">{{ _('Impact') }}</label><input class="form-control" name="impact" placeholder="{{ _('périmètre/budget/planning') }}"></div>' +
-          '<div><label class="form-label">{{ _('Workflow') }}</label><input class="form-control" name="status" placeholder="{{ _('brouillon/revue/approuvé/rejeté') }}"></div>';
+          '<div class="mb-2"><label class="form-label">{{ _('Impact') }}</label><select class="form-select pm-governance-select" name="impact"><option value="scope" selected>{{ _('Périmètre') }}</option><option value="budget">{{ _('Budget') }}</option><option value="planning">{{ _('Planning') }}</option><option value="quality">{{ _('Qualité') }}</option><option value="compliance">{{ _('Conformité') }}</option></select></div>' +
+          '<div><label class="form-label">{{ _('Workflow') }}</label><select class="form-select pm-governance-select" name="status"><option value="draft" selected>{{ _('Brouillon') }}</option><option value="review">{{ _('Revue') }}</option><option value="approved">{{ _('Approuvé') }}</option><option value="rejected">{{ _('Rejeté') }}</option></select></div>';
         document.getElementById('simpleForm').dataset.kind = 'change';
         simpleModal.show();
       });
@@ -2741,7 +4508,7 @@
         document.getElementById('simpleModalTitle').textContent = '{{ _('Ajouter document') }}';
         document.getElementById('simpleModalBody').innerHTML =
           '<div class="mb-2"><label class="form-label">{{ _('Titre') }}</label><input class="form-control" name="title" required></div>' +
-          '<div class="mb-2"><label class="form-label">{{ _('Type') }}</label><input class="form-control" name="kind" placeholder="{{ _('spec / CR / contrat') }}"></div>' +
+          '<div class="mb-2"><label class="form-label">{{ _('Type') }}</label><select class="form-select pm-governance-select" name="kind"><option value="spec" selected>{{ _('Spécification') }}</option><option value="cr">{{ _('Compte-rendu') }}</option><option value="contract">{{ _('Contrat') }}</option><option value="architecture">{{ _('Architecture') }}</option><option value="test">{{ _('Test') }}</option><option value="report">{{ _('Rapport') }}</option><option value="other">{{ _('Autre') }}</option></select></div>' +
           '<div><label class="form-label">{{ _('Lien') }}</label><input class="form-control" name="url" placeholder="{{ _('https://...') }}"></div>';
         document.getElementById('simpleForm').dataset.kind = 'document';
         simpleModal.show();
@@ -2768,7 +4535,7 @@
           '<div class="mb-2"><label class="form-label">{{ _('Responsable') }}</label><input class="form-control" name="owner" list="pm-managers-datalist"></div>' +
           '<div class="row g-2 mb-2"><div class="col"><label class="form-label">{{ _('Début') }}</label><input type="date" class="form-control" name="start" required></div><div class="col"><label class="form-label">{{ _('Durée (j)') }}</label><input type="number" min="1" class="form-control" name="duration_days" value="1" required></div></div>' +
           '<div class="row g-2 mb-2"><div class="col"><label class="form-label">{{ _('Statut') }}</label><select class="form-select" name="status"><option value="not_started">{{ _('Non démarré') }}</option><option value="in_progress">{{ _('En cours') }}</option><option value="done">{{ _('Terminé') }}</option><option value="blocked">{{ _('Bloqué') }}</option></select></div><div class="col"><label class="form-label">{{ _('Avancement %') }}</label><input type="number" min="0" max="100" class="form-control" name="progress_pct" value="0"></div></div>' +
-          '<div><label class="form-label">{{ _('Prédecesseur') }}</label><select class="form-select" name="predecessor_id">' + predecessorSelect + '</select></div>' +
+          '<div><label class="form-label">{{ _('Prédécesseur') }}</label><select class="form-select" name="predecessor_id">' + predecessorSelect + '</select></div>' +
           '<div class="row g-2 mt-1"><div class="col"><label class="form-label">{{ _('Type lien') }}</label><select class="form-select" name="dependency_type"><option value="FS">FS</option><option value="SS">SS</option><option value="FF">FF</option><option value="SF">SF</option></select></div><div class="col"><label class="form-label">{{ _('Lag (j)') }}</label><input type="number" class="form-control" name="lag_days" value="0"></div></div>';
         document.getElementById('simpleForm').dataset.kind = 'gantt';
         simpleModal.show();
@@ -2783,8 +4550,12 @@
           state.ceremonies.push({ id: uid(), type: (fd.get('type') || '').toString(), when: (fd.get('when') || '').toString() });
           renderCeremonies();
         } else if (kind === 'deliverable') {
-          state.deliverables.push({ id: uid(), label: (fd.get('label') || '').toString(), done: false });
-          renderDeliverables();
+          const label = (fd.get('label') || '').toString().trim();
+          if (label) {
+            const parentRaw = (fd.get('parent_id') || '').toString().trim();
+            state.deliverables.push({ id: uid(), label: label, done: false, parent_id: parentRaw || null });
+            renderDeliverables();
+          }
         } else if (kind === 'manager') {
           const name = normalizeManagerName(fd.get('name'));
           if (name) {
@@ -2800,7 +4571,7 @@
         } else if (kind === 'stakeholder') {
           const name = (fd.get('name') || '').toString().trim();
           if (name) {
-            state.stakeholders.push({ id: uid(), project_id: state.selected_project_id, name: name, role: (fd.get('role') || '').toString().trim(), contact: (fd.get('contact') || '').toString().trim() });
+            state.stakeholders.push({ id: uid(), project_id: state.selected_project_id, name: name, role: stakeholderRoleCode(fd.get('role')), contact: (fd.get('contact') || '').toString().trim() });
             addAudit('stakeholder.created', { name: name });
             renderStakeholders();
           }
@@ -2809,7 +4580,7 @@
           if (title) {
             const owner = (fd.get('owner') || '').toString().trim();
             upsertManager(owner);
-            state.risks.push({ id: uid(), project_id: state.selected_project_id, title: title, probability: (fd.get('probability') || '').toString().trim(), impact: (fd.get('impact') || '').toString().trim(), mitigation: (fd.get('mitigation') || '').toString().trim(), owner: owner });
+            state.risks.push({ id: uid(), project_id: state.selected_project_id, title: title, probability: riskLevelCode(fd.get('probability')), impact: riskLevelCode(fd.get('impact')), mitigation: (fd.get('mitigation') || '').toString().trim(), owner: owner });
             addAudit('risk.created', { title: title });
             renderGovernance();
           }
@@ -2818,7 +4589,7 @@
           if (title) {
             const owner = (fd.get('owner') || '').toString().trim();
             upsertManager(owner);
-            state.issues.push({ id: uid(), project_id: state.selected_project_id, title: title, priority: (fd.get('priority') || '').toString().trim(), status: (fd.get('status') || '').toString().trim(), owner: owner });
+            state.issues.push({ id: uid(), project_id: state.selected_project_id, title: title, priority: issuePriorityCode(fd.get('priority')), status: issueStatusCode(fd.get('status')), owner: owner });
             addAudit('issue.created', { title: title });
             renderGovernance();
           }
@@ -2832,14 +4603,14 @@
         } else if (kind === 'change') {
           const title = (fd.get('title') || '').toString().trim();
           if (title) {
-            state.changes.push({ id: uid(), project_id: state.selected_project_id, title: title, impact: (fd.get('impact') || '').toString().trim(), status: ((fd.get('status') || '').toString().trim() || 'draft'), version: 1, approved_at: null });
+            state.changes.push({ id: uid(), project_id: state.selected_project_id, title: title, impact: changeImpactCode(fd.get('impact')), status: changeStatusCode(fd.get('status')), version: 1, approved_at: null });
             addAudit('change.created', { title: title });
             renderGovernance();
           }
         } else if (kind === 'document') {
           const title = (fd.get('title') || '').toString().trim();
           if (title) {
-            state.documents.push({ id: uid(), project_id: state.selected_project_id, title: title, kind: (fd.get('kind') || '').toString().trim(), url: (fd.get('url') || '').toString().trim() });
+            state.documents.push({ id: uid(), project_id: state.selected_project_id, title: title, kind: documentKindCode(fd.get('kind')), url: (fd.get('url') || '').toString().trim() });
             addAudit('document.created', { title: title });
             renderGovernance();
           }
@@ -2888,6 +4659,27 @@
         scheduleSave();
       });
 
+      document.getElementById('pm-governance-item-form')?.addEventListener('submit', function(e){
+        e.preventDefault();
+        if (!canWrite()) return;
+        const form = e.target;
+        const kind = (form.dataset.kind || '').toString();
+        const id = (form.dataset.id || '').toString();
+        const list = governanceCollection(kind);
+        if (!list || !id) return;
+        const row = list.find(function(x){ return String(x.id) === id; });
+        if (!row) return;
+        const fd = new FormData(form);
+        governanceFields(kind).forEach(function(f){
+          row[f.name] = governanceNormalize(kind, f.name, fd.get(f.name));
+        });
+        if (kind === 'risk' || kind === 'issue') upsertManager(row.owner || '');
+        if (kind === 'change' && !row.version) row.version = 1;
+        renderGovernance();
+        scheduleSave();
+        window.pmGovernanceItemModal.hide();
+      });
+
       projectSelect.addEventListener('change', function(){
         state.selected_project_id = projectSelect.value;
         renderSprintFilter();
@@ -2898,6 +4690,24 @@
         renderFinanceSummary();
         renderProductivityReport();
         if (canWrite()) scheduleSave();
+      });
+
+      document.getElementById('pm-toggle-left-nav')?.addEventListener('click', function(){
+        const hidden = document.body.classList.toggle('pm-left-nav-hidden');
+        localStorage.setItem('pm_left_nav_hidden', hidden ? '1' : '0');
+        const btn = document.getElementById('pm-toggle-left-nav');
+        if (btn) btn.textContent = hidden ? '{{ _('Afficher menu') }}' : '{{ _('Masquer menu') }}';
+      });
+
+      ['pm-report-owner-filter', 'pm-report-status-filter', 'pm-report-health-filter'].forEach(function(id){
+        document.getElementById(id)?.addEventListener('change', function(){
+          refreshReportingVisuals();
+        });
+      });
+
+      document.getElementById('pm-tutorial-dont-show')?.addEventListener('click', function(){
+        localStorage.setItem('pm_context_tutorial_hidden', '1');
+        pmContextualTutorialModal.hide();
       });
 
       document.getElementById('pm-sprint-filter')?.addEventListener('change', function(){
@@ -2960,6 +4770,10 @@
         ganttView.ownerFilter = (e.target.value || '').toString();
         renderGantt();
       });
+      document.getElementById('pm-gantt-health-filter')?.addEventListener('change', function(e){
+        ganttView.healthFilter = (e.target.value || 'all').toString();
+        renderGantt();
+      });
       document.getElementById('pm-gantt-show-baseline')?.addEventListener('change', function(e){
         ganttView.showBaseline = !!e.target.checked;
         renderGantt();
@@ -3020,8 +4834,10 @@
           tabBtnId = 'pm-tab-managers';
         } else if (hash.startsWith('#pm-section-governance') || hash.startsWith('#pm-section-risks') || hash.startsWith('#pm-section-change')) {
           tabBtnId = 'pm-tab-governance';
-        } else if (hash.startsWith('#pm-section-reporting') || hash.startsWith('#pm-section-gantt') || hash.startsWith('#pm-section-productivity')) {
+        } else if (hash.startsWith('#pm-section-reporting') || hash.startsWith('#pm-section-productivity')) {
           tabBtnId = 'pm-tab-reporting';
+        } else if (hash.startsWith('#pm-section-gantt') || hash.startsWith('#pm-section-versioning')) {
+          tabBtnId = 'pm-tab-gantt';
         } else if (hash.startsWith('#pm-section-notifications')) {
           tabBtnId = 'pm-tab-notifications';
         } else if (hash.startsWith('#pm-section-kanban') || hash.startsWith('#pm-section-ceremonies') || hash.startsWith('#pm-section-deliverables') || hash.startsWith('#pm-section-managers-shortcut')) {
@@ -3039,9 +4855,17 @@
       (async function init(){
         await load();
         ensureDefaults();
+        const navHidden = localStorage.getItem('pm_left_nav_hidden') === '1';
+        if (navHidden) document.body.classList.add('pm-left-nav-hidden');
+        const navToggleBtn = document.getElementById('pm-toggle-left-nav');
+        if (navToggleBtn) navToggleBtn.textContent = navHidden ? '{{ _('Afficher menu') }}' : '{{ _('Masquer menu') }}';
         initKanbanDropzones();
         renderAll();
         activateTabByHash();
+        const hideTutorial = localStorage.getItem('pm_context_tutorial_hidden') === '1';
+        if (!hideTutorial && projectVersionsForCurrent().length === 0) {
+          pmContextualTutorialModal.show();
+        }
         await saveNow();
       })();
     });

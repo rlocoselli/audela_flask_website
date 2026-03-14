@@ -97,7 +97,7 @@ class SubscriptionService:
             },
             "credit_starter": {
                 "name": "Audela Credit Starter",
-                "description": "Origination de credit pour petites equipes bancaires",
+                "description": "Origination de crédit pour petites équipes bancaires",
                 "price_monthly": "49.00",
                 "price_yearly": "468.00",
                 "trial_days": 30,
@@ -114,7 +114,7 @@ class SubscriptionService:
             },
             "credit_pro": {
                 "name": "Audela Credit Pro",
-                "description": "Origination de credit avancee avec workflow complet",
+                "description": "Origination de crédit avancée avec workflow complet",
                 "price_monthly": "119.00",
                 "price_yearly": "1140.00",
                 "trial_days": 30,

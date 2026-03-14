@@ -129,7 +129,7 @@ def dashboard():
     return render_template(
         "project/dashboard.html",
         tenant=g.tenant,
-        title="AUDELA Project",
+        title=_("AUDELA Projet"),
         is_tenant_admin=current_user.has_role("tenant_admin"),
     )
 

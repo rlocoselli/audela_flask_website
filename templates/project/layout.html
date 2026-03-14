@@ -14,23 +14,10 @@
     </button>
 
     <div class="collapse navbar-collapse" id="projectTopNav">
-      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-        {% if project_menu_access.dashboard %}<li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}">{{ _('Tableau Projet') }}</a></li>{% endif %}
-        {% if project_menu_access.kanban %}<li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-kanban">{{ _('Kanban') }}</a></li>{% endif %}
-        {% if project_menu_access.gantt %}<li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-gantt">{{ _('Gantt') }}</a></li>{% endif %}
-        {% if project_menu_access.managers %}<li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-managers">{{ _('Responsables') }}</a></li>{% endif %}
-        {% if project_menu_access.governance %}<li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-governance">{{ _('Cadrage PMO') }}</a></li>{% endif %}
-        {% if project_menu_access.risks %}<li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-risks">{{ _('Risques/Issues') }}</a></li>{% endif %}
-        {% if project_menu_access.change %}<li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-change">{{ _('Changements') }}</a></li>{% endif %}
-        {% if project_menu_access.reporting %}<li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-reporting">{{ _('Reporting') }}</a></li>{% endif %}
-        {% if project_menu_access.security %}<li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-security">{{ _('Paramètres') }}</a></li>{% endif %}
-        {% if project_menu_access.notifications %}<li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-notifications">{{ _('Notifications') }}</a></li>{% endif %}
-        {% if project_menu_access.productivity %}<li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-productivity">{{ _('Productivité') }}</a></li>{% endif %}
-        {% if project_menu_access.deliverables %}<li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-deliverables">{{ _('Livrables') }}</a></li>{% endif %}
-        {% if project_menu_access.ceremonies %}<li class="nav-item"><a class="nav-link" href="{{ url_for('project.dashboard') }}#pm-section-ceremonies">{{ _('Cérémonies') }}</a></li>{% endif %}
-      </ul>
+      <div class="me-auto"></div>
 
       <div class="d-flex align-items-center gap-2 project-top-actions flex-wrap">
+        <button class="btn btn-outline-secondary btn-sm" id="pm-toggle-left-nav" type="button">{{ _('Masquer menu') }}</button>
         <a class="btn btn-outline-primary btn-sm" href="{{ url_for('tenant.dashboard') }}">
           <i class="bi bi-arrow-left-circle me-1"></i>
           <span class="d-none d-md-inline">{{ _('Retour au dashboard tenant') }}</span>
