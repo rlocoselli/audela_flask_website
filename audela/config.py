@@ -21,6 +21,13 @@ class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-change-me")
     SITE_URL = os.environ.get("SITE_URL", "https://www.audeladedonnees.fr").rstrip("/")
     BRIDGE_CALLBACK_URL = os.environ.get("BRIDGE_CALLBACK_URL", "").strip()
+    BRIDGE_CLIENT_ID = os.environ.get("BRIDGE_CLIENT_ID", "")
+    BRIDGE_CLIENT_SECRET = os.environ.get("BRIDGE_CLIENT_SECRET", "")
+    BRIDGE_BASE_URL = os.environ.get("BRIDGE_BASE_URL", "https://api.bridgeapi.io").rstrip("/")
+    BRIDGE_VERSION = os.environ.get("BRIDGE_VERSION", "2025-01-15")
+    POWENS_CLIENT_ID = os.environ.get("POWENS_CLIENT_ID", "")
+    POWENS_CLIENT_SECRET = os.environ.get("POWENS_CLIENT_SECRET", "")
+    POWENS_WEBHOOK_SECRET = os.environ.get("POWENS_WEBHOOK_SECRET", "")
 
     if os.environ.get("DATABASE_URL"):
         SQLALCHEMY_DATABASE_URI = os.environ["DATABASE_URL"]
