@@ -15,6 +15,14 @@ on:
           - enable
           - disable
         default: keep
+      install_mode:
+        description: "Deployment mode"
+        required: true
+        type: choice
+        options:
+          - incremental
+          - full_install
+        default: incremental
 
 jobs:
   deploy:
@@ -30,6 +38,7 @@ jobs:
         continue-on-error: true
         env:
           SERVER_ENV_FILE: ${{ secrets.SERVER_ENV_FILE }}
+          INSTALL_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.install_mode || 'incremental' }}
           APP_RELEASE: ${{ github.sha }}
           GRAFANA_HOSTNAME: ${{ secrets.GRAFANA_HOSTNAME }}
           GRAFANA_HOSTNAME_ALT: ${{ secrets.GRAFANA_HOSTNAME_ALT }}
@@ -51,7 +60,7 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           timeout: 90s
           command_timeout: 40m
-          envs: SERVER_ENV_FILE,APP_RELEASE,GRAFANA_HOSTNAME,GRAFANA_HOSTNAME_ALT,SITE_URL,BRIDGE_CALLBACK_URL,BRIDGE_CLIENT_ID,BRIDGE_CLIENT_SECRET,BRIDGE_BASE_URL,BRIDGE_VERSION,POWENS_CLIENT_ID,POWENS_CLIENT_SECRET,POWENS_WEBHOOK_SECRET,ENCRYPTION_KEY
+          envs: SERVER_ENV_FILE,INSTALL_MODE,APP_RELEASE,GRAFANA_HOSTNAME,GRAFANA_HOSTNAME_ALT,SITE_URL,BRIDGE_CALLBACK_URL,BRIDGE_CLIENT_ID,BRIDGE_CLIENT_SECRET,BRIDGE_BASE_URL,BRIDGE_VERSION,POWENS_CLIENT_ID,POWENS_CLIENT_SECRET,POWENS_WEBHOOK_SECRET,ENCRYPTION_KEY
 
           script: &deploy_script |
             set -e
@@ -59,6 +68,15 @@ jobs:
 
             CELERY_ACTION="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.celery_action || 'keep' }}"
             echo "🧭 Celery action for this deploy: ${CELERY_ACTION}"
+            echo "🧭 Install mode for this deploy: ${INSTALL_MODE}"
+
+            case "${INSTALL_MODE}" in
+              incremental|full_install) ;;
+              *)
+                echo "⚠️ Unknown INSTALL_MODE='${INSTALL_MODE}', fallback to incremental"
+                INSTALL_MODE="incremental"
+                ;;
+            esac
 
             cd /root/audela_flask_website
 
@@ -66,8 +84,8 @@ jobs:
             git reset --hard
             git pull origin main
 
-            # Never run full install here (it rebuilds celery image too).
-            # This deploy job updates only web app service.
+            # Default mode is incremental (web app only), but workflow_dispatch
+            # can explicitly request full_install to run install.sh end-to-end.
             if [ ! -f .env ]; then
               echo "⚠️ .env missing on server"
               if [ -n "${SERVER_ENV_FILE}" ]; then
@@ -115,6 +133,11 @@ jobs:
             upsert_env_var "ENCRYPTION_KEY" "${ENCRYPTION_KEY}"
             chmod 600 .env || true
 
+            read_env_var () {
+              local key="$1"
+              grep -E "^${key}=" .env | tail -n1 | cut -d= -f2- || true
+            }
+
             # Diagnostics: confirm Bridge keys are effectively present in runtime env file.
             BRIDGE_ID_EFFECTIVE="$(grep -E '^BRIDGE_CLIENT_ID=' .env | tail -1 | cut -d= -f2- || true)"
             BRIDGE_SECRET_EFFECTIVE="$(grep -E '^BRIDGE_CLIENT_SECRET=' .env | tail -1 | cut -d= -f2- || true)"
@@ -126,13 +149,57 @@ jobs:
               exit 1
             fi
 
-            echo "⚡ Incremental deploy (audela only, skip celery image rebuild)"
             COMPOSE_CMD="docker compose"
             if ! docker compose version >/dev/null 2>&1; then
               COMPOSE_CMD="docker-compose"
             fi
-            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml build audela
-            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml up -d --no-deps audela
+
+            if [ "${INSTALL_MODE}" = "full_install" ]; then
+              echo "🧱 Full install requested -> running install.sh"
+              chmod +x ./install.sh
+
+              DB_HOST_FULL="$(read_env_var APP_HOST)"
+              DB_USER_FULL="$(read_env_var APP_USER)"
+              DB_PASSWORD_FULL="$(read_env_var APP_PASSWORD)"
+              OPENAI_KEY_FULL="$(read_env_var OPENAI_API_KEY)"
+              DB_NAME_FULL="$(read_env_var DB_NAME)"
+              DB_PORT_FULL="$(read_env_var DB_PORT)"
+              DATABASE_URL_FULL="$(read_env_var DATABASE_URL)"
+              MAIL_SERVER_FULL="$(read_env_var MAIL_SERVER)"
+              MAIL_PORT_FULL="$(read_env_var MAIL_PORT)"
+              MAIL_USE_TLS_FULL="$(read_env_var MAIL_USE_TLS)"
+              MAIL_USE_SSL_FULL="$(read_env_var MAIL_USE_SSL)"
+              MAIL_USERNAME_FULL="$(read_env_var MAIL_USERNAME)"
+              MAIL_PASSWORD_FULL="$(read_env_var MAIL_PASSWORD)"
+              MAIL_DEFAULT_SENDER_FULL="$(read_env_var MAIL_DEFAULT_SENDER)"
+
+              if [ -z "${DB_HOST_FULL}" ] || [ -z "${DB_USER_FULL}" ] || [ -z "${DB_PASSWORD_FULL}" ]; then
+                echo "❌ Full install requires APP_HOST/APP_USER/APP_PASSWORD in .env"
+                exit 1
+              fi
+              if [ -z "${DB_NAME_FULL}" ]; then DB_NAME_FULL="audela"; fi
+              if [ -z "${DB_PORT_FULL}" ]; then DB_PORT_FULL="5432"; fi
+
+              ./install.sh \
+                "${DB_HOST_FULL}" \
+                "${DB_USER_FULL}" \
+                "${DB_PASSWORD_FULL}" \
+                "${OPENAI_KEY_FULL}" \
+                "${DB_NAME_FULL}" \
+                "${DB_PORT_FULL}" \
+                "${DATABASE_URL_FULL}" \
+                "${MAIL_SERVER_FULL}" \
+                "${MAIL_PORT_FULL}" \
+                "${MAIL_USE_TLS_FULL}" \
+                "${MAIL_USE_SSL_FULL}" \
+                "${MAIL_USERNAME_FULL}" \
+                "${MAIL_PASSWORD_FULL}" \
+                "${MAIL_DEFAULT_SENDER_FULL}"
+            else
+              echo "⚡ Incremental deploy (audela only, skip celery image rebuild)"
+              $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml build audela
+              $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml up -d --no-deps audela
+            fi
 
             echo "🗃️ Apply DB migrations"
             # RUN_MIGRATIONS=1 is already set on container startup; this explicit step
@@ -333,28 +400,36 @@ jobs:
             echo "🔄 Final restart of audela container"
             $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml up -d --no-deps --force-recreate audela
 
-            echo "🧪 Verify served release header"
+            echo "🧪 Verify served release header (direct app + routed endpoint)"
+
+            # 1) Direct app check (bypass Traefik redirects) to avoid false negatives.
+            APP_HDRS="$($COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela sh -lc 'curl -sSI http://localhost:8000/finance/banks || true')"
+            APP_RELEASE_HEADER="$(printf "%s" "${APP_HDRS}" | awk -F': ' 'tolower($1)=="x-app-release"{print $2}' | tr -d '\r' | tail -n1)"
+            APP_SERVER_HEADER="$(printf "%s" "${APP_HDRS}" | awk -F': ' 'tolower($1)=="server"{print $2}' | tr -d '\r' | tail -n1)"
+
+            echo "ℹ️ Direct app server header: ${APP_SERVER_HEADER:-<missing>}"
+            echo "ℹ️ Direct app X-App-Release: ${APP_RELEASE_HEADER:-<missing>}"
+            echo "ℹ️ Expected APP_RELEASE: ${APP_RELEASE}"
+
+            if [ -z "${APP_RELEASE_HEADER}" ]; then
+              echo "❌ Missing X-App-Release header from app container response."
+              exit 1
+            fi
+            if [ "${APP_RELEASE_HEADER}" != "${APP_RELEASE}" ]; then
+              echo "❌ App release mismatch. Expected ${APP_RELEASE}, got ${APP_RELEASE_HEADER}."
+              echo "   A stale image/container may still be running."
+              exit 1
+            fi
+
+            # 2) Routed endpoint check (informational only): may be HTTP->HTTPS redirected by Traefik.
             CHECK_HOST="$(printf "%s" "${SITE_URL}" | sed -E 's#^https?://([^/]+).*$#\1#')"
             if [ -z "${CHECK_HOST}" ]; then
               CHECK_HOST="audeladedonnees.fr"
             fi
+            ROUTED_HDRS="$(curl -ksSI -H "Host: ${CHECK_HOST}" https://127.0.0.1/finance/banks || true)"
+            ROUTED_RELEASE="$(printf "%s" "${ROUTED_HDRS}" | awk -F': ' 'tolower($1)=="x-app-release"{print $2}' | tr -d '\r' | tail -n1)"
+            echo "ℹ️ Routed HTTPS X-App-Release: ${ROUTED_RELEASE:-<missing>}"
 
-            HDRS="$(curl -sSI -H "Host: ${CHECK_HOST}" http://127.0.0.1/finance/banks || true)"
-            SERVED_RELEASE="$(printf "%s" "${HDRS}" | awk -F': ' 'tolower($1)=="x-app-release"{print $2}' | tr -d '\r' | tail -n1)"
-            SERVED_SERVER="$(printf "%s" "${HDRS}" | awk -F': ' 'tolower($1)=="server"{print $2}' | tr -d '\r' | tail -n1)"
-            echo "ℹ️ Response server header: ${SERVED_SERVER:-<missing>}"
-            echo "ℹ️ Response X-App-Release: ${SERVED_RELEASE:-<missing>}"
-            echo "ℹ️ Expected APP_RELEASE: ${APP_RELEASE}"
-
-            if [ -z "${SERVED_RELEASE}" ]; then
-              echo "❌ Missing X-App-Release header from served app. A stale instance may still be answering."
-              exit 1
-            fi
-            if [ "${SERVED_RELEASE}" != "${APP_RELEASE}" ]; then
-              echo "❌ Served release mismatch. Expected ${APP_RELEASE}, got ${SERVED_RELEASE}."
-              echo "   Check for multiple running app instances or outdated reverse proxy target."
-              exit 1
-            fi
             echo "✅ Served release header matches deployed commit"
 
             echo "✅ Deploy completed"
@@ -364,6 +439,7 @@ jobs:
         if: steps.deploy_ssh_1.outcome == 'failure'
         env:
           SERVER_ENV_FILE: ${{ secrets.SERVER_ENV_FILE }}
+          INSTALL_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.install_mode || 'incremental' }}
           APP_RELEASE: ${{ github.sha }}
           GRAFANA_HOSTNAME: ${{ secrets.GRAFANA_HOSTNAME }}
           GRAFANA_HOSTNAME_ALT: ${{ secrets.GRAFANA_HOSTNAME_ALT }}
@@ -385,7 +461,7 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           timeout: 90s
           command_timeout: 40m
-          envs: SERVER_ENV_FILE,APP_RELEASE,GRAFANA_HOSTNAME,GRAFANA_HOSTNAME_ALT,SITE_URL,BRIDGE_CALLBACK_URL,BRIDGE_CLIENT_ID,BRIDGE_CLIENT_SECRET,BRIDGE_BASE_URL,BRIDGE_VERSION,POWENS_CLIENT_ID,POWENS_CLIENT_SECRET,POWENS_WEBHOOK_SECRET,ENCRYPTION_KEY
+          envs: SERVER_ENV_FILE,INSTALL_MODE,APP_RELEASE,GRAFANA_HOSTNAME,GRAFANA_HOSTNAME_ALT,SITE_URL,BRIDGE_CALLBACK_URL,BRIDGE_CLIENT_ID,BRIDGE_CLIENT_SECRET,BRIDGE_BASE_URL,BRIDGE_VERSION,POWENS_CLIENT_ID,POWENS_CLIENT_SECRET,POWENS_WEBHOOK_SECRET,ENCRYPTION_KEY
           script: *deploy_script
 
       - name: Fail if SSH deploy failed twice

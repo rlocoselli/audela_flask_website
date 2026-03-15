@@ -176,34 +176,127 @@ class BridgeClient:
             payload = {"text": r.text}
         raise BridgeError(f"Bridge API error {r.status_code}: {payload}")
 
+    @staticmethod
+    def _extract_error_codes(payload: Any) -> List[str]:
+        out: List[str] = []
+        if isinstance(payload, dict):
+            errors = payload.get("errors")
+            if isinstance(errors, list):
+                for e in errors:
+                    if isinstance(e, dict):
+                        c = str(e.get("code") or "").strip().lower()
+                        if c:
+                            out.append(c)
+        return out
+
+    @classmethod
+    def _is_invalid_body_error(cls, r: requests.Response) -> bool:
+        if r.status_code != 400:
+            return False
+        try:
+            payload = r.json()
+        except Exception:
+            payload = {"text": r.text}
+
+        codes = cls._extract_error_codes(payload)
+        if any(c in {"invalid_request", "invalid_body", "bad_request"} for c in codes):
+            text_blob = json.dumps(payload, ensure_ascii=False).lower()
+            return "invalid body" in text_blob or "body content" in text_blob or "invalid_request" in text_blob
+        return False
+
+    @staticmethod
+    def _compact_body(body: Dict[str, Any]) -> Dict[str, Any]:
+        compact: Dict[str, Any] = {}
+        for k, v in body.items():
+            if v is None:
+                continue
+            if isinstance(v, str):
+                vv = v.strip()
+                if vv == "":
+                    continue
+                compact[k] = vv
+            else:
+                compact[k] = v
+        return compact
+
     def create_user(self, external_user_id: Optional[str] = None, email: Optional[str] = None) -> Dict[str, Any]:
         url = f"{self.base_url}/v3/aggregation/users"
-        body: Dict[str, Any] = {}
-        if external_user_id:
-            body["external_user_id"] = external_user_id
-        if email:
-            body["email"] = email
-        r = requests.post(url, headers=self._headers(), data=json.dumps(body))
-        # If user already exists, Bridge may respond with 409; in that case, we proceed.
-        if r.status_code in (200, 201):
-            return r.json()
-        if r.status_code == 409:
-            return {"status": "exists"}
-        self._raise_for(r)
+        candidate_bodies = [
+            {"external_user_id": external_user_id, "email": email},
+            {"external_user_id": external_user_id},
+            {"externalUserId": external_user_id, "email": email},
+            {"externalUserId": external_user_id},
+            {"email": email},
+            {},
+        ]
+
+        attempted_signatures: set[str] = set()
+        for raw_body in candidate_bodies:
+            body = self._compact_body(raw_body)
+            signature = ",".join(sorted(body.keys())) or "<empty>"
+            if signature in attempted_signatures:
+                continue
+            attempted_signatures.add(signature)
+
+            r = requests.post(url, headers=self._headers(), data=json.dumps(body))
+            # If user already exists, Bridge may respond with 409; in that case, we proceed.
+            if r.status_code in (200, 201):
+                return r.json()
+            if r.status_code == 409:
+                return {"status": "exists"}
+            if self._is_invalid_body_error(r):
+                current_app.logger.warning(
+                    "Bridge create_user rejected payload shape=%s status=%s",
+                    signature,
+                    r.status_code,
+                )
+                continue
+            self._raise_for(r)
+
+        raise BridgeError("Bridge API error 400: invalid body content (create_user payload shapes exhausted)")
         return {}
 
     def get_user_token(self, *, user_uuid: Optional[str] = None, external_user_id: Optional[str] = None) -> Tuple[str, Optional[datetime]]:
         url = f"{self.base_url}/v3/aggregation/authorization/token"
-        body: Dict[str, Any] = {}
-        if user_uuid:
-            body["user_uuid"] = user_uuid
-        elif external_user_id:
-            body["external_user_id"] = external_user_id
-        else:
+        if not user_uuid and not external_user_id:
             raise BridgeError("Missing user_uuid or external_user_id")
-        r = requests.post(url, headers=self._headers(), data=json.dumps(body))
-        self._raise_for(r)
-        data = r.json()
+
+        candidate_bodies = []
+        if user_uuid:
+            candidate_bodies.extend([
+                {"user_uuid": user_uuid},
+                {"userUuid": user_uuid},
+            ])
+        if external_user_id:
+            candidate_bodies.extend([
+                {"external_user_id": external_user_id},
+                {"externalUserId": external_user_id},
+            ])
+
+        attempted_signatures: set[str] = set()
+        data: Dict[str, Any] = {}
+        for raw_body in candidate_bodies:
+            body = self._compact_body(raw_body)
+            signature = ",".join(sorted(body.keys())) or "<empty>"
+            if signature in attempted_signatures:
+                continue
+            attempted_signatures.add(signature)
+
+            r = requests.post(url, headers=self._headers(), data=json.dumps(body))
+            if r.ok:
+                data = r.json()
+                break
+            if self._is_invalid_body_error(r):
+                current_app.logger.warning(
+                    "Bridge get_user_token rejected payload shape=%s status=%s",
+                    signature,
+                    r.status_code,
+                )
+                continue
+            self._raise_for(r)
+        else:
+            raise BridgeError("Bridge API error 400: invalid body content (get_user_token payload shapes exhausted)")
+
         token = data.get("access_token")
         exp = data.get("expires_at")
         exp_dt = None
@@ -216,14 +309,41 @@ class BridgeClient:
 
     def create_connect_session(self, *, bearer: str, user_email: str, callback_url: Optional[str] = None, context: Optional[str] = None) -> Dict[str, Any]:
         url = f"{self.base_url}/v3/aggregation/connect-sessions"
-        body: Dict[str, Any] = {"user_email": user_email}
-        if callback_url:
-            body["callback_url"] = callback_url
-        if context:
-            body["context"] = context
-        r = requests.post(url, headers=self._headers(bearer=bearer), data=json.dumps(body))
-        self._raise_for(r)
-        return r.json()
+        candidate_bodies = [
+            {"user_email": user_email, "callback_url": callback_url, "context": context},
+            {"user_email": user_email, "callback_url": callback_url},
+            {"user_email": user_email, "redirect_url": callback_url, "context": context},
+            {"user_email": user_email, "redirect_url": callback_url},
+            {"email": user_email, "callback_url": callback_url},
+            {"email": user_email, "redirect_url": callback_url},
+            {"callback_url": callback_url, "context": context},
+            {"callback_url": callback_url},
+            {"redirect_url": callback_url, "state": context},
+            {"redirect_url": callback_url},
+            {},
+        ]
+
+        attempted_signatures: set[str] = set()
+        for raw_body in candidate_bodies:
+            body = self._compact_body(raw_body)
+            signature = ",".join(sorted(body.keys())) or "<empty>"
+            if signature in attempted_signatures:
+                continue
+            attempted_signatures.add(signature)
+
+            r = requests.post(url, headers=self._headers(bearer=bearer), data=json.dumps(body))
+            if r.ok:
+                return r.json()
+            if self._is_invalid_body_error(r):
+                current_app.logger.warning(
+                    "Bridge create_connect_session rejected payload shape=%s status=%s",
+                    signature,
+                    r.status_code,
+                )
+                continue
+            self._raise_for(r)
+
+        raise BridgeError("Bridge API error 400: invalid body content (connect_session payload shapes exhausted)")
 
     def list_accounts(self, *, bearer: str, item_id: str) -> List[Dict[str, Any]]:
         url = f"{self.base_url}/v3/aggregation/accounts"
