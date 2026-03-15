@@ -35,13 +35,13 @@ jobs:
           GRAFANA_HOSTNAME_ALT: ${{ secrets.GRAFANA_HOSTNAME_ALT }}
           SITE_URL: ${{ vars.SITE_URL || 'https://audeladedonnees.fr' }}
           BRIDGE_CALLBACK_URL: ${{ vars.BRIDGE_CALLBACK_URL || 'https://audeladedonnees.fr/finance/banks/callback' }}
-          BRIDGE_CLIENT_ID: ${{ secrets.BRIDGE_CLIENT_ID }}
-          BRIDGE_CLIENT_SECRET: ${{ secrets.BRIDGE_CLIENT_SECRET }}
+          BRIDGE_CLIENT_ID: ${{ secrets.BRIDGE_CLIENT_ID || vars.BRIDGE_CLIENT_ID || '' }}
+          BRIDGE_CLIENT_SECRET: ${{ secrets.BRIDGE_CLIENT_SECRET || vars.BRIDGE_CLIENT_SECRET || '' }}
           BRIDGE_BASE_URL: ${{ vars.BRIDGE_BASE_URL || 'https://api.bridgeapi.io' }}
           BRIDGE_VERSION: ${{ vars.BRIDGE_VERSION || '2025-01-15' }}
-          POWENS_CLIENT_ID: ${{ secrets.POWENS_CLIENT_ID }}
-          POWENS_CLIENT_SECRET: ${{ secrets.POWENS_CLIENT_SECRET }}
-          POWENS_WEBHOOK_SECRET: ${{ secrets.POWENS_WEBHOOK_SECRET }}
+          POWENS_CLIENT_ID: ${{ secrets.POWENS_CLIENT_ID || vars.POWENS_CLIENT_ID || '' }}
+          POWENS_CLIENT_SECRET: ${{ secrets.POWENS_CLIENT_SECRET || vars.POWENS_CLIENT_SECRET || '' }}
+          POWENS_WEBHOOK_SECRET: ${{ secrets.POWENS_WEBHOOK_SECRET || vars.POWENS_WEBHOOK_SECRET || '' }}
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -345,13 +345,13 @@ jobs:
           GRAFANA_HOSTNAME_ALT: ${{ secrets.GRAFANA_HOSTNAME_ALT }}
           SITE_URL: ${{ vars.SITE_URL || 'https://audeladedonnees.fr' }}
           BRIDGE_CALLBACK_URL: ${{ vars.BRIDGE_CALLBACK_URL || 'https://audeladedonnees.fr/finance/banks/callback' }}
-          BRIDGE_CLIENT_ID: ${{ secrets.BRIDGE_CLIENT_ID }}
-          BRIDGE_CLIENT_SECRET: ${{ secrets.BRIDGE_CLIENT_SECRET }}
+          BRIDGE_CLIENT_ID: ${{ secrets.BRIDGE_CLIENT_ID || vars.BRIDGE_CLIENT_ID || '' }}
+          BRIDGE_CLIENT_SECRET: ${{ secrets.BRIDGE_CLIENT_SECRET || vars.BRIDGE_CLIENT_SECRET || '' }}
           BRIDGE_BASE_URL: ${{ vars.BRIDGE_BASE_URL || 'https://api.bridgeapi.io' }}
           BRIDGE_VERSION: ${{ vars.BRIDGE_VERSION || '2025-01-15' }}
-          POWENS_CLIENT_ID: ${{ secrets.POWENS_CLIENT_ID }}
-          POWENS_CLIENT_SECRET: ${{ secrets.POWENS_CLIENT_SECRET }}
-          POWENS_WEBHOOK_SECRET: ${{ secrets.POWENS_WEBHOOK_SECRET }}
+          POWENS_CLIENT_ID: ${{ secrets.POWENS_CLIENT_ID || vars.POWENS_CLIENT_ID || '' }}
+          POWENS_CLIENT_SECRET: ${{ secrets.POWENS_CLIENT_SECRET || vars.POWENS_CLIENT_SECRET || '' }}
+          POWENS_WEBHOOK_SECRET: ${{ secrets.POWENS_WEBHOOK_SECRET || vars.POWENS_WEBHOOK_SECRET || '' }}
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
         uses: appleboy/ssh-action@v1.0.3
         with:
