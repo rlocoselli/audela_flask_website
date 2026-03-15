@@ -5,7 +5,7 @@ from io import StringIO
 import traceback
 from urllib.parse import urljoin
 
-from flask import Response, current_app, redirect, render_template, request, session, url_for, flash, jsonify, g
+from flask import Response, current_app, redirect, render_template, request, session, url_for, flash, jsonify, g, make_response
 from flask_login import current_user
 
 from ...extensions import db
@@ -629,18 +629,27 @@ def index():
 def e_learning():
     lang = normalize_lang(getattr(g, "lang", session.get("lang")))
     copy = ELEARNING_COPY.get(lang, ELEARNING_COPY[DEFAULT_LANG])
-    return render_template(
+    response = make_response(render_template(
         "e_learning.html",
         t=copy,
         examples=list(ELEARNING_EXAMPLES.values()),
-    )
+    ))
+    # Ensure latest content is served after deploy (avoid stale page from browser/proxy caches).
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 
 @bp.route("/e-learning/lab")
 def e_learning_lab():
     lang = normalize_lang(getattr(g, "lang", session.get("lang")))
     copy = ELEARNING_COPY.get(lang, ELEARNING_COPY[DEFAULT_LANG])
-    return render_template("e_learning_lab.html", t=copy)
+    response = make_response(render_template("e_learning_lab.html", t=copy))
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 
 def _run_python_code(code: str, allow_imports: bool = False) -> tuple[bool, str, str]:

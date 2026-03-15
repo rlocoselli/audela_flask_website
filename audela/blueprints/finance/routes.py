@@ -16,7 +16,7 @@ import requests
 from pathlib import Path
 from urllib.parse import urlparse
 
-from flask import abort, flash, g, redirect, render_template, request, session, url_for, current_app, jsonify, send_file
+from flask import abort, flash, g, redirect, render_template, request, session, url_for, current_app, jsonify, send_file, make_response
 from flask_login import current_user, login_required
 from werkzeug.utils import secure_filename
 from sqlalchemy.orm import joinedload
@@ -4058,7 +4058,7 @@ def banks():
         .order_by(FinanceBankConnection.created_at.desc())
         .all()
     )
-    return render_template(
+    response = make_response(render_template(
         "finance/banks.html",
         tenant=g.tenant,
         company=company,
@@ -4066,7 +4066,12 @@ def banks():
         bridge_missing_keys=bridge_missing_keys,
         company_accounts=company_accounts,
         connections=connections,
-    )
+    ))
+    # Avoid stale admin/ops pages after deploy and config updates.
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 
 @bp.route("/banks/<int:conn_id>/links/<int:link_id>/map", methods=["POST"])
