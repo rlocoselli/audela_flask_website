@@ -40,18 +40,66 @@ class BridgeClient:
                 or default
             )
 
+        def _pick_with_source(name: str, default: str = "") -> Tuple[str, str]:
+            for source_name, raw_val in (
+                ("config", cfg.get(name)),
+                ("env", os.environ.get(name)),
+                ("dotenv", env_file_values.get(name)),
+            ):
+                val = str(raw_val or "").strip()
+                if val:
+                    return val, source_name
+            return default, "default"
+
         self.base_url = (
             _pick("BRIDGE_BASE_URL", "https://api.bridgeapi.io")
         ).rstrip("/")
 
+        bridge_client_id, bridge_client_id_source = _pick_with_source("BRIDGE_CLIENT_ID")
+        bridge_client_secret, bridge_client_secret_source = _pick_with_source("BRIDGE_CLIENT_SECRET")
+        powens_client_id, powens_client_id_source = _pick_with_source("POWENS_CLIENT_ID")
+        powens_client_secret, powens_client_secret_source = _pick_with_source("POWENS_CLIENT_SECRET")
+
         # Compat: some deployments still expose Powens naming.
         # Prefer BRIDGE_* but fallback to POWENS_* when needed.
-        self.client_id = _pick("BRIDGE_CLIENT_ID") or _pick("POWENS_CLIENT_ID")
-        self.client_secret = _pick("BRIDGE_CLIENT_SECRET") or _pick("POWENS_CLIENT_SECRET")
+        self.client_id = bridge_client_id or powens_client_id
+        self.client_secret = bridge_client_secret or powens_client_secret
         self.version = _pick("BRIDGE_VERSION", "2025-01-15")
 
+        self._client_id_source = (
+            f"BRIDGE_CLIENT_ID@{bridge_client_id_source}"
+            if bridge_client_id
+            else f"POWENS_CLIENT_ID@{powens_client_id_source}"
+            if powens_client_id
+            else "missing"
+        )
+        self._client_secret_source = (
+            f"BRIDGE_CLIENT_SECRET@{bridge_client_secret_source}"
+            if bridge_client_secret
+            else f"POWENS_CLIENT_SECRET@{powens_client_secret_source}"
+            if powens_client_secret
+            else "missing"
+        )
+        self._config_diagnostics = {
+            "BRIDGE_CLIENT_ID": self._source_diagnostics("BRIDGE_CLIENT_ID", cfg, env_file_values),
+            "BRIDGE_CLIENT_SECRET": self._source_diagnostics("BRIDGE_CLIENT_SECRET", cfg, env_file_values),
+            "POWENS_CLIENT_ID": self._source_diagnostics("POWENS_CLIENT_ID", cfg, env_file_values),
+            "POWENS_CLIENT_SECRET": self._source_diagnostics("POWENS_CLIENT_SECRET", cfg, env_file_values),
+            "selected": {
+                "client_id": self._client_id_source,
+                "client_secret": self._client_secret_source,
+            },
+        }
+
     def is_configured(self) -> bool:
-        return bool(self.client_id and self.client_secret)
+        configured = bool(self.client_id and self.client_secret)
+        if not configured:
+            current_app.logger.warning(
+                "BridgeClient is_configured=False missing=%s diagnostics=%s",
+                ", ".join(self.missing_config_keys()) or "unknown",
+                self._config_diagnostics,
+            )
+        return configured
 
     def missing_config_keys(self) -> List[str]:
         missing: List[str] = []
@@ -60,6 +108,26 @@ class BridgeClient:
         if not self.client_secret:
             missing.append("BRIDGE_CLIENT_SECRET (ou POWENS_CLIENT_SECRET)")
         return missing
+
+    @staticmethod
+    def _safe_value_state(raw_val: Any) -> str:
+        if raw_val is None:
+            return "missing"
+        text = str(raw_val)
+        if text == "":
+            return "empty"
+        trimmed = text.strip()
+        if not trimmed:
+            return "blank"
+        return f"set(len={len(trimmed)})"
+
+    @classmethod
+    def _source_diagnostics(cls, key: str, cfg: Any, env_file_values: Dict[str, str]) -> Dict[str, str]:
+        return {
+            "config": cls._safe_value_state(cfg.get(key)),
+            "env": cls._safe_value_state(os.environ.get(key)),
+            "dotenv": cls._safe_value_state(env_file_values.get(key)),
+        }
 
     @staticmethod
     def _read_project_env_file() -> Dict[str, str]:
