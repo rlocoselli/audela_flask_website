@@ -43,8 +43,11 @@ class BridgeClient:
         self.base_url = (
             _pick("BRIDGE_BASE_URL", "https://api.bridgeapi.io")
         ).rstrip("/")
-        self.client_id = _pick("BRIDGE_CLIENT_ID")
-        self.client_secret = _pick("BRIDGE_CLIENT_SECRET")
+
+        # Compat: some deployments still expose Powens naming.
+        # Prefer BRIDGE_* but fallback to POWENS_* when needed.
+        self.client_id = _pick("BRIDGE_CLIENT_ID") or _pick("POWENS_CLIENT_ID")
+        self.client_secret = _pick("BRIDGE_CLIENT_SECRET") or _pick("POWENS_CLIENT_SECRET")
         self.version = _pick("BRIDGE_VERSION", "2025-01-15")
 
     def is_configured(self) -> bool:
@@ -53,9 +56,9 @@ class BridgeClient:
     def missing_config_keys(self) -> List[str]:
         missing: List[str] = []
         if not self.client_id:
-            missing.append("BRIDGE_CLIENT_ID")
+            missing.append("BRIDGE_CLIENT_ID (ou POWENS_CLIENT_ID)")
         if not self.client_secret:
-            missing.append("BRIDGE_CLIENT_SECRET")
+            missing.append("BRIDGE_CLIENT_SECRET (ou POWENS_CLIENT_SECRET)")
         return missing
 
     @staticmethod

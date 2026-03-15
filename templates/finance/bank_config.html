@@ -97,6 +97,9 @@
                         </a>
                         {% if not bridge_configured %}
                             <small class="text-warning d-block mt-2">{{ _('API bancária não configurada') }}</small>
+                            {% if bridge_missing_keys %}
+                                <small class="text-warning d-block">{{ _('Chaves ausentes detectadas:') }} <code>{{ bridge_missing_keys|join(', ') }}</code></small>
+                            {% endif %}
                         {% endif %}
                     </div>
 

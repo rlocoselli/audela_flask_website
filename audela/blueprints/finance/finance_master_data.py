@@ -692,7 +692,9 @@ def bank_config():
         if account.iban:
             account.formatted_iban = IBANValidator.format_iban(account.iban)
 
-    bridge_configured = BridgeClient().is_configured()
+    bridge = BridgeClient()
+    bridge_configured = bridge.is_configured()
+    bridge_missing_keys = bridge.missing_config_keys()
     
     return render_template(
         'finance/bank_config.html',
@@ -700,6 +702,7 @@ def bank_config():
         config=config,
         accounts=accounts,
         bridge_configured=bridge_configured,
+        bridge_missing_keys=bridge_missing_keys,
     )
 
 
