@@ -19,6 +19,7 @@ from ...models.finance_ext import FinanceCategory, FinanceProduct
 from ...i18n import DEFAULT_LANG, tr
 from ...tenancy import enforce_subscription_access_or_redirect, get_current_tenant_id
 from ...services.bank_configuration_service import IBANValidator, BankConfigurationService
+from ...services.bank_bridge import BridgeClient
 from ...security import require_roles
 
 
@@ -690,12 +691,15 @@ def bank_config():
     for account in accounts:
         if account.iban:
             account.formatted_iban = IBANValidator.format_iban(account.iban)
+
+    bridge_configured = BridgeClient().is_configured()
     
     return render_template(
         'finance/bank_config.html',
         company=company,
         config=config,
-        accounts=accounts
+        accounts=accounts,
+        bridge_configured=bridge_configured,
     )
 
 

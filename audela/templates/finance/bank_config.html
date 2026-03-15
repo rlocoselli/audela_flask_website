@@ -86,10 +86,18 @@
                     </div>
 
                     <div class="mb-3">
-                        <a href="{{ url_for('finance_master.bank_config', company_id=company.id) }}" 
-                           class="btn btn-success w-100">
-                            <i class="fas fa-plug"></i> {{ _('Conectar um banco') }}
+                        <form method="POST" action="{{ url_for('finance.banks_connect') }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                            <button type="submit" class="btn btn-success w-100" {% if not bridge_configured %}disabled{% endif %}>
+                                <i class="fas fa-plug"></i> {{ _('Conectar um banco') }}
+                            </button>
+                        </form>
+                        <a href="{{ url_for('finance.banks') }}" class="btn btn-outline-secondary w-100 mt-2">
+                            <i class="fas fa-external-link-alt"></i> {{ _('Abrir gestão bancária') }}
                         </a>
+                        {% if not bridge_configured %}
+                            <small class="text-warning d-block mt-2">{{ _('API bancária não configurada') }}</small>
+                        {% endif %}
                     </div>
 
                     <div class="list-group">
