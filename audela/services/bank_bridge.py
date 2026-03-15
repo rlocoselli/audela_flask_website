@@ -204,6 +204,22 @@ class BridgeClient:
             return "invalid body" in text_blob or "body content" in text_blob or "invalid_request" in text_blob
         return False
 
+    @classmethod
+    def _is_context_invalid_error(cls, r: requests.Response) -> bool:
+        if r.status_code != 400:
+            return False
+        try:
+            payload = r.json()
+        except Exception:
+            payload = {"text": r.text}
+
+        codes = cls._extract_error_codes(payload)
+        if "connect_session.context_invalid" in codes:
+            return True
+
+        text_blob = json.dumps(payload, ensure_ascii=False).lower()
+        return "context_invalid" in text_blob and "context" in text_blob
+
     @staticmethod
     def _compact_body(body: Dict[str, Any]) -> Dict[str, Any]:
         compact: Dict[str, Any] = {}
@@ -337,6 +353,13 @@ class BridgeClient:
             if self._is_invalid_body_error(r):
                 current_app.logger.warning(
                     "Bridge create_connect_session rejected payload shape=%s status=%s",
+                    signature,
+                    r.status_code,
+                )
+                continue
+            if ("context" in body or "state" in body) and self._is_context_invalid_error(r):
+                current_app.logger.warning(
+                    "Bridge create_connect_session rejected context/state payload shape=%s status=%s; retrying without context/state",
                     signature,
                     r.status_code,
                 )

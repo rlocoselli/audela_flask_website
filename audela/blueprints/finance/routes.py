@@ -4043,6 +4043,11 @@ def _bridge_external_user_id(tenant_id: int, user_id: int) -> str:
     return f"t{int(tenant_id)}_u{int(user_id)}"
 
 
+def _bridge_connect_context(tenant_id: int, company_id: int, user_id: int) -> str:
+    # Bridge connect_session.context accepts only letters and numbers.
+    return f"t{int(tenant_id)}c{int(company_id)}u{int(user_id)}"
+
+
 def _looks_like_invalid_external_user_id(err: Exception) -> bool:
     text = str(err or "").lower()
     return "invalid_external_user_id" in text or "invalid user external id" in text
@@ -4157,7 +4162,7 @@ def banks_connect():
             bearer=bearer,
             user_email=getattr(current_user, "email", "user@audela.local"),
             callback_url=callback,
-            context=f"company:{company.id}",
+            context=_bridge_connect_context(g.tenant.id, company.id, current_user.id),
         )
         connect_url = sess.get("redirect_url") or sess.get("url") or sess.get("connect_url")
         if not connect_url:
