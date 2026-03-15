@@ -4242,24 +4242,48 @@ def _auto_reconcile_invoice_payment(company: FinanceCompany, txn: FinanceTransac
 @login_required
 @require_roles("tenant_admin", "creator")
 def banks_sync(conn_id: int):
+    wants_json = (
+        request.is_json
+        or (request.args.get("format") or "").strip().lower() == "json"
+        or "application/json" in (request.headers.get("Accept") or "")
+    )
+
+    payload = request.get_json(silent=True) if request.is_json else {}
+
+    def _json_or_redirect_error(msg: str, status_code: int = 400):
+        if wants_json:
+            return jsonify({"ok": False, "error": msg}), status_code
+        flash(msg, "error")
+        return redirect(url_for("finance.banks"))
+
     company = _get_company()
     conn = FinanceBankConnection.query.filter_by(id=conn_id, tenant_id=g.tenant.id, company_id=company.id).first_or_404()
+
     link_id = request.form.get("link_id", type=int)
+    if link_id is None:
+        link_id = request.args.get("link_id", type=int)
+    if link_id is None and isinstance(payload, dict):
+        raw_link_id = payload.get("link_id")
+        if raw_link_id not in (None, ""):
+            try:
+                link_id = int(raw_link_id)
+            except Exception:
+                link_id = None
 
     if conn.provider != "bridge":
-        flash(_("Provedor não suportado."), "error")
-        return redirect(url_for("finance.banks"))
+        return _json_or_redirect_error(_("Provedor não suportado."), 400)
 
     bridge = BridgeClient()
     if not bridge.is_configured():
-        flash(_("API bancária não configurada."), "error")
-        return redirect(url_for("finance.banks"))
+        return _json_or_redirect_error(_("API bancária não configurada."), 503)
 
     try:
         allowed, remaining, current_count, max_limit = _transaction_quota_info()
         if not allowed or remaining <= 0:
-            flash(_("Limite de transações do plano atingida ({current}/{max}).", current=current_count, max=max_limit), "error")
-            return redirect(url_for("finance.banks"))
+            return _json_or_redirect_error(
+                _("Limite de transações do plano atingida ({current}/{max}).", current=current_count, max=max_limit),
+                429,
+            )
 
         bearer, _exp = bridge.get_user_token(external_user_id=conn.external_user_id)
         accounts = bridge.list_accounts(bearer=bearer, item_id=conn.item_id)
@@ -4274,8 +4298,7 @@ def banks_sync(conn_id: int):
                 connection_id=conn.id,
             ).first()
             if not link_scope:
-                flash(_("Conta bancária vinculada não encontrada para esta conexão."), "error")
-                return redirect(url_for("finance.banks"))
+                return _json_or_redirect_error(_("Conta bancária vinculada não encontrada para esta conexão."), 404)
             target_provider_account_id = str(link_scope.provider_account_id or "").strip() or None
 
         # existing txns signature set for dedupe (last 120 days)
@@ -4290,7 +4313,9 @@ def banks_sync(conn_id: int):
 
         cp_map = {(cp.name or "").strip().lower(): cp for cp in get_counterparties(company) if (cp.name or "").strip()}
 
-        created_accounts = 0
+        discovered_accounts = 0
+        synced_accounts = 0
+        created_links = 0
         created_txns = 0
         skipped_unmapped = 0
         auto_reconciled = 0
@@ -4301,6 +4326,7 @@ def banks_sync(conn_id: int):
                 continue
             if target_provider_account_id and provider_account_id != target_provider_account_id:
                 continue
+            discovered_accounts += 1
 
             link = FinanceBankAccountLink.query.filter_by(
                 tenant_id=g.tenant.id,
@@ -4323,11 +4349,13 @@ def banks_sync(conn_id: int):
                 )
                 db.session.add(link)
                 db.session.flush()
+                created_links += 1
 
             # Transactions are imported only for explicitly mapped links.
             if not link.finance_account_id:
                 skipped_unmapped += 1
                 continue
+            synced_accounts += 1
 
             # Sync transactions for this account
             txns = bridge.list_transactions(bearer=bearer, account_id=provider_account_id, date_from=date_from)
@@ -4395,18 +4423,47 @@ def banks_sync(conn_id: int):
 
         conn.last_sync_at = datetime.utcnow()
         db.session.commit()
+
+        warnings: list[str] = []
+        infos: list[str] = []
         if target_provider_account_id:
-            flash(_("Sincronização da conta concluída: {a} conta(s), {t} transações.", a=created_accounts, t=created_txns), "success")
+            flash(_("Sincronização da conta concluída: {a} conta(s), {t} transações.", a=discovered_accounts, t=created_txns), "success")
         else:
-            flash(_("Sincronização concluída: {a} contas, {t} transações.", a=created_accounts, t=created_txns), "success")
+            flash(_("Sincronização concluída: {a} contas, {t} transações.", a=discovered_accounts, t=created_txns), "success")
         if skipped_unmapped > 0:
-            flash(_("{n} compte(s) bancaire(s) non mappé(s): import ignoré. Associez-les à un compte finance.", n=skipped_unmapped), "warning")
+            warn_msg = _("{n} compte(s) bancaire(s) non mappé(s): import ignoré. Associez-les à un compte finance.", n=skipped_unmapped)
+            warnings.append(warn_msg)
+            flash(warn_msg, "warning")
         if auto_reconciled:
-            flash(_("Faturas conciliadas automaticamente: {n}.", n=auto_reconciled), "info")
+            info_msg = _("Faturas conciliadas automaticamente: {n}.", n=auto_reconciled)
+            infos.append(info_msg)
+            flash(info_msg, "info")
         if created_txns >= remaining:
-            flash(_("Sincronização limitada pelo plano de transações."), "warning")
+            warn_msg = _("Sincronização limitada pelo plano de transações.")
+            warnings.append(warn_msg)
+            flash(warn_msg, "warning")
+
+        if wants_json:
+            return jsonify({
+                "ok": True,
+                "connection_id": conn.id,
+                "link_id": link_id,
+                "stats": {
+                    "discovered_accounts": discovered_accounts,
+                    "synced_accounts": synced_accounts,
+                    "created_links": created_links,
+                    "created_transactions": created_txns,
+                    "skipped_unmapped": skipped_unmapped,
+                    "auto_reconciled": auto_reconciled,
+                },
+                "warnings": warnings,
+                "infos": infos,
+            }), 200
     except BridgeError as e:
-        flash(_("Falha na sincronização: {err}", err=str(e)[:180]), "error")
+        err_msg = _("Falha na sincronização: {err}", err=str(e)[:180])
+        if wants_json:
+            return jsonify({"ok": False, "error": err_msg}), 502
+        flash(err_msg, "error")
 
     return redirect(url_for("finance.banks"))
 

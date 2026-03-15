@@ -60,17 +60,14 @@ jobs:
             echo "🚀 Ensure app container is up (no deps rebuild)"
             $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml up -d --no-deps audela
 
-            echo "⏳ Waiting audela container readiness"
-            for i in $(seq 1 30); do
-              if $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela sh -lc "echo ready" >/dev/null 2>&1; then
-                break
-              fi
-              echo "Waiting audela... ($i/30)"
-              sleep 2
-            done
+            # Use one-off runs for migrations to avoid failures when audela service
+            # is restarting due to pending schema checks/startup probes.
+            aud_run () {
+              $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml run --rm --no-deps --entrypoint "" audela "$@"
+            }
 
             echo "🧭 Alembic heads"
-            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db heads || true
+            aud_run flask db heads || true
 
             pre_stamp_if_all_tables_exist () {
               local rev="$1"
@@ -80,7 +77,7 @@ jobs:
               local exists
 
               for tbl in "$@"; do
-                exists="$($COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela python -c "from sqlalchemy import text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); e=db.session.execute(text(\"SELECT to_regclass('public.${tbl}')\")).scalar(); print('1' if e else '0'); ctx.pop()" 2>/dev/null || echo 0)"
+                exists="$(aud_run python -c "from sqlalchemy import text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); e=db.session.execute(text(\"SELECT to_regclass('public.${tbl}')\")).scalar(); print('1' if e else '0'); ctx.pop()" 2>/dev/null || echo 0)"
                 if [ "$exists" != "1" ]; then
                   all_exist="0"
                   echo "ℹ️ ${tbl} missing -> not stamping ${rev}"
@@ -90,7 +87,7 @@ jobs:
 
               if [ "$all_exist" = "1" ]; then
                 echo "ℹ️ all target tables exist -> pre-stamp ${rev}"
-                $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db stamp "$rev" || true
+                aud_run flask db stamp "$rev" || true
               fi
             }
 
@@ -111,11 +108,11 @@ jobs:
               finance_quote_lines
 
             echo "⬆️ Apply migrations"
-            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db upgrade heads
+            aud_run flask db upgrade heads
 
             echo "🧪 Ensure database is at Alembic head(s)"
-            HEAD_REVS="$($COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db heads | awk '/^[0-9a-f]+/ {print $1}')"
-            CURRENT_REVS="$($COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db current | awk '/^[0-9a-f]+/ {print $1}')"
+            HEAD_REVS="$(aud_run flask db heads | awk '/^[0-9a-f]+/ {print $1}')"
+            CURRENT_REVS="$(aud_run flask db current | awk '/^[0-9a-f]+/ {print $1}')"
             echo "Heads:   ${HEAD_REVS}"
             echo "Current: ${CURRENT_REVS}"
             for rev in $HEAD_REVS; do
@@ -126,7 +123,7 @@ jobs:
             done
 
             echo "✅ Verify finance_accounting_periods exists"
-            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela python -c "from sqlalchemy import inspect, text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); exists=db.session.execute(text(\"SELECT to_regclass('public.finance_accounting_periods')\")).scalar(); assert exists, 'finance_accounting_periods table not found'; ci=inspect(db.engine); tables=set(ci.get_table_names()); assert 'credit_borrowers' in tables, 'credit_borrowers table not found'; assert 'credit_covenants' in tables, 'credit_covenants table not found'; assert 'credit_facility_utilizations' in tables, 'credit_facility_utilizations table not found'; cols={c['name'] for c in ci.get_columns('credit_borrowers')}; assert 'sector_id' in cols and 'country_id' in cols and 'rating_id' in cols, 'credit_borrowers FK columns missing'; assert 'approval_date' in {c['name'] for c in ci.get_columns('credit_deals')}, 'credit_deals.approval_date missing'; assert 'approval_date' in {c['name'] for c in ci.get_columns('credit_facilities')}, 'credit_facilities.approval_date missing'; assert 'approval_date' in {c['name'] for c in ci.get_columns('credit_financial_statements')}, 'credit_financial_statements.approval_date missing'; assert 'approval_date' in {c['name'] for c in ci.get_columns('credit_memos')}, 'credit_memos.approval_date missing'; print('finance_accounting_periods table found:', exists); print('credit schema including covenant/utilization tables verified'); ctx.pop()"
+            aud_run python -c "from sqlalchemy import inspect, text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); exists=db.session.execute(text(\"SELECT to_regclass('public.finance_accounting_periods')\")).scalar(); assert exists, 'finance_accounting_periods table not found'; ci=inspect(db.engine); tables=set(ci.get_table_names()); assert 'credit_borrowers' in tables, 'credit_borrowers table not found'; assert 'credit_covenants' in tables, 'credit_covenants table not found'; assert 'credit_facility_utilizations' in tables, 'credit_facility_utilizations table not found'; cols={c['name'] for c in ci.get_columns('credit_borrowers')}; assert 'sector_id' in cols and 'country_id' in cols and 'rating_id' in cols, 'credit_borrowers FK columns missing'; assert 'approval_date' in {c['name'] for c in ci.get_columns('credit_deals')}, 'credit_deals.approval_date missing'; assert 'approval_date' in {c['name'] for c in ci.get_columns('credit_facilities')}, 'credit_facilities.approval_date missing'; assert 'approval_date' in {c['name'] for c in ci.get_columns('credit_financial_statements')}, 'credit_financial_statements.approval_date missing'; assert 'approval_date' in {c['name'] for c in ci.get_columns('credit_memos')}, 'credit_memos.approval_date missing'; print('finance_accounting_periods table found:', exists); print('credit schema including covenant/utilization tables verified'); ctx.pop()"
 
             echo "✅ Migrations-only job completed"
 

@@ -78,6 +78,12 @@
       <i class="bi bi-link-45deg me-1"></i>{{ _('Reconciliação') }}
     </a>
   </div>
+  <hr>
+  <div class="fw-semibold">{{ _('API (multi-comptes)') }}</div>
+  <div class="mb-1">{{ _('Pour synchroniser un seul compte client via API:') }}</div>
+  <code>POST /finance/banks/&lt;conn_id&gt;/sync?format=json</code>
+  <div class="mt-1">{{ _('Payload JSON: { "link_id": 123 }') }}</div>
+  <div class="text-secondary">{{ _('Le resultat renvoie stats, warnings et infos au format JSON.') }}</div>
 </div>
 
 {% if not bridge_configured %}
@@ -135,7 +141,10 @@
                         <tbody>
                           {% for link in c.accounts %}
                             <tr>
-                              <td class="small">{{ link.provider_account_name or link.provider_account_id }}</td>
+                              <td class="small">
+                                {{ link.provider_account_name or link.provider_account_id }}
+                                <span class="text-secondary">(link_id: {{ link.id }})</span>
+                              </td>
                               <td>
                                 <form method="post" action="{{ url_for('finance.banks_map_link', conn_id=c.id, link_id=link.id) }}" class="d-flex gap-1 align-items-center justify-content-end flex-wrap">
                                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
