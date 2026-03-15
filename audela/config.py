@@ -19,6 +19,7 @@ def _sqlite_db_uri(db_filename: str = "audela.db") -> str:
 
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-change-me")
+    APP_RELEASE = os.environ.get("APP_RELEASE", "dev")
     SITE_URL = os.environ.get("SITE_URL", "https://www.audeladedonnees.fr").rstrip("/")
     BRIDGE_CALLBACK_URL = os.environ.get("BRIDGE_CALLBACK_URL", "").strip()
     BRIDGE_CLIENT_ID = os.environ.get("BRIDGE_CLIENT_ID", "")

@@ -6,6 +6,7 @@ import sys
 
 from flask import Flask
 from flask import g, request, session, redirect
+from flask import url_for
 from jinja2 import ChoiceLoader, FileSystemLoader
 from sqlalchemy import inspect, text
 
@@ -221,6 +222,11 @@ def create_app() -> Flask:
         _merged.update(TRANSLATIONS.get("en", {}))
         _merged.update(TRANSLATIONS.get(_lang, {}))
 
+        app_release = str(app.config.get("APP_RELEASE", "dev"))
+
+        def static_asset_url(filename: str) -> str:
+            return url_for("static", filename=filename, v=app_release)
+
         return {
             "_": _,
             "current_lang": _lang,
@@ -229,8 +235,15 @@ def create_app() -> Flask:
             "request": request,
             "i18n_strings": _merged,
             "tenant": getattr(g, "tenant", None),
+            "app_release": app_release,
+            "static_asset_url": static_asset_url,
 
         }
+
+    @app.after_request
+    def _set_release_header(response):  # noqa: ANN001
+        response.headers.setdefault("X-App-Release", str(app.config.get("APP_RELEASE", "dev")))
+        return response
 
 
     @login_manager.user_loader

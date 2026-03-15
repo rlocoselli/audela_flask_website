@@ -30,6 +30,7 @@ jobs:
         continue-on-error: true
         env:
           SERVER_ENV_FILE: ${{ secrets.SERVER_ENV_FILE }}
+          APP_RELEASE: ${{ github.sha }}
           GRAFANA_HOSTNAME: ${{ secrets.GRAFANA_HOSTNAME }}
           GRAFANA_HOSTNAME_ALT: ${{ secrets.GRAFANA_HOSTNAME_ALT }}
           SITE_URL: ${{ vars.SITE_URL || 'https://audeladedonnees.fr' }}
@@ -50,7 +51,7 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           timeout: 90s
           command_timeout: 40m
-          envs: SERVER_ENV_FILE,GRAFANA_HOSTNAME,GRAFANA_HOSTNAME_ALT,SITE_URL,BRIDGE_CALLBACK_URL,BRIDGE_CLIENT_ID,BRIDGE_CLIENT_SECRET,BRIDGE_BASE_URL,BRIDGE_VERSION,POWENS_CLIENT_ID,POWENS_CLIENT_SECRET,POWENS_WEBHOOK_SECRET,ENCRYPTION_KEY
+          envs: SERVER_ENV_FILE,APP_RELEASE,GRAFANA_HOSTNAME,GRAFANA_HOSTNAME_ALT,SITE_URL,BRIDGE_CALLBACK_URL,BRIDGE_CLIENT_ID,BRIDGE_CLIENT_SECRET,BRIDGE_BASE_URL,BRIDGE_VERSION,POWENS_CLIENT_ID,POWENS_CLIENT_SECRET,POWENS_WEBHOOK_SECRET,ENCRYPTION_KEY
 
           script: &deploy_script |
             set -e
@@ -101,6 +102,7 @@ jobs:
 
             upsert_env_var "GRAFANA_HOSTNAME" "${GRAFANA_HOSTNAME}"
             upsert_env_var "GRAFANA_HOSTNAME_ALT" "${GRAFANA_HOSTNAME_ALT}"
+            upsert_env_var "APP_RELEASE" "${APP_RELEASE}"
             upsert_env_var "SITE_URL" "${SITE_URL}"
             upsert_env_var "BRIDGE_CALLBACK_URL" "${BRIDGE_CALLBACK_URL}"
             upsert_env_var "BRIDGE_CLIENT_ID" "${BRIDGE_CLIENT_ID}"
@@ -219,7 +221,7 @@ jobs:
               aud_run flask db heads || true
 
               set +e
-              MIG_OUT="$(aud_run flask db upgrade 2>&1)"
+              MIG_OUT="$(aud_run flask db upgrade heads 2>&1)"
               MIG_RC=$?
               set -e
 
@@ -338,6 +340,7 @@ jobs:
         if: steps.deploy_ssh_1.outcome == 'failure'
         env:
           SERVER_ENV_FILE: ${{ secrets.SERVER_ENV_FILE }}
+          APP_RELEASE: ${{ github.sha }}
           GRAFANA_HOSTNAME: ${{ secrets.GRAFANA_HOSTNAME }}
           GRAFANA_HOSTNAME_ALT: ${{ secrets.GRAFANA_HOSTNAME_ALT }}
           SITE_URL: ${{ vars.SITE_URL || 'https://audeladedonnees.fr' }}
@@ -358,7 +361,7 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           timeout: 90s
           command_timeout: 40m
-          envs: SERVER_ENV_FILE,GRAFANA_HOSTNAME,GRAFANA_HOSTNAME_ALT,SITE_URL,BRIDGE_CALLBACK_URL,BRIDGE_CLIENT_ID,BRIDGE_CLIENT_SECRET,BRIDGE_BASE_URL,BRIDGE_VERSION,POWENS_CLIENT_ID,POWENS_CLIENT_SECRET,POWENS_WEBHOOK_SECRET,ENCRYPTION_KEY
+          envs: SERVER_ENV_FILE,APP_RELEASE,GRAFANA_HOSTNAME,GRAFANA_HOSTNAME_ALT,SITE_URL,BRIDGE_CALLBACK_URL,BRIDGE_CLIENT_ID,BRIDGE_CLIENT_SECRET,BRIDGE_BASE_URL,BRIDGE_VERSION,POWENS_CLIENT_ID,POWENS_CLIENT_SECRET,POWENS_WEBHOOK_SECRET,ENCRYPTION_KEY
           script: *deploy_script
 
       - name: Fail if SSH deploy failed twice

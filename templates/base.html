@@ -39,9 +39,9 @@
 			} | tojson }}
 		</script>
 				<meta name="csrf-token" content="{{ csrf_token() }}" />
-<link rel="stylesheet" href="{{ url_for('static', filename='assets/css/main.css') }}" />
-		<link rel="stylesheet" href="{{ url_for('static', filename='assets/css/custom.css') }}" />
-		<noscript><link rel="stylesheet" href="{{ url_for('static', filename='assets/css/noscript.css') }}" /></noscript>
+<link rel="stylesheet" href="{{ static_asset_url('assets/css/main.css') }}" />
+		<link rel="stylesheet" href="{{ static_asset_url('assets/css/custom.css') }}" />
+		<noscript><link rel="stylesheet" href="{{ static_asset_url('assets/css/noscript.css') }}" /></noscript>
 		{% block head_extra %}{% endblock %}
 	</head>
 	<body class="{% block body_class %}is-preload{% endblock %}">
@@ -164,15 +164,15 @@
 		</div>
 
 		<!-- Scripts -->
-		<script src="{{ url_for('static', filename='assets/js/jquery.min.js') }}"></script>
-		<script src="{{ url_for('static', filename='assets/js/jquery.scrolly.min.js') }}"></script>
-		<script src="{{ url_for('static', filename='assets/js/jquery.dropotron.min.js') }}"></script>
-		<script src="{{ url_for('static', filename='assets/js/jquery.scrollex.min.js') }}"></script>
-		<script src="{{ url_for('static', filename='assets/js/browser.min.js') }}"></script>
-		<script src="{{ url_for('static', filename='assets/js/breakpoints.min.js') }}"></script>
-		<script src="{{ url_for('static', filename='assets/js/util.js') }}"></script>
-		<script src="{{ url_for('static', filename='assets/js/main.js') }}"></script>
-		<script src="{{ url_for('static', filename='assets/js/custom.js') }}"></script>
+		<script src="{{ static_asset_url('assets/js/jquery.min.js') }}"></script>
+		<script src="{{ static_asset_url('assets/js/jquery.scrolly.min.js') }}"></script>
+		<script src="{{ static_asset_url('assets/js/jquery.dropotron.min.js') }}"></script>
+		<script src="{{ static_asset_url('assets/js/jquery.scrollex.min.js') }}"></script>
+		<script src="{{ static_asset_url('assets/js/browser.min.js') }}"></script>
+		<script src="{{ static_asset_url('assets/js/breakpoints.min.js') }}"></script>
+		<script src="{{ static_asset_url('assets/js/util.js') }}"></script>
+		<script src="{{ static_asset_url('assets/js/main.js') }}"></script>
+		<script src="{{ static_asset_url('assets/js/custom.js') }}"></script>
 		{% block body_scripts %}{% endblock %}
 
 	</body>

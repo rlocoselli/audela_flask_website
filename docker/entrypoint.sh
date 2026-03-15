@@ -45,9 +45,9 @@ fi
 if [ "${RUN_MIGRATIONS:-1}" != "0" ]; then
   if [ "${STRICT_MIGRATIONS}" = "1" ]; then
     echo "Running Alembic migrations (strict mode)..."
-    flask --app app db upgrade
+    flask --app app db upgrade heads
   else
-    (flask --app app db upgrade) || echo "[WARN] Alembic upgrade failed (strict mode disabled)."
+    (flask --app app db upgrade heads) || echo "[WARN] Alembic upgrade failed (strict mode disabled)."
   fi
 fi
 
