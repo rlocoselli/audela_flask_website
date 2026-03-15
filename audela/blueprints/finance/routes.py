@@ -4476,7 +4476,6 @@ def banks_sync(conn_id: int):
                     counterparty_id=cp_obj.id if cp_obj else None,
                     counterparty=None if cp_obj else (cp_name or None),
                     reference=ref,
-                    source="bridge",
                 )
                 db.session.add(txn_obj)
                 if _auto_reconcile_invoice_payment(company, txn_obj):
