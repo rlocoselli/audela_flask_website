@@ -90,6 +90,9 @@
   <div class="alert alert-warning">
     <div class="fw-semibold">{{ _('API bancária não configurada') }}</div>
     <div class="small">{{ _('Defina BRIDGE_CLIENT_ID e BRIDGE_CLIENT_SECRET no servidor.') }}</div>
+    {% if bridge_missing_keys %}
+      <div class="small">{{ _('Chaves ausentes detectadas:') }} <code>{{ bridge_missing_keys|join(', ') }}</code></div>
+    {% endif %}
   </div>
 {% endif %}
 

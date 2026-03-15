@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -24,13 +25,37 @@ class BridgeClient:
 
     def __init__(self):
         cfg = current_app.config
-        self.base_url = cfg.get("BRIDGE_BASE_URL", "https://api.bridgeapi.io")
-        self.client_id = cfg.get("BRIDGE_CLIENT_ID")
-        self.client_secret = cfg.get("BRIDGE_CLIENT_SECRET")
-        self.version = cfg.get("BRIDGE_VERSION", "2025-01-15")
+        self.base_url = (
+            cfg.get("BRIDGE_BASE_URL")
+            or os.environ.get("BRIDGE_BASE_URL")
+            or "https://api.bridgeapi.io"
+        ).strip().rstrip("/")
+        self.client_id = (
+            cfg.get("BRIDGE_CLIENT_ID")
+            or os.environ.get("BRIDGE_CLIENT_ID")
+            or ""
+        ).strip()
+        self.client_secret = (
+            cfg.get("BRIDGE_CLIENT_SECRET")
+            or os.environ.get("BRIDGE_CLIENT_SECRET")
+            or ""
+        ).strip()
+        self.version = (
+            cfg.get("BRIDGE_VERSION")
+            or os.environ.get("BRIDGE_VERSION")
+            or "2025-01-15"
+        ).strip()
 
     def is_configured(self) -> bool:
         return bool(self.client_id and self.client_secret)
+
+    def missing_config_keys(self) -> List[str]:
+        missing: List[str] = []
+        if not self.client_id:
+            missing.append("BRIDGE_CLIENT_ID")
+        if not self.client_secret:
+            missing.append("BRIDGE_CLIENT_SECRET")
+        return missing
 
     def _headers(self, bearer: Optional[str] = None) -> Dict[str, str]:
         h = {

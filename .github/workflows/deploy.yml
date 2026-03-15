@@ -113,6 +113,16 @@ jobs:
             upsert_env_var "ENCRYPTION_KEY" "${ENCRYPTION_KEY}"
             chmod 600 .env || true
 
+            # Diagnostics: confirm Bridge keys are effectively present in runtime env file.
+            BRIDGE_ID_EFFECTIVE="$(grep -E '^BRIDGE_CLIENT_ID=' .env | tail -1 | cut -d= -f2- || true)"
+            BRIDGE_SECRET_EFFECTIVE="$(grep -E '^BRIDGE_CLIENT_SECRET=' .env | tail -1 | cut -d= -f2- || true)"
+            if [ -n "${BRIDGE_ID_EFFECTIVE}" ] && [ -n "${BRIDGE_SECRET_EFFECTIVE}" ]; then
+              echo "✅ Bridge credentials present in server .env"
+            else
+              echo "⚠️ Bridge credentials missing/empty in server .env (BRIDGE_CLIENT_ID/BRIDGE_CLIENT_SECRET)"
+              echo "   Check GitHub Environment secrets for audeladesdonnees and redeploy."
+            fi
+
             echo "⚡ Incremental deploy (audela only, skip celery image rebuild)"
             COMPOSE_CMD="docker compose"
             if ! docker compose version >/dev/null 2>&1; then
