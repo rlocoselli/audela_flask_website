@@ -403,16 +403,39 @@ jobs:
             echo "🧪 Verify served release header (direct app + routed endpoint)"
 
             # 1) Direct app check (bypass Traefik redirects) to avoid false negatives.
-            APP_HDRS="$($COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela sh -lc 'curl -sSI http://localhost:8000/finance/banks || true')"
-            APP_RELEASE_HEADER="$(printf "%s" "${APP_HDRS}" | awk -F': ' 'tolower($1)=="x-app-release"{print $2}' | tr -d '\r' | tail -n1)"
-            APP_SERVER_HEADER="$(printf "%s" "${APP_HDRS}" | awk -F': ' 'tolower($1)=="server"{print $2}' | tr -d '\r' | tail -n1)"
+            APP_HDRS=""
+            APP_RELEASE_HEADER=""
+            APP_SERVER_HEADER=""
+            APP_STATUS_LINE=""
+
+            for i in $(seq 1 20); do
+              APP_HDRS="$($COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela sh -lc 'curl -sSI http://localhost:8000/finance/banks 2>&1 || true')"
+              APP_RELEASE_HEADER="$(printf "%s" "${APP_HDRS}" | awk -F': ' 'tolower($1)=="x-app-release"{print $2}' | tr -d '\r' | tail -n1)"
+              APP_SERVER_HEADER="$(printf "%s" "${APP_HDRS}" | awk -F': ' 'tolower($1)=="server"{print $2}' | tr -d '\r' | tail -n1)"
+              APP_STATUS_LINE="$(printf "%s" "${APP_HDRS}" | awk 'tolower($1) ~ /^http\// {print; exit}')"
+
+              if printf "%s" "${APP_HDRS}" | grep -qi "not found"; then
+                echo "❌ curl command not available inside audela container; cannot verify release header."
+                exit 1
+              fi
+
+              if [ -n "${APP_RELEASE_HEADER}" ]; then
+                break
+              fi
+
+              echo "ℹ️ Waiting for app readiness (${i}/20): X-App-Release not available yet"
+              sleep 2
+            done
 
             echo "ℹ️ Direct app server header: ${APP_SERVER_HEADER:-<missing>}"
+            echo "ℹ️ Direct app status line: ${APP_STATUS_LINE:-<missing>}"
             echo "ℹ️ Direct app X-App-Release: ${APP_RELEASE_HEADER:-<missing>}"
             echo "ℹ️ Expected APP_RELEASE: ${APP_RELEASE}"
 
             if [ -z "${APP_RELEASE_HEADER}" ]; then
               echo "❌ Missing X-App-Release header from app container response."
+              echo "ℹ️ Last direct app response snippet:"
+              printf "%s\n" "${APP_HDRS}" | sed -n '1,20p'
               exit 1
             fi
             if [ "${APP_RELEASE_HEADER}" != "${APP_RELEASE}" ]; then

@@ -4038,6 +4038,16 @@ def gl_delete(gl_id: int):
 # -----------------
 
 
+def _bridge_external_user_id(tenant_id: int, user_id: int) -> str:
+    # Keep a deterministic identifier while avoiding separators Bridge rejects.
+    return f"t{int(tenant_id)}_u{int(user_id)}"
+
+
+def _looks_like_invalid_external_user_id(err: Exception) -> bool:
+    text = str(err or "").lower()
+    return "invalid_external_user_id" in text or "invalid user external id" in text
+
+
 @bp.route("/banks", methods=["GET"])
 @login_required
 @require_roles("tenant_admin", "creator", "viewer")
@@ -4132,7 +4142,7 @@ def banks_connect():
         return redirect(url_for("finance.banks"))
 
     # One Bridge user per (tenant, app user) – keep stable
-    external_user_id = f"t{g.tenant.id}:u{current_user.id}"
+    external_user_id = _bridge_external_user_id(g.tenant.id, current_user.id)
     try:
         bridge.create_user(external_user_id=external_user_id, email=getattr(current_user, "email", None))
         bearer, _exp = bridge.get_user_token(external_user_id=external_user_id)
@@ -4175,7 +4185,7 @@ def banks_callback():
     external_user_id = session.get("bridge_external_user_id")
     if not external_user_id:
         # still accept: derive from user
-        external_user_id = f"t{g.tenant.id}:u{current_user.id}"
+        external_user_id = _bridge_external_user_id(g.tenant.id, current_user.id)
 
     conn = FinanceBankConnection(
         tenant_id=g.tenant.id,
@@ -4316,7 +4326,27 @@ def banks_sync(conn_id: int):
                 429,
             )
 
-        bearer, _exp = bridge.get_user_token(external_user_id=conn.external_user_id)
+        token_external_user_id = str(conn.external_user_id or "").strip()
+        try:
+            bearer, _exp = bridge.get_user_token(external_user_id=token_external_user_id)
+        except BridgeError as token_err:
+            # Legacy migration: old IDs sometimes used ':' separator, now rejected.
+            if token_external_user_id and ":" in token_external_user_id and _looks_like_invalid_external_user_id(token_err):
+                migrated_external_user_id = token_external_user_id.replace(":", "_")
+                finance_logger.warning(
+                    "Bridge external_user_id migration during sync: %s -> %s",
+                    token_external_user_id,
+                    migrated_external_user_id,
+                )
+                bridge.create_user(
+                    external_user_id=migrated_external_user_id,
+                    email=getattr(current_user, "email", None),
+                )
+                bearer, _exp = bridge.get_user_token(external_user_id=migrated_external_user_id)
+                conn.external_user_id = migrated_external_user_id
+                db.session.flush()
+            else:
+                raise
         accounts = bridge.list_accounts(bearer=bearer, item_id=conn.item_id)
 
         # Optional account-scoped sync: only sync one mapped provider account link.
