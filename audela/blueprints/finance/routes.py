@@ -1818,9 +1818,29 @@ def transactions_import():
     # Map counterparty names to directory entries (auto-create when needed)
     existing = { (cp.name or "").strip().lower(): cp for cp in get_counterparties(company) if (cp.name or "").strip() }
 
+    min_d = min(r["txn_date"] for r in rows)
+    max_d = max(r["txn_date"] for r in rows)
+    existing_txns = (
+        FinanceTransaction.query
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id, account_id=acc.id)
+        .filter(FinanceTransaction.txn_date >= min_d)
+        .filter(FinanceTransaction.txn_date <= max_d)
+        .all()
+    )
+    existing_sigs = set(_dedupe_sig(t.txn_date, t.amount, t.description, t.reference) for t in existing_txns)
+
     n = 0
+    skipped_duplicates = 0
     auto_reconciled = 0
-    for r in rows[:remaining]:
+    for r in rows:
+        if n >= remaining:
+            break
+
+        sig = _dedupe_sig(r["txn_date"], r["amount"], r.get("description"), r.get("reference"))
+        if sig in existing_sigs:
+            skipped_duplicates += 1
+            continue
+
         cp_name = (r.get("counterparty") or "").strip()
         cp_obj = None
         if cp_name:
@@ -1848,13 +1868,17 @@ def transactions_import():
         if _auto_reconcile_invoice_payment(company, txn):
             auto_reconciled += 1
         n += 1
+        existing_sigs.add(sig)
 
     db.session.commit()
     flash(_("Importação concluída: {n} linhas.", n=n), "success")
+    if skipped_duplicates:
+        flash(_("Importação CSV: {n} linha(s) duplicada(s) ignorada(s).", n=skipped_duplicates), "info")
     if auto_reconciled:
         flash(_("Faturas conciliadas automaticamente: {n}.", n=auto_reconciled), "info")
-    if len(rows) > remaining:
-        flash(_("Importação limitada pelo plano: {n} linhas não importadas.", n=(len(rows) - remaining)), "warning")
+    limited_by_plan = max(0, (len(rows) - skipped_duplicates) - n)
+    if limited_by_plan > 0:
+        flash(_("Importação limitada pelo plano: {n} linhas não importadas.", n=limited_by_plan), "warning")
     return redirect(url_for("finance.account_view", account_id=acc.id))
 
 
@@ -2247,7 +2271,7 @@ def statement_import(account_id: int):
             .all()
         )
         existing_sigs = set(
-            (e.txn_date, str(e.amount), (e.description or "").strip(), (e.reference or "").strip())
+            _dedupe_sig(e.txn_date, e.amount, e.description, e.reference)
             for e in existing
         )
 
@@ -2267,7 +2291,7 @@ def statement_import(account_id: int):
         for r in rows:
             if created >= remaining:
                 break
-            sig = (r["txn_date"], str(r["amount"]), (r.get("description") or "").strip(), (r.get("reference") or "").strip())
+            sig = _dedupe_sig(r["txn_date"], r["amount"], r.get("description"), r.get("reference"))
             if sig in existing_sigs:
                 skipped += 1
                 continue
@@ -4209,7 +4233,98 @@ def banks_callback():
 
 
 def _dedupe_sig(txn_date, amount, description, reference):
-    return (txn_date, str(amount), (description or "").strip(), (reference or "").strip())
+    # Normalize amount to fixed cents so Decimal('12.30') and float(12.3)
+    # produce the same signature across repeated sync/import executions.
+    try:
+        norm_amount = f"{Decimal(str(amount or 0)).quantize(Decimal('0.01'))}"
+    except Exception:
+        norm_amount = str(amount)
+    return (txn_date, norm_amount, (description or "").strip(), (reference or "").strip())
+
+
+def _to_decimal_amount(raw_value) -> Decimal | None:
+    if raw_value is None:
+        return None
+    if isinstance(raw_value, Decimal):
+        return raw_value
+    if isinstance(raw_value, (int, float)):
+        try:
+            return Decimal(str(raw_value))
+        except Exception:
+            return None
+    if isinstance(raw_value, str):
+        txt = raw_value.strip()
+        if not txt:
+            return None
+        txt = txt.replace("\u00a0", " ").replace(" ", "")
+        if txt.count(",") > 0 and txt.count(".") > 0:
+            if txt.rfind(",") > txt.rfind("."):
+                txt = txt.replace(".", "").replace(",", ".")
+            else:
+                txt = txt.replace(",", "")
+        else:
+            txt = txt.replace(",", ".")
+        try:
+            return Decimal(txt)
+        except Exception:
+            return None
+    if isinstance(raw_value, dict):
+        for key in ("amount", "value", "balance", "current", "available", "booked"):
+            if key in raw_value:
+                parsed = _to_decimal_amount(raw_value.get(key))
+                if parsed is not None:
+                    return parsed
+        return None
+    if isinstance(raw_value, (list, tuple)):
+        for item in raw_value:
+            parsed = _to_decimal_amount(item)
+            if parsed is not None:
+                return parsed
+    return None
+
+
+def _extract_bridge_account_balance(account_payload: dict) -> Decimal | None:
+    if not isinstance(account_payload, dict):
+        return None
+
+    for key in ("current_balance", "booked_balance", "available_balance", "balance", "ledger_balance"):
+        parsed = _to_decimal_amount(account_payload.get(key))
+        if parsed is not None:
+            return parsed
+
+    balances = account_payload.get("balances")
+    if isinstance(balances, dict):
+        for key in ("booked", "current", "available", "closing"):
+            parsed = _to_decimal_amount(balances.get(key))
+            if parsed is not None:
+                return parsed
+        parsed = _to_decimal_amount(balances)
+        if parsed is not None:
+            return parsed
+
+    if isinstance(balances, list):
+        preferred_types = {
+            "booked",
+            "current",
+            "available",
+            "closing",
+            "closingbooked",
+            "interimavailable",
+        }
+        for item in balances:
+            if not isinstance(item, dict):
+                continue
+            raw_type = str(item.get("type") or item.get("name") or "").strip().lower().replace("_", "")
+            if raw_type in preferred_types:
+                parsed = _to_decimal_amount(item.get("amount") if "amount" in item else item.get("value"))
+                if parsed is not None:
+                    return parsed
+        for item in balances:
+            parsed = _to_decimal_amount(item)
+            if parsed is not None:
+                return parsed
+
+    return None
 
 
 def _auto_match_invoice_for_transaction(company: FinanceCompany, txn: FinanceTransaction) -> FinanceInvoice | None:
@@ -4385,6 +4500,7 @@ def banks_sync(conn_id: int):
         created_txns = 0
         skipped_unmapped = 0
         auto_reconciled = 0
+        updated_balances = 0
 
         for a in accounts:
             provider_account_id = str(a.get("id") or a.get("uuid") or "").strip()
@@ -4416,12 +4532,37 @@ def banks_sync(conn_id: int):
                 db.session.add(link)
                 db.session.flush()
                 created_links += 1
+            else:
+                # Keep provider metadata fresh for display.
+                link.provider_account_name = name or link.provider_account_name
+                link.currency_code = ccy or link.currency_code
 
             # Transactions are imported only for explicitly mapped links.
             if not link.finance_account_id:
                 skipped_unmapped += 1
                 continue
             synced_accounts += 1
+
+            mapped_account = FinanceAccount.query.filter_by(
+                id=link.finance_account_id,
+                tenant_id=g.tenant.id,
+                company_id=company.id,
+            ).first()
+            if mapped_account:
+                provider_balance = _extract_bridge_account_balance(a)
+                if provider_balance is not None:
+                    try:
+                        normalized_balance = provider_balance.quantize(Decimal("0.01"))
+                    except Exception:
+                        normalized_balance = provider_balance
+                    current_balance = Decimal(str(mapped_account.balance or 0))
+                    try:
+                        current_balance = current_balance.quantize(Decimal("0.01"))
+                    except Exception:
+                        pass
+                    if current_balance != normalized_balance:
+                        mapped_account.balance = normalized_balance
+                        updated_balances += 1
 
             # Sync transactions for this account
             txns = bridge.list_transactions(bearer=bearer, account_id=provider_account_id, date_from=date_from)
@@ -4503,6 +4644,10 @@ def banks_sync(conn_id: int):
             info_msg = _("Faturas conciliadas automaticamente: {n}.", n=auto_reconciled)
             infos.append(info_msg)
             flash(info_msg, "info")
+        if updated_balances:
+            info_msg = _("Saldo atualizado em {n} conta(s) via sincronização bancária.", n=updated_balances)
+            infos.append(info_msg)
+            flash(info_msg, "info")
         if created_txns >= remaining:
             warn_msg = _("Sincronização limitada pelo plano de transações.")
             warnings.append(warn_msg)
@@ -4520,6 +4665,7 @@ def banks_sync(conn_id: int):
                     "created_transactions": created_txns,
                     "skipped_unmapped": skipped_unmapped,
                     "auto_reconciled": auto_reconciled,
+                    "updated_balances": updated_balances,
                 },
                 "warnings": warnings,
                 "infos": infos,
