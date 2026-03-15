@@ -100,6 +100,9 @@
                             {% if bridge_missing_keys %}
                                 <small class="text-warning d-block">{{ _('Chaves ausentes detectadas:') }} <code>{{ bridge_missing_keys|join(', ') }}</code></small>
                             {% endif %}
+                            {% if bridge_diagnostics and bridge_diagnostics.selected %}
+                                <small class="text-warning d-block">{{ _('Fontes selecionadas:') }} <code>client_id={{ bridge_diagnostics.selected.client_id }}, client_secret={{ bridge_diagnostics.selected.client_secret }}</code></small>
+                            {% endif %}
                         {% endif %}
                     </div>
 

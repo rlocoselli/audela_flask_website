@@ -695,6 +695,7 @@ def bank_config():
     bridge = BridgeClient()
     bridge_configured = bridge.is_configured()
     bridge_missing_keys = bridge.missing_config_keys()
+    bridge_diagnostics = bridge.config_diagnostics()
     
     return render_template(
         'finance/bank_config.html',
@@ -703,6 +704,7 @@ def bank_config():
         accounts=accounts,
         bridge_configured=bridge_configured,
         bridge_missing_keys=bridge_missing_keys,
+        bridge_diagnostics=bridge_diagnostics,
     )
 
 

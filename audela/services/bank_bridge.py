@@ -109,6 +109,9 @@ class BridgeClient:
             missing.append("BRIDGE_CLIENT_SECRET (ou POWENS_CLIENT_SECRET)")
         return missing
 
+    def config_diagnostics(self) -> Dict[str, Any]:
+        return dict(self._config_diagnostics)
+
     @staticmethod
     def _safe_value_state(raw_val: Any) -> str:
         if raw_val is None:

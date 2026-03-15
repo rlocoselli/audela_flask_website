@@ -4045,6 +4045,7 @@ def banks():
     company = _get_company()
     bridge = BridgeClient()
     bridge_missing_keys = bridge.missing_config_keys()
+    bridge_diagnostics = bridge.config_diagnostics()
     company_accounts = (
         FinanceAccount.query
         .filter_by(tenant_id=g.tenant.id, company_id=company.id)
@@ -4064,6 +4065,7 @@ def banks():
         company=company,
         bridge_configured=bridge.is_configured(),
         bridge_missing_keys=bridge_missing_keys,
+        bridge_diagnostics=bridge_diagnostics,
         company_accounts=company_accounts,
         connections=connections,
     ))
@@ -4116,7 +4118,17 @@ def banks_connect():
     bridge = BridgeClient()
     if not bridge.is_configured():
         missing = ", ".join(bridge.missing_config_keys())
-        flash(_("API bancária não configurada. Chaves ausentes: {keys}", keys=(missing or "BRIDGE_CLIENT_ID, BRIDGE_CLIENT_SECRET")), "error")
+        diag = bridge.config_diagnostics()
+        selected = diag.get("selected", {}) if isinstance(diag, dict) else {}
+        flash(
+            _(
+                "API bancária não configurada. Chaves ausentes: {keys}. Fontes selecionadas: client_id={id_src}, client_secret={secret_src}",
+                keys=(missing or "BRIDGE_CLIENT_ID, BRIDGE_CLIENT_SECRET"),
+                id_src=(selected.get("client_id") or "missing"),
+                secret_src=(selected.get("client_secret") or "missing"),
+            ),
+            "error",
+        )
         return redirect(url_for("finance.banks"))
 
     # One Bridge user per (tenant, app user) – keep stable
@@ -4284,7 +4296,17 @@ def banks_sync(conn_id: int):
     bridge = BridgeClient()
     if not bridge.is_configured():
         missing = ", ".join(bridge.missing_config_keys())
-        return _json_or_redirect_error(_("API bancária não configurada. Chaves ausentes: {keys}", keys=(missing or "BRIDGE_CLIENT_ID, BRIDGE_CLIENT_SECRET")), 503)
+        diag = bridge.config_diagnostics()
+        selected = diag.get("selected", {}) if isinstance(diag, dict) else {}
+        return _json_or_redirect_error(
+            _(
+                "API bancária não configurada. Chaves ausentes: {keys}. Fontes selecionadas: client_id={id_src}, client_secret={secret_src}",
+                keys=(missing or "BRIDGE_CLIENT_ID, BRIDGE_CLIENT_SECRET"),
+                id_src=(selected.get("client_id") or "missing"),
+                secret_src=(selected.get("client_secret") or "missing"),
+            ),
+            503,
+        )
 
     try:
         allowed, remaining, current_count, max_limit = _transaction_quota_info()
