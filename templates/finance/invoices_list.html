@@ -11,6 +11,8 @@
       <div class="d-flex gap-2">
         <a class="btn btn-outline-secondary" href="{{ url_for('finance.invoices_cockpit') }}">{{ _('Cockpit facturation') }}</a>
         <a class="btn btn-outline-secondary" href="{{ url_for('finance.pivot_page') }}">{{ _('Pivot') }}</a>
+        <a class="btn btn-outline-secondary" href="{{ url_for('finance.quotes_list') }}">{{ _('Devis') }}</a>
+        <a class="btn btn-outline-secondary" href="{{ url_for('finance.product_tax_import') }}">{{ _('Import produits/taxes') }}</a>
         <a class="btn btn-outline-secondary" href="{{ url_for('finance.invoice_template_settings') }}">{{ _('Template facture') }}</a>
         <a class="btn btn-primary" href="{{ url_for('finance.invoice_new') }}">{{ _('Nova fatura') }}</a>
       </div>

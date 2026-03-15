@@ -22,6 +22,7 @@ from .finance_ext import (
     FinancePowensSyncLog,
 )
 from .finance_invoices import FinanceInvoice, FinanceInvoiceLine, FinanceSetting
+from .finance_quotes import FinanceQuote, FinanceQuoteLine
 from .bi import (
     DataSource,
     Collection,
@@ -116,6 +117,8 @@ __all__ = [
     "FinanceInvoice",
     "FinanceInvoiceLine",
     "FinanceSetting",
+    "FinanceQuote",
+    "FinanceQuoteLine",
     "SubscriptionPlan",
     "TenantSubscription",
     "EmailVerificationToken",

@@ -16,13 +16,21 @@
 </div>
 
 <div class="card mb-3">
-  <div class="card-header fw-semibold">{{ _('Step-by-step (easy)') }}</div>
+  <div class="card-header fw-semibold">{{ _('Guide pas a pas: connecter votre compte bancaire') }}</div>
   <div class="card-body">
     <div class="row g-3">
-      <div class="col-12 col-lg-4">
+      <div class="col-12 col-lg-8">
         <div class="border rounded p-3 h-100">
-          <div class="fw-semibold mb-1">{{ _('1. Connect bank') }}</div>
-          <div class="small text-secondary mb-2">{{ _('Click "Conectar banco" and finish bank login/consent.') }}</div>
+          <div class="fw-semibold mb-2">{{ _('Etapes dans l application') }}</div>
+          <ol class="small text-secondary mb-3 ps-3">
+            <li>{{ _('Cliquez "Conectar banco".') }}</li>
+            <li>{{ _('Vous etes redirige vers Bridge puis vers votre banque pour vous authentifier et donner le consentement.') }}</li>
+            <li>{{ _('Apres validation banque, vous revenez automatiquement ici via la callback /finance/banks/callback.') }}</li>
+            <li>{{ _('Dans "Conexoes", cliquez "Sync" pour decouvrir les comptes bancaires lies a la connexion.') }}</li>
+            <li>{{ _('Pour chaque compte decouvert, selectionnez un compte Finance local puis cliquez "Save link".') }}</li>
+            <li>{{ _('Cliquez "Sync this account" pour importer les transactions de ce compte (120 derniers jours).') }}</li>
+            <li>{{ _('Allez ensuite dans Reconciliação pour valider et rapprocher les transactions.') }}</li>
+          </ol>
           <form method="post" action="{{ url_for('finance.banks_connect') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button class="btn btn-primary btn-sm" {% if not bridge_configured %}disabled{% endif %}>
@@ -33,15 +41,19 @@
       </div>
       <div class="col-12 col-lg-4">
         <div class="border rounded p-3 h-100">
-          <div class="fw-semibold mb-1">{{ _('2. Discover accounts') }}</div>
-          <div class="small text-secondary mb-2">{{ _('Run first sync on connection to fetch bank accounts.') }}</div>
-          <div class="small text-secondary">{{ _('Then each bank account appears below.') }}</div>
-        </div>
-      </div>
-      <div class="col-12 col-lg-4">
-        <div class="border rounded p-3 h-100">
-          <div class="fw-semibold mb-1">{{ _('3. Sync one account') }}</div>
-          <div class="small text-secondary mb-2">{{ _('Use "Sync this account" to import only that account transactions.') }}</div>
+          <div class="fw-semibold mb-2">{{ _('Pre requis') }}</div>
+          <ul class="small text-secondary mb-3 ps-3">
+            <li>{{ _('Bridge configure: BRIDGE_CLIENT_ID et BRIDGE_CLIENT_SECRET sur le serveur.') }}</li>
+            <li>{{ _('Callback Bridge en production: https://audeladedonnees.fr/finance/banks/callback') }}</li>
+            <li>{{ _('Au moins un compte Finance de type banque/caisse existe dans l entreprise.') }}</li>
+          </ul>
+          <div class="fw-semibold mb-2">{{ _('Depannage rapide') }}</div>
+          <ul class="small text-secondary mb-0 ps-3">
+            <li>{{ _('Bouton desactive: verifier la configuration Bridge sur le serveur.') }}</li>
+            <li>{{ _('Callback invalide (item_id absent): verifier URL callback dans Bridge.') }}</li>
+            <li>{{ _('Aucun compte decouvert: relancer "Sync" sur la connexion.') }}</li>
+            <li>{{ _('Sync this account desactive: faire le mapping puis "Save link".') }}</li>
+          </ul>
           <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.reconciliation') }}">
             <i class="bi bi-link-45deg me-1"></i>{{ _('Reconciliação') }}
           </a>

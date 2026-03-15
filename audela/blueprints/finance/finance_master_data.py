@@ -7,7 +7,7 @@ Routes pour la gestion des données maîtres financières:
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, g, jsonify, abort, session
 from flask_login import current_user, login_required
-from sqlalchemy import func
+from sqlalchemy import and_, func, not_, or_
 from decimal import Decimal
 from datetime import datetime
 
@@ -15,7 +15,7 @@ from ...extensions import db
 from ...models.finance import FinanceCompany
 from ...models.core import Tenant
 from ...models.finance_ref import FinanceCounterparty
-from ...models.finance_ext import FinanceProduct
+from ...models.finance_ext import FinanceCategory, FinanceProduct
 from ...i18n import DEFAULT_LANG, tr
 from ...tenancy import enforce_subscription_access_or_redirect, get_current_tenant_id
 from ...services.bank_configuration_service import IBANValidator, BankConfigurationService
@@ -23,6 +23,23 @@ from ...security import require_roles
 
 
 finance_master_bp = Blueprint('finance_master', __name__, url_prefix='/finance/master')
+
+
+_ALLOWED_PRODUCT_TYPES = {"good", "service", "digital", "other"}
+_ALLOWED_TAX_FILTERS = {
+    "all",
+    "vat_taxable",
+    "vat_exempt",
+    "vat_reverse_charge",
+    "scope_eu",
+    "scope_br",
+    "scope_mixed",
+    "br_any",
+    "br_icms",
+    "br_ipi",
+    "br_pis",
+    "br_cofins",
+}
 
 
 def _(msgid: str, **kwargs):
@@ -82,6 +99,15 @@ def _get_company() -> FinanceCompany:
     return company
 
 
+def _list_product_categories(company_id: int) -> list[FinanceCategory]:
+    return (
+        FinanceCategory.query
+        .filter_by(tenant_id=g.tenant.id, company_id=company_id)
+        .order_by(FinanceCategory.name.asc())
+        .all()
+    )
+
+
 # ============================================================================
 # DASHBOARD PRINCIPAL
 # ============================================================================
@@ -120,6 +146,14 @@ def list_products():
     
     page = request.args.get('page', 1, type=int)
     search = request.args.get('search', '')
+    product_type = (request.args.get('product_type') or '').strip().lower()
+    category_id = request.args.get('category_id', type=int)
+    tax_filter = (request.args.get('tax_filter') or 'all').strip().lower()
+
+    if product_type not in _ALLOWED_PRODUCT_TYPES:
+        product_type = ''
+    if tax_filter not in _ALLOWED_TAX_FILTERS:
+        tax_filter = 'all'
     
     query = FinanceProduct.query.filter_by(tenant_id=g.tenant.id, company_id=company.id)
     
@@ -128,14 +162,86 @@ def list_products():
             (FinanceProduct.name.ilike(f'%{search}%')) |
             (FinanceProduct.code.ilike(f'%{search}%'))
         )
+
+    if product_type:
+        query = query.filter(FinanceProduct.product_type == product_type)
+
+    if category_id:
+        query = query.filter(FinanceProduct.category_id == category_id)
+
+    zero = Decimal('0')
+    br_has_any = or_(
+        FinanceProduct.br_icms_rate > zero,
+        FinanceProduct.br_ipi_rate > zero,
+        FinanceProduct.br_pis_rate > zero,
+        FinanceProduct.br_cofins_rate > zero,
+        FinanceProduct.br_ncm_code.isnot(None),
+        FinanceProduct.br_cfop_code.isnot(None),
+    )
+    eu_has_any = or_(
+        FinanceProduct.vat_applies.is_(True),
+        FinanceProduct.vat_rate > zero,
+        FinanceProduct.vat_reverse_charge.is_(True),
+        FinanceProduct.tax_exempt_reason.isnot(None),
+    )
+
+    if tax_filter == 'vat_taxable':
+        query = query.filter(FinanceProduct.vat_applies.is_(True), FinanceProduct.vat_rate > zero)
+    elif tax_filter == 'vat_exempt':
+        query = query.filter(or_(FinanceProduct.vat_applies.is_(False), FinanceProduct.vat_rate <= zero))
+    elif tax_filter == 'vat_reverse_charge':
+        query = query.filter(FinanceProduct.vat_reverse_charge.is_(True))
+    elif tax_filter == 'scope_eu':
+        query = query.filter(not_(br_has_any))
+    elif tax_filter == 'scope_br':
+        query = query.filter(and_(br_has_any, not_(eu_has_any)))
+    elif tax_filter == 'scope_mixed':
+        query = query.filter(and_(br_has_any, eu_has_any))
+    elif tax_filter == 'br_any':
+        query = query.filter(br_has_any)
+    elif tax_filter == 'br_icms':
+        query = query.filter(FinanceProduct.br_icms_rate > zero)
+    elif tax_filter == 'br_ipi':
+        query = query.filter(FinanceProduct.br_ipi_rate > zero)
+    elif tax_filter == 'br_pis':
+        query = query.filter(FinanceProduct.br_pis_rate > zero)
+    elif tax_filter == 'br_cofins':
+        query = query.filter(FinanceProduct.br_cofins_rate > zero)
     
     products = query.paginate(page=page, per_page=20)
+    category_options = _list_product_categories(company.id)
+    product_type_options = [
+        ('good', _('Bem físico')),
+        ('service', _('Serviço')),
+        ('digital', _('Digital')),
+        ('other', _('Outro')),
+    ]
+    tax_filter_options = [
+        ('all', _('Todos os impostos')),
+        ('scope_eu', _('Perimetro fiscal: UE only')),
+        ('scope_br', _('Perimetro fiscal: BR only')),
+        ('scope_mixed', _('Perimetro fiscal: Mixte UE+BR')),
+        ('vat_taxable', _('IVA aplicável')),
+        ('vat_exempt', _('Isento de IVA')),
+        ('vat_reverse_charge', _('IVA autoliquidação')),
+        ('br_any', _('Brasil: qualquer imposto')),
+        ('br_icms', _('Brasil: ICMS > 0')),
+        ('br_ipi', _('Brasil: IPI > 0')),
+        ('br_pis', _('Brasil: PIS > 0')),
+        ('br_cofins', _('Brasil: COFINS > 0')),
+    ]
     
     return render_template(
         'finance/products/list.html',
         products=products,
         company=company,
-        search=search
+        search=search,
+        category_options=category_options,
+        product_type_options=product_type_options,
+        tax_filter_options=tax_filter_options,
+        selected_product_type=product_type,
+        selected_category_id=category_id,
+        selected_tax_filter=tax_filter,
     )
 
 
@@ -144,6 +250,13 @@ def list_products():
 def create_product():
     """Créer un nouveau produit."""
     company = _get_company()
+    category_options = _list_product_categories(company.id)
+    product_type_options = [
+        ('good', _('Bem físico')),
+        ('service', _('Serviço')),
+        ('digital', _('Digital')),
+        ('other', _('Outro')),
+    ]
     
     if request.method == 'POST':
         form_data = request.form
@@ -152,6 +265,24 @@ def create_product():
         name = form_data.get('name', '').strip()
         code = form_data.get('code', '').strip()
         description = form_data.get('description', '').strip()
+        product_type = (form_data.get('product_type') or 'service').strip().lower()
+        if product_type not in _ALLOWED_PRODUCT_TYPES:
+            product_type = 'service'
+
+        category_id_raw = (form_data.get('category_id') or '').strip()
+        category_obj = None
+        if category_id_raw:
+            if not category_id_raw.isdigit():
+                flash(_('Dados inválidos'), 'error')
+                return redirect(url_for('finance_master.create_product', company_id=company.id))
+            category_obj = FinanceCategory.query.filter_by(
+                id=int(category_id_raw),
+                tenant_id=g.tenant.id,
+                company_id=company.id,
+            ).first()
+            if not category_obj:
+                flash(_('Dados inválidos'), 'error')
+                return redirect(url_for('finance_master.create_product', company_id=company.id))
         
         if not name:
             flash(_('Nome é obrigatório'), 'error')
@@ -195,6 +326,8 @@ def create_product():
                 name=name,
                 code=code,
                 description=description,
+                product_type=product_type,
+                category_id=category_obj.id if category_obj else None,
                 unit_price=unit_price,
                 currency_code=currency_code,
                 vat_applies=vat_applies,
@@ -225,7 +358,9 @@ def create_product():
     
     return render_template(
         'finance/products/create.html',
-        company=company
+        company=company,
+        category_options=category_options,
+        product_type_options=product_type_options,
     )
 
 
@@ -234,6 +369,13 @@ def create_product():
 def edit_product(product_id):
     """Éditer un produit existant."""
     company = _get_company()
+    category_options = _list_product_categories(company.id)
+    product_type_options = [
+        ('good', _('Bem físico')),
+        ('service', _('Serviço')),
+        ('digital', _('Digital')),
+        ('other', _('Outro')),
+    ]
     
     product = FinanceProduct.query.filter_by(
         id=product_id,
@@ -249,6 +391,35 @@ def edit_product(product_id):
         
         product.name = form_data.get('name', '').strip() or product.name
         product.description = form_data.get('description', '').strip() or product.description
+        product_type = (form_data.get('product_type') or product.product_type or 'service').strip().lower()
+        if product_type not in _ALLOWED_PRODUCT_TYPES:
+            product_type = product.product_type or 'service'
+
+        category_id_raw = (form_data.get('category_id') or '').strip()
+        category_obj = None
+        if category_id_raw:
+            if not category_id_raw.isdigit():
+                flash(_('Dados inválidos'), 'error')
+                return redirect(url_for(
+                    'finance_master.edit_product',
+                    product_id=product_id,
+                    company_id=company.id,
+                ))
+            category_obj = FinanceCategory.query.filter_by(
+                id=int(category_id_raw),
+                tenant_id=g.tenant.id,
+                company_id=company.id,
+            ).first()
+            if not category_obj:
+                flash(_('Dados inválidos'), 'error')
+                return redirect(url_for(
+                    'finance_master.edit_product',
+                    product_id=product_id,
+                    company_id=company.id,
+                ))
+
+        product.product_type = product_type
+        product.category_id = category_obj.id if category_obj else None
         
         # VAT
         try:
@@ -292,7 +463,9 @@ def edit_product(product_id):
     return render_template(
         'finance/products/edit.html',
         product=product,
-        company=company
+        company=company,
+        category_options=category_options,
+        product_type_options=product_type_options,
     )
 
 

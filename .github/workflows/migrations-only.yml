@@ -106,8 +106,12 @@ jobs:
               credit_approvals \
               credit_documents
 
+            pre_stamp_if_all_tables_exist 20260315_add_finance_quotes_tables \
+              finance_quotes \
+              finance_quote_lines
+
             echo "⬆️ Apply migrations"
-            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db upgrade
+            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db upgrade heads
 
             echo "🧪 Ensure database is at Alembic head(s)"
             HEAD_REVS="$($COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T audela flask db heads | awk '/^[0-9a-f]+/ {print $1}')"

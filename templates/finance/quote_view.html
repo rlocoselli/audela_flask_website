@@ -1,0 +1,216 @@
+{% extends "finance/base_finance.html" %}
+
+{% block finance_content %}
+  {% set status_labels = {
+    'draft': _('Brouillon'),
+    'sent': _('Envoye'),
+    'signed': _('Signe'),
+    'converted': _('Converti'),
+    'cancelled': _('Annule')
+  } %}
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h4 class="mb-0">{{ _('Devis') }} {{ quote.quote_number }}</h4>
+      <div class="small text-secondary">{{ _('Status') }}: <span class="fw-semibold">{{ status_labels.get(quote.status, quote.status) }}</span></div>
+    </div>
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-secondary" href="{{ url_for('finance.quotes_list') }}">{{ _('Retour') }}</a>
+      {% if quote.status != 'converted' %}
+        <a class="btn btn-outline-primary" href="{{ url_for('finance.quote_edit', quote_id=quote.id) }}">{{ _('Editer') }}</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-lg-8">
+      <div class="card shadow-sm mb-3">
+        <div class="card-body">
+          <div class="row g-2 mb-3">
+            <div class="col-md-4"><strong>{{ _('Date') }}:</strong> {{ quote.issue_date }}</div>
+            <div class="col-md-4"><strong>{{ _('Validite') }}:</strong> {{ quote.valid_until or '-' }}</div>
+            <div class="col-md-4"><strong>{{ _('Devise') }}:</strong> {{ quote.currency }}</div>
+            <div class="col-md-6"><strong>{{ _('Contraparte') }}:</strong> {{ quote.counterparty.name if quote.counterparty else '-' }}</div>
+            <div class="col-md-6"><strong>{{ _('Profil fiscal') }}:</strong> {{ quote.fiscal_country or '-' }}</div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table table-sm align-middle">
+              <thead>
+                <tr>
+                  <th>{{ _('Description') }}</th>
+                  <th class="text-end">{{ _('Qt') }}</th>
+                  <th class="text-end">{{ _('PU') }}</th>
+                  <th class="text-end">{{ _('Taxe %') }}</th>
+                  <th class="text-end">{{ _('HT') }}</th>
+                  <th class="text-end">{{ _('Taxe') }}</th>
+                  <th class="text-end">{{ _('TTC') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for l in quote.lines %}
+                  <tr>
+                    <td>{{ l.description }}</td>
+                    <td class="text-end">{{ '%.2f'|format(l.quantity or 0) }}</td>
+                    <td class="text-end">{{ '%.2f'|format(l.unit_price or 0) }}</td>
+                    <td class="text-end">{{ '%.2f'|format(l.vat_rate or 0) }}</td>
+                    <td class="text-end">{{ '%.2f'|format(l.net_amount or 0) }}</td>
+                    <td class="text-end">{{ '%.2f'|format(l.tax_amount or 0) }}</td>
+                    <td class="text-end">{{ '%.2f'|format(l.gross_amount or 0) }}</td>
+                  </tr>
+                {% else %}
+                  <tr><td colspan="7" class="text-center text-secondary">{{ _('Aucune ligne') }}</td></tr>
+                {% endfor %}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th colspan="4" class="text-end">{{ _('Totaux') }}</th>
+                  <th class="text-end">{{ '%.2f'|format(quote.total_net or 0) }}</th>
+                  <th class="text-end">{{ '%.2f'|format(quote.total_tax or 0) }}</th>
+                  <th class="text-end">{{ '%.2f'|format(quote.total_gross or 0) }}</th>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          {% if quote.notes %}
+            <div class="mt-3">
+              <strong>{{ _('Notes') }}</strong>
+              <div class="small text-secondary">{{ quote.notes }}</div>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-3">
+        <div class="card-header"><strong>{{ _('Signature electronique simple') }}</strong></div>
+        <div class="card-body">
+          {% if quote.signature_data_url %}
+            <div class="mb-2 small text-secondary">
+              {{ _('Signe par') }} {{ quote.signer_name or '-' }}
+              {{ _('le') }} {{ quote.signed_at or '-' }}
+            </div>
+            <img src="{{ quote.signature_data_url }}" alt="signature" style="max-width:100%; border:1px solid #ddd; border-radius:8px;">
+          {% elif can_sign %}
+            <form method="post" action="{{ url_for('finance.quote_sign', quote_id=quote.id) }}" id="signatureForm">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <div class="row g-2 mb-2">
+                <div class="col-md-12">
+                  <label class="form-label">{{ _('Nom signataire') }}</label>
+                  <input class="form-control" name="signer_name" required>
+                </div>
+              </div>
+
+              <label class="form-label">{{ _('Signature tactile (doigt/souris)') }}</label>
+              <div class="border rounded p-2" style="touch-action:none;">
+                <canvas id="signatureCanvas" width="900" height="240" style="width:100%;height:220px;display:block;background:#fff;border:1px dashed #adb5bd;border-radius:6px;"></canvas>
+              </div>
+              <input type="hidden" name="signature_data" id="signatureData">
+              <div class="d-flex justify-content-between mt-2">
+                <button class="btn btn-outline-secondary" type="button" id="clearSignature">{{ _('Effacer') }}</button>
+                <button class="btn btn-primary" type="submit">{{ _('Signer le devis') }}</button>
+              </div>
+            </form>
+          {% else %}
+            <div class="text-secondary">{{ _('Le devis ne peut pas etre signe dans son etat actuel.') }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <div class="card shadow-sm mb-3">
+        <div class="card-header"><strong>{{ _('Actions') }}</strong></div>
+        <div class="card-body d-grid gap-2">
+          {% if can_convert %}
+            <form method="post" action="{{ url_for('finance.quote_convert_to_invoice', quote_id=quote.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-success w-100" type="submit">{{ _('Convertir en facture') }}</button>
+            </form>
+          {% endif %}
+
+          {% if quote.converted_invoice_id %}
+            <a class="btn btn-primary" href="{{ url_for('finance.invoice_view', invoice_id=quote.converted_invoice_id) }}">{{ _('Voir facture creee') }}</a>
+          {% endif %}
+
+          {% if quote.status != 'converted' %}
+            <form method="post" action="{{ url_for('finance.quote_delete', quote_id=quote.id) }}" onsubmit="return confirm('{{ _('Supprimer ce devis ?') }}');">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn btn-outline-danger w-100" type="submit">{{ _('Supprimer') }}</button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const canvas = document.getElementById('signatureCanvas');
+      const form = document.getElementById('signatureForm');
+      if (!canvas || !form) return;
+
+      const ctx = canvas.getContext('2d');
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#1f2937';
+
+      let drawing = false;
+      let hasInk = false;
+
+      function positionFromEvent(evt) {
+        const rect = canvas.getBoundingClientRect();
+        const source = evt.touches ? evt.touches[0] : evt;
+        const x = (source.clientX - rect.left) * (canvas.width / rect.width);
+        const y = (source.clientY - rect.top) * (canvas.height / rect.height);
+        return { x, y };
+      }
+
+      function start(evt) {
+        evt.preventDefault();
+        drawing = true;
+        const p = positionFromEvent(evt);
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+      }
+
+      function move(evt) {
+        if (!drawing) return;
+        evt.preventDefault();
+        const p = positionFromEvent(evt);
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+        hasInk = true;
+      }
+
+      function end(evt) {
+        if (!drawing) return;
+        evt.preventDefault();
+        drawing = false;
+      }
+
+      canvas.addEventListener('mousedown', start);
+      canvas.addEventListener('mousemove', move);
+      canvas.addEventListener('mouseup', end);
+      canvas.addEventListener('mouseleave', end);
+
+      canvas.addEventListener('touchstart', start, { passive: false });
+      canvas.addEventListener('touchmove', move, { passive: false });
+      canvas.addEventListener('touchend', end, { passive: false });
+
+      document.getElementById('clearSignature').addEventListener('click', function () {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        hasInk = false;
+        document.getElementById('signatureData').value = '';
+      });
+
+      form.addEventListener('submit', function (evt) {
+        if (!hasInk) {
+          evt.preventDefault();
+          alert('Veuillez dessiner la signature.');
+          return;
+        }
+        document.getElementById('signatureData').value = canvas.toDataURL('image/png');
+      });
+    })();
+  </script>
+{% endblock %}

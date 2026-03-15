@@ -1,0 +1,106 @@
+{% extends "finance/base_finance.html" %}
+
+{% block finance_content %}
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h4 class="mb-0">{{ _('Import produits et impots') }}</h4>
+      <div class="small text-secondary">{{ _('Import preset uniquement (sans CSV/URL) pour limiter les erreurs de mapping fiscal.') }}</div>
+    </div>
+    <a class="btn btn-outline-secondary" href="{{ url_for('finance.invoices_list') }}">{{ _('Retour factures') }}</a>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-header"><strong>{{ _('Import rapide par preset') }}</strong></div>
+    <div class="card-body">
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="mb-3">
+          <label class="form-label">{{ _('Pays / Regime') }}</label>
+          <select class="form-select" name="preset_region" required>
+            <option value="fr" {% if default_region == 'fr' %}selected{% endif %}>{{ _('France (TVA)') }}</option>
+            <option value="it" {% if default_region == 'it' %}selected{% endif %}>{{ _('Italie (IVA)') }}</option>
+            <option value="br" {% if default_region == 'br' %}selected{% endif %}>{{ _('Bresil (ICMS/IPI/PIS/COFINS)') }}</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">{{ _('Type d entreprise') }}</label>
+          <select class="form-select" name="business_profile" id="businessProfile" required>
+            {% for opt_value, opt_label in business_profile_options %}
+              <option value="{{ opt_value }}" {% if default_business_profile == opt_value %}selected{% endif %}>{{ opt_label }}</option>
+            {% endfor %}
+          </select>
+          <div class="form-text">{{ _('Le preset ajoute des produits et taxes typiques du secteur choisi.') }}</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">{{ _('Sous-secteur') }}</label>
+          <select class="form-select" name="subsector" id="subsectorSelect" required>
+            {% for opt_value, opt_label, opt_business in subsector_options %}
+              <option value="{{ opt_value }}" data-business="{{ opt_business }}" {% if default_subsector == opt_value %}selected{% endif %}>{{ opt_label }}</option>
+            {% endfor %}
+          </select>
+          <div class="form-text">{{ _('Affinez la base importee selon votre activite principale.') }}</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">{{ _('Taille de la base produit') }}</label>
+          <select class="form-select" name="preset_size" required>
+            {% for opt_value, opt_label in preset_size_options %}
+              <option value="{{ opt_value }}" {% if default_preset_size == opt_value %}selected{% endif %}>{{ opt_label }}</option>
+            {% endfor %}
+          </select>
+          <div class="form-text">{{ _('Large importe un catalogue riche; XL tres etendu; XXL ajoute une base sous-secteur massive.') }}</div>
+        </div>
+        <button class="btn btn-primary" type="submit">{{ _('Importer preset') }}</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mt-3">
+    <div class="card-header"><strong>{{ _('Source de reference') }}</strong></div>
+    <div class="card-body">
+      <div class="small text-secondary">
+        {{ _('Il n existe pas une base publique unique et complete couvrant automatiquement FR + IT + BR avec classification fiscale prete a facturer.') }}
+      </div>
+      <div class="small text-secondary mt-2">
+        {{ _('Ce module utilise des presets controles pour France, Italie et Bresil afin de reduire les erreurs de TVA/tributos.') }}
+      </div>
+      <div class="small text-secondary mt-2">
+        {{ _('Vous pourrez ensuite ajuster les taux et codes produit par produit selon votre cas reel.') }}
+      </div>
+      <div class="small text-secondary mt-2">
+        {{ _('Astuce: choisissez un type d entreprise pour precharger une base metier (services, retail, restauration, industrie, SaaS, construction).') }}
+      </div>
+      <div class="small text-secondary mt-2">
+        {{ _('Pour une base plus grande, utilisez Taille = Large, XL ou XXL.') }}
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const businessSelect = document.getElementById('businessProfile');
+      const subsectorSelect = document.getElementById('subsectorSelect');
+      if (!businessSelect || !subsectorSelect) return;
+
+      function refreshSubsectors() {
+        const business = (businessSelect.value || 'general').toLowerCase();
+        const options = Array.from(subsectorSelect.options);
+        let hasSelectedVisible = false;
+
+        options.forEach((opt) => {
+          const targetBusiness = (opt.dataset.business || 'all').toLowerCase();
+          const visible = targetBusiness === 'all' || business === 'general' || targetBusiness === business;
+          opt.hidden = !visible;
+          if (visible && opt.selected) hasSelectedVisible = true;
+        });
+
+        if (!hasSelectedVisible) {
+          const fallback = options.find((opt) => !opt.hidden && opt.value === 'all') || options.find((opt) => !opt.hidden);
+          if (fallback) fallback.selected = true;
+        }
+      }
+
+      businessSelect.addEventListener('change', refreshSubsectors);
+      refreshSubsectors();
+    })();
+  </script>
+{% endblock %}

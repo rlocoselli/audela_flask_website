@@ -1,0 +1,72 @@
+{% extends "finance/base_finance.html" %}
+
+{% block finance_content %}
+  {% set status_labels = {
+    'draft': _('Brouillon'),
+    'sent': _('Envoye'),
+    'signed': _('Signe'),
+    'converted': _('Converti'),
+    'cancelled': _('Annule')
+  } %}
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h4 class="mb-0">{{ _('Devis') }}</h4>
+      <div class="text-secondary small">{{ _('Flux simple: creation -> signature tactile -> conversion en facture') }}</div>
+    </div>
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-secondary" href="{{ url_for('finance.invoices_list') }}">{{ _('Factures') }}</a>
+      <a class="btn btn-primary" href="{{ url_for('finance.quote_new') }}">{{ _('Nouveau devis') }}</a>
+    </div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle">
+          <thead>
+            <tr>
+              <th>{{ _('Numero') }}</th>
+              <th>{{ _('Status') }}</th>
+              <th>{{ _('Date') }}</th>
+              <th>{{ _('Validite') }}</th>
+              <th>{{ _('Contraparte') }}</th>
+              <th class="text-end">{{ _('Total') }}</th>
+              <th class="text-end">{{ _('Actions') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for q in quotes %}
+              <tr>
+                <td><a href="{{ url_for('finance.quote_view', quote_id=q.id) }}" class="text-decoration-none">{{ q.quote_number }}</a></td>
+                <td>
+                  <span class="badge {% if q.status == 'signed' %}bg-success{% elif q.status == 'converted' %}bg-primary{% elif q.status == 'sent' %}bg-info{% elif q.status == 'cancelled' %}bg-dark{% else %}bg-warning text-dark{% endif %}">
+                    {{ status_labels.get(q.status, q.status) }}
+                  </span>
+                </td>
+                <td>{{ q.issue_date }}</td>
+                <td>{{ q.valid_until or '' }}</td>
+                <td>{{ q.counterparty.name if q.counterparty else '' }}</td>
+                <td class="text-end">{{ '%.2f'|format(q.total_gross or 0) }} {{ q.currency }}</td>
+                <td class="text-end">
+                  <div class="d-inline-flex flex-wrap gap-1 justify-content-end">
+                    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('finance.quote_view', quote_id=q.id) }}">{{ _('Voir') }}</a>
+                    {% if q.status != 'converted' %}
+                      <a class="btn btn-outline-primary btn-sm" href="{{ url_for('finance.quote_edit', quote_id=q.id) }}">{{ _('Editer') }}</a>
+                    {% endif %}
+                    {% if q.converted_invoice_id %}
+                      <a class="btn btn-success btn-sm" href="{{ url_for('finance.invoice_view', invoice_id=q.converted_invoice_id) }}">{{ _('Facture') }}</a>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="7" class="text-center text-secondary py-4">{{ _('Aucun devis pour le moment.') }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+{% endblock %}

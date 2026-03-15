@@ -6,12 +6,15 @@ import uuid
 import os
 import random
 import csv
+import json
+import ipaddress
 from collections import defaultdict
 from datetime import date, datetime, timedelta
-from io import BytesIO
+from io import BytesIO, StringIO
 from decimal import Decimal
 import requests
 from pathlib import Path
+from urllib.parse import urlparse
 
 from flask import abort, flash, g, redirect, render_template, request, session, url_for, current_app, jsonify, send_file
 from flask_login import current_user, login_required
@@ -26,6 +29,7 @@ from ...models.core import Tenant
 from ...models.finance import FinanceAccount, FinanceCompany, FinanceTransaction
 from ...models.finance_ref import FinanceCurrency, FinanceCounterparty, FinanceStatementImport
 from ...models.finance_invoices import FinanceInvoice, FinanceInvoiceLine, FinanceSetting
+from ...models.finance_quotes import FinanceQuote, FinanceQuoteLine
 from ...models.finance_ext import (
     FinanceBankAccountLink,
     FinanceBankConnection,
@@ -278,6 +282,11 @@ def _load_tenant_into_g() -> None:
             "finance.invoices_list": "invoices",
             "finance.invoices_cockpit": "invoices",
             "finance.invoice_view": "invoices",
+            "finance.quotes_list": "invoices",
+            "finance.quote_new": "invoices",
+            "finance.quote_view": "invoices",
+            "finance.quote_edit": "invoices",
+            "finance.product_tax_import": "invoices",
             "finance.alerts_page": "alerts",
             "finance.regulation_page": "regulation",
             "finance.liabilities_list": "liabilities",
@@ -4107,7 +4116,13 @@ def banks_connect():
     try:
         bridge.create_user(external_user_id=external_user_id, email=getattr(current_user, "email", None))
         bearer, _exp = bridge.get_user_token(external_user_id=external_user_id)
-        callback = url_for("finance.banks_callback", _external=True)
+        callback = (current_app.config.get("BRIDGE_CALLBACK_URL") or "").strip().rstrip("/")
+        if not callback:
+            site_url = (current_app.config.get("SITE_URL") or "").strip().rstrip("/")
+            if site_url:
+                callback = f"{site_url}/finance/banks/callback"
+            else:
+                callback = url_for("finance.banks_callback", _external=True)
         sess = bridge.create_connect_session(
             bearer=bearer,
             user_email=getattr(current_user, "email", "user@audela.local"),
@@ -7388,6 +7403,1526 @@ def regulation_export_it_ledger():
 # -----------------
 # E-invoices (PDF + XML)
 # -----------------
+
+_EU_ALLOWED_VAT_RATES: dict[str, set[Decimal]] = {
+    "FR": {Decimal("20"), Decimal("10"), Decimal("5.5"), Decimal("2.1"), Decimal("0")},
+    "IT": {Decimal("22"), Decimal("10"), Decimal("5"), Decimal("4"), Decimal("0")},
+}
+
+_PRESET_PRODUCT_TAX_ROWS: dict[str, list[dict[str, object]]] = {
+    "fr": [
+        {"name": "Conseil professionnel", "vat_rate": "20", "fiscal_country": "EU"},
+        {"name": "Abonnement logiciel", "vat_rate": "20", "fiscal_country": "EU"},
+        {"name": "Restauration", "vat_rate": "10", "fiscal_country": "EU"},
+        {"name": "Livre", "vat_rate": "5.5", "fiscal_country": "EU"},
+        {"name": "Export hors UE", "vat_rate": "0", "fiscal_country": "EU", "tax_exempt_reason": "export"},
+    ],
+    "it": [
+        {"name": "Consulenza professionale", "vat_rate": "22", "fiscal_country": "EU"},
+        {"name": "Canone software", "vat_rate": "22", "fiscal_country": "EU"},
+        {"name": "Ristorazione", "vat_rate": "10", "fiscal_country": "EU"},
+        {"name": "Alimenti base", "vat_rate": "4", "fiscal_country": "EU"},
+        {"name": "Export extra UE", "vat_rate": "0", "fiscal_country": "EU", "tax_exempt_reason": "export"},
+    ],
+    "br": [
+        {
+            "name": "Servico de consultoria",
+            "fiscal_country": "BR",
+            "vat_rate": "0",
+            "br_icms_rate": "18",
+            "br_ipi_rate": "0",
+            "br_pis_rate": "1.65",
+            "br_cofins_rate": "7.60",
+            "br_ncm_code": "00000000",
+            "br_cfop_code": "5102",
+            "br_cst_icms": "00",
+            "br_cst_ipi": "50",
+            "br_cst_pis": "01",
+            "br_cst_cofins": "01",
+        },
+        {
+            "name": "Licenca de software",
+            "fiscal_country": "BR",
+            "vat_rate": "0",
+            "br_icms_rate": "18",
+            "br_ipi_rate": "0",
+            "br_pis_rate": "1.65",
+            "br_cofins_rate": "7.60",
+            "br_ncm_code": "85234990",
+            "br_cfop_code": "5102",
+            "br_cst_icms": "00",
+            "br_cst_ipi": "50",
+            "br_cst_pis": "01",
+            "br_cst_cofins": "01",
+        },
+    ],
+}
+
+_BUSINESS_PROFILE_LABELS: dict[str, str] = {
+    "general": "General",
+    "services": "Services",
+    "retail": "Retail",
+    "restaurant": "Restaurant",
+    "manufacturing": "Manufacturing",
+    "saas": "SaaS",
+    "construction": "Construction",
+}
+
+_PRESET_SIZE_LABELS: dict[str, str] = {
+    "standard": "Standard",
+    "large": "Large",
+    "xl": "XL",
+    "xxl": "XXL",
+}
+
+_SUBSECTOR_LABELS: dict[str, tuple[str, str]] = {
+    "all": ("all", "All sub-sectors"),
+    "services_it": ("services", "IT services"),
+    "services_finance": ("services", "Finance services"),
+    "retail_food": ("retail", "Food retail"),
+    "retail_non_food": ("retail", "Non-food retail"),
+    "restaurant_fast_food": ("restaurant", "Fast food"),
+    "restaurant_catering": ("restaurant", "Catering"),
+    "manufacturing_light": ("manufacturing", "Light manufacturing"),
+    "manufacturing_mechanical": ("manufacturing", "Mechanical manufacturing"),
+    "saas_b2b": ("saas", "SaaS B2B"),
+    "saas_b2c": ("saas", "SaaS B2C"),
+    "construction_finishings": ("construction", "Finishings"),
+    "construction_structural": ("construction", "Structural works"),
+}
+
+_PRESET_PRODUCT_TAX_BY_BUSINESS: dict[str, dict[str, list[dict[str, object]]]] = {
+    "fr": {
+        "services": [
+            {"name": "Audit comptable", "vat_rate": "20", "fiscal_country": "EU"},
+            {"name": "Maintenance informatique", "vat_rate": "20", "fiscal_country": "EU"},
+            {"name": "Support administratif", "vat_rate": "20", "fiscal_country": "EU"},
+        ],
+        "retail": [
+            {"name": "Vente detail - produit standard", "vat_rate": "20", "fiscal_country": "EU"},
+            {"name": "Produit alimentaire transforme", "vat_rate": "10", "fiscal_country": "EU"},
+            {"name": "Livre papier", "vat_rate": "5.5", "fiscal_country": "EU"},
+        ],
+        "restaurant": [
+            {"name": "Repas sur place", "vat_rate": "10", "fiscal_country": "EU"},
+            {"name": "Boisson non alcoolisee", "vat_rate": "10", "fiscal_country": "EU"},
+            {"name": "Boisson alcoolisee", "vat_rate": "20", "fiscal_country": "EU"},
+        ],
+        "manufacturing": [
+            {"name": "Piece industrielle", "vat_rate": "20", "fiscal_country": "EU"},
+            {"name": "Service de production", "vat_rate": "20", "fiscal_country": "EU"},
+            {"name": "Transport de marchandises", "vat_rate": "20", "fiscal_country": "EU"},
+        ],
+        "saas": [
+            {"name": "Abonnement SaaS B2B", "vat_rate": "20", "fiscal_country": "EU"},
+            {"name": "Setup onboarding", "vat_rate": "20", "fiscal_country": "EU"},
+            {"name": "Licence API", "vat_rate": "20", "fiscal_country": "EU"},
+        ],
+        "construction": [
+            {"name": "Travaux de renovation", "vat_rate": "10", "fiscal_country": "EU"},
+            {"name": "Travaux neufs", "vat_rate": "20", "fiscal_country": "EU"},
+            {"name": "Materiaux de chantier", "vat_rate": "20", "fiscal_country": "EU"},
+        ],
+    },
+    "it": {
+        "services": [
+            {"name": "Consulenza amministrativa", "vat_rate": "22", "fiscal_country": "EU"},
+            {"name": "Supporto IT", "vat_rate": "22", "fiscal_country": "EU"},
+            {"name": "Servizio professionale", "vat_rate": "22", "fiscal_country": "EU"},
+        ],
+        "retail": [
+            {"name": "Vendita dettaglio - prodotto standard", "vat_rate": "22", "fiscal_country": "EU"},
+            {"name": "Prodotto alimentare", "vat_rate": "10", "fiscal_country": "EU"},
+            {"name": "Libro", "vat_rate": "4", "fiscal_country": "EU"},
+        ],
+        "restaurant": [
+            {"name": "Somministrazione pasti", "vat_rate": "10", "fiscal_country": "EU"},
+            {"name": "Bevande analcoliche", "vat_rate": "10", "fiscal_country": "EU"},
+            {"name": "Bevande alcoliche", "vat_rate": "22", "fiscal_country": "EU"},
+        ],
+        "manufacturing": [
+            {"name": "Componente industriale", "vat_rate": "22", "fiscal_country": "EU"},
+            {"name": "Lavorazione conto terzi", "vat_rate": "22", "fiscal_country": "EU"},
+            {"name": "Trasporto merci", "vat_rate": "22", "fiscal_country": "EU"},
+        ],
+        "saas": [
+            {"name": "Abbonamento SaaS B2B", "vat_rate": "22", "fiscal_country": "EU"},
+            {"name": "Attivazione piattaforma", "vat_rate": "22", "fiscal_country": "EU"},
+            {"name": "Licenza API", "vat_rate": "22", "fiscal_country": "EU"},
+        ],
+        "construction": [
+            {"name": "Ristrutturazione edilizia", "vat_rate": "10", "fiscal_country": "EU"},
+            {"name": "Nuova costruzione", "vat_rate": "22", "fiscal_country": "EU"},
+            {"name": "Materiale da cantiere", "vat_rate": "22", "fiscal_country": "EU"},
+        ],
+    },
+    "br": {
+        "services": [
+            {
+                "name": "Servico de consultoria empresarial",
+                "fiscal_country": "BR",
+                "vat_rate": "0",
+                "br_icms_rate": "18",
+                "br_ipi_rate": "0",
+                "br_pis_rate": "1.65",
+                "br_cofins_rate": "7.60",
+                "br_ncm_code": "00000000",
+                "br_cfop_code": "5102",
+                "br_cst_icms": "00",
+                "br_cst_ipi": "50",
+                "br_cst_pis": "01",
+                "br_cst_cofins": "01",
+            },
+            {
+                "name": "Servico de suporte tecnico",
+                "fiscal_country": "BR",
+                "vat_rate": "0",
+                "br_icms_rate": "18",
+                "br_ipi_rate": "0",
+                "br_pis_rate": "1.65",
+                "br_cofins_rate": "7.60",
+                "br_ncm_code": "00000000",
+                "br_cfop_code": "5102",
+                "br_cst_icms": "00",
+                "br_cst_ipi": "50",
+                "br_cst_pis": "01",
+                "br_cst_cofins": "01",
+            },
+        ],
+        "retail": [
+            {
+                "name": "Venda varejo - produto padrao",
+                "fiscal_country": "BR",
+                "vat_rate": "0",
+                "br_icms_rate": "18",
+                "br_ipi_rate": "5",
+                "br_pis_rate": "1.65",
+                "br_cofins_rate": "7.60",
+                "br_ncm_code": "00000000",
+                "br_cfop_code": "5102",
+                "br_cst_icms": "00",
+                "br_cst_ipi": "50",
+                "br_cst_pis": "01",
+                "br_cst_cofins": "01",
+            },
+            {
+                "name": "Produto alimenticio",
+                "fiscal_country": "BR",
+                "vat_rate": "0",
+                "br_icms_rate": "12",
+                "br_ipi_rate": "0",
+                "br_pis_rate": "1.65",
+                "br_cofins_rate": "7.60",
+                "br_ncm_code": "21069090",
+                "br_cfop_code": "5102",
+                "br_cst_icms": "00",
+                "br_cst_ipi": "50",
+                "br_cst_pis": "01",
+                "br_cst_cofins": "01",
+            },
+        ],
+        "restaurant": [
+            {
+                "name": "Prato preparado",
+                "fiscal_country": "BR",
+                "vat_rate": "0",
+                "br_icms_rate": "12",
+                "br_ipi_rate": "0",
+                "br_pis_rate": "1.65",
+                "br_cofins_rate": "7.60",
+                "br_ncm_code": "21069090",
+                "br_cfop_code": "5102",
+                "br_cst_icms": "00",
+                "br_cst_ipi": "50",
+                "br_cst_pis": "01",
+                "br_cst_cofins": "01",
+            },
+            {
+                "name": "Bebida alcoolica",
+                "fiscal_country": "BR",
+                "vat_rate": "0",
+                "br_icms_rate": "25",
+                "br_ipi_rate": "10",
+                "br_pis_rate": "1.65",
+                "br_cofins_rate": "7.60",
+                "br_ncm_code": "22030000",
+                "br_cfop_code": "5102",
+                "br_cst_icms": "00",
+                "br_cst_ipi": "50",
+                "br_cst_pis": "01",
+                "br_cst_cofins": "01",
+            },
+        ],
+        "manufacturing": [
+            {
+                "name": "Componente industrial",
+                "fiscal_country": "BR",
+                "vat_rate": "0",
+                "br_icms_rate": "18",
+                "br_ipi_rate": "5",
+                "br_pis_rate": "1.65",
+                "br_cofins_rate": "7.60",
+                "br_ncm_code": "73089090",
+                "br_cfop_code": "5101",
+                "br_cst_icms": "00",
+                "br_cst_ipi": "50",
+                "br_cst_pis": "01",
+                "br_cst_cofins": "01",
+            },
+            {
+                "name": "Servico de industrializacao",
+                "fiscal_country": "BR",
+                "vat_rate": "0",
+                "br_icms_rate": "18",
+                "br_ipi_rate": "5",
+                "br_pis_rate": "1.65",
+                "br_cofins_rate": "7.60",
+                "br_ncm_code": "00000000",
+                "br_cfop_code": "5124",
+                "br_cst_icms": "00",
+                "br_cst_ipi": "50",
+                "br_cst_pis": "01",
+                "br_cst_cofins": "01",
+            },
+        ],
+        "saas": [
+            {
+                "name": "Assinatura SaaS B2B",
+                "fiscal_country": "BR",
+                "vat_rate": "0",
+                "br_icms_rate": "18",
+                "br_ipi_rate": "0",
+                "br_pis_rate": "1.65",
+                "br_cofins_rate": "7.60",
+                "br_ncm_code": "85234990",
+                "br_cfop_code": "5102",
+                "br_cst_icms": "00",
+                "br_cst_ipi": "50",
+                "br_cst_pis": "01",
+                "br_cst_cofins": "01",
+            },
+            {
+                "name": "Implantacao de plataforma",
+                "fiscal_country": "BR",
+                "vat_rate": "0",
+                "br_icms_rate": "18",
+                "br_ipi_rate": "0",
+                "br_pis_rate": "1.65",
+                "br_cofins_rate": "7.60",
+                "br_ncm_code": "00000000",
+                "br_cfop_code": "5102",
+                "br_cst_icms": "00",
+                "br_cst_ipi": "50",
+                "br_cst_pis": "01",
+                "br_cst_cofins": "01",
+            },
+        ],
+        "construction": [
+            {
+                "name": "Servico de construcao civil",
+                "fiscal_country": "BR",
+                "vat_rate": "0",
+                "br_icms_rate": "18",
+                "br_ipi_rate": "0",
+                "br_pis_rate": "1.65",
+                "br_cofins_rate": "7.60",
+                "br_ncm_code": "00000000",
+                "br_cfop_code": "5933",
+                "br_cst_icms": "00",
+                "br_cst_ipi": "50",
+                "br_cst_pis": "01",
+                "br_cst_cofins": "01",
+            },
+            {
+                "name": "Material de obra",
+                "fiscal_country": "BR",
+                "vat_rate": "0",
+                "br_icms_rate": "18",
+                "br_ipi_rate": "5",
+                "br_pis_rate": "1.65",
+                "br_cofins_rate": "7.60",
+                "br_ncm_code": "68101900",
+                "br_cfop_code": "5102",
+                "br_cst_icms": "00",
+                "br_cst_ipi": "50",
+                "br_cst_pis": "01",
+                "br_cst_cofins": "01",
+            },
+        ],
+    },
+}
+
+_PRESET_PRODUCT_TAX_BY_SUBSECTOR: dict[str, dict[str, list[dict[str, object]]]] = {
+    "fr": {
+        "services_it": [
+            {"name": "Infogerance postes", "vat_rate": "20", "fiscal_country": "EU"},
+            {"name": "Supervision cloud", "vat_rate": "20", "fiscal_country": "EU"},
+        ],
+        "services_finance": [
+            {"name": "Tenue comptable mensuelle", "vat_rate": "20", "fiscal_country": "EU"},
+            {"name": "Reporting financier", "vat_rate": "20", "fiscal_country": "EU"},
+        ],
+        "retail_food": [
+            {"name": "Epicerie fine", "vat_rate": "5.5", "fiscal_country": "EU"},
+            {"name": "Produit frais emballe", "vat_rate": "5.5", "fiscal_country": "EU"},
+        ],
+        "retail_non_food": [
+            {"name": "Accessoire maison", "vat_rate": "20", "fiscal_country": "EU"},
+            {"name": "Petit equipement loisir", "vat_rate": "20", "fiscal_country": "EU"},
+        ],
+        "restaurant_fast_food": [
+            {"name": "Menu restauration rapide", "vat_rate": "10", "fiscal_country": "EU"},
+            {"name": "Snack chaud", "vat_rate": "10", "fiscal_country": "EU"},
+        ],
+        "restaurant_catering": [
+            {"name": "Prestation traiteur evenement", "vat_rate": "10", "fiscal_country": "EU"},
+            {"name": "Livraison cocktail", "vat_rate": "10", "fiscal_country": "EU"},
+        ],
+        "manufacturing_light": [
+            {"name": "Assemblage petite serie", "vat_rate": "20", "fiscal_country": "EU"},
+            {"name": "Conditionnement produit", "vat_rate": "20", "fiscal_country": "EU"},
+        ],
+        "manufacturing_mechanical": [
+            {"name": "Usinage mecanique", "vat_rate": "20", "fiscal_country": "EU"},
+            {"name": "Piece tournee", "vat_rate": "20", "fiscal_country": "EU"},
+        ],
+        "saas_b2b": [
+            {"name": "Abonnement ERP cloud", "vat_rate": "20", "fiscal_country": "EU"},
+            {"name": "Module SSO entreprise", "vat_rate": "20", "fiscal_country": "EU"},
+        ],
+        "saas_b2c": [
+            {"name": "Abonnement app mobile", "vat_rate": "20", "fiscal_country": "EU"},
+            {"name": "Pack premium utilisateur", "vat_rate": "20", "fiscal_country": "EU"},
+        ],
+        "construction_finishings": [
+            {"name": "Pose revetement sol", "vat_rate": "10", "fiscal_country": "EU"},
+            {"name": "Travaux peinture finition", "vat_rate": "10", "fiscal_country": "EU"},
+        ],
+        "construction_structural": [
+            {"name": "Gros oeuvre beton", "vat_rate": "20", "fiscal_country": "EU"},
+            {"name": "Maconnerie structurelle", "vat_rate": "20", "fiscal_country": "EU"},
+        ],
+    },
+    "it": {
+        "services_it": [
+            {"name": "Gestione endpoint aziendali", "vat_rate": "22", "fiscal_country": "EU"},
+            {"name": "Monitoraggio cloud", "vat_rate": "22", "fiscal_country": "EU"},
+        ],
+        "services_finance": [
+            {"name": "Contabilita mensile", "vat_rate": "22", "fiscal_country": "EU"},
+            {"name": "Reporting finanziario", "vat_rate": "22", "fiscal_country": "EU"},
+        ],
+        "retail_food": [
+            {"name": "Alimentari confezionati", "vat_rate": "10", "fiscal_country": "EU"},
+            {"name": "Prodotto fresco imballato", "vat_rate": "10", "fiscal_country": "EU"},
+        ],
+        "retail_non_food": [
+            {"name": "Accessorio casa", "vat_rate": "22", "fiscal_country": "EU"},
+            {"name": "Piccolo articolo tempo libero", "vat_rate": "22", "fiscal_country": "EU"},
+        ],
+        "restaurant_fast_food": [
+            {"name": "Menu fast food", "vat_rate": "10", "fiscal_country": "EU"},
+            {"name": "Snack caldo", "vat_rate": "10", "fiscal_country": "EU"},
+        ],
+        "restaurant_catering": [
+            {"name": "Servizio catering eventi", "vat_rate": "10", "fiscal_country": "EU"},
+            {"name": "Consegna buffet", "vat_rate": "10", "fiscal_country": "EU"},
+        ],
+        "manufacturing_light": [
+            {"name": "Assemblaggio piccola serie", "vat_rate": "22", "fiscal_country": "EU"},
+            {"name": "Confezionamento prodotto", "vat_rate": "22", "fiscal_country": "EU"},
+        ],
+        "manufacturing_mechanical": [
+            {"name": "Lavorazione meccanica", "vat_rate": "22", "fiscal_country": "EU"},
+            {"name": "Componente tornito", "vat_rate": "22", "fiscal_country": "EU"},
+        ],
+        "saas_b2b": [
+            {"name": "Abbonamento ERP cloud", "vat_rate": "22", "fiscal_country": "EU"},
+            {"name": "Modulo SSO enterprise", "vat_rate": "22", "fiscal_country": "EU"},
+        ],
+        "saas_b2c": [
+            {"name": "Abbonamento app mobile", "vat_rate": "22", "fiscal_country": "EU"},
+            {"name": "Pacchetto premium utente", "vat_rate": "22", "fiscal_country": "EU"},
+        ],
+        "construction_finishings": [
+            {"name": "Posa rivestimento pavimenti", "vat_rate": "10", "fiscal_country": "EU"},
+            {"name": "Tinteggiatura finiture", "vat_rate": "10", "fiscal_country": "EU"},
+        ],
+        "construction_structural": [
+            {"name": "Opere strutturali calcestruzzo", "vat_rate": "22", "fiscal_country": "EU"},
+            {"name": "Muratura strutturale", "vat_rate": "22", "fiscal_country": "EU"},
+        ],
+    },
+    "br": {
+        "services_it": [
+            {"name": "Servico de monitoramento de infraestrutura", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "0", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "00000000", "br_cfop_code": "5102", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"},
+            {"name": "Servico administracao servidores", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "0", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "00000000", "br_cfop_code": "5102", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"},
+        ],
+        "services_finance": [
+            {"name": "Servico BPO financeiro", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "0", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "00000000", "br_cfop_code": "5102", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"},
+            {"name": "Servico controle de caixa", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "0", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "00000000", "br_cfop_code": "5102", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"},
+        ],
+        "retail_food": [
+            {"name": "Produto alimenticio perecivel", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "12", "br_ipi_rate": "0", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "04069010", "br_cfop_code": "5102", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"},
+            {"name": "Produto padaria", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "12", "br_ipi_rate": "0", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "19059090", "br_cfop_code": "5102", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"},
+        ],
+        "retail_non_food": [
+            {"name": "Produto utilidade domestica", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "5", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "39249000", "br_cfop_code": "5102", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"},
+            {"name": "Produto decoracao", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "5", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "69139000", "br_cfop_code": "5102", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"},
+        ],
+        "restaurant_fast_food": [
+            {"name": "Combo lanche rapido", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "12", "br_ipi_rate": "0", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "16024900", "br_cfop_code": "5102", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"},
+            {"name": "Bebida refrigerante", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "8", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "22021000", "br_cfop_code": "5102", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"},
+        ],
+        "restaurant_catering": [
+            {"name": "Servico buffet corporativo", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "12", "br_ipi_rate": "0", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "00000000", "br_cfop_code": "5102", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"},
+            {"name": "Servico coffee break", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "12", "br_ipi_rate": "0", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "00000000", "br_cfop_code": "5102", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"},
+        ],
+        "manufacturing_light": [
+            {"name": "Produto plastico injetado", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "8", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "39269090", "br_cfop_code": "5101", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"},
+            {"name": "Produto embalagem cartonada", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "8", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "48191000", "br_cfop_code": "5101", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"},
+        ],
+        "manufacturing_mechanical": [
+            {"name": "Componente usinado", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "5", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "84834010", "br_cfop_code": "5101", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"},
+            {"name": "Peca mecanica acabamento", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "5", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "73269090", "br_cfop_code": "5101", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"},
+        ],
+        "saas_b2b": [
+            {"name": "Assinatura plataforma corporativa", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "0", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "85234990", "br_cfop_code": "5102", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"},
+            {"name": "Modulo analytics empresarial", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "0", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "85234990", "br_cfop_code": "5102", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"},
+        ],
+        "saas_b2c": [
+            {"name": "Assinatura app consumidor", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "0", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "85234990", "br_cfop_code": "5102", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"},
+            {"name": "Pacote premium consumidor", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "0", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "85234990", "br_cfop_code": "5102", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"},
+        ],
+        "construction_finishings": [
+            {"name": "Servico acabamento interno", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "0", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "00000000", "br_cfop_code": "5933", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"},
+            {"name": "Material revestimento piso", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "5", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "69089000", "br_cfop_code": "5102", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"},
+        ],
+        "construction_structural": [
+            {"name": "Servico fundacao estrutural", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "0", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "00000000", "br_cfop_code": "5933", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"},
+            {"name": "Material concreto estrutural", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "5", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "38245000", "br_cfop_code": "5102", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"},
+        ],
+    },
+}
+
+_PRESET_PRODUCT_TAX_EXTENDED_ROWS: dict[str, list[dict[str, object]]] = {
+    "fr": [
+        {"name": "Conseil strategique", "vat_rate": "20", "fiscal_country": "EU"},
+        {"name": "Formation professionnelle", "vat_rate": "20", "fiscal_country": "EU"},
+        {"name": "Support client externalise", "vat_rate": "20", "fiscal_country": "EU"},
+        {"name": "Maintenance applicative", "vat_rate": "20", "fiscal_country": "EU"},
+        {"name": "Hebergement cloud", "vat_rate": "20", "fiscal_country": "EU"},
+        {"name": "Produit cosmetique", "vat_rate": "20", "fiscal_country": "EU"},
+        {"name": "Produit textile", "vat_rate": "20", "fiscal_country": "EU"},
+        {"name": "Equipement electronique", "vat_rate": "20", "fiscal_country": "EU"},
+        {"name": "Produit alimentaire sec", "vat_rate": "5.5", "fiscal_country": "EU"},
+        {"name": "Produit surgele", "vat_rate": "5.5", "fiscal_country": "EU"},
+        {"name": "Livraison repas", "vat_rate": "10", "fiscal_country": "EU"},
+        {"name": "Transport voyageurs", "vat_rate": "10", "fiscal_country": "EU"},
+        {"name": "Travaux neufs", "vat_rate": "20", "fiscal_country": "EU"},
+        {"name": "Materiaux isolation", "vat_rate": "10", "fiscal_country": "EU"},
+        {"name": "Livre numerique", "vat_rate": "5.5", "fiscal_country": "EU"},
+        {"name": "Presse periodique", "vat_rate": "2.1", "fiscal_country": "EU"},
+    ],
+    "it": [
+        {"name": "Consulenza strategica", "vat_rate": "22", "fiscal_country": "EU"},
+        {"name": "Formazione professionale", "vat_rate": "22", "fiscal_country": "EU"},
+        {"name": "Supporto clienti esternalizzato", "vat_rate": "22", "fiscal_country": "EU"},
+        {"name": "Manutenzione applicativa", "vat_rate": "22", "fiscal_country": "EU"},
+        {"name": "Hosting cloud", "vat_rate": "22", "fiscal_country": "EU"},
+        {"name": "Prodotto cosmetico", "vat_rate": "22", "fiscal_country": "EU"},
+        {"name": "Prodotto tessile", "vat_rate": "22", "fiscal_country": "EU"},
+        {"name": "Apparecchiatura elettronica", "vat_rate": "22", "fiscal_country": "EU"},
+        {"name": "Prodotto alimentare secco", "vat_rate": "10", "fiscal_country": "EU"},
+        {"name": "Prodotto surgelato", "vat_rate": "10", "fiscal_country": "EU"},
+        {"name": "Consegna pasti", "vat_rate": "10", "fiscal_country": "EU"},
+        {"name": "Trasporto passeggeri", "vat_rate": "10", "fiscal_country": "EU"},
+        {"name": "Nuova costruzione", "vat_rate": "22", "fiscal_country": "EU"},
+        {"name": "Materiale isolamento", "vat_rate": "10", "fiscal_country": "EU"},
+        {"name": "Libro digitale", "vat_rate": "4", "fiscal_country": "EU"},
+        {"name": "Editoria periodica", "vat_rate": "4", "fiscal_country": "EU"},
+    ],
+    "br": [
+        {
+            "name": "Servico de desenvolvimento sob medida",
+            "fiscal_country": "BR",
+            "vat_rate": "0",
+            "br_icms_rate": "18",
+            "br_ipi_rate": "0",
+            "br_pis_rate": "1.65",
+            "br_cofins_rate": "7.60",
+            "br_ncm_code": "00000000",
+            "br_cfop_code": "5102",
+            "br_cst_icms": "00",
+            "br_cst_ipi": "50",
+            "br_cst_pis": "01",
+            "br_cst_cofins": "01",
+        },
+        {
+            "name": "Produto eletronico",
+            "fiscal_country": "BR",
+            "vat_rate": "0",
+            "br_icms_rate": "18",
+            "br_ipi_rate": "10",
+            "br_pis_rate": "1.65",
+            "br_cofins_rate": "7.60",
+            "br_ncm_code": "85176259",
+            "br_cfop_code": "5102",
+            "br_cst_icms": "00",
+            "br_cst_ipi": "50",
+            "br_cst_pis": "01",
+            "br_cst_cofins": "01",
+        },
+        {
+            "name": "Produto textil",
+            "fiscal_country": "BR",
+            "vat_rate": "0",
+            "br_icms_rate": "12",
+            "br_ipi_rate": "5",
+            "br_pis_rate": "1.65",
+            "br_cofins_rate": "7.60",
+            "br_ncm_code": "61091000",
+            "br_cfop_code": "5102",
+            "br_cst_icms": "00",
+            "br_cst_ipi": "50",
+            "br_cst_pis": "01",
+            "br_cst_cofins": "01",
+        },
+        {
+            "name": "Produto cosmetico",
+            "fiscal_country": "BR",
+            "vat_rate": "0",
+            "br_icms_rate": "18",
+            "br_ipi_rate": "12",
+            "br_pis_rate": "1.65",
+            "br_cofins_rate": "7.60",
+            "br_ncm_code": "33049990",
+            "br_cfop_code": "5102",
+            "br_cst_icms": "00",
+            "br_cst_ipi": "50",
+            "br_cst_pis": "01",
+            "br_cst_cofins": "01",
+        },
+        {
+            "name": "Produto alimenticio industrializado",
+            "fiscal_country": "BR",
+            "vat_rate": "0",
+            "br_icms_rate": "12",
+            "br_ipi_rate": "0",
+            "br_pis_rate": "1.65",
+            "br_cofins_rate": "7.60",
+            "br_ncm_code": "19059090",
+            "br_cfop_code": "5102",
+            "br_cst_icms": "00",
+            "br_cst_ipi": "50",
+            "br_cst_pis": "01",
+            "br_cst_cofins": "01",
+        },
+        {
+            "name": "Transporte de passageiros",
+            "fiscal_country": "BR",
+            "vat_rate": "0",
+            "br_icms_rate": "12",
+            "br_ipi_rate": "0",
+            "br_pis_rate": "1.65",
+            "br_cofins_rate": "7.60",
+            "br_ncm_code": "00000000",
+            "br_cfop_code": "5353",
+            "br_cst_icms": "00",
+            "br_cst_ipi": "50",
+            "br_cst_pis": "01",
+            "br_cst_cofins": "01",
+        },
+        {
+            "name": "Locacao de equipamentos",
+            "fiscal_country": "BR",
+            "vat_rate": "0",
+            "br_icms_rate": "18",
+            "br_ipi_rate": "0",
+            "br_pis_rate": "1.65",
+            "br_cofins_rate": "7.60",
+            "br_ncm_code": "00000000",
+            "br_cfop_code": "5933",
+            "br_cst_icms": "00",
+            "br_cst_ipi": "50",
+            "br_cst_pis": "01",
+            "br_cst_cofins": "01",
+        },
+    ],
+}
+
+_PRESET_PRODUCT_TAX_XL_ROWS: dict[str, list[dict[str, object]]] = {
+    "fr": [
+        {"name": "Abonnement maintenance premium", "vat_rate": "20", "fiscal_country": "EU"},
+        {"name": "Audit securite systeme", "vat_rate": "20", "fiscal_country": "EU"},
+        {"name": "Service helpdesk 24x7", "vat_rate": "20", "fiscal_country": "EU"},
+        {"name": "Campagne marketing digital", "vat_rate": "20", "fiscal_country": "EU"},
+        {"name": "Prestation design graphique", "vat_rate": "20", "fiscal_country": "EU"},
+        {"name": "Gestion paie externalisee", "vat_rate": "20", "fiscal_country": "EU"},
+        {"name": "Service recrutement", "vat_rate": "20", "fiscal_country": "EU"},
+        {"name": "Location salle formation", "vat_rate": "20", "fiscal_country": "EU"},
+        {"name": "Pack mobilier bureau", "vat_rate": "20", "fiscal_country": "EU"},
+        {"name": "Fournitures papeterie", "vat_rate": "20", "fiscal_country": "EU"},
+        {"name": "Materiel reseau", "vat_rate": "20", "fiscal_country": "EU"},
+        {"name": "Accessoire smartphone", "vat_rate": "20", "fiscal_country": "EU"},
+        {"name": "Piece mecanique standard", "vat_rate": "20", "fiscal_country": "EU"},
+        {"name": "Produit entretien menager", "vat_rate": "20", "fiscal_country": "EU"},
+        {"name": "Snack emballe", "vat_rate": "5.5", "fiscal_country": "EU"},
+        {"name": "Boisson chaude a emporter", "vat_rate": "10", "fiscal_country": "EU"},
+        {"name": "Service livraison urbaine", "vat_rate": "20", "fiscal_country": "EU"},
+        {"name": "Reparation petite plomberie", "vat_rate": "10", "fiscal_country": "EU"},
+        {"name": "Peinture interieure", "vat_rate": "10", "fiscal_country": "EU"},
+        {"name": "Abonnement elearning", "vat_rate": "20", "fiscal_country": "EU"},
+        {"name": "Support legal entreprise", "vat_rate": "20", "fiscal_country": "EU"},
+        {"name": "Veille reglementaire", "vat_rate": "20", "fiscal_country": "EU"},
+        {"name": "Abonnement presse pro", "vat_rate": "2.1", "fiscal_country": "EU"},
+        {"name": "Licence outil BI", "vat_rate": "20", "fiscal_country": "EU"},
+    ],
+    "it": [
+        {"name": "Abbonamento manutenzione premium", "vat_rate": "22", "fiscal_country": "EU"},
+        {"name": "Audit sicurezza sistemi", "vat_rate": "22", "fiscal_country": "EU"},
+        {"name": "Servizio helpdesk 24x7", "vat_rate": "22", "fiscal_country": "EU"},
+        {"name": "Campagna marketing digitale", "vat_rate": "22", "fiscal_country": "EU"},
+        {"name": "Prestazione design grafico", "vat_rate": "22", "fiscal_country": "EU"},
+        {"name": "Gestione payroll esterna", "vat_rate": "22", "fiscal_country": "EU"},
+        {"name": "Servizio recruiting", "vat_rate": "22", "fiscal_country": "EU"},
+        {"name": "Noleggio aula formazione", "vat_rate": "22", "fiscal_country": "EU"},
+        {"name": "Pacchetto arredo ufficio", "vat_rate": "22", "fiscal_country": "EU"},
+        {"name": "Forniture cancelleria", "vat_rate": "22", "fiscal_country": "EU"},
+        {"name": "Materiale rete", "vat_rate": "22", "fiscal_country": "EU"},
+        {"name": "Accessorio smartphone", "vat_rate": "22", "fiscal_country": "EU"},
+        {"name": "Componente meccanico standard", "vat_rate": "22", "fiscal_country": "EU"},
+        {"name": "Prodotto pulizia casa", "vat_rate": "22", "fiscal_country": "EU"},
+        {"name": "Snack confezionato", "vat_rate": "10", "fiscal_country": "EU"},
+        {"name": "Bevanda calda takeaway", "vat_rate": "10", "fiscal_country": "EU"},
+        {"name": "Servizio consegna urbana", "vat_rate": "22", "fiscal_country": "EU"},
+        {"name": "Riparazione idraulica leggera", "vat_rate": "10", "fiscal_country": "EU"},
+        {"name": "Tinteggiatura interni", "vat_rate": "10", "fiscal_country": "EU"},
+        {"name": "Abbonamento elearning", "vat_rate": "22", "fiscal_country": "EU"},
+        {"name": "Supporto legale azienda", "vat_rate": "22", "fiscal_country": "EU"},
+        {"name": "Monitoraggio normativo", "vat_rate": "22", "fiscal_country": "EU"},
+        {"name": "Abbonamento rivista professionale", "vat_rate": "4", "fiscal_country": "EU"},
+        {"name": "Licenza strumento BI", "vat_rate": "22", "fiscal_country": "EU"},
+    ],
+    "br": [
+        {
+            "name": "Servico de auditoria de seguranca",
+            "fiscal_country": "BR",
+            "vat_rate": "0",
+            "br_icms_rate": "18",
+            "br_ipi_rate": "0",
+            "br_pis_rate": "1.65",
+            "br_cofins_rate": "7.60",
+            "br_ncm_code": "00000000",
+            "br_cfop_code": "5102",
+            "br_cst_icms": "00",
+            "br_cst_ipi": "50",
+            "br_cst_pis": "01",
+            "br_cst_cofins": "01",
+        },
+        {
+            "name": "Servico de suporte nivel 2",
+            "fiscal_country": "BR",
+            "vat_rate": "0",
+            "br_icms_rate": "18",
+            "br_ipi_rate": "0",
+            "br_pis_rate": "1.65",
+            "br_cofins_rate": "7.60",
+            "br_ncm_code": "00000000",
+            "br_cfop_code": "5102",
+            "br_cst_icms": "00",
+            "br_cst_ipi": "50",
+            "br_cst_pis": "01",
+            "br_cst_cofins": "01",
+        },
+        {
+            "name": "Licenca software escritorio",
+            "fiscal_country": "BR",
+            "vat_rate": "0",
+            "br_icms_rate": "18",
+            "br_ipi_rate": "0",
+            "br_pis_rate": "1.65",
+            "br_cofins_rate": "7.60",
+            "br_ncm_code": "85234990",
+            "br_cfop_code": "5102",
+            "br_cst_icms": "00",
+            "br_cst_ipi": "50",
+            "br_cst_pis": "01",
+            "br_cst_cofins": "01",
+        },
+        {
+            "name": "Produto de papelaria", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "5", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "48201000", "br_cfop_code": "5102", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"
+        },
+        {
+            "name": "Produto de escritorio", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "5", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "39261000", "br_cfop_code": "5102", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"
+        },
+        {
+            "name": "Acessorio informatica", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "10", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "84733049", "br_cfop_code": "5102", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"
+        },
+        {
+            "name": "Material eletrico", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "8", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "85369090", "br_cfop_code": "5102", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"
+        },
+        {
+            "name": "Material hidraulico", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "8", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "84818099", "br_cfop_code": "5102", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"
+        },
+        {
+            "name": "Servico instalacao basica", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "0", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "00000000", "br_cfop_code": "5933", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"
+        },
+        {
+            "name": "Servico manutencao predial", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "0", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "00000000", "br_cfop_code": "5933", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"
+        },
+        {
+            "name": "Servico consultoria RH", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "0", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "00000000", "br_cfop_code": "5102", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"
+        },
+        {
+            "name": "Servico terceirizacao financeira", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "0", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "00000000", "br_cfop_code": "5102", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"
+        },
+        {
+            "name": "Produto limpeza profissional", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "5", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "34029039", "br_cfop_code": "5102", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"
+        },
+        {
+            "name": "Produto higiene pessoal", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "18", "br_ipi_rate": "12", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "33079000", "br_cfop_code": "5102", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"
+        },
+        {
+            "name": "Servico entrega local", "fiscal_country": "BR", "vat_rate": "0", "br_icms_rate": "12", "br_ipi_rate": "0", "br_pis_rate": "1.65", "br_cofins_rate": "7.60", "br_ncm_code": "00000000", "br_cfop_code": "5353", "br_cst_icms": "00", "br_cst_ipi": "50", "br_cst_pis": "01", "br_cst_cofins": "01"
+        },
+    ],
+}
+
+
+def _build_product_tax_presets(
+    region: str,
+    business_profile: str,
+    preset_size: str = "standard",
+    subsector: str = "all",
+) -> list[dict[str, object]]:
+    region_key = (region or "fr").strip().lower()
+    business_key = (business_profile or "general").strip().lower()
+    size_key = (preset_size or "standard").strip().lower()
+    subsector_key = (subsector or "all").strip().lower()
+
+    rows: list[dict[str, object]] = list(_PRESET_PRODUCT_TAX_ROWS.get(region_key, []))
+    if business_key != "general":
+        rows.extend(_PRESET_PRODUCT_TAX_BY_BUSINESS.get(region_key, {}).get(business_key, []))
+
+    if size_key in {"large", "xl", "xxl"}:
+        # Large mode enriches the catalog with cross-sector presets and extended entries.
+        for profile_rows in _PRESET_PRODUCT_TAX_BY_BUSINESS.get(region_key, {}).values():
+            rows.extend(profile_rows)
+        rows.extend(_PRESET_PRODUCT_TAX_EXTENDED_ROWS.get(region_key, []))
+
+    if size_key in {"xl", "xxl"}:
+        # XL mode adds an extra wide preset catalog for faster go-live.
+        rows.extend(_PRESET_PRODUCT_TAX_XL_ROWS.get(region_key, []))
+
+    if subsector_key != "all":
+        rows.extend(_PRESET_PRODUCT_TAX_BY_SUBSECTOR.get(region_key, {}).get(subsector_key, []))
+
+    if size_key == "xxl":
+        # XXL includes all subsectors for the selected country to maximize initial catalog coverage.
+        for subsection_rows in _PRESET_PRODUCT_TAX_BY_SUBSECTOR.get(region_key, {}).values():
+            rows.extend(subsection_rows)
+
+    deduped: list[dict[str, object]] = []
+    seen_names: set[str] = set()
+    for row in rows:
+        key = str(row.get("name") or "").strip().lower()
+        if not key or key in seen_names:
+            continue
+        seen_names.add(key)
+        deduped.append(row)
+
+    return deduped
+
+
+def _tax_decimal(raw: object, default: str = "0") -> Decimal:
+    try:
+        return Decimal(str(raw if raw not in (None, "") else default))
+    except Exception:
+        return Decimal(default)
+
+
+def _clamp_rate(rate: Decimal) -> Decimal:
+    if rate < 0:
+        return Decimal("0")
+    if rate > 100:
+        return Decimal("100")
+    return rate
+
+
+def _boolish(raw: object) -> bool:
+    return str(raw or "").strip().lower() in {"1", "true", "yes", "on", "y"}
+
+
+def _safe_public_catalog_url(raw_url: str) -> tuple[bool, str]:
+    try:
+        parsed = urlparse(raw_url)
+    except Exception:
+        return False, _("URL invalide.")
+
+    if parsed.scheme not in {"http", "https"}:
+        return False, _("Seules les URLs HTTP/HTTPS sont autorisées.")
+
+    host = (parsed.hostname or "").strip().lower()
+    if not host:
+        return False, _("URL invalide (host manquant).")
+    if host in {"localhost", "127.0.0.1", "::1"} or host.endswith(".local"):
+        return False, _("URL locale non autorisée pour l'import public.")
+
+    try:
+        ip_val = ipaddress.ip_address(host)
+        if ip_val.is_private or ip_val.is_loopback or ip_val.is_reserved or ip_val.is_link_local:
+            return False, _("URL privée/interne non autorisée pour l'import public.")
+    except Exception:
+        # Hostname (non-IP) is allowed.
+        pass
+
+    return True, ""
+
+
+def _catalog_row_value(row: dict, keys: tuple[str, ...], default: str = "") -> str:
+    for key in keys:
+        if key in row and row.get(key) is not None:
+            val = str(row.get(key) or "").strip()
+            if val:
+                return val
+    return default
+
+
+def _normalize_catalog_product_row(raw_row: dict, default_country: str) -> tuple[dict | None, list[str]]:
+    warnings: list[str] = []
+    name = _catalog_row_value(raw_row, ("name", "product_name", "product", "description", "descricao", "designation"))
+    if not name:
+        return None, warnings
+
+    fiscal_country = _catalog_row_value(raw_row, ("fiscal_country", "country_mode", "tax_country"), default_country).upper()
+    if fiscal_country not in {"EU", "BR"}:
+        fiscal_country = default_country
+
+    vat_rate = _clamp_rate(_tax_decimal(_catalog_row_value(raw_row, ("vat_rate", "tva", "iva", "tax_rate"), "0")))
+    icms_rate = _clamp_rate(_tax_decimal(_catalog_row_value(raw_row, ("br_icms_rate", "icms_rate"), "0")))
+    ipi_rate = _clamp_rate(_tax_decimal(_catalog_row_value(raw_row, ("br_ipi_rate", "ipi_rate"), "0")))
+    pis_rate = _clamp_rate(_tax_decimal(_catalog_row_value(raw_row, ("br_pis_rate", "pis_rate"), "0")))
+    cofins_rate = _clamp_rate(_tax_decimal(_catalog_row_value(raw_row, ("br_cofins_rate", "cofins_rate"), "0")))
+
+    unit_price = _tax_decimal(_catalog_row_value(raw_row, ("unit_price", "price", "amount"), "0"), "0")
+    currency_code = _catalog_row_value(raw_row, ("currency", "currency_code"), "")
+    if not currency_code:
+        currency_code = "EUR"
+
+    out = {
+        "name": name,
+        "code": _catalog_row_value(raw_row, ("code", "sku", "product_code"), ""),
+        "description": _catalog_row_value(raw_row, ("description", "details"), name),
+        "product_type": _catalog_row_value(raw_row, ("product_type", "type"), "service") or "service",
+        "unit_price": unit_price,
+        "currency_code": currency_code.upper()[:8],
+        "vat_rate": vat_rate,
+        "vat_reverse_charge": _boolish(_catalog_row_value(raw_row, ("vat_reverse_charge", "reverse_charge"), "false")),
+        "tax_exempt_reason": _catalog_row_value(raw_row, ("tax_exempt_reason", "exempt_reason"), "") or None,
+        "fiscal_country": fiscal_country,
+        "br_icms_rate": icms_rate,
+        "br_ipi_rate": ipi_rate,
+        "br_pis_rate": pis_rate,
+        "br_cofins_rate": cofins_rate,
+        "br_ncm_code": _catalog_row_value(raw_row, ("br_ncm_code", "ncm", "ncm_code"), "") or None,
+        "br_cfop_code": _catalog_row_value(raw_row, ("br_cfop_code", "cfop", "cfop_code"), "") or None,
+        "br_cest_code": _catalog_row_value(raw_row, ("br_cest_code", "cest", "cest_code"), "") or None,
+        "br_cst_icms": _catalog_row_value(raw_row, ("br_cst_icms", "cst_icms"), "") or None,
+        "br_cst_ipi": _catalog_row_value(raw_row, ("br_cst_ipi", "cst_ipi"), "") or None,
+        "br_cst_pis": _catalog_row_value(raw_row, ("br_cst_pis", "cst_pis"), "") or None,
+        "br_cst_cofins": _catalog_row_value(raw_row, ("br_cst_cofins", "cst_cofins"), "") or None,
+    }
+
+    if out["fiscal_country"] == "EU":
+        if default_country in _EU_ALLOWED_VAT_RATES and out["vat_rate"] not in _EU_ALLOWED_VAT_RATES[default_country]:
+            warnings.append(_("Taux TVA atypique pour {country}: {rate}% (produit {name}).", country=default_country, rate=str(out["vat_rate"]), name=name))
+
+    if out["fiscal_country"] == "BR":
+        if not out["br_ncm_code"]:
+            out["br_ncm_code"] = "00000000"
+            warnings.append(_("NCM manquant pour {name} -> valeur par défaut 00000000.", name=name))
+        if not out["br_cfop_code"]:
+            out["br_cfop_code"] = "5102"
+            warnings.append(_("CFOP manquant pour {name} -> valeur par défaut 5102.", name=name))
+        if not out["br_cst_icms"]:
+            out["br_cst_icms"] = "00"
+        if not out["br_cst_ipi"]:
+            out["br_cst_ipi"] = "50"
+        if not out["br_cst_pis"]:
+            out["br_cst_pis"] = "01"
+        if not out["br_cst_cofins"]:
+            out["br_cst_cofins"] = "01"
+
+    return out, warnings
+
+
+def _load_catalog_rows_from_public_url(source_url: str) -> list[dict]:
+    response = requests.get(source_url, timeout=20)
+    response.raise_for_status()
+
+    content_type = (response.headers.get("content-type") or "").lower()
+    if "json" in content_type or source_url.lower().endswith(".json"):
+        payload = response.json()
+        if isinstance(payload, list):
+            return [row for row in payload if isinstance(row, dict)]
+        if isinstance(payload, dict):
+            for key in ("items", "products", "data", "rows"):
+                if isinstance(payload.get(key), list):
+                    return [row for row in payload.get(key, []) if isinstance(row, dict)]
+        raise ValueError("JSON payload format not supported for product import.")
+
+    text = response.text or ""
+    if not text.strip():
+        return []
+    first_line = text.splitlines()[0] if text.splitlines() else ""
+    delimiter = ";" if first_line.count(";") > first_line.count(",") else ","
+    reader = csv.DictReader(StringIO(text), delimiter=delimiter)
+    rows: list[dict] = []
+    for row in reader:
+        if isinstance(row, dict):
+            rows.append({str(k or "").strip(): (v if v is not None else "") for k, v in row.items()})
+    return rows
+
+
+def _upsert_products_from_tax_catalog(company: FinanceCompany, rows: list[dict], default_country: str) -> dict[str, object]:
+    created = 0
+    updated = 0
+    skipped = 0
+    warnings: list[str] = []
+
+    for raw_row in rows[:1000]:
+        normalized, row_warnings = _normalize_catalog_product_row(raw_row, default_country)
+        if row_warnings:
+            warnings.extend(row_warnings)
+        if not normalized:
+            skipped += 1
+            continue
+
+        existing = (
+            FinanceProduct.query
+            .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+            .filter(func.lower(FinanceProduct.name) == str(normalized["name"]).lower())
+            .first()
+        )
+
+        if existing is None:
+            existing = FinanceProduct(tenant_id=g.tenant.id, company_id=company.id, status="active")
+            db.session.add(existing)
+            created += 1
+        else:
+            updated += 1
+
+        existing.code = str(normalized.get("code") or "").strip() or existing.code
+        existing.name = str(normalized["name"]).strip()
+        existing.description = str(normalized.get("description") or "").strip() or existing.name
+        existing.product_type = str(normalized.get("product_type") or "service").strip()[:24] or "service"
+        existing.unit_price = _tax_decimal(normalized.get("unit_price"), "0")
+        existing.currency_code = str(normalized.get("currency_code") or company.base_currency or "EUR").upper()[:8]
+
+        existing.vat_rate = _clamp_rate(_tax_decimal(normalized.get("vat_rate"), "0"))
+        existing.vat_reverse_charge = bool(normalized.get("vat_reverse_charge"))
+        existing.vat_applies = bool(existing.vat_rate > 0 and not existing.vat_reverse_charge)
+        existing.tax_exempt_reason = normalized.get("tax_exempt_reason")
+
+        existing.br_icms_rate = _clamp_rate(_tax_decimal(normalized.get("br_icms_rate"), "0"))
+        existing.br_ipi_rate = _clamp_rate(_tax_decimal(normalized.get("br_ipi_rate"), "0"))
+        existing.br_pis_rate = _clamp_rate(_tax_decimal(normalized.get("br_pis_rate"), "0"))
+        existing.br_cofins_rate = _clamp_rate(_tax_decimal(normalized.get("br_cofins_rate"), "0"))
+        existing.br_ncm_code = normalized.get("br_ncm_code")
+        existing.br_cfop_code = normalized.get("br_cfop_code")
+        existing.br_cest_code = normalized.get("br_cest_code")
+        existing.br_cst_icms = normalized.get("br_cst_icms")
+        existing.br_cst_ipi = normalized.get("br_cst_ipi")
+        existing.br_cst_pis = normalized.get("br_cst_pis")
+        existing.br_cst_cofins = normalized.get("br_cst_cofins")
+
+    db.session.commit()
+    return {
+        "created": created,
+        "updated": updated,
+        "skipped": skipped,
+        "warnings": warnings,
+    }
+
+
+def _recalc_quote_totals(quote: FinanceQuote) -> None:
+    net = Decimal("0")
+    tax = Decimal("0")
+    gross = Decimal("0")
+    for line in quote.lines:
+        net += Decimal(str(line.net_amount or 0))
+        tax += Decimal(str(line.tax_amount or 0))
+        gross += Decimal(str(line.gross_amount or 0))
+    quote.total_net = net
+    quote.total_tax = tax
+    quote.total_gross = gross
+
+
+def _next_invoice_number_from_quote(company: FinanceCompany, quote_number: str) -> str:
+    base = (str(quote_number or "").strip() or f"Q{int(time.time())}").upper()
+    if base.startswith("DEV"):
+        candidate = base.replace("DEV", "INV", 1)
+    elif base.startswith("QUO"):
+        candidate = base.replace("QUO", "INV", 1)
+    else:
+        candidate = f"INV-{base}"
+
+    final_candidate = candidate
+    suffix = 2
+    while FinanceInvoice.query.filter_by(tenant_id=g.tenant.id, company_id=company.id, invoice_number=final_candidate).first():
+        final_candidate = f"{candidate}-{suffix}"
+        suffix += 1
+    return final_candidate
+
+
+@bp.route("/quotes")
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def quotes_list():
+    company = _get_company()
+    quotes = (
+        FinanceQuote.query.options(joinedload(FinanceQuote.counterparty))
+        .filter_by(tenant_id=g.tenant.id, company_id=company.id)
+        .order_by(FinanceQuote.issue_date.desc(), FinanceQuote.id.desc())
+        .limit(300)
+        .all()
+    )
+    return render_template(
+        "finance/quotes_list.html",
+        tenant=g.tenant,
+        company=company,
+        active="invoices",
+        quotes=quotes,
+        today=date.today().isoformat(),
+    )
+
+
+@bp.route("/quotes/new", methods=["GET", "POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def quote_new():
+    company = _get_company()
+    cps = FinanceCounterparty.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).order_by(FinanceCounterparty.name.asc()).all()
+    products = FinanceProduct.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).order_by(FinanceProduct.name.asc()).all()
+    currencies = get_currencies()
+
+    if request.method == "POST":
+        quote_number = (request.form.get("quote_number") or "").strip()
+        if not quote_number:
+            flash(_("Numero de devis obligatoire."), "danger")
+            return redirect(url_for("finance.quote_new"))
+
+        existing = FinanceQuote.query.filter_by(tenant_id=g.tenant.id, company_id=company.id, quote_number=quote_number).first()
+        if existing:
+            flash(_("Numero de devis deja utilise."), "warning")
+            return redirect(url_for("finance.quote_new"))
+
+        try:
+            issue_date = datetime.strptime(request.form.get("issue_date") or "", "%Y-%m-%d").date()
+        except Exception:
+            issue_date = date.today()
+
+        try:
+            valid_until_raw = (request.form.get("valid_until") or "").strip()
+            valid_until = datetime.strptime(valid_until_raw, "%Y-%m-%d").date() if valid_until_raw else None
+        except Exception:
+            valid_until = None
+
+        fiscal_country = (request.form.get("fiscal_country") or "EU").strip().upper()
+        if fiscal_country not in ("EU", "BR"):
+            fiscal_country = "EU"
+
+        currency = (request.form.get("currency") or company.base_currency or "EUR").strip().upper()
+        cp_id = request.form.get("counterparty_id")
+        status = (request.form.get("status") or "draft").strip().lower()
+        if status not in {"draft", "sent"}:
+            status = "draft"
+
+        quote = FinanceQuote(
+            tenant_id=g.tenant.id,
+            company_id=company.id,
+            quote_number=quote_number,
+            status=status,
+            issue_date=issue_date,
+            valid_until=valid_until,
+            currency=currency,
+            counterparty_id=int(cp_id) if cp_id else None,
+            fiscal_country=fiscal_country,
+            notes=(request.form.get("notes") or "").strip() or None,
+        )
+
+        for ln in _parse_lines_from_form(company, currency, fiscal_country=fiscal_country):
+            quote.lines.append(FinanceQuoteLine(tenant_id=g.tenant.id, company_id=company.id, **ln))
+
+        _recalc_quote_totals(quote)
+        db.session.add(quote)
+        db.session.commit()
+        flash(_("Devis cree."), "success")
+        return redirect(url_for("finance.quote_view", quote_id=quote.id))
+
+    return render_template(
+        "finance/quote_form.html",
+        tenant=g.tenant,
+        company=company,
+        active="invoices",
+        quote=None,
+        counterparties=cps,
+        products=products,
+        currencies=currencies,
+        today=date.today().isoformat(),
+    )
+
+
+@bp.route("/quotes/<int:quote_id>")
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def quote_view(quote_id: int):
+    company = _get_company()
+    quote = (
+        FinanceQuote.query.options(joinedload(FinanceQuote.lines), joinedload(FinanceQuote.counterparty), joinedload(FinanceQuote.converted_invoice))
+        .filter_by(id=quote_id, tenant_id=g.tenant.id, company_id=company.id)
+        .first_or_404()
+    )
+    return render_template(
+        "finance/quote_view.html",
+        tenant=g.tenant,
+        company=company,
+        active="invoices",
+        quote=quote,
+        can_sign=(quote.status in {"draft", "sent"}),
+        can_convert=(quote.status == "signed" and not quote.converted_invoice_id),
+    )
+
+
+@bp.route("/quotes/<int:quote_id>/edit", methods=["GET", "POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def quote_edit(quote_id: int):
+    company = _get_company()
+    quote = FinanceQuote.query.options(joinedload(FinanceQuote.lines)).filter_by(
+        id=quote_id,
+        tenant_id=g.tenant.id,
+        company_id=company.id,
+    ).first_or_404()
+    cps = FinanceCounterparty.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).order_by(FinanceCounterparty.name.asc()).all()
+    products = FinanceProduct.query.filter_by(tenant_id=g.tenant.id, company_id=company.id).order_by(FinanceProduct.name.asc()).all()
+    currencies = get_currencies()
+
+    if request.method == "POST":
+        if quote.status == "converted":
+            flash(_("Devis deja converti, edition desactivee."), "warning")
+            return redirect(url_for("finance.quote_view", quote_id=quote.id))
+
+        next_number = (request.form.get("quote_number") or quote.quote_number).strip()
+        if not next_number:
+            flash(_("Numero de devis obligatoire."), "danger")
+            return redirect(url_for("finance.quote_edit", quote_id=quote.id))
+
+        conflict = FinanceQuote.query.filter_by(tenant_id=g.tenant.id, company_id=company.id, quote_number=next_number).first()
+        if conflict and conflict.id != quote.id:
+            flash(_("Numero de devis deja utilise."), "warning")
+            return redirect(url_for("finance.quote_edit", quote_id=quote.id))
+
+        quote.quote_number = next_number
+        quote.status = (request.form.get("status") or quote.status).strip().lower()
+        if quote.status not in {"draft", "sent", "signed", "cancelled"}:
+            quote.status = "draft"
+        quote.currency = (request.form.get("currency") or quote.currency).strip().upper()
+
+        try:
+            quote.issue_date = datetime.strptime(request.form.get("issue_date") or "", "%Y-%m-%d").date()
+        except Exception:
+            pass
+
+        try:
+            valid_until_raw = (request.form.get("valid_until") or "").strip()
+            quote.valid_until = datetime.strptime(valid_until_raw, "%Y-%m-%d").date() if valid_until_raw else None
+        except Exception:
+            pass
+
+        cp_id = request.form.get("counterparty_id")
+        quote.counterparty_id = int(cp_id) if cp_id else None
+        quote.notes = (request.form.get("notes") or "").strip() or None
+        quote.fiscal_country = (request.form.get("fiscal_country") or quote.fiscal_country or "EU").strip().upper()
+        if quote.fiscal_country not in {"EU", "BR"}:
+            quote.fiscal_country = "EU"
+
+        quote.lines.clear()
+        for ln in _parse_lines_from_form(company, quote.currency, fiscal_country=quote.fiscal_country):
+            quote.lines.append(FinanceQuoteLine(tenant_id=g.tenant.id, company_id=company.id, **ln))
+
+        _recalc_quote_totals(quote)
+        db.session.commit()
+        flash(_("Devis mis a jour."), "success")
+        return redirect(url_for("finance.quote_view", quote_id=quote.id))
+
+    return render_template(
+        "finance/quote_form.html",
+        tenant=g.tenant,
+        company=company,
+        active="invoices",
+        quote=quote,
+        counterparties=cps,
+        products=products,
+        currencies=currencies,
+        today=date.today().isoformat(),
+    )
+
+
+@bp.route("/quotes/<int:quote_id>/delete", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def quote_delete(quote_id: int):
+    company = _get_company()
+    quote = FinanceQuote.query.filter_by(id=quote_id, tenant_id=g.tenant.id, company_id=company.id).first_or_404()
+    if quote.status == "converted":
+        flash(_("Devis converti: suppression non autorisee."), "warning")
+        return redirect(url_for("finance.quote_view", quote_id=quote.id))
+    db.session.delete(quote)
+    db.session.commit()
+    flash(_("Devis supprime."), "success")
+    return redirect(url_for("finance.quotes_list"))
+
+
+@bp.route("/quotes/<int:quote_id>/sign", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator", "viewer")
+def quote_sign(quote_id: int):
+    company = _get_company()
+    quote = FinanceQuote.query.filter_by(id=quote_id, tenant_id=g.tenant.id, company_id=company.id).first_or_404()
+    if quote.status == "converted":
+        flash(_("Devis deja converti."), "warning")
+        return redirect(url_for("finance.quote_view", quote_id=quote.id))
+
+    signer_name = (request.form.get("signer_name") or "").strip()
+    signature_data = (request.form.get("signature_data") or "").strip()
+    if not signer_name:
+        flash(_("Nom du signataire obligatoire."), "danger")
+        return redirect(url_for("finance.quote_view", quote_id=quote.id))
+    if not signature_data.startswith("data:image/png;base64,"):
+        flash(_("Signature invalide. Utilisez la zone de signature tactile."), "danger")
+        return redirect(url_for("finance.quote_view", quote_id=quote.id))
+    if len(signature_data) > 2_500_000:
+        flash(_("Signature trop volumineuse."), "danger")
+        return redirect(url_for("finance.quote_view", quote_id=quote.id))
+
+    quote.signer_name = signer_name
+    quote.signature_data_url = signature_data
+    quote.signed_at = datetime.utcnow()
+    quote.signed_ip = (request.headers.get("X-Forwarded-For") or request.remote_addr or "")[:64]
+    quote.signed_user_agent = (request.headers.get("User-Agent") or "")[:255]
+    quote.status = "signed"
+    db.session.commit()
+    flash(_("Devis signe electroniquement."), "success")
+    return redirect(url_for("finance.quote_view", quote_id=quote.id))
+
+
+@bp.route("/quotes/<int:quote_id>/convert", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def quote_convert_to_invoice(quote_id: int):
+    company = _get_company()
+    quote = FinanceQuote.query.options(joinedload(FinanceQuote.lines)).filter_by(
+        id=quote_id,
+        tenant_id=g.tenant.id,
+        company_id=company.id,
+    ).first_or_404()
+
+    if quote.status != "signed":
+        flash(_("Le devis doit etre signe avant conversion en facture."), "warning")
+        return redirect(url_for("finance.quote_view", quote_id=quote.id))
+
+    if quote.converted_invoice_id:
+        existing_invoice = FinanceInvoice.query.filter_by(
+            id=quote.converted_invoice_id,
+            tenant_id=g.tenant.id,
+            company_id=company.id,
+        ).first()
+        if existing_invoice:
+            flash(_("Ce devis est deja converti en facture."), "info")
+            return redirect(url_for("finance.invoice_view", invoice_id=existing_invoice.id))
+
+    requested_invoice_number = (request.form.get("invoice_number") or "").strip()
+    invoice_number = requested_invoice_number or _next_invoice_number_from_quote(company, quote.quote_number)
+    if FinanceInvoice.query.filter_by(tenant_id=g.tenant.id, company_id=company.id, invoice_number=invoice_number).first():
+        flash(_("Numero de facture deja utilise."), "warning")
+        return redirect(url_for("finance.quote_view", quote_id=quote.id))
+
+    status = (request.form.get("invoice_status") or "draft").strip().lower()
+    if status not in {"draft", "sent"}:
+        status = "draft"
+
+    invoice = FinanceInvoice(
+        tenant_id=g.tenant.id,
+        company_id=company.id,
+        invoice_number=invoice_number,
+        invoice_type="sale",
+        status=status,
+        issue_date=date.today(),
+        due_date=quote.valid_until,
+        currency=quote.currency,
+        counterparty_id=quote.counterparty_id,
+        notes=(f"Converted from quote {quote.quote_number}\n\n" + (quote.notes or "")).strip(),
+        fiscal_country=quote.fiscal_country if quote.fiscal_country in {"EU", "BR"} else "EU",
+        document_model="55",
+        document_series="1",
+        sefaz_environment="homologation",
+        operation_destination="1",
+        payment_indicator="0",
+        presence_indicator="1",
+        final_consumer=True,
+        invoice_purpose="1",
+        emission_type="1",
+    )
+
+    for ql in quote.lines:
+        invoice.lines.append(
+            FinanceInvoiceLine(
+                tenant_id=g.tenant.id,
+                company_id=company.id,
+                description=ql.description,
+                quantity=ql.quantity,
+                unit_price=ql.unit_price,
+                vat_rate=ql.vat_rate,
+                icms_rate=ql.icms_rate,
+                ipi_rate=ql.ipi_rate,
+                pis_rate=ql.pis_rate,
+                cofins_rate=ql.cofins_rate,
+                ncm_code=ql.ncm_code,
+                cfop_code=ql.cfop_code,
+                cest_code=ql.cest_code,
+                cst_icms=ql.cst_icms,
+                cst_ipi=ql.cst_ipi,
+                cst_pis=ql.cst_pis,
+                cst_cofins=ql.cst_cofins,
+                net_amount=ql.net_amount,
+                tax_amount=ql.tax_amount,
+                gross_amount=ql.gross_amount,
+                icms_amount=ql.icms_amount,
+                ipi_amount=ql.ipi_amount,
+                pis_amount=ql.pis_amount,
+                cofins_amount=ql.cofins_amount,
+            )
+        )
+
+    _recalc_invoice_totals(invoice)
+    db.session.add(invoice)
+    db.session.flush()
+
+    quote.converted_invoice_id = invoice.id
+    quote.status = "converted"
+    db.session.commit()
+
+    flash(_("Devis converti en facture avec succes."), "success")
+    return redirect(url_for("finance.invoice_view", invoice_id=invoice.id))
+
+
+@bp.route("/invoices/products-tax-import", methods=["GET", "POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def product_tax_import():
+    company = _get_company()
+    region_default = ((company.country_code or "FR").strip().upper() or "FR")
+    allowed_business_profiles = set(_BUSINESS_PROFILE_LABELS.keys())
+    allowed_preset_sizes = set(_PRESET_SIZE_LABELS.keys())
+    allowed_subsectors = set(_SUBSECTOR_LABELS.keys())
+
+    if request.method == "POST":
+        preset_region = (request.form.get("preset_region") or "fr").strip().lower()
+        if preset_region not in {"fr", "it", "br"}:
+            preset_region = "fr"
+
+        business_profile = (request.form.get("business_profile") or "general").strip().lower()
+        if business_profile not in allowed_business_profiles:
+            business_profile = "general"
+
+        preset_size = (request.form.get("preset_size") or "standard").strip().lower()
+        if preset_size not in allowed_preset_sizes:
+            preset_size = "standard"
+
+        subsector = (request.form.get("subsector") or "all").strip().lower()
+        if subsector not in allowed_subsectors:
+            subsector = "all"
+        if subsector != "all":
+            expected_business = _SUBSECTOR_LABELS.get(subsector, ("all", ""))[0]
+            if business_profile != "general" and expected_business not in {"all", business_profile}:
+                subsector = "all"
+
+        try:
+            # Product tax import is preset-only by design to reduce fiscal mapping errors.
+            rows = _build_product_tax_presets(preset_region, business_profile, preset_size, subsector)
+
+            stats = _upsert_products_from_tax_catalog(
+                company,
+                rows,
+                default_country=("BR" if preset_region == "br" else "EU"),
+            )
+            flash(
+                _(
+                    "Import preset ({business}, {subsector}, {size}) termine: {created} crees, {updated} mis a jour, {skipped} ignores.",
+                    business=_(_BUSINESS_PROFILE_LABELS.get(business_profile, "General")),
+                    subsector=_(_SUBSECTOR_LABELS.get(subsector, ("all", "All sub-sectors"))[1]),
+                    size=_(_PRESET_SIZE_LABELS.get(preset_size, "Standard")),
+                    created=stats.get("created", 0),
+                    updated=stats.get("updated", 0),
+                    skipped=stats.get("skipped", 0),
+                ),
+                "success",
+            )
+
+            warnings = stats.get("warnings") if isinstance(stats.get("warnings"), list) else []
+            if warnings:
+                preview = "; ".join([str(w) for w in warnings[:3]])
+                suffix = "" if len(warnings) <= 3 else _(" (+{count} autres)", count=len(warnings) - 3)
+                flash(_("Controle fiscal: {msg}{suffix}", msg=preview, suffix=suffix), "warning")
+
+        except Exception as exc:
+            finance_logger.exception("event=finance.tax_catalog.import.error err=%s", str(exc))
+            flash(_("Echec import produits/taxes: {err}", err=str(exc)), "danger")
+
+        return redirect(url_for("finance.product_tax_import"))
+
+    return render_template(
+        "finance/products_tax_import.html",
+        tenant=g.tenant,
+        company=company,
+        active="invoices",
+        default_region=("br" if region_default == "BR" else ("it" if region_default == "IT" else "fr")),
+        default_business_profile="general",
+        default_preset_size="standard",
+        default_subsector="all",
+        business_profile_options=[
+            ("general", _("General")),
+            ("services", _("Services")),
+            ("retail", _("Retail")),
+            ("restaurant", _("Restaurant")),
+            ("manufacturing", _("Manufacturing")),
+            ("saas", _("SaaS")),
+            ("construction", _("Construction")),
+        ],
+        subsector_options=[
+            ("all", _("All sub-sectors"), "all"),
+            ("services_it", _("IT services"), "services"),
+            ("services_finance", _("Finance services"), "services"),
+            ("retail_food", _("Food retail"), "retail"),
+            ("retail_non_food", _("Non-food retail"), "retail"),
+            ("restaurant_fast_food", _("Fast food"), "restaurant"),
+            ("restaurant_catering", _("Catering"), "restaurant"),
+            ("manufacturing_light", _("Light manufacturing"), "manufacturing"),
+            ("manufacturing_mechanical", _("Mechanical manufacturing"), "manufacturing"),
+            ("saas_b2b", _("SaaS B2B"), "saas"),
+            ("saas_b2c", _("SaaS B2C"), "saas"),
+            ("construction_finishings", _("Finishings"), "construction"),
+            ("construction_structural", _("Structural works"), "construction"),
+        ],
+        preset_size_options=[
+            ("standard", _("Standard")),
+            ("large", _("Large")),
+            ("xl", _("XL")),
+            ("xxl", _("XXL")),
+        ],
+    )
 
 
 @bp.route("/invoices")

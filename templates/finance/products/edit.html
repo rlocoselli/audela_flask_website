@@ -41,6 +41,26 @@
                             <small class="form-text text-muted">{{ _('O código não pode ser alterado') }}</small>
                         </div>
 
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label for="product_type" class="form-label">{{ _('Tipo de produto') }}</label>
+                                <select class="form-select" id="product_type" name="product_type">
+                                    {% for type_code, type_label in product_type_options %}
+                                        <option value="{{ type_code }}" {% if (product.product_type or 'service') == type_code %}selected{% endif %}>{{ type_label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="category_id" class="form-label">{{ _('Categoria') }}</label>
+                                <select class="form-select" id="category_id" name="category_id">
+                                    <option value="">{{ _('Sem categoria') }}</option>
+                                    {% for category in category_options %}
+                                        <option value="{{ category.id }}" {% if product.category_id == category.id %}selected{% endif %}>{{ category.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
                         <div class="mb-3">
                             <label for="description" class="form-label">{{ _('Descrição') }}</label>
                             <textarea class="form-control" id="description" name="description" 

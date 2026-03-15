@@ -28,6 +28,20 @@ jobs:
       - name: Deploy via SSH as root (attempt 1)
         id: deploy_ssh_1
         continue-on-error: true
+        env:
+          SERVER_ENV_FILE: ${{ secrets.SERVER_ENV_FILE }}
+          GRAFANA_HOSTNAME: ${{ secrets.GRAFANA_HOSTNAME }}
+          GRAFANA_HOSTNAME_ALT: ${{ secrets.GRAFANA_HOSTNAME_ALT }}
+          SITE_URL: ${{ vars.SITE_URL || 'https://audeladedonnees.fr' }}
+          BRIDGE_CALLBACK_URL: ${{ vars.BRIDGE_CALLBACK_URL || 'https://audeladedonnees.fr/finance/banks/callback' }}
+          BRIDGE_CLIENT_ID: ${{ secrets.BRIDGE_CLIENT_ID }}
+          BRIDGE_CLIENT_SECRET: ${{ secrets.BRIDGE_CLIENT_SECRET }}
+          BRIDGE_BASE_URL: ${{ vars.BRIDGE_BASE_URL || 'https://api.bridgeapi.io' }}
+          BRIDGE_VERSION: ${{ vars.BRIDGE_VERSION || '2025-01-15' }}
+          POWENS_CLIENT_ID: ${{ secrets.POWENS_CLIENT_ID }}
+          POWENS_CLIENT_SECRET: ${{ secrets.POWENS_CLIENT_SECRET }}
+          POWENS_WEBHOOK_SECRET: ${{ secrets.POWENS_WEBHOOK_SECRET }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -36,6 +50,7 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           timeout: 90s
           command_timeout: 40m
+          envs: SERVER_ENV_FILE,GRAFANA_HOSTNAME,GRAFANA_HOSTNAME_ALT,SITE_URL,BRIDGE_CALLBACK_URL,BRIDGE_CLIENT_ID,BRIDGE_CLIENT_SECRET,BRIDGE_BASE_URL,BRIDGE_VERSION,POWENS_CLIENT_ID,POWENS_CLIENT_SECRET,POWENS_WEBHOOK_SECRET,ENCRYPTION_KEY
 
           script: &deploy_script |
             set -e
@@ -54,8 +69,8 @@ jobs:
             # This deploy job updates only web app service.
             if [ ! -f .env ]; then
               echo "⚠️ .env missing on server"
-              if [ -n "${{ secrets.SERVER_ENV_FILE }}" ]; then
-                printf "%s" "${{ secrets.SERVER_ENV_FILE }}" > .env
+              if [ -n "${SERVER_ENV_FILE}" ]; then
+                printf "%s" "${SERVER_ENV_FILE}" > .env
                 chmod 600 .env || true
                 echo "✅ .env bootstrapped from GitHub secret SERVER_ENV_FILE"
               else
@@ -65,21 +80,37 @@ jobs:
               fi
             fi
 
+            escape_sed_replacement () {
+              printf "%s" "$1" | sed -e 's/[|&]/\\&/g'
+            }
+
             upsert_env_var () {
               local key="$1"
               local val="$2"
+              local escaped_val
               if [ -z "$val" ]; then
                 return 0
               fi
+              escaped_val="$(escape_sed_replacement "$val")"
               if grep -qE "^${key}=" .env; then
-                sed -i "s|^${key}=.*|${key}=${val}|" .env
+                sed -i "s|^${key}=.*|${key}=${escaped_val}|" .env
               else
                 printf "\n%s=%s\n" "$key" "$val" >> .env
               fi
             }
 
-            upsert_env_var "GRAFANA_HOSTNAME" "${{ secrets.GRAFANA_HOSTNAME }}"
-            upsert_env_var "GRAFANA_HOSTNAME_ALT" "${{ secrets.GRAFANA_HOSTNAME_ALT }}"
+            upsert_env_var "GRAFANA_HOSTNAME" "${GRAFANA_HOSTNAME}"
+            upsert_env_var "GRAFANA_HOSTNAME_ALT" "${GRAFANA_HOSTNAME_ALT}"
+            upsert_env_var "SITE_URL" "${SITE_URL}"
+            upsert_env_var "BRIDGE_CALLBACK_URL" "${BRIDGE_CALLBACK_URL}"
+            upsert_env_var "BRIDGE_CLIENT_ID" "${BRIDGE_CLIENT_ID}"
+            upsert_env_var "BRIDGE_CLIENT_SECRET" "${BRIDGE_CLIENT_SECRET}"
+            upsert_env_var "BRIDGE_BASE_URL" "${BRIDGE_BASE_URL}"
+            upsert_env_var "BRIDGE_VERSION" "${BRIDGE_VERSION}"
+            upsert_env_var "POWENS_CLIENT_ID" "${POWENS_CLIENT_ID}"
+            upsert_env_var "POWENS_CLIENT_SECRET" "${POWENS_CLIENT_SECRET}"
+            upsert_env_var "POWENS_WEBHOOK_SECRET" "${POWENS_WEBHOOK_SECRET}"
+            upsert_env_var "ENCRYPTION_KEY" "${ENCRYPTION_KEY}"
             chmod 600 .env || true
 
             echo "⚡ Incremental deploy (audela only, skip celery image rebuild)"
@@ -291,6 +322,20 @@ jobs:
       - name: Deploy via SSH as root (attempt 2)
         id: deploy_ssh_2
         if: steps.deploy_ssh_1.outcome == 'failure'
+        env:
+          SERVER_ENV_FILE: ${{ secrets.SERVER_ENV_FILE }}
+          GRAFANA_HOSTNAME: ${{ secrets.GRAFANA_HOSTNAME }}
+          GRAFANA_HOSTNAME_ALT: ${{ secrets.GRAFANA_HOSTNAME_ALT }}
+          SITE_URL: ${{ vars.SITE_URL || 'https://audeladedonnees.fr' }}
+          BRIDGE_CALLBACK_URL: ${{ vars.BRIDGE_CALLBACK_URL || 'https://audeladedonnees.fr/finance/banks/callback' }}
+          BRIDGE_CLIENT_ID: ${{ secrets.BRIDGE_CLIENT_ID }}
+          BRIDGE_CLIENT_SECRET: ${{ secrets.BRIDGE_CLIENT_SECRET }}
+          BRIDGE_BASE_URL: ${{ vars.BRIDGE_BASE_URL || 'https://api.bridgeapi.io' }}
+          BRIDGE_VERSION: ${{ vars.BRIDGE_VERSION || '2025-01-15' }}
+          POWENS_CLIENT_ID: ${{ secrets.POWENS_CLIENT_ID }}
+          POWENS_CLIENT_SECRET: ${{ secrets.POWENS_CLIENT_SECRET }}
+          POWENS_WEBHOOK_SECRET: ${{ secrets.POWENS_WEBHOOK_SECRET }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -299,6 +344,7 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           timeout: 90s
           command_timeout: 40m
+          envs: SERVER_ENV_FILE,GRAFANA_HOSTNAME,GRAFANA_HOSTNAME_ALT,SITE_URL,BRIDGE_CALLBACK_URL,BRIDGE_CLIENT_ID,BRIDGE_CLIENT_SECRET,BRIDGE_BASE_URL,BRIDGE_VERSION,POWENS_CLIENT_ID,POWENS_CLIENT_SECRET,POWENS_WEBHOOK_SECRET,ENCRYPTION_KEY
           script: *deploy_script
 
       - name: Fail if SSH deploy failed twice
