@@ -333,6 +333,30 @@ jobs:
             echo "🔄 Final restart of audela container"
             $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml up -d --no-deps --force-recreate audela
 
+            echo "🧪 Verify served release header"
+            CHECK_HOST="$(printf "%s" "${SITE_URL}" | sed -E 's#^https?://([^/]+).*$#\1#')"
+            if [ -z "${CHECK_HOST}" ]; then
+              CHECK_HOST="audeladedonnees.fr"
+            fi
+
+            HDRS="$(curl -sSI -H "Host: ${CHECK_HOST}" http://127.0.0.1/finance/banks || true)"
+            SERVED_RELEASE="$(printf "%s" "${HDRS}" | awk -F': ' 'tolower($1)=="x-app-release"{print $2}' | tr -d '\r' | tail -n1)"
+            SERVED_SERVER="$(printf "%s" "${HDRS}" | awk -F': ' 'tolower($1)=="server"{print $2}' | tr -d '\r' | tail -n1)"
+            echo "ℹ️ Response server header: ${SERVED_SERVER:-<missing>}"
+            echo "ℹ️ Response X-App-Release: ${SERVED_RELEASE:-<missing>}"
+            echo "ℹ️ Expected APP_RELEASE: ${APP_RELEASE}"
+
+            if [ -z "${SERVED_RELEASE}" ]; then
+              echo "❌ Missing X-App-Release header from served app. A stale instance may still be answering."
+              exit 1
+            fi
+            if [ "${SERVED_RELEASE}" != "${APP_RELEASE}" ]; then
+              echo "❌ Served release mismatch. Expected ${APP_RELEASE}, got ${SERVED_RELEASE}."
+              echo "   Check for multiple running app instances or outdated reverse proxy target."
+              exit 1
+            fi
+            echo "✅ Served release header matches deployed commit"
+
             echo "✅ Deploy completed"
 
       - name: Deploy via SSH as root (attempt 2)
