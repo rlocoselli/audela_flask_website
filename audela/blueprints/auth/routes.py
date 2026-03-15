@@ -16,9 +16,17 @@ from ...i18n import tr
 from . import bp
 
 
+def _safe_next_url() -> str | None:
+    nxt = (request.form.get("next") or request.args.get("next") or "").strip()
+    if nxt.startswith("/") and not nxt.startswith("//"):
+        return nxt
+    return None
+
+
 @bp.route("/login", methods=["GET", "POST"])
 def login():
     # MVP: tenant selected by slug on login screen
+    next_url = _safe_next_url()
     if request.method == "POST":
         tenant_slug = request.form.get("tenant_slug", "").strip().lower()
         email = request.form.get("email", "").strip().lower()
@@ -27,7 +35,7 @@ def login():
         tenant = Tenant.query.filter_by(slug=tenant_slug).first()
         if not tenant:
             flash(tr("Tenant não encontrado.", getattr(g, "lang", None)), "error")
-            return render_template("portal/login.html")
+            return render_template("portal/login.html", next_url=next_url)
 
         user = User.query.filter_by(tenant_id=tenant.id, email=email).first()
         if not user or not user.check_password(password):
@@ -42,7 +50,7 @@ def login():
                 )
             )
             db.session.commit()
-            return render_template("portal/login.html")
+            return render_template("portal/login.html", next_url=next_url)
         
         # Check email verification
         if user.status == "pending_verification":
@@ -63,9 +71,11 @@ def login():
 
         set_current_tenant(CurrentTenant(id=tenant.id, slug=tenant.slug, name=tenant.name))
         session.pop("app_mode", None)
+        if next_url:
+            return redirect(next_url)
         return redirect(url_for("portal.home"))
 
-    return render_template("portal/login.html")
+    return render_template("portal/login.html", next_url=next_url)
 
 
 @bp.route("/login/finance", methods=["GET", "POST"])
@@ -74,6 +84,7 @@ def login_finance():
 
     This keeps BI and Finance separated at the UI level.
     """
+    next_url = _safe_next_url()
     if request.method == "POST":
         tenant_slug = request.form.get("tenant_slug", "").strip().lower()
         email = request.form.get("email", "").strip().lower()
@@ -82,7 +93,7 @@ def login_finance():
         tenant = Tenant.query.filter_by(slug=tenant_slug).first()
         if not tenant:
             flash(tr("Tenant não encontrado.", getattr(g, "lang", None)), "error")
-            return render_template("portal/login_finance.html")
+            return render_template("portal/login_finance.html", next_url=next_url)
 
         user = User.query.filter_by(tenant_id=tenant.id, email=email).first()
         if not user or not user.check_password(password):
@@ -96,7 +107,7 @@ def login_finance():
                 )
             )
             db.session.commit()
-            return render_template("portal/login_finance.html")
+            return render_template("portal/login_finance.html", next_url=next_url)
         
         # Check email verification
         if user.status == "pending_verification":
@@ -117,9 +128,11 @@ def login_finance():
 
         set_current_tenant(CurrentTenant(id=tenant.id, slug=tenant.slug, name=tenant.name))
         session["app_mode"] = "finance"
+        if next_url:
+            return redirect(next_url)
         return redirect(url_for("finance.dashboard"))
 
-    return render_template("portal/login_finance.html")
+    return render_template("portal/login_finance.html", next_url=next_url)
 
 
 @bp.route("/logout")
