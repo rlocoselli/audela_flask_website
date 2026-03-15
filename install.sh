@@ -111,22 +111,89 @@ ensure_env_file() {
   local env_file="${APP_DIR}/.env"
   local secret_key=""
   local data_key=""
-    # ---- SMTP / Email effective values (allow override by args, else defaults) ----
-  local mail_server_effective="${MAIL_SERVER_ARG:-$SMTP_SERVER_DEFAULT}"
-  local mail_port_effective="${MAIL_PORT_ARG:-$SMTP_PORT_DEFAULT}"
-  local mail_use_tls_effective="${MAIL_USE_TLS_ARG:-$SMTP_USE_TLS_DEFAULT}"
-  local mail_use_ssl_effective="${MAIL_USE_SSL_ARG:-$SMTP_USE_SSL_DEFAULT}"
-  local mail_username_effective="${MAIL_USERNAME_ARG:-$SMTP_USERNAME_DEFAULT}"
-  local mail_password_effective="${MAIL_PASSWORD_ARG:-}"  # pas de default => à fournir
-  local mail_default_sender_effective="${MAIL_DEFAULT_SENDER_ARG:-$SMTP_DEFAULT_SENDER_DEFAULT}"
+  local existing_mail_server=""
+  local existing_mail_port=""
+  local existing_mail_use_tls=""
+  local existing_mail_use_ssl=""
+  local existing_mail_username=""
+  local existing_mail_password=""
+  local existing_mail_default_sender=""
+  local site_url_effective=""
+  local bridge_callback_url_effective=""
+  local bridge_client_id_effective=""
+  local bridge_client_secret_effective=""
+  local bridge_base_url_effective=""
+  local bridge_version_effective=""
+  local powens_client_id_effective=""
+  local powens_client_secret_effective=""
+  local powens_webhook_secret_effective=""
+  local encryption_key_effective=""
+  local app_release_effective=""
+  local grafana_hostname_alt_effective=""
+
+  escape_sed_replacement () {
+    printf "%s" "$1" | sed -e 's/[|&]/\\&/g'
+  }
+
+  upsert_env_var () {
+    local key="$1"
+    local val="$2"
+    local escaped_val
+    if [ -z "$val" ]; then
+      return 0
+    fi
+    escaped_val="$(escape_sed_replacement "$val")"
+    if grep -qE "^${key}=" "${env_file}"; then
+      sed -i "s|^${key}=.*|${key}=${escaped_val}|" "${env_file}"
+    else
+      printf "\n%s=%s\n" "$key" "$val" >> "${env_file}"
+    fi
+  }
+
+  get_env_value () {
+    local key="$1"
+    if [[ -f "${env_file}" ]]; then
+      grep -E "^${key}=" "${env_file}" | tail -n1 | cut -d= -f2- || true
+    fi
+  }
 
   if [[ -f "${env_file}" ]]; then
     secret_key="$(grep -E '^SECRET_KEY=' "${env_file}" | tail -n1 | cut -d= -f2- || true)"
     data_key="$(grep -E '^DATA_KEY=' "${env_file}" | tail -n1 | cut -d= -f2- || true)"
+
+    existing_mail_server="$(get_env_value MAIL_SERVER)"
+    existing_mail_port="$(get_env_value MAIL_PORT)"
+    existing_mail_use_tls="$(get_env_value MAIL_USE_TLS)"
+    existing_mail_use_ssl="$(get_env_value MAIL_USE_SSL)"
+    existing_mail_username="$(get_env_value MAIL_USERNAME)"
+    existing_mail_password="$(get_env_value MAIL_PASSWORD)"
+    existing_mail_default_sender="$(get_env_value MAIL_DEFAULT_SENDER)"
+
+    site_url_effective="$(get_env_value SITE_URL)"
+    bridge_callback_url_effective="$(get_env_value BRIDGE_CALLBACK_URL)"
+    bridge_client_id_effective="$(get_env_value BRIDGE_CLIENT_ID)"
+    bridge_client_secret_effective="$(get_env_value BRIDGE_CLIENT_SECRET)"
+    bridge_base_url_effective="$(get_env_value BRIDGE_BASE_URL)"
+    bridge_version_effective="$(get_env_value BRIDGE_VERSION)"
+    powens_client_id_effective="$(get_env_value POWENS_CLIENT_ID)"
+    powens_client_secret_effective="$(get_env_value POWENS_CLIENT_SECRET)"
+    powens_webhook_secret_effective="$(get_env_value POWENS_WEBHOOK_SECRET)"
+    encryption_key_effective="$(get_env_value ENCRYPTION_KEY)"
+    app_release_effective="$(get_env_value APP_RELEASE)"
+    grafana_hostname_alt_effective="$(get_env_value GRAFANA_HOSTNAME_ALT)"
   fi
 
   if [[ -z "${secret_key}" ]]; then secret_key="$(rand_hex_64)"; fi
   if [[ -z "${data_key}" ]]; then data_key="$(rand_hex_64)"; fi
+
+  # ---- SMTP / Email effective values (arg > existing .env > defaults) ----
+  local mail_server_effective="${MAIL_SERVER_ARG:-${existing_mail_server:-${SMTP_SERVER_DEFAULT:-}}}"
+  local mail_port_effective="${MAIL_PORT_ARG:-${existing_mail_port:-${SMTP_PORT_DEFAULT:-587}}}"
+  local mail_use_tls_effective="${MAIL_USE_TLS_ARG:-${existing_mail_use_tls:-${SMTP_USE_TLS_DEFAULT:-True}}}"
+  local mail_use_ssl_effective="${MAIL_USE_SSL_ARG:-${existing_mail_use_ssl:-${SMTP_USE_SSL_DEFAULT:-False}}}"
+  local mail_username_effective="${MAIL_USERNAME_ARG:-${existing_mail_username:-${SMTP_USERNAME_DEFAULT:-}}}"
+  local mail_password_effective="${MAIL_PASSWORD_ARG:-${existing_mail_password:-}}"
+  local mail_default_sender_effective="${MAIL_DEFAULT_SENDER_ARG:-${existing_mail_default_sender:-${SMTP_DEFAULT_SENDER_DEFAULT:-${EMAIL}}}}"
 
   # DB host special-case: if user passed localhost/127.0.0.1, connect to the host from container.
   local db_host_effective="${DB_HOST_ARG}"
@@ -141,49 +208,73 @@ ensure_env_file() {
     database_url_effective="postgresql+psycopg2://${DB_USER_ARG}:${DB_PASSWORD_ARG}@${db_host_effective}:${DB_PORT_ARG}/${DB_NAME_ARG}"
   fi
 
+  site_url_effective="${SITE_URL:-${site_url_effective:-https://${APP_HOSTNAME}}}"
+  bridge_callback_url_effective="${BRIDGE_CALLBACK_URL:-${bridge_callback_url_effective:-${site_url_effective%/}/finance/banks/callback}}"
+  bridge_client_id_effective="${BRIDGE_CLIENT_ID:-${bridge_client_id_effective:-}}"
+  bridge_client_secret_effective="${BRIDGE_CLIENT_SECRET:-${bridge_client_secret_effective:-}}"
+  bridge_base_url_effective="${BRIDGE_BASE_URL:-${bridge_base_url_effective:-https://api.bridgeapi.io}}"
+  bridge_version_effective="${BRIDGE_VERSION:-${bridge_version_effective:-2025-01-15}}"
+  powens_client_id_effective="${POWENS_CLIENT_ID:-${powens_client_id_effective:-}}"
+  powens_client_secret_effective="${POWENS_CLIENT_SECRET:-${powens_client_secret_effective:-}}"
+  powens_webhook_secret_effective="${POWENS_WEBHOOK_SECRET:-${powens_webhook_secret_effective:-}}"
+  encryption_key_effective="${ENCRYPTION_KEY:-${encryption_key_effective:-}}"
+  app_release_effective="${APP_RELEASE:-${app_release_effective:-}}"
+  grafana_hostname_alt_effective="${GRAFANA_HOSTNAME_ALT:-${grafana_hostname_alt_effective:-}}"
+
   echo "🔐 Writing .env for docker compose"
   umask 077
-  cat > "${env_file}" <<EOF
-# --- Routing ---
-APP_HOSTNAME=${APP_HOSTNAME}
-APP_HOSTNAME_WWW=${APP_HOSTNAME_WWW}
-GRAFANA_HOSTNAME=${GRAFANA_HOSTNAME}
-
-# --- App secrets ---
-SECRET_KEY=${secret_key}
-DATA_KEY=${data_key}
-
-# --- App config ---
-OPENAI_API_KEY=${OPENAI_API_KEY_ARG}
-DATABASE_URL=${database_url_effective}
-APP_HOST=${db_host_effective}
-APP_USER=${DB_USER_ARG}
-APP_PASSWORD=${DB_PASSWORD_ARG}
-DB_NAME=${DB_NAME_ARG}
-DB_PORT=${DB_PORT_ARG}
-REDIS_URL=redis://redis:6379/0
-# --- SMTP / Email (Flask-Mail + ETL notifications) ---
-MAIL_SERVER=${mail_server_effective}
-MAIL_PORT=${mail_port_effective}
-MAIL_USE_TLS=${mail_use_tls_effective}
-MAIL_USE_SSL=${mail_use_ssl_effective}
-MAIL_USERNAME=${mail_username_effective}
-MAIL_PASSWORD=${mail_password_effective}
-MAIL_DEFAULT_SENDER=${mail_default_sender_effective}
-
-
-# --- Internal Postgres (still started for persistence/monitoring; app may point to external DB) ---
-POSTGRES_DB=${DB_NAME_ARG}
-POSTGRES_USER=${DB_USER_ARG}
-POSTGRES_PASSWORD=${DB_PASSWORD_ARG}
-
-# --- Grafana ---
-GRAFANA_ADMIN_USER=admin
-GRAFANA_ADMIN_PASSWORD=${DB_PASSWORD_ARG}
-
-# --- Let's Encrypt (Traefik) ---
-LETSENCRYPT_EMAIL=${EMAIL}
+  if [[ ! -f "${env_file}" ]]; then
+    cat > "${env_file}" <<EOF
+# --- Generated by install.sh ---
 EOF
+  fi
+
+  upsert_env_var "APP_HOSTNAME" "${APP_HOSTNAME}"
+  upsert_env_var "APP_HOSTNAME_WWW" "${APP_HOSTNAME_WWW}"
+  upsert_env_var "GRAFANA_HOSTNAME" "${GRAFANA_HOSTNAME}"
+  upsert_env_var "GRAFANA_HOSTNAME_ALT" "${grafana_hostname_alt_effective}"
+
+  upsert_env_var "SECRET_KEY" "${secret_key}"
+  upsert_env_var "DATA_KEY" "${data_key}"
+
+  upsert_env_var "OPENAI_API_KEY" "${OPENAI_API_KEY_ARG}"
+  upsert_env_var "DATABASE_URL" "${database_url_effective}"
+  upsert_env_var "APP_HOST" "${db_host_effective}"
+  upsert_env_var "APP_USER" "${DB_USER_ARG}"
+  upsert_env_var "APP_PASSWORD" "${DB_PASSWORD_ARG}"
+  upsert_env_var "DB_NAME" "${DB_NAME_ARG}"
+  upsert_env_var "DB_PORT" "${DB_PORT_ARG}"
+  upsert_env_var "REDIS_URL" "redis://redis:6379/0"
+
+  upsert_env_var "SITE_URL" "${site_url_effective}"
+  upsert_env_var "BRIDGE_CALLBACK_URL" "${bridge_callback_url_effective}"
+  upsert_env_var "BRIDGE_CLIENT_ID" "${bridge_client_id_effective}"
+  upsert_env_var "BRIDGE_CLIENT_SECRET" "${bridge_client_secret_effective}"
+  upsert_env_var "BRIDGE_BASE_URL" "${bridge_base_url_effective}"
+  upsert_env_var "BRIDGE_VERSION" "${bridge_version_effective}"
+  upsert_env_var "POWENS_CLIENT_ID" "${powens_client_id_effective}"
+  upsert_env_var "POWENS_CLIENT_SECRET" "${powens_client_secret_effective}"
+  upsert_env_var "POWENS_WEBHOOK_SECRET" "${powens_webhook_secret_effective}"
+  upsert_env_var "ENCRYPTION_KEY" "${encryption_key_effective}"
+  upsert_env_var "APP_RELEASE" "${app_release_effective}"
+
+  upsert_env_var "MAIL_SERVER" "${mail_server_effective}"
+  upsert_env_var "MAIL_PORT" "${mail_port_effective}"
+  upsert_env_var "MAIL_USE_TLS" "${mail_use_tls_effective}"
+  upsert_env_var "MAIL_USE_SSL" "${mail_use_ssl_effective}"
+  upsert_env_var "MAIL_USERNAME" "${mail_username_effective}"
+  upsert_env_var "MAIL_PASSWORD" "${mail_password_effective}"
+  upsert_env_var "MAIL_DEFAULT_SENDER" "${mail_default_sender_effective}"
+
+  upsert_env_var "POSTGRES_DB" "${DB_NAME_ARG}"
+  upsert_env_var "POSTGRES_USER" "${DB_USER_ARG}"
+  upsert_env_var "POSTGRES_PASSWORD" "${DB_PASSWORD_ARG}"
+
+  upsert_env_var "GRAFANA_ADMIN_USER" "admin"
+  upsert_env_var "GRAFANA_ADMIN_PASSWORD" "${DB_PASSWORD_ARG}"
+
+  upsert_env_var "LETSENCRYPT_EMAIL" "${EMAIL}"
+
   chmod 600 "${env_file}"
 }
 

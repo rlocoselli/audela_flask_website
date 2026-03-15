@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
@@ -25,26 +26,26 @@ class BridgeClient:
 
     def __init__(self):
         cfg = current_app.config
+
+        # Fallback: some deployments do not inject env vars into the process
+        # (e.g., systemd service without EnvironmentFile). In that case, read
+        # project .env directly so bank integration still works.
+        env_file_values = self._read_project_env_file()
+
+        def _pick(name: str, default: str = "") -> str:
+            return (
+                str(cfg.get(name) or "").strip()
+                or str(os.environ.get(name) or "").strip()
+                or str(env_file_values.get(name) or "").strip()
+                or default
+            )
+
         self.base_url = (
-            cfg.get("BRIDGE_BASE_URL")
-            or os.environ.get("BRIDGE_BASE_URL")
-            or "https://api.bridgeapi.io"
-        ).strip().rstrip("/")
-        self.client_id = (
-            cfg.get("BRIDGE_CLIENT_ID")
-            or os.environ.get("BRIDGE_CLIENT_ID")
-            or ""
-        ).strip()
-        self.client_secret = (
-            cfg.get("BRIDGE_CLIENT_SECRET")
-            or os.environ.get("BRIDGE_CLIENT_SECRET")
-            or ""
-        ).strip()
-        self.version = (
-            cfg.get("BRIDGE_VERSION")
-            or os.environ.get("BRIDGE_VERSION")
-            or "2025-01-15"
-        ).strip()
+            _pick("BRIDGE_BASE_URL", "https://api.bridgeapi.io")
+        ).rstrip("/")
+        self.client_id = _pick("BRIDGE_CLIENT_ID")
+        self.client_secret = _pick("BRIDGE_CLIENT_SECRET")
+        self.version = _pick("BRIDGE_VERSION", "2025-01-15")
 
     def is_configured(self) -> bool:
         return bool(self.client_id and self.client_secret)
@@ -56,6 +57,29 @@ class BridgeClient:
         if not self.client_secret:
             missing.append("BRIDGE_CLIENT_SECRET")
         return missing
+
+    @staticmethod
+    def _read_project_env_file() -> Dict[str, str]:
+        values: Dict[str, str] = {}
+        try:
+            project_root = Path(current_app.root_path).parent
+            env_path = project_root / ".env"
+            if not env_path.exists():
+                return values
+
+            for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+                line = raw_line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, val = line.split("=", 1)
+                key = key.strip()
+                val = val.strip().strip('"').strip("'")
+                if key:
+                    values[key] = val
+        except Exception:
+            # Keep bridge lookup resilient even if .env parsing fails.
+            return {}
+        return values
 
     def _headers(self, bearer: Optional[str] = None) -> Dict[str, str]:
         h = {
