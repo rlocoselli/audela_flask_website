@@ -14662,6 +14662,37 @@ for _lang, _mp in _FINANCE_EINVOICE_FILTERS_I18N_20260313.items():
     TRANSLATIONS.setdefault(_lang, {}).update(_mp)
 
 
+_BI_EN_CLEANUP_I18N_20260323 = {
+    "en": {
+        "source_id inválido.": "Invalid source_id.",
+        "Prompt vazio.": "Empty prompt.",
+        "Pergunta inválida.": "Invalid question.",
+        "viz_config inválido.": "Invalid viz_config.",
+        "Payload inválido.": "Invalid payload.",
+        "Mensagem vazia.": "Empty message.",
+        "Selecione uma pergunta.": "Select a question.",
+        "Parâmetros devem ser um objeto JSON.": "Parameters must be a JSON object.",
+        "Executions": "Executions",
+        "Query Runs (last 200)": "Query Runs (last 200)",
+        "No runs yet.": "No runs yet.",
+        "When": "When",
+        "Question": "Question",
+        "User": "User",
+        "Duration (ms)": "Duration (ms)",
+        "Rows": "Rows",
+        "Error": "Error",
+        "Question #": "Question #",
+        "Date d'expiration invalide.": "Invalid expiration date.",
+        "Expiration (optionnelle)": "Expiration (optional)",
+        "expire le": "expires on",
+        "Expires at": "Expires at",
+    }
+}
+
+for _lang, _mp in _BI_EN_CLEANUP_I18N_20260323.items():
+    TRANSLATIONS.setdefault(_lang, {}).update(_mp)
+
+
 def tr(msgid: str, lang: str | None = None, **kwargs: Any) -> str:
     """Translate msgid using the configured dictionary.
 
@@ -14670,17 +14701,19 @@ def tr(msgid: str, lang: str | None = None, **kwargs: Any) -> str:
     Fallback order:
     - requested language (e.g. 'fr')
     - English ('en')
-    - Portuguese ('pt')
+    - Portuguese ('pt') except when lang='en'
     - msgid (as-is)
     """
     lang = normalize_lang(lang)
 
-    out = (
-        TRANSLATIONS.get(lang, {}).get(msgid)
-        or TRANSLATIONS.get("en", {}).get(msgid)
-        or TRANSLATIONS.get("pt", {}).get(msgid)
-        or msgid
-    )
+    en_val = TRANSLATIONS.get("en", {}).get(msgid)
+    out = TRANSLATIONS.get(lang, {}).get(msgid) or en_val
+
+    # Avoid Portuguese leakage when explicit language is English.
+    if out is None and lang != "en":
+        out = TRANSLATIONS.get("pt", {}).get(msgid)
+    if out is None:
+        out = msgid
     try:
         return str(out).format(**kwargs)
     except Exception:

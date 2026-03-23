@@ -63,7 +63,43 @@
             <select class="form-select form-select-sm" id="pm-sprint-filter" style="min-width: 180px;">
               <option value="">{{ _('Tous les sprints') }}</option>
             </select>
+            <button class="btn btn-sm btn-outline-success" id="pm-share-current-kanban" type="button" data-tip="{{ _('Générer un lien public pour le Kanban du projet actuellement sélectionné.') }}">
+              <i class="bi bi-share me-1"></i>{{ _('Partager ce Kanban') }}
+            </button>
             <button class="btn btn-sm btn-primary" id="pm-add-card" data-tip="{{ _('Ajouter une tâche Kanban dans l\'arriéré ou les colonnes de suivi.') }}">{{ _('Créer une tâche') }}</button>
+          </div>
+        </div>
+        <div id="pm-kanban-share-inline" class="border rounded p-2 bg-body-tertiary mb-2" style="display:none;">
+          <div class="small text-secondary mb-1">{{ _('Lien public du projet sélectionné') }}</div>
+          <div class="input-group input-group-sm">
+            <input id="pm-kanban-share-url-inline" class="form-control" readonly>
+            <button class="btn btn-outline-secondary" id="pm-kanban-share-copy-inline" type="button">{{ _('Copier') }}</button>
+            <a class="btn btn-outline-primary" id="pm-kanban-share-open-inline" href="#" target="_blank" rel="noopener">{{ _('Ouvrir') }}</a>
+          </div>
+          <div class="row g-2 mt-2">
+            <div class="col-md-2">
+              <div class="form-check form-switch mt-1">
+                <input class="form-check-input" type="checkbox" id="pm-kanban-share-enabled">
+                <label class="form-check-label small" for="pm-kanban-share-enabled">{{ _('Actif') }}</label>
+              </div>
+            </div>
+            <div class="col-md-2">
+              <select id="pm-kanban-share-access" class="form-select form-select-sm">
+                <option value="ro">{{ _('Lecture seule') }}</option>
+                <option value="rw">{{ _('Lecture et écriture') }}</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <input id="pm-kanban-share-expires" type="datetime-local" class="form-control form-control-sm" title="{{ _('Expiration (optionnelle)') }}">
+            </div>
+            <div class="col-md-5">
+              <div class="input-group input-group-sm">
+                <input id="pm-kanban-share-emails" class="form-control" placeholder="{{ _('emails séparés par , ; ou ligne') }}">
+                <button class="btn btn-outline-primary" id="pm-kanban-share-send-email" type="button">{{ _('Envoyer') }}</button>
+                <button class="btn btn-outline-success" id="pm-kanban-share-generate" type="button">{{ _('Générer') }}</button>
+                <button class="btn btn-outline-primary" id="pm-kanban-share-regenerate" type="button">{{ _('Régénérer') }}</button>
+              </div>
+            </div>
           </div>
         </div>
         <div class="row g-2" id="pm-kanban">
@@ -532,6 +568,62 @@
 
   </div>
   <div class="tab-pane fade" id="pm-pane-notifications" role="tabpanel" aria-labelledby="pm-tab-notifications" tabindex="0">
+
+  <div class="row g-3 mb-3 d-none" aria-hidden="true">
+    <div class="col-12">
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <h5 class="mb-2">{{ _('Partage public du Kanban') }}</h5>
+          <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="pm-share-enabled">
+                <label class="form-check-label" for="pm-share-enabled">{{ _('Activer le partage') }}</label>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small mb-1" for="pm-share-access">{{ _('Accès') }}</label>
+              <select id="pm-share-access" class="form-select form-select-sm">
+                <option value="ro">{{ _('Lecture seule') }}</option>
+                <option value="rw">{{ _('Lecture et écriture') }}</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small mb-1" for="pm-share-url">{{ _('Lien public') }}</label>
+              <div class="input-group input-group-sm">
+                <input id="pm-share-url" class="form-control" readonly>
+                <button class="btn btn-outline-secondary" id="pm-share-copy" type="button">{{ _('Copier') }}</button>
+                <button class="btn btn-outline-success" id="pm-share-generate" type="button">{{ _('Générer le lien') }}</button>
+                <button class="btn btn-outline-primary" id="pm-share-regenerate" type="button">{{ _('Régénérer') }}</button>
+              </div>
+              <div class="form-text">{{ _('Notifications → Partage public du Kanban: activez le partage puis cliquez "Générer le lien".') }}</div>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small mb-1" for="pm-share-expires">{{ _('Expiration (optionnelle)') }}</label>
+              <input id="pm-share-expires" type="datetime-local" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-8">
+              <label class="form-label small mb-1" for="pm-share-emails">{{ _('Envoyer le lien par email') }}</label>
+              <div class="input-group input-group-sm">
+                <input id="pm-share-emails" class="form-control" placeholder="pm@entreprise.com, team@entreprise.com">
+                <button class="btn btn-outline-primary" id="pm-share-send-email" type="button">{{ _('Envoyer') }}</button>
+              </div>
+              <div class="form-text">{{ _('Séparez les emails avec une virgule, un point-virgule ou une nouvelle ligne.') }}</div>
+            </div>
+          </div>
+          <div class="small text-secondary mt-2" id="pm-share-status">{{ _('Partage désactivé') }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-12">
+      <div class="alert alert-info mb-0">
+        <i class="bi bi-info-circle me-1"></i>{{ _('Le partage public du Kanban se configure maintenant directement dans la section Kanban.') }}
+      </div>
+    </div>
+  </div>
 
   <div class="row g-3 mb-3" id="pm-section-notifications">
     <div class="col-lg-6">
@@ -1265,6 +1357,186 @@
     min-width: 640px;
     width: 42%;
   }
+  #pm-kanban [data-col] {
+    border-color: #d6deea !important;
+    box-shadow: 0 8px 24px rgba(13, 35, 67, 0.08);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+  }
+  #pm-kanban [data-col]:hover {
+    box-shadow: 0 12px 28px rgba(13, 35, 67, 0.14);
+    transform: translateY(-1px);
+  }
+  #pm-kanban [data-col="backlog"] {
+    background: linear-gradient(180deg, #f6f8fc 0%, #ffffff 100%);
+  }
+  #pm-kanban [data-col="todo"] {
+    background: linear-gradient(180deg, #eef6ff 0%, #ffffff 100%);
+  }
+  #pm-kanban [data-col="doing"] {
+    background: linear-gradient(180deg, #fff7e8 0%, #ffffff 100%);
+  }
+  #pm-kanban [data-col="done"] {
+    background: linear-gradient(180deg, #edf9ef 0%, #ffffff 100%);
+  }
+  .pm-kanban-card {
+    border-color: #d4deed !important;
+    background: #ffffff !important;
+    box-shadow: 0 6px 16px rgba(13, 35, 67, 0.08);
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+  }
+  .pm-kanban-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 22px rgba(13, 35, 67, 0.14);
+  }
+  .pm-card-title-line {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .pm-card-icon-emoji {
+    font-size: 1.05rem;
+    line-height: 1;
+  }
+  .pm-card-owners {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.28rem;
+    margin-top: 0.1rem;
+  }
+  .pm-card-owner-mini {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border: 1px solid #d2dff3;
+    background: #f7fbff;
+    color: #1f3a66;
+    border-radius: 999px;
+    padding: 0.08rem 0.38rem;
+    font-size: 0.72rem;
+    line-height: 1.25;
+    font-weight: 600;
+  }
+  .pm-card-owner-avatar {
+    width: 1rem;
+    height: 1rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #b3c7ec;
+    font-size: 0.56rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  #todoModal .modal-content {
+    border: 0;
+    border-radius: 16px;
+    box-shadow: 0 18px 48px rgba(13, 35, 67, 0.24);
+    overflow: hidden;
+  }
+  #todoModal .modal-header {
+    background: linear-gradient(120deg, #e9f2ff 0%, #f6fbff 55%, #f5f9ee 100%);
+    border-bottom: 1px solid #d6deea;
+  }
+  #todoModal .form-control:focus,
+  #todoModal .form-select:focus {
+    border-color: #6aa3ff;
+    box-shadow: 0 0 0 0.2rem rgba(58, 124, 246, 0.2);
+  }
+  .pm-icon-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+  }
+  .pm-icon-chip {
+    border: 1px solid #d6deea;
+    background: #ffffff;
+    color: #1f2a44;
+    border-radius: 999px;
+    padding: 0.22rem 0.56rem;
+    font-size: 0.88rem;
+    line-height: 1.2;
+    cursor: pointer;
+    transition: all 0.16s ease;
+  }
+  .pm-icon-chip:hover {
+    border-color: #8fb8ff;
+    box-shadow: 0 4px 10px rgba(58, 124, 246, 0.16);
+  }
+  .pm-icon-chip.active {
+    background: #eaf3ff;
+    border-color: #3a7cf6;
+    color: #1547aa;
+    font-weight: 600;
+  }
+  .pm-owners-picker {
+    border: 1px solid #d6deea;
+    background: #f8fbff;
+    border-radius: 12px;
+    padding: 0.55rem;
+  }
+  .pm-owners-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    min-height: 2rem;
+  }
+  .pm-owner-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border: 1px solid #b9cdf2;
+    border-radius: 999px;
+    padding: 0.18rem 0.55rem;
+    background: #ffffff;
+    color: #1b376a;
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+  .pm-owner-avatar {
+    width: 1.35rem;
+    height: 1.35rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #a9bfeb;
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  .pm-owner-chip button {
+    border: 0;
+    background: transparent;
+    color: #5c6f93;
+    padding: 0;
+    line-height: 1;
+  }
+  .pm-owner-chip button:hover {
+    color: #243b69;
+  }
+  .pm-owner-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+  .pm-owner-suggestion {
+    border: 1px dashed #9fb9e8;
+    background: #eef4ff;
+    border-radius: 999px;
+    color: #24457f;
+    font-size: 0.78rem;
+    padding: 0.16rem 0.45rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.28rem;
+  }
+  .pm-owner-suggestion:hover {
+    border-style: solid;
+    color: #143469;
+    background: #e4eeff;
+  }
 </style>
 
 <div class="modal fade" id="projectModal" tabindex="-1" aria-hidden="true">
@@ -1310,6 +1582,23 @@
           <input class="form-control" name="title" required maxlength="160">
         </div>
         <div class="mb-2">
+          <label class="form-label">{{ _('Icône') }}</label>
+          <input class="form-control" name="icon" maxlength="32" list="pm-card-icons" placeholder="🚀 {{ _('ou') }} bi bi-lightning-charge">
+          <datalist id="pm-card-icons">
+            <option value="🚀"></option>
+            <option value="✅"></option>
+            <option value="⚠️"></option>
+            <option value="🧪"></option>
+            <option value="📌"></option>
+            <option value="bi bi-lightning-charge"></option>
+            <option value="bi bi-bug"></option>
+            <option value="bi bi-flag"></option>
+            <option value="bi bi-gear"></option>
+            <option value="bi bi-rocket-takeoff"></option>
+          </datalist>
+          <div id="pm-todo-icon-picker" class="pm-icon-picker" aria-label="{{ _('Icônes suggérées') }}"></div>
+        </div>
+        <div class="mb-2">
           <label class="form-label">{{ _('Description détaillée') }}</label>
           <textarea class="form-control" name="description" rows="6"></textarea>
         </div>
@@ -1320,8 +1609,16 @@
         <div class="row g-2">
           <div class="col-12">
             <label class="form-label">{{ _('Responsables') }}</label>
-            <select class="form-select" name="owners" id="pm-todo-owners" multiple size="5"></select>
-            <div class="form-text">{{ _('Sélection multiple: Ctrl/Cmd + clic') }}</div>
+            <div class="pm-owners-picker" id="pm-owners-picker">
+              <div class="pm-owners-chips" id="pm-todo-owners-chips"></div>
+              <div class="input-group input-group-sm mt-2">
+                <input class="form-control" id="pm-todo-owner-input" list="pm-managers-datalist" placeholder="{{ _('Ajouter un responsable') }}">
+                <button class="btn btn-outline-primary" id="pm-todo-owner-add" type="button">{{ _('Ajouter') }}</button>
+              </div>
+              <div class="pm-owner-suggestions mt-2" id="pm-todo-owner-suggestions"></div>
+            </div>
+            <select class="d-none" name="owners" id="pm-todo-owners" multiple size="5"></select>
+            <div class="form-text">{{ _('Ajoutez plusieurs responsables avec des chips.') }}</div>
           </div>
           <div class="col-md-6">
             <label class="form-label">{{ _('Priorité') }}</label>
@@ -1477,6 +1774,8 @@
       const IS_TENANT_ADMIN = {{ 'true' if is_tenant_admin else 'false' }};
       const API_GET = '{{ url_for("project.workspace_get") }}';
       const API_SAVE = '{{ url_for("project.workspace_save") }}';
+      const API_PUBLIC_SHARE = '{{ url_for("project.public_kanban_share_save") }}';
+      const API_PUBLIC_SHARE_EMAIL = '{{ url_for("project.public_kanban_share_email_send") }}';
       const FALLBACK_KEY = 'audela.pm.mini.v3';
       const state = {
         projects: [], selected_project_id: null, cards: [], ceremonies: [], deliverables: [], gantt: [], managers: [],
@@ -1601,6 +1900,170 @@
         if (changeApproved) changeApproved.checked = !!tr.change_approved;
         if (dailySummary) dailySummary.checked = !!tr.daily_summary;
       }
+      function ensurePublicShareDefaults(){
+        if (!state.security || typeof state.security !== 'object') state.security = {};
+        if (!state.security.public_kanban || typeof state.security.public_kanban !== 'object') {
+          state.security.public_kanban = {};
+        }
+        const share = state.security.public_kanban;
+        if (typeof share.enabled !== 'boolean') share.enabled = false;
+        share.token = (share.token || '').toString();
+        share.project_id = (share.project_id || state.selected_project_id || '').toString();
+        share.access = share.access === 'rw' ? 'rw' : 'ro';
+        share.expires_at = (share.expires_at || '').toString();
+      }
+      function renderPublicShareSettings(){
+        ensurePublicShareDefaults();
+        const share = state.security.public_kanban;
+        const enabledEl = document.getElementById('pm-share-enabled');
+        const accessEl = document.getElementById('pm-share-access');
+        const urlEl = document.getElementById('pm-share-url');
+        const expEl = document.getElementById('pm-share-expires');
+        const statusEl = document.getElementById('pm-share-status');
+        const copyBtn = document.getElementById('pm-share-copy');
+        const generateBtn = document.getElementById('pm-share-generate');
+        const regenBtn = document.getElementById('pm-share-regenerate');
+        const emailInput = document.getElementById('pm-share-emails');
+        const emailBtn = document.getElementById('pm-share-send-email');
+        const kbEnabled = document.getElementById('pm-kanban-share-enabled');
+        const kbAccess = document.getElementById('pm-kanban-share-access');
+        const kbExpires = document.getElementById('pm-kanban-share-expires');
+        const kbEmails = document.getElementById('pm-kanban-share-emails');
+        const kbSend = document.getElementById('pm-kanban-share-send-email');
+        const kbGenerate = document.getElementById('pm-kanban-share-generate');
+        const kbRegen = document.getElementById('pm-kanban-share-regenerate');
+        const editable = canEditSecurity();
+
+        if (enabledEl) {
+          enabledEl.checked = !!share.enabled;
+          enabledEl.disabled = !editable;
+        }
+        if (accessEl) {
+          accessEl.value = share.access || 'ro';
+          accessEl.disabled = !editable;
+        }
+        if (expEl) {
+          expEl.value = (share.expires_at || '').slice(0, 16);
+          expEl.disabled = !editable;
+        }
+        if (kbEnabled) {
+          kbEnabled.checked = !!share.enabled;
+          kbEnabled.disabled = !editable;
+        }
+        if (kbAccess) {
+          kbAccess.value = share.access || 'ro';
+          kbAccess.disabled = !editable;
+        }
+        if (kbExpires) {
+          kbExpires.value = (share.expires_at || '').slice(0, 16);
+          kbExpires.disabled = !editable;
+        }
+        const link = publicShareUrl(share);
+        if (urlEl) urlEl.value = link;
+        if (copyBtn) copyBtn.disabled = !link;
+        if (generateBtn) generateBtn.disabled = !editable;
+        if (regenBtn) regenBtn.disabled = !editable;
+        if (emailInput && !emailInput.value) {
+          ensureNotificationsDefaults();
+          emailInput.value = (state.notifications.channels.mail_to || '').toString();
+        }
+        if (emailBtn) emailBtn.disabled = !editable || !link;
+        if (kbEmails && !kbEmails.value) kbEmails.value = (emailInput && emailInput.value) ? emailInput.value : '';
+        if (kbSend) kbSend.disabled = !editable || !link;
+        if (kbGenerate) kbGenerate.disabled = !editable;
+        if (kbRegen) kbRegen.disabled = !editable;
+        if (statusEl) {
+          const expInfo = share.expires_at ? (' · {{ _('expire le') }} ' + share.expires_at.replace('T', ' ').slice(0, 16)) : '';
+          statusEl.textContent = share.enabled
+            ? ('{{ _('Lien actif') }}: ' + (share.access === 'rw' ? '{{ _('lecture et écriture') }}' : '{{ _('lecture seule') }}') + expInfo)
+            : '{{ _('Partage désactivé') }}';
+        }
+        renderKanbanShareButton();
+      }
+
+      function publicShareUrl(share){
+        return (share && share.enabled && share.token)
+          ? (window.location.origin + '{{ url_for("project.public_kanban", token="__TOKEN__") }}'.replace('__TOKEN__', share.token))
+          : '';
+      }
+
+      function renderKanbanShareButton(){
+        const btn = document.getElementById('pm-share-current-kanban');
+        const inlineWrap = document.getElementById('pm-kanban-share-inline');
+        const inlineUrl = document.getElementById('pm-kanban-share-url-inline');
+        const inlineOpen = document.getElementById('pm-kanban-share-open-inline');
+        if (!btn) return;
+        ensurePublicShareDefaults();
+        const share = state.security.public_kanban;
+        const currentProjectId = String(state.selected_project_id || '');
+        const sharedCurrentProject = !!share.enabled && !!share.token && String(share.project_id || '') === currentProjectId;
+        const link = sharedCurrentProject ? publicShareUrl(share) : '';
+        btn.disabled = !canEditSecurity() || !currentProjectId;
+        btn.classList.toggle('btn-outline-success', !sharedCurrentProject);
+        btn.classList.toggle('btn-success', sharedCurrentProject);
+        btn.innerHTML = sharedCurrentProject
+          ? '<i class="bi bi-check2-circle me-1"></i>{{ _('Kanban partagé') }}'
+          : '<i class="bi bi-share me-1"></i>{{ _('Partager ce Kanban') }}';
+        if (inlineWrap) inlineWrap.style.display = (canEditSecurity() || !!link) ? '' : 'none';
+        if (inlineUrl) inlineUrl.value = link;
+        if (inlineOpen) inlineOpen.href = link || '#';
+      }
+
+      async function sendShareEmails(rawEmails){
+        const emailsRaw = (rawEmails || '').trim();
+        if (!emailsRaw) {
+          setStatus('{{ _('Veuillez renseigner au moins un email.') }}', 'text-warning');
+          return;
+        }
+        const res = await fetch(API_PUBLIC_SHARE_EMAIL, {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json', ...(csrfToken() ? {'X-CSRFToken': csrfToken()} : {}) },
+          body: JSON.stringify({ emails: emailsRaw }),
+        });
+        const data = await res.json().catch(function(){ return {}; });
+        if (!res.ok || !data.ok) throw new Error((data && data.error) || 'send_failed');
+        const sentCount = Number(data.sent_count || 0);
+        const failedCount = Number(data.failed_count || 0);
+        if (failedCount > 0) {
+          setStatus('{{ _('Emails envoyés') }}: ' + sentCount + ' · {{ _('échecs') }}: ' + failedCount, 'text-warning');
+        } else {
+          setStatus('{{ _('Lien envoyé par email') }} (' + sentCount + ')', 'text-success');
+        }
+      }
+      async function savePublicShare(extra){
+        if (!canEditSecurity()) return;
+        ensurePublicShareDefaults();
+        const share = state.security.public_kanban;
+        const payload = Object.assign({
+          enabled: !!share.enabled,
+          access: share.access || 'ro',
+          project_id: state.selected_project_id || '',
+          expires_at: (document.getElementById('pm-share-expires')?.value || '').trim(),
+        }, extra || {});
+        try {
+          const res = await fetch(API_PUBLIC_SHARE, {
+            method: 'POST',
+            headers: { 'Content-Type':'application/json', ...(csrfToken() ? {'X-CSRFToken': csrfToken()} : {}) },
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json();
+          if (!res.ok || !data.ok) throw new Error((data && data.error) || 'share_failed');
+          state.security.public_kanban = {
+            enabled: !!(data.share && data.share.enabled),
+            token: String((data.share && data.share.token) || ''),
+            access: String((data.share && data.share.access) || 'ro'),
+            project_id: String((data.share && data.share.project_id) || state.selected_project_id || ''),
+            expires_at: String((data.share && data.share.expires_at) || ''),
+          };
+          renderPublicShareSettings();
+          setStatus('{{ _('Lien public mis à jour') }}', 'text-success');
+          return data;
+        } catch (e) {
+          renderPublicShareSettings();
+          setStatus((e && e.message) ? String(e.message) : '{{ _('Impossible de mettre à jour le lien public') }}', 'text-danger');
+          return null;
+        }
+      }
       function metaForProject(){
         const key = state.selected_project_id || '__none__';
         if (!state.project_meta[key] || typeof state.project_meta[key] !== 'object') {
@@ -1657,6 +2120,28 @@
         const owners = cardOwners(card);
         return owners.length ? owners.join(', ') : '-';
       }
+      function ownerTooltipText(name){
+        const clean = normalizeManagerName(name);
+        const m = managerByName(clean);
+        const parts = [clean || '{{ _('Non assigné') }}'];
+        if (m && m.role) parts.push(String(m.role).trim());
+        if (m && m.email) parts.push(String(m.email).trim());
+        return parts.filter(Boolean).join(' · ');
+      }
+      function ownersInlineHtml(card){
+        const owners = cardOwners(card);
+        if (!owners.length) return '<span class="small text-secondary">{{ _('Non assigné') }}</span>';
+        return owners.slice(0, 3).map(function(name){
+          const hue = ownerHue(name);
+          const bg = 'hsl(' + hue + ', 78%, 93%)';
+          const border = 'hsl(' + hue + ', 52%, 72%)';
+          const text = 'hsl(' + hue + ', 56%, 30%)';
+          return '<span class="pm-card-owner-mini" title="' + escOwnerHtml(ownerTooltipText(name)) + '">' +
+            '<span class="pm-card-owner-avatar" style="background:' + bg + ';border-color:' + border + ';color:' + text + ';">' + escOwnerHtml(ownerInitials(name)) + '</span>' +
+            '<span>' + escOwnerHtml(name) + '</span>' +
+          '</span>';
+        }).join('') + (owners.length > 3 ? '<span class="pm-card-owner-mini">+' + (owners.length - 3) + '</span>' : '');
+      }
       function parseEmailList(raw){
         if (!raw) return [];
         return String(raw)
@@ -1676,6 +2161,21 @@
       function sprintLabel(card){
         const sprint = normalizeSprint(card && card.sprint);
         return sprint || '{{ _('Sans sprint') }}';
+      }
+      function normalizeCardIcon(value){
+        const raw = (value || '').toString().trim();
+        if (!raw) return '';
+        if (/^bi\s+bi-[a-z0-9-]+$/i.test(raw)) return raw.toLowerCase();
+        return raw.slice(0, 8);
+      }
+      function cardIconHtml(value){
+        const icon = normalizeCardIcon(value);
+        if (!icon) return '';
+        if (/^bi\s+bi-[a-z0-9-]+$/.test(icon)) {
+          return '<i class="' + icon + ' text-primary" aria-hidden="true"></i>';
+        }
+        const safe = icon.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return '<span class="pm-card-icon-emoji" aria-hidden="true">' + safe + '</span>';
       }
       function taskComputedHours(task){
         const days = Math.max(0, num(task && task.duration_days));
@@ -2302,6 +2802,7 @@
         if (!state.security.rights) state.security.rights = 'rw';
         if (!state.security.templates) state.security.templates = '';
         if (!state.security.integrations) state.security.integrations = '';
+        ensurePublicShareDefaults();
         ensureNotificationsDefaults();
         if (!Array.isArray(state.project_versions)) state.project_versions = [];
       }
@@ -2949,6 +3450,18 @@
         return 'warning';
       }
 
+      function priorityIcon(priority){
+        if (priority === 'high') return '&#9888;';
+        if (priority === 'low') return '&#8595;';
+        return '&#9679;';
+      }
+
+      function priorityLabel(priority){
+        if (priority === 'high') return '{{ _('Élevée') }}';
+        if (priority === 'low') return '{{ _('Faible') }}';
+        return '{{ _('Moyenne') }}';
+      }
+
       function renderProjectSelect(){
         projectSelect.innerHTML = '';
         state.projects.forEach(function(p){
@@ -3004,7 +3517,7 @@
 
             grouped[groupName].forEach(function(c){
             const item = document.createElement('div');
-            item.className = 'text-start border rounded p-2 bg-body-tertiary';
+            item.className = 'text-start border rounded p-2 bg-body-tertiary pm-kanban-card';
             item.style.cursor = 'grab';
             item.draggable = true;
             item.dataset.cardId = c.id;
@@ -3012,10 +3525,10 @@
             const cardDescriptionHtml = cardDescription
               ? '<div class="small text-secondary mt-1">' + cardDescription.replace(/</g, '&lt;').replace(/>/g, '&gt;').slice(0, 180) + (cardDescription.length > 180 ? '…' : '') + '</div>'
               : '';
-            item.innerHTML = '<div class="fw-semibold small mb-1">' + c.title + '</div>' +
-              '<div class="small text-secondary">' + ownersDisplay(c) + '</div>' +
+            item.innerHTML = '<div class="fw-semibold small mb-1 pm-card-title-line">' + cardIconHtml(c.icon) + '<span>' + c.title + '</span></div>' +
+              '<div class="pm-card-owners">' + ownersInlineHtml(c) + '</div>' +
               cardDescriptionHtml +
-              '<div class="d-flex flex-wrap gap-1 mt-1"><span class="badge text-bg-' + priorityBadge(c.priority) + '">' + (c.priority || 'medium') + '</span>' +
+              '<div class="d-flex flex-wrap gap-1 mt-1"><span class="badge text-bg-' + priorityBadge(c.priority) + '" title="{{ _('Priorité') }}"><span class="me-1" aria-hidden="true">' + priorityIcon(c.priority) + '</span>' + priorityLabel(c.priority) + '</span>' +
               '<span class="badge text-bg-light border">' + sprintLabel(c) + '</span>' +
               (c.due_date ? '<span class="badge text-bg-light border">' + c.due_date + '</span>' : '') + '</div>';
             item.addEventListener('dragstart', function(e){
@@ -4284,6 +4797,8 @@
         renderFinanceSummary();
         renderProductivityReport();
         renderNotificationsSettings();
+        renderPublicShareSettings();
+        renderKanbanShareButton();
       }
 
       function refreshReportingVisuals(){
@@ -4344,23 +4859,148 @@
         }).join('');
       }
 
+      function escOwnerHtml(value){
+        return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+
+      function ownerHue(name){
+        const txt = normalizeManagerName(name).toLowerCase();
+        let hash = 0;
+        for (let i = 0; i < txt.length; i += 1) {
+          hash = ((hash * 31) + txt.charCodeAt(i)) % 360;
+        }
+        return hash;
+      }
+
+      function ownerInitials(name){
+        const parts = normalizeManagerName(name).split(/\s+/).filter(Boolean);
+        if (!parts.length) return '?';
+        if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+        return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+      }
+
+      function ownerAvatarHtml(name){
+        const hue = ownerHue(name);
+        const bg = 'hsl(' + hue + ', 78%, 93%)';
+        const border = 'hsl(' + hue + ', 52%, 72%)';
+        const text = 'hsl(' + hue + ', 56%, 30%)';
+        return '<span class="pm-owner-avatar" style="background:' + bg + ';border-color:' + border + ';color:' + text + ';">' + escOwnerHtml(ownerInitials(name)) + '</span>';
+      }
+
+      function selectedTodoOwnersFromSelect(){
+        const sel = document.getElementById('pm-todo-owners');
+        if (!sel) return [];
+        return Array.from(sel.querySelectorAll('option:checked')).map(function(opt){
+          return normalizeManagerName(opt.value);
+        }).filter(Boolean);
+      }
+
+      function renderTodoOwnersPicker(){
+        const chipsWrap = document.getElementById('pm-todo-owners-chips');
+        const suggestWrap = document.getElementById('pm-todo-owner-suggestions');
+        const selectedOwners = selectedTodoOwnersFromSelect();
+        const selectedSet = new Set(selectedOwners.map(function(x){ return x.toLowerCase(); }));
+        const allNames = state.managers.map(function(m){ return managerLabel(m); }).filter(Boolean).sort();
+
+        if (chipsWrap) {
+          chipsWrap.innerHTML = selectedOwners.length ? selectedOwners.map(function(name){
+            return '<span class="pm-owner-chip" title="' + escOwnerHtml(ownerTooltipText(name)) + '">' + ownerAvatarHtml(name) + '<span>' + escOwnerHtml(name) + '</span><button type="button" data-owner-remove="' + escOwnerHtml(name) + '" aria-label="{{ _('Retirer') }}">&times;</button></span>';
+          }).join('') : '<span class="small text-secondary">{{ _('Aucun responsable sélectionné') }}</span>';
+
+          chipsWrap.querySelectorAll('[data-owner-remove]').forEach(function(btn){
+            btn.addEventListener('click', function(){
+              const target = normalizeManagerName(btn.getAttribute('data-owner-remove'));
+              const next = selectedOwners.filter(function(name){ return name.toLowerCase() !== target.toLowerCase(); });
+              fillTodoOwnersSelect(document.getElementById('pm-todo-owners'), next);
+              renderTodoOwnersPicker();
+            });
+          });
+        }
+
+        if (suggestWrap) {
+          const suggestions = allNames.filter(function(name){ return !selectedSet.has(name.toLowerCase()); }).slice(0, 8);
+          suggestWrap.innerHTML = suggestions.map(function(name){
+            return '<button type="button" class="pm-owner-suggestion" data-owner-add="' + escOwnerHtml(name) + '" title="' + escOwnerHtml(ownerTooltipText(name)) + '">' + ownerAvatarHtml(name) + '<span>+ ' + escOwnerHtml(name) + '</span></button>';
+          }).join('');
+          suggestWrap.querySelectorAll('[data-owner-add]').forEach(function(btn){
+            btn.addEventListener('click', function(){
+              const value = normalizeManagerName(btn.getAttribute('data-owner-add'));
+              const next = normalizeOwnerList(selectedOwners.concat([value]));
+              fillTodoOwnersSelect(document.getElementById('pm-todo-owners'), next);
+              renderTodoOwnersPicker();
+            });
+          });
+        }
+      }
+
+      function addTypedTodoOwner(){
+        const input = document.getElementById('pm-todo-owner-input');
+        if (!input) return;
+        const typed = normalizeManagerName(input.value);
+        if (!typed) return;
+        const current = selectedTodoOwnersFromSelect();
+        const next = normalizeOwnerList(current.concat([typed]));
+        fillTodoOwnersSelect(document.getElementById('pm-todo-owners'), next);
+        renderTodoOwnersPicker();
+        input.value = '';
+      }
+
       function openTodoModal(card){
         const form = document.getElementById('todoForm');
         form.reset();
         fillTodoProjectSelect(form.querySelector('[name="project_id"]'), card ? card.project_id : state.selected_project_id);
         fillTodoOwnersSelect(form.querySelector('[name="owners"]'), card ? cardOwners(card) : []);
+        renderTodoOwnersPicker();
         document.getElementById('todoDeleteBtn').classList.toggle('d-none', !card);
         form.querySelector('[name="todo_id"]').value = card ? card.id : '';
         form.querySelector('[name="title"]').value = card ? (card.title || '') : '';
+        form.querySelector('[name="icon"]').value = card ? (card.icon || '') : '';
         form.querySelector('[name="description"]').value = card ? (card.description || '') : '';
         form.querySelector('[name="priority"]').value = card ? (card.priority || 'medium') : 'medium';
         form.querySelector('[name="col"]').value = card ? (card.col || 'backlog') : 'backlog';
         form.querySelector('[name="due_date"]').value = card ? (card.due_date || '') : '';
         form.querySelector('[name="sprint"]').value = card ? (card.sprint || '') : '';
+        renderTodoIconPicker(form.querySelector('[name="icon"]').value || '');
         todoModal.show();
       }
 
+      function renderTodoIconPicker(selectedValue){
+        const wrap = document.getElementById('pm-todo-icon-picker');
+        const input = document.querySelector('#todoForm [name="icon"]');
+        if (!wrap || !input) return;
+        const selected = normalizeCardIcon(selectedValue);
+        const choices = [
+          '🚀', '✅', '⚠️', '🧪', '📌', '💡', '🎯', '🔧',
+          'bi bi-lightning-charge', 'bi bi-bug', 'bi bi-flag', 'bi bi-gear', 'bi bi-rocket-takeoff'
+        ];
+        wrap.innerHTML = choices.map(function(value){
+          const cls = normalizeCardIcon(value) === selected ? 'pm-icon-chip active' : 'pm-icon-chip';
+          const label = /^bi\s+bi-/.test(value) ? '<i class="' + value + '" aria-hidden="true"></i>' : value;
+          return '<button type="button" class="' + cls + '" data-icon-value="' + value.replace(/"/g, '&quot;') + '">' + label + '</button>';
+        }).join('');
+        wrap.querySelectorAll('[data-icon-value]').forEach(function(btn){
+          btn.addEventListener('click', function(){
+            input.value = btn.getAttribute('data-icon-value') || '';
+            renderTodoIconPicker(input.value);
+          });
+        });
+      }
+
       document.getElementById('pm-add-card').addEventListener('click', function(){ openTodoModal(null); });
+
+      document.querySelector('#todoForm [name="icon"]')?.addEventListener('input', function(e){
+        renderTodoIconPicker((e.target && e.target.value) || '');
+      });
+
+      document.getElementById('pm-todo-owner-add')?.addEventListener('click', function(){
+        addTypedTodoOwner();
+      });
+
+      document.getElementById('pm-todo-owner-input')?.addEventListener('keydown', function(e){
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        addTypedTodoOwner();
+      });
 
       document.getElementById('todoForm').addEventListener('submit', function(e){
         e.preventDefault();
@@ -4374,6 +5014,7 @@
           id: id || uid(),
           project_id: (fd.get('project_id') || state.selected_project_id).toString(),
           title: (fd.get('title') || '').toString().trim(),
+          icon: normalizeCardIcon(fd.get('icon')),
           owner: selectedOwners.join(', '),
           owners: selectedOwners,
           description: (fd.get('description') || '').toString().trim(),
@@ -4689,6 +5330,7 @@
         renderGovernance();
         renderFinanceSummary();
         renderProductivityReport();
+        renderKanbanShareButton();
         if (canWrite()) scheduleSave();
       });
 
@@ -4759,6 +5401,119 @@
           addAudit('notifications.updated', { mail_policy: 'settings_plus_card_owner' });
           scheduleSave();
         });
+      });
+
+      document.getElementById('pm-share-enabled')?.addEventListener('change', function(e){
+        ensurePublicShareDefaults();
+        state.security.public_kanban.enabled = !!e.target.checked;
+        state.security.public_kanban.access = document.getElementById('pm-share-access')?.value === 'rw' ? 'rw' : 'ro';
+        savePublicShare();
+      });
+      document.getElementById('pm-share-access')?.addEventListener('change', function(e){
+        ensurePublicShareDefaults();
+        state.security.public_kanban.access = e.target.value === 'rw' ? 'rw' : 'ro';
+        if (state.security.public_kanban.enabled) savePublicShare();
+      });
+      document.getElementById('pm-share-regenerate')?.addEventListener('click', async function(){
+        ensurePublicShareDefaults();
+        if (!state.security.public_kanban.enabled) state.security.public_kanban.enabled = true;
+        state.security.public_kanban.project_id = String(state.selected_project_id || '');
+        await saveNow();
+        await savePublicShare({ regenerate: true });
+      });
+      document.getElementById('pm-share-generate')?.addEventListener('click', async function(){
+        ensurePublicShareDefaults();
+        state.security.public_kanban.enabled = true;
+        state.security.public_kanban.project_id = String(state.selected_project_id || '');
+        await saveNow();
+        await savePublicShare({ regenerate: true });
+      });
+      document.getElementById('pm-share-expires')?.addEventListener('change', function(){
+        ensurePublicShareDefaults();
+        if (state.security.public_kanban.enabled) savePublicShare();
+      });
+      document.getElementById('pm-share-copy')?.addEventListener('click', async function(){
+        const url = (document.getElementById('pm-share-url')?.value || '').trim();
+        if (!url) return;
+        try {
+          await navigator.clipboard.writeText(url);
+          setStatus('{{ _('Lien copié') }}', 'text-success');
+        } catch (e) {
+          setStatus('{{ _('Copie impossible') }}', 'text-warning');
+        }
+      });
+      document.getElementById('pm-share-send-email')?.addEventListener('click', async function(){
+        if (!canEditSecurity()) return;
+        try {
+          const emailsRaw = (document.getElementById('pm-share-emails')?.value || '').trim();
+          await sendShareEmails(emailsRaw);
+          const kb = document.getElementById('pm-kanban-share-emails');
+          if (kb && !kb.value) kb.value = emailsRaw;
+        } catch (e) {
+          setStatus('{{ _('Impossible d\'envoyer le lien par email') }}', 'text-danger');
+        }
+      });
+      document.getElementById('pm-kanban-share-enabled')?.addEventListener('change', function(e){
+        ensurePublicShareDefaults();
+        state.security.public_kanban.enabled = !!e.target.checked;
+        state.security.public_kanban.access = document.getElementById('pm-kanban-share-access')?.value === 'rw' ? 'rw' : 'ro';
+        savePublicShare();
+      });
+      document.getElementById('pm-kanban-share-access')?.addEventListener('change', function(e){
+        ensurePublicShareDefaults();
+        state.security.public_kanban.access = e.target.value === 'rw' ? 'rw' : 'ro';
+        if (state.security.public_kanban.enabled) savePublicShare();
+      });
+      document.getElementById('pm-kanban-share-expires')?.addEventListener('change', function(e){
+        const sharedExpires = document.getElementById('pm-share-expires');
+        if (sharedExpires) sharedExpires.value = e.target.value || '';
+        ensurePublicShareDefaults();
+        if (state.security.public_kanban.enabled) savePublicShare();
+      });
+      document.getElementById('pm-kanban-share-generate')?.addEventListener('click', async function(){
+        ensurePublicShareDefaults();
+        state.security.public_kanban.enabled = true;
+        state.security.public_kanban.access = document.getElementById('pm-kanban-share-access')?.value === 'rw' ? 'rw' : 'ro';
+        state.security.public_kanban.project_id = String(state.selected_project_id || '');
+        await saveNow();
+        await savePublicShare({ regenerate: true });
+      });
+      document.getElementById('pm-kanban-share-regenerate')?.addEventListener('click', async function(){
+        ensurePublicShareDefaults();
+        if (!state.security.public_kanban.enabled) state.security.public_kanban.enabled = true;
+        state.security.public_kanban.access = document.getElementById('pm-kanban-share-access')?.value === 'rw' ? 'rw' : 'ro';
+        state.security.public_kanban.project_id = String(state.selected_project_id || '');
+        await saveNow();
+        await savePublicShare({ regenerate: true });
+      });
+      document.getElementById('pm-kanban-share-send-email')?.addEventListener('click', async function(){
+        if (!canEditSecurity()) return;
+        try {
+          const emailsRaw = (document.getElementById('pm-kanban-share-emails')?.value || '').trim();
+          await sendShareEmails(emailsRaw);
+          const shared = document.getElementById('pm-share-emails');
+          if (shared && !shared.value) shared.value = emailsRaw;
+        } catch (e) {
+          setStatus('{{ _('Impossible d\'envoyer le lien par email') }}', 'text-danger');
+        }
+      });
+      document.getElementById('pm-share-current-kanban')?.addEventListener('click', async function(){
+        if (!canEditSecurity()) return;
+        ensurePublicShareDefaults();
+        state.security.public_kanban.project_id = String(state.selected_project_id || '');
+        state.security.public_kanban.enabled = true;
+        await saveNow();
+        await savePublicShare({ regenerate: true });
+      });
+      document.getElementById('pm-kanban-share-copy-inline')?.addEventListener('click', async function(){
+        const url = (document.getElementById('pm-kanban-share-url-inline')?.value || '').trim();
+        if (!url) return;
+        try {
+          await navigator.clipboard.writeText(url);
+          setStatus('{{ _('Lien copié') }}', 'text-success');
+        } catch (e) {
+          setStatus('{{ _('Copie impossible') }}', 'text-warning');
+        }
       });
 
       document.getElementById('pm-save-now').addEventListener('click', saveNow);

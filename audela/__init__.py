@@ -217,10 +217,12 @@ def create_app() -> Flask:
 
         _lang = getattr(g, "lang", DEFAULT_LANG)
         _merged = {}
-        # JS translations: include fallbacks to reduce mixed-language UI
-        _merged.update(TRANSLATIONS.get("pt", {}))
+        # JS translations baseline: use English first so missing keys do not
+        # unexpectedly display Portuguese when UI language is English.
         _merged.update(TRANSLATIONS.get("en", {}))
         _merged.update(TRANSLATIONS.get(_lang, {}))
+        if _lang == "pt":
+            _merged.update(TRANSLATIONS.get("pt", {}))
 
         app_release = str(app.config.get("APP_RELEASE", "dev"))
 

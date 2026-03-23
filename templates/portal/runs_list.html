@@ -1,23 +1,23 @@
 {% extends "portal/layout.html" %}
-{% set title = "Execuções" %}
+{% set title = _('Executions') %}
 
 {% block portal_content %}
   <div class="box">
-    <h3>Query Runs (últimos 200)</h3>
+    <h3>{{ _('Query Runs (last 200)') }}</h3>
     {% if not runs %}
-      <p>Sem execuções ainda.</p>
+      <p>{{ _('No runs yet.') }}</p>
     {% else %}
       <div style="overflow-x:auto;">
         <table class="table">
           <thead>
             <tr>
-              <th>Quando</th>
-              <th>Status</th>
-              <th>Pergunta</th>
-              <th>Usuário</th>
-              <th>Duração (ms)</th>
-              <th>Linhas</th>
-              <th>Erro</th>
+              <th>{{ _('When') }}</th>
+              <th>{{ _('Status') }}</th>
+              <th>{{ _('Question') }}</th>
+              <th>{{ _('User') }}</th>
+              <th>{{ _('Duration (ms)') }}</th>
+              <th>{{ _('Rows') }}</th>
+              <th>{{ _('Error') }}</th>
             </tr>
           </thead>
           <tbody>

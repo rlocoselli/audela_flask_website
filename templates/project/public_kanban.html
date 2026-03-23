@@ -1,0 +1,676 @@
+{% extends "project/layout.html" %}
+{% set hide_project_floating = true %}
+
+{% block title %}{{ _('Public Kanban') }}{% endblock %}
+
+{% block head_extra %}
+{{ super() }}
+<style>
+  .pk-light-wrap {
+    background: #f4f7fb;
+    border: 1px solid #d8e0ec;
+    border-radius: 16px;
+    padding: 1rem;
+    box-shadow: 0 10px 30px rgba(13, 35, 67, 0.08);
+  }
+  .pk-light-wrap h1,
+  .pk-light-wrap .fw-semibold,
+  .pk-light-wrap .small,
+  .pk-light-wrap .text-secondary,
+  .pk-light-wrap .text-muted {
+    color: #1f2a44 !important;
+  }
+  .pk-light-wrap .pk-col {
+    background: #ffffff !important;
+    border-color: #d6deea !important;
+  }
+  .pk-light-wrap .pk-sprint-group {
+    background: #f8fbff !important;
+    border-color: #dbe5f3 !important;
+  }
+  .pk-light-wrap .pk-card {
+    background: #ffffff !important;
+    border-color: #cfd9e8 !important;
+  }
+  .pk-card-title-line {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .pk-card-icon-emoji {
+    font-size: 1.05rem;
+    line-height: 1;
+  }
+  .pk-card-owners {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.28rem;
+    margin-top: 0.1rem;
+  }
+  .pk-card-owner-mini {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border: 1px solid #d2dff3;
+    background: #f7fbff;
+    color: #1f3a66;
+    border-radius: 999px;
+    padding: 0.08rem 0.38rem;
+    font-size: 0.72rem;
+    line-height: 1.25;
+    font-weight: 600;
+  }
+  .pk-card-owner-avatar {
+    width: 1rem;
+    height: 1rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #b3c7ec;
+    font-size: 0.56rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  .pk-owners-picker {
+    border: 1px solid #d6deea;
+    background: #f8fbff;
+    border-radius: 12px;
+    padding: 0.5rem;
+  }
+  .pk-owners-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    min-height: 1.9rem;
+  }
+  .pk-owner-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border: 1px solid #b9cdf2;
+    border-radius: 999px;
+    padding: 0.18rem 0.5rem;
+    background: #fff;
+    color: #1b376a;
+    font-size: 0.8rem;
+    font-weight: 600;
+  }
+  .pk-owner-avatar {
+    width: 1.35rem;
+    height: 1.35rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #a9bfeb;
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  .pk-owner-chip button {
+    border: 0;
+    background: transparent;
+    color: #5c6f93;
+    padding: 0;
+    line-height: 1;
+  }
+  .pk-owner-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+  .pk-owner-suggestion {
+    border: 1px dashed #9fb9e8;
+    background: #eef4ff;
+    border-radius: 999px;
+    color: #24457f;
+    font-size: 0.78rem;
+    padding: 0.16rem 0.45rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.28rem;
+  }
+</style>
+{% endblock %}
+
+{% block project_page %}
+<div class="container py-4 pk-light-wrap">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div>
+      <h1 class="h4 mb-1" id="pk-title">{{ _('Public Kanban') }}</h1>
+      <div class="small text-secondary" id="pk-updated"></div>
+      <div class="small text-secondary" id="pk-expiration"></div>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <button class="btn btn-sm btn-primary" id="pk-open-add" type="button" style="display:none;">{{ _('Add card') }}</button>
+      <span class="badge text-bg-secondary" id="pk-mode">{{ _('Read only') }}</span>
+    </div>
+  </div>
+
+  <div id="pk-status" class="small text-secondary mb-2"></div>
+
+  <div class="row g-2" id="pk-board">
+    <div class="col-md-3">
+      <div class="border rounded p-2 bg-body pk-col" data-col="backlog">
+        <div class="fw-semibold small mb-2">{{ _('Backlog') }}</div>
+        <div class="d-grid gap-2 pk-col-body"></div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="border rounded p-2 bg-body pk-col" data-col="todo">
+        <div class="fw-semibold small mb-2">{{ _('To do') }}</div>
+        <div class="d-grid gap-2 pk-col-body"></div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="border rounded p-2 bg-body pk-col" data-col="doing">
+        <div class="fw-semibold small mb-2">{{ _('In progress') }}</div>
+        <div class="d-grid gap-2 pk-col-body"></div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="border rounded p-2 bg-body pk-col" data-col="done">
+        <div class="fw-semibold small mb-2">{{ _('Done') }}</div>
+        <div class="d-grid gap-2 pk-col-body"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="pk-card-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content" id="pk-card-form">
+      <div class="modal-header">
+        <h5 class="modal-title">{{ _('Card') }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" name="id">
+        <div class="mb-2">
+          <label class="form-label small mb-1">{{ _('Title') }}</label>
+          <input class="form-control" name="title" maxlength="220" required>
+        </div>
+        <div class="mb-2">
+          <label class="form-label small mb-1">{{ _('Icon') }}</label>
+          <input class="form-control" name="icon" maxlength="32" placeholder="🚀 or bi bi-lightning-charge">
+        </div>
+        <div class="mb-2">
+          <label class="form-label small mb-1">{{ _('Owners') }}</label>
+          <div class="pk-owners-picker" id="pk-owners-picker">
+            <div class="pk-owners-chips" id="pk-owners-chips"></div>
+            <div class="input-group input-group-sm mt-2">
+              <input class="form-control" id="pk-owner-input" maxlength="120" placeholder="{{ _('Add an owner') }}">
+              <button class="btn btn-outline-primary" id="pk-owner-add" type="button">{{ _('Add') }}</button>
+            </div>
+            <div class="pk-owner-suggestions mt-2" id="pk-owner-suggestions"></div>
+          </div>
+          <select class="d-none" name="owners" id="pk-card-owners" multiple size="5"></select>
+        </div>
+        <div class="mb-2">
+          <label class="form-label small mb-1">{{ _('Detailed description') }}</label>
+          <textarea class="form-control" name="description" rows="4"></textarea>
+        </div>
+        <div class="row g-2">
+          <div class="col-md-6">
+            <label class="form-label small mb-1">{{ _('Priority') }}</label>
+            <select class="form-select form-select-sm" name="priority">
+              <option value="low">{{ _('Low') }}</option>
+              <option value="medium" selected>{{ _('Medium') }}</option>
+              <option value="high">{{ _('High') }}</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small mb-1">{{ _('Column') }}</label>
+            <select class="form-select form-select-sm" name="col">
+              <option value="backlog">{{ _('Backlog') }}</option>
+              <option value="todo">{{ _('To do') }}</option>
+              <option value="doing">{{ _('In progress') }}</option>
+              <option value="done">{{ _('Done') }}</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small mb-1">{{ _('Sprint') }}</label>
+            <input class="form-control form-control-sm" name="sprint" maxlength="80">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label small mb-1">{{ _('Due date') }}</label>
+            <input type="date" class="form-control form-control-sm" name="due_date">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer d-flex justify-content-between">
+        <button class="btn btn-outline-danger d-none" id="pk-card-delete" type="button">{{ _('Delete') }}</button>
+        <div class="ms-auto d-flex gap-2">
+          <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="modal">{{ _('Cancel') }}</button>
+          <button class="btn btn-primary" type="submit">{{ _('Save') }}</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+{{ super() }}
+<script>
+window.onReady(function(){
+  const token = {{ token|tojson }};
+  const modeDefault = {{ access|tojson }};
+  const initialLinkError = {{ 'true' if link_error else 'false' }};
+  const stateUrl = {{ url_for('project.public_kanban_state', token=token)|tojson }};
+  const boardState = { cards: [], project: null, access: modeDefault || 'ro' };
+  const statusEl = document.getElementById('pk-status');
+  const updatedEl = document.getElementById('pk-updated');
+  const expirationEl = document.getElementById('pk-expiration');
+  const titleEl = document.getElementById('pk-title');
+  const modeEl = document.getElementById('pk-mode');
+  const addBtn = document.getElementById('pk-open-add');
+  const cardModalEl = document.getElementById('pk-card-modal');
+  const cardForm = document.getElementById('pk-card-form');
+  const cardDeleteBtn = document.getElementById('pk-card-delete');
+  const cardModal = cardModalEl && window.bootstrap ? window.bootstrap.Modal.getOrCreateInstance(cardModalEl) : null;
+
+  function uid(){ return Math.random().toString(36).slice(2, 10); }
+  function canWrite(){ return (boardState.access || 'ro') === 'rw'; }
+  function normalizeOwnerList(value){
+    if (Array.isArray(value)) {
+      return Array.from(new Set(value.map(function(x){ return String(x || '').trim(); }).filter(Boolean)));
+    }
+    if (!value) return [];
+    return Array.from(new Set(String(value).split(',').map(function(x){ return String(x || '').trim(); }).filter(Boolean)));
+  }
+  function escOwnerHtml(value){
+    return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function ownerHue(name){
+    const txt = String(name || '').trim().toLowerCase();
+    let hash = 0;
+    for (let i = 0; i < txt.length; i += 1) {
+      hash = ((hash * 31) + txt.charCodeAt(i)) % 360;
+    }
+    return hash;
+  }
+  function ownerInitials(name){
+    const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return '?';
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+  }
+  function ownerAvatarHtml(name){
+    const hue = ownerHue(name);
+    const bg = 'hsl(' + hue + ', 78%, 93%)';
+    const border = 'hsl(' + hue + ', 52%, 72%)';
+    const text = 'hsl(' + hue + ', 56%, 30%)';
+    return '<span class="pk-owner-avatar" style="background:' + bg + ';border-color:' + border + ';color:' + text + ';">' + escOwnerHtml(ownerInitials(name)) + '</span>';
+  }
+  function ownerTooltipText(name){
+    return String(name || '').trim() || '{{ _('No owner') }}';
+  }
+  function ownersInlineHtml(card){
+    const owners = cardOwners(card);
+    if (!owners.length) return '<span class="small text-secondary">{{ _('No owner') }}</span>';
+    return owners.slice(0, 3).map(function(name){
+      const hue = ownerHue(name);
+      const bg = 'hsl(' + hue + ', 78%, 93%)';
+      const border = 'hsl(' + hue + ', 52%, 72%)';
+      const text = 'hsl(' + hue + ', 56%, 30%)';
+      return '<span class="pk-card-owner-mini" title="' + escOwnerHtml(ownerTooltipText(name)) + '">' +
+        '<span class="pk-card-owner-avatar" style="background:' + bg + ';border-color:' + border + ';color:' + text + ';">' + escOwnerHtml(ownerInitials(name)) + '</span>' +
+        '<span>' + escOwnerHtml(name) + '</span>' +
+      '</span>';
+    }).join('') + (owners.length > 3 ? '<span class="pk-card-owner-mini">+' + (owners.length - 3) + '</span>' : '');
+  }
+  function cardOwners(card){
+    if (!card || typeof card !== 'object') return [];
+    if (Array.isArray(card.owners) && card.owners.length) return normalizeOwnerList(card.owners);
+    return normalizeOwnerList(card.owner);
+  }
+  function fillCardOwnersSelect(selectedOwners){
+    const sel = document.getElementById('pk-card-owners');
+    if (!sel) return;
+    const selected = new Set(normalizeOwnerList(selectedOwners).map(function(x){ return x.toLowerCase(); }));
+    const known = Array.from(new Set(boardState.cards.flatMap(function(c){ return cardOwners(c); }).filter(Boolean))).sort(function(a,b){ return a.localeCompare(b); });
+    sel.innerHTML = known.map(function(name){
+      const isSelected = selected.has(String(name).toLowerCase()) ? ' selected' : '';
+      return '<option value="' + escOwnerHtml(name) + '"' + isSelected + '>' + escOwnerHtml(name) + '</option>';
+    }).join('');
+
+    normalizeOwnerList(selectedOwners).forEach(function(name){
+      const already = Array.from(sel.options).some(function(opt){ return String(opt.value).toLowerCase() === String(name).toLowerCase(); });
+      if (already) return;
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      opt.selected = true;
+      sel.appendChild(opt);
+    });
+  }
+  function selectedCardOwners(){
+    const sel = document.getElementById('pk-card-owners');
+    if (!sel) return [];
+    return Array.from(sel.querySelectorAll('option:checked')).map(function(opt){ return String(opt.value || '').trim(); }).filter(Boolean);
+  }
+  function renderCardOwnersPicker(){
+    const chipsWrap = document.getElementById('pk-owners-chips');
+    const suggestWrap = document.getElementById('pk-owner-suggestions');
+    const selected = selectedCardOwners();
+    const selectedSet = new Set(selected.map(function(x){ return x.toLowerCase(); }));
+    const known = Array.from(new Set(boardState.cards.flatMap(function(c){ return cardOwners(c); }).filter(Boolean))).sort(function(a,b){ return a.localeCompare(b); });
+    if (chipsWrap) {
+      chipsWrap.innerHTML = selected.length ? selected.map(function(name){
+        return '<span class="pk-owner-chip" title="' + escOwnerHtml(ownerTooltipText(name)) + '">' + ownerAvatarHtml(name) + '<span>' + escOwnerHtml(name) + '</span><button type="button" data-owner-remove="' + escOwnerHtml(name) + '" aria-label="{{ _('Remove') }}">&times;</button></span>';
+      }).join('') : '<span class="small text-secondary">{{ _('No owner selected') }}</span>';
+      chipsWrap.querySelectorAll('[data-owner-remove]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          const target = String(btn.getAttribute('data-owner-remove') || '').trim().toLowerCase();
+          const next = selected.filter(function(name){ return String(name).toLowerCase() !== target; });
+          fillCardOwnersSelect(next);
+          renderCardOwnersPicker();
+        });
+      });
+    }
+    if (suggestWrap) {
+      const suggestions = known.filter(function(name){ return !selectedSet.has(String(name).toLowerCase()); }).slice(0, 8);
+      suggestWrap.innerHTML = suggestions.map(function(name){
+        return '<button type="button" class="pk-owner-suggestion" data-owner-add="' + escOwnerHtml(name) + '" title="' + escOwnerHtml(ownerTooltipText(name)) + '">' + ownerAvatarHtml(name) + '<span>+ ' + escOwnerHtml(name) + '</span></button>';
+      }).join('');
+      suggestWrap.querySelectorAll('[data-owner-add]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          const value = String(btn.getAttribute('data-owner-add') || '').trim();
+          const next = normalizeOwnerList(selected.concat([value]));
+          fillCardOwnersSelect(next);
+          renderCardOwnersPicker();
+        });
+      });
+    }
+  }
+  function addTypedCardOwner(){
+    const input = document.getElementById('pk-owner-input');
+    if (!input) return;
+    const typed = String(input.value || '').trim();
+    if (!typed) return;
+    const next = normalizeOwnerList(selectedCardOwners().concat([typed]));
+    fillCardOwnersSelect(next);
+    renderCardOwnersPicker();
+    input.value = '';
+  }
+  function normalizeCardIcon(value){
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    if (/^bi\s+bi-[a-z0-9-]+$/i.test(raw)) return raw.toLowerCase();
+    return raw.slice(0, 8);
+  }
+  function cardIconHtml(value){
+    const icon = normalizeCardIcon(value);
+    if (!icon) return '';
+    if (/^bi\s+bi-[a-z0-9-]+$/.test(icon)) {
+      return '<i class="' + icon + ' text-primary" aria-hidden="true"></i>';
+    }
+    const safe = icon.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return '<span class="pk-card-icon-emoji" aria-hidden="true">' + safe + '</span>';
+  }
+  function priorityCode(value){
+    const code = String(value || 'medium').toLowerCase();
+    if (code === 'high' || code === 'low' || code === 'medium') return code;
+    return 'medium';
+  }
+  function priorityClass(value){
+    const code = priorityCode(value);
+    if (code === 'high') return 'text-bg-danger';
+    if (code === 'low') return 'text-bg-secondary';
+    return 'text-bg-warning';
+  }
+  function priorityIcon(value){
+    const code = priorityCode(value);
+    if (code === 'high') return '&#9888;';
+    if (code === 'low') return '&#8595;';
+    return '&#9679;';
+  }
+  function priorityLabel(value){
+    const code = priorityCode(value);
+    if (code === 'high') return '{{ _('High') }}';
+    if (code === 'low') return '{{ _('Low') }}';
+    return '{{ _('Medium') }}';
+  }
+  function setStatus(text, cls){
+    statusEl.className = 'small mb-2 ' + (cls || 'text-secondary');
+    statusEl.textContent = text || '';
+  }
+
+  function normalizeCard(raw){
+    const col = String(raw.col || 'todo').toLowerCase();
+    const owners = Array.isArray(raw.owners) && raw.owners.length
+      ? normalizeOwnerList(raw.owners)
+      : normalizeOwnerList(raw.owner);
+    return {
+      id: String(raw.id || uid()),
+      title: String(raw.title || '').trim(),
+      icon: normalizeCardIcon(raw.icon || ''),
+      description: String(raw.description || '').trim(),
+      owner: owners.join(', '),
+      owners: owners,
+      sprint: String(raw.sprint || '').trim(),
+      priority: String(raw.priority || 'medium').trim(),
+      due_date: String(raw.due_date || '').trim(),
+      col: ['backlog','todo','doing','done'].includes(col) ? col : 'todo',
+      project_id: String(raw.project_id || ''),
+    };
+  }
+
+  function cardById(id){
+    return boardState.cards.find(function(c){ return String(c.id) === String(id); }) || null;
+  }
+
+  function openCardModal(card){
+    if (!canWrite() || !cardForm || !cardModal) return;
+    cardForm.reset();
+    cardForm.querySelector('[name="id"]').value = card ? (card.id || '') : '';
+    cardForm.querySelector('[name="title"]').value = card ? (card.title || '') : '';
+    cardForm.querySelector('[name="icon"]').value = card ? (card.icon || '') : '';
+    fillCardOwnersSelect(card ? cardOwners(card) : []);
+    renderCardOwnersPicker();
+    cardForm.querySelector('[name="description"]').value = card ? (card.description || '') : '';
+    cardForm.querySelector('[name="priority"]').value = card ? (priorityCode(card.priority) || 'medium') : 'medium';
+    cardForm.querySelector('[name="col"]').value = card ? (card.col || 'backlog') : 'backlog';
+    cardForm.querySelector('[name="sprint"]').value = card ? (card.sprint || '') : '';
+    cardForm.querySelector('[name="due_date"]').value = card ? (card.due_date || '') : '';
+    if (cardDeleteBtn) cardDeleteBtn.classList.toggle('d-none', !card);
+    cardModal.show();
+  }
+
+  async function loadState(){
+    if (initialLinkError) {
+      setStatus('{{ _('This public link is invalid or expired.') }}', 'small mb-2 text-danger');
+      titleEl.textContent = '{{ _('Public Kanban') }}';
+      modeEl.textContent = '{{ _('Read only') }}';
+      modeEl.className = 'badge text-bg-secondary';
+      if (addBtn) addBtn.style.display = 'none';
+      return;
+    }
+    setStatus('{{ _('Loading...') }}');
+    const resp = await fetch(stateUrl, { credentials: 'omit' });
+    const payload = await resp.json().catch(function(){ return {}; });
+    if (!resp.ok || !payload.ok) {
+      setStatus('{{ _('Unable to load public board.') }}', 'small mb-2 text-danger');
+      return;
+    }
+    boardState.access = (payload.share && payload.share.access) || modeDefault || 'ro';
+    boardState.project = payload.project || null;
+    boardState.cards = Array.isArray(payload.cards) ? payload.cards.map(normalizeCard) : [];
+
+    titleEl.textContent = (boardState.project && boardState.project.name) ? boardState.project.name : '{{ _('Public Kanban') }}';
+    updatedEl.textContent = payload.updated_at ? ('{{ _('Updated at') }}: ' + payload.updated_at.replace('T', ' ').slice(0, 19)) : '';
+    expirationEl.textContent = (payload.share && payload.share.expires_at)
+      ? ('{{ _('Expires at') }}: ' + String(payload.share.expires_at).replace('T', ' ').slice(0, 19))
+      : '';
+    modeEl.textContent = canWrite() ? '{{ _('Read and write') }}' : '{{ _('Read only') }}';
+    modeEl.className = canWrite() ? 'badge text-bg-success' : 'badge text-bg-secondary';
+    if (addBtn) addBtn.style.display = canWrite() ? '' : 'none';
+
+    renderBoard();
+    initDropzones();
+    setStatus('');
+  }
+
+  function renderBoard(){
+    const cols = document.querySelectorAll('#pk-board .pk-col');
+    cols.forEach(function(col){
+      const body = col.querySelector('.pk-col-body');
+      if (!body) return;
+      body.innerHTML = '';
+      const key = col.getAttribute('data-col');
+      const grouped = {};
+      boardState.cards.filter(function(c){ return c.col === key; }).forEach(function(c){
+        const sprint = (c.sprint || '').trim() || '{{ _('No sprint') }}';
+        if (!grouped[sprint]) grouped[sprint] = [];
+        grouped[sprint].push(c);
+      });
+
+      Object.keys(grouped).sort(function(a, b){ return a.localeCompare(b); }).forEach(function(groupName){
+        const groupWrap = document.createElement('div');
+        groupWrap.className = 'border rounded p-2 bg-body mb-2 pk-sprint-group';
+        groupWrap.innerHTML = '<div class="fw-semibold small text-primary mb-2">' + groupName + '</div>';
+
+        const groupList = document.createElement('div');
+        groupList.className = 'd-grid gap-2';
+
+        grouped[groupName].forEach(function(card){
+          const item = document.createElement('div');
+          item.className = 'text-start border rounded p-2 bg-body-tertiary pk-card';
+          item.setAttribute('data-card-id', card.id);
+          item.draggable = canWrite();
+          item.style.cursor = canWrite() ? 'grab' : 'default';
+
+          item.innerHTML = '<div class="fw-semibold small mb-1 pk-card-title-line"></div>' +
+            '<div class="pk-card-owners"></div>' +
+            '<div class="d-flex flex-wrap gap-1 mt-1"></div>';
+          const titleEl = item.querySelector('.fw-semibold');
+          if (titleEl) {
+            titleEl.innerHTML = cardIconHtml(card.icon) + '<span>' + (card.title || '(Untitled)').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</span>';
+          }
+          const ownersEl = item.querySelector('.pk-card-owners');
+          if (ownersEl) ownersEl.innerHTML = ownersInlineHtml(card);
+          const meta = item.querySelector('.d-flex');
+          if (meta) {
+            meta.innerHTML =
+              '<span class="badge ' + priorityClass(card.priority) + '" title="{{ _('Priority') }}"><span class="me-1" aria-hidden="true">' + priorityIcon(card.priority) + '</span>' + priorityLabel(card.priority) + '</span>' +
+              '<span class="badge text-bg-light border">' + groupName + '</span>' +
+              (card.due_date ? ('<span class="badge text-bg-light border">' + card.due_date + '</span>') : '');
+          }
+
+          if (canWrite()) {
+            item.addEventListener('dragstart', function(e){
+              e.dataTransfer.setData('text/plain', card.id);
+            });
+            item.addEventListener('dblclick', function(){
+              openCardModal(card);
+            });
+          }
+          groupList.appendChild(item);
+        });
+
+        groupWrap.appendChild(groupList);
+        body.appendChild(groupWrap);
+      });
+    });
+  }
+
+  async function saveState(){
+    if (!canWrite()) return;
+    setStatus('{{ _('Saving...') }}');
+    const resp = await fetch(stateUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'omit',
+      body: JSON.stringify({ cards: boardState.cards }),
+    });
+    const payload = await resp.json().catch(function(){ return {}; });
+    if (!resp.ok || !payload.ok) {
+      setStatus('{{ _('Save failed.') }}', 'small mb-2 text-danger');
+      return;
+    }
+    setStatus('{{ _('Saved') }}', 'small mb-2 text-success');
+    if (payload.updated_at) {
+      updatedEl.textContent = '{{ _('Updated at') }}: ' + payload.updated_at.replace('T', ' ').slice(0, 19);
+    }
+  }
+
+  function initDropzones(){
+    document.querySelectorAll('#pk-board .pk-col-body').forEach(function(body){
+      body.addEventListener('dragover', function(e){
+        if (!canWrite()) return;
+        e.preventDefault();
+      });
+      body.addEventListener('drop', function(e){
+        if (!canWrite()) return;
+        e.preventDefault();
+        const id = e.dataTransfer.getData('text/plain');
+        const card = boardState.cards.find(function(c){ return c.id === id; });
+        if (!card) return;
+        const col = body.closest('.pk-col')?.getAttribute('data-col');
+        if (!col) return;
+        card.col = col;
+        renderBoard();
+        saveState();
+      });
+    });
+  }
+
+  addBtn?.addEventListener('click', function(){
+    openCardModal(null);
+  });
+
+  document.getElementById('pk-owner-add')?.addEventListener('click', function(){
+    addTypedCardOwner();
+  });
+
+  document.getElementById('pk-owner-input')?.addEventListener('keydown', function(e){
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    addTypedCardOwner();
+  });
+
+  cardForm?.addEventListener('submit', function(e){
+    e.preventDefault();
+    if (!canWrite()) return;
+    const fd = new FormData(cardForm);
+    const id = String(fd.get('id') || '').trim();
+    const owners = selectedCardOwners();
+    const payload = normalizeCard({
+      id: id || uid(),
+      title: String(fd.get('title') || '').trim(),
+      icon: String(fd.get('icon') || '').trim(),
+      owner: owners.join(', '),
+      owners: owners,
+      description: String(fd.get('description') || '').trim(),
+      priority: String(fd.get('priority') || 'medium').trim(),
+      col: String(fd.get('col') || 'backlog').trim(),
+      sprint: String(fd.get('sprint') || '').trim(),
+      due_date: String(fd.get('due_date') || '').trim(),
+    });
+    if (!payload.title) return;
+
+    const idx = boardState.cards.findIndex(function(c){ return String(c.id) === String(payload.id); });
+    if (idx >= 0) boardState.cards[idx] = payload;
+    else boardState.cards.push(payload);
+
+    cardModal?.hide();
+    renderBoard();
+    saveState();
+  });
+
+  cardDeleteBtn?.addEventListener('click', function(){
+    if (!canWrite() || !cardForm) return;
+    const id = String(cardForm.querySelector('[name="id"]')?.value || '').trim();
+    if (!id) return;
+    boardState.cards = boardState.cards.filter(function(c){ return String(c.id) !== id; });
+    cardModal?.hide();
+    renderBoard();
+    saveState();
+  });
+
+  loadState();
+});
+</script>
+{% endblock %}

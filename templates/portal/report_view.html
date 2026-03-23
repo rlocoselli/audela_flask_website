@@ -331,7 +331,7 @@
 
                     <div class="border rounded-4 p-3 bg-body">
                       <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
-                        <div class="fw-semibold"><i class="bi bi-ui-checks me-1"></i>{{ q.name if q else ('Pergunta #' ~ qid) }}</div>
+                        <div class="fw-semibold"><i class="bi bi-ui-checks me-1"></i>{{ q.name if q else (_('Question #') ~ qid) }}</div>
                         <span class="badge text-bg-light border">{{ theme_label }}</span>
                       </div>
 

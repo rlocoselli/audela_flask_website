@@ -3635,11 +3635,11 @@ def api_excel_generate():
     try:
         source_id = int(payload.get("source_id"))
     except Exception:
-        return jsonify({"error": "source_id inválido."}), 400
+        return jsonify({"error": tr("source_id inválido.", getattr(g, "lang", None))}), 400
 
     prompt = (payload.get("prompt") or "").strip()
     if not prompt:
-        return jsonify({"error": "Prompt vazio."}), 400
+        return jsonify({"error": tr("Prompt vazio.", getattr(g, "lang", None))}), 400
 
     title = (payload.get("title") or "Excel Export").strip() or "Excel Export"
     add_chart = bool(payload.get("add_chart", True))
@@ -3658,7 +3658,7 @@ def api_excel_generate():
 
     source = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first()
     if not source:
-        return jsonify({"error": "Fonte inválida."}), 404
+        return jsonify({"error": tr("Fonte inválida.", getattr(g, "lang", None))}), 404
 
     # NLQ -> SQL (OpenAI if configured, else heuristic)
     sql_text, warnings = generate_sql_from_nl(source, prompt, lang=getattr(g, "lang", None))
@@ -7686,12 +7686,12 @@ def api_dashboard_add_card(dashboard_id: int):
             return jsonify({"error": tr("Créez d'abord une question BI pour initialiser le dashboard.", getattr(g, "lang", None))}), 400
     else:
         if not qid:
-            return jsonify({"error": "Pergunta inválida."}), 400
+            return jsonify({"error": tr("Pergunta inválida.", getattr(g, "lang", None))}), 400
         q = Question.query.filter_by(id=qid, tenant_id=g.tenant.id).first_or_404()
 
     cfg = payload.get("viz_config") or {}
     if cfg and not isinstance(cfg, dict):
-        return jsonify({"error": "viz_config inválido."}), 400
+        return jsonify({"error": tr("viz_config inválido.", getattr(g, "lang", None))}), 400
     if source_kind in {"ratio", "finance_ratio"}:
         cfg = cfg.copy()
         cfg["source_kind"] = "ratio"
@@ -7796,7 +7796,7 @@ def api_dashboard_layout(dashboard_id: int):
     payload = request.get_json(silent=True) or {}
     items = payload.get("items") or []
     if not isinstance(items, list):
-        return jsonify({"error": "Payload inválido."}), 400
+        return jsonify({"error": tr("Payload inválido.", getattr(g, "lang", None))}), 400
 
     # Build map for faster validation
     cards = DashboardCard.query.filter_by(dashboard_id=dash.id, tenant_id=g.tenant.id).all()
@@ -7873,13 +7873,13 @@ def api_ai_chat():
     params = payload.get("params") or {}
 
     if not message:
-        return jsonify({"error": "Mensagem vazia."}), 400
+        return jsonify({"error": tr("Mensagem vazia.", getattr(g, "lang", None))}), 400
     if mode == "question" and not question_id:
-        return jsonify({"error": "Selecione uma pergunta."}), 400
+        return jsonify({"error": tr("Selecione uma pergunta.", getattr(g, "lang", None))}), 400
     if mode == "source" and not source_id:
         return jsonify({"error": tr("Selecione uma fonte.", getattr(g, "lang", None))}), 400
     if mode == "question" and params and not isinstance(params, dict):
-        return jsonify({"error": "Parâmetros devem ser um objeto JSON."}), 400
+        return jsonify({"error": tr("Parâmetros devem ser um objeto JSON.", getattr(g, "lang", None))}), 400
     if history and not isinstance(history, list):
         history = []
 

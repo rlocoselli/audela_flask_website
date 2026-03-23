@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 from datetime import datetime
+import re
+from uuid import uuid4
 
 from flask import abort, flash, g, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
-from ...extensions import db
+from ...extensions import csrf, db
 from ...i18n import DEFAULT_LANG, tr
 from ...models.core import Tenant
 from ...models.project_management import ProjectWorkspace
+from ...services.email_service import EmailService
 from ...services.subscription_service import SubscriptionService
 from ...tenancy import enforce_subscription_access_or_redirect, get_current_tenant_id, get_user_module_access, get_user_menu_access
 from . import bp
@@ -78,6 +81,113 @@ def _sanitize_state(payload: dict | None) -> dict:
         "project_versions": _list("project_versions", 2000),
         "security": _dict("security"),
         "notifications": _dict("notifications"),
+    }
+
+
+def _normalize_public_access(raw: str | None) -> str:
+    return "rw" if str(raw or "").strip().lower() == "rw" else "ro"
+
+
+def _public_kanban_cfg(state: dict) -> dict:
+    security = state.get("security") if isinstance(state.get("security"), dict) else {}
+    share = security.get("public_kanban") if isinstance(security.get("public_kanban"), dict) else {}
+    return {
+        "enabled": bool(share.get("enabled", False)),
+        "token": str(share.get("token") or "").strip(),
+        "access": _normalize_public_access(share.get("access")),
+        "project_id": str(share.get("project_id") or "").strip(),
+        "expires_at": str(share.get("expires_at") or "").strip(),
+    }
+
+
+def _save_public_kanban_cfg(state: dict, cfg: dict) -> None:
+    security = state.get("security") if isinstance(state.get("security"), dict) else {}
+    security["public_kanban"] = {
+        "enabled": bool(cfg.get("enabled", False)),
+        "token": str(cfg.get("token") or "").strip(),
+        "access": _normalize_public_access(cfg.get("access")),
+        "project_id": str(cfg.get("project_id") or "").strip(),
+        "expires_at": str(cfg.get("expires_at") or "").strip(),
+    }
+    state["security"] = security
+
+
+def _parse_optional_iso_datetime(value: str | None) -> datetime | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def _is_public_share_expired(cfg: dict) -> bool:
+    exp = _parse_optional_iso_datetime(cfg.get("expires_at"))
+    if not exp:
+        return False
+    # datetime-local values are naive; compare them with local now to avoid
+    # premature expiration caused by UTC offset differences.
+    if exp.tzinfo is None:
+        now = datetime.now()
+    else:
+        now = datetime.now(exp.tzinfo)
+    return now > exp
+
+
+def _find_public_workspace_by_token(token: str) -> tuple[ProjectWorkspace | None, dict, dict]:
+    safe = str(token or "").strip()
+    if len(safe) < 16:
+        return None, {}, {}
+
+    for ws in ProjectWorkspace.query.all():
+        state = ws.state_json if isinstance(ws.state_json, dict) else {}
+        cfg = _public_kanban_cfg(state)
+        if cfg.get("enabled") and cfg.get("token") == safe and not _is_public_share_expired(cfg):
+            return ws, state, cfg
+    return None, {}, {}
+
+
+def _sanitize_public_card(raw: dict, project_id: str) -> dict:
+    card_id = str(raw.get("id") or "").strip()[:64] or uuid4().hex[:10]
+    owners = raw.get("owners") if isinstance(raw.get("owners"), list) else []
+    cleaned_owners = [str(x).strip()[:120] for x in owners if str(x or "").strip()][:8]
+    owner = str(raw.get("owner") or "").strip()[:120]
+    if not owner and cleaned_owners:
+        owner = cleaned_owners[0]
+    if owner and owner not in cleaned_owners:
+        cleaned_owners.insert(0, owner)
+
+    col = str(raw.get("col") or "todo").strip().lower()
+    if col not in {"backlog", "todo", "doing", "done"}:
+        col = "todo"
+
+    priority = str(raw.get("priority") or "medium").strip().lower()
+    if priority not in {"low", "medium", "high"}:
+        priority = "medium"
+
+    due_date = str(raw.get("due_date") or "").strip()[:10]
+    if due_date and len(due_date) != 10:
+        due_date = ""
+
+    icon_raw = str(raw.get("icon") or "").strip()
+    if re.match(r"^bi\s+bi-[a-z0-9-]+$", icon_raw, re.IGNORECASE):
+        icon = icon_raw.lower()
+    else:
+        icon = icon_raw[:8]
+
+    return {
+        "id": card_id,
+        "project_id": project_id,
+        "title": str(raw.get("title") or "").strip()[:220],
+        "icon": icon,
+        "description": str(raw.get("description") or "").strip()[:2000],
+        "owner": owner,
+        "owners": cleaned_owners,
+        "sprint": str(raw.get("sprint") or "").strip()[:80],
+        "priority": priority,
+        "due_date": due_date,
+        "col": col,
     }
 
 
@@ -179,6 +289,228 @@ def workspace_save():
     db.session.commit()
 
     return jsonify({"ok": True, "updated_at": ws.updated_at.isoformat() if ws.updated_at else None})
+
+
+@bp.route("/api/public-kanban/share", methods=["POST"])
+@login_required
+def public_kanban_share_save():
+    _require_tenant()
+    if not _has_project_access(g.tenant):
+        return jsonify({"ok": False, "error": _("Accès refusé au module Projet.")}), 403
+    if not _is_tenant_admin():
+        return jsonify({"ok": False, "error": _("Action réservée à l'administrateur tenant.")}), 403
+
+    payload = request.get_json(silent=True) or {}
+    enable = bool(payload.get("enabled", False))
+    regenerate = bool(payload.get("regenerate", False))
+    access = _normalize_public_access(payload.get("access"))
+    expires_at_raw = str(payload.get("expires_at") or "").strip()
+
+    if expires_at_raw and not _parse_optional_iso_datetime(expires_at_raw):
+        return jsonify({"ok": False, "error": _("Date d'expiration invalide.")}), 400
+
+    ws = ProjectWorkspace.query.filter_by(tenant_id=g.tenant.id).first()
+    if not ws:
+        ws = ProjectWorkspace(tenant_id=g.tenant.id, state_json=_sanitize_state({}))
+        db.session.add(ws)
+
+    state = ws.state_json if isinstance(ws.state_json, dict) else _sanitize_state({})
+    cfg = _public_kanban_cfg(state)
+
+    selected_project_id = str(payload.get("project_id") or cfg.get("project_id") or state.get("selected_project_id") or "").strip()
+    if enable and not selected_project_id:
+        return jsonify({"ok": False, "error": _("Sélectionnez un projet avant de partager le Kanban.")}), 400
+
+    if enable:
+        token = str(cfg.get("token") or "").strip()
+        if regenerate or not token:
+            token = uuid4().hex + uuid4().hex
+        cfg.update({
+            "enabled": True,
+            "token": token,
+            "access": access,
+            "project_id": selected_project_id,
+            "expires_at": expires_at_raw,
+        })
+    else:
+        cfg.update({
+            "enabled": False,
+            "access": access,
+            "project_id": selected_project_id,
+            "expires_at": expires_at_raw,
+        })
+
+    _save_public_kanban_cfg(state, cfg)
+    ws.state_json = _sanitize_state(state)
+    ws.updated_by_user_id = getattr(current_user, "id", None)
+    ws.updated_at = datetime.utcnow()
+    db.session.commit()
+
+    share_url = url_for("project.public_kanban", token=cfg.get("token"), _external=True) if cfg.get("enabled") and cfg.get("token") else ""
+    return jsonify({
+        "ok": True,
+        "share": {
+            "enabled": bool(cfg.get("enabled")),
+            "access": _normalize_public_access(cfg.get("access")),
+            "project_id": str(cfg.get("project_id") or ""),
+            "token": str(cfg.get("token") or ""),
+            "expires_at": str(cfg.get("expires_at") or ""),
+            "url": share_url,
+        },
+    })
+
+
+@bp.route("/api/public-kanban/share/email", methods=["POST"])
+@login_required
+def public_kanban_share_email_send():
+    _require_tenant()
+    if not _has_project_access(g.tenant):
+        return jsonify({"ok": False, "error": _("Accès refusé au module Projet.")}), 403
+    if not _is_tenant_admin():
+        return jsonify({"ok": False, "error": _("Action réservée à l'administrateur tenant.")}), 403
+
+    payload = request.get_json(silent=True) or {}
+    raw = str(payload.get("emails") or "").strip()
+    if not raw:
+        return jsonify({"ok": False, "error": _("Veuillez renseigner au moins un email.")}), 400
+
+    emails = []
+    for item in re.split(r"[;,\n]", raw):
+        addr = str(item or "").strip().lower()
+        if addr and addr not in emails:
+            emails.append(addr)
+
+    if not emails:
+        return jsonify({"ok": False, "error": _("Veuillez renseigner au moins un email.")}), 400
+    if len(emails) > 30:
+        return jsonify({"ok": False, "error": _("Maximum 30 emails par envoi.")}), 400
+
+    invalid = [e for e in emails if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", e)]
+    if invalid:
+        return jsonify({"ok": False, "error": _("Emails invalides: {emails}", emails=", ".join(invalid[:5]))}), 400
+
+    ws = ProjectWorkspace.query.filter_by(tenant_id=g.tenant.id).first()
+    state = ws.state_json if ws and isinstance(ws.state_json, dict) else {}
+    cfg = _public_kanban_cfg(state)
+    if not cfg.get("enabled") or not cfg.get("token"):
+        return jsonify({"ok": False, "error": _("Activez d'abord le partage public pour générer un lien.")}), 400
+    if _is_public_share_expired(cfg):
+        return jsonify({"ok": False, "error": _("Le lien public est expiré. Régénérez un nouveau lien.")}), 400
+
+    share_url = url_for("project.public_kanban", token=str(cfg.get("token") or ""), _external=True)
+    project_id = str(cfg.get("project_id") or "").strip()
+    projects = state.get("projects") if isinstance(state.get("projects"), list) else []
+    project_row = next((p for p in projects if str((p or {}).get("id") or "") == project_id), None)
+    project_name = str((project_row or {}).get("name") or _("Projet"))
+    access_label = _("lecture et écriture") if _normalize_public_access(cfg.get("access")) == "rw" else _("lecture seule")
+    expires_at = str(cfg.get("expires_at") or "").strip()
+
+    subject = _("Lien Kanban partagé - {project}", project=project_name)
+    body_lines = [
+        _("Bonjour,"),
+        "",
+        _("Voici le lien de partage du Kanban du projet {project}.", project=project_name),
+        _("Accès: {access}", access=access_label),
+    ]
+    if expires_at:
+        body_lines.append(_("Expiration: {expiration}", expiration=expires_at.replace("T", " ").strip()[:16]))
+    body_lines.extend([
+        "",
+        share_url,
+        "",
+        _("Message envoyé depuis AUDELA Projet."),
+    ])
+    body = "\n".join(body_lines)
+
+    sent = []
+    failed = []
+    for email in emails:
+        ok = EmailService.send_email(to=email, subject=subject, template=None, body_text=body)
+        if ok:
+            sent.append(email)
+        else:
+            failed.append(email)
+
+    return jsonify({
+        "ok": len(sent) > 0,
+        "sent_count": len(sent),
+        "failed_count": len(failed),
+        "sent": sent,
+        "failed": failed,
+    }), (200 if sent else 500)
+
+
+@bp.route("/public/kanban/<token>", methods=["GET"])
+def public_kanban(token: str):
+    ws, _state, cfg = _find_public_workspace_by_token(token)
+    if not ws:
+        return render_template(
+            "project/public_kanban.html",
+            token="invalid_public_link_token",
+            access="ro",
+            expires_at="",
+            link_error=True,
+        ), 404
+    return render_template(
+        "project/public_kanban.html",
+        token=str(cfg.get("token") or ""),
+        access=_normalize_public_access(cfg.get("access")),
+        expires_at=str(cfg.get("expires_at") or ""),
+        link_error=False,
+    )
+
+
+@bp.route("/public/kanban/<token>/state", methods=["GET"])
+def public_kanban_state(token: str):
+    ws, state, cfg = _find_public_workspace_by_token(token)
+    if not ws:
+        return jsonify({"ok": False, "error": "not_found"}), 404
+
+    project_id = str(cfg.get("project_id") or "").strip()
+    cards = [
+        c for c in (state.get("cards") if isinstance(state.get("cards"), list) else [])
+        if str((c or {}).get("project_id") or "") == project_id
+    ]
+    projects = state.get("projects") if isinstance(state.get("projects"), list) else []
+    project_row = next((p for p in projects if str((p or {}).get("id") or "") == project_id), None)
+
+    return jsonify({
+        "ok": True,
+        "share": {
+            "access": _normalize_public_access(cfg.get("access")),
+            "project_id": project_id,
+            "expires_at": str(cfg.get("expires_at") or ""),
+        },
+        "project": project_row if isinstance(project_row, dict) else {"id": project_id, "name": "Project"},
+        "cards": cards,
+        "updated_at": ws.updated_at.isoformat() if ws.updated_at else None,
+    })
+
+
+@bp.route("/public/kanban/<token>/state", methods=["POST"])
+@csrf.exempt
+def public_kanban_state_save(token: str):
+    ws, state, cfg = _find_public_workspace_by_token(token)
+    if not ws:
+        return jsonify({"ok": False, "error": "not_found"}), 404
+    if _normalize_public_access(cfg.get("access")) != "rw":
+        return jsonify({"ok": False, "error": "read_only"}), 403
+
+    payload = request.get_json(silent=True) or {}
+    incoming_cards = payload.get("cards") if isinstance(payload.get("cards"), list) else []
+    project_id = str(cfg.get("project_id") or "").strip()
+    cleaned_cards = [_sanitize_public_card(c, project_id) for c in incoming_cards if isinstance(c, dict)]
+
+    all_cards = state.get("cards") if isinstance(state.get("cards"), list) else []
+    other_cards = [c for c in all_cards if str((c or {}).get("project_id") or "") != project_id]
+    state["cards"] = other_cards + cleaned_cards
+
+    ws.state_json = _sanitize_state(state)
+    ws.updated_by_user_id = None
+    ws.updated_at = datetime.utcnow()
+    db.session.commit()
+
+    return jsonify({"ok": True, "count": len(cleaned_cards), "updated_at": ws.updated_at.isoformat() if ws.updated_at else None})
 
 
 @bp.route("/help/chat", methods=["POST"])
