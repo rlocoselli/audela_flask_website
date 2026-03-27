@@ -1,0 +1,50 @@
+{#
+  Example: Project Management Menu with Tutorials
+#}
+
+{% import 'macros/tutorial_macros.html' as tutorial_macros %}
+
+{# Project Navigation #}
+<nav class="navbar navbar-expand-lg navbar-light bg-light border-bottom">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="#projects">
+      <i class="fas fa-project-diagram"></i> {{ _('Gestion de projets') }}
+    </a>
+    
+    <div class="navbar-nav ms-auto">
+      {# Tutorial Dropdown #}
+      {{ tutorial_macros.render_product_tutorials_dropdown('project', 'Tutoriels Projets') }}
+    </div>
+  </div>
+</nav>
+
+{# Project Views #}
+<div class="container-fluid mt-4">
+  <ul class="nav nav-pills mb-3">
+    <li class="nav-item">
+      <a class="nav-link active" href="#portfolio">
+        <i class="fas fa-chart-pie"></i> {{ _('Portefeuille') }}
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="#gantt">
+        <i class="fas fa-bars"></i> {{ _('Gantt') }}
+      </a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" href="#kanban">
+        <i class="fas fa-columns"></i> {{ _('Kanban') }}
+      </a>
+    </li>
+  </ul>
+  
+  <div class="row">
+    <div class="col-md-9">
+      {# Main content area #}
+    </div>
+    <div class="col-md-3">
+      {# Tutorial sidebar #}
+      {{ tutorial_macros.render_tutorial_sidebar('project') }}
+    </div>
+  </div>
+</div>

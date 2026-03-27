@@ -347,7 +347,7 @@ def _portal_layout_context():
         }
 
     if not tenant or not getattr(tenant, "subscription", None):
-        return {
+        context_data = {
             "transaction_usage": None,
             "module_access": module_access,
             "bi_menu_access": bi_menu_access,
@@ -357,23 +357,30 @@ def _portal_layout_context():
             "bi_full_home_href": url_for("portal.home", bi_ui_mode="full"),
             "portal_href": _portal_href,
         }
-
-    _, current_count, max_limit = SubscriptionService.check_limit(tenant.id, "transactions")
-    return {
-        "module_access": module_access,
-        "bi_menu_access": bi_menu_access,
-        "bi_lite_mode": bi_lite_mode,
-        "bi_lite_home_href": url_for("portal.bi_lite", bi_ui_mode="lite") if bi_lite_mode else None,
-        "bi_lite_switch_href": url_for("portal.bi_lite", bi_ui_mode="lite"),
-        "bi_full_home_href": url_for("portal.home", bi_ui_mode="full"),
-        "portal_href": _portal_href,
-        "transaction_usage": {
-            "current": int(current_count),
-            "max": int(max_limit),
-            "max_label": "∞" if int(max_limit) == -1 else str(int(max_limit)),
-            "is_unlimited": int(max_limit) == -1,
+    else:
+        _, current_count, max_limit = SubscriptionService.check_limit(tenant.id, "transactions")
+        context_data = {
+            "module_access": module_access,
+            "bi_menu_access": bi_menu_access,
+            "bi_lite_mode": bi_lite_mode,
+            "bi_lite_home_href": url_for("portal.bi_lite", bi_ui_mode="lite") if bi_lite_mode else None,
+            "bi_lite_switch_href": url_for("portal.bi_lite", bi_ui_mode="lite"),
+            "bi_full_home_href": url_for("portal.home", bi_ui_mode="full"),
+            "portal_href": _portal_href,
+            "transaction_usage": {
+                "current": int(current_count),
+                "max": int(max_limit),
+                "max_label": "∞" if int(max_limit) == -1 else str(int(max_limit)),
+                "is_unlimited": int(max_limit) == -1,
+            }
         }
-    }
+    
+    # Add tutorial context
+    from .tutorial_context import inject_tutorial_context
+    tutorial_context = inject_tutorial_context()
+    context_data.update(tutorial_context)
+    
+    return context_data
 
 
 def _bi_quota_check(required: int = 1) -> bool:

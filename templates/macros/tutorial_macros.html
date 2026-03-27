@@ -1,0 +1,170 @@
+{#
+  Tutorial Helper Macros for AUDELA
+  
+  Provides reusable components for displaying tutorial links in menus, navigation bars,
+  and other UI elements across all products.
+#}
+
+{#
+  Display a tutorial link (typically in a menu item)
+  Usage: {{ render_tutorial_link('Tutoriel Finance', '/help/finance/dashboard') }}
+#}
+{% macro render_tutorial_link(label, url, icon_class='fas fa-graduation-cap') -%}
+  <a href="{{ url }}" class="menu-link-tutorial" title="{{ _(label) }}" data-toggle="tooltip">
+    {% if icon_class %}<i class="{{ icon_class }}"></i>{% endif %}
+    <span>{{ _(label) }}</span>
+  </a>
+{%- endmacro %}
+
+{#
+  Display tutorial button (e.g. in header or toolbar)
+  Usage: {{ render_tutorial_button('Tutoriel BI', '/help/bi/dashboards', 'primary') }}
+#}
+{% macro render_tutorial_button(label, url, button_class='btn-outline-primary') -%}
+  <a href="{{ url }}" class="btn {{ button_class }} btn-sm tutorial-btn" title="{{ _(label) }}">
+    <i class="fas fa-graduation-cap"></i>
+    {{ _(label) }}
+  </a>
+{%- endmacro %}
+
+{#
+  Display tutorial dropdown menu for a product
+  Usage: {{ render_product_tutorials_dropdown('finance', 'Finance Tutorials') }}
+#}
+{% macro render_product_tutorials_dropdown(product, label_msgid) -%}
+  {% set menu_tutorials = get_product_menu_tutorials(product) %}
+  {% if menu_tutorials and menu_tutorials|length > 0 %}
+    <div class="dropdown d-inline-block ms-2">
+      <button class="btn btn-link dropdown-toggle text-decoration-none" type="button" 
+              id="tutorials_{{ product }}" data-bs-toggle="dropdown" aria-expanded="false">
+        <i class="fas fa-book"></i> {{ _(label_msgid) }}
+      </button>
+      <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="tutorials_{{ product }}">
+        {% for item_key, item_config in menu_tutorials.items() %}
+          <li>
+            <a class="dropdown-item" href="{{ item_config.url }}" title="{{ _(item_config.label) }}">
+              <i class="fas fa-play-circle"></i> {{ _(item_config.label) }}
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+{%- endmacro %}
+
+{#
+  Display tutorial panel (card-based)
+  Usage: {{ render_tutorial_card('Tutorial Finance', 'Apprenez à gérer la trésorerie', '/help/finance', 'book') }}
+#}
+{% macro render_tutorial_card(title_msgid, description_msgid, url, icon='book') -%}
+  <div class="card tutorial-card h-100">
+    <div class="card-body text-center">
+      <div class="mb-3">
+        <i class="fas fa-{{ icon }} fa-2x text-primary"></i>
+      </div>
+      <h5 class="card-title">{{ _(title_msgid) }}</h5>
+      <p class="card-text text-muted small">{{ _(description_msgid) }}</p>
+      <a href="{{ url }}" class="btn btn-sm btn-outline-primary">
+        <i class="fas fa-arrow-right"></i> {{ _('Commencer') }}
+      </a>
+    </div>
+  </div>
+{%- endmacro %}
+
+{#
+  Display a tutorial badge (for highlighting)
+  Usage: {{ render_tutorial_badge('Help available', 'Tutorial disponible') }}
+#}
+{% macro render_tutorial_badge(badge_text_msgid='Tutorial', badge_class='badge-info') -%}
+  <span class="badge {{ badge_class }} d-inline-flex align-items-center gap-1">
+    <i class="fas fa-graduation-cap"></i>
+    {{ _(badge_text_msgid) }}
+  </span>
+{%- endmacro %}
+
+{#
+  Display all product tutorials as a grid
+  Usage: {{ render_all_tutorials_grid() }}
+#}
+{% macro render_all_tutorials_grid() -%}
+  <div class="row g-4 mt-4">
+    {% if tutorial_config %}
+      {% for product, config in tutorial_config.items() %}
+        {% if config.main_tutorial and config.menu_items %}
+          <div class="col-md-6 col-lg-4">
+            <div class="card h-100 tutorial-grid-card">
+              <div class="card-header bg-light">
+                <h6 class="mb-0">{{ _(config.main_tutorial.label) }}</h6>
+              </div>
+              <div class="card-body">
+                <ul class="list-unstyled small">
+                  {% for item_key, item in config.menu_items.items() %}
+                    <li class="mb-2">
+                      <a href="{{ item.url }}" class="text-decoration-none">
+                        <i class="fas fa-chevron-right text-muted"></i>
+                        {{ _(item.label) }}
+                      </a>
+                    </li>
+                  {% endfor %}
+                </ul>
+              </div>
+            </div>
+          </div>
+        {% endif %}
+      {% endfor %}
+    {% endif %}
+  </div>
+{%- endmacro %}
+
+{#
+  Display tutorial sidebar (for product pages)
+  Usage: {{ render_tutorial_sidebar('finance') }}
+#}
+{% macro render_tutorial_sidebar(product) -%}
+  {% set menu_tutorials = get_product_menu_tutorials(product) %}
+  {% if menu_tutorials and menu_tutorials|length > 0 %}
+    <div class="card tutorial-sidebar">
+      <div class="card-header bg-primary text-white">
+        <h6 class="mb-0" data-i18n="Tutoriels">
+          <i class="fas fa-book"></i> {{ _('Tutoriels') }}
+        </h6>
+      </div>
+      <div class="list-group list-group-flush">
+        {% for item_key, item in menu_tutorials.items() %}
+          <a href="{{ item.url }}" class="list-group-item list-group-item-action small" 
+             title="{{ _(item.label) }}">
+            <i class="fas fa-play-circle text-primary"></i>
+            {{ _(item.label) }}
+          </a>
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+{%- endmacro %}
+
+{#
+  Display tutorial help section for a page
+  Usage: {{ render_tutorial_help_section('Finance', 'Besoin d\'aide ?') }}
+#}
+{% macro render_tutorial_help_section(product, section_title_msgid) -%}
+  <div class="alert alert-info alert-dismissible fade show" role="alert">
+    <h5 class="alert-heading">
+      <i class="fas fa-lightbulb"></i> {{ _(section_title_msgid) }}
+    </h5>
+    <p class="mb-0 small">
+      {{ _('Consultez nos tutoriels détaillés pour apprendre à utiliser cette fonctionnalité.') }}
+    </p>
+    {% set menu_tutorials = get_product_menu_tutorials(product) %}
+    {% if menu_tutorials and menu_tutorials|length > 0 %}
+      <hr class="my-2">
+      <div class="d-flex flex-wrap gap-2">
+        {% for item_key, item in menu_tutorials.items() %}
+          <a href="{{ item.url }}" class="btn btn-sm btn-info" style="cursor:pointer;">
+            {{ _(item.label) }}
+          </a>
+        {% endfor %}
+      </div>
+    {% endif %}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+{%- endmacro %}

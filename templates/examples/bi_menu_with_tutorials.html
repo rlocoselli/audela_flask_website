@@ -1,0 +1,61 @@
+{#
+  Example: BI Product Menu with Tutorials
+  
+  This template demonstrates how to integrate tutorials into BI product menus.
+#}
+
+{% import 'macros/tutorial_macros.html' as tutorial_macros %}
+
+{# BI Navigation with Tutorial Items #}
+<ul class="nav nav-tabs" role="tablist">
+  <li class="nav-item">
+    <a class="nav-link active" href="#dashboards" data-bs-toggle="tab">
+      <i class="fas fa-chart-line"></i> {{ _('Tableaux de bord') }}
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" href="#queries" data-bs-toggle="tab">
+      <i class="fas fa-database"></i> {{ _('Requêtes') }}
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" href="#visualizations" data-bs-toggle="tab">
+      <i class="fas fa-chart-bar"></i> {{ _('Visualisations') }}
+    </a>
+  </li>
+  
+  {# Tutorial Menu for BI #}
+  <li class="nav-item ms-auto">
+    {{ tutorial_macros.render_product_tutorials_dropdown('bi', 'Tutoriel BI') }}
+  </li>
+</ul>
+
+{# Tab Content #}
+<div class="tab-content mt-4">
+  <div class="tab-pane fade show active" id="dashboards">
+    <div class="row">
+      <div class="col-md-8">
+        {# Main content #}
+      </div>
+      <div class="col-md-4">
+        {% set bi_tutorials = get_product_menu_tutorials('bi') %}
+        {% if bi_tutorials %}
+          <div class="card bg-light">
+            <div class="card-header">
+              <h6 class="mb-0"><i class="fas fa-book"></i> {{ _('Tutoriels BI') }}</h6>
+            </div>
+            <ul class="list-group list-group-flush small">
+              {% for item_key, item_config in bi_tutorials.items() %}
+                <li class="list-group-item">
+                  <a href="{{ item_config.url }}" class="text-decoration-none">
+                    {{ _(item_config.label) }}
+                  </a>
+                </li>
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>

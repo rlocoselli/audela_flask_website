@@ -1,0 +1,88 @@
+{#
+  Example: ETL Module Menu with Tutorials
+#}
+
+{% import 'macros/tutorial_macros.html' as tutorial_macros %}
+
+{# ETL Navigation #}
+<nav class="navbar navbar-light bg-light border-bottom">
+  <div class="container-fluid">
+    <span class="navbar-brand">
+      <i class="fas fa-network-wired"></i> {{ _('Tutoriel ETL') }}
+    </span>
+    
+    {# Tutorial Dropdown #}
+    <div class="ms-auto">
+      {{ tutorial_macros.render_product_tutorials_dropdown('etl', 'Tutoriels ETL') }}
+    </div>
+  </div>
+</nav>
+
+{# ETL Workflow Components #}
+<div class="container-fluid mt-4">
+  <div class="row g-3">
+    {# Connections Card #}
+    <div class="col-md-6 col-lg-4">
+      <div class="card h-100">
+        <div class="card-header bg-primary text-white">
+          <h6 class="mb-0"><i class="fas fa-plug"></i> {{ _('Connexions') }}</h6>
+        </div>
+        <div class="card-body">
+          <p class="card-text small">{{ _('Gérez vos connexions aux sources de données') }}</p>
+        </div>
+        <div class="card-footer bg-light">
+          {% set tutorials = get_product_menu_tutorials('etl') %}
+          {% if tutorials and tutorials.connections %}
+            <a href="{{ tutorials.connections.url }}" class="btn btn-sm btn-outline-primary">
+              {{ _(tutorials.connections.label) }}
+            </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    
+    {# Workflows Card #}
+    <div class="col-md-6 col-lg-4">
+      <div class="card h-100">
+        <div class="card-header bg-success text-white">
+          <h6 class="mb-0"><i class="fas fa-stream"></i> {{ _('Workflows') }}</h6>
+        </div>
+        <div class="card-body">
+          <p class="card-text small">{{ _('Créez et exécutez vos workflows ETL') }}</p>
+        </div>
+        <div class="card-footer bg-light">
+          {% set tutorials = get_product_menu_tutorials('etl') %}
+          {% if tutorials and tutorials.workflows %}
+            <a href="{{ tutorials.workflows.url }}" class="btn btn-sm btn-outline-success">
+              {{ _(tutorials.workflows.label) }}
+            </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    
+    {# Monitoring Card #}
+    <div class="col-md-6 col-lg-4">
+      <div class="card h-100">
+        <div class="card-header bg-info text-white">
+          <h6 class="mb-0"><i class="fas fa-eye"></i> {{ _('Monitoring') }}</h6>
+        </div>
+        <div class="card-body">
+          <p class="card-text small">{{ _('Suivez l\'exécution de vos tâches') }}</p>
+        </div>
+        <div class="card-footer bg-light">
+          {% set tutorials = get_product_menu_tutorials('etl') %}
+          {% if tutorials and tutorials.monitoring %}
+            <a href="{{ tutorials.monitoring.url }}" class="btn btn-sm btn-outline-info">
+              {{ _(tutorials.monitoring.label) }}
+            </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="mt-4">
+    {# Main content area #}
+  </div>
+</div>

@@ -1,0 +1,75 @@
+{#
+  Example: IFRS9 Module Menu with Tutorials
+#}
+
+{% import 'macros/tutorial_macros.html' as tutorial_macros %}
+
+{# IFRS9 Navigation #}
+<nav class="navbar navbar-light bg-light border-bottom">
+  <div class="container-fluid">
+    <span class="navbar-brand">
+      <i class="fas fa-calculator"></i> {{ _('Tutoriel IFRS9') }}
+    </span>
+    
+    {# Tutorial Dropdown #}
+    <div class="ms-auto">
+      {{ tutorial_macros.render_product_tutorials_dropdown('ifrs9', 'Tutoriels IFRS9') }}
+    </div>
+  </div>
+</nav>
+
+{# IFRS9 Configuration Steps with Tutorials #}
+<div class="container-fluid mt-4">
+  <div class="row">
+    <div class="col-md-8">
+      <div class="accordion" id="ifrs9Accordion">
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button" type="button" data-bs-toggle="collapse" 
+                    data-bs-target="#staging">
+              <i class="fas fa-layer-group"></i> {{ _('Tutoriel Classification de risque (Staging)') }}
+            </button>
+          </h2>
+          <div id="staging" class="accordion-collapse collapse show" data-bs-parent="#ifrs9Accordion">
+            <div class="accordion-body">
+              {# Content #}
+            </div>
+          </div>
+        </div>
+        
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
+                    data-bs-target="#parameters">
+              <i class="fas fa-sliders-h"></i> {{ _('Tutoriel Paramètres ECL') }}
+            </button>
+          </h2>
+          <div id="parameters" class="accordion-collapse collapse" data-bs-parent="#ifrs9Accordion">
+            <div class="accordion-body">
+              {# Content #}
+            </div>
+          </div>
+        </div>
+        
+        <div class="accordion-item">
+          <h2 class="accordion-header">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" 
+                    data-bs-target="#calculation">
+              <i class="fas fa-calculator"></i> {{ _('Tutoriel Calcul ECL') }}
+            </button>
+          </h2>
+          <div id="calculation" class="accordion-collapse collapse" data-bs-parent="#ifrs9Accordion">
+            <div class="accordion-body">
+              {# Content #}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-md-4">
+      {# Tutorial sidebar #}
+      {{ tutorial_macros.render_tutorial_sidebar('ifrs9') }}
+    </div>
+  </div>
+</div>

@@ -1,0 +1,82 @@
+{#
+  Example: Finance Product Menu with Tutorials
+  
+  This template demonstrates how to integrate tutorials into product menus.
+  Copy this pattern to other product menus in the application.
+#}
+
+{% import 'macros/tutorial_macros.html' as tutorial_macros %}
+
+{# Finance Main Navigation with Tutorial Dropdown #}
+<nav class="navbar navbar-expand-lg navbar-light bg-light border-bottom">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="#finance">
+      <i class="fas fa-coins"></i> {{ _('Finance') }}
+    </a>
+    
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#financeNavbar">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    
+    <div class="collapse navbar-collapse" id="financeNavbar">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item">
+          <a class="nav-link" href="#dashboard">{{ _('Tableau de bord') }}</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#cash">{{ _('Trésorerie') }}</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#reconciliation">{{ _('Rapprochement') }}</a>
+        </li>
+        
+        {# Tutorial Dropdown for Finance #}
+        <li class="nav-item">
+          {% set finance_tutorials = get_product_menu_tutorials('finance') %}
+          {% if finance_tutorials %}
+            <div class="dropdown d-inline-block">
+              <button class="btn btn-link nav-link dropdown-toggle" type="button" 
+                      id="financeTutorials" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="fas fa-book-open"></i> {{ _('Tutoriels') }}
+              </button>
+              <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="financeTutorials">
+                {% for item_key, item_config in finance_tutorials.items() %}
+                  <li>
+                    <a class="dropdown-item d-flex align-items-center gap-2" href="{{ item_config.url }}">
+                      <i class="fas fa-play-circle text-info"></i>
+                      <span>{{ _(item_config.label) }}</span>
+                    </a>
+                  </li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+        </li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+{# Finance Sidebar with Tutorial Links #}
+<div class="row mt-4">
+  <div class="col-md-9">
+    <div class="card">
+      <div class="card-header">
+        <h5>{{ _('Dashboard Finance') }}</h5>
+      </div>
+      <div class="card-body">
+        {# Main content here #}
+      </div>
+    </div>
+  </div>
+  
+  <div class="col-md-3">
+    {# Tutorial Sidebar for Finance #}
+    {{ tutorial_macros.render_tutorial_sidebar('finance') }}
+  </div>
+</div>
+
+{# Help Section #}
+<div class="mt-4">
+  {{ tutorial_macros.render_tutorial_help_section('finance', 'Besoin d\'aide ?') }}
+</div>

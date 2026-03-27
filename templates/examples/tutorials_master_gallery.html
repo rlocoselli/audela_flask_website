@@ -1,0 +1,152 @@
+{#
+  Master Tutorial Gallery - Shows all tutorials available in AUDELA
+  
+  This page displays all tutorial links organized by product.
+  Can be used as a help hub or reference page.
+#}
+
+{% import 'macros/tutorial_macros.html' as tutorial_macros %}
+
+{% extends "base.html" %}
+
+{% block title %}{{ _('Tutoriels AUDELA') }} - Centre d\'aide{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-5">
+  <div class="row mb-5">
+    <div class="col-md-8">
+      <h1>
+        <i class="fas fa-book-open"></i> {{ _('Tutoriels AUDELA') }}
+      </h1>
+      <p class="lead text-muted">
+        {{ _('Découvrez comment utiliser chaque produit et fonctionnalité AUDELA avec nos tutoriels détaillés.') }}
+      </p>
+    </div>
+    <div class="col-md-4">
+      <div class="input-group">
+        <span class="input-group-text">
+          <i class="fas fa-search"></i>
+        </span>
+        <input type="text" class="form-control" placeholder="{{ _('Rechercher un tutoriel...') }}" 
+               id="tutorialSearch">
+      </div>
+    </div>
+  </div>
+  
+  {# All Tutorials Grid #}
+  {{ tutorial_macros.render_all_tutorials_grid() }}
+  
+  {# Detailed Product Sections #}
+  <div class="mt-5 pt-5 border-top">
+    <h2 class="mb-4">
+      <i class="fas fa-list"></i> {{ _('Tutoriels détaillés par produit') }}
+    </h2>
+    
+    {% set products = [
+      ('finance', 'Tutoriel Finance', 'fa-coins'),
+      ('bi', 'Tutoriel BI', 'fa-chart-line'),
+      ('credit', 'Tutoriel Audela Credit', 'fa-handshake'),
+      ('project', 'Tutoriel Gestion de projets', 'fa-project-diagram'),
+      ('ifrs9', 'Tutoriel IFRS9', 'fa-calculator'),
+      ('etl', 'Tutoriel ETL', 'fa-network-wired'),
+      ('portal', 'Tutoriel Portail', 'fa-home'),
+    ] %}
+    
+    {% for product, title_msgid, icon in products %}
+      {% set tutorials = get_product_menu_tutorials(product) %}
+      {% if tutorials %}
+        <div class="card mb-4 tutorial-section">
+          <div class="card-header bg-gradient">
+            <h5 class="mb-0" style="display:flex; align-items:center; gap:0.5rem;">
+              <i class="fas {{ icon }}"></i>
+              {{ _(title_msgid) }}
+              <span class="badge bg-secondary ms-auto">{{ tutorials|length }} tutoriels</span>
+            </h5>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              {% for item_key, item_config in tutorials.items() %}
+                <div class="col-md-6 col-lg-4 mb-3">
+                  <div class="d-flex gap-3 p-3 bg-light rounded tutorial-item">
+                    <div class="flex-shrink-0">
+                      <i class="fas fa-play-circle fa-2x text-primary"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                      <h6 class="mb-2">{{ _(item_config.label) }}</h6>
+                      <a href="{{ item_config.url }}" class="btn btn-sm btn-outline-primary">
+                        {{ _('Commencer') }} →
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    {% endfor %}
+  </div>
+  
+  {# Quick Access Footer #}
+  <div class="mt-5 pt-5 border-top">
+    <div class="alert alert-info">
+      <h5><i class="fas fa-info-circle"></i> {{ _('Besoin d\'aide rapide ?') }}</h5>
+      <p class="mb-2">
+        {{ _('Tous les tutoriels sont disponibles directement depuis les menus des produits.') }}
+      </p>
+      <div class="btn-group" role="group">
+        <a href="#finance" class="btn btn-outline-info">Finance</a>
+        <a href="#bi" class="btn btn-outline-info">BI</a>
+        <a href="#credit" class="btn btn-outline-info">Credit</a>
+        <a href="#project" class="btn btn-outline-info">Projets</a>
+        <a href="#ifrs9" class="btn btn-outline-info">IFRS9</a>
+        <a href="#etl" class="btn btn-outline-info">ETL</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.bg-gradient {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.tutorial-item {
+  transition: all 0.3s ease;
+  border-left: 3px solid #667eea;
+}
+
+.tutorial-item:hover {
+  border-left-color: #764ba2;
+  transform: translateX(4px);
+}
+
+.tutorial-sidebar .card-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+}
+
+.tutorial-card {
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.tutorial-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+}
+
+.tutorial-grid-card {
+  border-top: 3px solid #667eea;
+}
+</style>
+
+<script>
+document.getElementById('tutorialSearch').addEventListener('input', function(e) {
+  const query = e.target.value.toLowerCase();
+  document.querySelectorAll('.tutorial-item').forEach(item => {
+    const text = item.textContent.toLowerCase();
+    item.parentElement.style.display = text.includes(query) ? '' : 'none';
+  });
+});
+</script>
+{% endblock %}
