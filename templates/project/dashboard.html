@@ -3590,6 +3590,7 @@
               '<span class="badge text-bg-light border">' + sprintLabel(c) + '</span>' +
               (c.due_date ? '<span class="badge text-bg-light border">' + c.due_date + '</span>' : '') + '</div>';
             item.addEventListener('dragstart', function(e){
+              e.stopPropagation();
               draggedCardId = c.id;
               try { e.dataTransfer.setData('text/plain', c.id); } catch (__) {}
               item.style.opacity = '0.6';
@@ -4040,7 +4041,7 @@
             draggedCardId = null;
             renderKanban();
             renderProductivityReport();
-            scheduleSave();
+            saveNow();
           });
         });
         document.querySelectorAll('#pm-kanban .pm-kanban-col').forEach(function(colWrap){
@@ -4050,6 +4051,9 @@
           colWrap.addEventListener('dragstart', function(e){
             if (!canWrite()) {
               e.preventDefault();
+              return;
+            }
+            if (e.target && e.target.closest && e.target.closest('.pm-kanban-card')) {
               return;
             }
             draggedColumnKey = String(colWrap.getAttribute('data-col-key') || '').trim();

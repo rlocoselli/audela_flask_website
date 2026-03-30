@@ -605,6 +605,7 @@ window.onReady(function(){
 
           if (canWrite()) {
             item.addEventListener('dragstart', function(e){
+              e.stopPropagation();
               e.dataTransfer.setData('text/plain', card.id);
             });
             item.addEventListener('dblclick', function(){
@@ -671,6 +672,9 @@ window.onReady(function(){
       colWrap.addEventListener('dragstart', function(e){
         if (!canWrite()) {
           e.preventDefault();
+          return;
+        }
+        if (e.target && e.target.closest && e.target.closest('.pk-card')) {
           return;
         }
         draggedColumnKey = String(colWrap.getAttribute('data-col-key') || '').trim();
