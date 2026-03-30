@@ -88,6 +88,20 @@ def _normalize_public_access(raw: str | None) -> str:
     return "rw" if str(raw or "").strip().lower() == "rw" else "ro"
 
 
+def _normalize_public_column_order(raw) -> list[str]:
+    valid = ["backlog", "todo", "doing", "done"]
+    items = raw if isinstance(raw, list) else []
+    normalized: list[str] = []
+    for item in items:
+        key = str(item or "").strip().lower()
+        if key in valid and key not in normalized:
+            normalized.append(key)
+    for key in valid:
+        if key not in normalized:
+            normalized.append(key)
+    return normalized
+
+
 def _public_kanban_cfg(state: dict) -> dict:
     security = state.get("security") if isinstance(state.get("security"), dict) else {}
     share = security.get("public_kanban") if isinstance(security.get("public_kanban"), dict) else {}
@@ -97,6 +111,7 @@ def _public_kanban_cfg(state: dict) -> dict:
         "access": _normalize_public_access(share.get("access")),
         "project_id": str(share.get("project_id") or "").strip(),
         "expires_at": str(share.get("expires_at") or "").strip(),
+        "column_order": _normalize_public_column_order(share.get("column_order")),
     }
 
 
@@ -108,6 +123,7 @@ def _save_public_kanban_cfg(state: dict, cfg: dict) -> None:
         "access": _normalize_public_access(cfg.get("access")),
         "project_id": str(cfg.get("project_id") or "").strip(),
         "expires_at": str(cfg.get("expires_at") or "").strip(),
+        "column_order": _normalize_public_column_order(cfg.get("column_order")),
     }
     state["security"] = security
 
@@ -355,6 +371,7 @@ def public_kanban_share_save():
             "project_id": str(cfg.get("project_id") or ""),
             "token": str(cfg.get("token") or ""),
             "expires_at": str(cfg.get("expires_at") or ""),
+            "column_order": _normalize_public_column_order(cfg.get("column_order")),
             "url": share_url,
         },
     })
@@ -480,6 +497,7 @@ def public_kanban_state(token: str):
             "access": _normalize_public_access(cfg.get("access")),
             "project_id": project_id,
             "expires_at": str(cfg.get("expires_at") or ""),
+            "column_order": _normalize_public_column_order(cfg.get("column_order")),
         },
         "project": project_row if isinstance(project_row, dict) else {"id": project_id, "name": "Project"},
         "cards": cards,
@@ -498,12 +516,15 @@ def public_kanban_state_save(token: str):
 
     payload = request.get_json(silent=True) or {}
     incoming_cards = payload.get("cards") if isinstance(payload.get("cards"), list) else []
+    column_order = _normalize_public_column_order(payload.get("column_order"))
     project_id = str(cfg.get("project_id") or "").strip()
     cleaned_cards = [_sanitize_public_card(c, project_id) for c in incoming_cards if isinstance(c, dict)]
 
     all_cards = state.get("cards") if isinstance(state.get("cards"), list) else []
     other_cards = [c for c in all_cards if str((c or {}).get("project_id") or "") != project_id]
     state["cards"] = other_cards + cleaned_cards
+    cfg["column_order"] = column_order
+    _save_public_kanban_cfg(state, cfg)
 
     ws.state_json = _sanitize_state(state)
     ws.updated_by_user_id = None

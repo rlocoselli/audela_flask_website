@@ -24,6 +24,27 @@
     background: #ffffff !important;
     border-color: #d6deea !important;
   }
+  .pk-col-wrap {
+    transition: transform 0.15s ease, opacity 0.15s ease;
+  }
+  .pk-col-wrap.pk-col-dragging {
+    opacity: 0.6;
+    transform: scale(0.98);
+  }
+  .pk-col-wrap.pk-col-drop-target .pk-col {
+    outline: 2px dashed #4f7ecf;
+    outline-offset: 2px;
+  }
+  .pk-col-wrap.pk-col-drop-before .pk-col {
+    box-shadow: inset 4px 0 0 #4f7ecf;
+  }
+  .pk-col-wrap.pk-col-drop-after .pk-col {
+    box-shadow: inset -4px 0 0 #4f7ecf;
+  }
+  .pk-col-drag-handle {
+    color: #5f7190;
+    cursor: grab;
+  }
   .pk-light-wrap .pk-sprint-group {
     background: #f8fbff !important;
     border-color: #dbe5f3 !important;
@@ -151,27 +172,27 @@
   <div id="pk-status" class="small text-secondary mb-2"></div>
 
   <div class="row g-2" id="pk-board">
-    <div class="col-md-3">
+    <div class="col-md-3 pk-col-wrap" data-col-key="backlog">
       <div class="border rounded p-2 bg-body pk-col" data-col="backlog">
-        <div class="fw-semibold small mb-2">{{ _('Backlog') }}</div>
+        <div class="fw-semibold small mb-2 d-flex align-items-center justify-content-between"><span>{{ _('Backlog') }}</span><span class="pk-col-drag-handle" title="{{ _('Drag to move column') }}"><i class="bi bi-grip-horizontal"></i></span></div>
         <div class="d-grid gap-2 pk-col-body"></div>
       </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-3 pk-col-wrap" data-col-key="todo">
       <div class="border rounded p-2 bg-body pk-col" data-col="todo">
-        <div class="fw-semibold small mb-2">{{ _('To do') }}</div>
+        <div class="fw-semibold small mb-2 d-flex align-items-center justify-content-between"><span>{{ _('To do') }}</span><span class="pk-col-drag-handle" title="{{ _('Drag to move column') }}"><i class="bi bi-grip-horizontal"></i></span></div>
         <div class="d-grid gap-2 pk-col-body"></div>
       </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-3 pk-col-wrap" data-col-key="doing">
       <div class="border rounded p-2 bg-body pk-col" data-col="doing">
-        <div class="fw-semibold small mb-2">{{ _('In progress') }}</div>
+        <div class="fw-semibold small mb-2 d-flex align-items-center justify-content-between"><span>{{ _('In progress') }}</span><span class="pk-col-drag-handle" title="{{ _('Drag to move column') }}"><i class="bi bi-grip-horizontal"></i></span></div>
         <div class="d-grid gap-2 pk-col-body"></div>
       </div>
     </div>
-    <div class="col-md-3">
+    <div class="col-md-3 pk-col-wrap" data-col-key="done">
       <div class="border rounded p-2 bg-body pk-col" data-col="done">
-        <div class="fw-semibold small mb-2">{{ _('Done') }}</div>
+        <div class="fw-semibold small mb-2 d-flex align-items-center justify-content-between"><span>{{ _('Done') }}</span><span class="pk-col-drag-handle" title="{{ _('Drag to move column') }}"><i class="bi bi-grip-horizontal"></i></span></div>
         <div class="d-grid gap-2 pk-col-body"></div>
       </div>
     </div>
@@ -259,7 +280,8 @@ window.onReady(function(){
   const modeDefault = {{ access|tojson }};
   const initialLinkError = {{ 'true' if link_error else 'false' }};
   const stateUrl = {{ url_for('project.public_kanban_state', token=token)|tojson }};
-  const boardState = { cards: [], project: null, access: modeDefault || 'ro' };
+  const boardState = { cards: [], project: null, access: modeDefault || 'ro', column_order: ['backlog', 'todo', 'doing', 'done'] };
+  let draggedColumnKey = null;
   const statusEl = document.getElementById('pk-status');
   const updatedEl = document.getElementById('pk-updated');
   const expirationEl = document.getElementById('pk-expiration');
@@ -457,6 +479,26 @@ window.onReady(function(){
       project_id: String(raw.project_id || ''),
     };
   }
+  function normalizeKanbanColumnOrder(value){
+    const valid = ['backlog', 'todo', 'doing', 'done'];
+    const raw = Array.isArray(value) ? value : [];
+    const ordered = [];
+    raw.forEach(function(item){
+      const key = String(item || '').trim().toLowerCase();
+      if (valid.includes(key) && !ordered.includes(key)) ordered.push(key);
+    });
+    valid.forEach(function(key){ if (!ordered.includes(key)) ordered.push(key); });
+    return ordered;
+  }
+  function applyColumnOrderToDom(){
+    const board = document.getElementById('pk-board');
+    if (!board) return;
+    boardState.column_order = normalizeKanbanColumnOrder(boardState.column_order);
+    boardState.column_order.forEach(function(key){
+      const col = board.querySelector('.pk-col-wrap[data-col-key="' + key + '"]');
+      if (col) board.appendChild(col);
+    });
+  }
 
   function cardById(id){
     return boardState.cards.find(function(c){ return String(c.id) === String(id); }) || null;
@@ -498,6 +540,7 @@ window.onReady(function(){
     boardState.access = (payload.share && payload.share.access) || modeDefault || 'ro';
     boardState.project = payload.project || null;
     boardState.cards = Array.isArray(payload.cards) ? payload.cards.map(normalizeCard) : [];
+    boardState.column_order = normalizeKanbanColumnOrder(payload.share && payload.share.column_order);
 
     titleEl.textContent = (boardState.project && boardState.project.name) ? boardState.project.name : '{{ _('Public Kanban') }}';
     updatedEl.textContent = payload.updated_at ? ('{{ _('Updated at') }}: ' + payload.updated_at.replace('T', ' ').slice(0, 19)) : '';
@@ -514,6 +557,7 @@ window.onReady(function(){
   }
 
   function renderBoard(){
+    applyColumnOrderToDom();
     const cols = document.querySelectorAll('#pk-board .pk-col');
     cols.forEach(function(col){
       const body = col.querySelector('.pk-col-body');
@@ -583,7 +627,7 @@ window.onReady(function(){
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'omit',
-      body: JSON.stringify({ cards: boardState.cards }),
+      body: JSON.stringify({ cards: boardState.cards, column_order: boardState.column_order }),
     });
     const payload = await resp.json().catch(function(){ return {}; });
     if (!resp.ok || !payload.ok) {
@@ -597,6 +641,11 @@ window.onReady(function(){
   }
 
   function initDropzones(){
+    function clearColumnDropHints(){
+      document.querySelectorAll('#pk-board .pk-col-wrap').forEach(function(node){
+        node.classList.remove('pk-col-drop-target', 'pk-col-drop-before', 'pk-col-drop-after');
+      });
+    }
     document.querySelectorAll('#pk-board .pk-col-body').forEach(function(body){
       body.addEventListener('dragover', function(e){
         if (!canWrite()) return;
@@ -613,6 +662,55 @@ window.onReady(function(){
         card.col = col;
         renderBoard();
         saveState();
+      });
+    });
+    document.querySelectorAll('#pk-board .pk-col-wrap').forEach(function(colWrap){
+      if (colWrap.dataset.colDndInit === '1') return;
+      colWrap.dataset.colDndInit = '1';
+      colWrap.draggable = canWrite();
+      colWrap.addEventListener('dragstart', function(e){
+        if (!canWrite()) {
+          e.preventDefault();
+          return;
+        }
+        draggedColumnKey = String(colWrap.getAttribute('data-col-key') || '').trim();
+        if (!draggedColumnKey) return;
+        try { e.dataTransfer.setData('text/kanban-column', draggedColumnKey); } catch (__) {}
+        colWrap.classList.add('pk-col-dragging');
+      });
+      colWrap.addEventListener('dragover', function(e){
+        const targetKey = String(colWrap.getAttribute('data-col-key') || '').trim();
+        if (!canWrite() || !draggedColumnKey || !targetKey || draggedColumnKey === targetKey) return;
+        e.preventDefault();
+        const rect = colWrap.getBoundingClientRect();
+        const dropAfter = e.clientX > (rect.left + rect.width / 2);
+        clearColumnDropHints();
+        colWrap.classList.add('pk-col-drop-target');
+        colWrap.classList.add(dropAfter ? 'pk-col-drop-after' : 'pk-col-drop-before');
+      });
+      colWrap.addEventListener('dragleave', function(){
+        colWrap.classList.remove('pk-col-drop-target', 'pk-col-drop-before', 'pk-col-drop-after');
+      });
+      colWrap.addEventListener('drop', function(e){
+        const targetKey = String(colWrap.getAttribute('data-col-key') || '').trim();
+        const sourceKey = draggedColumnKey || (function(){ try { return e.dataTransfer.getData('text/kanban-column'); } catch (__) { return ''; } })();
+        const dropAfter = colWrap.classList.contains('pk-col-drop-after');
+        colWrap.classList.remove('pk-col-drop-target', 'pk-col-drop-before', 'pk-col-drop-after');
+        if (!canWrite() || !sourceKey || !targetKey || sourceKey === targetKey) return;
+        e.preventDefault();
+        const nextOrder = normalizeKanbanColumnOrder(boardState.column_order).filter(function(key){ return key !== sourceKey; });
+        const targetIdx = nextOrder.indexOf(targetKey);
+        const insertIdx = targetIdx < 0 ? nextOrder.length : (targetIdx + (dropAfter ? 1 : 0));
+        nextOrder.splice(insertIdx, 0, sourceKey);
+        boardState.column_order = normalizeKanbanColumnOrder(nextOrder);
+        applyColumnOrderToDom();
+        renderBoard();
+        saveState();
+      });
+      colWrap.addEventListener('dragend', function(){
+        draggedColumnKey = null;
+        colWrap.classList.remove('pk-col-dragging');
+        clearColumnDropHints();
       });
     });
   }
