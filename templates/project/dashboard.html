@@ -1816,6 +1816,7 @@
       let draggedCardId = null;
       let draggedColumnKey = null;
       let ganttIsMaximized = false;
+      let saveInFlight = null;
 
       function uid(){ return Math.random().toString(36).slice(2, 10); }
       function csrfToken(){ return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''; }
@@ -2768,21 +2769,27 @@
       }
 
       async function saveNow(){
+        if (saveInFlight) return saveInFlight;
         setStatus('{{ _('Sauvegarde...') }}', 'text-secondary');
-        try {
-          const res = await fetch(API_SAVE, {
-            method: 'POST',
-            headers: { 'Content-Type':'application/json', ...(csrfToken() ? {'X-CSRFToken': csrfToken()} : {}) },
-            body: JSON.stringify({ state: state })
-          });
-          const data = await res.json();
-          if (!res.ok || !data.ok) throw new Error('save failed');
-          fallbackSave();
-          setStatus('{{ _('Sauvegardé') }}', 'text-success');
-        } catch (e) {
-          fallbackSave();
-          setStatus('{{ _('Sauvegarde locale uniquement') }}', 'text-warning');
-        }
+        saveInFlight = (async function(){
+          try {
+            const res = await fetch(API_SAVE, {
+              method: 'POST',
+              headers: { 'Content-Type':'application/json', ...(csrfToken() ? {'X-CSRFToken': csrfToken()} : {}) },
+              body: JSON.stringify({ state: state })
+            });
+            const data = await res.json();
+            if (!res.ok || !data.ok) throw new Error('save failed');
+            fallbackSave();
+            setStatus('{{ _('Sauvegardé') }}', 'text-success');
+          } catch (e) {
+            fallbackSave();
+            setStatus('{{ _('Sauvegarde locale uniquement') }}', 'text-warning');
+          } finally {
+            saveInFlight = null;
+          }
+        })();
+        return saveInFlight;
       }
 
       let saveTimer = null;
@@ -4023,12 +4030,14 @@
           });
         }
         document.querySelectorAll('#pm-kanban [data-col] .pm-col-body').forEach(function(body){
+          if (body.dataset.cardDndInit === '1') return;
+          body.dataset.cardDndInit = '1';
           body.addEventListener('dragover', function(e){
             e.preventDefault();
             body.classList.add('border', 'border-primary');
           });
           body.addEventListener('dragleave', function(){ body.classList.remove('border-primary'); });
-          body.addEventListener('drop', function(e){
+          body.addEventListener('drop', async function(e){
             e.preventDefault();
             body.classList.remove('border-primary');
             const wrap = body.closest('[data-col]');
@@ -4041,7 +4050,7 @@
             draggedCardId = null;
             renderKanban();
             renderProductivityReport();
-            saveNow();
+            await saveNow();
           });
         });
         document.querySelectorAll('#pm-kanban .pm-kanban-col').forEach(function(colWrap){

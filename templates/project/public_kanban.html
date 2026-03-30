@@ -292,6 +292,7 @@ window.onReady(function(){
   const cardForm = document.getElementById('pk-card-form');
   const cardDeleteBtn = document.getElementById('pk-card-delete');
   const cardModal = cardModalEl && window.bootstrap ? window.bootstrap.Modal.getOrCreateInstance(cardModalEl) : null;
+  let saveInFlight = null;
 
   function uid(){ return Math.random().toString(36).slice(2, 10); }
   function canWrite(){ return (boardState.access || 'ro') === 'rw'; }
@@ -623,21 +624,29 @@ window.onReady(function(){
 
   async function saveState(){
     if (!canWrite()) return;
+    if (saveInFlight) return saveInFlight;
     setStatus('{{ _('Saving...') }}');
-    const resp = await fetch(stateUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'omit',
-      body: JSON.stringify({ cards: boardState.cards, column_order: boardState.column_order }),
-    });
-    const payload = await resp.json().catch(function(){ return {}; });
-    if (!resp.ok || !payload.ok) {
-      setStatus('{{ _('Save failed.') }}', 'small mb-2 text-danger');
-      return;
-    }
-    setStatus('{{ _('Saved') }}', 'small mb-2 text-success');
-    if (payload.updated_at) {
-      updatedEl.textContent = '{{ _('Updated at') }}: ' + payload.updated_at.replace('T', ' ').slice(0, 19);
+    saveInFlight = (async function(){
+      const resp = await fetch(stateUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'omit',
+        body: JSON.stringify({ cards: boardState.cards, column_order: boardState.column_order }),
+      });
+      const payload = await resp.json().catch(function(){ return {}; });
+      if (!resp.ok || !payload.ok) {
+        setStatus('{{ _('Save failed.') }}', 'small mb-2 text-danger');
+        return;
+      }
+      setStatus('{{ _('Saved') }}', 'small mb-2 text-success');
+      if (payload.updated_at) {
+        updatedEl.textContent = '{{ _('Updated at') }}: ' + payload.updated_at.replace('T', ' ').slice(0, 19);
+      }
+    })();
+    try {
+      await saveInFlight;
+    } finally {
+      saveInFlight = null;
     }
   }
 
@@ -648,11 +657,13 @@ window.onReady(function(){
       });
     }
     document.querySelectorAll('#pk-board .pk-col-body').forEach(function(body){
+      if (body.dataset.cardDndInit === '1') return;
+      body.dataset.cardDndInit = '1';
       body.addEventListener('dragover', function(e){
         if (!canWrite()) return;
         e.preventDefault();
       });
-      body.addEventListener('drop', function(e){
+      body.addEventListener('drop', async function(e){
         if (!canWrite()) return;
         e.preventDefault();
         const id = e.dataTransfer.getData('text/plain');
@@ -662,7 +673,7 @@ window.onReady(function(){
         if (!col) return;
         card.col = col;
         renderBoard();
-        saveState();
+        await saveState();
       });
     });
     document.querySelectorAll('#pk-board .pk-col-wrap').forEach(function(colWrap){
