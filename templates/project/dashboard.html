@@ -534,6 +534,7 @@
           <tr>
             <th style="width:60px;">#</th>
             <th>{{ _('Tâche') }}</th>
+            <th>{{ _('Type') }}</th>
             <th>{{ _('Responsable') }}</th>
             <th>{{ _('Prédécesseur') }}</th>
             <th>{{ _('Type lien') }}</th>
@@ -1279,7 +1280,7 @@
     background: linear-gradient(90deg, rgba(39, 167, 69, 0.8) 0%, rgba(39, 167, 69, 0.4) 100%);
   }
   #pm-gantt-table {
-    min-width: 2280px;
+    min-width: 2760px;
   }
   #pm-gantt-table thead th {
     position: sticky;
@@ -1309,7 +1310,14 @@
   #pm-gantt-table td:nth-child(3),
   #pm-gantt-table th:nth-child(3) {
     position: sticky;
-    left: 272px;
+    left: 332px;
+    z-index: 3;
+    background: var(--bs-body-bg);
+  }
+  #pm-gantt-table td:nth-child(4),
+  #pm-gantt-table th:nth-child(4) {
+    position: sticky;
+    left: 512px;
     z-index: 3;
     background: var(--bs-body-bg);
   }
@@ -1319,43 +1327,104 @@
   #pm-gantt-table th:nth-child(1),
   #pm-gantt-table td:nth-child(1) { min-width: 52px; }
   #pm-gantt-table th:nth-child(2),
-  #pm-gantt-table td:nth-child(2) { min-width: 220px; }
+  #pm-gantt-table td:nth-child(2) { min-width: 280px; }
   #pm-gantt-table th:nth-child(3),
-  #pm-gantt-table td:nth-child(3) { min-width: 150px; }
+  #pm-gantt-table td:nth-child(3) { min-width: 180px; }
   #pm-gantt-table th:nth-child(4),
   #pm-gantt-table td:nth-child(4) { min-width: 170px; }
   #pm-gantt-table th:nth-child(5),
-  #pm-gantt-table td:nth-child(5) { min-width: 95px; }
+  #pm-gantt-table td:nth-child(5) { min-width: 180px; }
   #pm-gantt-table th:nth-child(6),
-  #pm-gantt-table td:nth-child(6) { min-width: 90px; }
+  #pm-gantt-table td:nth-child(6) { min-width: 95px; }
   #pm-gantt-table th:nth-child(7),
-  #pm-gantt-table td:nth-child(7) { min-width: 130px; }
+  #pm-gantt-table td:nth-child(7) { min-width: 90px; }
   #pm-gantt-table th:nth-child(8),
-  #pm-gantt-table td:nth-child(8) { min-width: 120px; }
+  #pm-gantt-table td:nth-child(8) { min-width: 130px; }
   #pm-gantt-table th:nth-child(9),
-  #pm-gantt-table td:nth-child(9),
+  #pm-gantt-table td:nth-child(9) { min-width: 120px; }
   #pm-gantt-table th:nth-child(10),
-  #pm-gantt-table td:nth-child(10) { min-width: 125px; }
+  #pm-gantt-table td:nth-child(10),
   #pm-gantt-table th:nth-child(11),
-  #pm-gantt-table td:nth-child(11) { min-width: 95px; }
+  #pm-gantt-table td:nth-child(11) { min-width: 125px; }
   #pm-gantt-table th:nth-child(12),
-  #pm-gantt-table td:nth-child(12) { min-width: 100px; }
+  #pm-gantt-table td:nth-child(12) { min-width: 95px; }
   #pm-gantt-table th:nth-child(13),
-  #pm-gantt-table td:nth-child(13) { min-width: 120px; }
+  #pm-gantt-table td:nth-child(13) { min-width: 100px; }
   #pm-gantt-table th:nth-child(14),
-  #pm-gantt-table td:nth-child(14) { min-width: 95px; }
+  #pm-gantt-table td:nth-child(14) { min-width: 120px; }
   #pm-gantt-table th:nth-child(15),
-  #pm-gantt-table td:nth-child(15) { min-width: 150px; }
+  #pm-gantt-table td:nth-child(15) { min-width: 95px; }
   #pm-gantt-table th:nth-child(16),
-  #pm-gantt-table td:nth-child(16) { min-width: 110px; }
+  #pm-gantt-table td:nth-child(16) { min-width: 150px; }
   #pm-gantt-table th:nth-child(17),
-  #pm-gantt-table td:nth-child(17),
+  #pm-gantt-table td:nth-child(17) { min-width: 110px; }
   #pm-gantt-table th:nth-child(18),
-  #pm-gantt-table td:nth-child(18) { min-width: 120px; }
+  #pm-gantt-table td:nth-child(18),
   #pm-gantt-table th:nth-child(19),
-  #pm-gantt-table td:nth-child(19) {
-    min-width: 640px;
+  #pm-gantt-table td:nth-child(19) { min-width: 120px; }
+  #pm-gantt-table th:nth-child(20),
+  #pm-gantt-table td:nth-child(20) {
+    min-width: 1040px;
     width: 42%;
+  }
+  #pm-section-gantt .table-responsive {
+    max-height: 74vh;
+    overflow: auto;
+  }
+  #pm-kanban {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.85rem;
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+  }
+  #pm-kanban .pm-kanban-col {
+    flex: 0 0 380px;
+    max-width: 380px;
+  }
+  #pm-kanban .pm-col-body {
+    min-height: 60vh;
+  }
+  @media (min-width: 1600px) {
+    #pm-kanban .pm-kanban-col {
+      flex-basis: 420px;
+      max-width: 420px;
+    }
+    #pm-gantt-table {
+      min-width: 2920px;
+    }
+    #pm-gantt-table th:nth-child(20),
+    #pm-gantt-table td:nth-child(20) {
+      min-width: 1160px;
+    }
+  }
+  @media (min-width: 1920px) {
+    #pm-kanban .pm-kanban-col {
+      flex-basis: 460px;
+      max-width: 460px;
+    }
+    #pm-kanban .pm-col-body {
+      min-height: 64vh;
+    }
+    #pm-gantt-table {
+      min-width: 3120px;
+    }
+    #pm-gantt-table th:nth-child(20),
+    #pm-gantt-table td:nth-child(20) {
+      min-width: 1320px;
+    }
+    #pm-section-gantt .table-responsive {
+      max-height: 78vh;
+    }
+  }
+  @media (max-width: 991.98px) {
+    #pm-kanban .pm-kanban-col {
+      flex-basis: 320px;
+      max-width: 320px;
+    }
+    #pm-kanban .pm-col-body {
+      min-height: 48vh;
+    }
   }
   #pm-kanban [data-col] {
     border-color: #d6deea !important;
@@ -1846,6 +1915,55 @@
         const x = (v || '').toString().trim().toUpperCase();
         if (x === 'FS' || x === 'SS' || x === 'FF' || x === 'SF') return x;
         return 'FS';
+      }
+      function taskTypeNorm(v){
+        const x = (v || '').toString().trim().toLowerCase();
+        if (x === 'group' || x === 'task') return x;
+        return 'task';
+      }
+      function parentIdNorm(v){
+        const raw = (v || '').toString().trim();
+        return raw ? raw : null;
+      }
+      function ganttChildrenMap(tasks){
+        const rows = Array.isArray(tasks) ? tasks : [];
+        const byParent = new Map();
+        rows.forEach(function(t){
+          const key = parentIdNorm(t && t.parent_id) || '__root__';
+          if (!byParent.has(key)) byParent.set(key, []);
+          byParent.get(key).push(t);
+        });
+        return byParent;
+      }
+      function flattenGanttHierarchy(tasks){
+        const rows = Array.isArray(tasks) ? tasks : [];
+        const byId = new Map();
+        rows.forEach(function(t){ byId.set(String(t.id), t); });
+        rows.forEach(function(t){
+          const pid = parentIdNorm(t.parent_id);
+          if (pid && (!byId.has(pid) || pid === String(t.id))) {
+            t.parent_id = null;
+          }
+        });
+
+        const children = ganttChildrenMap(rows);
+        const ordered = [];
+        const seen = new Set();
+
+        function visit(node, level, ancestry){
+          const id = String(node.id);
+          if (seen.has(id) || ancestry.has(id)) return;
+          seen.add(id);
+          ordered.push({ task: node, level: level });
+          const nextAncestry = new Set(ancestry);
+          nextAncestry.add(id);
+          const childRows = children.get(id) || [];
+          childRows.forEach(function(ch){ visit(ch, level + 1, nextAncestry); });
+        }
+
+        (children.get('__root__') || []).forEach(function(root){ visit(root, 0, new Set()); });
+        rows.forEach(function(t){ if (!seen.has(String(t.id))) visit(t, 0, new Set()); });
+        return ordered;
       }
 
       function sanitize(){
@@ -2620,6 +2738,7 @@
       }
       function applyDependenciesSchedule(task, tasks){
         if (!ganttView.autoSchedule || !task) return;
+        if (taskTypeNorm(task.type) === 'group') return;
         const rows = Array.isArray(tasks) ? tasks : currentProjectGantt();
         const byId = new Map();
         rows.forEach(function(x){ byId.set(String(x.id), x); });
@@ -2643,6 +2762,8 @@
         const item = Object.assign({}, task || {});
         item.id = item.id || uid();
         item.task = (item.task || '').toString();
+        item.type = taskTypeNorm(item.type);
+        item.parent_id = parentIdNorm(item.parent_id);
         item.owner = (item.owner || '').toString().trim();
         item.project_id = item.project_id || state.selected_project_id;
         item.duration_days = Math.max(1, Math.round(num(item.duration_days || 1)));
@@ -3583,27 +3704,32 @@
             grouped[groupName].forEach(function(c){
             const item = document.createElement('div');
             item.className = 'text-start border rounded p-2 bg-body-tertiary pm-kanban-card';
-            item.style.cursor = 'grab';
-            item.draggable = true;
+            item.style.cursor = canWrite() ? 'grab' : 'default';
+            item.draggable = canWrite();
             item.dataset.cardId = c.id;
             const cardDescription = (c.description || '').toString().trim();
+            const safeTitle = (c.title || '').toString().replace(/</g, '&lt;').replace(/>/g, '&gt;');
             const cardDescriptionHtml = cardDescription
               ? '<div class="small text-secondary mt-1">' + cardDescription.replace(/</g, '&lt;').replace(/>/g, '&gt;').slice(0, 180) + (cardDescription.length > 180 ? '…' : '') + '</div>'
               : '';
-            item.innerHTML = '<div class="fw-semibold small mb-1 pm-card-title-line">' + cardIconHtml(c.icon) + '<span>' + c.title + '</span></div>' +
+            item.innerHTML = '<div class="fw-semibold small mb-1 pm-card-title-line">' + cardIconHtml(c.icon) + '<span>' + safeTitle + '</span></div>' +
               '<div class="pm-card-owners">' + ownersInlineHtml(c) + '</div>' +
               cardDescriptionHtml +
               '<div class="d-flex flex-wrap gap-1 mt-1"><span class="badge text-bg-' + priorityBadge(c.priority) + '" title="{{ _('Priorité') }}"><span class="me-1" aria-hidden="true">' + priorityIcon(c.priority) + '</span>' + priorityLabel(c.priority) + '</span>' +
               '<span class="badge text-bg-light border">' + sprintLabel(c) + '</span>' +
               (c.due_date ? '<span class="badge text-bg-light border">' + c.due_date + '</span>' : '') + '</div>';
             item.addEventListener('dragstart', function(e){
+              if (!canWrite()) {
+                e.preventDefault();
+                return;
+              }
               e.stopPropagation();
               draggedCardId = c.id;
               try { e.dataTransfer.setData('text/plain', c.id); } catch (__) {}
               item.style.opacity = '0.6';
             });
             item.addEventListener('dragend', function(){ item.style.opacity = '1'; });
-            item.addEventListener('click', function(){ openTodoModal(c); });
+            item.addEventListener('click', function(){ if (canWrite()) openTodoModal(c); });
             groupList.appendChild(item);
           });
 
@@ -4033,11 +4159,13 @@
           if (body.dataset.cardDndInit === '1') return;
           body.dataset.cardDndInit = '1';
           body.addEventListener('dragover', function(e){
+            if (!canWrite()) return;
             e.preventDefault();
             body.classList.add('border', 'border-primary');
           });
           body.addEventListener('dragleave', function(){ body.classList.remove('border-primary'); });
           body.addEventListener('drop', async function(e){
+            if (!canWrite()) return;
             e.preventDefault();
             body.classList.remove('border-primary');
             const wrap = body.closest('[data-col]');
@@ -4086,8 +4214,21 @@
           colWrap.addEventListener('drop', function(e){
             const targetKey = String(colWrap.getAttribute('data-col-key') || '').trim();
             const sourceKey = draggedColumnKey || (function(){ try { return e.dataTransfer.getData('text/kanban-column'); } catch (__) { return ''; } })();
+            const cardDropId = draggedCardId || (function(){ try { return e.dataTransfer.getData('text/plain'); } catch (__) { return ''; } })();
             const dropAfter = colWrap.classList.contains('pm-col-drop-after');
             colWrap.classList.remove('pm-col-drop-target', 'pm-col-drop-before', 'pm-col-drop-after');
+            if (canWrite() && cardDropId && !sourceKey) {
+              e.preventDefault();
+              const card = state.cards.find(function(x){ return x.id === cardDropId; });
+              if (card && card.project_id === state.selected_project_id) {
+                card.col = targetKey;
+                draggedCardId = null;
+                renderKanban();
+                renderProductivityReport();
+                scheduleSave();
+              }
+              return;
+            }
             if (!canWrite() || !sourceKey || !targetKey || sourceKey === targetKey) return;
             e.preventDefault();
             const nextOrder = currentKanbanColumnOrder().filter(function(key){ return key !== sourceKey; });
@@ -4270,6 +4411,7 @@
       }
 
       function applyPredecessor(task){
+        if (taskTypeNorm(task && task.type) === 'group') return;
         applyDependenciesSchedule(task, currentProjectGantt());
       }
 
@@ -4485,6 +4627,8 @@
           return;
         }
 
+        const orderedRows = flattenGanttHierarchy(tasks);
+
         const allStart = tasks.map(g => dt(g.start)).filter(Boolean);
         const allEnd = tasks.map(g => dt(g.end)).filter(Boolean);
         if (!allStart.length || !allEnd.length) {
@@ -4582,7 +4726,9 @@
             '<div class="pm-gantt-timeline-days" style="width:' + trackWidth + 'px">' + days.join('') + '</div>';
         }
 
-        tasks.forEach(function(g, rowIndex){
+        orderedRows.forEach(function(entry, rowIndex){
+          const g = entry.task;
+          const level = Math.max(0, Number(entry.level || 0));
           const s = dt(g.start), e = dt(g.end); if (!s || !e) return;
           const leftPx = dayOffset(min, s) * unitPx;
           const widthPx = Math.max(unitPx, daysBetween(s, e) * unitPx);
@@ -4590,8 +4736,15 @@
 
           const dep = normalizeTaskDependencies(g)[0] || null;
 
+          const parentOptions = ['<option value="">-</option>'].concat(
+            allTasks.filter(function(x){ return x.id !== g.id && taskTypeNorm(x.type) === 'group'; }).map(function(x){
+              const selected = String(parentIdNorm(g.parent_id) || '') === String(x.id) ? ' selected' : '';
+              return '<option value="' + x.id + '"' + selected + '>' + (x.task || '{{ _('Groupe') }}') + '</option>';
+            })
+          ).join('');
+
           const predecessorOptions = ['<option value="">-</option>'].concat(
-            allTasks.filter(function(x){ return x.id !== g.id; }).map(function(x, idx){
+            allTasks.filter(function(x){ return x.id !== g.id && taskTypeNorm(x.type) !== 'group'; }).map(function(x, idx){
               const selected = dep && String(x.id) === String(dep.task_id) ? ' selected' : '';
               return '<option value="' + x.id + '"' + selected + '>' + (idx + 1) + ' - ' + (x.task || 'Task') + (x.owner ? ' (' + x.owner + ')' : '') + '</option>';
             })
@@ -4644,9 +4797,12 @@
 
           const tr = document.createElement('tr');
           tr.className = trClass;
+          const isGroup = taskTypeNorm(g.type) === 'group';
+          const indentPx = (level * 18);
           tr.innerHTML =
             '<td class="text-secondary">' + (rowIndex + 1) + '</td>' +
-            '<td><input class="form-control form-control-sm" data-field="task" data-id="' + g.id + '" value="' + (g.task || '') + '"></td>' +
+            '<td><div class="d-flex align-items-center gap-1"><button class="btn btn-sm btn-outline-secondary" type="button" data-gantt-outdent="' + g.id + '" title="{{ _('Remonter d\'un niveau') }}">&larr;</button><button class="btn btn-sm btn-outline-secondary" type="button" data-gantt-indent="' + g.id + '" title="{{ _('Indenter sous la tâche précédente') }}">&rarr;</button><input class="form-control form-control-sm" style="margin-left:' + indentPx + 'px; font-weight:' + (isGroup ? '700' : '400') + ';" data-field="task" data-id="' + g.id + '" value="' + (g.task || '') + '"></div></td>' +
+            '<td><select class="form-select form-select-sm" data-field="type" data-id="' + g.id + '"><option value="task"' + (isGroup ? '' : ' selected') + '>{{ _('Tâche') }}</option><option value="group"' + (isGroup ? ' selected' : '') + '>{{ _('Groupe') }}</option></select><select class="form-select form-select-sm mt-1" data-field="parent_id" data-id="' + g.id + '">' + parentOptions + '</select></td>' +
             '<td><input class="form-control form-control-sm" list="pm-managers-datalist" data-field="owner" data-id="' + g.id + '" value="' + (g.owner || '') + '"></td>' +
             '<td><select class="form-select form-select-sm" data-field="predecessor_id" data-id="' + g.id + '">' + predecessorOptions + '</select></td>' +
             '<td><select class="form-select form-select-sm" data-field="dependency_type" data-id="' + g.id + '">' +
@@ -4686,10 +4842,61 @@
               '</div>' +
               '<div class="small text-secondary mt-1 pm-gantt-timeline-meta"><span class="badge rounded-pill ' + statusBadgeClass + '">' + statusLabel + '</span><span>' + fmtDate(g.start) + ' → ' + fmtDate(g.end) + (ganttView.showBaseline && baselineWidthPx > 0 ? (' · BL: ' + fmtDate(g.baseline_start) + ' → ' + fmtDate(g.baseline_end)) : '') + '</span></div>' +
             '</td>';
+          if (isGroup) {
+            tr.querySelector('[data-field="predecessor_id"]').disabled = true;
+            tr.querySelector('[data-field="dependency_type"]').disabled = true;
+            tr.querySelector('[data-field="lag_days"]').disabled = true;
+          }
           if (!canWrite()) {
             tr.querySelectorAll('input,select').forEach(function(ctrl){ ctrl.disabled = true; });
+            tr.querySelectorAll('[data-gantt-indent],[data-gantt-outdent]').forEach(function(ctrl){ ctrl.disabled = true; });
           }
           tbody.appendChild(tr);
+        });
+
+        function isDescendantTask(candidateParentId, childId){
+          let cursor = parentIdNorm(candidateParentId);
+          let guard = 0;
+          while (cursor && guard < 1000) {
+            if (String(cursor) === String(childId)) return true;
+            const found = state.gantt.find(function(x){ return String(x.id) === String(cursor); });
+            cursor = found ? parentIdNorm(found.parent_id) : null;
+            guard += 1;
+          }
+          return false;
+        }
+
+        tbody.querySelectorAll('[data-gantt-indent]').forEach(function(btn){
+          btn.addEventListener('click', function(){
+            if (!canWrite()) return;
+            const id = String(btn.getAttribute('data-gantt-indent') || '');
+            const currentIdx = allTasks.findIndex(function(x){ return String(x.id) === id; });
+            if (currentIdx <= 0) return;
+            const previous = allTasks[currentIdx - 1];
+            const task = allTasks[currentIdx];
+            if (!task || !previous) return;
+            const parentCandidate = taskTypeNorm(previous.type) === 'group' ? previous : null;
+            if (!parentCandidate) return;
+            if (isDescendantTask(parentCandidate.id, task.id)) return;
+            task.parent_id = String(parentCandidate.id);
+            if (task.predecessor_id && String(task.predecessor_id) === String(parentCandidate.id)) {
+              task.predecessor_id = null;
+              task.dependencies = [];
+            }
+            renderGantt();
+            scheduleSave();
+          });
+        });
+        tbody.querySelectorAll('[data-gantt-outdent]').forEach(function(btn){
+          btn.addEventListener('click', function(){
+            if (!canWrite()) return;
+            const id = String(btn.getAttribute('data-gantt-outdent') || '');
+            const task = allTasks.find(function(x){ return String(x.id) === id; });
+            if (!task) return;
+            task.parent_id = null;
+            renderGantt();
+            scheduleSave();
+          });
         });
 
         tbody.querySelectorAll('input[data-id],select[data-id]').forEach(function(el){
@@ -4703,13 +4910,32 @@
             else if (field === 'lag_days') task[field] = Math.round(num(el.value || 0));
             else if (field === 'progress_pct') task[field] = Math.max(0, Math.min(100, Math.round(num(el.value || 0))));
             else if (field === 'status') task[field] = statusNorm(el.value || 'not_started');
+            else if (field === 'type') task[field] = taskTypeNorm(el.value || 'task');
+            else if (field === 'parent_id') task[field] = parentIdNorm(el.value || null);
             else task[field] = el.value || '';
 
             normalizeTaskDependencies(task);
 
+            if (field === 'type' && task.type === 'group') {
+              task.predecessor_id = null;
+              task.dependencies = [];
+              task.dependency_type = 'FS';
+              task.lag_days = 0;
+            }
+
+            if (field === 'parent_id') {
+              if (task.parent_id && (task.parent_id === String(task.id) || isDescendantTask(task.parent_id, task.id))) {
+                task.parent_id = null;
+              }
+            }
+
             if (field === 'owner') upsertManager(task.owner);
 
             if (field === 'predecessor_id') {
+              if (task.type === 'group') {
+                task.predecessor_id = null;
+                task.dependencies = [];
+              }
               task.predecessor_id = task.predecessor_id || null;
               if (task.predecessor_id) {
                 task.dependencies = [{ task_id: task.predecessor_id, type: depTypeNorm(task.dependency_type), lag_days: Math.round(num(task.lag_days || 0)) }];
@@ -4718,7 +4944,7 @@
               }
               applyPredecessor(task);
             } else if (field === 'dependency_type' || field === 'lag_days') {
-              if (task.predecessor_id) {
+              if (task.predecessor_id && task.type !== 'group') {
                 task.dependencies = [{ task_id: task.predecessor_id, type: depTypeNorm(task.dependency_type), lag_days: Math.round(num(task.lag_days || 0)) }];
               }
               applyPredecessor(task);
@@ -5292,12 +5518,16 @@
 
       document.getElementById('pm-add-gantt').addEventListener('click', function(){
         const ganttTasks = currentProjectGantt();
-        const predecessorSelect = ['<option value="">-</option>'].concat(ganttTasks.map(function(t, idx){
+        const predecessorSelect = ['<option value="">-</option>'].concat(ganttTasks.filter(function(t){ return taskTypeNorm(t.type) !== 'group'; }).map(function(t, idx){
           return '<option value="' + t.id + '">' + (idx + 1) + ' - ' + (t.task || '{{ _('Tâche') }}') + '</option>';
+        })).join('');
+        const parentSelect = ['<option value="">-</option>'].concat(ganttTasks.filter(function(t){ return taskTypeNorm(t.type) === 'group'; }).map(function(t){
+          return '<option value="' + t.id + '">' + (t.task || '{{ _('Groupe') }}') + '</option>';
         })).join('');
         document.getElementById('simpleModalTitle').textContent = '{{ _('Ajouter tâche') }}';
         document.getElementById('simpleModalBody').innerHTML =
           '<div class="mb-2"><label class="form-label">{{ _('Tâche') }}</label><input class="form-control" name="task" required></div>' +
+          '<div class="row g-2 mb-2"><div class="col"><label class="form-label">{{ _('Type') }}</label><select class="form-select" name="type"><option value="task" selected>{{ _('Tâche') }}</option><option value="group">{{ _('Groupe') }}</option></select></div><div class="col"><label class="form-label">{{ _('Parent (groupe)') }}</label><select class="form-select" name="parent_id">' + parentSelect + '</select></div></div>' +
           '<div class="mb-2"><label class="form-label">{{ _('Responsable') }}</label><input class="form-control" name="owner" list="pm-managers-datalist"></div>' +
           '<div class="row g-2 mb-2"><div class="col"><label class="form-label">{{ _('Début') }}</label><input type="date" class="form-control" name="start" required></div><div class="col"><label class="form-label">{{ _('Durée (j)') }}</label><input type="number" min="1" class="form-control" name="duration_days" value="1" required></div></div>' +
           '<div class="row g-2 mb-2"><div class="col"><label class="form-label">{{ _('Statut') }}</label><select class="form-select" name="status"><option value="not_started">{{ _('Non démarré') }}</option><option value="in_progress">{{ _('En cours') }}</option><option value="done">{{ _('Terminé') }}</option><option value="blocked">{{ _('Bloqué') }}</option></select></div><div class="col"><label class="form-label">{{ _('Avancement %') }}</label><input type="number" min="0" max="100" class="form-control" name="progress_pct" value="0"></div></div>' +
@@ -5392,6 +5622,8 @@
           const duration = Math.max(1, Number(fd.get('duration_days') || 1));
           const startDate = dt(start);
           const end = startDate ? fmtDate(addDays(startDate, duration - 1)) : start;
+          const taskType = taskTypeNorm((fd.get('type') || '').toString() || 'task');
+          const parentId = parentIdNorm((fd.get('parent_id') || '').toString());
           const predecessorId = ((fd.get('predecessor_id') || '').toString() || null);
           const dependencyType = depTypeNorm((fd.get('dependency_type') || '').toString() || 'FS');
           const lagDays = Math.round(num(fd.get('lag_days') || 0));
@@ -5399,6 +5631,8 @@
             id: uid(),
             project_id: state.selected_project_id,
             task: (fd.get('task') || '').toString(),
+            type: taskType,
+            parent_id: parentId,
             owner: (fd.get('owner') || '').toString(),
             predecessor_id: predecessorId,
             dependency_type: dependencyType,
@@ -5412,6 +5646,12 @@
             baseline_end: '',
             duration_days: duration,
           };
+          if (row.parent_id && row.parent_id === String(row.id)) row.parent_id = null;
+          if (row.type === 'group') {
+            row.predecessor_id = null;
+            row.dependency_type = 'FS';
+            row.lag_days = 0;
+          }
           row.dependencies = row.predecessor_id ? [{ task_id: row.predecessor_id, type: dependencyType, lag_days: lagDays }] : [];
           upsertManager(row.owner);
           applyPredecessor(row);
