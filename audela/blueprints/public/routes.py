@@ -837,7 +837,17 @@ def metabase():
 @bp.route("/plans")
 def plans():
     plans = SubscriptionService.get_available_plans(include_internal=False)
-    selected_product = (request.args.get("product") or "finance").strip().lower()
+    raw_product = (request.args.get("product") or "").strip()
+    selected_product = raw_product.lower() or "finance"
+    valid_products = {"finance", "bi", "credit", "project", "ifrs9", "all"}
+
+    if raw_product and selected_product not in valid_products:
+        return redirect(url_for("public.plans"), code=301)
+
+    if raw_product and raw_product != selected_product:
+        if selected_product == "finance":
+            return redirect(url_for("public.plans"), code=301)
+        return redirect(url_for("public.plans", product=selected_product), code=301)
 
     def _has_project(plan) -> bool:
         features = plan.features_json if isinstance(plan.features_json, dict) else {}
@@ -987,6 +997,11 @@ def sitemap_xml():
     entries = [
         (_abs("public.index"), "weekly", "1.0"),
         (_abs("public.plans"), "weekly", "0.9"),
+        (_abs("public.plans") + "?product=bi", "weekly", "0.8"),
+        (_abs("public.plans") + "?product=credit", "weekly", "0.8"),
+        (_abs("public.plans") + "?product=project", "weekly", "0.8"),
+        (_abs("public.plans") + "?product=ifrs9", "weekly", "0.8"),
+        (_abs("public.plans") + "?product=all", "weekly", "0.7"),
         (_abs("public.product_finance"), "weekly", "0.9"),
         (_abs("public.product_bi"), "weekly", "0.9"),
         (_abs("public.product_credit"), "weekly", "0.9"),

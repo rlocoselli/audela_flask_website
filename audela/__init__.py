@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from urllib.parse import urlencode, urlsplit, urlunsplit
 
 from flask import Flask
 from flask import g, request, session, redirect
@@ -14,6 +15,34 @@ from .config import DevConfig, ProdConfig
 from .extensions import csrf, db, login_manager, migrate, mail
 from .models.core import User
 from .i18n import DEFAULT_LANG, SUPPORTED_LANGS, TRANSLATIONS, best_lang_from_accept_language, normalize_lang, tr
+
+
+def _configured_site_parts(app: Flask):
+    site_url = str(app.config.get("SITE_URL") or "").strip().rstrip("/")
+    if not site_url:
+        return None
+
+    parts = urlsplit(site_url)
+    if not parts.scheme or not parts.netloc:
+        return None
+    return parts
+
+
+def _canonical_request_url(app: Flask, include_query_params: list[str] | tuple[str, ...] | None = None) -> str:
+    site_parts = _configured_site_parts(app)
+    scheme = site_parts.scheme if site_parts else request.scheme
+    netloc = site_parts.netloc if site_parts else request.host
+
+    allowed_params = {str(key).strip() for key in (include_query_params or []) if str(key).strip()}
+    query_items: list[tuple[str, str]] = []
+    if allowed_params:
+        for key in sorted(allowed_params):
+            for value in request.args.getlist(key):
+                if value:
+                    query_items.append((key, value))
+
+    query = urlencode(query_items, doseq=True)
+    return urlunsplit((scheme, netloc, request.path or "/", query, ""))
 
 
 def _is_flask_db_command() -> bool:
@@ -210,6 +239,38 @@ def create_app() -> Flask:
         sess_lang = normalize_lang(session.get("lang")) if session.get("lang") else None
         g.lang = sess_lang or best_lang_from_accept_language(request.headers.get("Accept-Language"))
 
+    @app.before_request
+    def _redirect_public_canonical_host():  # noqa: ANN001
+        if request.method not in {"GET", "HEAD"}:
+            return None
+        if str(os.environ.get("FLASK_ENV", "development")).lower() != "production":
+            return None
+        if request.blueprint != "public":
+            return None
+
+        site_parts = _configured_site_parts(app)
+        if not site_parts:
+            return None
+
+        current_scheme = request.headers.get("X-Forwarded-Proto", request.scheme).split(",", 1)[0].strip().lower()
+        current_netloc = request.host.lower()
+        target_netloc = site_parts.netloc.lower()
+        if current_scheme == site_parts.scheme.lower() and current_netloc == target_netloc:
+            return None
+
+        return redirect(
+            urlunsplit(
+                (
+                    site_parts.scheme,
+                    site_parts.netloc,
+                    request.path or "/",
+                    request.query_string.decode("utf-8") if request.query_string else "",
+                    "",
+                )
+            ),
+            code=301,
+        )
+
     @app.context_processor
     def _inject_i18n() -> dict:  # noqa: ANN001
         def _(msgid: str, **kwargs):
@@ -225,9 +286,23 @@ def create_app() -> Flask:
             _merged.update(TRANSLATIONS.get("pt", {}))
 
         app_release = str(app.config.get("APP_RELEASE", "dev"))
+        site_parts = _configured_site_parts(app)
 
         def static_asset_url(filename: str) -> str:
             return url_for("static", filename=filename, v=app_release)
+
+        def canonical_url(include_query_params: list[str] | tuple[str, ...] | None = None) -> str:
+            return _canonical_request_url(app, include_query_params=include_query_params)
+
+        site_root_url = urlunsplit(
+            (
+                site_parts.scheme,
+                site_parts.netloc,
+                "/",
+                "",
+                "",
+            )
+        ) if site_parts else request.url_root
 
         return {
             "_": _,
@@ -239,6 +314,8 @@ def create_app() -> Flask:
             "tenant": getattr(g, "tenant", None),
             "app_release": app_release,
             "static_asset_url": static_asset_url,
+            "canonical_url": canonical_url,
+            "site_root_url": site_root_url,
 
         }
 

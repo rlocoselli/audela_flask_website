@@ -1,11 +1,33 @@
 {% extends "base.html" %}
 
-{% block title %}{{ _('Plans – AUDELA') }}{% endblock %}
-{% block meta_description %}{{ _('Découvrez les plans AUDELA pour Audela Credit, BI française, finance et gestion de projet. Comparez les offres, fonctionnalités et choisissez la solution adaptée à votre organisation.') }}{% endblock %}
-{% block og_title %}{{ _('Plans Audela Credit, BI, Finance et Projet – AUDELA') }}{% endblock %}
-{% block og_description %}{{ _('Découvrez les plans AUDELA pour Audela Credit, BI française, finance et gestion de projet. Comparez les offres, fonctionnalités et choisissez la solution adaptée à votre organisation.') }}{% endblock %}
-{% block twitter_title %}{{ _('Plans Audela Credit, BI, Finance et Projet – AUDELA') }}{% endblock %}
-{% block twitter_description %}{{ _('Découvrez les plans AUDELA pour Audela Credit, BI française, finance et gestion de projet. Comparez les offres, fonctionnalités et choisissez la solution adaptée à votre organisation.') }}{% endblock %}
+{% set product_labels = {
+  'finance': _('Finance'),
+  'bi': _('BI'),
+  'credit': _('Audela Credit'),
+  'project': _('Projet'),
+  'ifrs9': _('IFRS9'),
+  'all': _('All-in-one')
+} %}
+{% set current_product_label = product_labels.get(selected_product, _('Finance')) %}
+{% set plans_title = _('Plans %(product)s – AUDELA', product=current_product_label) %}
+{% set plans_description = _('Comparez les plans %(product)s AUDELA et choisissez l’offre adaptée à votre équipe.', product=current_product_label) %}
+{% if selected_product == 'finance' %}
+  {% set plans_title = _('Plans Finance – AUDELA') %}
+  {% set plans_description = _('Comparez les plans Finance AUDELA pour comptabilité, facturation, trésorerie et pilotage financier.') %}
+{% elif selected_product == 'all' %}
+  {% set plans_title = _('Plans All-in-one – AUDELA') %}
+  {% set plans_description = _('Découvrez les plans AUDELA qui regroupent Finance, BI, Credit, Projet et IFRS9 dans une offre unifiée.') %}
+{% endif %}
+
+{% block title %}{{ plans_title }}{% endblock %}
+{% block meta_description %}{{ plans_description }}{% endblock %}
+{% block og_title %}{{ plans_title }}{% endblock %}
+{% block og_description %}{{ plans_description }}{% endblock %}
+{% block twitter_title %}{{ plans_title }}{% endblock %}
+{% block twitter_description %}{{ plans_description }}{% endblock %}
+
+{% block canonical_url %}{{ canonical_url(include_query_params=['product']) }}{% endblock %}
+{% block og_url %}{{ canonical_url(include_query_params=['product']) }}{% endblock %}
 {% block og_image %}{{ url_for('static', filename='images/banner.jpg', _external=True) }}{% endblock %}
 {% block twitter_image %}{{ url_for('static', filename='images/banner.jpg', _external=True) }}{% endblock %}
 
