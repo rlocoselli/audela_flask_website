@@ -9,7 +9,7 @@ from itertools import combinations
 from typing import Any
 
 import requests
-from sqlalchemy import inspect as sqla_inspect
+from sqlalchemy import inspect as sqla_inspect, text as sqla_text
 
 from ..i18n import tr
 from ..models.bi import DataSource
@@ -39,6 +39,24 @@ def _is_readonly(sql: str) -> bool:
         return False
     first = cleaned.split(None, 1)[0].lower()
     return first in _READONLY_PREFIXES
+
+
+def _explain_sql(engine: Any, sql: str, dialect: str) -> list[str]:
+    """Run EXPLAIN to detect invalid column/table references before returning to the user.
+
+    Returns a list of error strings (empty if SQL is valid).
+    """
+    try:
+        explain_sql = f"EXPLAIN QUERY PLAN {sql}" if dialect == "sqlite" else f"EXPLAIN {sql}"
+        with engine.connect() as conn:
+            conn.execute(sqla_text(explain_sql))
+        return []
+    except Exception as exc:
+        msg = str(exc)
+        # Extract the meaningful part from SQLAlchemy wrapped errors
+        if ")" in msg:
+            msg = msg.split(")")[-1].strip().lstrip("(").strip()
+        return [msg] if msg else []
 
 
 def _single_sql_statement(sql: str) -> tuple[str, bool]:
@@ -551,8 +569,10 @@ def _openai_generate_sql_from_nl(
     meta = schema_meta if isinstance(schema_meta, dict) else introspect_source(source)
 
     dialect = "unknown"
+    engine = None
     try:
-        dialect = get_engine(source).dialect.name
+        engine = get_engine(source)
+        dialect = engine.dialect.name
     except Exception:
         dialect = "unknown"
 
@@ -571,7 +591,8 @@ def _openai_generate_sql_from_nl(
     }
 
     # Compact schema payload to reduce tokens
-    include_col_types = bool(required_tables)
+    # Always include column types so the LLM knows exactly which columns exist on views
+    include_col_types = True
     schemas_compact: list[dict[str, Any]] = []
     for sc in meta.get("schemas", [])[:5]:
         sc_tables = []
@@ -598,6 +619,13 @@ def _openai_generate_sql_from_nl(
         "Return ONLY valid JSON with keys: sql, warnings.\n"
         "The SQL must be READ-ONLY (SELECT/WITH/SHOW/DESCRIBE/EXPLAIN).\n"
         "Use ONLY the provided schema tables/columns.\n"
+        "CRITICAL: Before writing the final SQL, verify that EVERY column you reference "
+        "(in SELECT, JOIN ON, WHERE, GROUP BY, ORDER BY) is explicitly listed in the "
+        "schema for that specific table or view. "
+        "Views do NOT inherit columns from their underlying tables — only the columns "
+        "listed in the schema for the view itself may be used. "
+        "If a join column does not appear in the schema for a view, do NOT join on it; "
+        "instead omit the join or add a warning.\n"
         "If rules.required_tables is non-empty, SQL MUST reference ALL those tables (JOIN when needed).\n"
         "If rules.must_join_required_tables is true and multiple required tables exist, build one connected query joining all of them.\n"
         "Use context.relationships.foreign_keys first for JOIN conditions; if missing, use context.relationships.natural_keys.\n"
@@ -669,6 +697,12 @@ def _openai_generate_sql_from_nl(
 
     if rules["require_tenant_placeholder"] and ":tenant_id" not in sql:
         raise RuntimeError("Fonte exige tenant, mas SQL gerado não incluiu :tenant_id")
+
+    # Dry-run EXPLAIN to catch 'no such column / table' errors before returning to user
+    if engine is not None:
+        explain_errors = _explain_sql(engine, sql, dialect)
+        if explain_errors:
+            warnings.extend(explain_errors)
 
     return sql, [str(w) for w in warnings[:8]]
 

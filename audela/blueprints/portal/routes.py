@@ -5395,7 +5395,7 @@ def statistics_run():
         }
         user_msg = note or tr(
             "Faça uma análise estatística completa (distribuição normal/gaussiana, correlação, regressão linear e um pequeno cenário de Monte Carlo). Explique achados e riscos. Retorne em linguagem clara.",
-            getattr(g, "lang", None),
+            "en",
         )
         ai = analyze_with_ai(bundle, user_msg, history=None, lang=getattr(g, "lang", None))
     except Exception as e:  # noqa: BLE001

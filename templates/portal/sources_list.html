@@ -5,31 +5,52 @@
 <div class="container-fluid px-0">
 
   <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-    <div>
+    <div
+      data-tour="{{ _('Sources page: lists all your data connections — SQL databases, APIs, and workspaces. Each source powers queries, questions, and dashboards.') }}"
+      data-tour-title="{{ _('Tutoriel BI') }}"
+      data-tour-order="8"
+    >
       <h1 class="h4 mb-0" data-tip="{{ _('Gestion centralisée des connexions de données utilisées par BI.') }}">{{ _('Sources') }}</h1>
       <div class="text-muted small" data-tip="{{ _('Ajoutez des sources SQL/API et rattachez-les à des workspaces d\'analyse.') }}">{{ _('Connexions de base de données et workspaces.') }}</div>
     </div>
     <div class="d-flex gap-2">
-      <a class="btn btn-primary btn-sm" data-tip="{{ _('Créer une nouvelle connexion à une base, API ou source interne.') }}" href="{{ url_for('portal.sources_new') }}"><i class="bi bi-plus-lg"></i> {{ _('Nouvelle source') }}</a>
+      <a class="btn btn-primary btn-sm"
+         data-tip="{{ _('Créer une nouvelle connexion à une base, API ou source interne.') }}"
+         data-tour="{{ _('Click here to add a new data connection: PostgreSQL, MySQL, SQLite, SQL Server, or an external REST API.') }}"
+         data-tour-title="{{ _('Tutoriel BI') }}"
+         data-tour-order="9"
+         href="{{ url_for('portal.sources_new') }}"><i class="bi bi-plus-lg"></i> {{ _('Nouvelle source') }}</a>
       <form method="post" action="{{ url_for('portal.sources_create_sample_sqlite') }}" class="d-inline" onsubmit="return confirm('{{ _('Créer une base SQLite audelasampledata de démonstration pour ce tenant ?') }}');">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-        <button type="submit" class="btn btn-outline-success btn-sm" data-tip="{{ _('Génère une base SQLite audelasampledata riche et l\'ajoute automatiquement dans Sources.') }}">
+        <button type="submit" class="btn btn-outline-success btn-sm"
+                data-tip="{{ _('Génère une base SQLite audelasampledata riche et l\'ajoute automatiquement dans Sources.') }}"
+                data-tour="{{ _('Generates and registers a pre-loaded SQLite sample database — perfect for testing BI features without your own data.') }}"
+                data-tour-title="{{ _('Tutoriel BI') }}"
+                data-tour-order="10">
           <i class="bi bi-database-add"></i> {{ _('Créer audelasampledata SQLite') }}
         </button>
       </form>
-      <a class="btn btn-outline-secondary btn-sm" data-tip="{{ _('Créer un workspace pour organiser sources, questions et dashboards.') }}" href="{{ url_for('portal.workspaces_new') }}">{{ _('Nouveau workspace') }} <span class="badge text-bg-info ms-1">{{ _('Recommandé pour Excel') }}</span></a>
+      <a class="btn btn-outline-secondary btn-sm"
+         data-tip="{{ _('Créer un workspace pour organiser sources, questions et dashboards.') }}"
+         data-tour="{{ _('A workspace combines files (Excel, CSV, Parquet) with database tables into one queryable source. Recommended when working with Excel.') }}"
+         data-tour-title="{{ _('Tutoriel BI') }}"
+         data-tour-order="11"
+         href="{{ url_for('portal.workspaces_new') }}">{{ _('Nouveau workspace') }} <span class="badge text-bg-info ms-1">{{ _('Recommandé pour Excel') }}</span></a>
       <a class="btn btn-outline-secondary btn-sm" data-tip="{{ _('Voir et administrer les workspaces existants.') }}" href="{{ url_for('portal.workspaces_list') }}">{{ _('Workspaces') }}</a>
     </div>
   </div>
 
-  <div class="card shadow-sm border-0 rounded-4 mb-3" data-tour="{{ _('Para usar arquivos Excel no BI, crie primeiro um workspace.') }}" data-tour-title="{{ _('Tutoriel Source') }}" data-tour-order="1">
+  <div class="card shadow-sm border-0 rounded-4 mb-3"
+       data-tour="{{ _('To use Excel in BI: upload your file in Files, create a workspace linking the file, then use that workspace as a data source for SQL and dashboards.') }}"
+      data-tour-title="{{ _('Tutoriel BI') }}"
+       data-tour-order="12">
     <div class="card-body">
       <div class="fw-semibold mb-1"><i class="bi bi-file-earmark-spreadsheet me-1"></i>{{ _('Para usar arquivos Excel no BI, crie primeiro um workspace.') }}</div>
       <div class="small text-muted mb-2">{{ _('No workspace, você conecta arquivos (Excel/CSV/Parquet) e pode combinar com tabelas do banco.') }}</div>
       <ol class="small mb-2">
-        <li>{{ _('Arquivos') }} → upload do Excel</li>
-        <li>{{ _('Criar workspace') }} → selecionar o arquivo</li>
-        <li>{{ _('Workspaces') }} → usar como fonte para SQL / dashboards</li>
+        <li>{{ _('Files → upload your Excel file') }}</li>
+        <li>{{ _('Create workspace → select the file') }}</li>
+        <li>{{ _('Workspaces → use as source for SQL / dashboards') }}</li>
       </ol>
       <div class="d-flex gap-2 flex-wrap">
         <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.files_home') }}"><i class="bi bi-folder2-open me-1"></i>{{ _('Arquivos') }}</a>
@@ -39,7 +60,10 @@
     </div>
   </div>
 
-  <div class="card shadow-sm border-0 rounded-4">
+  <div class="card shadow-sm border-0 rounded-4"
+       data-tour="{{ _('Each row is a data source. Click the name for details. Pencil = edit credentials. Introspect = scan tables and columns. Trash = delete.') }}"
+      data-tour-title="{{ _('Tutoriel BI') }}"
+       data-tour-order="13">
     <div class="card-body">
       {% if not sources %}
         <div class="text-muted">{{ _('Aucune source enregistrée pour le moment.') }}</div>
@@ -51,7 +75,11 @@
                 <th>{{ _('Nom') }}</th>
                 <th data-tip="{{ _('Type technique de connecteur (postgres, mysql, sqlite, api, etc.).') }}">{{ _('Type') }}</th>
                 <th>{{ _('Créée le') }}</th>
-                <th class="text-end" data-tip="{{ _('Actions disponibles: modifier, introspecter le schéma ou supprimer.') }}">{{ _('Actions') }}</th>
+                <th class="text-end"
+                    data-tip="{{ _('Actions disponibles: modifier, introspecter le schéma ou supprimer.') }}"
+                    data-tour="{{ _('Introspect scans the source to discover tables, views, and columns. This populates SQL autocomplete and helps the AI generate accurate queries.') }}"
+                    data-tour-title="{{ _('Tutoriel BI') }}"
+                    data-tour-order="14">{{ _('Actions') }}</th>
               </tr>
             </thead>
             <tbody>

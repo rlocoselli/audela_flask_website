@@ -1,20 +1,20 @@
 {% extends "portal/layout.html" %}
-{% set title = "Auditoria" %}
+{% set title = _('Auditoria') %}
 
 {% block portal_content %}
   <div class="box">
-    <h3>Eventos (últimos 200)</h3>
+    <h3>{{ _('Eventos (últimos 200)') }}</h3>
     {% if not events %}
-      <p>Sem eventos ainda.</p>
+      <p>{{ _('Sem eventos ainda.') }}</p>
     {% else %}
       <div style="overflow-x:auto;">
         <table class="table">
           <thead>
             <tr>
-              <th>Quando</th>
-              <th>Tipo</th>
-              <th>User ID</th>
-              <th>Payload</th>
+              <th>{{ _('Quando') }}</th>
+              <th>{{ _('Tipo') }}</th>
+              <th>{{ _('User ID') }}</th>
+              <th>{{ _('Payload') }}</th>
             </tr>
           </thead>
           <tbody>

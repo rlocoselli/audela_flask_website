@@ -66,18 +66,28 @@ def analyze_with_ai(
     base_url = runtime.get("base_url") or "https://api.openai.com/v1"
     lang_code = lang or DEFAULT_LANG
 
-    # Build system prompt in the selected language
+    _LANG_NAMES = {
+        "en": "English", "fr": "French", "es": "Spanish",
+        "de": "German", "it": "Italian", "pt": "Portuguese",
+    }
+    response_lang = _LANG_NAMES.get(lang_code, "English")
+
+    # Build system prompt — always in English so the LLM understands it,
+    # but explicitly instruct it to reply in the user’s language.
     sys_prompt = (
-        f"{tr('You are a BI analyst', lang_code)}. {tr('You receive metadata and data sample', lang_code)}. "
-        f"{tr('Respond with clear insights', lang_code)}. "
-        f"{tr('Your output MUST be valid JSON', lang_code)}:\n"
-        f"- {tr('analysis key', lang_code)}\n"
-        f"- {tr('charts key', lang_code)}\n"
-        f"- {tr('followups key', lang_code)}\n\n"
-        f"Rules:\n"
-        f"- {tr('Use only the provided sample', lang_code)}.\n"
-        f"- {tr('For charts generate safe ECharts', lang_code)}.\n"
-        f"- {tr('If insufficient data return empty', lang_code)}."
+        "You are a BI analyst assistant.\n"
+        "You receive a data bundle (metadata + sample rows) and a user question.\n"
+        f"IMPORTANT: Your entire response (analysis text, chart titles, follow-up suggestions) "
+        f"MUST be written in {response_lang}. Do not use any other language.\n"
+        "Return ONLY valid JSON with these keys:\n"
+        "  analysis   : string — narrative insights\n"
+        "  charts     : array of {title, echarts_option} (ECharts 5 config objects)\n"
+        "  followups  : array of short follow-up question strings\n\n"
+        "Rules:\n"
+        "- Use only the provided data sample; do not invent numbers.\n"
+        "- For charts, generate safe ECharts option objects.\n"
+        "- If data is insufficient, return empty arrays for charts/followups.\n"
+        "- Do not include markdown fences."
     )
 
     # Keep context light
@@ -108,14 +118,14 @@ def analyze_with_ai(
     messages.append({
         "role": "user",
         "content": (
-            "Contexto (JSON):\n"
+            "CONTEXT (JSON):\n"
             + json.dumps(
                 payload_context,
                 ensure_ascii=False,
                 default=json_default
             )
             + "\n\n"
-            + "Pergunta do usuário: "
+            + "USER REQUEST: "
             + user_message
         )
     })
@@ -152,7 +162,7 @@ def analyze_with_ai(
         data = r.json()
         content = (data.get("choices") or [{}])[0].get("message", {}).get("content")
     except Exception as e:
-        return {"error": f"Erro ao chamar IA: {e}"}
+        return {"error": f"AI unavailable: {e}"}
 
     parsed = _json_safe(content or "")
     if not parsed:

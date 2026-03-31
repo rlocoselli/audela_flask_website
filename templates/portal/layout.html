@@ -10,6 +10,31 @@
   .bi-shell.menu-hidden .sidebar {
     display: none !important;
   }
+  .bi-menu-group-title {
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    opacity: .8;
+    margin-top: .7rem;
+    margin-bottom: .2rem;
+  }
+  .bi-menu-group-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border: 0;
+    background: transparent;
+    padding: .2rem 0;
+    text-align: left;
+  }
+  .bi-menu-group-toggle .bi {
+    font-size: .78rem;
+    opacity: .75;
+  }
+  .bi-menu-group-body.is-collapsed {
+    display: none;
+  }
 </style>
 {% set _full_href = bi_full_home_href if bi_full_home_href is defined and bi_full_home_href else url_for('portal.home', bi_ui_mode='full') %}
 {% set _lite_href = bi_lite_switch_href if bi_lite_switch_href is defined and bi_lite_switch_href else url_for('portal.bi_lite', bi_ui_mode='lite') %}
@@ -22,9 +47,6 @@
   <aside
     id="biSidebar"
     class="sidebar border-end bg-body-tertiary p-3 d-none d-lg-flex flex-column"
-    data-tour="{{ _('Navigation principale vers les modules BI et Finance.') }}"
-    data-tour-title="{{ _('Tutoriel') }}"
-    data-tour-order="1"
   >
     <div class="d-flex align-items-center gap-2 mb-3">
       <i class="bi bi-bar-chart-line"></i>
@@ -32,34 +54,68 @@
     </div>
 
     <nav class="nav flex-column gap-1">
-      {% if bi_menu_access.home %}<a class="nav-link" href="{{ _home_href }}"><i class="bi bi-house me-2"></i>{{ _('Início') }}</a>{% endif %}
-      {% if bi_menu_access.ratios %}<a class="nav-link" href="{{ _p('portal.ratios') }}"><i class="bi bi-percent me-2"></i>{{ _('Ratios') }}</a>{% endif %}
-      {% if bi_menu_access.sources %}<a class="nav-link" href="{{ _p('portal.sources_list') }}"><i class="bi bi-database me-2"></i>{{ _('Fontes') }}</a>{% endif %}
-      {% if bi_menu_access.sources %}<a class="nav-link" href="{{ _p('portal.workspaces_list') }}"><i class="bi bi-diagram-2 me-2"></i>{{ _('Workspaces') }}</a>{% endif %}
-      {% if bi_menu_access.api_sources %}<a class="nav-link" href="{{ _p('portal.api_sources_list') }}"><i class="bi bi-plug me-2"></i>{{ _('Fontes API') }}</a>{% endif %}
-      {% if bi_menu_access.web_extract %}<a class="nav-link" href="{{ _p('portal.web_extract') }}"><i class="bi bi-globe2 me-2"></i>{{ _('Web Scraping IA') }}</a>{% endif %}
-      {% if bi_menu_access.integrations %}<a class="nav-link" href="{{ _p('portal.integrations_hub') }}"><i class="bi bi-link-45deg me-2"></i>{{ _('Integrações') }}</a>{% endif %}
-      {% if bi_menu_access.etl %}<a class="nav-link" href="{{ _p('portal.etls_list') }}"><i class="bi bi-diagram-3 me-2"></i>{{ _('ETL') }}</a>{% endif %}
-      {% if bi_menu_access.sources_diagram %}<a class="nav-link" href="{{ _p('portal.sources_diagram') }}"><i class="bi bi-diagram-3 me-2"></i>{{ _('Diagrama de fontes') }}</a>{% endif %}
-      {% if bi_menu_access.sql_editor %}<a class="nav-link" href="{{ _p('portal.sql_editor') }}" data-tour="{{ _('Accédez rapidement à l\'éditeur SQL.') }}" data-tour-title="{{ _('Tutoriel') }}" data-tour-order="2"><i class="bi bi-braces me-2"></i>{{ _('Editor SQL') }}</a>{% endif %}
-      {% if bi_menu_access.excel_ai %}<a class="nav-link" href="{{ _p('portal.excel_ai') }}"><i class="bi bi-file-earmark-spreadsheet me-2"></i>{{ _('Excel IA') }}</a>{% endif %}
-      {% if bi_menu_access.questions %}<a class="nav-link" href="{{ _p('portal.questions_list') }}"><i class="bi bi-question-circle me-2"></i>{{ _('Perguntas') }}</a>{% endif %}
-      {% if bi_menu_access.dashboards %}<a class="nav-link" href="{{ _p('portal.dashboards_list') }}" data-tour="{{ _('Créez et gérez vos tableaux de bord ici.') }}" data-tour-title="{{ _('Tutoriel') }}" data-tour-order="3"><i class="bi bi-grid-1x2 me-2"></i>{{ _('Dashboards') }}</a>{% endif %}
-      {% if bi_menu_access.ai_chat %}<a class="nav-link" href="{{ _p('portal.ai_chat', create_dashboard=1) }}"><i class="bi bi-magic me-2"></i>{{ _('Créer dashboard IA') }}</a>{% endif %}
-      {% if bi_menu_access.reports %}<a class="nav-link" href="{{ _p('portal.reports_list') }}"><i class="bi bi-file-earmark-richtext me-2"></i>{{ _('Relatórios') }}</a>{% endif %}
-      {% if bi_menu_access.files %}<a class="nav-link" href="{{ _p('portal.files_home') }}"><i class="bi bi-folder2-open me-2"></i>{{ _('Arquivos') }}</a>{% endif %}
-      {% if bi_menu_access.statistics %}<a class="nav-link" href="{{ _p('portal.statistics_home') }}"><i class="bi bi-graph-up-arrow me-2"></i>{{ _('Estatísticas') }}</a>{% endif %}
-      {% if bi_menu_access.alerting %}<a class="nav-link" href="{{ _p('portal.alerting_settings') }}"><i class="bi bi-bell me-2"></i>{{ _('Alerting') }}</a>{% endif %}
-      {% if bi_menu_access.what_if %}<a class="nav-link" href="{{ _p('portal.what_if') }}"><i class="bi bi-sliders me-2"></i>{{ _('What-if') }}</a>{% endif %}
-      {% if bi_menu_access.explore %}<a class="nav-link" href="{{ _p('portal.explore') }}"><i class="bi bi-compass me-2"></i>{{ _('Explorar') }}</a>{% endif %}
-      {% if bi_menu_access.ai_chat %}<a class="nav-link" href="{{ _p('portal.ai_chat') }}"><i class="bi bi-stars me-2"></i>{{ _('Chat IA') }}</a>{% endif %}
-      {% if bi_menu_access.runs %}<a class="nav-link" href="{{ _p('portal.runs_list') }}"><i class="bi bi-clock-history me-2"></i>{{ _('Execuções') }}</a>{% endif %}
-      {% if bi_menu_access.audit %}<a class="nav-link" href="{{ _p('portal.audit_list') }}"><i class="bi bi-shield-check me-2"></i>{{ _('Auditoria') }}</a>{% endif %}
-      {% if (not _is_bi_lite) and bi_menu_access.etl %}
-      <a class="nav-link" href="{{ url_for('etl.builder') }}">
-        <i class="bi bi-diagram-3 me-2"></i>{{ _('ETL Builder') }}
-      </a>
-      {% endif %}
+      <button class="bi-menu-group-toggle bi-menu-group-title small-muted" type="button" data-group-scope="desktop" data-group="overview" aria-expanded="true">
+        <span>{{ _('Overview') }}</span>
+        <i class="bi bi-chevron-down" aria-hidden="true"></i>
+      </button>
+      <div class="bi-menu-group-body" data-group-scope="desktop" data-group-body="overview">
+        {% if bi_menu_access.home %}<a class="nav-link" href="{{ _home_href }}"><i class="bi bi-house me-2"></i>{{ _('Início') }}</a>{% endif %}
+        {% if bi_menu_access.statistics %}<a class="nav-link" href="{{ _p('portal.statistics_home') }}"><i class="bi bi-graph-up-arrow me-2"></i>{{ _('Estatísticas') }}</a>{% endif %}
+      </div>
+
+      <button class="bi-menu-group-toggle bi-menu-group-title small-muted" type="button" data-group-scope="desktop" data-group="data_queries" aria-expanded="true">
+        <span>{{ _('Data & Queries') }}</span>
+        <i class="bi bi-chevron-down" aria-hidden="true"></i>
+      </button>
+      <div class="bi-menu-group-body" data-group-scope="desktop" data-group-body="data_queries">
+        {% if bi_menu_access.sources %}<a class="nav-link" href="{{ _p('portal.sources_list') }}"><i class="bi bi-database me-2"></i>{{ _('Fontes') }}</a>{% endif %}
+        {% if bi_menu_access.sources %}<a class="nav-link" href="{{ _p('portal.workspaces_list') }}"><i class="bi bi-diagram-2 me-2"></i>{{ _('Workspaces') }}</a>{% endif %}
+        {% if bi_menu_access.api_sources %}<a class="nav-link" href="{{ _p('portal.api_sources_list') }}"><i class="bi bi-plug me-2"></i>{{ _('Fontes API') }}</a>{% endif %}
+        {% if bi_menu_access.sql_editor %}<a class="nav-link" href="{{ _p('portal.sql_editor') }}"><i class="bi bi-braces me-2"></i>{{ _('Editor SQL') }}</a>{% endif %}
+        {% if bi_menu_access.questions %}<a class="nav-link" href="{{ _p('portal.questions_list') }}"><i class="bi bi-question-circle me-2"></i>{{ _('Perguntas') }}</a>{% endif %}
+        {% if bi_menu_access.explore %}<a class="nav-link" href="{{ _p('portal.explore') }}"><i class="bi bi-compass me-2"></i>{{ _('Explorar') }}</a>{% endif %}
+        {% if bi_menu_access.ratios %}<a class="nav-link" href="{{ _p('portal.ratios') }}"><i class="bi bi-percent me-2"></i>{{ _('Ratios') }}</a>{% endif %}
+      </div>
+
+      <button class="bi-menu-group-toggle bi-menu-group-title small-muted" type="button" data-group-scope="desktop" data-group="analytics_reporting" aria-expanded="true">
+        <span>{{ _('Analytics & Reporting') }}</span>
+        <i class="bi bi-chevron-down" aria-hidden="true"></i>
+      </button>
+      <div class="bi-menu-group-body" data-group-scope="desktop" data-group-body="analytics_reporting">
+        {% if bi_menu_access.dashboards %}<a class="nav-link" href="{{ _p('portal.dashboards_list') }}"><i class="bi bi-grid-1x2 me-2"></i>{{ _('Dashboards') }}</a>{% endif %}
+        {% if bi_menu_access.ai_chat %}<a class="nav-link" href="{{ _p('portal.ai_chat', create_dashboard=1) }}"><i class="bi bi-magic me-2"></i>{{ _('Créer dashboard IA') }}</a>{% endif %}
+        {% if bi_menu_access.ai_chat %}<a class="nav-link" href="{{ _p('portal.ai_chat') }}"><i class="bi bi-stars me-2"></i>{{ _('Chat IA') }}</a>{% endif %}
+        {% if bi_menu_access.reports %}<a class="nav-link" href="{{ _p('portal.reports_list') }}"><i class="bi bi-file-earmark-richtext me-2"></i>{{ _('Relatórios') }}</a>{% endif %}
+        {% if bi_menu_access.what_if %}<a class="nav-link" href="{{ _p('portal.what_if') }}"><i class="bi bi-sliders me-2"></i>{{ _('What-if') }}</a>{% endif %}
+        {% if bi_menu_access.alerting %}<a class="nav-link" href="{{ _p('portal.alerting_settings') }}"><i class="bi bi-bell me-2"></i>{{ _('Alerting') }}</a>{% endif %}
+        {% if bi_menu_access.excel_ai %}<a class="nav-link" href="{{ _p('portal.excel_ai') }}"><i class="bi bi-file-earmark-spreadsheet me-2"></i>{{ _('Excel IA') }}</a>{% endif %}
+      </div>
+
+      <button class="bi-menu-group-toggle bi-menu-group-title small-muted" type="button" data-group-scope="desktop" data-group="automation" aria-expanded="true">
+        <span>{{ _('Automation') }}</span>
+        <i class="bi bi-chevron-down" aria-hidden="true"></i>
+      </button>
+      <div class="bi-menu-group-body" data-group-scope="desktop" data-group-body="automation">
+        {% if bi_menu_access.integrations %}<a class="nav-link" href="{{ _p('portal.integrations_hub') }}"><i class="bi bi-link-45deg me-2"></i>{{ _('Integrações') }}</a>{% endif %}
+        {% if bi_menu_access.etl %}<a class="nav-link" href="{{ _p('portal.etls_list') }}"><i class="bi bi-diagram-3 me-2"></i>{{ _('ETL') }}</a>{% endif %}
+        {% if (not _is_bi_lite) and bi_menu_access.etl %}
+        <a class="nav-link" href="{{ url_for('etl.builder') }}">
+          <i class="bi bi-diagram-3 me-2"></i>{{ _('ETL Builder') }}
+        </a>
+        {% endif %}
+        {% if bi_menu_access.web_extract %}<a class="nav-link" href="{{ _p('portal.web_extract') }}"><i class="bi bi-globe2 me-2"></i>{{ _('Web Scraping IA') }}</a>{% endif %}
+        {% if bi_menu_access.sources_diagram %}<a class="nav-link" href="{{ _p('portal.sources_diagram') }}"><i class="bi bi-diagram-3 me-2"></i>{{ _('Diagrama de fontes') }}</a>{% endif %}
+        {% if bi_menu_access.runs %}<a class="nav-link" href="{{ _p('portal.runs_list') }}"><i class="bi bi-clock-history me-2"></i>{{ _('Execuções') }}</a>{% endif %}
+      </div>
+
+      <button class="bi-menu-group-toggle bi-menu-group-title small-muted" type="button" data-group-scope="desktop" data-group="settings" aria-expanded="true">
+        <span>{{ _('Settings') }}</span>
+        <i class="bi bi-chevron-down" aria-hidden="true"></i>
+      </button>
+      <div class="bi-menu-group-body" data-group-scope="desktop" data-group-body="settings">
+        {% if bi_menu_access.files %}<a class="nav-link" href="{{ _p('portal.files_home') }}"><i class="bi bi-folder2-open me-2"></i>{{ _('Arquivos') }}</a>{% endif %}
+        {% if bi_menu_access.audit %}<a class="nav-link" href="{{ _p('portal.audit_list') }}"><i class="bi bi-shield-check me-2"></i>{{ _('Auditoria') }}</a>{% endif %}
+      </div>
     </nav>
 
     <div class="mt-auto pt-3 small-muted">
@@ -94,18 +150,24 @@
 
         <div class="d-flex align-items-center gap-2 portal-topbar-right">
           {% if _is_bi_lite %}
-            <a class="btn btn-outline-secondary btn-sm" href="{{ _full_href }}">
+            <a class="btn btn-outline-secondary btn-sm" href="{{ _full_href }}"
+               data-tour="{{ _('Switch to full BI mode with all advanced features.') }}"
+               data-tour-title="{{ _('Tutoriel') }}" data-tour-order="1">
               <i class="bi bi-grid me-1"></i>
               <span class="d-none d-md-inline">{{ _('Full BI') }}</span>
             </a>
           {% else %}
-            <a class="btn btn-outline-info btn-sm" href="{{ _lite_href }}">
+            <a class="btn btn-outline-info btn-sm" href="{{ _lite_href }}"
+               data-tour="{{ _('Switch to BI Lite — a simplified, focused interface.') }}"
+               data-tour-title="{{ _('Tutoriel') }}" data-tour-order="1">
               <i class="bi bi-stars me-1"></i>
               <span class="d-none d-md-inline">{{ _('BI Lite') }}</span>
             </a>
           {% endif %}
 
-          <a class="btn btn-outline-primary btn-sm" href="{{ url_for('tenant.dashboard') }}">
+          <a class="btn btn-outline-primary btn-sm" href="{{ url_for('tenant.dashboard') }}"
+             data-tour="{{ _('Return to the tenant dashboard.') }}"
+             data-tour-title="{{ _('Tutoriel') }}" data-tour-order="2">
             <i class="bi bi-arrow-left-circle me-1"></i>
             <span class="d-none d-md-inline">{{ _('Retour au dashboard tenant') }}</span>
           </a>
@@ -117,7 +179,7 @@
           {% endif %}
 
           <div class="dropdown">
-            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" data-tour="{{ _('Changez la langue de l\'interface.') }}" data-tour-title="{{ _('Tutoriel') }}" data-tour-order="4">
+            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" data-tour="{{ _('Changez la langue de l\'interface.') }}" data-tour-title="{{ _('Tutoriel') }}" data-tour-order="3">
               {{ lang_label(current_lang) }}
             </button>
             <ul class="dropdown-menu dropdown-menu-end">
@@ -132,6 +194,9 @@
             type="button"
             title="{{ _('Ouvrir le tutoriel guidé de cette page') }}"
             aria-label="{{ _('Ouvrir le tutoriel guidé de cette page') }}"
+            data-tour="{{ _('Start the guided tutorial for this page. Each step highlights a feature and explains what it does.') }}"
+            data-tour-title="{{ _('Tutoriel') }}"
+            data-tour-order="4"
           >
             <i class="bi bi-signpost-2 me-1"></i>
             <span class="d-none d-md-inline">{{ _('Tutoriel') }}</span>
@@ -151,12 +216,16 @@
             <i class="bi bi-moon-stars"></i>
           </button>
 
-          <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('auth.change_password') }}">
+          <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('auth.change_password') }}"
+             data-tour="{{ _('Alterar senha') }}"
+             data-tour-title="{{ _('Tutoriel') }}" data-tour-order="6">
             <i class="bi bi-key"></i>
             <span class="ms-1 d-none d-md-inline">{{ _('Alterar senha') }}</span>
           </a>
 
-          <a class="btn btn-outline-danger btn-sm" href="{{ url_for('auth.logout') }}">
+          <a class="btn btn-outline-danger btn-sm" href="{{ url_for('auth.logout') }}"
+             data-tour="{{ _('Sair') }}"
+             data-tour-title="{{ _('Tutoriel') }}" data-tour-order="7">
             <i class="bi bi-box-arrow-right"></i>
             <span class="ms-1 d-none d-md-inline">{{ _('Sair') }}</span>
           </a>
@@ -263,28 +332,65 @@
   </div>
   <div class="offcanvas-body">
     <div class="nav flex-column gap-1">
-      {% if bi_menu_access.home %}<a class="nav-link" href="{{ _home_href }}">{{ _('Início') }}</a>{% endif %}
-      {% if bi_menu_access.ratios %}<a class="nav-link" href="{{ _p('portal.ratios') }}">{{ _('Ratios') }}</a>{% endif %}
-      {% if bi_menu_access.sources %}<a class="nav-link" href="{{ _p('portal.sources_list') }}">{{ _('Fontes') }}</a>{% endif %}
-      {% if bi_menu_access.sources %}<a class="nav-link" href="{{ _p('portal.workspaces_list') }}">{{ _('Workspaces') }}</a>{% endif %}
-      {% if bi_menu_access.web_extract %}<a class="nav-link" href="{{ _p('portal.web_extract') }}">{{ _('Web Scraping IA') }}</a>{% endif %}
-      {% if bi_menu_access.integrations %}<a class="nav-link" href="{{ _p('portal.integrations_hub') }}">{{ _('Integrações') }}</a>{% endif %}
-      {% if bi_menu_access.sql_editor %}<a class="nav-link" href="{{ _p('portal.sql_editor') }}">{{ _('Editor SQL') }}</a>{% endif %}
-      {% if bi_menu_access.excel_ai %}<a class="nav-link" href="{{ _p('portal.excel_ai') }}">{{ _('Excel IA') }}</a>{% endif %}
-      {% if bi_menu_access.questions %}<a class="nav-link" href="{{ _p('portal.questions_list') }}">{{ _('Perguntas') }}</a>{% endif %}
-      {% if bi_menu_access.dashboards %}<a class="nav-link" href="{{ _p('portal.dashboards_list') }}">{{ _('Dashboards') }}</a>{% endif %}
-      {% if bi_menu_access.ai_chat %}<a class="nav-link" href="{{ _p('portal.ai_chat', create_dashboard=1) }}">{{ _('Créer dashboard IA') }}</a>{% endif %}
-      {% if bi_menu_access.reports %}<a class="nav-link" href="{{ _p('portal.reports_list') }}">{{ _('Relatórios') }}</a>{% endif %}
-      {% if bi_menu_access.files %}<a class="nav-link" href="{{ _p('portal.files_home') }}">{{ _('Arquivos') }}</a>{% endif %}
-      {% if bi_menu_access.statistics %}<a class="nav-link" href="{{ _p('portal.statistics_home') }}">{{ _('Estatísticas') }}</a>{% endif %}
-      {% if bi_menu_access.alerting %}<a class="nav-link" href="{{ _p('portal.alerting_settings') }}">{{ _('Alerting') }}</a>{% endif %}
-      {% if bi_menu_access.what_if %}<a class="nav-link" href="{{ _p('portal.what_if') }}">{{ _('What-if') }}</a>{% endif %}
-      {% if bi_menu_access.explore %}<a class="nav-link" href="{{ _p('portal.explore') }}">{{ _('Explorar') }}</a>{% endif %}
-      {% if bi_menu_access.sources_diagram %}<a class="nav-link" href="{{ _p('portal.sources_diagram') }}">{{ _('Diagrama de fontes') }}</a>{% endif %}
-      {% if bi_menu_access.ai_chat %}<a class="nav-link" href="{{ _p('portal.ai_chat') }}">{{ _('Chat IA') }}</a>{% endif %}
-      {% if bi_menu_access.runs %}<a class="nav-link" href="{{ _p('portal.runs_list') }}">{{ _('Execuções') }}</a>{% endif %}
-      {% if bi_menu_access.audit %}<a class="nav-link" href="{{ _p('portal.audit_list') }}">{{ _('Auditoria') }}</a>{% endif %}
-      <a class="nav-link" href="{{ url_for('auth.change_password') }}">{{ _('Alterar senha') }}</a>
+      <button class="bi-menu-group-toggle bi-menu-group-title small-muted" type="button" data-group-scope="mobile" data-group="overview" aria-expanded="true">
+        <span>{{ _('Overview') }}</span>
+        <i class="bi bi-chevron-down" aria-hidden="true"></i>
+      </button>
+      <div class="bi-menu-group-body" data-group-scope="mobile" data-group-body="overview">
+        {% if bi_menu_access.home %}<a class="nav-link" href="{{ _home_href }}">{{ _('Início') }}</a>{% endif %}
+        {% if bi_menu_access.statistics %}<a class="nav-link" href="{{ _p('portal.statistics_home') }}">{{ _('Estatísticas') }}</a>{% endif %}
+      </div>
+
+      <button class="bi-menu-group-toggle bi-menu-group-title small-muted" type="button" data-group-scope="mobile" data-group="data_queries" aria-expanded="true">
+        <span>{{ _('Data & Queries') }}</span>
+        <i class="bi bi-chevron-down" aria-hidden="true"></i>
+      </button>
+      <div class="bi-menu-group-body" data-group-scope="mobile" data-group-body="data_queries">
+        {% if bi_menu_access.sources %}<a class="nav-link" href="{{ _p('portal.sources_list') }}">{{ _('Fontes') }}</a>{% endif %}
+        {% if bi_menu_access.sources %}<a class="nav-link" href="{{ _p('portal.workspaces_list') }}">{{ _('Workspaces') }}</a>{% endif %}
+        {% if bi_menu_access.api_sources %}<a class="nav-link" href="{{ _p('portal.api_sources_list') }}">{{ _('Fontes API') }}</a>{% endif %}
+        {% if bi_menu_access.sql_editor %}<a class="nav-link" href="{{ _p('portal.sql_editor') }}">{{ _('Editor SQL') }}</a>{% endif %}
+        {% if bi_menu_access.questions %}<a class="nav-link" href="{{ _p('portal.questions_list') }}">{{ _('Perguntas') }}</a>{% endif %}
+        {% if bi_menu_access.explore %}<a class="nav-link" href="{{ _p('portal.explore') }}">{{ _('Explorar') }}</a>{% endif %}
+        {% if bi_menu_access.ratios %}<a class="nav-link" href="{{ _p('portal.ratios') }}">{{ _('Ratios') }}</a>{% endif %}
+      </div>
+
+      <button class="bi-menu-group-toggle bi-menu-group-title small-muted" type="button" data-group-scope="mobile" data-group="analytics_reporting" aria-expanded="true">
+        <span>{{ _('Analytics & Reporting') }}</span>
+        <i class="bi bi-chevron-down" aria-hidden="true"></i>
+      </button>
+      <div class="bi-menu-group-body" data-group-scope="mobile" data-group-body="analytics_reporting">
+        {% if bi_menu_access.dashboards %}<a class="nav-link" href="{{ _p('portal.dashboards_list') }}">{{ _('Dashboards') }}</a>{% endif %}
+        {% if bi_menu_access.ai_chat %}<a class="nav-link" href="{{ _p('portal.ai_chat', create_dashboard=1) }}">{{ _('Créer dashboard IA') }}</a>{% endif %}
+        {% if bi_menu_access.ai_chat %}<a class="nav-link" href="{{ _p('portal.ai_chat') }}">{{ _('Chat IA') }}</a>{% endif %}
+        {% if bi_menu_access.reports %}<a class="nav-link" href="{{ _p('portal.reports_list') }}">{{ _('Relatórios') }}</a>{% endif %}
+        {% if bi_menu_access.what_if %}<a class="nav-link" href="{{ _p('portal.what_if') }}">{{ _('What-if') }}</a>{% endif %}
+        {% if bi_menu_access.alerting %}<a class="nav-link" href="{{ _p('portal.alerting_settings') }}">{{ _('Alerting') }}</a>{% endif %}
+        {% if bi_menu_access.excel_ai %}<a class="nav-link" href="{{ _p('portal.excel_ai') }}">{{ _('Excel IA') }}</a>{% endif %}
+      </div>
+
+      <button class="bi-menu-group-toggle bi-menu-group-title small-muted" type="button" data-group-scope="mobile" data-group="automation" aria-expanded="true">
+        <span>{{ _('Automation') }}</span>
+        <i class="bi bi-chevron-down" aria-hidden="true"></i>
+      </button>
+      <div class="bi-menu-group-body" data-group-scope="mobile" data-group-body="automation">
+        {% if bi_menu_access.integrations %}<a class="nav-link" href="{{ _p('portal.integrations_hub') }}">{{ _('Integrações') }}</a>{% endif %}
+        {% if bi_menu_access.etl %}<a class="nav-link" href="{{ _p('portal.etls_list') }}">{{ _('ETL') }}</a>{% endif %}
+        {% if (not _is_bi_lite) and bi_menu_access.etl %}<a class="nav-link" href="{{ url_for('etl.builder') }}">{{ _('ETL Builder') }}</a>{% endif %}
+        {% if bi_menu_access.web_extract %}<a class="nav-link" href="{{ _p('portal.web_extract') }}">{{ _('Web Scraping IA') }}</a>{% endif %}
+        {% if bi_menu_access.sources_diagram %}<a class="nav-link" href="{{ _p('portal.sources_diagram') }}">{{ _('Diagrama de fontes') }}</a>{% endif %}
+        {% if bi_menu_access.runs %}<a class="nav-link" href="{{ _p('portal.runs_list') }}">{{ _('Execuções') }}</a>{% endif %}
+      </div>
+
+      <button class="bi-menu-group-toggle bi-menu-group-title small-muted" type="button" data-group-scope="mobile" data-group="settings" aria-expanded="true">
+        <span>{{ _('Settings') }}</span>
+        <i class="bi bi-chevron-down" aria-hidden="true"></i>
+      </button>
+      <div class="bi-menu-group-body" data-group-scope="mobile" data-group-body="settings">
+        {% if bi_menu_access.files %}<a class="nav-link" href="{{ _p('portal.files_home') }}">{{ _('Arquivos') }}</a>{% endif %}
+        {% if bi_menu_access.audit %}<a class="nav-link" href="{{ _p('portal.audit_list') }}">{{ _('Auditoria') }}</a>{% endif %}
+        <a class="nav-link" href="{{ url_for('auth.change_password') }}">{{ _('Alterar senha') }}</a>
+      </div>
       {% if _is_bi_lite %}
       <a class="nav-link" href="{{ _full_href }}">{{ _('Full BI') }}</a>
       {% else %}
@@ -338,6 +444,59 @@
 
           applySidebarState();
         }
+
+        function initCollapsibleMenuGroups(){
+          const KEY_GROUPS = 'audela_bi_menu_groups_v1';
+          const readState = () => {
+            try {
+              const raw = localStorage.getItem(KEY_GROUPS);
+              const parsed = raw ? JSON.parse(raw) : {};
+              return (parsed && typeof parsed === 'object') ? parsed : {};
+            } catch (e) {
+              return {};
+            }
+          };
+          const writeState = (state) => {
+            try { localStorage.setItem(KEY_GROUPS, JSON.stringify(state || {})); } catch (e) {}
+          };
+
+          const state = readState();
+          const toggles = Array.from(document.querySelectorAll('.bi-menu-group-toggle[data-group][data-group-scope]'));
+
+          const applyToggleState = (btn, collapsed) => {
+            const scope = String(btn.getAttribute('data-group-scope') || '').trim();
+            const group = String(btn.getAttribute('data-group') || '').trim();
+            const body = document.querySelector(`.bi-menu-group-body[data-group-scope="${scope}"][data-group-body="${group}"]`);
+            if (!body) return;
+            body.classList.toggle('is-collapsed', !!collapsed);
+            btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+            btn.setAttribute('title', collapsed ? window.t('Expand section') : window.t('Collapse section'));
+            const icon = btn.querySelector('i.bi');
+            if (icon) {
+              icon.classList.toggle('bi-chevron-down', !collapsed);
+              icon.classList.toggle('bi-chevron-right', !!collapsed);
+            }
+          };
+
+          toggles.forEach((btn) => {
+            const scope = String(btn.getAttribute('data-group-scope') || '').trim();
+            const group = String(btn.getAttribute('data-group') || '').trim();
+            if (!scope || !group) return;
+
+            const collapsed = !!(state[scope] && state[scope][group]);
+            applyToggleState(btn, collapsed);
+
+            btn.addEventListener('click', () => {
+              const nowCollapsed = btn.getAttribute('aria-expanded') === 'true';
+              state[scope] = state[scope] || {};
+              state[scope][group] = nowCollapsed;
+              writeState(state);
+              applyToggleState(btn, nowCollapsed);
+            });
+          });
+        }
+
+        initCollapsibleMenuGroups();
 
         function normText(el){
           const t = (el.getAttribute('data-bi-tip') || el.getAttribute('data-tip') || el.getAttribute('title') || el.getAttribute('aria-label') || el.textContent || '').trim();

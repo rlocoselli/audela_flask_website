@@ -69,7 +69,7 @@
   }
 
   function horizonModeLabel (mode) {
-    if (mode === 'last_days') return t('Últimos X dias');
+    if (mode === 'last_days') return t('Last X days');
     if (mode === 'last_months') return t('Últimos X meses');
     if (mode === 'current_year') return t('Ano atual');
     if (mode === 'custom_range') return t('Intervalo customizado');

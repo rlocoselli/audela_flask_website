@@ -13,7 +13,7 @@
           <div class="modal-content">
             <div class="modal-header">
               <h5 class="modal-title" id="aiChatModalTitle">${t('Information')}</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="${t('Fechar')}"></button>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="${t('Close')}"></button>
             </div>
             <div class="modal-body" id="aiChatModalBody"></div>
             <div class="modal-footer">
@@ -82,8 +82,8 @@
       const tools = el('div', 'd-flex justify-content-end');
       const speakBtn = el('button', 'btn btn-outline-secondary btn-sm js-tts-speak');
       speakBtn.type = 'button';
-      speakBtn.title = t('Ouvir explicação');
-      speakBtn.setAttribute('aria-label', t('Ouvir explicação'));
+      speakBtn.title = t('Listen to explanation');
+      speakBtn.setAttribute('aria-label', t('Listen to explanation'));
       speakBtn.setAttribute('data-tts-text', safeText);
       speakBtn.innerHTML = '<i class="bi bi-volume-up"></i>';
       tools.appendChild(speakBtn);
@@ -192,7 +192,7 @@
         window.addEventListener('resize', () => chart.resize());
       } catch (e) {
         const p = el('div', 'text-secondary');
-        p.textContent = t('Falha ao renderizar gráfico.');
+        p.textContent = t('Failed to render chart.');
         body.appendChild(p);
       }
     }
@@ -295,14 +295,14 @@
       const msg = (input.value || '').trim();
       if (mode === 'question') {
         if (!qid) {
-          if (window.uiToast) window.uiToast(t('Selecione uma pergunta'), { variant: 'danger' });
-          else uiAlert(t('Selecione uma pergunta'), t('Validação'));
+          if (window.uiToast) window.uiToast(t('Select a question'), { variant: 'danger' });
+          else uiAlert(t('Select a question'), t('Validation'));
           return;
         }
       } else {
         if (!sid) {
-          if (window.uiToast) window.uiToast(t('Selecione uma fonte.'), { variant: 'danger' });
-          else uiAlert(t('Selecione uma fonte.'), t('Validação'));
+          if (window.uiToast) window.uiToast(t('Select a source.'), { variant: 'danger' });
+          else uiAlert(t('Select a source.'), t('Validation'));
           return;
         }
       }
@@ -312,8 +312,8 @@
       if (mode === 'question') {
         params = parseJsonSafe(paramsEl ? paramsEl.value : '');
         if (params === null) {
-          if (window.uiToast) window.uiToast(t('Parâmetros JSON inválidos.'), { variant: 'danger' });
-          else uiAlert(t('Parâmetros JSON inválidos.'), t('Validação'));
+          if (window.uiToast) window.uiToast(t('Invalid JSON parameters.'), { variant: 'danger' });
+          else uiAlert(t('Invalid JSON parameters.'), t('Validation'));
           return;
         }
       }
@@ -324,7 +324,7 @@
       clearCharts();
       clearKpis();
 
-      setStatus(t('Gerando resposta...'));
+      setStatus(t('Generating response...'));
       setLoading(true, t('Analyzing your request...'));
 
       const resp = await fetchWithRetry('/app/api/ai/chat', {
@@ -346,7 +346,7 @@
 
       const payload = await resp.json().catch(() => ({}));
       if (!resp.ok || payload.error) {
-        const err = payload.error || t('Erro');
+        const err = payload.error || t('Error');
         renderMessage(log, 'assistant', err);
         history.push({ role: 'assistant', content: err });
         setStatus('');
@@ -431,24 +431,24 @@
       const createComparison = !!(createComparisonEl && createComparisonEl.checked);
 
       if (!msg) {
-        if (window.uiToast) window.uiToast(t('Digite o pedido do dashboard.'), { variant: 'danger' });
-        else uiAlert(t('Digite o pedido do dashboard.'), t('Validação'));
+        if (window.uiToast) window.uiToast(t('Type your dashboard request.'), { variant: 'danger' });
+        else uiAlert(t('Type your dashboard request.'), t('Validation'));
         return;
       }
 
       if (mode === 'question' && !qid) {
-        if (window.uiToast) window.uiToast(t('Selecione uma pergunta'), { variant: 'danger' });
-        else uiAlert(t('Selecione uma pergunta'), t('Validação'));
+        if (window.uiToast) window.uiToast(t('Select a question'), { variant: 'danger' });
+        else uiAlert(t('Select a question'), t('Validation'));
         return;
       }
 
       if (mode === 'source' && !sid) {
-        if (window.uiToast) window.uiToast(t('Selecione uma fonte.'), { variant: 'danger' });
-        else uiAlert(t('Selecione uma fonte.'), t('Validação'));
+        if (window.uiToast) window.uiToast(t('Select a source.'), { variant: 'danger' });
+        else uiAlert(t('Select a source.'), t('Validation'));
         return;
       }
 
-      setStatus(t('Criando dashboard automaticamente...'));
+      setStatus(t('Creating dashboard automatically...'));
       setLoading(true, t('Creating dashboard...'));
 
       const resp = await fetchWithRetry('/app/api/ai/dashboard', {
@@ -468,7 +468,7 @@
 
       const payload = await resp.json().catch(() => ({}));
       if (!resp.ok || !payload.ok) {
-        const err = payload.error || t('Erro ao criar dashboard.');
+        const err = payload.error || t('Failed to create dashboard.');
         renderMessage(log, 'assistant', err);
         setStatus('');
         setLoading(false, '');
@@ -477,15 +477,15 @@
 
       const dashboard = (payload && payload.dashboard) ? payload.dashboard : {};
       const dashboardName = String(dashboard.name || t('Dashboard'));
-      renderMessage(log, 'assistant', `${t('Dashboard criado')}: ${dashboardName}`);
+      renderMessage(log, 'assistant', `${t('Dashboard created')}: ${dashboardName}`);
 
       const comparison = (payload && payload.comparison) ? payload.comparison : {};
       const comparisonDashboard = (payload && payload.comparison_dashboard) ? payload.comparison_dashboard : {};
       const comparisonUrl = String(comparisonDashboard.url || '').trim();
       if (comparison && comparison.created) {
-        renderMessage(log, 'assistant', `${t('Dashboard comparativo criado')}: ${String(comparisonDashboard.name || t('Comparativo'))}`);
+        renderMessage(log, 'assistant', `${t('Comparison dashboard created')}: ${String(comparisonDashboard.name || t('Comparison'))}`);
       } else if (comparison && comparison.requested && comparison.error) {
-        renderMessage(log, 'assistant', `${t('Dashboard principal criado. Comparativo não criado')}: ${comparison.error}`);
+        renderMessage(log, 'assistant', `${t('Main dashboard created. Comparison not created')}: ${comparison.error}`);
       }
 
       const goUrl = String(dashboard.url || '').trim();
@@ -497,7 +497,7 @@
             // Ignore popup blockers.
           }
         }
-        setStatus(t('Abrindo dashboard...'));
+        setStatus(t('Opening dashboard...'));
         window.location.href = goUrl;
         return;
       }
@@ -511,7 +511,7 @@
       send().catch((err) => {
         setStatus('');
         setLoading(false, '');
-        renderMessage(log, 'assistant', String(err || t('Erro')));
+        renderMessage(log, 'assistant', String(err || t('Error')));
       });
     });
 
@@ -521,7 +521,7 @@
         createDashboardFromPrompt().catch((err) => {
           setStatus('');
           setLoading(false, '');
-          renderMessage(log, 'assistant', String(err || t('Erro')));
+          renderMessage(log, 'assistant', String(err || t('Error')));
         });
       });
     }
@@ -536,7 +536,7 @@
     // Hello
     renderMessage(log, 'assistant', t('Select a question or a source and describe what you want to analyze.'));
     if (createDashboardMode) {
-      setStatus(t('Describe your dashboard and click "Créer dashboard".'));
+      setStatus(t('Describe your dashboard and click "Create dashboard".'));
       try {
         input.focus();
       } catch (e) {
