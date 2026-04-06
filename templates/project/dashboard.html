@@ -10,6 +10,7 @@
   <div class="d-flex align-items-center gap-2 flex-wrap">
     <select class="form-select form-select-sm" id="pm-project-select" style="min-width:220px;"></select>
     <button class="btn btn-sm btn-outline-primary" id="pm-new-project-btn" data-tip="{{ _('Créer un nouveau projet avec son responsable et sa description.') }}">{{ _('Nouveau projet') }}</button>
+    <button class="btn btn-sm btn-outline-danger" id="pm-delete-project-btn" type="button">{{ _('Supprimer projet') }}</button>
     <span id="pm-save-status" class="small text-secondary">{{ _('Chargement...') }}</span>
     <button class="btn btn-sm btn-primary" id="pm-save-now" data-tip="{{ _('Enregistrer immédiatement toutes les modifications du projet.') }}">{{ _('Sauvegarder') }}</button>
   </div>
@@ -22,7 +23,10 @@
     <div class="card border-0 shadow-sm pm-side-nav-wrap">
       <div class="card-body p-2">
         <div class="nav nav-pills flex-column gap-1" id="pm-main-tabs" role="tablist" aria-orientation="vertical">
-          <button class="nav-link active text-start" id="pm-tab-execution" data-bs-toggle="tab" data-bs-target="#pm-pane-execution" type="button" role="tab" aria-controls="pm-pane-execution" aria-selected="true">
+          <button class="nav-link active text-start" id="pm-tab-ai-builder" data-bs-toggle="tab" data-bs-target="#pm-pane-ai-builder" type="button" role="tab" aria-controls="pm-pane-ai-builder" aria-selected="true">
+            <i class="bi bi-stars me-2"></i>{{ _('Criar projeto por IA') }}
+          </button>
+          <button class="nav-link text-start" id="pm-tab-execution" data-bs-toggle="tab" data-bs-target="#pm-pane-execution" type="button" role="tab" aria-controls="pm-pane-execution" aria-selected="false">
             <i class="bi bi-kanban me-2"></i>{{ _('Tableau') }}
           </button>
           <button class="nav-link text-start" id="pm-tab-managers" data-bs-toggle="tab" data-bs-target="#pm-pane-managers" type="button" role="tab" aria-controls="pm-pane-managers" aria-selected="false">
@@ -47,7 +51,108 @@
 
   <div class="col-12 col-xl-9 col-xxl-10" id="pm-main-col">
 <div class="tab-content" id="pm-main-tabs-content">
-<div class="tab-pane fade show active" id="pm-pane-execution" role="tabpanel" aria-labelledby="pm-tab-execution" tabindex="0">
+<div class="tab-pane fade show active" id="pm-pane-ai-builder" role="tabpanel" aria-labelledby="pm-tab-ai-builder" tabindex="0">
+  <div class="card border-0 shadow-sm" id="pm-section-ai-builder">
+    <div class="card-body">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+        <div>
+          <h5 class="mb-0">{{ _('Assistente IA de criação de projeto') }}</h5>
+          <div class="small text-secondary">{{ _('Descreva seu projeto como em um chatbot: tipo, número de sprints, responsáveis e contexto.') }}</div>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <button class="btn btn-sm btn-outline-secondary" type="button" id="pm-ai-reset-btn">{{ _('Archiver et recommencer') }}</button>
+          <button class="btn btn-sm btn-outline-success" type="button" id="pm-ai-create-project-btn">{{ _('Criar projeto agora') }}</button>
+        </div>
+      </div>
+      <div class="row g-3">
+        <div class="col-12 col-lg-8">
+          <div class="border rounded p-2 bg-body-tertiary pm-ai-chat-wrap" id="pm-ai-chat-log"></div>
+          <div class="d-flex align-items-center gap-2 mt-2 flex-wrap">
+            <input id="pm-ai-spec-pdf" type="file" class="form-control form-control-sm" accept="application/pdf" style="max-width:340px;">
+            <span id="pm-ai-spec-name" class="small text-secondary">{{ _('Aucun cahier des charges attaché') }}</span>
+          </div>
+          <div class="input-group mt-2">
+            <input id="pm-ai-user-input" class="form-control" placeholder="{{ _('Ex.: Projeto mobile fintech com 4 sprints, responsáveis Ana e Bruno') }}">
+            <button class="btn btn-primary" type="button" id="pm-ai-send-btn">{{ _('Enviar') }}</button>
+          </div>
+          <div class="border rounded p-2 mt-2">
+            <div class="fw-semibold small mb-2">{{ _('Questionnaire guidé') }}</div>
+            <div class="row g-2">
+              <div class="col-12 col-md-6">
+                <label class="form-label form-label-sm mb-1">{{ _('Type de projet') }}</label>
+                <select id="pm-ai-q-project-type" class="form-select form-select-sm">
+                  <option value="">{{ _('Sélectionner') }}</option>
+                  <option value="Software">Software</option>
+                  <option value="Engenharia">Engenharia</option>
+                  <option value="Naval">Naval</option>
+                  <option value="Nuclear">Nuclear</option>
+                  <option value="Industrial">Industrial</option>
+                  <option value="Construction">Construction</option>
+                  <option value="R&D">R&D</option>
+                </select>
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label form-label-sm mb-1">{{ _('Complexité') }}</label>
+                <select id="pm-ai-q-complexity" class="form-select form-select-sm">
+                  <option value="">{{ _('Sélectionner') }}</option>
+                  <option value="Faible">{{ _('Faible') }}</option>
+                  <option value="Moyenne">{{ _('Moyenne') }}</option>
+                  <option value="Élevée">{{ _('Élevée') }}</option>
+                </select>
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label form-label-sm mb-1">{{ _('Mode de delivery') }}</label>
+                <select id="pm-ai-q-delivery" class="form-select form-select-sm">
+                  <option value="">{{ _('Sélectionner') }}</option>
+                  <option value="Agile">Agile</option>
+                  <option value="Hybride">Hybride</option>
+                  <option value="Waterfall">Waterfall</option>
+                </select>
+              </div>
+              <div class="col-12 col-md-6">
+                <label class="form-label form-label-sm mb-1">{{ _('Contrainte principale') }}</label>
+                <select id="pm-ai-q-constraint" class="form-select form-select-sm">
+                  <option value="">{{ _('Sélectionner') }}</option>
+                  <option value="Délai">{{ _('Délais') }}</option>
+                  <option value="Budget">{{ _('Budget') }}</option>
+                  <option value="Qualité">{{ _('Qualité') }}</option>
+                  <option value="Conformité">{{ _('Conformité') }}</option>
+                </select>
+              </div>
+            </div>
+            <div class="d-flex justify-content-end mt-2">
+              <button class="btn btn-sm btn-outline-primary" type="button" id="pm-ai-q-apply">{{ _('Appliquer au chat') }}</button>
+            </div>
+          </div>
+        </div>
+        <div class="col-12 col-lg-4">
+          <div class="border rounded p-2 h-100">
+            <div class="fw-semibold mb-2">{{ _('Resumo do projeto') }}</div>
+            <div id="pm-ai-draft-summary" class="small text-secondary">{{ _('Aguardando informações do usuário...') }}</div>
+            <hr>
+            <div class="small text-secondary">{{ _('Dica: use o chat para refinar escopo, tarefas e responsáveis; depois clique em "Criar projeto agora".') }}</div>
+            <hr>
+            <div class="fw-semibold mb-2">{{ _('Questions intelligentes IA') }}</div>
+            <div id="pm-ai-smart-questions" class="small text-secondary">{{ _('Aucune question intelligente pour le moment.') }}</div>
+            <hr>
+            <div class="fw-semibold mb-2">{{ _('Historique IA') }}</div>
+            <select id="pm-ai-archives-filter" class="form-select form-select-sm mb-2">
+              <option value="">{{ _('Tous les projets') }}</option>
+            </select>
+            <div id="pm-ai-archives" class="small text-secondary">{{ _('Aucun historique IA archivé.') }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    <div id="pm-ai-loading-overlay" class="pm-ai-loading-overlay d-none" aria-live="polite" aria-busy="true">
+      <div class="pm-ai-loading-box">
+        <div class="spinner-border text-primary" role="status" aria-hidden="true"></div>
+        <div class="small mt-2">{{ _('IA processando e refinando tarefas...') }}</div>
+      </div>
+    </div>
+<div class="tab-pane fade" id="pm-pane-execution" role="tabpanel" aria-labelledby="pm-tab-execution" tabindex="0">
 <div class="accordion pm-reporting-accordion mb-3" id="pm-execution-accordion">
   <div class="accordion-item" id="pm-section-kanban">
     <h2 class="accordion-header" id="pm-exec-kanban-header">
@@ -412,17 +517,15 @@
 
 </div>
 <div class="tab-pane fade" id="pm-pane-gantt" role="tabpanel" aria-labelledby="pm-tab-gantt" tabindex="0">
-
 <div class="card border-0 shadow-sm pm-gantt-shell" id="pm-section-gantt">
   <div class="card-body p-0">
     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 pm-gantt-head">
       <h5 class="mb-0 text-white fw-bold">{{ _('Diagramme de Gantt avancé') }}</h5>
-      <div class="d-flex gap-2">
+      <div class="d-flex gap-2 flex-wrap">
         <button class="btn btn-sm btn-light" id="pm-gantt-maximize" type="button">
           <i class="bi bi-arrows-fullscreen me-1"></i>{{ _('Maximiser') }}
         </button>
         <button class="btn btn-sm btn-light" id="pm-gantt-capture-baseline" type="button">{{ _('Capturer baseline') }}</button>
-        <button class="btn btn-sm btn-warning text-dark" id="pm-add-gantt">{{ _('Ajouter tâche') }}</button>
       </div>
     </div>
     <div class="p-3">
@@ -482,85 +585,103 @@
         </div>
       </div>
     </div>
-    <div class="row g-2 mb-2" id="pm-gantt-toolbar">
-      <div class="col-12 col-lg-2">
-        <label class="form-label form-label-sm mb-1">{{ _('Zoom') }}</label>
-        <select class="form-select form-select-sm" id="pm-gantt-zoom">
-          <option value="day">{{ _('Jour') }}</option>
-          <option value="week" selected>{{ _('Semaine') }}</option>
-          <option value="month">{{ _('Mois') }}</option>
-        </select>
-      </div>
-      <div class="col-12 col-lg-3">
-        <label class="form-label form-label-sm mb-1">{{ _('Filtre responsable') }}</label>
-        <select class="form-select form-select-sm" id="pm-gantt-owner-filter">
-          <option value="">{{ _('Tous') }}</option>
-        </select>
-      </div>
-      <div class="col-12 col-lg-3">
-        <label class="form-label form-label-sm mb-1">{{ _('Filtre santé') }}</label>
-        <select class="form-select form-select-sm" id="pm-gantt-health-filter">
-          <option value="all">{{ _('Toutes les tâches') }}</option>
-          <option value="alerts">{{ _('Alertes') }}</option>
-          <option value="critical">{{ _('Critiques') }}</option>
-          <option value="delayed">{{ _('Retards') }}</option>
-          <option value="overloaded">{{ _('Surcharges') }}</option>
-          <option value="blocked">{{ _('Bloqués') }}</option>
-        </select>
-      </div>
-      <div class="col-12 col-lg-4 d-flex align-items-end gap-3">
-        <div class="form-check form-switch">
-          <input class="form-check-input" type="checkbox" id="pm-gantt-show-baseline" checked>
-          <label class="form-check-label" for="pm-gantt-show-baseline">{{ _('Afficher baseline') }}</label>
-        </div>
-        <div class="form-check form-switch">
-          <input class="form-check-input" type="checkbox" id="pm-gantt-auto-schedule" checked>
-          <label class="form-check-label" for="pm-gantt-auto-schedule">{{ _('Auto-planning') }}</label>
-        </div>
-      </div>
-      <div class="col-12">
-        <div class="d-flex flex-wrap gap-2 small">
-          <span class="badge rounded-pill pm-gantt-status-badge pm-gantt-badge-not-started">{{ _('Non démarré') }}</span>
-          <span class="badge rounded-pill pm-gantt-status-badge pm-gantt-badge-progress">{{ _('En cours') }}</span>
-          <span class="badge rounded-pill pm-gantt-status-badge pm-gantt-badge-done">{{ _('Terminé') }}</span>
-          <span class="badge rounded-pill pm-gantt-status-badge pm-gantt-badge-blocked">{{ _('Bloqué') }}</span>
+
+    <div class="accordion pm-reporting-accordion mb-0" id="pm-gantt-graph-accordion">
+      <div class="accordion-item" id="pm-section-gantt-graph">
+        <h2 class="accordion-header" id="pm-gantt-graph-header">
+          <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#pm-gantt-graph-body" aria-expanded="true" aria-controls="pm-gantt-graph-body">
+            {{ _('Graphique Gantt') }}
+          </button>
+        </h2>
+        <div id="pm-gantt-graph-body" class="accordion-collapse collapse show" aria-labelledby="pm-gantt-graph-header" data-bs-parent="#pm-gantt-graph-accordion">
+          <div class="accordion-body">
+            <div class="d-flex justify-content-end gap-2 mb-2">
+              <button class="btn btn-sm btn-warning text-dark" id="pm-add-gantt" type="button">{{ _('Ajouter tâche') }}</button>
+              <button class="btn btn-sm btn-outline-danger" id="pm-delete-gantt-task" type="button">{{ _('Supprimer tâche') }}</button>
+            </div>
+            <div class="row g-2 mb-2" id="pm-gantt-toolbar">
+              <div class="col-12 col-lg-2">
+                <label class="form-label form-label-sm mb-1">{{ _('Zoom') }}</label>
+                <select class="form-select form-select-sm" id="pm-gantt-zoom">
+                  <option value="day">{{ _('Jour') }}</option>
+                  <option value="week" selected>{{ _('Semaine') }}</option>
+                  <option value="month">{{ _('Mois') }}</option>
+                </select>
+              </div>
+              <div class="col-12 col-lg-3">
+                <label class="form-label form-label-sm mb-1">{{ _('Filtre responsable') }}</label>
+                <select class="form-select form-select-sm" id="pm-gantt-owner-filter">
+                  <option value="">{{ _('Tous') }}</option>
+                </select>
+              </div>
+              <div class="col-12 col-lg-3">
+                <label class="form-label form-label-sm mb-1">{{ _('Filtre santé') }}</label>
+                <select class="form-select form-select-sm" id="pm-gantt-health-filter">
+                  <option value="all">{{ _('Toutes les tâches') }}</option>
+                  <option value="alerts">{{ _('Alertes') }}</option>
+                  <option value="critical">{{ _('Critiques') }}</option>
+                  <option value="delayed">{{ _('Retards') }}</option>
+                  <option value="overloaded">{{ _('Surcharges') }}</option>
+                  <option value="blocked">{{ _('Bloqués') }}</option>
+                </select>
+              </div>
+              <div class="col-12 col-lg-4 d-flex align-items-end gap-3">
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" id="pm-gantt-show-baseline" checked>
+                  <label class="form-check-label" for="pm-gantt-show-baseline">{{ _('Afficher baseline') }}</label>
+                </div>
+                <div class="form-check form-switch">
+                  <input class="form-check-input" type="checkbox" id="pm-gantt-auto-schedule" checked>
+                  <label class="form-check-label" for="pm-gantt-auto-schedule">{{ _('Auto-planning') }}</label>
+                </div>
+              </div>
+              <div class="col-12">
+                <div class="d-flex flex-wrap gap-2 small">
+                  <span class="badge rounded-pill pm-gantt-status-badge pm-gantt-badge-not-started">{{ _('Non démarré') }}</span>
+                  <span class="badge rounded-pill pm-gantt-status-badge pm-gantt-badge-progress">{{ _('En cours') }}</span>
+                  <span class="badge rounded-pill pm-gantt-status-badge pm-gantt-badge-done">{{ _('Terminé') }}</span>
+                  <span class="badge rounded-pill pm-gantt-status-badge pm-gantt-badge-blocked">{{ _('Bloqué') }}</span>
+                </div>
+              </div>
+            </div>
+            <div id="pm-gantt-insights" class="small mb-2"></div>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle" id="pm-gantt-table">
+                <thead>
+                  <tr>
+                    <th style="width:60px;">#</th>
+                    <th>{{ _('Tâche') }}</th>
+                    <th>{{ _('Type') }}</th>
+                    <th>{{ _('Responsable') }}</th>
+                    <th>{{ _('Prédécesseur') }}</th>
+                    <th>{{ _('Type lien') }}</th>
+                    <th>{{ _('Lag (j)') }}</th>
+                    <th>{{ _('Statut') }}</th>
+                    <th>{{ _('Avancement %') }}</th>
+                    <th>{{ _('Début') }}</th>
+                    <th>{{ _('Fin') }}</th>
+                    <th>{{ _('Durée (j)') }}</th>
+                    <th>{{ _('Charge/j') }}</th>
+                    <th>{{ _('Capacité/j') }}</th>
+                    <th>{{ _('Critique') }}</th>
+                    <th>{{ _('Alerte') }}</th>
+                    <th>{{ _('Heures (calc)') }}</th>
+                    <th>{{ _('Tarif/h (resp.)') }}</th>
+                    <th>{{ _('Coût (calc)') }}</th>
+                    <th class="pm-gantt-timeline-col">
+                      <div class="pm-gantt-timeline-col-title">{{ _('Timeline') }}</div>
+                      <div id="pm-gantt-timeline-header" class="pm-gantt-timeline-header"></div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <div id="pm-finance-summary" class="mt-3"></div>
+          </div>
         </div>
       </div>
     </div>
-    <div id="pm-gantt-insights" class="small mb-2"></div>
-    <div class="table-responsive">
-      <table class="table table-sm align-middle" id="pm-gantt-table">
-        <thead>
-          <tr>
-            <th style="width:60px;">#</th>
-            <th>{{ _('Tâche') }}</th>
-            <th>{{ _('Type') }}</th>
-            <th>{{ _('Responsable') }}</th>
-            <th>{{ _('Prédécesseur') }}</th>
-            <th>{{ _('Type lien') }}</th>
-            <th>{{ _('Lag (j)') }}</th>
-            <th>{{ _('Statut') }}</th>
-            <th>{{ _('Avancement %') }}</th>
-            <th>{{ _('Début') }}</th>
-            <th>{{ _('Fin') }}</th>
-            <th>{{ _('Durée (j)') }}</th>
-            <th>{{ _('Charge/j') }}</th>
-            <th>{{ _('Capacité/j') }}</th>
-            <th>{{ _('Critique') }}</th>
-            <th>{{ _('Alerte') }}</th>
-            <th>{{ _('Heures (calc)') }}</th>
-            <th>{{ _('Tarif/h (resp.)') }}</th>
-            <th>{{ _('Coût (calc)') }}</th>
-            <th class="pm-gantt-timeline-col">
-              <div class="pm-gantt-timeline-col-title">{{ _('Timeline') }}</div>
-              <div id="pm-gantt-timeline-header" class="pm-gantt-timeline-header"></div>
-            </th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-    <div id="pm-finance-summary" class="mt-3"></div>
     </div>
   </div>
 </div>
@@ -689,6 +810,28 @@
             <label class="form-check-label" for="pm-notif-trigger-daily-summary">{{ _('Résumé quotidien') }}</label>
           </div>
 
+          <hr class="my-3">
+          <h6 class="mb-2">{{ _('Rappel cérémonies Scrum') }}</h6>
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" id="pm-notif-trigger-ceremony-reminder">
+            <label class="form-check-label" for="pm-notif-trigger-ceremony-reminder">{{ _('Activer rappels cérémonies') }}</label>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col-md-6">
+              <label class="form-label small mb-1" for="pm-notif-ceremony-lead-minutes">{{ _('Délai alerte (minutes)') }}</label>
+              <input class="form-control form-control-sm" type="number" min="5" step="5" id="pm-notif-ceremony-lead-minutes" value="60">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small mb-1" for="pm-notif-ceremony-scope">{{ _('Canal alerte cérémonie') }}</label>
+              <select class="form-select form-select-sm" id="pm-notif-ceremony-scope">
+                <option value="all">{{ _('Tous canaux actifs') }}</option>
+                <option value="mail">{{ _('Email') }}</option>
+                <option value="slack">Slack</option>
+                <option value="teams">Teams</option>
+              </select>
+            </div>
+          </div>
+
           <div class="small text-secondary mt-2">{{ _('Les notifications sont configurées dans ce module et seront utilisées par les traitements d\'alerte.') }}</div>
         </div>
       </div>
@@ -733,6 +876,9 @@
     z-index: 1085;
     margin: 0 !important;
   }
+  body.pm-gantt-maximized {
+    overflow: hidden;
+  }
   .pm-gantt-fullscreen .card-body {
     height: calc(100vh - 2rem);
     display: flex;
@@ -741,6 +887,56 @@
   .pm-gantt-fullscreen .table-responsive {
     flex: 1;
     overflow: auto;
+  }
+  #pm-gantt-table tbody tr.pm-gantt-row-selected td {
+    background: rgba(13, 110, 253, 0.12) !important;
+  }
+  .pm-task-docs-dropzone {
+    border-style: dashed !important;
+    background: rgba(13, 110, 253, 0.04);
+  }
+  .pm-task-docs-dropzone.pm-task-docs-drop-over {
+    border-color: var(--bs-primary) !important;
+    background: rgba(13, 110, 253, 0.1);
+  }
+  .pm-ai-chat-wrap {
+    min-height: 320px;
+    max-height: 420px;
+    overflow: auto;
+  }
+  .pm-ai-msg {
+    border-radius: 10px;
+    padding: 0.5rem 0.65rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    line-height: 1.35;
+  }
+  .pm-ai-msg-user {
+    background: rgba(13, 110, 253, 0.12);
+    border: 1px solid rgba(13, 110, 253, 0.2);
+  }
+  .pm-ai-msg-bot {
+    background: rgba(108, 117, 125, 0.08);
+    border: 1px solid rgba(108, 117, 125, 0.18);
+  }
+  .pm-ai-loading-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    background: rgba(248, 250, 255, 0.72);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(1px);
+  }
+  .pm-ai-loading-box {
+    min-width: 260px;
+    text-align: center;
+    background: #fff;
+    border: 1px solid rgba(13, 110, 253, 0.16);
+    border-radius: 12px;
+    padding: 1rem 1.1rem;
+    box-shadow: 0 0.5rem 1.2rem rgba(22, 34, 67, 0.14);
   }
   .pm-gantt-track {
     --pm-day-px: 24px;
@@ -943,6 +1139,27 @@
       rgba(220, 53, 69, 0) 7px,
       rgba(220, 53, 69, 0) 14px
     );
+  }
+  .pm-gantt-bar--milestone {
+    height: 14px;
+    width: 14px;
+    top: 7px;
+    border-radius: 2px;
+    transform: rotate(45deg);
+    box-shadow: 0 2px 8px rgba(16, 38, 83, 0.35);
+    overflow: visible;
+  }
+  .pm-gantt-bar--milestone .pm-gantt-bar-progress,
+  .pm-gantt-bar--milestone .pm-gantt-bar-handle {
+    display: none;
+  }
+  .pm-gantt-bar--milestone .pm-gantt-bar-label {
+    left: 14px;
+    top: 50%;
+    transform: translate(0, -50%) rotate(-45deg);
+    color: var(--bs-body-color);
+    text-shadow: none;
+    font-weight: 700;
   }
   .pm-gantt-timeline-meta {
     display: flex;
@@ -1866,13 +2083,17 @@
       const API_SAVE = '{{ url_for("project.workspace_save") }}';
       const API_PUBLIC_SHARE = '{{ url_for("project.public_kanban_share_save") }}';
       const API_PUBLIC_SHARE_EMAIL = '{{ url_for("project.public_kanban_share_email_send") }}';
+      const API_AI_PROJECT_CHAT = '{{ url_for("project.ai_project_chat") }}';
       const FALLBACK_KEY = 'audela.pm.mini.v3';
+      const CURRENT_LANG = '{{ (g.lang if g and g.lang else "pt")|e }}';
       const state = {
         projects: [], selected_project_id: null, cards: [], ceremonies: [], deliverables: [], gantt: [], managers: [],
-        project_meta: {}, stakeholders: [], risks: [], issues: [], decisions: [], changes: [], documents: [], meetings: [], audit_log: [], project_versions: [], security: {}, notifications: {}
+        project_meta: {}, stakeholders: [], risks: [], issues: [], decisions: [], changes: [], documents: [], meetings: [], audit_log: [], project_versions: [], ai_builder: {}, ai_builder_archives: [], security: {}, notifications: {}
       };
       const statusEl = document.getElementById('pm-save-status');
       const projectSelect = document.getElementById('pm-project-select');
+      const projectDeleteBtn = document.getElementById('pm-delete-project-btn');
+      const ganttDeleteTaskBtn = document.getElementById('pm-delete-gantt-task');
       const ganttCard = document.getElementById('pm-gantt-table')?.closest('.card');
       const ganttMaxBtn = document.getElementById('pm-gantt-maximize');
       const ganttView = {
@@ -1882,10 +2103,1260 @@
         showBaseline: true,
         autoSchedule: true,
       };
+      const aiBuilder = {
+        draft: {
+          name: '',
+          type: '',
+          sprints: 0,
+          responsibles: [],
+          work_hours_per_day: 8,
+          available_hours_per_day: 8,
+          context: '',
+        },
+        messages: [],
+        plan_tasks: [],
+        planning_note: '',
+        smart_questions: [],
+        charter: { objectives: '', scope: '', deliverables: '', milestones: '' },
+        spec_pdf_name: '',
+      };
+      const aiBuilderArchives = [];
+      let aiArchiveProjectFilter = '';
       let draggedCardId = null;
       let draggedColumnKey = null;
       let ganttIsMaximized = false;
+      let selectedGanttTaskId = null;
       let saveInFlight = null;
+      let aiInFlight = false;
+
+      function aiSetLoading(active){
+        aiInFlight = !!active;
+        const overlay = document.getElementById('pm-ai-loading-overlay');
+        if (overlay) overlay.classList.toggle('d-none', !aiInFlight);
+        const sendBtn = document.getElementById('pm-ai-send-btn');
+        const createBtn = document.getElementById('pm-ai-create-project-btn');
+        const resetBtn = document.getElementById('pm-ai-reset-btn');
+        const input = document.getElementById('pm-ai-user-input');
+        const specInput = document.getElementById('pm-ai-spec-pdf');
+        if (sendBtn) sendBtn.disabled = aiInFlight || !canWrite();
+        if (createBtn) createBtn.disabled = aiInFlight || !canWrite();
+        if (resetBtn) resetBtn.disabled = aiInFlight || !canWrite();
+        if (input) input.disabled = aiInFlight || !canWrite();
+        if (specInput) specInput.disabled = aiInFlight || !canWrite();
+      }
+
+      function updateGanttTaskSelectionUI(){
+        const canDeleteTask = canWrite() && !!selectedGanttTaskId;
+        if (ganttDeleteTaskBtn) ganttDeleteTaskBtn.disabled = !canDeleteTask;
+        document.querySelectorAll('#pm-gantt-table tbody tr').forEach(function(row){
+          row.classList.toggle('pm-gantt-row-selected', String(row.dataset.ganttTaskId || '') === String(selectedGanttTaskId || ''));
+        });
+      }
+
+      function aiTypeFromText(text){
+        const t = (text || '').toLowerCase();
+        if (/(engenharia|engineering|naval|nuclear|industrial|civil|mecanic|mecanic)/.test(t)) return 'Engenharia';
+        if (/(mobile|app)/.test(t)) return '{{ _('Mobile') }}';
+        if (/(web|portal|site)/.test(t)) return '{{ _('Web') }}';
+        if (/(iot|device|capteur|sensor)/.test(t)) return '{{ _('IoT') }}';
+        if (/(data|bi|analytics|etl)/.test(t)) return '{{ _('Data/BI') }}';
+        if (/(finance|fintech|bank)/.test(t)) return '{{ _('Finance') }}';
+        return '';
+      }
+
+      function aiExtractSprints(text){
+        const t = (text || '').toLowerCase();
+        let m = t.match(/(\d+)\s*sprint/);
+        if (!m) m = t.match(/sprint\s*(\d+)/);
+        if (!m) return 0;
+        const n = Math.max(1, Math.min(12, Math.round(num(m[1]))));
+        return n;
+      }
+
+      function aiExtractResponsibles(text){
+        const t = (text || '').trim();
+        const m = t.match(/(?:respons[aá]vel(?:eis)?|respons[aá]veis?|owners?|responsables?)\s*(?::|\-|\bé\b|\bis\b)?\s*(.+)$/i);
+        if (!m) return [];
+        return m[1].split(/[,;/]|\se\s|\sand\s|\s+\+\s+/i).map(function(x){
+          return normalizeManagerName(String(x || '').replace(/^(?:o|a|os|as|um|uma|the)\s+/i, '').replace(/\s+(?:por favor|please)$/i, ''));
+        }).filter(Boolean);
+      }
+
+      function aiExtractProjectName(text){
+        const t = (text || '').trim();
+        const quoted = t.match(/["“](.+?)["”]/);
+        if (quoted && quoted[1]) return quoted[1].trim();
+        const m = t.match(/(?:projeto|project)\s+([\w\-\s]{4,60})/i);
+        if (m && m[1]) return m[1].trim();
+        return '';
+      }
+
+      function aiBuildGuidedRefinementMessage(){
+        const typeEl = document.getElementById('pm-ai-q-project-type');
+        const complexityEl = document.getElementById('pm-ai-q-complexity');
+        const deliveryEl = document.getElementById('pm-ai-q-delivery');
+        const constraintEl = document.getElementById('pm-ai-q-constraint');
+
+        const projectType = String(typeEl && typeEl.value || '').trim();
+        const complexity = String(complexityEl && complexityEl.value || '').trim();
+        const delivery = String(deliveryEl && deliveryEl.value || '').trim();
+        const constraint = String(constraintEl && constraintEl.value || '').trim();
+
+        if (projectType) aiBuilder.draft.type = projectType;
+
+        const parts = [];
+        if (projectType) parts.push('tipo: ' + projectType);
+        if (complexity) parts.push('complexidade: ' + complexity);
+        if (delivery) parts.push('modelo de delivery: ' + delivery);
+        if (constraint) parts.push('restricao principal: ' + constraint);
+        if (!parts.length) return '';
+
+        return '{{ _('Refinar planejamento com os seguintes parâmetros') }}: ' + parts.join(', ') + '.';
+      }
+
+      function normalizeAiSmartQuestions(rows){
+        return (Array.isArray(rows) ? rows : []).slice(0, 8).map(function(r, idx){
+          const q = (r && typeof r === 'object') ? r : {};
+          const rawOpts = Array.isArray(q.options) ? q.options : [];
+          const opts = rawOpts.slice(0, 6).map(function(o){
+            if (o && typeof o === 'object') {
+              const label = String(o.label || o.value || '').trim();
+              const value = String(o.value || o.label || '').trim();
+              return label ? { label: label, value: value || label } : null;
+            }
+            const text = String(o || '').trim();
+            return text ? { label: text, value: text } : null;
+          }).filter(Boolean);
+          const question = String(q.question || '').trim();
+          const rationale = String(q.rationale || '').trim();
+          if (!question) return null;
+          return {
+            id: String(q.id || ('sq-' + idx)),
+            question: question,
+            rationale: rationale,
+            options: opts,
+          };
+        }).filter(Boolean);
+      }
+
+      function aiGenerateSmartQuestionsLocal(){
+        const d = aiBuilder.draft || {};
+        const questions = [];
+        const context = String(d.context || '').toLowerCase();
+        const projectType = String(d.type || '').trim();
+        const family = aiProjectFamily(projectType);
+        const owners = Array.isArray(d.responsibles) ? d.responsibles.filter(Boolean) : [];
+
+        if (!projectType) {
+          questions.push({
+            id: 'sq-type',
+            question: '{{ _('Quel type de projet souhaitez-vous lancer ?') }}',
+            rationale: '{{ _('Le type influence les tâches générées, les risques et les jalons.') }}',
+            options: [
+              { label: 'Software', value: 'Tipo do projeto: Software.' },
+              { label: 'Engenharia', value: 'Tipo do projeto: Engenharia.' },
+              { label: 'Naval', value: 'Tipo do projeto: Naval.' },
+              { label: 'Nuclear', value: 'Tipo do projeto: Nuclear.' },
+            ],
+          });
+        }
+
+        if (!Math.round(num(d.sprints || 0))) {
+          const base = /(nuclear|naval|engenharia|industrial)/.test((projectType + ' ' + context).toLowerCase()) ? [6, 8, 10] : [3, 4, 6];
+          questions.push({
+            id: 'sq-sprints',
+            question: '{{ _('Quantos sprints você deseja para este escopo?') }}',
+            rationale: '{{ _('A duração impacta dependências, capacidade e entregáveis.') }}',
+            options: base.map(function(n){ return { label: String(n) + ' sprints', value: 'Planejar com ' + n + ' sprints.' }; }),
+          });
+        }
+
+        if (!owners.length) {
+          questions.push({
+            id: 'sq-owners',
+            question: '{{ _('Quem serão os responsáveis principais por frente?') }}',
+            rationale: '{{ _('Precisamos de responsáveis para distribuir carga e custo.') }}',
+            options: (family === 'engineering')
+              ? [
+                  { label: '{{ _('Engenharia + Interface + Conformidade') }}', value: 'Responsáveis: Engenharia, Interface técnica e Conformidade dedicados.' },
+                  { label: '{{ _('Equipe enxuta') }}', value: 'Responsáveis: PM técnico, Engenheiro líder e QA/Conformidade.' },
+                  { label: '{{ _('Equipe expandida') }}', value: 'Responsáveis: PM, Engenharia de detalhe, Suprimentos, QA e Compliance.' },
+                ]
+              : [
+                  { label: '{{ _('Backend + Frontend + QA') }}', value: 'Responsáveis: Backend, Frontend e QA dedicados.' },
+                  { label: '{{ _('Equipe enxuta') }}', value: 'Responsáveis: PM técnico e 2 engenheiros full-stack.' },
+                  { label: '{{ _('Equipe expandida') }}', value: 'Responsáveis: PM, Arquiteto, Backend, Frontend, QA e Compliance.' },
+                ],
+          });
+        }
+
+        if (/(nuclear|naval|regulator|compliance|conformidade)/.test((projectType + ' ' + context).toLowerCase())) {
+          questions.push({
+            id: 'sq-governance',
+            question: '{{ _('Qual trilha de governança e conformidade deve ser priorizada?') }}',
+            rationale: '{{ _('Projetos regulados exigem marcos e gate reviews específicos.') }}',
+            options: [
+              { label: '{{ _('Gate de segurança') }}', value: 'Priorizar gate de segurança e revisão regulatória em cada sprint.' },
+              { label: '{{ _('Validação documental') }}', value: 'Incluir validação documental obrigatória antes de cada milestone.' },
+              { label: '{{ _('Conformidade contínua') }}', value: 'Aplicar checklist de conformidade contínua com auditoria mensal.' },
+            ],
+          });
+        }
+
+        if (Array.isArray(aiBuilder.plan_tasks) && aiBuilder.plan_tasks.length) {
+          questions.push({
+            id: 'sq-focus',
+            question: '{{ _('Qual foco deve orientar o próximo refinamento do plano?') }}',
+            rationale: '{{ _('Escolher o foco ajuda a priorizar ajustes automáticos.') }}',
+            options: [
+              { label: '{{ _('Reduzir risco crítico') }}', value: 'Refinar plano para reduzir caminho crítico e riscos altos.' },
+              { label: '{{ _('Acelerar entrega') }}', value: 'Refinar plano para reduzir duração total e acelerar entregas.' },
+              { label: '{{ _('Balancear carga') }}', value: 'Refinar plano para balancear capacidade entre responsáveis.' },
+            ],
+          });
+        }
+
+        return normalizeAiSmartQuestions(questions);
+      }
+
+      function aiPushMessage(role, text){
+        aiBuilder.messages.push({ id: uid(), role: role, text: (text || '').toString() });
+        if (aiBuilder.messages.length > 40) aiBuilder.messages = aiBuilder.messages.slice(-40);
+        syncAiBuilderToState();
+      }
+
+      function syncAiBuilderFromState(){
+        const raw = (state.ai_builder && typeof state.ai_builder === 'object') ? state.ai_builder : {};
+        const draft = (raw.draft && typeof raw.draft === 'object') ? raw.draft : {};
+        aiBuilder.draft.name = String(draft.name || aiBuilder.draft.name || '').trim();
+        aiBuilder.draft.type = String(draft.type || aiBuilder.draft.type || '').trim();
+        aiBuilder.draft.sprints = Math.max(0, Math.round(num(draft.sprints || aiBuilder.draft.sprints || 0)));
+        aiBuilder.draft.responsibles = normalizeOwnerList((draft.responsibles || aiBuilder.draft.responsibles || []).map(function(x){ return normalizeManagerName(x); }));
+        aiBuilder.draft.work_hours_per_day = Math.max(1, Math.min(12, num(draft.work_hours_per_day || aiBuilder.draft.work_hours_per_day || 8)));
+        aiBuilder.draft.available_hours_per_day = Math.max(1, Math.min(12, num(draft.available_hours_per_day || aiBuilder.draft.available_hours_per_day || 8)));
+        aiBuilder.draft.context = String(draft.context || aiBuilder.draft.context || '').trim().slice(-1200);
+        aiBuilder.messages = Array.isArray(raw.messages) ? raw.messages.slice(-40).map(function(m){
+          return { id: String(m.id || uid()), role: m.role === 'user' ? 'user' : 'bot', text: String(m.text || '') };
+        }) : aiBuilder.messages;
+        aiBuilder.plan_tasks = Array.isArray(raw.plan_tasks) ? raw.plan_tasks.slice(0, 120) : aiBuilder.plan_tasks;
+        aiBuilder.planning_note = String(raw.planning_note || aiBuilder.planning_note || '').trim();
+        aiBuilder.smart_questions = normalizeAiSmartQuestions(raw.smart_questions || aiBuilder.smart_questions || []);
+        const charter = (raw.charter && typeof raw.charter === 'object') ? raw.charter : {};
+        aiBuilder.charter.objectives = String(charter.objectives || aiBuilder.charter.objectives || '').trim();
+        aiBuilder.charter.scope = String(charter.scope || aiBuilder.charter.scope || '').trim();
+        aiBuilder.charter.deliverables = String(charter.deliverables || aiBuilder.charter.deliverables || '').trim();
+        aiBuilder.charter.milestones = String(charter.milestones || aiBuilder.charter.milestones || '').trim();
+        aiBuilder.spec_pdf_name = String(raw.spec_pdf_name || aiBuilder.spec_pdf_name || '').trim();
+
+        aiBuilderArchives.length = 0;
+        const archivesRaw = Array.isArray(state.ai_builder_archives) ? state.ai_builder_archives : [];
+        archivesRaw.slice(0, 40).forEach(function(a){
+          if (!a || typeof a !== 'object') return;
+          aiBuilderArchives.push({
+            id: String(a.id || uid()),
+            created_at: String(a.created_at || '').trim(),
+            label: String(a.label || '').trim(),
+            draft: (a.draft && typeof a.draft === 'object') ? a.draft : {},
+            messages: Array.isArray(a.messages) ? a.messages.slice(-40) : [],
+            plan_tasks: Array.isArray(a.plan_tasks) ? a.plan_tasks.slice(0, 120) : [],
+            planning_note: String(a.planning_note || '').trim(),
+            smart_questions: normalizeAiSmartQuestions(a.smart_questions || []),
+            charter: (a.charter && typeof a.charter === 'object') ? a.charter : {},
+            spec_pdf_name: String(a.spec_pdf_name || '').trim(),
+          });
+        });
+      }
+
+      function syncAiBuilderToState(){
+        state.ai_builder = {
+          draft: {
+            name: aiBuilder.draft.name,
+            type: aiBuilder.draft.type,
+            sprints: aiBuilder.draft.sprints,
+            responsibles: aiBuilder.draft.responsibles.slice(0, 8),
+            work_hours_per_day: aiBuilder.draft.work_hours_per_day,
+            available_hours_per_day: aiBuilder.draft.available_hours_per_day,
+            context: aiBuilder.draft.context,
+          },
+          messages: aiBuilder.messages.slice(-40),
+          plan_tasks: (Array.isArray(aiBuilder.plan_tasks) ? aiBuilder.plan_tasks : []).slice(0, 120),
+          planning_note: aiBuilder.planning_note || '',
+          smart_questions: normalizeAiSmartQuestions(aiBuilder.smart_questions || []),
+          charter: {
+            objectives: aiBuilder.charter.objectives || '',
+            scope: aiBuilder.charter.scope || '',
+            deliverables: aiBuilder.charter.deliverables || '',
+            milestones: aiBuilder.charter.milestones || '',
+          },
+          spec_pdf_name: aiBuilder.spec_pdf_name || '',
+        };
+        state.ai_builder_archives = aiBuilderArchives.slice(0, 40);
+      }
+
+      function aiBuilderResetFields(){
+        aiBuilder.draft = {
+          name: '',
+          type: '',
+          sprints: 0,
+          responsibles: [],
+          work_hours_per_day: 8,
+          available_hours_per_day: 8,
+          context: '',
+        };
+        aiBuilder.messages = [];
+        aiBuilder.plan_tasks = [];
+        aiBuilder.planning_note = '';
+        aiBuilder.smart_questions = [];
+        aiBuilder.charter = { objectives: '', scope: '', deliverables: '', milestones: '' };
+        aiBuilder.spec_pdf_name = '';
+      }
+
+      function renderAiSmartQuestions(){
+        const el = document.getElementById('pm-ai-smart-questions');
+        if (!el) return;
+        const rows = normalizeAiSmartQuestions(aiBuilder.smart_questions);
+        if (!rows.length) {
+          el.innerHTML = '<div class="small text-secondary">{{ _('Aucune question intelligente pour le moment.') }}</div>';
+          return;
+        }
+        el.innerHTML = rows.map(function(q){
+          const opts = (q.options || []).map(function(o){
+            return '<button type="button" class="btn btn-sm btn-outline-primary" data-ai-sq-value="' + escHtml(o.value) + '">' + escHtml(o.label) + '</button>';
+          }).join(' ');
+          return '' +
+            '<div class="border rounded p-2 mb-2">' +
+              '<div class="fw-semibold mb-1">' + escHtml(q.question) + '</div>' +
+              (q.rationale ? ('<div class="small text-secondary mb-2">' + escHtml(q.rationale) + '</div>') : '') +
+              '<div class="d-flex flex-wrap gap-1">' + opts + '</div>' +
+            '</div>';
+        }).join('');
+      }
+
+      function aiHasSessionData(){
+        if (aiBuilder.messages.length) return true;
+        if (aiBuilder.plan_tasks.length) return true;
+        if (String(aiBuilder.planning_note || '').trim()) return true;
+        if (String(aiBuilder.spec_pdf_name || '').trim()) return true;
+        if (String(aiBuilder.draft.name || '').trim()) return true;
+        if (String(aiBuilder.draft.type || '').trim()) return true;
+        if (Math.round(num(aiBuilder.draft.sprints || 0)) > 0) return true;
+        if ((aiBuilder.draft.responsibles || []).length) return true;
+        if (String(aiBuilder.draft.context || '').trim()) return true;
+        return false;
+      }
+
+      function aiArchiveCurrentSession(){
+        if (!aiHasSessionData()) return false;
+        const ts = new Date();
+        const stamp = ts.toLocaleString();
+        const label = String(aiBuilder.draft.name || '').trim() || ('{{ _('Session IA du') }} ' + stamp);
+        aiBuilderArchives.unshift({
+          id: uid(),
+          created_at: ts.toISOString(),
+          label: label,
+          draft: JSON.parse(JSON.stringify(aiBuilder.draft || {})),
+          messages: (aiBuilder.messages || []).slice(-40).map(function(m){
+            return { id: String(m.id || uid()), role: m.role === 'user' ? 'user' : 'bot', text: String(m.text || '') };
+          }),
+          plan_tasks: JSON.parse(JSON.stringify((aiBuilder.plan_tasks || []).slice(0, 120))),
+          planning_note: String(aiBuilder.planning_note || ''),
+          smart_questions: normalizeAiSmartQuestions(aiBuilder.smart_questions || []),
+          charter: JSON.parse(JSON.stringify(aiBuilder.charter || {})),
+          spec_pdf_name: String(aiBuilder.spec_pdf_name || ''),
+        });
+        if (aiBuilderArchives.length > 40) aiBuilderArchives.splice(40);
+        return true;
+      }
+
+      function aiRestoreArchive(archive){
+        if (!archive || typeof archive !== 'object') return;
+        aiBuilderResetFields();
+        aiBuilder.draft = Object.assign({}, aiBuilder.draft, (archive.draft && typeof archive.draft === 'object') ? archive.draft : {});
+        aiBuilder.messages = Array.isArray(archive.messages) ? archive.messages.slice(-40).map(function(m){
+          return { id: String(m.id || uid()), role: m.role === 'user' ? 'user' : 'bot', text: String(m.text || '') };
+        }) : [];
+        aiBuilder.plan_tasks = normalizeAiPlanTasks(Array.isArray(archive.plan_tasks) ? archive.plan_tasks : []);
+        aiBuilder.planning_note = String(archive.planning_note || '').trim();
+        aiBuilder.smart_questions = normalizeAiSmartQuestions(archive.smart_questions || []);
+        aiBuilder.charter = Object.assign({ objectives: '', scope: '', deliverables: '', milestones: '' }, (archive.charter && typeof archive.charter === 'object') ? archive.charter : {});
+        aiBuilder.spec_pdf_name = String(archive.spec_pdf_name || '').trim();
+        const specInput = document.getElementById('pm-ai-spec-pdf');
+        if (specInput) specInput.value = '';
+        syncAiBuilderToState();
+        renderAiBuilder();
+      }
+
+      function renderAiArchives(){
+        const wrap = document.getElementById('pm-ai-archives');
+        const filterEl = document.getElementById('pm-ai-archives-filter');
+        if (!wrap) return;
+
+        if (filterEl) {
+          const names = [];
+          aiBuilderArchives.forEach(function(a){
+            const n = String((a && a.draft && a.draft.name) || '').trim();
+            if (n && !names.includes(n)) names.push(n);
+          });
+          const selected = aiArchiveProjectFilter;
+          filterEl.innerHTML = ['<option value="">{{ _('Tous les projets') }}</option>']
+            .concat(names.map(function(n){
+              return '<option value="' + escHtml(n) + '"' + (selected === n ? ' selected' : '') + '>' + escHtml(n) + '</option>';
+            }))
+            .join('');
+        }
+
+        const filtered = aiBuilderArchives.filter(function(a){
+          if (!aiArchiveProjectFilter) return true;
+          const n = String((a && a.draft && a.draft.name) || '').trim();
+          return n === aiArchiveProjectFilter;
+        });
+
+        if (!filtered.length) {
+          wrap.innerHTML = '<div class="small text-secondary">{{ _('Aucun historique IA archivé.') }}</div>';
+          return;
+        }
+        wrap.innerHTML = filtered.slice(0, 12).map(function(a){
+          const when = String(a.created_at || '').trim();
+          const dtText = when ? (new Date(when)).toLocaleString() : '';
+          return '' +
+            '<div class="border rounded p-2 mb-2">' +
+              '<div class="fw-semibold">' + escHtml(a.label || '{{ _('Session IA du') }}') + '</div>' +
+              '<div class="small text-secondary mb-2">' + escHtml(dtText || '-') + '</div>' +
+              '<div class="d-flex gap-1 flex-wrap">' +
+                '<button type="button" class="btn btn-sm btn-outline-secondary" data-ai-archive-view="' + escHtml(a.id) + '">{{ _('Consulter') }}</button>' +
+                '<button type="button" class="btn btn-sm btn-outline-primary" data-ai-archive-restore="' + escHtml(a.id) + '">{{ _('Restaurer') }}</button>' +
+                '<button type="button" class="btn btn-sm btn-outline-danger" data-ai-archive-delete="' + escHtml(a.id) + '">{{ _('Supprimer archive') }}</button>' +
+              '</div>' +
+            '</div>';
+        }).join('');
+      }
+
+      function aiSummaryHtml(){
+        const d = aiBuilder.draft;
+        const resp = d.responsibles.length ? d.responsibles.join(', ') : '-';
+        return (
+          '<div><strong>{{ _('Projeto') }}:</strong> ' + (d.name || '-') + '</div>' +
+          '<div><strong>{{ _('Type') }}:</strong> ' + (d.type || '-') + '</div>' +
+          '<div><strong>{{ _('Sprint') }}s:</strong> ' + (d.sprints || 0) + '</div>' +
+          '<div><strong>{{ _('Heures/jour') }}:</strong> ' + (d.work_hours_per_day || 8) + 'h</div>' +
+          '<div><strong>{{ _('Capacité/j') }}:</strong> ' + (d.available_hours_per_day || 8) + 'h</div>' +
+          '<div><strong>{{ _('Responsables') }}:</strong> ' + resp + '</div>' +
+          '<div class="mt-2"><strong>{{ _('Contexte') }}:</strong><br>' + (d.context || '-') + '</div>'
+        );
+      }
+
+      function renderAiBuilder(){
+        const log = document.getElementById('pm-ai-chat-log');
+        const summary = document.getElementById('pm-ai-draft-summary');
+        const specNameEl = document.getElementById('pm-ai-spec-name');
+        if (summary) summary.innerHTML = aiSummaryHtml();
+        if (specNameEl) {
+          specNameEl.textContent = aiBuilder.spec_pdf_name
+            ? ('{{ _('Cahier des charges attaché') }}: ' + aiBuilder.spec_pdf_name)
+            : '{{ _('Aucun cahier des charges attaché') }}';
+        }
+        if (!log) return;
+        log.innerHTML = aiBuilder.messages.map(function(m){
+          const cls = m.role === 'user' ? 'pm-ai-msg pm-ai-msg-user' : 'pm-ai-msg pm-ai-msg-bot';
+          const who = m.role === 'user' ? '{{ _('Vous') }}' : 'Vega';
+          return '<div class="' + cls + '"><div class="small fw-semibold mb-1">' + who + '</div><div>' + escHtml(m.text) + '</div></div>';
+        }).join('');
+        log.scrollTop = log.scrollHeight;
+        renderAiSmartQuestions();
+        renderAiArchives();
+      }
+
+      function aiMissingFields(){
+        const d = aiBuilder.draft;
+        const missing = [];
+        if (!d.name) missing.push('{{ _('nom du projet') }}');
+        if (!d.type) missing.push('{{ _('type de projet') }}');
+        if (!d.sprints) missing.push('{{ _('nombre de sprints') }}');
+        if (!d.responsibles.length) missing.push('{{ _('responsables') }}');
+        return missing;
+      }
+
+      function aiSanitizeSprintLabel(label, family){
+        let out = String(label || '').trim();
+        if (!out || family !== 'engineering') return out;
+        const m = out.match(/^(Sprint\s*\d+\s*-\s*)(.+)$/i);
+        const prefix = m ? m[1] : '';
+        let body = m ? m[2] : out;
+
+        if (/(planning|planification|planificacion|planejamento|pianificazione|planung|ux|ui|frontend|backend)/i.test(body)) {
+          return (prefix || '') + 'Engineering and compliance';
+        }
+
+        body = body
+          .replace(/\b(planning|planification|planificacion|planejamento|pianificazione|planung)\b/ig, 'engineering')
+          .replace(/\b(ux|ui)\b/ig, 'engineering')
+          .replace(/\b(frontend|backend)\b/ig, 'interfaces')
+          .replace(/\s+and\s+ux\b/ig, ' and compliance')
+          .replace(/\s+e\s+ux\b/ig, ' e conformidade')
+          .replace(/\s*\+\s*/g, ' + ')
+          .replace(/\s{2,}/g, ' ')
+          .trim();
+
+        if (/(ux|ui|frontend|backend)/i.test(body)) {
+          body = 'Engineering and compliance';
+        }
+        if (!body) body = 'Engineering and compliance';
+        return prefix ? (prefix + body) : body;
+      }
+
+      function normalizeAiPlanTasks(rows){
+        const family = aiProjectFamily(aiBuilder && aiBuilder.draft ? aiBuilder.draft.type : '');
+        return (Array.isArray(rows) ? rows : []).map(function(r, idx){
+          const depType = depTypeNorm((r && r.dependency_type) || 'FS');
+          const sprintRaw = String((r && r.sprint) || '').trim();
+          return {
+            ref: String((r && r.ref) || ('AI-' + (idx + 1))).trim(),
+            sprint: aiSanitizeSprintLabel(sprintRaw, family),
+            task: String((r && r.task) || '').trim(),
+            owner: normalizeManagerName((r && r.owner) || ''),
+            duration_days: Math.max(1, Math.min(90, Math.round(num(r && r.duration_days || 1)))),
+            work_hours_per_day: Math.max(1, Math.min(12, num((r && r.work_hours_per_day) || aiBuilder.draft.work_hours_per_day || 8))),
+            available_hours_per_day: Math.max(1, Math.min(12, num((r && r.available_hours_per_day) || aiBuilder.draft.available_hours_per_day || 8))),
+            predecessor_ref: String((r && r.predecessor_ref) || '').trim() || null,
+            dependency_type: depType,
+            description: String((r && r.description) || '').trim(),
+            priority: String((r && r.priority) || '').toLowerCase().trim(),
+          };
+        }).filter(function(r){ return !!r.task; });
+      }
+
+      function aiConstellationName(index){
+        const names = ['Orion', 'Lyra', 'Andromeda', 'Cassiopeia', 'Pegasus', 'Ursa', 'Phoenix', 'Aquila', 'Draco', 'Carina'];
+        return names[Math.abs(index) % names.length];
+      }
+
+      function aiStarName(index){
+        const names = ['Sirius', 'Vega', 'Rigel', 'Altair', 'Aldebaran', 'Polaris', 'Antares', 'Betelgeuse', 'Deneb', 'Arcturus'];
+        return names[Math.abs(index) % names.length];
+      }
+
+      function aiSprintName(index){
+        const lang = currentChatLang();
+        const family = aiProjectFamily(aiBuilder && aiBuilder.draft ? aiBuilder.draft.type : '');
+        const bundles = {
+          pt: ['Descoberta e backlog', 'Design e arquitetura', 'Implementacao core', 'Integracao e qualidade', 'Entrega e validacao', 'Ajustes e melhoria'],
+          en: ['Discovery and backlog', 'Design and architecture', 'Core implementation', 'Integration and quality', 'Delivery and validation', 'Adjustments and improvement'],
+          es: ['Descubrimiento y backlog', 'Diseno y arquitectura', 'Implementacion core', 'Integracion y calidad', 'Entrega y validacion', 'Ajustes y mejora'],
+          it: ['Discovery e backlog', 'Design e architettura', 'Implementazione core', 'Integrazione e qualita', 'Consegna e validazione', 'Ottimizzazioni e miglioramento'],
+          de: ['Discovery und Backlog', 'Design und Architektur', 'Kernimplementierung', 'Integration und Qualitat', 'Lieferung und Validierung', 'Anpassungen und Verbesserung'],
+          fr: ['Decouverte et backlog', 'Design et architecture', 'Implementation coeur', 'Integration et qualite', 'Livraison et validation', 'Ajustements et amelioration'],
+        };
+        const engineeringBundles = {
+          pt: ['Escopo e requisitos', 'Conceito de engenharia', 'Engenharia detalhada e interfaces', 'Suprimentos e fabricacao', 'Verificacao e conformidade', 'Comissionamento e handover'],
+          en: ['Scope and requirements', 'Engineering concept', 'Detailed engineering and interfaces', 'Procurement and fabrication', 'Verification and compliance', 'Commissioning and handover'],
+          es: ['Alcance y requisitos', 'Concepto de ingenieria', 'Ingenieria detallada e interfaces', 'Compras y fabricacion', 'Verificacion y conformidad', 'Puesta en marcha y entrega'],
+          it: ['Ambito e requisiti', 'Concetto di ingegneria', 'Ingegneria di dettaglio e interfacce', 'Procurement e fabbricazione', 'Verifica e conformita', 'Commissioning e handover'],
+          de: ['Umfang und Anforderungen', 'Engineering-Konzept', 'Detail-Engineering und Schnittstellen', 'Beschaffung und Fertigung', 'Verifikation und Compliance', 'Inbetriebnahme und Ubergabe'],
+          fr: ['Perimetre et exigences', 'Concept d\'ingenierie', 'Ingenierie detaillee et interfaces', 'Approvisionnement et fabrication', 'Verification et conformite', 'Mise en service et transfert'],
+        };
+        const arr = (family === 'engineering' ? (engineeringBundles[lang] || engineeringBundles.pt) : (bundles[lang] || bundles.pt));
+        const focus = arr[Math.abs(index) % arr.length];
+        return 'Sprint ' + (index + 1) + ' - ' + focus;
+      }
+
+      function aiInferSprintNameFromTasks(sourceSprint, allRows, index){
+        const source = String(sourceSprint || '').trim();
+        const family = aiProjectFamily(aiBuilder && aiBuilder.draft ? aiBuilder.draft.type : '');
+        if (source && !/^(?:sprint|iteration|iteracao|iteracao|fase|phase)\s*\d+$/i.test(source)) {
+          return aiSanitizeSprintLabel(source, family);
+        }
+        const lang = currentChatLang();
+        const rows = (allRows || []).filter(function(r){ return String((r && r.sprint) || '').trim() === source; });
+        if (!rows.length) return aiSprintName(index);
+        const joined = rows.map(function(r){ return String(r.task || '').toLowerCase(); }).join(' ');
+        const has = function(rx){ return rx.test(joined); };
+        const focusKeys = [];
+        if (has(/backlog|refin|planning|scope|requirement|requisit|kickoff|freeze/)) focusKeys.push('plan');
+        if (has(/engineering|interface|procurement|fabrication|compliance|verification|concept|detailed engineering|naval|nuclear|industrial/)) focusKeys.push('eng');
+        if (family !== 'engineering' && has(/ux|design|frontend/)) focusKeys.push('ux');
+        if (has(/backend|api|service/)) focusKeys.push('be');
+        if (has(/qa|test|integra|verification|compliance/)) focusKeys.push('qa');
+        if (has(/review|demo|retro/)) focusKeys.push('review');
+        const key = focusKeys.slice(0, 2).join('+') || 'plan';
+        const labels = {
+          pt: { plan: 'Planejamento', ux: 'UX', be: 'Backend', eng: 'Engenharia', qa: 'Qualidade e conformidade', review: 'Review', 'plan+ux': 'Planejamento e UX', 'plan+be': 'Planejamento e Backend', 'be+qa': 'Backend e Qualidade', 'ux+be': 'UX e Backend', 'eng+qa': 'Engenharia e conformidade', 'plan+eng': 'Planejamento e engenharia', 'qa+review': 'Qualidade e Review' },
+          en: { plan: 'Planning', ux: 'UX', be: 'Backend', eng: 'Engineering', qa: 'Quality and compliance', review: 'Review', 'plan+ux': 'Planning and UX', 'plan+be': 'Planning and Backend', 'be+qa': 'Backend and Quality', 'ux+be': 'UX and Backend', 'eng+qa': 'Engineering and compliance', 'plan+eng': 'Planning and engineering', 'qa+review': 'Quality and Review' },
+          es: { plan: 'Planificacion', ux: 'UX', be: 'Backend', eng: 'Ingenieria', qa: 'Calidad y conformidad', review: 'Review', 'plan+ux': 'Planificacion y UX', 'plan+be': 'Planificacion y Backend', 'be+qa': 'Backend y Calidad', 'ux+be': 'UX y Backend', 'eng+qa': 'Ingenieria y conformidad', 'plan+eng': 'Planificacion e ingenieria', 'qa+review': 'Calidad y Review' },
+          it: { plan: 'Pianificazione', ux: 'UX', be: 'Backend', eng: 'Ingegneria', qa: 'Qualita e compliance', review: 'Review', 'plan+ux': 'Pianificazione e UX', 'plan+be': 'Pianificazione e Backend', 'be+qa': 'Backend e Qualita', 'ux+be': 'UX e Backend', 'eng+qa': 'Ingegneria e compliance', 'plan+eng': 'Pianificazione e ingegneria', 'qa+review': 'Qualita e Review' },
+          de: { plan: 'Planung', ux: 'UX', be: 'Backend', eng: 'Engineering', qa: 'Qualitat und Compliance', review: 'Review', 'plan+ux': 'Planung und UX', 'plan+be': 'Planung und Backend', 'be+qa': 'Backend und Qualitat', 'ux+be': 'UX und Backend', 'eng+qa': 'Engineering und Compliance', 'plan+eng': 'Planung und Engineering', 'qa+review': 'Qualitat und Review' },
+          fr: { plan: 'Planification', ux: 'UX', be: 'Backend', eng: 'Ingenierie', qa: 'Qualite et conformite', review: 'Review', 'plan+ux': 'Planification et UX', 'plan+be': 'Planification et Backend', 'be+qa': 'Backend et Qualite', 'ux+be': 'UX et Backend', 'eng+qa': 'Ingenierie et conformite', 'plan+eng': 'Planification et ingenierie', 'qa+review': 'Qualite et Review' },
+        };
+        const map = labels[lang] || labels.pt;
+        const focus = map[key] || map.plan;
+        return aiSanitizeSprintLabel('Sprint ' + (index + 1) + ' - ' + focus, family);
+      }
+
+      function aiFictionalProjectName(){
+        const left = ['Projeto', 'Missao', 'Programa', 'Iniciativa'];
+        const right = [
+          aiConstellationName(Math.floor(Math.random() * 50)),
+          aiStarName(Math.floor(Math.random() * 50)),
+          aiConstellationName(Math.floor(Math.random() * 50)) + '-' + aiStarName(Math.floor(Math.random() * 50))
+        ];
+        return left[Math.floor(Math.random() * left.length)] + ' ' + right[Math.floor(Math.random() * right.length)];
+      }
+
+      function normalizeLangCode(v){
+        const raw = String(v || '').toLowerCase().replace('_', '-');
+        const key = raw.split('-')[0];
+        if (['pt', 'en', 'es', 'it', 'de', 'fr'].includes(key)) return key;
+        return 'pt';
+      }
+
+      function currentChatLang(){
+        const candidates = [
+          document.getElementById('language-select'),
+          document.getElementById('lang-select'),
+          document.getElementById('language'),
+          document.getElementById('lang'),
+          document.querySelector('select[name="language"]'),
+          document.querySelector('select[name="lang"]'),
+        ];
+        for (const el of candidates) {
+          if (el && el.value) return normalizeLangCode(el.value);
+        }
+        try {
+          const u = new URL(window.location.href);
+          const qpLang = u.searchParams.get('lang');
+          if (qpLang) return normalizeLangCode(qpLang);
+        } catch (_) {}
+        if (state.notifications && state.notifications.lang) return normalizeLangCode(state.notifications.lang);
+        if (document.documentElement && document.documentElement.lang) return normalizeLangCode(document.documentElement.lang);
+        return normalizeLangCode(CURRENT_LANG || 'pt');
+      }
+
+      function aiLocalizedBundle(lang){
+        const key = normalizeLangCode(lang);
+        const bundles = {
+          pt: { objective: 'Objetivo', scope: 'Escopo', criteria: 'Critérios de aceite', deps: 'Dependências', notes: 'Notas de execução', owner: 'Responsável', sprint: 'Sprint', fallback: 'Executar entrega incremental com validação no fim da sprint.' },
+          en: { objective: 'Objective', scope: 'Scope', criteria: 'Acceptance criteria', deps: 'Dependencies', notes: 'Execution notes', owner: 'Owner', sprint: 'Sprint', fallback: 'Deliver incrementally and validate by sprint end.' },
+          es: { objective: 'Objetivo', scope: 'Alcance', criteria: 'Criterios de aceptación', deps: 'Dependencias', notes: 'Notas de ejecución', owner: 'Responsable', sprint: 'Sprint', fallback: 'Entregar de forma incremental y validar al final del sprint.' },
+          it: { objective: 'Obiettivo', scope: 'Ambito', criteria: 'Criteri di accettazione', deps: 'Dipendenze', notes: 'Note di esecuzione', owner: 'Responsabile', sprint: 'Sprint', fallback: 'Consegna incrementale con validazione a fine sprint.' },
+          de: { objective: 'Ziel', scope: 'Umfang', criteria: 'Akzeptanzkriterien', deps: 'Abhängigkeiten', notes: 'Ausführungsnotizen', owner: 'Verantwortlich', sprint: 'Sprint', fallback: 'Inkrementell liefern und bis Sprintende validieren.' },
+          fr: { objective: 'Objectif', scope: 'Périmètre', criteria: 'Critères d\'acceptation', deps: 'Dépendances', notes: 'Notes d\'exécution', owner: 'Responsable', sprint: 'Sprint', fallback: 'Livrer de façon incrémentale et valider en fin de sprint.' },
+        };
+        return bundles[key] || bundles.pt;
+      }
+
+      function aiTaskObjective(taskTitle, lang){
+        const t = String(taskTitle || '').toLowerCase();
+        const key = normalizeLangCode(lang);
+        if (/backlog|refin/.test(t)) return key === 'en' ? 'Detail epics and split into sprint-ready stories.' : (key === 'es' ? 'Detallar épicas y dividir en historias listas para sprint.' : (key === 'it' ? 'Dettagliare le epic e suddividerle in storie pronte per lo sprint.' : (key === 'de' ? 'Epics detaillieren und in sprintreife Stories aufteilen.' : (key === 'fr' ? 'Détailler les epics et découper en stories prêtes pour le sprint.' : 'Detalhar epicos e quebrar em historias prontas para sprint.'))));
+        if (/ux|design/.test(t)) return key === 'en' ? 'Define navigation and key screens with handoff-ready specs.' : (key === 'es' ? 'Definir navegación y pantallas clave con especificación para handoff.' : (key === 'it' ? 'Definire navigazione e schermate chiave con specifiche pronte per handoff.' : (key === 'de' ? 'Navigation und Kernscreens mit übergabereifen Specs definieren.' : (key === 'fr' ? 'Définir la navigation et les écrans clés avec des specs prêtes au handoff.' : 'Definir navegacao e telas-chave com especificacao pronta para handoff.'))));
+        if (/backend/.test(t)) return key === 'en' ? 'Implement service layer, validations and API contracts.' : (key === 'es' ? 'Implementar capa de servicios, validaciones y contratos de API.' : (key === 'it' ? 'Implementare service layer, validazioni e contratti API.' : (key === 'de' ? 'Service-Layer, Validierungen und API-Verträge implementieren.' : (key === 'fr' ? 'Implémenter la couche service, les validations et les contrats API.' : 'Implementar camada de servicos, validacoes e contratos de API.'))));
+        if (/frontend/.test(t)) return key === 'en' ? 'Build user flows, forms and states aligned with backend APIs.' : (key === 'es' ? 'Construir flujos, formularios y estados alineados con APIs backend.' : (key === 'it' ? 'Realizzare flussi utente, form e stati allineati alle API backend.' : (key === 'de' ? 'User-Flows, Formulare und Zustände passend zu Backend-APIs umsetzen.' : (key === 'fr' ? 'Construire les parcours, formulaires et états alignés aux APIs backend.' : 'Construir fluxos, formularios e estados alinhados com APIs backend.'))));
+        if (/test|qa|integra/.test(t)) return key === 'en' ? 'Execute integration tests and validate critical scenarios.' : (key === 'es' ? 'Ejecutar pruebas de integración y validar escenarios críticos.' : (key === 'it' ? 'Eseguire test di integrazione e validare scenari critici.' : (key === 'de' ? 'Integrationstests ausführen und kritische Szenarien validieren.' : (key === 'fr' ? 'Exécuter les tests d\'intégration et valider les scénarios critiques.' : 'Executar testes de integracao e validar cenarios criticos.'))));
+        if (/review|demo/.test(t)) return key === 'en' ? 'Demonstrate increment and collect business feedback.' : (key === 'es' ? 'Demostrar incremento y recoger feedback del negocio.' : (key === 'it' ? 'Dimostrare l\'incremento e raccogliere feedback di business.' : (key === 'de' ? 'Inkrement demonstrieren und Business-Feedback einholen.' : (key === 'fr' ? 'Démontrer l\'incrément et recueillir le feedback métier.' : 'Demonstrar incremento e coletar feedback do negocio.'))));
+        if (/retro/.test(t)) return key === 'en' ? 'Capture lessons learned and define improvement actions.' : (key === 'es' ? 'Capturar aprendizajes y definir acciones de mejora.' : (key === 'it' ? 'Raccogliere lesson learned e definire azioni di miglioramento.' : (key === 'de' ? 'Lessons Learned erfassen und Verbesserungsmaßnahmen definieren.' : (key === 'fr' ? 'Capturer les retours d\'expérience et définir des actions d\'amélioration.' : 'Capturar aprendizados e definir acoes de melhoria.'))));
+        return aiLocalizedBundle(key).fallback;
+      }
+
+      function aiTaskPriority(taskTitle){
+        const t = String(taskTitle || '').toLowerCase();
+        if (/integration|integra|qa|backend|critical|critico|bloqueio/.test(t)) return 'high';
+        if (/review|retro|planning|refin|backlog|ux|design/.test(t)) return 'medium';
+        return 'medium';
+      }
+
+      function aiBuildKanbanDescription(taskTitle, sprintName, owner, context, lang){
+        const b = aiLocalizedBundle(lang);
+        const objective = aiTaskObjective(taskTitle, lang);
+        const contextLine = String(context || '').trim() || '-';
+        const ownerLine = String(owner || '-').trim() || '-';
+        return [
+          b.objective + ': ' + objective,
+          b.scope + ': ' + contextLine,
+          b.criteria + ': 1) Entrega validada 2) Sem bloqueios críticos 3) Evidência registrada',
+          b.deps + ': APIs, dados de homologação, revisão técnica',
+          b.notes + ': ' + b.owner + ' ' + ownerLine + ' | ' + b.sprint + ' ' + (sprintName || '-'),
+        ].join('\n');
+      }
+
+      function aiProjectFamily(projectType){
+        const t = String(projectType || '').toLowerCase();
+        if (/eng|engenh|engineering|naval|nuclear|industrial|construction|civil|mec|mechan/.test(t)) return 'engineering';
+        return 'software';
+      }
+
+      function aiSeedGovernanceAndPmo(pid, projectName, owners, sprintNames){
+        const ownerA = owners[0] || 'PM';
+        const ownerB = owners[1] || ownerA;
+        const s1 = sprintNames[0] || 'Sprint 1';
+
+        state.stakeholders.push({
+          id: uid(),
+          project_id: pid,
+          name: 'Sponsor ' + aiConstellationName(0),
+          role: 'Sponsor',
+          influence: 'high',
+          interest: 'high',
+          contact: ownerA,
+        });
+        state.stakeholders.push({
+          id: uid(),
+          project_id: pid,
+          name: 'Tech Lead ' + aiStarName(1),
+          role: 'Tech Lead',
+          influence: 'medium',
+          interest: 'high',
+          contact: ownerB,
+        });
+
+        state.risks.push({
+          id: uid(),
+          project_id: pid,
+          risk: 'Dependencia externa de API critica',
+          probability: 'medium',
+          impact: 'high',
+          mitigation: 'Plano de fallback e testes de contrato no ' + s1,
+          owner: ownerA,
+          status: 'open',
+        });
+        state.risks.push({
+          id: uid(),
+          project_id: pid,
+          risk: 'Sobrecarga de responsavel em entregas paralelas',
+          probability: 'medium',
+          impact: 'medium',
+          mitigation: 'Balancear tarefas por capacidade diaria e redistribuir no daily',
+          owner: ownerB,
+          status: 'open',
+        });
+
+        state.issues.push({
+          id: uid(),
+          project_id: pid,
+          issue: 'Ambiente de homologacao ainda sem dados realistas',
+          owner: ownerB,
+          status: 'open',
+          due_date: '',
+        });
+
+        state.decisions.push({
+          id: uid(),
+          project_id: pid,
+          decision: 'Arquitetura modular com entregas incrementais por sprint',
+          owner: ownerA,
+          decided_at: new Date().toISOString().slice(0, 10),
+        });
+
+        state.changes.push({
+          id: uid(),
+          project_id: pid,
+          title: 'Ajustar escopo do MVP por prioridade de negocio',
+          description: 'Revisao apos refinamento inicial para foco no fluxo core.',
+          owner: ownerA,
+          status: 'draft',
+          approved_by: '',
+          approved_at: '',
+        });
+
+        state.documents.push({
+          id: uid(),
+          project_id: pid,
+          title: 'Project Charter - ' + projectName,
+          url: '',
+          owner: ownerA,
+        });
+
+        state.meetings.push({
+          id: uid(),
+          project_id: pid,
+          title: 'Kickoff ' + s1,
+          when: '',
+          notes: 'Alinhamento de objetivos, riscos iniciais e plano de sprint.',
+        });
+      }
+
+      function aiSeedGovernanceCharter(projectName, draft, sprintNames, charterSuggestion, planRows){
+        const meta = metaForProject();
+        const lang = currentChatLang();
+        const context = String((draft && draft.context) || '').trim();
+        const projectType = String((draft && draft.type) || '').trim() || 'Digital';
+        const family = aiProjectFamily(projectType);
+        const suggested = (charterSuggestion && typeof charterSuggestion === 'object') ? charterSuggestion : {};
+        const tasksBySprint = {};
+        (Array.isArray(planRows) ? planRows : []).forEach(function(row){
+          const sn = String((row && row.sprint) || '').trim();
+          const task = String((row && row.task) || '').trim();
+          if (!sn || !task) return;
+          if (!tasksBySprint[sn]) tasksBySprint[sn] = [];
+          if (tasksBySprint[sn].length < 2) tasksBySprint[sn].push(task);
+        });
+        const deliveryLines = sprintNames.map(function(sn){
+          const picks = tasksBySprint[sn] || [];
+          if (picks.length) return '- ' + sn + ': ' + picks.join(' + ');
+          return '- ' + sn;
+        }).join('\n');
+        const milestonePrefix = family === 'engineering' ? 'Gate' : 'Milestone';
+        const milestoneLines = sprintNames.map(function(sn){
+          const focus = (tasksBySprint[sn] || [])[0] || sn;
+          return '- ' + milestonePrefix + ': ' + focus;
+        }).join('\n');
+
+        const objectiveByLang = {
+          pt: 'Entregar o projeto "' + projectName + '" com incremento validado por sprint, priorizando valor de negocio e previsibilidade.',
+          en: 'Deliver project "' + projectName + '" with validated sprint increments, prioritizing business value and predictability.',
+          es: 'Entregar el proyecto "' + projectName + '" con incrementos validados por sprint, priorizando valor de negocio y previsibilidad.',
+          it: 'Consegnare il progetto "' + projectName + '" con incrementi validati per sprint, dando priorita al valore di business e alla prevedibilita.',
+          de: 'Projekt "' + projectName + '" mit validierten Sprint-Inkrementen liefern, mit Fokus auf Business-Value und Planbarkeit.',
+          fr: 'Livrer le projet "' + projectName + '" avec des increments valides par sprint, en priorisant la valeur metier et la predictibilite.',
+        };
+        const scopeByLang = {
+          pt: 'Escopo: ' + projectType + '.\nContexto: ' + (context || 'Definir com stakeholders no kickoff.'),
+          en: 'Scope: ' + projectType + '.\nContext: ' + (context || 'To be detailed with stakeholders during kickoff.'),
+          es: 'Alcance: ' + projectType + '.\nContexto: ' + (context || 'Definir con stakeholders en el kickoff.'),
+          it: 'Ambito: ' + projectType + '.\nContesto: ' + (context || 'Da definire con gli stakeholder durante il kickoff.'),
+          de: 'Umfang: ' + projectType + '.\nKontext: ' + (context || 'Mit Stakeholdern im Kickoff konkretisieren.'),
+          fr: 'Perimetre: ' + projectType + '.\nContexte: ' + (context || 'A preciser avec les parties prenantes au kickoff.'),
+        };
+
+        if (!String((meta.charter && meta.charter.objectives) || '').trim()) {
+          meta.charter.objectives = String(suggested.objectives || '').trim() || (objectiveByLang[lang] || objectiveByLang.pt);
+        }
+        if (!String((meta.charter && meta.charter.scope) || '').trim()) {
+          meta.charter.scope = String(suggested.scope || '').trim() || (scopeByLang[lang] || scopeByLang.pt);
+        }
+        if (!String((meta.charter && meta.charter.deliverables) || '').trim()) {
+          meta.charter.deliverables = String(suggested.deliverables || '').trim() || deliveryLines;
+        }
+        if (!String((meta.charter && meta.charter.milestones) || '').trim()) {
+          meta.charter.milestones = String(suggested.milestones || '').trim() || milestoneLines;
+        }
+      }
+
+      function aiBuildDefaultPlan(){
+        const d = aiBuilder.draft;
+        const chatLang = currentChatLang();
+        const sprintCount = Math.max(1, Math.min(12, Math.round(num(d.sprints || 3))));
+        const owners = d.responsibles.length ? d.responsibles : ['PM'];
+        const pid = uid();
+        const ownerMain = owners[0] || 'PM';
+        const projectName = d.name || aiFictionalProjectName();
+        const projectDesc = (d.type ? (d.type + ' · ') : '') + '{{ _('Créé automatiquement par assistant IA') }}';
+
+        if (!d.name) {
+          aiBuilder.draft.name = projectName;
+        }
+
+        state.projects.push({ id: pid, name: projectName, owner: ownerMain, description: projectDesc });
+        state.selected_project_id = pid;
+        owners.forEach(function(o){
+          upsertManager(o, { hours_per_day: d.available_hours_per_day || 8 });
+        });
+
+        const planRows = normalizeAiPlanTasks(aiBuilder.plan_tasks);
+        const effectivePlan = planRows.length ? planRows : (function(){
+          const out = [];
+          const family = aiProjectFamily(d.type);
+          for (let i = 1; i <= sprintCount; i += 1) {
+            const sprintName = aiSprintName(i - 1);
+            const ownerA = owners[(i - 1) % owners.length] || 'PM';
+            const ownerB = owners[(i + 0) % owners.length] || ownerA;
+            const ownerC = owners[(i + 1) % owners.length] || ownerB;
+            const ownerQ = owners[(i + 2) % owners.length] || ownerA;
+            const baseRef = 'S' + i;
+            const prevReview = i > 1 ? ('S' + (i - 1) + '-review') : null;
+            let qaLikeRef = baseRef + '-qa';
+            if (family === 'engineering') {
+              out.push({ ref: baseRef + '-scope', sprint: sprintName, task: sprintName + ' - Scope and requirements freeze', owner: ownerA, duration_days: 1, work_hours_per_day: d.work_hours_per_day || 8, available_hours_per_day: d.available_hours_per_day || 8, predecessor_ref: prevReview, dependency_type: 'FS' });
+              out.push({ ref: baseRef + '-concept', sprint: sprintName, task: sprintName + ' - Engineering concept design', owner: ownerB, duration_days: 2, work_hours_per_day: d.work_hours_per_day || 8, available_hours_per_day: d.available_hours_per_day || 8, predecessor_ref: baseRef + '-scope', dependency_type: 'FS' });
+              out.push({ ref: baseRef + '-detail', sprint: sprintName, task: sprintName + ' - Detailed engineering and interfaces', owner: ownerB, duration_days: 4, work_hours_per_day: d.work_hours_per_day || 8, available_hours_per_day: d.available_hours_per_day || 8, predecessor_ref: baseRef + '-scope', dependency_type: 'FS' });
+              out.push({ ref: baseRef + '-proc', sprint: sprintName, task: sprintName + ' - Procurement and fabrication package', owner: ownerC, duration_days: 4, work_hours_per_day: d.work_hours_per_day || 8, available_hours_per_day: d.available_hours_per_day || 8, predecessor_ref: baseRef + '-concept', dependency_type: 'FS' });
+              out.push({ ref: baseRef + '-vnv', sprint: sprintName, task: sprintName + ' - Verification, QA and compliance checks', owner: ownerQ, duration_days: 2, work_hours_per_day: d.work_hours_per_day || 8, available_hours_per_day: d.available_hours_per_day || 8, predecessor_ref: baseRef + '-detail', dependency_type: 'FS' });
+              qaLikeRef = baseRef + '-vnv';
+            } else {
+              out.push({ ref: baseRef + '-backlog', sprint: sprintName, task: sprintName + ' - {{ _('Refinamento backlog') }}', owner: ownerA, duration_days: 1, work_hours_per_day: d.work_hours_per_day || 8, available_hours_per_day: d.available_hours_per_day || 8, predecessor_ref: prevReview, dependency_type: 'FS' });
+              out.push({ ref: baseRef + '-ux', sprint: sprintName, task: sprintName + ' - {{ _('Design UX/UI') }}', owner: ownerB, duration_days: 2, work_hours_per_day: d.work_hours_per_day || 8, available_hours_per_day: d.available_hours_per_day || 8, predecessor_ref: baseRef + '-backlog', dependency_type: 'FS' });
+              out.push({ ref: baseRef + '-be', sprint: sprintName, task: sprintName + ' - {{ _('Implementação backend') }}', owner: ownerB, duration_days: 4, work_hours_per_day: d.work_hours_per_day || 8, available_hours_per_day: d.available_hours_per_day || 8, predecessor_ref: baseRef + '-backlog', dependency_type: 'FS' });
+              out.push({ ref: baseRef + '-fe', sprint: sprintName, task: sprintName + ' - {{ _('Implementação frontend') }}', owner: ownerC, duration_days: 4, work_hours_per_day: d.work_hours_per_day || 8, available_hours_per_day: d.available_hours_per_day || 8, predecessor_ref: baseRef + '-ux', dependency_type: 'FS' });
+              out.push({ ref: baseRef + '-qa', sprint: sprintName, task: sprintName + ' - {{ _('Integração e testes') }}', owner: ownerQ, duration_days: 2, work_hours_per_day: d.work_hours_per_day || 8, available_hours_per_day: d.available_hours_per_day || 8, predecessor_ref: baseRef + '-be', dependency_type: 'FS' });
+            }
+            out.push({ ref: baseRef + '-review', sprint: sprintName, task: sprintName + ' - {{ _('Review e demo') }}', owner: ownerA, duration_days: 1, work_hours_per_day: d.work_hours_per_day || 8, available_hours_per_day: d.available_hours_per_day || 8, predecessor_ref: qaLikeRef, dependency_type: 'FS' });
+            out.push({ ref: baseRef + '-retro', sprint: sprintName, task: sprintName + ' - {{ _('Retro e plano seguinte') }}', owner: ownerA, duration_days: 1, work_hours_per_day: d.work_hours_per_day || 8, available_hours_per_day: d.available_hours_per_day || 8, predecessor_ref: baseRef + '-review', dependency_type: 'FS' });
+          }
+          return out;
+        })();
+
+        const base = new Date();
+        base.setHours(0, 0, 0, 0);
+        const refToTaskId = {};
+        const refToEndDate = {};
+        const sprintGroups = {};
+        const sprintNames = [];
+        const sprintAlias = {};
+        const sprintWindow = {};
+        const sprintLastTaskId = {};
+        const sprintDeliverableRoot = {};
+
+        effectivePlan.forEach(function(p, idx){
+          const source = String(p.sprint || ('Sprint ' + (idx + 1))).trim() || ('Sprint ' + (idx + 1));
+          if (!sprintAlias[source]) {
+            sprintAlias[source] = aiInferSprintNameFromTasks(source, effectivePlan, Object.keys(sprintAlias).length);
+          }
+          p.sprint = sprintAlias[source];
+        });
+
+        effectivePlan.forEach(function(p){
+          const sprintRaw = String(p.sprint || '').trim();
+          if (sprintRaw && !sprintGroups[sprintRaw]) {
+            sprintGroups[sprintRaw] = { id: uid(), key: sprintRaw };
+            sprintNames.push(sprintRaw);
+          }
+        });
+
+        if (!sprintNames.length) {
+          for (let i = 0; i < sprintCount; i += 1) {
+            const sn = aiSprintName(i);
+            sprintGroups[sn] = { id: uid(), key: sn };
+            sprintNames.push(sn);
+          }
+        }
+
+        sprintNames.forEach(function(sn, idx){
+          sprintWindow[sn] = { start: null, end: null };
+          const grp = normalizeGanttTask({
+            id: sprintGroups[sn].id,
+            project_id: pid,
+            type: 'group',
+            parent_id: null,
+            task: sn,
+            owner: owners[idx % owners.length] || ownerMain,
+            predecessor_id: idx > 0 ? sprintGroups[sprintNames[idx - 1]].id : null,
+            dependency_type: 'FS',
+            lag_days: 0,
+            status: 'not_started',
+            progress_pct: 0,
+            start: '',
+            end: '',
+            duration_days: 1,
+            documents: [],
+          });
+          state.gantt.push(grp);
+
+          const rootId = uid();
+          sprintDeliverableRoot[sn] = rootId;
+          state.deliverables.push({
+            id: rootId,
+            project_id: pid,
+            label: '{{ _('Livrable') }} - ' + sn,
+            done: false,
+            parent_id: null,
+            task_id: null,
+          });
+        });
+
+        effectivePlan.forEach(function(p, idx){
+          const predecessorTaskId = p.predecessor_ref ? (refToTaskId[p.predecessor_ref] || null) : null;
+          let startDate = addDays(base, idx * 2);
+          if (p.predecessor_ref && refToEndDate[p.predecessor_ref]) {
+            startDate = dt(refToEndDate[p.predecessor_ref]) || startDate;
+            if (p.dependency_type === 'FS') startDate = addDays(startDate, 1);
+          }
+          const taskId = uid();
+          const owner = p.owner || owners[idx % owners.length] || 'PM';
+          const duration = Math.max(1, Math.round(num(p.duration_days || 1)));
+          const endDate = addDays(startDate, duration - 1);
+
+          if (sprintWindow[p.sprint]) {
+            if (!sprintWindow[p.sprint].start || startDate < sprintWindow[p.sprint].start) {
+              sprintWindow[p.sprint].start = new Date(startDate);
+            }
+            if (!sprintWindow[p.sprint].end || endDate > sprintWindow[p.sprint].end) {
+              sprintWindow[p.sprint].end = new Date(endDate);
+            }
+          }
+
+          const taskRow = normalizeGanttTask({
+            id: taskId,
+            project_id: pid,
+            type: 'task',
+            parent_id: sprintGroups[p.sprint] ? sprintGroups[p.sprint].id : null,
+            task: p.task,
+            owner: owner,
+            predecessor_id: predecessorTaskId,
+            dependency_type: depTypeNorm(p.dependency_type || 'FS'),
+            lag_days: 0,
+            status: 'not_started',
+            progress_pct: 0,
+            start: fmtDate(startDate),
+            end: fmtDate(endDate),
+            duration_days: duration,
+            documents: [],
+          });
+          state.gantt.push(taskRow);
+          sprintLastTaskId[p.sprint] = taskId;
+          refToTaskId[p.ref] = taskId;
+          refToEndDate[p.ref] = fmtDate(endDate);
+          state.cards.push({
+            id: uid(),
+            project_id: pid,
+            title: p.task,
+            icon: '✅',
+            owner: owner,
+            owners: [owner],
+            description: String(p.description || '').trim() || aiBuildKanbanDescription(p.task, p.sprint, owner, d.context || '', chatLang),
+            priority: (['low','medium','high'].includes(String(p.priority || '').toLowerCase()) ? String(p.priority || '').toLowerCase() : aiTaskPriority(p.task)),
+            col: 'backlog',
+            due_date: fmtDate(endDate),
+            sprint: p.sprint || ('{{ _('Sprint') }} 1'),
+          });
+          state.deliverables.push({
+            id: uid(),
+            project_id: pid,
+            label: '{{ _('Livrable') }} - ' + (p.task || (p.sprint || '')),
+            done: false,
+            parent_id: sprintDeliverableRoot[p.sprint] || null,
+            task_id: taskId,
+          });
+        });
+
+        sprintNames.forEach(function(sn){
+          const win = sprintWindow[sn] || { start: null, end: null };
+          const startDate = win.start ? fmtDate(win.start) : '';
+          const endDate = win.end ? fmtDate(win.end) : startDate;
+
+          const groupRow = state.gantt.find(function(g){ return String(g.id) === String((sprintGroups[sn] && sprintGroups[sn].id) || ''); });
+          if (groupRow && startDate && endDate) {
+            groupRow.start = startDate;
+            groupRow.end = endDate;
+            groupRow.duration_days = daysBetween(dt(startDate), dt(endDate));
+          }
+
+          if (startDate) {
+            state.ceremonies.push(normalizeCeremony({
+              id: uid(),
+              project_id: pid,
+              type: sn + ' - Planning',
+              when: '{{ _('Début sprint') }}',
+              start_date: startDate,
+              start_time: '09:00',
+              recurrent: false,
+              recurrence: 'weekly',
+              weekdays: [],
+              alert_enabled: true,
+              alert_minutes: 60,
+            }));
+          }
+
+          if (endDate) {
+            state.ceremonies.push(normalizeCeremony({
+              id: uid(),
+              project_id: pid,
+              type: sn + ' - Review',
+              when: '{{ _('Fin sprint') }}',
+              start_date: endDate,
+              start_time: '16:00',
+              recurrent: false,
+              recurrence: 'weekly',
+              weekdays: [],
+              alert_enabled: true,
+              alert_minutes: 90,
+            }));
+
+            const retroDate = fmtDate(addDays(dt(endDate), 1));
+            state.ceremonies.push(normalizeCeremony({
+              id: uid(),
+              project_id: pid,
+              type: sn + ' - Retro',
+              when: '{{ _('Fin sprint') }}',
+              start_date: retroDate,
+              start_time: '10:00',
+              recurrent: false,
+              recurrence: 'weekly',
+              weekdays: [],
+              alert_enabled: true,
+              alert_minutes: 60,
+            }));
+
+            state.gantt.push(normalizeGanttTask({
+              id: uid(),
+              project_id: pid,
+              type: 'milestone',
+              parent_id: sprintGroups[sn] ? sprintGroups[sn].id : null,
+              task: sn + ' - {{ _("Jalons") }}',
+              owner: ownerMain,
+              predecessor_id: sprintLastTaskId[sn] || null,
+              dependency_type: 'FS',
+              lag_days: 0,
+              status: 'not_started',
+              progress_pct: 0,
+              start: endDate,
+              end: endDate,
+              duration_days: 1,
+              documents: [],
+            }));
+          }
+        });
+
+        aiSeedGovernanceAndPmo(pid, projectName, owners, sprintNames);
+        aiSeedGovernanceCharter(projectName, d, sprintNames, aiBuilder.charter, effectivePlan);
+        if (aiBuilder.planning_note) {
+          aiPushMessage('bot', aiBuilder.planning_note + ' {{ _('Vous pouvez ajuster manuellement les tâches, dépendances et durées dans le Gantt.') }}');
+        }
+        syncAiBuilderToState();
+      }
+
+      function aiTryCreateProject(){
+        if (!canWrite()) {
+          setStatus('{{ _('Action non autorisée en lecture seule.') }}', 'text-warning');
+          return;
+        }
+        if (!String(aiBuilder.draft.name || '').trim()) {
+          aiBuilder.draft.name = aiFictionalProjectName();
+          aiPushMessage('bot', '{{ _('Nome sugerido pela IA') }}: ' + aiBuilder.draft.name + '.');
+        }
+        const missing = aiMissingFields();
+        if (missing.length) {
+          aiPushMessage('bot', '{{ _('Il manque encore') }}: ' + missing.join(', ') + '.');
+          renderAiBuilder();
+          return;
+        }
+        aiBuildDefaultPlan();
+        aiPushMessage('bot', '{{ _('Projet créé avec succès. Les tâches, livrables et sprints ont été ajoutés automatiquement.') }}');
+        renderAll();
+        renderAiBuilder();
+        scheduleSave();
+        const btn = document.getElementById('pm-tab-execution');
+        const tab = window.bootstrap && window.bootstrap.Tab ? window.bootstrap.Tab.getOrCreateInstance(btn) : null;
+        if (tab) tab.show();
+        setStatus('{{ _('Projet IA créé') }}', 'text-success');
+      }
+
+      async function aiAskServer(message){
+        try {
+          const specInput = document.getElementById('pm-ai-spec-pdf');
+          const hasSpecPdf = !!(specInput && specInput.files && specInput.files[0]);
+          const messageText = String(message || '').trim() || (hasSpecPdf ? '{{ _('Utiliser le PDF attaché pour structurer le projet.') }}' : '');
+          if (!messageText) return null;
+
+          const form = new FormData();
+          form.append('message', messageText);
+          form.append('lang', currentChatLang());
+          form.append('draft', JSON.stringify(aiBuilder.draft || {}));
+          form.append('history', JSON.stringify(aiBuilder.messages.slice(-12).map(function(m){
+            return { role: m.role === 'user' ? 'user' : 'assistant', content: String(m.text || '') };
+          })));
+          if (hasSpecPdf) form.append('spec_pdf', specInput.files[0]);
+
+          const r = await fetch(API_AI_PROJECT_CHAT, {
+            method: 'POST',
+            headers: {
+              'X-CSRFToken': csrfToken(),
+            },
+            credentials: 'same-origin',
+            body: form,
+          });
+          const data = await r.json().catch(function(){ return {}; });
+          return (r.ok && data && data.ok) ? data : null;
+        } catch (_) {
+          return null;
+        }
+      }
+
+      function aiHandleUserMessageLocal(text){
+        const d = aiBuilder.draft;
+        const n = aiExtractProjectName(text);
+        const t = aiTypeFromText(text);
+        const s = aiExtractSprints(text);
+        const resp = aiExtractResponsibles(text);
+        if (n && !d.name) d.name = n;
+        if (t && !d.type) d.type = t;
+        if (s) d.sprints = s;
+        if (resp.length) d.responsibles = normalizeOwnerList(d.responsibles.concat(resp));
+        d.context = [d.context, text].filter(Boolean).join(' ').trim().slice(-1200);
+      }
+
+      async function aiHandleUserMessage(raw){
+        const text = (raw || '').toString().trim();
+        const specInput = document.getElementById('pm-ai-spec-pdf');
+        const hasSpecPdf = !!(specInput && specInput.files && specInput.files[0]);
+        if (!text && !hasSpecPdf) return;
+        aiPushMessage('user', text || '{{ _('Analyser le cahier des charges PDF attaché et générer le plan du projet.') }}');
+        const wantsCreate = /\b(criar projeto|criar|gerar projeto)\b/i.test(text);
+        const localType = aiTypeFromText(text);
+        const localResp = aiExtractResponsibles(text);
+
+        // Pre-fill critical fields from natural language before calling the backend AI.
+        if (localType && !aiBuilder.draft.type) aiBuilder.draft.type = localType;
+        if (localResp.length) aiBuilder.draft.responsibles = normalizeOwnerList((aiBuilder.draft.responsibles || []).concat(localResp));
+
+        aiSetLoading(true);
+        const server = await aiAskServer(text);
+        aiSetLoading(false);
+        const ownerAxisText = function(){
+          return (aiProjectFamily(aiBuilder && aiBuilder.draft ? aiBuilder.draft.type : '') === 'engineering')
+            ? '{{ _('responsável por engenharia/interfaces/conformidade') }}'
+            : '{{ _('responsável por backend/frontend/QA') }}';
+        };
+        if (server && typeof server === 'object') {
+          if (server.draft && typeof server.draft === 'object') {
+            aiBuilder.draft.name = String(server.draft.name || aiBuilder.draft.name || '');
+            aiBuilder.draft.type = String(server.draft.type || aiBuilder.draft.type || '');
+            aiBuilder.draft.sprints = Math.max(0, Math.round(num(server.draft.sprints || aiBuilder.draft.sprints || 0)));
+            const serverResp = Array.isArray(server.draft.responsibles)
+              ? server.draft.responsibles.map(function(x){ return normalizeManagerName(x); }).filter(Boolean)
+              : [];
+            aiBuilder.draft.responsibles = normalizeOwnerList((aiBuilder.draft.responsibles || []).concat(serverResp));
+            aiBuilder.draft.work_hours_per_day = Math.max(1, Math.min(12, num(server.draft.work_hours_per_day || aiBuilder.draft.work_hours_per_day || 8)));
+            aiBuilder.draft.available_hours_per_day = Math.max(1, Math.min(12, num(server.draft.available_hours_per_day || aiBuilder.draft.available_hours_per_day || 8)));
+            aiBuilder.draft.context = String(server.draft.context || aiBuilder.draft.context || '').trim().slice(-1200);
+          }
+          if (Array.isArray(server.plan_tasks)) aiBuilder.plan_tasks = normalizeAiPlanTasks(server.plan_tasks);
+          if (server.planning_note) aiBuilder.planning_note = String(server.planning_note).trim();
+          if (Array.isArray(server.smart_questions)) {
+            aiBuilder.smart_questions = normalizeAiSmartQuestions(server.smart_questions);
+          } else {
+            aiBuilder.smart_questions = aiGenerateSmartQuestionsLocal();
+          }
+          if (server.charter && typeof server.charter === 'object') {
+            aiBuilder.charter.objectives = String(server.charter.objectives || '').trim();
+            aiBuilder.charter.scope = String(server.charter.scope || '').trim();
+            aiBuilder.charter.deliverables = String(server.charter.deliverables || '').trim();
+            aiBuilder.charter.milestones = String(server.charter.milestones || '').trim();
+          }
+          if (server.spec_used) {
+            aiBuilder.spec_pdf_name = hasSpecPdf ? String(specInput.files[0].name || '').trim() : (aiBuilder.spec_pdf_name || '');
+          }
+          if (server.reply) aiPushMessage('bot', String(server.reply));
+          syncAiBuilderToState();
+          if (wantsCreate) {
+            aiPushMessage('bot', '{{ _('Antes de criar, vamos refinar melhor as tarefas por sprint e responsável.') }} {{ _('Confirme:') }} 1) {{ _('principais entregáveis por sprint') }}, 2) ' + ownerAxisText() + ', 3) {{ _('dependências críticas') }}, 4) {{ _('riscos e restrições') }}.');
+            renderAiBuilder();
+            return;
+          }
+          renderAiBuilder();
+          return;
+        }
+
+        aiHandleUserMessageLocal(text);
+        aiBuilder.smart_questions = aiGenerateSmartQuestionsLocal();
+        syncAiBuilderToState();
+
+        if (wantsCreate) {
+          aiPushMessage('bot', '{{ _('Antes de criar, vamos refinar melhor as tarefas por sprint e responsável.') }} {{ _('Descreva os entregáveis de cada sprint e quem lidera cada frente.') }}');
+          renderAiBuilder();
+          return;
+        }
+
+        const missing = aiMissingFields();
+        if (!missing.length) {
+          aiPushMessage('bot', '{{ _('Antes de criar, vamos refinar melhor as tarefas por sprint e responsável.') }} {{ _('Confirme:') }} 1) {{ _('principais entregáveis por sprint') }}, 2) ' + ownerAxisText() + ', 3) {{ _('dependências críticas') }}, 4) {{ _('riscos e restrições') }}.');
+        } else {
+          aiPushMessage('bot', '{{ _('Entendi. Para continuar, informe') }}: ' + missing.join(', ') + '.');
+        }
+        renderAiBuilder();
+      }
+
+      function setSelectedGanttTask(taskId){
+        selectedGanttTaskId = taskId ? String(taskId) : null;
+        updateGanttTaskSelectionUI();
+      }
 
       function uid(){ return Math.random().toString(36).slice(2, 10); }
       function csrfToken(){ return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''; }
@@ -1918,7 +3389,7 @@
       }
       function taskTypeNorm(v){
         const x = (v || '').toString().trim().toLowerCase();
-        if (x === 'group' || x === 'task') return x;
+        if (x === 'group' || x === 'task' || x === 'milestone') return x;
         return 'task';
       }
       function parentIdNorm(v){
@@ -1983,6 +3454,7 @@
         state.audit_log = asArray(state.audit_log);
         state.project_versions = asArray(state.project_versions);
         state.project_meta = (state.project_meta && typeof state.project_meta === 'object') ? state.project_meta : {};
+        state.ai_builder = (state.ai_builder && typeof state.ai_builder === 'object') ? state.ai_builder : {};
         state.security = (state.security && typeof state.security === 'object') ? state.security : {};
         state.notifications = (state.notifications && typeof state.notifications === 'object') ? state.notifications : {};
       }
@@ -1990,12 +3462,14 @@
       function forCurrentProject(list){ return (list || []).filter(function(x){ return x.project_id === state.selected_project_id; }); }
       function currentRights(){ return (state.security && state.security.rights) || 'rw'; }
       function canWrite(){ return currentRights() !== 'r'; }
+      function canDeleteProject(){ return (canWrite() || IS_TENANT_ADMIN) && !!state.selected_project_id && state.projects.length > 1; }
       function canApprove(){ return currentRights() === 'rwa'; }
       function canEditSecurity(){ return IS_TENANT_ADMIN || canWrite(); }
       function ensureNotificationsDefaults(){
         if (!state.notifications || typeof state.notifications !== 'object') state.notifications = {};
         if (!state.notifications.channels || typeof state.notifications.channels !== 'object') state.notifications.channels = {};
         if (!state.notifications.triggers || typeof state.notifications.triggers !== 'object') state.notifications.triggers = {};
+        state.notifications.lang = (state.notifications.lang || CURRENT_LANG || 'pt').toString();
 
         if (typeof state.notifications.channels.slack_enabled !== 'boolean') state.notifications.channels.slack_enabled = false;
         if (typeof state.notifications.channels.mail_enabled !== 'boolean') state.notifications.channels.mail_enabled = false;
@@ -2011,6 +3485,9 @@
         if (typeof state.notifications.triggers.risk_high !== 'boolean') state.notifications.triggers.risk_high = true;
         if (typeof state.notifications.triggers.change_approved !== 'boolean') state.notifications.triggers.change_approved = true;
         if (typeof state.notifications.triggers.daily_summary !== 'boolean') state.notifications.triggers.daily_summary = false;
+        if (typeof state.notifications.triggers.ceremony_reminder !== 'boolean') state.notifications.triggers.ceremony_reminder = true;
+        state.notifications.triggers.ceremony_lead_minutes = Math.max(5, Math.round(num(state.notifications.triggers.ceremony_lead_minutes || 60)));
+        state.notifications.triggers.ceremony_scope = (state.notifications.triggers.ceremony_scope || 'all').toString();
       }
       function renderNotificationsSettings(){
         ensureNotificationsDefaults();
@@ -2028,6 +3505,9 @@
         const riskHigh = document.getElementById('pm-notif-trigger-risk-high');
         const changeApproved = document.getElementById('pm-notif-trigger-change-approved');
         const dailySummary = document.getElementById('pm-notif-trigger-daily-summary');
+        const ceremonyReminder = document.getElementById('pm-notif-trigger-ceremony-reminder');
+        const ceremonyLeadMinutes = document.getElementById('pm-notif-ceremony-lead-minutes');
+        const ceremonyScope = document.getElementById('pm-notif-ceremony-scope');
 
         if (slackEnabled) slackEnabled.checked = !!ch.slack_enabled;
         if (slackWebhook) slackWebhook.value = ch.slack_webhook || '';
@@ -2040,6 +3520,9 @@
         if (riskHigh) riskHigh.checked = !!tr.risk_high;
         if (changeApproved) changeApproved.checked = !!tr.change_approved;
         if (dailySummary) dailySummary.checked = !!tr.daily_summary;
+        if (ceremonyReminder) ceremonyReminder.checked = !!tr.ceremony_reminder;
+        if (ceremonyLeadMinutes) ceremonyLeadMinutes.value = Math.max(5, Math.round(num(tr.ceremony_lead_minutes || 60)));
+        if (ceremonyScope) ceremonyScope.value = (tr.ceremony_scope || 'all').toString();
       }
       function ensurePublicShareDefaults(){
         if (!state.security || typeof state.security !== 'object') state.security = {};
@@ -2775,6 +4258,14 @@
         item.baseline_end = item.baseline_end || '';
         item.dependency_type = depTypeNorm(item.dependency_type);
         item.lag_days = Math.round(num(item.lag_days || 0));
+        item.documents = Array.isArray(item.documents) ? item.documents.map(function(d){
+          return {
+            id: String((d && d.id) || uid()),
+            name: String((d && d.name) || '').trim(),
+            size: Math.max(0, Math.round(num(d && d.size))),
+            uploaded_at: String((d && d.uploaded_at) || new Date().toISOString()),
+          };
+        }).filter(function(d){ return !!d.name; }) : [];
         normalizeTaskDependencies(item);
         return item;
       }
@@ -2990,6 +4481,8 @@
         ensurePublicShareDefaults();
         ensureNotificationsDefaults();
         if (!Array.isArray(state.project_versions)) state.project_versions = [];
+        syncAiBuilderFromState();
+        syncAiBuilderToState();
       }
 
       function projectVersionsForCurrent(){
@@ -3656,6 +5149,77 @@
           if (p.id === state.selected_project_id) opt.selected = true;
           projectSelect.appendChild(opt);
         });
+        if (projectDeleteBtn) projectDeleteBtn.disabled = !canDeleteProject();
+      }
+
+      function openProjectCreateModal(){
+        document.getElementById('projectForm').reset();
+        projectModal.show();
+      }
+
+      function deleteCurrentProject(){
+        if (!(canWrite() || IS_TENANT_ADMIN)) return;
+        if (!state.selected_project_id) return;
+        if (state.projects.length <= 1) {
+          setStatus('{{ _('Impossible de supprimer le dernier projet.') }}', 'text-warning');
+          return;
+        }
+
+        const projectId = String(state.selected_project_id);
+        const current = state.projects.find(function(p){ return String(p.id) === projectId; });
+        const projectName = current && current.name ? String(current.name) : '{{ _('Projet') }}';
+        const confirmed = window.confirm('{{ _('Supprimer projet') }}: "' + projectName + '" ?');
+        if (!confirmed) return;
+
+        function prune(list){
+          return (list || []).filter(function(item){ return String((item && item.project_id) || '') !== projectId; });
+        }
+
+        state.projects = state.projects.filter(function(p){ return String(p.id) !== projectId; });
+        state.cards = prune(state.cards);
+        state.gantt = prune(state.gantt);
+        state.ceremonies = prune(state.ceremonies);
+        state.deliverables = prune(state.deliverables);
+        state.stakeholders = prune(state.stakeholders);
+        state.risks = prune(state.risks);
+        state.issues = prune(state.issues);
+        state.decisions = prune(state.decisions);
+        state.changes = prune(state.changes);
+        state.documents = prune(state.documents);
+        state.meetings = prune(state.meetings);
+        state.project_versions = prune(state.project_versions);
+        state.audit_log = prune(state.audit_log);
+        setSelectedGanttTask(null);
+        if (state.project_meta && typeof state.project_meta === 'object') {
+          delete state.project_meta[projectId];
+        }
+        if (state.notifications && typeof state.notifications === 'object') {
+          const runtime = (state.notifications.runtime && typeof state.notifications.runtime === 'object') ? state.notifications.runtime : {};
+          const lastSent = (runtime.last_sent && typeof runtime.last_sent === 'object') ? runtime.last_sent : {};
+          const cleanedLastSent = {};
+          Object.keys(lastSent).forEach(function(key){
+            const k = String(key || '');
+            const isProjectScoped =
+              k.startsWith('project_delay:' + projectId) ||
+              k.startsWith('card_delay:' + projectId + ':') ||
+              k.startsWith('ceremony_reminder:' + projectId + ':');
+            if (!isProjectScoped) cleanedLastSent[k] = lastSent[key];
+          });
+          runtime.last_sent = cleanedLastSent;
+          state.notifications.runtime = runtime;
+        }
+        if (state.security && state.security.public_kanban && String(state.security.public_kanban.project_id || '') === projectId) {
+          state.security.public_kanban.enabled = false;
+          state.security.public_kanban.project_id = '';
+          state.security.public_kanban.token = '';
+          state.security.public_kanban.expires_at = '';
+        }
+
+        state.selected_project_id = state.projects[0] ? state.projects[0].id : null;
+        ensureDefaults();
+        renderAll();
+        scheduleSave();
+        setStatus('{{ _('Projet supprimé') }}', 'text-success');
       }
 
       function sprintNamesForCurrentProject(){
@@ -4131,12 +5695,17 @@
         const approvable = canApprove();
         const notificationsEditable = canEditSecurity();
         [
-          'pm-new-project-btn','pm-add-card','pm-add-ceremony','pm-add-deliverable','pm-add-manager','pm-add-gantt','pm-gantt-capture-baseline',
+          'pm-new-project-btn','pm-ai-send-btn','pm-ai-create-project-btn','pm-ai-reset-btn','pm-add-card','pm-add-ceremony','pm-add-deliverable','pm-add-manager','pm-add-gantt','pm-gantt-capture-baseline',
           'pm-add-stakeholder','pm-add-risk','pm-add-issue','pm-add-decision','pm-add-change','pm-add-document','pm-add-meeting'
         ].forEach(function(id){
           const el = document.getElementById(id);
           if (el) el.disabled = !writable;
         });
+        aiSetLoading(aiInFlight);
+        if (projectDeleteBtn) {
+          projectDeleteBtn.disabled = !canDeleteProject();
+        }
+        updateGanttTaskSelectionUI();
         document.querySelectorAll('#pm-section-governance textarea, #pm-section-governance input, #pm-section-governance select').forEach(function(el){
           el.disabled = !writable;
         });
@@ -4248,13 +5817,162 @@
         });
       }
 
+      function normalizeCeremony(item){
+        const row = Object.assign({}, item || {});
+        row.id = row.id || uid();
+        row.project_id = row.project_id || state.selected_project_id;
+        row.type = (row.type || '').toString().trim() || '{{ _('Cérémonie Scrum') }}';
+        row.when = (row.when || '').toString().trim();
+        row.start_date = (row.start_date || '').toString().trim();
+        row.start_time = (row.start_time || '').toString().trim();
+        row.recurrent = !!row.recurrent;
+        row.recurrence = (row.recurrence || 'weekly').toString();
+        row.weekdays = Array.isArray(row.weekdays) ? row.weekdays.map(function(x){ return Number(x); }).filter(function(x){ return x >= 0 && x <= 6; }) : [];
+        row.alert_enabled = row.alert_enabled !== false;
+        row.alert_minutes = Math.max(5, Math.round(num(row.alert_minutes || 60)));
+        return row;
+      }
+
+      function ceremonyWeekdayLabel(day){
+        const map = {
+          0: '{{ _('Dimanche') }}',
+          1: '{{ _('Lundi') }}',
+          2: '{{ _('Mardi') }}',
+          3: '{{ _('Mercredi') }}',
+          4: '{{ _('Jeudi') }}',
+          5: '{{ _('Vendredi') }}',
+          6: '{{ _('Samedi') }}'
+        };
+        return map[Number(day)] || '?';
+      }
+
+      function ceremonyRecurrenceLabel(c){
+        if (!c || !c.recurrent) return '{{ _('Ponctuelle') }}';
+        const weekdays = (c.weekdays || []).map(ceremonyWeekdayLabel).join(', ');
+        if (c.recurrence === 'biweekly') return '{{ _('Toutes les 2 semaines') }}' + (weekdays ? (' · ' + weekdays) : '');
+        if (c.recurrence === 'monthly') return '{{ _('Mensuelle') }}' + (weekdays ? (' · ' + weekdays) : '');
+        return '{{ _('Hebdomadaire') }}' + (weekdays ? (' · ' + weekdays) : '');
+      }
+
+      function taskDocSizeLabel(size){
+        const n = Math.max(0, num(size));
+        if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
+        if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+        return Math.round(n) + ' B';
+      }
+
+      function normalizeTaskDocs(raw){
+        return (Array.isArray(raw) ? raw : []).map(function(d){
+          return {
+            id: String((d && d.id) || uid()),
+            name: String((d && d.name) || '').trim(),
+            size: Math.max(0, Math.round(num(d && d.size))),
+            uploaded_at: String((d && d.uploaded_at) || new Date().toISOString()),
+          };
+        }).filter(function(d){ return !!d.name; });
+      }
+
+      function bindTaskDocsPicker(opts){
+        const hidden = document.getElementById(opts.hiddenId);
+        const list = document.getElementById(opts.listId);
+        const drop = document.getElementById(opts.dropId);
+        const input = document.getElementById(opts.inputId);
+        const browse = document.getElementById(opts.browseId);
+        if (!hidden || !list || !drop || !input || !browse) return;
+
+        let docs = normalizeTaskDocs(opts.initialDocs || []);
+        const sync = function(){
+          hidden.value = JSON.stringify(docs);
+          if (!docs.length) {
+            list.innerHTML = '<div class="small text-secondary">{{ _('Aucun document attaché') }}</div>';
+            return;
+          }
+          list.innerHTML = docs.map(function(d){
+            return '<div class="d-flex align-items-center justify-content-between border rounded px-2 py-1 mb-1">' +
+              '<div class="small"><i class="bi bi-paperclip me-1"></i>' + d.name + ' <span class="text-secondary">(' + taskDocSizeLabel(d.size) + ')</span></div>' +
+              '<button class="btn btn-sm btn-outline-danger" type="button" data-doc-del="' + d.id + '">{{ _('Supprimer') }}</button>' +
+            '</div>';
+          }).join('');
+          list.querySelectorAll('[data-doc-del]').forEach(function(btn){
+            btn.addEventListener('click', function(){
+              const id = String(btn.getAttribute('data-doc-del') || '');
+              docs = docs.filter(function(d){ return String(d.id) !== id; });
+              sync();
+            });
+          });
+        };
+
+        const addFiles = function(fileList){
+          const files = Array.from(fileList || []);
+          files.forEach(function(file){
+            docs.push({
+              id: uid(),
+              name: String(file.name || 'document').trim(),
+              size: Math.max(0, Math.round(num(file.size || 0))),
+              uploaded_at: new Date().toISOString(),
+            });
+          });
+          sync();
+        };
+
+        browse.addEventListener('click', function(){ input.click(); });
+        input.addEventListener('change', function(e){ addFiles(e.target.files || []); input.value = ''; });
+        drop.addEventListener('dragover', function(e){ e.preventDefault(); drop.classList.add('pm-task-docs-drop-over'); });
+        drop.addEventListener('dragleave', function(){ drop.classList.remove('pm-task-docs-drop-over'); });
+        drop.addEventListener('drop', function(e){
+          e.preventDefault();
+          drop.classList.remove('pm-task-docs-drop-over');
+          addFiles((e.dataTransfer && e.dataTransfer.files) || []);
+        });
+
+        sync();
+      }
+
+      function openTaskDocumentsModal(task){
+        if (!task) return;
+        document.getElementById('simpleModalTitle').textContent = '{{ _('Documents tâche') }}';
+        document.getElementById('simpleModalBody').innerHTML =
+          '<input type="hidden" name="task_id" value="' + String(task.id) + '">' +
+          '<input type="hidden" id="pm-task-docs-json" name="documents_json" value="[]">' +
+          '<div class="small text-secondary mb-2">' + (task.task || '{{ _('Tâche') }}') + '</div>' +
+          '<div id="pm-task-docs-drop" class="pm-task-docs-dropzone border rounded p-3 mb-2">' +
+            '<div class="fw-semibold small">{{ _('Glisser-déposer des documents ici') }}</div>' +
+            '<div class="small text-secondary">{{ _('ou parcourir les fichiers') }}</div>' +
+            '<button type="button" class="btn btn-sm btn-outline-primary mt-2" id="pm-task-docs-browse">{{ _('Parcourir') }}</button>' +
+            '<input type="file" id="pm-task-docs-input" class="d-none" multiple>' +
+          '</div>' +
+          '<div id="pm-task-docs-list" class="small"></div>';
+        document.getElementById('simpleForm').dataset.kind = 'task_docs';
+        simpleModal.show();
+        bindTaskDocsPicker({
+          hiddenId: 'pm-task-docs-json',
+          listId: 'pm-task-docs-list',
+          dropId: 'pm-task-docs-drop',
+          inputId: 'pm-task-docs-input',
+          browseId: 'pm-task-docs-browse',
+          initialDocs: task.documents || [],
+        });
+      }
+
       function renderCeremonies(){
         const el = document.getElementById('pm-ceremonies');
         el.innerHTML = '';
-        state.ceremonies.forEach(function(c){
+        state.ceremonies = state.ceremonies.map(normalizeCeremony);
+        forCurrentProject(state.ceremonies).forEach(function(c){
           const li = document.createElement('li');
-          li.className = 'list-group-item d-flex justify-content-between align-items-center';
-          li.innerHTML = '<span><strong>' + c.type + '</strong> · ' + c.when + '</span><button class="btn btn-sm btn-outline-danger">×</button>';
+          li.className = 'list-group-item d-flex justify-content-between align-items-start';
+          const scheduleParts = [];
+          if (c.start_date) scheduleParts.push(c.start_date);
+          if (c.start_time) scheduleParts.push(c.start_time);
+          if (!scheduleParts.length && c.when) scheduleParts.push(c.when);
+          const alertTxt = c.alert_enabled ? ('{{ _('Alerte') }}: ' + c.alert_minutes + 'min') : '{{ _('Alerte désactivée') }}';
+          li.innerHTML =
+            '<div>' +
+              '<div><strong>' + c.type + '</strong></div>' +
+              '<div class="small text-secondary">' + (scheduleParts.join(' · ') || '-') + '</div>' +
+              '<div class="small"><span class="badge text-bg-light border">' + ceremonyRecurrenceLabel(c) + '</span> <span class="badge text-bg-light border">' + alertTxt + '</span></div>' +
+            '</div>' +
+            '<button class="btn btn-sm btn-outline-danger" type="button">×</button>';
           li.querySelector('button').addEventListener('click', function(){
             state.ceremonies = state.ceremonies.filter(x => x.id !== c.id);
             renderCeremonies();
@@ -4274,6 +5992,7 @@
             label: (d.label || '').toString(),
             done: !!d.done,
             parent_id: d.parent_id ? String(d.parent_id) : null,
+            task_id: d.task_id ? String(d.task_id) : null,
           };
         });
         state.deliverables = rows;
@@ -4325,8 +6044,10 @@
 
           const left = document.createElement('div');
           left.className = 'form-check mb-0';
+          const linkedTask = rows.length ? state.gantt.find(function(t){ return String(t.id) === String(node.task_id || ''); }) : null;
+          const linkedTaskLabel = linkedTask ? (' <span class="badge text-bg-light border ms-1">{{ _('Tâche') }}: ' + (linkedTask.task || '#') + '</span>') : '';
           left.innerHTML = '<input class="form-check-input" type="checkbox" id="pm-deliverable-' + node.id + '" ' + (node.done ? 'checked' : '') + '>' +
-            '<label class="form-check-label" for="pm-deliverable-' + node.id + '">' + (node.label || '-') + '</label>';
+            '<label class="form-check-label" for="pm-deliverable-' + node.id + '">' + (node.label || '-') + linkedTaskLabel + '</label>';
           left.querySelector('input').addEventListener('change', function(e){
             node.done = !!e.target.checked;
             renderDeliverables();
@@ -4364,6 +6085,7 @@
             document.getElementById('simpleModalTitle').textContent = '{{ _('Ajouter sous-item') }}';
             document.getElementById('simpleModalBody').innerHTML =
               '<input type="hidden" name="parent_id" value="' + node.id + '">' +
+              '<input type="hidden" name="task_id" value="' + (node.task_id || '') + '">' +
               '<div><label class="form-label">{{ _('Item') }}</label><input class="form-control" name="label" required></div>';
             document.getElementById('simpleForm').dataset.kind = 'deliverable';
             simpleModal.show();
@@ -4619,10 +6341,12 @@
         today.setHours(0, 0, 0, 0);
         const tasks = filteredGanttTasks(allTasks, criticalIds, workload, today);
         if (!allTasks.length) {
+          setSelectedGanttTask(null);
           if (insightsEl) insightsEl.innerHTML = '<div class="text-secondary">{{ _('Aucune tâche Gantt pour ce projet.') }}</div>';
           return;
         }
         if (!tasks.length) {
+          setSelectedGanttTask(null);
           if (insightsEl) insightsEl.innerHTML = '<div class="text-secondary">{{ _('Aucune tâche pour ce filtre.') }}</div>';
           return;
         }
@@ -4797,12 +6521,20 @@
 
           const tr = document.createElement('tr');
           tr.className = trClass;
+          tr.dataset.ganttTaskId = String(g.id);
           const isGroup = taskTypeNorm(g.type) === 'group';
+          const isMilestone = taskTypeNorm(g.type) === 'milestone';
+          const metaStatusLabel = isMilestone ? '{{ _("Jalons") }}' : statusLabel;
+          const metaStatusBadgeClass = isMilestone ? 'text-bg-info' : statusBadgeClass;
+          const barLeftPx = isMilestone ? Math.max(0, leftPx - 7) : leftPx;
+          const barWidthPx = isMilestone ? 14 : widthPx;
+          const barClass = 'pm-gantt-bar ' + statusBarClass + (isMilestone ? ' pm-gantt-bar--milestone' : '');
           const indentPx = (level * 18);
+          const docsCount = Array.isArray(g.documents) ? g.documents.length : 0;
           tr.innerHTML =
             '<td class="text-secondary">' + (rowIndex + 1) + '</td>' +
-            '<td><div class="d-flex align-items-center gap-1"><button class="btn btn-sm btn-outline-secondary" type="button" data-gantt-outdent="' + g.id + '" title="{{ _('Remonter d\'un niveau') }}">&larr;</button><button class="btn btn-sm btn-outline-secondary" type="button" data-gantt-indent="' + g.id + '" title="{{ _('Indenter sous la tâche précédente') }}">&rarr;</button><input class="form-control form-control-sm" style="margin-left:' + indentPx + 'px; font-weight:' + (isGroup ? '700' : '400') + ';" data-field="task" data-id="' + g.id + '" value="' + (g.task || '') + '"></div></td>' +
-            '<td><select class="form-select form-select-sm" data-field="type" data-id="' + g.id + '"><option value="task"' + (isGroup ? '' : ' selected') + '>{{ _('Tâche') }}</option><option value="group"' + (isGroup ? ' selected' : '') + '>{{ _('Groupe') }}</option></select><select class="form-select form-select-sm mt-1" data-field="parent_id" data-id="' + g.id + '">' + parentOptions + '</select></td>' +
+            '<td><div class="d-flex align-items-center gap-1"><button class="btn btn-sm btn-outline-secondary" type="button" data-gantt-outdent="' + g.id + '" title="{{ _('Remonter d\'un niveau') }}">&larr;</button><button class="btn btn-sm btn-outline-secondary" type="button" data-gantt-indent="' + g.id + '" title="{{ _('Indenter sous la tâche précédente') }}">&rarr;</button><button class="btn btn-sm btn-outline-primary" type="button" data-gantt-docs="' + g.id + '" title="{{ _('Gérer documents') }}"><i class="bi bi-paperclip"></i> ' + docsCount + '</button><input class="form-control form-control-sm" style="margin-left:' + indentPx + 'px; font-weight:' + (isGroup ? '700' : (isMilestone ? '600' : '400')) + ';" data-field="task" data-id="' + g.id + '" value="' + (g.task || '') + '"></div></td>' +
+            '<td><select class="form-select form-select-sm" data-field="type" data-id="' + g.id + '"><option value="task"' + (!isGroup && !isMilestone ? ' selected' : '') + '>{{ _('Tâche') }}</option><option value="group"' + (isGroup ? ' selected' : '') + '>{{ _('Groupe') }}</option><option value="milestone"' + (isMilestone ? ' selected' : '') + '>{{ _('Jalons') }}</option></select><select class="form-select form-select-sm mt-1" data-field="parent_id" data-id="' + g.id + '">' + parentOptions + '</select></td>' +
             '<td><input class="form-control form-control-sm" list="pm-managers-datalist" data-field="owner" data-id="' + g.id + '" value="' + (g.owner || '') + '"></td>' +
             '<td><select class="form-select form-select-sm" data-field="predecessor_id" data-id="' + g.id + '">' + predecessorOptions + '</select></td>' +
             '<td><select class="form-select form-select-sm" data-field="dependency_type" data-id="' + g.id + '">' +
@@ -4833,14 +6565,13 @@
               '<div class="pm-gantt-track" style="width:' + trackWidth + 'px;--pm-day-px:' + unitPx + 'px;">' +
                 (ganttView.showBaseline && baselineWidthPx > 0 ? '<div class="pm-gantt-baseline" style="left:' + baselineLeftPx + 'px;width:' + baselineWidthPx + 'px;"></div>' : '') +
                 '<div class="pm-gantt-today-marker" style="left:' + todayLeft + 'px;"></div>' +
-                '<div class="pm-gantt-bar ' + statusBarClass + '" data-task-id="' + g.id + '" style="left:' + leftPx + 'px;width:' + widthPx + 'px;background:' + barColor + ';">' +
-                  '<span class="pm-gantt-bar-label">' + statusLabel + '</span>' +
-                  '<div class="pm-gantt-bar-progress" style="width:' + progress + '%;"></div>' +
-                  '<span class="pm-gantt-bar-handle pm-gantt-bar-handle-left"></span>' +
-                  '<span class="pm-gantt-bar-handle pm-gantt-bar-handle-right"></span>' +
+                '<div class="' + barClass + '" data-task-id="' + g.id + '" style="left:' + barLeftPx + 'px;width:' + barWidthPx + 'px;background:' + barColor + ';">' +
+                  '<span class="pm-gantt-bar-label">' + (isMilestone ? '◆' : statusLabel) + '</span>' +
+                  (isMilestone ? '' : '<div class="pm-gantt-bar-progress" style="width:' + progress + '%;"></div>') +
+                  (isMilestone ? '' : '<span class="pm-gantt-bar-handle pm-gantt-bar-handle-left"></span><span class="pm-gantt-bar-handle pm-gantt-bar-handle-right"></span>') +
                 '</div>' +
               '</div>' +
-              '<div class="small text-secondary mt-1 pm-gantt-timeline-meta"><span class="badge rounded-pill ' + statusBadgeClass + '">' + statusLabel + '</span><span>' + fmtDate(g.start) + ' → ' + fmtDate(g.end) + (ganttView.showBaseline && baselineWidthPx > 0 ? (' · BL: ' + fmtDate(g.baseline_start) + ' → ' + fmtDate(g.baseline_end)) : '') + '</span></div>' +
+              '<div class="small text-secondary mt-1 pm-gantt-timeline-meta"><span class="badge rounded-pill ' + metaStatusBadgeClass + '">' + metaStatusLabel + '</span><span>' + fmtDate(g.start) + ' → ' + fmtDate(g.end) + (ganttView.showBaseline && baselineWidthPx > 0 ? (' · BL: ' + fmtDate(g.baseline_start) + ' → ' + fmtDate(g.baseline_end)) : '') + '</span></div>' +
             '</td>';
           if (isGroup) {
             tr.querySelector('[data-field="predecessor_id"]').disabled = true;
@@ -4851,8 +6582,18 @@
             tr.querySelectorAll('input,select').forEach(function(ctrl){ ctrl.disabled = true; });
             tr.querySelectorAll('[data-gantt-indent],[data-gantt-outdent]').forEach(function(ctrl){ ctrl.disabled = true; });
           }
+          tr.addEventListener('click', function(e){
+            if (e.target && e.target.closest && e.target.closest('input,select,button,a,label')) return;
+            setSelectedGanttTask(g.id);
+          });
           tbody.appendChild(tr);
         });
+
+        if (!allTasks.some(function(t){ return String(t.id) === String(selectedGanttTaskId || ''); })) {
+          setSelectedGanttTask(null);
+        } else {
+          updateGanttTaskSelectionUI();
+        }
 
         function isDescendantTask(candidateParentId, childId){
           let cursor = parentIdNorm(candidateParentId);
@@ -4885,6 +6626,16 @@
             }
             renderGantt();
             scheduleSave();
+          });
+        });
+        tbody.querySelectorAll('[data-gantt-docs]').forEach(function(btn){
+          btn.addEventListener('click', function(){
+            if (!canWrite()) return;
+            const id = String(btn.getAttribute('data-gantt-docs') || '');
+            const task = state.gantt.find(function(x){ return String(x.id) === id; });
+            if (!task) return;
+            setSelectedGanttTask(id);
+            openTaskDocumentsModal(task);
           });
         });
         tbody.querySelectorAll('[data-gantt-outdent]').forEach(function(btn){
@@ -5136,6 +6887,7 @@
       }
 
       function renderAll(){
+        renderAiBuilder();
         renderProjectSelect();
         renderSprintFilter();
         renderKanban();
@@ -5166,9 +6918,114 @@
       window.pmKpiDrillModal = window.bootstrap.Modal.getOrCreateInstance(document.getElementById('pmKpiDrillModal'));
       const pmContextualTutorialModal = window.bootstrap.Modal.getOrCreateInstance(document.getElementById('pmContextualTutorialModal'));
 
-      document.getElementById('pm-new-project-btn').addEventListener('click', function(){
-        document.getElementById('projectForm').reset();
-        projectModal.show();
+      document.getElementById('pm-new-project-btn').addEventListener('click', openProjectCreateModal);
+      projectDeleteBtn?.addEventListener('click', deleteCurrentProject);
+      document.getElementById('pm-ai-send-btn')?.addEventListener('click', function(){
+        const input = document.getElementById('pm-ai-user-input');
+        aiHandleUserMessage((input && input.value) || '');
+        if (input) input.value = '';
+      });
+      document.getElementById('pm-ai-user-input')?.addEventListener('keydown', function(e){
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const input = e.target;
+        aiHandleUserMessage((input && input.value) || '');
+        if (input) input.value = '';
+      });
+      document.getElementById('pm-ai-create-project-btn')?.addEventListener('click', function(){
+        aiTryCreateProject();
+      });
+      document.getElementById('pm-ai-reset-btn')?.addEventListener('click', function(){
+        if (!canWrite()) return;
+        const archived = aiArchiveCurrentSession();
+        aiBuilderResetFields();
+        const specInput = document.getElementById('pm-ai-spec-pdf');
+        if (specInput) specInput.value = '';
+        if (archived) {
+          aiPushMessage('bot', '{{ _('Historique archivé et assistant réinitialisé.') }}');
+          setStatus('{{ _('Historique IA archivé') }}', 'text-success');
+        } else {
+          setStatus('{{ _('Nouveau départ IA') }}', 'text-success');
+        }
+        syncAiBuilderToState();
+        renderAiBuilder();
+        scheduleSave();
+      });
+      document.getElementById('pm-ai-spec-pdf')?.addEventListener('change', function(e){
+        const input = e.target;
+        const fileObj = input && input.files && input.files[0] ? input.files[0] : null;
+        aiBuilder.spec_pdf_name = fileObj ? String(fileObj.name || '').trim() : '';
+        renderAiBuilder();
+        syncAiBuilderToState();
+      });
+      document.getElementById('pm-ai-q-apply')?.addEventListener('click', function(){
+        const msg = aiBuildGuidedRefinementMessage();
+        if (!msg) {
+          setStatus('{{ _('Sélectionnez au moins une option de questionnaire.') }}', 'text-warning');
+          return;
+        }
+        renderAiBuilder();
+        syncAiBuilderToState();
+        aiHandleUserMessage(msg);
+      });
+      document.getElementById('pm-ai-smart-questions')?.addEventListener('click', function(e){
+        const btn = e.target && e.target.closest ? e.target.closest('[data-ai-sq-value]') : null;
+        if (!btn) return;
+        const value = String(btn.getAttribute('data-ai-sq-value') || '').trim();
+        if (!value) return;
+        aiHandleUserMessage(value);
+      });
+      document.getElementById('pm-ai-archives-filter')?.addEventListener('change', function(e){
+        aiArchiveProjectFilter = String((e.target && e.target.value) || '').trim();
+        renderAiArchives();
+      });
+      document.getElementById('pm-ai-archives')?.addEventListener('click', function(e){
+        const tgt = e.target && e.target.closest ? e.target : null;
+        if (!tgt) return;
+        const viewBtn = tgt.closest('[data-ai-archive-view]');
+        const restoreBtn = tgt.closest('[data-ai-archive-restore]');
+        const deleteBtn = tgt.closest('[data-ai-archive-delete]');
+        if (!viewBtn && !restoreBtn && !deleteBtn) return;
+
+        const archiveId = String((viewBtn || restoreBtn || deleteBtn).getAttribute('data-ai-archive-view') || (viewBtn || restoreBtn || deleteBtn).getAttribute('data-ai-archive-restore') || (viewBtn || restoreBtn || deleteBtn).getAttribute('data-ai-archive-delete') || '');
+        if (!archiveId) return;
+        const archive = aiBuilderArchives.find(function(a){ return String(a.id) === archiveId; });
+        if (!archive) return;
+
+        if (viewBtn) {
+          document.getElementById('simpleModalTitle').textContent = '{{ _('Résumé session IA') }}';
+          const msgCount = Array.isArray(archive.messages) ? archive.messages.length : 0;
+          const planCount = Array.isArray(archive.plan_tasks) ? archive.plan_tasks.length : 0;
+          const lines = [
+            '<div class="mb-2"><strong>{{ _('Nom') }}:</strong> ' + escHtml(String((archive.draft && archive.draft.name) || '-')) + '</div>',
+            '<div class="mb-2"><strong>{{ _('Type') }}:</strong> ' + escHtml(String((archive.draft && archive.draft.type) || '-')) + '</div>',
+            '<div class="mb-2"><strong>{{ _('Sprint') }}s:</strong> ' + escHtml(String((archive.draft && archive.draft.sprints) || '0')) + '</div>',
+            '<div class="mb-2"><strong>{{ _('Responsables') }}:</strong> ' + escHtml(((archive.draft && Array.isArray(archive.draft.responsibles)) ? archive.draft.responsibles.join(', ') : '-')) + '</div>',
+            '<div class="mb-2"><strong>Messages:</strong> ' + msgCount + ' | <strong>Plan:</strong> ' + planCount + '</div>',
+            '<div class="mb-2"><strong>PDF:</strong> ' + escHtml(String(archive.spec_pdf_name || '-')) + '</div>',
+          ];
+          document.getElementById('simpleModalBody').innerHTML = lines.join('');
+          document.getElementById('simpleForm').dataset.kind = 'none';
+          simpleModal.show();
+          return;
+        }
+
+        if (restoreBtn) {
+          aiRestoreArchive(archive);
+          setStatus('{{ _('Archive restaurée') }}', 'text-success');
+          scheduleSave();
+          return;
+        }
+
+        if (deleteBtn) {
+          const idx = aiBuilderArchives.findIndex(function(a){ return String(a.id) === archiveId; });
+          if (idx >= 0) {
+            aiBuilderArchives.splice(idx, 1);
+            syncAiBuilderToState();
+            renderAiBuilder();
+            scheduleSave();
+          }
+        }
       });
 
       document.getElementById('projectForm').addEventListener('submit', function(e){
@@ -5212,6 +7069,10 @@
 
       function escOwnerHtml(value){
         return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+
+      function escHtml(value){
+        return escOwnerHtml(value);
       }
 
       function ownerHue(name){
@@ -5400,14 +7261,35 @@
 
       document.getElementById('pm-add-ceremony').addEventListener('click', function(){
         document.getElementById('simpleModalTitle').textContent = '{{ _('Ajouter cérémonie') }}';
-        document.getElementById('simpleModalBody').innerHTML = '<div class="mb-2"><label class="form-label">{{ _('Type') }}</label><input class="form-control" name="type" required></div><div><label class="form-label">{{ _('Quand') }}</label><input class="form-control" name="when" placeholder="{{ _('2026-03-01 10:00') }}" required></div>';
+        document.getElementById('simpleModalBody').innerHTML =
+          '<div class="mb-2"><label class="form-label">{{ _('Type') }}</label><input class="form-control" name="type" placeholder="{{ _('Daily / Planning / Review / Retro') }}" required></div>' +
+          '<div class="row g-2 mb-2"><div class="col"><label class="form-label">{{ _('Date') }}</label><input type="date" class="form-control" name="start_date" required></div><div class="col"><label class="form-label">{{ _('Heure') }}</label><input type="time" class="form-control" name="start_time" required></div></div>' +
+          '<div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" id="pm-ceremony-recurrent" name="recurrent"><label class="form-check-label" for="pm-ceremony-recurrent">{{ _('Cérémonie récurrente') }}</label></div>' +
+          '<div class="row g-2 mb-2"><div class="col"><label class="form-label">{{ _('Récurrence') }}</label><select class="form-select" id="pm-ceremony-recurrence" name="recurrence" disabled><option value="weekly">{{ _('Hebdomadaire') }}</option><option value="biweekly">{{ _('Toutes les 2 semaines') }}</option><option value="monthly">{{ _('Mensuelle') }}</option></select></div><div class="col"><label class="form-label">{{ _('Jours') }}</label><div class="small border rounded p-2" id="pm-ceremony-weekdays"><div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="weekdays" value="1"><label class="form-check-label">{{ _('Lundi') }}</label></div><div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="weekdays" value="2"><label class="form-check-label">{{ _('Mardi') }}</label></div><div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="weekdays" value="3"><label class="form-check-label">{{ _('Mercredi') }}</label></div><div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="weekdays" value="4"><label class="form-check-label">{{ _('Jeudi') }}</label></div><div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="weekdays" value="5"><label class="form-check-label">{{ _('Vendredi') }}</label></div></div></div></div>' +
+          '<div class="row g-2"><div class="col"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="pm-ceremony-alert-enabled" name="alert_enabled" checked><label class="form-check-label" for="pm-ceremony-alert-enabled">{{ _('Alerte cérémonie') }}</label></div></div><div class="col"><label class="form-label">{{ _('Minutes avant') }}</label><input type="number" min="5" step="5" class="form-control" name="alert_minutes" value="60"></div></div>';
         document.getElementById('simpleForm').dataset.kind = 'ceremony';
         simpleModal.show();
+        const recurrentEl = document.getElementById('pm-ceremony-recurrent');
+        const recurrenceEl = document.getElementById('pm-ceremony-recurrence');
+        const weekdayEls = Array.from(document.querySelectorAll('#pm-ceremony-weekdays input[name="weekdays"]'));
+        const refreshRecurringUi = function(){
+          const active = !!recurrentEl?.checked;
+          if (recurrenceEl) recurrenceEl.disabled = !active;
+          weekdayEls.forEach(function(chk){ chk.disabled = !active; });
+        };
+        recurrentEl?.addEventListener('change', refreshRecurringUi);
+        refreshRecurringUi();
       });
 
       document.getElementById('pm-add-deliverable').addEventListener('click', function(){
+        const taskOptions = ['<option value="">{{ _('Aucune tâche') }}</option>'].concat(currentProjectGantt().filter(function(t){ return taskTypeNorm(t.type) !== 'group'; }).map(function(t){
+          return '<option value="' + t.id + '">' + (t.task || '#') + '</option>';
+        })).join('');
         document.getElementById('simpleModalTitle').textContent = '{{ _('Ajouter item') }}';
-        document.getElementById('simpleModalBody').innerHTML = '<input type="hidden" name="parent_id" value=""><div><label class="form-label">{{ _('Item') }}</label><input class="form-control" name="label" required></div>';
+        document.getElementById('simpleModalBody').innerHTML =
+          '<input type="hidden" name="parent_id" value="">' +
+          '<div class="mb-2"><label class="form-label">{{ _('Item') }}</label><input class="form-control" name="label" required></div>' +
+          '<div><label class="form-label">{{ _('Associer à une tâche') }}</label><select class="form-select" name="task_id">' + taskOptions + '</select></div>';
         document.getElementById('simpleForm').dataset.kind = 'deliverable';
         simpleModal.show();
       });
@@ -5516,7 +7398,15 @@
         simpleModal.show();
       });
 
-      document.getElementById('pm-add-gantt').addEventListener('click', function(){
+      document.getElementById('pm-add-gantt').addEventListener('click', async function(){
+        if (document.fullscreenElement === ganttCard && document.exitFullscreen) {
+          try {
+            await document.exitFullscreen();
+          } catch (e) {
+            // Keep going: CSS maximize fallback still allows modal display.
+          }
+          setGanttMaximized(false);
+        }
         const ganttTasks = currentProjectGantt();
         const predecessorSelect = ['<option value="">-</option>'].concat(ganttTasks.filter(function(t){ return taskTypeNorm(t.type) !== 'group'; }).map(function(t, idx){
           return '<option value="' + t.id + '">' + (idx + 1) + ' - ' + (t.task || '{{ _('Tâche') }}') + '</option>';
@@ -5527,14 +7417,68 @@
         document.getElementById('simpleModalTitle').textContent = '{{ _('Ajouter tâche') }}';
         document.getElementById('simpleModalBody').innerHTML =
           '<div class="mb-2"><label class="form-label">{{ _('Tâche') }}</label><input class="form-control" name="task" required></div>' +
-          '<div class="row g-2 mb-2"><div class="col"><label class="form-label">{{ _('Type') }}</label><select class="form-select" name="type"><option value="task" selected>{{ _('Tâche') }}</option><option value="group">{{ _('Groupe') }}</option></select></div><div class="col"><label class="form-label">{{ _('Parent (groupe)') }}</label><select class="form-select" name="parent_id">' + parentSelect + '</select></div></div>' +
+          '<div class="row g-2 mb-2"><div class="col"><label class="form-label">{{ _('Type') }}</label><select class="form-select" name="type"><option value="task" selected>{{ _('Tâche') }}</option><option value="group">{{ _('Groupe') }}</option><option value="milestone">{{ _('Jalons') }}</option></select></div><div class="col"><label class="form-label">{{ _('Parent (groupe)') }}</label><select class="form-select" name="parent_id">' + parentSelect + '</select></div></div>' +
           '<div class="mb-2"><label class="form-label">{{ _('Responsable') }}</label><input class="form-control" name="owner" list="pm-managers-datalist"></div>' +
           '<div class="row g-2 mb-2"><div class="col"><label class="form-label">{{ _('Début') }}</label><input type="date" class="form-control" name="start" required></div><div class="col"><label class="form-label">{{ _('Durée (j)') }}</label><input type="number" min="1" class="form-control" name="duration_days" value="1" required></div></div>' +
           '<div class="row g-2 mb-2"><div class="col"><label class="form-label">{{ _('Statut') }}</label><select class="form-select" name="status"><option value="not_started">{{ _('Non démarré') }}</option><option value="in_progress">{{ _('En cours') }}</option><option value="done">{{ _('Terminé') }}</option><option value="blocked">{{ _('Bloqué') }}</option></select></div><div class="col"><label class="form-label">{{ _('Avancement %') }}</label><input type="number" min="0" max="100" class="form-control" name="progress_pct" value="0"></div></div>' +
           '<div><label class="form-label">{{ _('Prédécesseur') }}</label><select class="form-select" name="predecessor_id">' + predecessorSelect + '</select></div>' +
-          '<div class="row g-2 mt-1"><div class="col"><label class="form-label">{{ _('Type lien') }}</label><select class="form-select" name="dependency_type"><option value="FS">FS</option><option value="SS">SS</option><option value="FF">FF</option><option value="SF">SF</option></select></div><div class="col"><label class="form-label">{{ _('Lag (j)') }}</label><input type="number" class="form-control" name="lag_days" value="0"></div></div>';
+          '<div class="row g-2 mt-1 mb-2"><div class="col"><label class="form-label">{{ _('Type lien') }}</label><select class="form-select" name="dependency_type"><option value="FS">FS</option><option value="SS">SS</option><option value="FF">FF</option><option value="SF">SF</option></select></div><div class="col"><label class="form-label">{{ _('Lag (j)') }}</label><input type="number" class="form-control" name="lag_days" value="0"></div></div>' +
+          '<input type="hidden" id="pm-gantt-docs-json" name="documents_json" value="[]">' +
+          '<div id="pm-gantt-docs-drop" class="pm-task-docs-dropzone border rounded p-3 mb-2">' +
+            '<div class="fw-semibold small">{{ _('Glisser-déposer des documents ici') }}</div>' +
+            '<div class="small text-secondary">{{ _('ou parcourir les fichiers') }}</div>' +
+            '<button type="button" class="btn btn-sm btn-outline-primary mt-2" id="pm-gantt-docs-browse">{{ _('Parcourir') }}</button>' +
+            '<input type="file" id="pm-gantt-docs-input" class="d-none" multiple>' +
+          '</div>' +
+          '<div id="pm-gantt-docs-list" class="small"></div>';
         document.getElementById('simpleForm').dataset.kind = 'gantt';
         simpleModal.show();
+        bindTaskDocsPicker({
+          hiddenId: 'pm-gantt-docs-json',
+          listId: 'pm-gantt-docs-list',
+          dropId: 'pm-gantt-docs-drop',
+          inputId: 'pm-gantt-docs-input',
+          browseId: 'pm-gantt-docs-browse',
+          initialDocs: [],
+        });
+      });
+
+      document.getElementById('pm-delete-gantt-task')?.addEventListener('click', function(){
+        if (!canWrite()) return;
+        const taskId = String(selectedGanttTaskId || '');
+        if (!taskId) {
+          setStatus('{{ _('Sélectionnez une tâche à supprimer.') }}', 'text-warning');
+          return;
+        }
+
+        const currentTasks = currentProjectGantt();
+        const target = currentTasks.find(function(t){ return String(t.id) === taskId; });
+        if (!target) {
+          setSelectedGanttTask(null);
+          setStatus('{{ _('Sélectionnez une tâche à supprimer.') }}', 'text-warning');
+          return;
+        }
+
+        const toDelete = new Set([taskId]);
+        let changed = true;
+        while (changed) {
+          changed = false;
+          currentTasks.forEach(function(t){
+            const pid = String((t && t.parent_id) || '');
+            if (pid && toDelete.has(pid) && !toDelete.has(String(t.id))) {
+              toDelete.add(String(t.id));
+              changed = true;
+            }
+          });
+        }
+
+        state.gantt = state.gantt.filter(function(t){ return !toDelete.has(String(t.id)); });
+        setSelectedGanttTask(null);
+        renderGantt();
+        renderManagers();
+        renderFinanceSummary();
+        scheduleSave();
+        setStatus('{{ _('Tâche supprimée') }}', 'text-success');
       });
 
       document.getElementById('simpleForm').addEventListener('submit', function(e){
@@ -5543,13 +7487,27 @@
         const fd = new FormData(e.target);
         const kind = e.target.dataset.kind;
         if (kind === 'ceremony') {
-          state.ceremonies.push({ id: uid(), type: (fd.get('type') || '').toString(), when: (fd.get('when') || '').toString() });
+          const recurrent = fd.get('recurrent') === 'on';
+          const weekdays = fd.getAll('weekdays').map(function(x){ return Number(x); }).filter(function(x){ return x >= 0 && x <= 6; });
+          state.ceremonies.push(normalizeCeremony({
+            id: uid(),
+            project_id: state.selected_project_id,
+            type: (fd.get('type') || '').toString().trim(),
+            start_date: (fd.get('start_date') || '').toString().trim(),
+            start_time: (fd.get('start_time') || '').toString().trim(),
+            recurrent: recurrent,
+            recurrence: (fd.get('recurrence') || 'weekly').toString(),
+            weekdays: recurrent ? weekdays : [],
+            alert_enabled: fd.get('alert_enabled') === 'on',
+            alert_minutes: Math.max(5, Math.round(num(fd.get('alert_minutes') || 60))),
+          }));
           renderCeremonies();
         } else if (kind === 'deliverable') {
           const label = (fd.get('label') || '').toString().trim();
           if (label) {
             const parentRaw = (fd.get('parent_id') || '').toString().trim();
-            state.deliverables.push({ id: uid(), label: label, done: false, parent_id: parentRaw || null });
+            const taskRaw = (fd.get('task_id') || '').toString().trim();
+            state.deliverables.push({ id: uid(), project_id: state.selected_project_id, label: label, done: false, parent_id: parentRaw || null, task_id: taskRaw || null });
             renderDeliverables();
           }
         } else if (kind === 'manager') {
@@ -5627,6 +7585,10 @@
           const predecessorId = ((fd.get('predecessor_id') || '').toString() || null);
           const dependencyType = depTypeNorm((fd.get('dependency_type') || '').toString() || 'FS');
           const lagDays = Math.round(num(fd.get('lag_days') || 0));
+          let taskDocs = [];
+          try {
+            taskDocs = normalizeTaskDocs(JSON.parse((fd.get('documents_json') || '[]').toString() || '[]'));
+          } catch (_) { taskDocs = []; }
           const row = {
             id: uid(),
             project_id: state.selected_project_id,
@@ -5645,6 +7607,7 @@
             baseline_start: '',
             baseline_end: '',
             duration_days: duration,
+            documents: taskDocs,
           };
           if (row.parent_id && row.parent_id === String(row.id)) row.parent_id = null;
           if (row.type === 'group') {
@@ -5660,6 +7623,18 @@
           renderGantt();
           renderManagers();
           renderFinanceSummary();
+        } else if (kind === 'task_docs') {
+          const taskId = String((fd.get('task_id') || '').toString());
+          const task = state.gantt.find(function(t){ return String(t.id) === taskId; });
+          if (task) {
+            try {
+              task.documents = normalizeTaskDocs(JSON.parse((fd.get('documents_json') || '[]').toString() || '[]'));
+            } catch (_) {
+              task.documents = normalizeTaskDocs(task.documents || []);
+            }
+            renderGantt();
+            addAudit('task.documents.updated', { task_id: taskId, count: (task.documents || []).length });
+          }
         }
         simpleModal.hide();
         scheduleSave();
@@ -5744,13 +7719,15 @@
 
       [
         'pm-notif-slack-enabled','pm-notif-slack-webhook','pm-notif-mail-enabled','pm-notif-mail-to','pm-notif-teams-enabled','pm-notif-teams-webhook',
-        'pm-notif-trigger-project-delay','pm-notif-trigger-card-delay','pm-notif-trigger-risk-high','pm-notif-trigger-change-approved','pm-notif-trigger-daily-summary'
+        'pm-notif-trigger-project-delay','pm-notif-trigger-card-delay','pm-notif-trigger-risk-high','pm-notif-trigger-change-approved','pm-notif-trigger-daily-summary',
+        'pm-notif-trigger-ceremony-reminder','pm-notif-ceremony-lead-minutes','pm-notif-ceremony-scope'
       ].forEach(function(id){
         const el = document.getElementById(id);
         if (!el) return;
         el.addEventListener('change', function(){
           if (!canEditSecurity()) return;
           ensureNotificationsDefaults();
+          state.notifications.lang = (CURRENT_LANG || 'pt').toString();
           state.notifications.channels.slack_enabled = !!document.getElementById('pm-notif-slack-enabled')?.checked;
           state.notifications.channels.slack_webhook = (document.getElementById('pm-notif-slack-webhook')?.value || '').trim();
           state.notifications.channels.mail_enabled = !!document.getElementById('pm-notif-mail-enabled')?.checked;
@@ -5763,6 +7740,9 @@
           state.notifications.triggers.risk_high = !!document.getElementById('pm-notif-trigger-risk-high')?.checked;
           state.notifications.triggers.change_approved = !!document.getElementById('pm-notif-trigger-change-approved')?.checked;
           state.notifications.triggers.daily_summary = !!document.getElementById('pm-notif-trigger-daily-summary')?.checked;
+          state.notifications.triggers.ceremony_reminder = !!document.getElementById('pm-notif-trigger-ceremony-reminder')?.checked;
+          state.notifications.triggers.ceremony_lead_minutes = Math.max(5, Math.round(num(document.getElementById('pm-notif-ceremony-lead-minutes')?.value || 60)));
+          state.notifications.triggers.ceremony_scope = (document.getElementById('pm-notif-ceremony-scope')?.value || 'all').toString();
           addAudit('notifications.updated', { mail_policy: 'settings_plus_card_owner' });
           scheduleSave();
         });
@@ -5928,16 +7908,46 @@
       document.getElementById('pm-version-b').addEventListener('change', renderVersionComparison);
 
       function setGanttMaximized(maximized){
+        if (!ganttCard || !ganttMaxBtn) return;
         ganttIsMaximized = !!maximized;
         ganttCard.classList.toggle('pm-gantt-fullscreen', ganttIsMaximized);
-        document.body.style.overflow = ganttIsMaximized ? 'hidden' : '';
+        document.body.classList.toggle('pm-gantt-maximized', ganttIsMaximized);
+        ganttMaxBtn.setAttribute('aria-pressed', ganttIsMaximized ? 'true' : 'false');
         ganttMaxBtn.innerHTML = ganttIsMaximized
           ? '<i class="bi bi-fullscreen-exit me-1"></i>{{ _('Restaurer') }}'
           : '<i class="bi bi-arrows-fullscreen me-1"></i>{{ _('Maximiser') }}';
       }
 
-      ganttMaxBtn?.addEventListener('click', function(){
-        setGanttMaximized(!ganttIsMaximized);
+      ganttMaxBtn?.addEventListener('click', async function(){
+        if (!ganttCard) return;
+        const supportsNativeFullscreen = !!(document.fullscreenEnabled && ganttCard.requestFullscreen);
+        if (!supportsNativeFullscreen) {
+          setGanttMaximized(!ganttIsMaximized);
+          return;
+        }
+        try {
+          if (document.fullscreenElement === ganttCard) {
+            await document.exitFullscreen();
+            setGanttMaximized(false);
+          } else {
+            await ganttCard.requestFullscreen();
+            setGanttMaximized(true);
+          }
+        } catch (e) {
+          // Fallback for browsers/permissions where Fullscreen API is blocked.
+          setGanttMaximized(!ganttIsMaximized);
+        }
+      });
+
+      document.addEventListener('fullscreenchange', function(){
+        if (!ganttCard) return;
+        if (!document.fullscreenElement && ganttIsMaximized) {
+          setGanttMaximized(false);
+          return;
+        }
+        if (document.fullscreenElement === ganttCard && !ganttIsMaximized) {
+          setGanttMaximized(true);
+        }
       });
 
       document.addEventListener('keydown', function(e){
@@ -5950,7 +7960,9 @@
         const hash = (window.location.hash || '').toLowerCase();
         if (!hash) return;
         let tabBtnId = null;
-        if (hash.startsWith('#pm-section-managers')) {
+        if (hash.startsWith('#pm-section-ai-builder')) {
+          tabBtnId = 'pm-tab-ai-builder';
+        } else if (hash.startsWith('#pm-section-managers')) {
           tabBtnId = 'pm-tab-managers';
         } else if (hash.startsWith('#pm-section-governance') || hash.startsWith('#pm-section-risks') || hash.startsWith('#pm-section-change')) {
           tabBtnId = 'pm-tab-governance';
@@ -5975,6 +7987,9 @@
       (async function init(){
         await load();
         ensureDefaults();
+        if (!aiBuilder.messages.length) {
+          aiPushMessage('bot', '{{ _('Olá, eu sou seu assistente de projeto por IA.') }} {{ _('Descreva o tipo de projeto, quantidade de sprints e responsáveis.') }}');
+        }
         const navHidden = localStorage.getItem('pm_left_nav_hidden') === '1';
         if (navHidden) document.body.classList.add('pm-left-nav-hidden');
         const navToggleBtn = document.getElementById('pm-toggle-left-nav');

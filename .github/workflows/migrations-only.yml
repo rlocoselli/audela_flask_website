@@ -1,6 +1,13 @@
 name: Run DB Migrations (manual)
 
 on:
+  workflow_call:
+    inputs:
+      git_ref:
+        description: "Git ref to deploy before migrations (branch/tag/sha)"
+        required: false
+        type: string
+        default: "main"
   workflow_dispatch:
     inputs:
       git_ref:
@@ -31,7 +38,7 @@ jobs:
 
             cd /root/audela_flask_website
 
-            TARGET_REF="${{ github.event.inputs.git_ref }}"
+            TARGET_REF="${{ inputs.git_ref || github.event.inputs.git_ref }}"
             if [ -z "$TARGET_REF" ]; then TARGET_REF="main"; fi
 
             echo "📥 Git fetch/reset to $TARGET_REF"
@@ -124,6 +131,9 @@ jobs:
 
             echo "✅ Verify finance_accounting_periods exists"
             aud_run python -c "from sqlalchemy import inspect, text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); exists=db.session.execute(text(\"SELECT to_regclass('public.finance_accounting_periods')\")).scalar(); assert exists, 'finance_accounting_periods table not found'; ci=inspect(db.engine); tables=set(ci.get_table_names()); assert 'credit_borrowers' in tables, 'credit_borrowers table not found'; assert 'credit_covenants' in tables, 'credit_covenants table not found'; assert 'credit_facility_utilizations' in tables, 'credit_facility_utilizations table not found'; cols={c['name'] for c in ci.get_columns('credit_borrowers')}; assert 'sector_id' in cols and 'country_id' in cols and 'rating_id' in cols, 'credit_borrowers FK columns missing'; assert 'approval_date' in {c['name'] for c in ci.get_columns('credit_deals')}, 'credit_deals.approval_date missing'; assert 'approval_date' in {c['name'] for c in ci.get_columns('credit_facilities')}, 'credit_facilities.approval_date missing'; assert 'approval_date' in {c['name'] for c in ci.get_columns('credit_financial_statements')}, 'credit_financial_statements.approval_date missing'; assert 'approval_date' in {c['name'] for c in ci.get_columns('credit_memos')}, 'credit_memos.approval_date missing'; print('finance_accounting_periods table found:', exists); print('credit schema including covenant/utilization tables verified'); ctx.pop()"
+
+            echo "🧪 Credit readiness validation"
+            aud_run python validate_credit_readiness.py --mode all
 
             echo "🔄 Final restart of audela container"
             $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml up -d --no-deps --force-recreate audela

@@ -9,6 +9,7 @@ from flask import current_app
 from flask_mail import Message
 
 from audela.extensions import db, mail
+from audela.i18n import DEFAULT_LANG, normalize_lang, tr
 from audela.models.project_management import ProjectWorkspace
 
 
@@ -30,6 +31,99 @@ def _parse_day(value: str | None) -> date | None:
         return datetime.fromisoformat(raw[:10]).date()
     except Exception:
         return None
+
+
+def _parse_time_parts(value: str | None) -> tuple[int, int]:
+    if not value:
+        return 9, 0
+    raw = str(value).strip()
+    if not raw:
+        return 9, 0
+    parts = raw.split(":")
+    try:
+        hour = int(parts[0]) if len(parts) > 0 else 9
+        minute = int(parts[1]) if len(parts) > 1 else 0
+    except Exception:
+        return 9, 0
+    return max(0, min(23, hour)), max(0, min(59, minute))
+
+
+def _parse_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except Exception:
+        return default
+
+
+def _ceremony_start_dt(ceremony: dict, default_tz: timezone = timezone.utc) -> datetime | None:
+    start_date = _parse_day(ceremony.get("start_date") or ceremony.get("when"))
+    if not start_date:
+        return None
+    hh, mm = _parse_time_parts(ceremony.get("start_time"))
+    return datetime(
+        start_date.year,
+        start_date.month,
+        start_date.day,
+        hh,
+        mm,
+        tzinfo=default_tz,
+    )
+
+
+def _ceremony_occurs_on(
+    ceremony: dict,
+    base_day: date,
+    candidate_day: date,
+) -> bool:
+    def js_weekday(d: date) -> int:
+        # JS Date.getDay() encoding: 0=Sunday..6=Saturday
+        return (d.weekday() + 1) % 7
+
+    recurrent = bool(ceremony.get("recurrent"))
+    if not recurrent:
+        return candidate_day == base_day
+
+    recurrence = str(ceremony.get("recurrence") or "weekly").strip().lower()
+    weekdays_raw = ceremony.get("weekdays")
+    weekdays: list[int] = []
+    if isinstance(weekdays_raw, list):
+        weekdays = [x for x in (_parse_int(v, -1) for v in weekdays_raw) if 0 <= x <= 6]
+    if not weekdays:
+        weekdays = [js_weekday(base_day)]
+
+    if recurrence == "monthly":
+        return candidate_day.day == base_day.day
+
+    if js_weekday(candidate_day) not in weekdays:
+        return False
+
+    if recurrence == "biweekly":
+        weeks = (candidate_day - base_day).days // 7
+        return weeks >= 0 and (weeks % 2 == 0)
+
+    return (candidate_day - base_day).days >= 0
+
+
+def _ceremony_next_occurrences(
+    ceremony: dict,
+    now: datetime,
+    horizon_days: int = 40,
+) -> list[datetime]:
+    first_dt = _ceremony_start_dt(ceremony)
+    if not first_dt:
+        return []
+
+    first_day = first_dt.date()
+    hh, mm = first_dt.hour, first_dt.minute
+    out: list[datetime] = []
+    for offset in range(0, max(1, horizon_days) + 1):
+        day = now.date() + timedelta(days=offset)
+        if not _ceremony_occurs_on(ceremony, first_day, day):
+            continue
+        occurrence = datetime(day.year, day.month, day.day, hh, mm, tzinfo=timezone.utc)
+        if occurrence >= now:
+            out.append(occurrence)
+    return out
 
 
 def _parse_recipients(raw: str | None) -> list[str]:
@@ -87,6 +181,10 @@ def _notify_webhook(url: str | None, text: str) -> bool:
         return False
 
 
+def _t(msgid: str, lang: str, **kwargs: Any) -> str:
+    return tr(msgid, normalize_lang(lang or DEFAULT_LANG), **kwargs)
+
+
 @shared_task(name="audela.tasks.project_notifications_scan")
 def project_notifications_scan() -> dict:
     now = datetime.now(timezone.utc)
@@ -102,6 +200,7 @@ def project_notifications_scan() -> dict:
     for workspace in workspaces:
         state = _as_dict(workspace.state_json)
         notifications = _as_dict(state.get("notifications"))
+        notif_lang = normalize_lang(str(notifications.get("lang") or notifications.get("language") or DEFAULT_LANG))
         channels = _as_dict(notifications.get("channels"))
         triggers = _as_dict(notifications.get("triggers"))
         runtime = _as_dict(notifications.get("runtime"))
@@ -113,6 +212,7 @@ def project_notifications_scan() -> dict:
         projects = _as_list(state.get("projects"))
         cards = _as_list(state.get("cards"))
         gantt = _as_list(state.get("gantt"))
+        ceremonies = _as_list(state.get("ceremonies"))
         managers = _as_list(state.get("managers"))
         manager_emails = _manager_email_map([_as_dict(item) for item in managers])
         settings_recipients = _parse_recipients(channels.get("mail_to"))
@@ -133,6 +233,11 @@ def project_notifications_scan() -> dict:
                 for task in gantt
                 if str(_as_dict(task).get("project_id") or "") == project_id
             ]
+            project_ceremonies = [
+                _as_dict(item)
+                for item in ceremonies
+                if str(_as_dict(item).get("project_id") or "") == project_id
+            ]
 
             if triggers.get("project_delay", True):
                 delayed_tasks = []
@@ -151,8 +256,12 @@ def project_notifications_scan() -> dict:
                             should_send = True
                     if should_send:
                         scanned_total += 1
-                        subject = f"[AUDELA] Projet en retard: {project_name}"
-                        body = f"Projet: {project_name}\nTâches Gantt en retard: {len(delayed_tasks)}\nDate: {today.isoformat()}"
+                        subject = _t("[AUDELA] Projet en retard: {project_name}", notif_lang, project_name=project_name)
+                        body = "\n".join([
+                            _t("Projet: {project_name}", notif_lang, project_name=project_name),
+                            _t("Tâches Gantt en retard: {count}", notif_lang, count=len(delayed_tasks)),
+                            _t("Date: {date}", notif_lang, date=today.isoformat()),
+                        ])
                         message = f"{subject}\n{body}"
 
                         if channels.get("mail_enabled"):
@@ -193,13 +302,13 @@ def project_notifications_scan() -> dict:
                             owner_recipients.append(owner_email)
                     mail_recipients = sorted(set(settings_recipients + owner_recipients))
 
-                    subject = f"[AUDELA] Carte en retard: {title}"
-                    body = (
-                        f"Projet: {project_name}\n"
-                        f"Carte: {title}\n"
-                        f"Échéance: {due_day.isoformat()}\n"
-                        f"Statut: {card.get('col') or '-'}"
-                    )
+                    subject = _t("[AUDELA] Carte en retard: {title}", notif_lang, title=title)
+                    body = "\n".join([
+                        _t("Projet: {project_name}", notif_lang, project_name=project_name),
+                        _t("Carte: {title}", notif_lang, title=title),
+                        _t("Échéance: {due_date}", notif_lang, due_date=due_day.isoformat()),
+                        _t("Statut: {status}", notif_lang, status=(card.get('col') or '-')),
+                    ])
                     message = f"{subject}\n{body}"
 
                     if channels.get("mail_enabled"):
@@ -210,6 +319,49 @@ def project_notifications_scan() -> dict:
                         sent_total += int(_notify_webhook(channels.get("teams_webhook"), message))
 
                     last_sent[event_key] = now.isoformat()
+
+            if triggers.get("ceremony_reminder", True):
+                scope = str(triggers.get("ceremony_scope") or "all").strip().lower()
+                global_lead_minutes = max(5, _parse_int(triggers.get("ceremony_lead_minutes"), 60))
+
+                for ceremony in project_ceremonies:
+                    if ceremony.get("alert_enabled") is False:
+                        continue
+
+                    lead_minutes = max(5, _parse_int(ceremony.get("alert_minutes"), global_lead_minutes))
+                    next_occurrences = _ceremony_next_occurrences(ceremony, now)
+                    if not next_occurrences:
+                        continue
+
+                    ceremony_type = str(ceremony.get("type") or "Cérémonie").strip() or "Cérémonie"
+                    for start_dt in next_occurrences:
+                        remind_at = start_dt - timedelta(minutes=lead_minutes)
+                        if not (remind_at <= now < start_dt):
+                            continue
+
+                        event_key = f"ceremony_reminder:{project_id}:{ceremony.get('id') or ''}:{start_dt.isoformat()}"
+                        if str(last_sent.get(event_key) or "").strip():
+                            continue
+
+                        scanned_total += 1
+                        subject = _t("[AUDELA] Rappel cérémonie: {ceremony_type}", notif_lang, ceremony_type=ceremony_type)
+                        body = "\n".join([
+                            _t("Projet: {project_name}", notif_lang, project_name=project_name),
+                            _t("Cérémonie: {ceremony_type}", notif_lang, ceremony_type=ceremony_type),
+                            _t("Début: {start}", notif_lang, start=start_dt.isoformat()),
+                            _t("Rappel: {minutes} min avant", notif_lang, minutes=lead_minutes),
+                        ])
+                        message = f"{subject}\n{body}"
+
+                        if channels.get("mail_enabled") and scope in {"all", "mail"}:
+                            sent_total += int(_notify_mail(settings_recipients, subject, body))
+                        if channels.get("slack_enabled") and scope in {"all", "slack"}:
+                            sent_total += int(_notify_webhook(channels.get("slack_webhook"), message))
+                        if channels.get("teams_enabled") and scope in {"all", "teams"}:
+                            sent_total += int(_notify_webhook(channels.get("teams_webhook"), message))
+
+                        last_sent[event_key] = now.isoformat()
+                        break
 
         notifications["runtime"] = {"last_sent": last_sent, "updated_at": now.isoformat()}
         state["notifications"] = notifications

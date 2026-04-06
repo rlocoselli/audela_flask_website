@@ -316,7 +316,7 @@
       <div class="col-12 col-lg-4">
         <div class="border rounded-3 p-3 h-100">
           <div class="fw-semibold mb-2">{{ _('Country mechanics') }}</div>
-          <div class="small mb-1">ISO2: <span class="fw-semibold">{{ country.get('iso2') or '-' }}</span></div>
+          <div class="small mb-1">{{ _('ISO2') }}: <span class="fw-semibold">{{ country.get('iso2') or '-' }}</span></div>
           <div class="small mb-1">{{ _('Score used') }}: {{ '%.1f'|format(component.get('country', 0) or 0) }}</div>
           <div class="small mb-1">{{ _('Source') }}:
             {% if country.get('source') == 'local_reference' %}

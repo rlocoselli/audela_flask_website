@@ -194,6 +194,96 @@
   </div>
 </div>
 
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary">{{ _('Advanced spreading ratios (from AI import)') }}</div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead>
+          <tr>
+            <th>{{ _('Borrower') }}</th>
+            <th>{{ _('Snapshot date') }}</th>
+            <th>{{ _('Debt/Equity') }}</th>
+            <th>{{ _('Current Ratio') }}</th>
+            <th>{{ _('Quick Ratio') }}</th>
+            <th>{{ _('Interest Coverage') }}</th>
+            <th>{{ _('ROE') }}</th>
+            <th>{{ _('Confidence') }}</th>
+            <th>{{ _('Source') }}</th>
+            <th>{{ _('Sections') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in advanced_ratio_rows %}
+          {% set adv = r.get('ratios', {}) if r else {} %}
+          {% set sections = r.get('sections', []) if r else [] %}
+          <tr>
+            <td>{{ r.borrower.name if r.borrower else (r.get('company_name', '-') if r else '-') }}</td>
+            <td>{{ r.snapshot_date if r else '-' }}</td>
+            <td>{{ '%.3f'|format(adv.get('debt_to_equity')) if adv.get('debt_to_equity') is not none else '-' }}</td>
+            <td>{{ '%.3f'|format(adv.get('current_ratio')) if adv.get('current_ratio') is not none else '-' }}</td>
+            <td>{{ '%.3f'|format(adv.get('quick_ratio')) if adv.get('quick_ratio') is not none else '-' }}</td>
+            <td>{{ '%.3f'|format(adv.get('interest_coverage')) if adv.get('interest_coverage') is not none else '-' }}</td>
+            <td>{{ '%.3f'|format(adv.get('roe')) if adv.get('roe') is not none else '-' }}</td>
+            <td>{{ r.get('confidence') if r and r.get('confidence') is not none else '-' }}</td>
+            <td>{{ r.get('source', '-') if r else '-' }}</td>
+            <td>
+              {% if sections %}
+              <div class="accordion" id="ratio-sec-acc-{{ loop.index }}">
+                <div class="accordion-item">
+                  <h2 class="accordion-header" id="ratio-sec-head-{{ loop.index }}">
+                    <button class="accordion-button collapsed py-1" type="button" data-bs-toggle="collapse" data-bs-target="#ratio-sec-body-{{ loop.index }}" aria-expanded="false" aria-controls="ratio-sec-body-{{ loop.index }}">
+                      {{ _('Show ratios by section') }}
+                    </button>
+                  </h2>
+                  <div id="ratio-sec-body-{{ loop.index }}" class="accordion-collapse collapse" aria-labelledby="ratio-sec-head-{{ loop.index }}" data-bs-parent="#ratio-sec-acc-{{ loop.index }}">
+                    <div class="accordion-body p-1">
+                      <div class="accordion" id="ratio-sub-acc-{{ loop.index }}">
+                        {% for sec in sections %}
+                        <div class="accordion-item">
+                          <h2 class="accordion-header" id="ratio-sub-head-{{ loop.index }}-{{ sec.key }}">
+                            <button class="accordion-button collapsed py-1" type="button" data-bs-toggle="collapse" data-bs-target="#ratio-sub-body-{{ loop.index }}-{{ sec.key }}" aria-expanded="false" aria-controls="ratio-sub-body-{{ loop.index }}-{{ sec.key }}">
+                              {{ sec.label }}
+                            </button>
+                          </h2>
+                          <div id="ratio-sub-body-{{ loop.index }}-{{ sec.key }}" class="accordion-collapse collapse" aria-labelledby="ratio-sub-head-{{ loop.index }}-{{ sec.key }}" data-bs-parent="#ratio-sub-acc-{{ loop.index }}">
+                            <div class="accordion-body p-1">
+                              <table class="table table-sm mb-1">
+                                <thead>
+                                  <tr><th>{{ _('Metric') }}</th><th class="text-end">{{ _('Value') }}</th></tr>
+                                </thead>
+                                <tbody>
+                                  {% for m in sec.metrics %}
+                                  <tr>
+                                    <td class="small">{{ m.label }}</td>
+                                    <td class="small text-end">{{ '%.3f'|format(m.value) if m.value is not none else '-' }}</td>
+                                  </tr>
+                                  {% endfor %}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </div>
+                        {% endfor %}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {% else %}
+              <span class="text-secondary">-</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="10" class="text-secondary">{{ _('No advanced ratios available yet. Import financials via AI first.') }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <div class="card border-0 shadow-sm">
   <div class="card-header bg-body-tertiary">{{ _('Ratio snapshots') }}</div>
   <div class="card-body p-0">

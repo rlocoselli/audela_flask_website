@@ -16,9 +16,9 @@
     <div class="small mb-2">
       <strong>{{ _('Customer / Borrower') }}</strong> -> <strong>{{ _('Deal / Transaction') }}</strong> -> <strong>{{ _('Facility') }}</strong> -> <strong>{{ _('Utilization / Drawdown') }}</strong> -> <strong>{{ _('Repayment / Interest / Fees') }}</strong>
     </div>
-    <pre class="small mb-2">Borrower 1..N Deal
-Deal 1..N Facility
-Facility 1..N Drawdown</pre>
+    <div class="small mb-2">{{ _('Borrower 1..N Deal') }}</div>
+    <div class="small mb-2">{{ _('Deal 1..N Facility') }}</div>
+    <div class="small mb-2">{{ _('Facility 1..N Drawdown') }}</div>
     <div class="d-flex flex-wrap gap-2 small">
       <span class="badge text-bg-light border">{{ _('Borrowers') }}: {{ schema_counts.borrowers }}</span>
       <span class="badge text-bg-light border">{{ _('Deals') }}: {{ schema_counts.deals }}</span>

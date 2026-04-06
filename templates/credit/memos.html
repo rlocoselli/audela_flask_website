@@ -108,7 +108,7 @@
   <div class="card-body p-0">
     <div class="table-responsive">
       <table class="table table-sm mb-0">
-        <thead><tr><th>{{ _('Title') }}</th><th>{{ _('Deal') }}</th><th>{{ _('Recommendation') }}</th><th>{{ _('Source') }}</th><th>AI</th><th>{{ _('Updated') }}</th><th>{{ _('Approval date') }}</th><th>{{ _('Approval summary') }}</th><th>{{ _('Actions') }}</th></tr></thead>
+        <thead><tr><th>{{ _('Title') }}</th><th>{{ _('Deal') }}</th><th>{{ _('Recommendation') }}</th><th>{{ _('Source') }}</th><th>{{ _('AI') }}</th><th>{{ _('Updated') }}</th><th>{{ _('Approval date') }}</th><th>{{ _('Approval summary') }}</th><th>{{ _('Actions') }}</th></tr></thead>
         <tbody>
           {% for m in memos %}
           {% set ap = memo_approval_info.get(m.id, {}) %}
@@ -158,7 +158,7 @@
               {% endif %}
             </td>
             <td>
-              <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.memo_pdf', memo_id=m.id) }}" target="_blank" rel="noopener">PDF</a>
+              <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.memo_pdf', memo_id=m.id) }}" target="_blank" rel="noopener">{{ _('PDF') }}</a>
             </td>
           </tr>
           {% else %}

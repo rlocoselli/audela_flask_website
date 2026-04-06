@@ -2780,6 +2780,715 @@ def _ai_extract_financial_payload(pdf_text: str, lang: str | None = None) -> dic
     return raw if isinstance(raw, dict) else None
 
 
+def _credit_spreading_details_store(tenant: Tenant | None) -> dict[str, object]:
+    cfg = _get_credit_settings(tenant)
+    raw = cfg.get("financial_spreading_details") if isinstance(cfg.get("financial_spreading_details"), dict) else {}
+    return dict(raw)
+
+
+def _credit_spreading_details_for_rows(tenant: Tenant | None, rows: list[CreditFinancialStatement]) -> dict[int, dict[str, object]]:
+    store = _credit_spreading_details_store(tenant)
+    out: dict[int, dict[str, object]] = {}
+    for row in rows:
+        key = str(getattr(row, "id", "") or "").strip()
+        if not key:
+            continue
+        payload = store.get(key)
+        if isinstance(payload, dict):
+            out[int(row.id)] = payload
+    return out
+
+
+def _credit_spreading_details_set(tenant: Tenant, statement_id: int, payload: dict[str, object]) -> None:
+    if not statement_id:
+        return
+    cfg = _get_credit_settings(tenant)
+    store = cfg.get("financial_spreading_details") if isinstance(cfg.get("financial_spreading_details"), dict) else {}
+    new_store = dict(store)
+    new_store[str(int(statement_id))] = payload
+    cfg["financial_spreading_details"] = new_store
+    _save_credit_settings(tenant, cfg)
+
+
+def _credit_spreading_details_delete(tenant: Tenant, statement_id: int) -> None:
+    if not statement_id:
+        return
+    cfg = _get_credit_settings(tenant)
+    store = cfg.get("financial_spreading_details") if isinstance(cfg.get("financial_spreading_details"), dict) else {}
+    key = str(int(statement_id))
+    if key not in store:
+        return
+    new_store = dict(store)
+    new_store.pop(key, None)
+    cfg["financial_spreading_details"] = new_store
+    _save_credit_settings(tenant, cfg)
+
+
+def _safe_decimal_div(num: Decimal | None, den: Decimal | None) -> Decimal | None:
+    if num is None or den is None:
+        return None
+    if den == 0:
+        return None
+    return num / den
+
+
+def _float_or_none(value: Decimal | None) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except Exception:
+        return None
+
+
+def _line_item_key_from_label(label: str) -> str:
+    token = re.sub(r"[^a-z0-9]+", "_", str(label or "").strip().lower())
+    token = re.sub(r"_+", "_", token).strip("_")
+    return token[:120]
+
+
+def _extract_decimal_from_any(value: object) -> Decimal | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float, Decimal)):
+        try:
+            return Decimal(str(value))
+        except Exception:
+            return None
+    return _parse_decimal_loose_optional(str(value))
+
+
+def _pick_first_decimal(src: dict[str, object], keys: tuple[str, ...]) -> Decimal | None:
+    for key in keys:
+        if key not in src:
+            continue
+        parsed = _extract_decimal_from_any(src.get(key))
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _classify_financial_line_items(raw_items: object) -> dict[str, object]:
+    rows = raw_items if isinstance(raw_items, list) else []
+    by_key: dict[str, Decimal] = {}
+    classified: list[dict[str, object]] = []
+
+    totals = {
+        "current_assets": Decimal("0"),
+        "total_assets": Decimal("0"),
+        "current_liabilities": Decimal("0"),
+        "total_liabilities": Decimal("0"),
+        "equity": Decimal("0"),
+        "receivables": Decimal("0"),
+        "inventory": Decimal("0"),
+        "interest_expense": Decimal("0"),
+        "ebit": Decimal("0"),
+        "debt_short_term": Decimal("0"),
+        "debt_long_term": Decimal("0"),
+        "revenue": Decimal("0"),
+        "ebitda": Decimal("0"),
+        "cash": Decimal("0"),
+        "net_income": Decimal("0"),
+        "payables": Decimal("0"),
+        "cogs": Decimal("0"),
+        "gross_profit": Decimal("0"),
+        "fcf": Decimal("0"),
+    }
+
+    for item in rows[:120]:
+        if not isinstance(item, dict):
+            continue
+        label = str(item.get("label") or item.get("name") or item.get("account") or "").strip()
+        if not label:
+            continue
+        value = _extract_decimal_from_any(item.get("value"))
+        if value is None:
+            continue
+        category = str(item.get("category") or "").strip().lower()
+        subcategory = str(item.get("subcategory") or "").strip().lower()
+        key = _line_item_key_from_label(label)
+        by_key[key] = value
+
+        hay = f"{label.lower()} {category} {subcategory}"
+        if "current asset" in hay or "actif courant" in hay or "ativo circulante" in hay:
+            totals["current_assets"] += value
+        if "total asset" in hay or "actif total" in hay or "total assets" in hay or "ativo total" in hay:
+            totals["total_assets"] += value
+        if "current liabil" in hay or "passif courant" in hay or "passivo circulante" in hay:
+            totals["current_liabilities"] += value
+        if "total liabil" in hay or "passif total" in hay or "passivo total" in hay:
+            totals["total_liabilities"] += value
+        if "equity" in hay or "capitaux propres" in hay or "patrimonio" in hay:
+            totals["equity"] += value
+        if "receivable" in hay or "clients" in hay or "a receber" in hay:
+            totals["receivables"] += value
+        if "inventory" in hay or "stock" in hay or "estoque" in hay:
+            totals["inventory"] += value
+        if "interest expense" in hay or "charge d interet" in hay or "despesa financeira" in hay:
+            totals["interest_expense"] += value
+        if "ebitda" in hay:
+            totals["ebitda"] += value
+        if "ebit" in hay and "ebitda" not in hay:
+            totals["ebit"] += value
+        if "revenue" in hay or "chiffre d affaires" in hay or "receita" in hay:
+            totals["revenue"] += value
+        if "cash" in hay or "tresorerie" in hay or "caixa" in hay:
+            totals["cash"] += value
+        if "net income" in hay or "resultat net" in hay or "lucro liquido" in hay:
+            totals["net_income"] += value
+        if "payable" in hay or "fournisseur" in hay or "fornecedor" in hay:
+            totals["payables"] += value
+        if "cost of goods" in hay or "cogs" in hay or "cout des ventes" in hay or "custo das mercadorias" in hay:
+            totals["cogs"] += value
+        if "gross profit" in hay or "marge brute" in hay or "lucro bruto" in hay:
+            totals["gross_profit"] += value
+        if "free cash flow" in hay or "fcf" in hay:
+            totals["fcf"] += value
+        if "short" in hay and "debt" in hay:
+            totals["debt_short_term"] += value
+        if ("long" in hay and "debt" in hay) or ("non current" in hay and "debt" in hay):
+            totals["debt_long_term"] += value
+
+        classified.append(
+            {
+                "label": label[:200],
+                "value": _float_or_none(value),
+                "category": category[:80],
+                "subcategory": subcategory[:80],
+            }
+        )
+
+    return {
+        "line_items": classified,
+        "line_items_by_key": {k: _float_or_none(v) for k, v in by_key.items()},
+        "totals": {k: _float_or_none(v) for k, v in totals.items()},
+    }
+
+
+def _compute_advanced_credit_ratios(values: dict[str, Decimal | None]) -> dict[str, float | None]:
+    current_assets = values.get("current_assets")
+    current_liabilities = values.get("current_liabilities")
+    receivables = values.get("receivables")
+    inventory = values.get("inventory")
+    total_assets = values.get("total_assets")
+    total_liabilities = values.get("total_liabilities")
+    equity = values.get("equity")
+    total_debt = values.get("total_debt")
+    cash = values.get("cash")
+    ebitda = values.get("ebitda")
+    ebit = values.get("ebit")
+    interest_expense = values.get("interest_expense")
+    revenue = values.get("revenue")
+    net_income = values.get("net_income")
+    payables = values.get("payables")
+    cogs = values.get("cogs")
+    gross_profit = values.get("gross_profit")
+    fcf = values.get("fcf")
+
+    quick_numerator = None
+    if current_assets is not None:
+        quick_numerator = current_assets
+        if inventory is not None:
+            quick_numerator = current_assets - inventory
+        elif receivables is not None and cash is not None:
+            quick_numerator = receivables + cash
+
+    working_capital = None
+    if current_assets is not None and current_liabilities is not None:
+        working_capital = current_assets - current_liabilities
+
+    net_debt = None
+    if total_debt is not None:
+        net_debt = total_debt - (cash or Decimal("0"))
+
+    ratios = {
+        "current_ratio": _float_or_none(_safe_decimal_div(current_assets, current_liabilities)),
+        "quick_ratio": _float_or_none(_safe_decimal_div(quick_numerator, current_liabilities)),
+        "working_capital": _float_or_none(working_capital),
+        "working_capital_to_sales": _float_or_none(_safe_decimal_div(working_capital, revenue)),
+        "days_inventory_outstanding": _float_or_none(_safe_decimal_div((inventory or Decimal("0")) * Decimal("365"), cogs)),
+        "days_sales_outstanding": _float_or_none(_safe_decimal_div((receivables or Decimal("0")) * Decimal("365"), revenue)),
+        "days_payables_outstanding": _float_or_none(_safe_decimal_div((payables or Decimal("0")) * Decimal("365"), cogs)),
+        "cash_ratio": _float_or_none(_safe_decimal_div(cash, current_liabilities)),
+        "debt_to_capital": _float_or_none(_safe_decimal_div(total_debt, (total_debt or Decimal("0")) + (equity or Decimal("0")))),
+        "debt_to_equity": _float_or_none(_safe_decimal_div(total_liabilities or total_debt, equity)),
+        "debt_to_assets": _float_or_none(_safe_decimal_div(total_liabilities or total_debt, total_assets)),
+        "equity_ratio": _float_or_none(_safe_decimal_div(equity, total_assets)),
+        "net_debt_to_ebitda": _float_or_none(_safe_decimal_div(net_debt, ebitda)),
+        "debt_to_ebitda": _float_or_none(_safe_decimal_div(total_debt, ebitda)),
+        "ebitda_to_interest": _float_or_none(_safe_decimal_div(ebitda, interest_expense)),
+        "interest_coverage": _float_or_none(_safe_decimal_div(ebit or ebitda, interest_expense)),
+        "fixed_charge_coverage": _float_or_none(_safe_decimal_div(ebitda, interest_expense)),
+        "fcf_to_debt": _float_or_none(_safe_decimal_div(fcf or (ebitda - (interest_expense or Decimal("0")) if ebitda is not None else None), total_debt)),
+        "gross_profit_margin": _float_or_none(_safe_decimal_div(gross_profit, revenue)),
+        "ebitda_margin": _float_or_none(_safe_decimal_div(ebitda, revenue)),
+        "net_margin": _float_or_none(_safe_decimal_div(net_income, revenue)),
+        "roa": _float_or_none(_safe_decimal_div(net_income, total_assets)),
+        "roe": _float_or_none(_safe_decimal_div(net_income, equity)),
+    }
+    return ratios
+
+
+def _spreading_section_definitions(lang: str | None) -> list[dict[str, object]]:
+    code = str((lang or DEFAULT_LANG)).split("-")[0].lower()
+    labels = {
+        "pt": {
+            "liquidity": "Ratios de Liquidez",
+            "leverage": "Ratios de Alavancagem",
+            "profitability": "Ratios de Rentabilidade",
+            "current_ratio": "Liquidez Corrente",
+            "quick_ratio": "Liquidez Seca",
+            "working_capital_to_sales": "Capital de Giro / Vendas",
+            "days_inventory_outstanding": "Dias de Estoque",
+            "days_sales_outstanding": "Dias de Recebimento",
+            "days_payables_outstanding": "Dias de Pagamento",
+            "debt_to_capital": "Divida / Capital",
+            "debt_to_equity": "Divida / Patrimonio",
+            "ebitda_to_interest": "EBITDA / Despesa de Juros",
+            "debt_to_ebitda": "Divida / EBITDA",
+            "fixed_charge_coverage": "Cobertura de Encargos Fixos",
+            "fcf_to_debt": "FCF / Divida",
+            "gross_profit_margin": "Margem Bruta",
+            "ebitda_margin": "Margem EBITDA",
+            "net_margin": "Margem Liquida",
+            "roa": "Retorno sobre Ativos",
+            "roe": "Retorno sobre Patrimonio",
+        },
+        "fr": {
+            "liquidity": "Ratios de liquidite",
+            "leverage": "Ratios de levier",
+            "profitability": "Ratios de rentabilite",
+            "current_ratio": "Ratio de liquidite generale",
+            "quick_ratio": "Ratio de liquidite reduite",
+            "working_capital_to_sales": "Fonds de roulement / Ventes",
+            "days_inventory_outstanding": "Jours de stock",
+            "days_sales_outstanding": "Jours clients",
+            "days_payables_outstanding": "Jours fournisseurs",
+            "debt_to_capital": "Dette / Capital",
+            "debt_to_equity": "Dette / Fonds propres",
+            "ebitda_to_interest": "EBITDA / Charges d'interets",
+            "debt_to_ebitda": "Dette / EBITDA",
+            "fixed_charge_coverage": "Couverture des charges fixes",
+            "fcf_to_debt": "FCF / Dette",
+            "gross_profit_margin": "Marge brute",
+            "ebitda_margin": "Marge EBITDA",
+            "net_margin": "Marge nette",
+            "roa": "Rendement des actifs",
+            "roe": "Rendement des capitaux propres",
+        },
+        "en": {
+            "liquidity": "Liquidity Ratios",
+            "leverage": "Leverage Ratios",
+            "profitability": "Profitability Ratios",
+            "current_ratio": "Current Ratio",
+            "quick_ratio": "Quick Ratio",
+            "working_capital_to_sales": "Working Capital / Sales",
+            "days_inventory_outstanding": "Days Inventory Outstanding",
+            "days_sales_outstanding": "Days Sales Outstanding",
+            "days_payables_outstanding": "Days Payables Outstanding",
+            "debt_to_capital": "Debt / Capital",
+            "debt_to_equity": "Debt / Equity",
+            "ebitda_to_interest": "EBITDA / Interest Expense",
+            "debt_to_ebitda": "Debt / EBITDA",
+            "fixed_charge_coverage": "Fixed Charge Coverage",
+            "fcf_to_debt": "FCF / Debt",
+            "gross_profit_margin": "Gross Profit Margin",
+            "ebitda_margin": "EBITDA Margin",
+            "net_margin": "Net Income Margin",
+            "roa": "Return on Assets",
+            "roe": "Return on Equity",
+        },
+        "es": {
+            "liquidity": "Ratios de liquidez",
+            "leverage": "Ratios de apalancamiento",
+            "profitability": "Ratios de rentabilidad",
+            "current_ratio": "Ratio Corriente",
+            "quick_ratio": "Ratio Acido",
+            "working_capital_to_sales": "Capital de Trabajo / Ventas",
+            "days_inventory_outstanding": "Dias de Inventario",
+            "days_sales_outstanding": "Dias de Cobro",
+            "days_payables_outstanding": "Dias de Pago",
+            "debt_to_capital": "Deuda / Capital",
+            "debt_to_equity": "Deuda / Patrimonio",
+            "ebitda_to_interest": "EBITDA / Gastos Financieros",
+            "debt_to_ebitda": "Deuda / EBITDA",
+            "fixed_charge_coverage": "Cobertura de Cargas Fijas",
+            "fcf_to_debt": "FCF / Deuda",
+            "gross_profit_margin": "Margen Bruto",
+            "ebitda_margin": "Margen EBITDA",
+            "net_margin": "Margen Neto",
+            "roa": "Retorno sobre Activos",
+            "roe": "Retorno sobre Patrimonio",
+        },
+        "it": {
+            "liquidity": "Ratios di liquidita",
+            "leverage": "Ratios di leva",
+            "profitability": "Ratios di redditivita",
+            "current_ratio": "Indice di Liquidita Corrente",
+            "quick_ratio": "Indice di Liquidita Immediata",
+            "working_capital_to_sales": "Capitale Circolante / Vendite",
+            "days_inventory_outstanding": "Giorni di Magazzino",
+            "days_sales_outstanding": "Giorni di Incasso",
+            "days_payables_outstanding": "Giorni di Pagamento",
+            "debt_to_capital": "Debito / Capitale",
+            "debt_to_equity": "Debito / Patrimonio",
+            "ebitda_to_interest": "EBITDA / Oneri Finanziari",
+            "debt_to_ebitda": "Debito / EBITDA",
+            "fixed_charge_coverage": "Copertura Oneri Fissi",
+            "fcf_to_debt": "FCF / Debito",
+            "gross_profit_margin": "Margine Lordo",
+            "ebitda_margin": "Margine EBITDA",
+            "net_margin": "Margine Netto",
+            "roa": "Rendimento degli Attivi",
+            "roe": "Rendimento del Patrimonio",
+        },
+        "de": {
+            "liquidity": "Liquiditatskennzahlen",
+            "leverage": "Verschuldungskennzahlen",
+            "profitability": "Profitabilitatskennzahlen",
+            "current_ratio": "Liquiditat 3. Grades",
+            "quick_ratio": "Liquiditat 2. Grades",
+            "working_capital_to_sales": "Working Capital / Umsatz",
+            "days_inventory_outstanding": "Lagerdauer in Tagen",
+            "days_sales_outstanding": "Forderungslaufzeit in Tagen",
+            "days_payables_outstanding": "Verbindlichkeitenlaufzeit in Tagen",
+            "debt_to_capital": "Schulden / Kapital",
+            "debt_to_equity": "Schulden / Eigenkapital",
+            "ebitda_to_interest": "EBITDA / Zinsaufwand",
+            "debt_to_ebitda": "Schulden / EBITDA",
+            "fixed_charge_coverage": "Deckung fixer Zahlungen",
+            "fcf_to_debt": "FCF / Schulden",
+            "gross_profit_margin": "Bruttomarge",
+            "ebitda_margin": "EBITDA-Marge",
+            "net_margin": "Nettomarge",
+            "roa": "Gesamtkapitalrendite",
+            "roe": "Eigenkapitalrendite",
+        },
+    }
+    txt = labels.get(code, labels["en"])
+    return [
+        {
+            "key": "liquidity",
+            "label": txt["liquidity"],
+            "metrics": [
+                {"key": "current_ratio", "label": txt["current_ratio"]},
+                {"key": "quick_ratio", "label": txt["quick_ratio"]},
+                {"key": "working_capital_to_sales", "label": txt["working_capital_to_sales"]},
+                {"key": "days_inventory_outstanding", "label": txt["days_inventory_outstanding"]},
+                {"key": "days_sales_outstanding", "label": txt["days_sales_outstanding"]},
+                {"key": "days_payables_outstanding", "label": txt["days_payables_outstanding"]},
+            ],
+        },
+        {
+            "key": "leverage",
+            "label": txt["leverage"],
+            "metrics": [
+                {"key": "debt_to_capital", "label": txt["debt_to_capital"]},
+                {"key": "debt_to_equity", "label": txt["debt_to_equity"]},
+                {"key": "ebitda_to_interest", "label": txt["ebitda_to_interest"]},
+                {"key": "debt_to_ebitda", "label": txt["debt_to_ebitda"]},
+                {"key": "fixed_charge_coverage", "label": txt["fixed_charge_coverage"]},
+                {"key": "fcf_to_debt", "label": txt["fcf_to_debt"]},
+            ],
+        },
+        {
+            "key": "profitability",
+            "label": txt["profitability"],
+            "metrics": [
+                {"key": "gross_profit_margin", "label": txt["gross_profit_margin"]},
+                {"key": "ebitda_margin", "label": txt["ebitda_margin"]},
+                {"key": "net_margin", "label": txt["net_margin"]},
+                {"key": "roa", "label": txt["roa"]},
+                {"key": "roe", "label": txt["roe"]},
+            ],
+        },
+    ]
+
+
+def _spreading_sections_for_statement(detail_row: dict[str, object], lang: str | None) -> list[dict[str, object]]:
+    ratios = detail_row.get("ratios") if isinstance(detail_row.get("ratios"), dict) else {}
+    sections = _spreading_section_definitions(lang)
+    out: list[dict[str, object]] = []
+    for sec in sections:
+        metrics = sec.get("metrics") if isinstance(sec.get("metrics"), list) else []
+        metric_rows: list[dict[str, object]] = []
+        for m in metrics:
+            if not isinstance(m, dict):
+                continue
+            key = str(m.get("key") or "").strip()
+            if not key:
+                continue
+            metric_rows.append(
+                {
+                    "key": key,
+                    "label": str(m.get("label") or key),
+                    "value": ratios.get(key) if isinstance(ratios, dict) else None,
+                }
+            )
+        out.append(
+            {
+                "key": str(sec.get("key") or ""),
+                "label": str(sec.get("label") or ""),
+                "metrics": metric_rows,
+            }
+        )
+    return out
+
+
+def _statement_values_from_ai_payload(payload: dict[str, object]) -> dict[str, object]:
+    statement_obj = payload.get("statement") if isinstance(payload.get("statement"), dict) else payload
+    line_item_data = _classify_financial_line_items(payload.get("line_items"))
+    totals = line_item_data.get("totals") if isinstance(line_item_data.get("totals"), dict) else {}
+
+    revenue = _pick_first_decimal(statement_obj, ("revenue", "sales", "turnover"))
+    if revenue is None:
+        revenue = _extract_decimal_from_any(totals.get("revenue"))
+
+    ebitda = _pick_first_decimal(statement_obj, ("ebitda",))
+    if ebitda is None:
+        ebitda = _extract_decimal_from_any(totals.get("ebitda"))
+
+    cash = _pick_first_decimal(statement_obj, ("cash", "cash_and_equivalents"))
+    if cash is None:
+        cash = _extract_decimal_from_any(totals.get("cash"))
+
+    net_income = _pick_first_decimal(statement_obj, ("net_income", "net_profit", "profit"))
+    if net_income is None:
+        net_income = _extract_decimal_from_any(totals.get("net_income"))
+
+    current_assets = _pick_first_decimal(statement_obj, ("current_assets",)) or _extract_decimal_from_any(totals.get("current_assets"))
+    total_assets = _pick_first_decimal(statement_obj, ("total_assets", "assets_total")) or _extract_decimal_from_any(totals.get("total_assets"))
+    current_liabilities = _pick_first_decimal(statement_obj, ("current_liabilities",)) or _extract_decimal_from_any(totals.get("current_liabilities"))
+    total_liabilities = _pick_first_decimal(statement_obj, ("total_liabilities", "liabilities_total")) or _extract_decimal_from_any(totals.get("total_liabilities"))
+    equity = _pick_first_decimal(statement_obj, ("equity", "shareholders_equity", "total_equity")) or _extract_decimal_from_any(totals.get("equity"))
+    receivables = _pick_first_decimal(statement_obj, ("receivables", "accounts_receivable")) or _extract_decimal_from_any(totals.get("receivables"))
+    inventory = _pick_first_decimal(statement_obj, ("inventory",)) or _extract_decimal_from_any(totals.get("inventory"))
+    interest_expense = _pick_first_decimal(statement_obj, ("interest_expense",)) or _extract_decimal_from_any(totals.get("interest_expense"))
+    ebit = _pick_first_decimal(statement_obj, ("ebit", "operating_income")) or _extract_decimal_from_any(totals.get("ebit"))
+
+    debt_short = _pick_first_decimal(statement_obj, ("short_term_debt", "current_debt")) or _extract_decimal_from_any(totals.get("debt_short_term"))
+    debt_long = _pick_first_decimal(statement_obj, ("long_term_debt", "non_current_debt")) or _extract_decimal_from_any(totals.get("debt_long_term"))
+    total_debt = _pick_first_decimal(statement_obj, ("total_debt", "debt_total"))
+    if total_debt is None:
+        if debt_short is not None or debt_long is not None:
+            total_debt = (debt_short or Decimal("0")) + (debt_long or Decimal("0"))
+        elif total_liabilities is not None:
+            total_debt = total_liabilities
+
+    ratios = _compute_advanced_credit_ratios(
+        {
+            "current_assets": current_assets,
+            "current_liabilities": current_liabilities,
+            "receivables": receivables,
+            "inventory": inventory,
+            "total_assets": total_assets,
+            "total_liabilities": total_liabilities,
+            "equity": equity,
+            "total_debt": total_debt,
+            "cash": cash,
+            "ebitda": ebitda,
+            "ebit": ebit,
+            "interest_expense": interest_expense,
+            "revenue": revenue,
+            "net_income": net_income,
+        }
+    )
+
+    spreading_status = str(statement_obj.get("spreading_status") or "needs_review").strip() or "needs_review"
+    if spreading_status not in {"in_progress", "completed", "needs_review"}:
+        spreading_status = "needs_review"
+
+    return {
+        "period_label": str(statement_obj.get("period_label") or payload.get("period_label") or "FY").strip() or "FY",
+        "fiscal_year": _to_int(str(statement_obj.get("fiscal_year") or payload.get("fiscal_year") or "")) or date.today().year,
+        "revenue": revenue or Decimal("0"),
+        "ebitda": ebitda or Decimal("0"),
+        "total_debt": total_debt or Decimal("0"),
+        "cash": cash or Decimal("0"),
+        "net_income": net_income or Decimal("0"),
+        "spreading_status": spreading_status,
+        "advanced": {
+            "line_items": line_item_data.get("line_items"),
+            "line_items_by_key": line_item_data.get("line_items_by_key"),
+            "totals": {
+                "current_assets": _float_or_none(current_assets),
+                "total_assets": _float_or_none(total_assets),
+                "current_liabilities": _float_or_none(current_liabilities),
+                "total_liabilities": _float_or_none(total_liabilities),
+                "equity": _float_or_none(equity),
+                "receivables": _float_or_none(receivables),
+                "inventory": _float_or_none(inventory),
+                "interest_expense": _float_or_none(interest_expense),
+                "ebit": _float_or_none(ebit),
+                "debt_short_term": _float_or_none(debt_short),
+                "debt_long_term": _float_or_none(debt_long),
+            },
+            "ratios": ratios,
+            "confidence": payload.get("confidence"),
+            "currency": str(payload.get("currency") or statement_obj.get("currency") or "").strip()[:12],
+            "company_name": str(payload.get("company_name") or "").strip()[:220],
+        },
+    }
+
+
+def _ai_extract_financial_payload_rich(company_name: str, pdf_text: str, lang: str | None = None) -> dict | None:
+    context = {
+        "company_name": str(company_name or "").strip(),
+        "pdf_text": (pdf_text or "")[:18000],
+        "has_pdf": bool((pdf_text or "").strip()),
+    }
+    prompt = (
+        "Extract one annual credit spreading package. Return ONLY valid JSON. "
+        "Schema: {company_name, period_label, fiscal_year, confidence, currency, statement, line_items}. "
+        "statement must include at least: revenue, ebitda, total_debt, cash, net_income, spreading_status, "
+        "and if available current_assets,total_assets,current_liabilities,total_liabilities,equity,receivables,inventory,interest_expense,ebit. "
+        "line_items must be an array of {label, category, subcategory, value}. "
+        "category values should be one of asset, liability, equity, income, expense, debt, cash, other. "
+        "If data is uncertain, still provide best estimate and set low confidence."
+    )
+
+    ai = analyze_with_ai(
+        data_bundle={
+            "question": "credit_spreading_financials_company_or_pdf",
+            "source": "credit_financial_spreading",
+            "result": context,
+        },
+        user_message=prompt,
+        lang=lang,
+        extra_json_keys=["statement", "line_items", "company_name", "currency", "confidence", "period_label", "fiscal_year"],
+    )
+    if not isinstance(ai, dict):
+        return None
+
+    if isinstance(ai.get("statement"), dict):
+        payload = {
+            "company_name": ai.get("company_name") or context["company_name"],
+            "currency": ai.get("currency"),
+            "confidence": ai.get("confidence"),
+            "period_label": ai.get("period_label"),
+            "fiscal_year": ai.get("fiscal_year"),
+            "statement": ai.get("statement"),
+            "line_items": ai.get("line_items") if isinstance(ai.get("line_items"), list) else [],
+        }
+        return payload
+
+    parsed = _parse_first_json_object(str(ai.get("analysis") or ""))
+    if parsed and isinstance(parsed, dict):
+        return parsed
+    raw = _parse_first_json_object(str(ai.get("raw") or ""))
+    return raw if isinstance(raw, dict) else None
+
+
+def _resolve_borrower_for_ai_import(tenant_id: int, borrower_id: int | None, company_name: str) -> CreditBorrower | None:
+    if borrower_id:
+        borrower = CreditBorrower.query.filter_by(id=borrower_id, tenant_id=tenant_id).first()
+        if borrower:
+            return borrower
+
+    token = str(company_name or "").strip().lower()
+    if not token:
+        return None
+
+    exact = (
+        CreditBorrower.query.filter_by(tenant_id=tenant_id)
+        .filter(func.lower(CreditBorrower.name) == token)
+        .first()
+    )
+    if exact:
+        return exact
+
+    return (
+        CreditBorrower.query.filter_by(tenant_id=tenant_id)
+        .filter(func.lower(CreditBorrower.name).contains(token))
+        .order_by(CreditBorrower.name.asc())
+        .first()
+    )
+
+
+def _ai_suggest_companies(query_text: str, lang: str | None = None) -> list[dict[str, str]]:
+    query = str(query_text or "").strip()
+    if not query:
+        return []
+
+    prompt = (
+        "Given a borrower/company query, return possible matching legal company names. "
+        "Return JSON with key 'companies' as array of objects: {name, country, reason}. "
+        "Keep it concise and max 8 rows."
+    )
+    ai = analyze_with_ai(
+        data_bundle={
+            "question": "credit_company_candidates",
+            "source": "credit_financial_spreading_candidates",
+            "result": {"query": query},
+        },
+        user_message=prompt,
+        lang=lang,
+        extra_json_keys=["companies"],
+    )
+    rows = ai.get("companies") if isinstance(ai, dict) and isinstance(ai.get("companies"), list) else []
+
+    out: list[dict[str, str]] = []
+    for row in rows[:8]:
+        if not isinstance(row, dict):
+            continue
+        name = str(row.get("name") or "").strip()
+        if not name:
+            continue
+        out.append(
+            {
+                "name": name[:220],
+                "country": str(row.get("country") or "").strip()[:80],
+                "reason": str(row.get("reason") or "").strip()[:260],
+            }
+        )
+    return out
+
+
+def _ai_extract_company_statements(company_name: str, lang: str | None = None) -> dict | None:
+    name = str(company_name or "").strip()
+    if not name:
+        return None
+
+    prompt = (
+        "For the selected company, provide a compact structured spreading for recent fiscal years. "
+        "Return ONLY JSON with keys: company_name, currency, confidence, statements. "
+        "statements must be an array (max 5) sorted newest to oldest. "
+        "Each statement item: {period_label, fiscal_year, statement, line_items}. "
+        "statement should include revenue, ebitda, total_debt, cash, net_income, spreading_status and if available "
+        "current_assets,total_assets,current_liabilities,total_liabilities,equity,receivables,inventory,interest_expense,ebit. "
+        "line_items should be list of {label, category, subcategory, value}."
+    )
+
+    ai = analyze_with_ai(
+        data_bundle={
+            "question": "credit_company_last_years_spreading",
+            "source": "credit_company_import_ai",
+            "result": {"company_name": name},
+        },
+        user_message=prompt,
+        lang=lang,
+        extra_json_keys=["company_name", "currency", "confidence", "statements"],
+    )
+    if not isinstance(ai, dict):
+        return None
+
+    if isinstance(ai.get("statements"), list):
+        return {
+            "company_name": ai.get("company_name") or name,
+            "currency": ai.get("currency"),
+            "confidence": ai.get("confidence"),
+            "statements": ai.get("statements"),
+        }
+
+    parsed = _parse_first_json_object(str(ai.get("analysis") or ""))
+    if parsed and isinstance(parsed.get("statements"), list):
+        return parsed
+    raw = _parse_first_json_object(str(ai.get("raw") or ""))
+    if raw and isinstance(raw.get("statements"), list):
+        return raw
+    return None
+
+
 _CREDIT_SYSTEM_ROLES: tuple[tuple[str, str], ...] = (
     ("credit_admin", "Administration credit et workflow"),
     ("credit_analyst", "Analyste credit"),
@@ -6552,6 +7261,12 @@ def financials():
         query = query.filter(CreditFinancialStatement.borrower_id == selected_borrower_id)
 
     rows = query.order_by(CreditFinancialStatement.created_at.desc()).all()
+    spreading_details = _credit_spreading_details_for_rows(g.tenant, rows)
+    spreading_sections: dict[int, list[dict[str, object]]] = {}
+    for row in rows:
+        detail = spreading_details.get(int(row.id)) if isinstance(spreading_details, dict) else None
+        if isinstance(detail, dict):
+            spreading_sections[int(row.id)] = _spreading_sections_for_statement(detail, getattr(g, "lang", None))
 
     borrower_ids_for_rows = sorted({int(r.borrower_id) for r in rows if r.borrower_id})
     borrower_memo_by_borrower: dict[int, CreditMemo] = {}
@@ -6600,7 +7315,138 @@ def financials():
         csv_fields=_FINANCIAL_CSV_FIELDS,
         default_mapping=_default_financial_csv_mapping(),
         current_year=date.today().year,
+        spreading_details=spreading_details,
+        spreading_sections=spreading_sections,
     )
+
+
+@bp.route("/financials/company-candidates-ai", methods=["POST"])
+@login_required
+def financials_company_candidates_ai():
+    _require_tenant()
+
+    payload = request.get_json(silent=True) or {}
+    query_text = str(payload.get("query") or "").strip()
+    if not query_text:
+        return jsonify({"ok": False, "error": _("Company query is required."), "companies": []}), 400
+
+    companies = _ai_suggest_companies(query_text, getattr(g, "lang", None))
+    if not companies:
+        return jsonify({"ok": True, "companies": [], "message": _("No candidates found by AI.")})
+    return jsonify({"ok": True, "companies": companies})
+
+
+@bp.route("/financials/import-company-ai", methods=["POST"])
+@login_required
+def financials_import_company_ai():
+    _require_tenant()
+    _seed_default_analyst_functions(g.tenant.id)
+
+    borrower_id = _to_int(request.form.get("borrower_id"))
+    company_name = str(request.form.get("company_name") or "").strip()
+    if not company_name:
+        flash(_("Company full name is required."), "warning")
+        return redirect(url_for("credit.financials", mode="add"))
+
+    borrower = _resolve_borrower_for_ai_import(g.tenant.id, borrower_id, company_name)
+    if not borrower:
+        flash(_("Borrower invalide. Select borrower or provide full company name matching an existing borrower."), "warning")
+        return redirect(url_for("credit.financials", mode="add"))
+
+    analyst_user_id = _to_int(request.form.get("analyst_user_id"))
+    analyst_function_id = _to_int(request.form.get("analyst_function_id"))
+    analyst_user = User.query.filter_by(id=analyst_user_id, tenant_id=g.tenant.id).first() if analyst_user_id else None
+    analyst_function = (
+        CreditAnalystFunction.query.filter_by(id=analyst_function_id, tenant_id=g.tenant.id).first()
+        if analyst_function_id
+        else None
+    )
+    if analyst_user_id and not analyst_user:
+        flash(_("Analyste invalide."), "warning")
+        return redirect(url_for("credit.financials", mode="add"))
+    if analyst_function_id and not analyst_function:
+        flash(_("Fonction analyste invalide."), "warning")
+        return redirect(url_for("credit.financials", mode="add"))
+
+    ai_payload = _ai_extract_company_statements(company_name, getattr(g, "lang", None))
+    if not ai_payload:
+        flash(_("AI could not fetch company financial statements."), "warning")
+        return redirect(url_for("credit.financials", mode="add"))
+
+    rows = ai_payload.get("statements") if isinstance(ai_payload.get("statements"), list) else []
+    if not rows:
+        flash(_("AI returned no statements for this company."), "warning")
+        return redirect(url_for("credit.financials", mode="add"))
+
+    imported = 0
+    for row in rows[:5]:
+        if not isinstance(row, dict):
+            continue
+        statement_data = _statement_values_from_ai_payload(row)
+        fiscal_year = int(statement_data.get("fiscal_year") or date.today().year)
+        period_label = str(statement_data.get("period_label") or "FY").strip() or "FY"
+
+        statement = CreditFinancialStatement.query.filter_by(
+            tenant_id=g.tenant.id,
+            borrower_id=borrower.id,
+            fiscal_year=fiscal_year,
+            period_label=period_label,
+        ).first()
+
+        if not statement:
+            statement = CreditFinancialStatement(
+                tenant_id=g.tenant.id,
+                borrower_id=borrower.id,
+                period_label=period_label,
+                fiscal_year=fiscal_year,
+            )
+            db.session.add(statement)
+
+        statement.revenue = statement_data.get("revenue") if isinstance(statement_data.get("revenue"), Decimal) else Decimal("0")
+        statement.ebitda = statement_data.get("ebitda") if isinstance(statement_data.get("ebitda"), Decimal) else Decimal("0")
+        statement.total_debt = statement_data.get("total_debt") if isinstance(statement_data.get("total_debt"), Decimal) else Decimal("0")
+        statement.cash = statement_data.get("cash") if isinstance(statement_data.get("cash"), Decimal) else Decimal("0")
+        statement.net_income = statement_data.get("net_income") if isinstance(statement_data.get("net_income"), Decimal) else Decimal("0")
+        statement.spreading_status = str(statement_data.get("spreading_status") or "needs_review")
+        statement.imported_by_user_id = getattr(current_user, "id", None)
+        statement.analyst_user_id = getattr(analyst_user, "id", None)
+        statement.analyst_function_id = getattr(analyst_function, "id", None)
+        statement.import_source = f"company_ai:{company_name}"
+
+        db.session.flush()
+        db.session.query(CreditRatioSnapshot).filter_by(
+            tenant_id=g.tenant.id,
+            statement_id=statement.id,
+        ).delete(synchronize_session=False)
+        _create_ratio_snapshot_for_statement(statement)
+
+        advanced_payload = statement_data.get("advanced") if isinstance(statement_data.get("advanced"), dict) else {}
+        if isinstance(advanced_payload, dict):
+            _credit_spreading_details_set(
+                g.tenant,
+                statement.id,
+                {
+                    "company_name": str(ai_payload.get("company_name") or company_name)[:220],
+                    "currency": str(ai_payload.get("currency") or advanced_payload.get("currency") or "")[:12],
+                    "confidence": ai_payload.get("confidence") if ai_payload.get("confidence") is not None else advanced_payload.get("confidence"),
+                    "source": "company_ai",
+                    "source_name": company_name,
+                    "line_items": advanced_payload.get("line_items") if isinstance(advanced_payload.get("line_items"), list) else [],
+                    "totals": advanced_payload.get("totals") if isinstance(advanced_payload.get("totals"), dict) else {},
+                    "ratios": advanced_payload.get("ratios") if isinstance(advanced_payload.get("ratios"), dict) else {},
+                    "created_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+                },
+            )
+
+        _maybe_create_backlog_task_for_statement_spreading(statement, getattr(current_user, "id", None))
+        imported += 1
+
+    db.session.commit()
+    if imported:
+        flash(_("AI company import completed: {count} statements saved.", count=imported), "success")
+    else:
+        flash(_("No statement imported from company AI response."), "warning")
+    return redirect(url_for("credit.financials", mode="search", borrower_id=borrower.id))
 
 
 @bp.route("/financials/<int:statement_id>/delete", methods=["POST"])
@@ -6617,6 +7463,7 @@ def financials_delete(statement_id: int):
         tenant_id=g.tenant.id,
         statement_id=statement.id,
     ).delete(synchronize_session=False)
+    _credit_spreading_details_delete(g.tenant, statement.id)
     db.session.delete(statement)
     db.session.commit()
     flash(_("État financier supprimé."), "success")
@@ -6790,15 +7637,17 @@ def financials_import_pdf_ai():
     _seed_default_analyst_functions(g.tenant.id)
 
     upload = request.files.get("pdf_file")
-    if not upload or not upload.filename:
-        flash(_("PDF file is required."), "warning")
-        return redirect(url_for("credit.financials"))
-
+    company_name = str(request.form.get("company_name") or "").strip()
     borrower_id = _to_int(request.form.get("borrower_id"))
-    borrower = CreditBorrower.query.filter_by(id=borrower_id, tenant_id=g.tenant.id).first() if borrower_id else None
+
+    if (not upload or not upload.filename) and not company_name:
+        flash(_("Provide a company full name or a PDF file."), "warning")
+        return redirect(url_for("credit.financials", mode="add"))
+
+    borrower = _resolve_borrower_for_ai_import(g.tenant.id, borrower_id, company_name)
     if not borrower:
-        flash(_("Borrower invalide."), "warning")
-        return redirect(url_for("credit.financials"))
+        flash(_("Borrower invalide. Select borrower or provide full company name matching an existing borrower."), "warning")
+        return redirect(url_for("credit.financials", mode="add"))
 
     analyst_user_id = _to_int(request.form.get("analyst_user_id"))
     analyst_function_id = _to_int(request.form.get("analyst_function_id"))
@@ -6810,60 +7659,80 @@ def financials_import_pdf_ai():
     )
     if analyst_user_id and not analyst_user:
         flash(_("Analyste invalide."), "warning")
-        return redirect(url_for("credit.financials"))
+        return redirect(url_for("credit.financials", mode="add"))
     if analyst_function_id and not analyst_function:
         flash(_("Fonction analyste invalide."), "warning")
-        return redirect(url_for("credit.financials"))
+        return redirect(url_for("credit.financials", mode="add"))
 
-    pdf_bytes = upload.read() or b""
-    if not pdf_bytes:
-        flash(_("Unable to read PDF file."), "warning")
-        return redirect(url_for("credit.financials"))
+    pdf_text = ""
+    source_tag = "company_ai"
+    source_name = company_name or borrower.name
+    if upload and upload.filename:
+        pdf_bytes = upload.read() or b""
+        if not pdf_bytes:
+            flash(_("Unable to read PDF file."), "warning")
+            return redirect(url_for("credit.financials", mode="add"))
+        pdf_text = _extract_pdf_text(pdf_bytes)
+        if not pdf_text.strip() and not company_name:
+            flash(_("No readable text found in PDF."), "warning")
+            return redirect(url_for("credit.financials", mode="add"))
+        source_tag = "pdf_ai"
+        source_name = upload.filename or "upload.pdf"
 
-    pdf_text = _extract_pdf_text(pdf_bytes)
-    if not pdf_text.strip():
-        flash(_("No readable text found in PDF."), "warning")
-        return redirect(url_for("credit.financials"))
-
-    payload = _ai_extract_financial_payload(pdf_text, getattr(g, "lang", None))
+    payload = _ai_extract_financial_payload_rich(company_name or borrower.name, pdf_text, getattr(g, "lang", None))
     if not payload:
-        flash(_("AI could not extract a valid financial statement from this PDF."), "warning")
-        return redirect(url_for("credit.financials"))
+        flash(_("AI could not extract a valid financial statement from provided sources."), "warning")
+        return redirect(url_for("credit.financials", mode="add"))
 
-    fiscal_year = _to_int(str(payload.get("fiscal_year") or "")) or date.today().year
-    period_label = str(payload.get("period_label") or "FY").strip() or "FY"
-    spreading_status = str(payload.get("spreading_status") or "needs_review").strip() or "needs_review"
-    if spreading_status not in {"in_progress", "completed", "needs_review"}:
-        spreading_status = "needs_review"
+    statement_data = _statement_values_from_ai_payload(payload)
+    confidence = statement_data.get("advanced", {}).get("confidence") if isinstance(statement_data.get("advanced"), dict) else None
 
     statement = CreditFinancialStatement(
         tenant_id=g.tenant.id,
         borrower_id=borrower.id,
-        period_label=period_label,
-        fiscal_year=fiscal_year,
-        revenue=_to_decimal_loose(str(payload.get("revenue") or "0"), "0"),
-        ebitda=_to_decimal_loose(str(payload.get("ebitda") or "0"), "0"),
-        total_debt=_to_decimal_loose(str(payload.get("total_debt") or "0"), "0"),
-        cash=_to_decimal_loose(str(payload.get("cash") or "0"), "0"),
-        net_income=_to_decimal_loose(str(payload.get("net_income") or "0"), "0"),
-        spreading_status=spreading_status,
+        period_label=str(statement_data.get("period_label") or "FY"),
+        fiscal_year=int(statement_data.get("fiscal_year") or date.today().year),
+        revenue=statement_data.get("revenue") if isinstance(statement_data.get("revenue"), Decimal) else Decimal("0"),
+        ebitda=statement_data.get("ebitda") if isinstance(statement_data.get("ebitda"), Decimal) else Decimal("0"),
+        total_debt=statement_data.get("total_debt") if isinstance(statement_data.get("total_debt"), Decimal) else Decimal("0"),
+        cash=statement_data.get("cash") if isinstance(statement_data.get("cash"), Decimal) else Decimal("0"),
+        net_income=statement_data.get("net_income") if isinstance(statement_data.get("net_income"), Decimal) else Decimal("0"),
+        spreading_status=str(statement_data.get("spreading_status") or "needs_review"),
         imported_by_user_id=getattr(current_user, "id", None),
         analyst_user_id=getattr(analyst_user, "id", None),
         analyst_function_id=getattr(analyst_function, "id", None),
-        import_source=f"pdf_ai:{upload.filename or 'upload.pdf'}",
+        import_source=f"{source_tag}:{source_name}",
     )
     db.session.add(statement)
     db.session.flush()
     _create_ratio_snapshot_for_statement(statement)
+
+    advanced_payload = statement_data.get("advanced") if isinstance(statement_data.get("advanced"), dict) else {}
+    if isinstance(advanced_payload, dict):
+        _credit_spreading_details_set(
+            g.tenant,
+            statement.id,
+            {
+                "company_name": str(advanced_payload.get("company_name") or company_name or borrower.name)[:220],
+                "currency": str(advanced_payload.get("currency") or "")[:12],
+                "confidence": advanced_payload.get("confidence"),
+                "source": source_tag,
+                "source_name": source_name,
+                "line_items": advanced_payload.get("line_items") if isinstance(advanced_payload.get("line_items"), list) else [],
+                "totals": advanced_payload.get("totals") if isinstance(advanced_payload.get("totals"), dict) else {},
+                "ratios": advanced_payload.get("ratios") if isinstance(advanced_payload.get("ratios"), dict) else {},
+                "created_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+            },
+        )
+
     _maybe_create_backlog_task_for_statement_spreading(statement, getattr(current_user, "id", None))
     db.session.commit()
 
-    confidence = payload.get("confidence")
     if confidence is None:
         flash(_("AI PDF import completed."), "success")
     else:
         flash(_("AI PDF import completed (confidence: {value}).", value=confidence), "success")
-    return redirect(url_for("credit.financials"))
+    return redirect(url_for("credit.financials", mode="search", borrower_id=borrower.id))
 
 
 @bp.route("/ratios")
@@ -6902,6 +7771,30 @@ def ratios():
         .limit(max_rows)
         .all()
     )
+
+    spreading_store = _credit_spreading_details_store(g.tenant)
+    advanced_ratio_rows: list[dict[str, object]] = []
+    for row in rows:
+        statement_id = int(getattr(row, "statement_id", 0) or 0)
+        if not statement_id:
+            continue
+        raw = spreading_store.get(str(statement_id))
+        if not isinstance(raw, dict):
+            continue
+        ratios_payload = raw.get("ratios") if isinstance(raw.get("ratios"), dict) else {}
+        if not ratios_payload:
+            continue
+        advanced_ratio_rows.append(
+            {
+                "borrower": row.borrower,
+                "snapshot_date": row.snapshot_date,
+                "company_name": str(raw.get("company_name") or "").strip(),
+                "source": str(raw.get("source") or "").strip(),
+                "confidence": raw.get("confidence"),
+                "ratios": ratios_payload,
+                "sections": _spreading_sections_for_statement(raw, getattr(g, "lang", None)),
+            }
+        )
 
     # Keep one latest snapshot per borrower after filters.
     snapshot_map: dict[int, CreditRatioSnapshot] = {}
@@ -6965,6 +7858,7 @@ def ratios():
         date_to_raw=date_to_raw,
         max_rows=max_rows,
         chart_payload=chart_payload,
+        advanced_ratio_rows=advanced_ratio_rows,
     )
 
 

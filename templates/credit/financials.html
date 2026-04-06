@@ -87,17 +87,21 @@
 
   <div class="col-12 col-xl-6">
     <div class="card border-0 shadow-sm h-100">
-      <div class="card-header bg-body-tertiary">{{ _('AI spreading from PDF') }}</div>
+      <div class="card-header bg-body-tertiary">{{ _('AI spreading from company name or PDF') }}</div>
       <div class="card-body">
         <form method="post" action="{{ url_for('credit.financials_import_pdf_ai') }}" enctype="multipart/form-data" class="row g-2">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="col-12">
-            <label class="form-label">PDF</label>
-            <input class="form-control" type="file" name="pdf_file" accept=".pdf,application/pdf" required>
+            <label class="form-label">{{ _('Company full name') }}</label>
+            <input class="form-control" type="text" name="company_name" placeholder="{{ _('Ex: Empresa XYZ S.A.') }}">
           </div>
           <div class="col-12">
-            <select class="form-select" name="borrower_id" required>
-              <option value="">{{ _('Borrower') }}</option>
+            <label class="form-label">{{ _('PDF') }}</label>
+            <input class="form-control" type="file" name="pdf_file" accept=".pdf,application/pdf">
+          </div>
+          <div class="col-12">
+            <select class="form-select" name="borrower_id">
+              <option value="">{{ _('Borrower (optional if company name matches)') }}</option>
               {% for b in borrowers %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
             </select>
           </div>
@@ -114,9 +118,35 @@
             </select>
           </div>
           <div class="col-12 small text-secondary">
-            {{ _('Upload annual statement PDF. AI extracts period, year, revenue, EBITDA, debt, cash and net income.') }}
+            {{ _('Provide company name and/or annual statement PDF. AI extracts assets, liabilities, equity, P&L metrics and builds credit analysis ratios.') }}
           </div>
-          <div class="col-12"><button class="btn btn-outline-primary w-100" type="submit">{{ _('Create from PDF with AI') }}</button></div>
+          <div class="col-12"><button class="btn btn-outline-primary w-100" type="submit">{{ _('Create spreading with AI') }}</button></div>
+        </form>
+
+        <hr>
+
+        <form method="post" action="{{ url_for('credit.financials_import_company_ai') }}" class="row g-2" id="aiCompanyImportForm">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="col-12">
+            <label class="form-label">{{ _('Borrower') }}</label>
+            <select class="form-select" name="borrower_id" id="ai-company-borrower">
+              <option value="">{{ _('Borrower') }}</option>
+              {% for b in borrowers %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">{{ _('Company full name') }}</label>
+            <input class="form-control" type="text" name="company_name" id="ai-company-query" placeholder="{{ _('Ex: Empresa XYZ S.A.') }}" required>
+          </div>
+          <div class="col-12 d-grid">
+            <button class="btn btn-outline-secondary" type="button" id="ai-find-companies-btn">{{ _('Find possible companies with AI') }}</button>
+          </div>
+          <div class="col-12">
+            <div id="ai-company-candidates" class="small"></div>
+          </div>
+          <div class="col-12 d-grid">
+            <button class="btn btn-outline-primary" type="submit">{{ _('Import last fiscal years from selected company') }}</button>
+          </div>
         </form>
       </div>
     </div>
@@ -136,7 +166,7 @@
         <form method="post" action="{{ url_for('credit.financials_import') }}" enctype="multipart/form-data" class="row g-2">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="col-md-4">
-            <label class="form-label">CSV</label>
+            <label class="form-label">{{ _('CSV') }}</label>
             <input class="form-control" type="file" name="file" accept=".csv" required>
           </div>
           <div class="col-md-4">
@@ -239,10 +269,12 @@
   <div class="card-body p-0">
     <div class="table-responsive">
       <table class="table table-sm mb-0">
-        <thead><tr><th>{{ _('Borrower') }}</th><th>{{ _('Period') }}</th><th>{{ _('Revenue') }}</th><th>{{ _('EBITDA') }}</th><th>{{ _('Debt') }}</th><th>{{ _('Cash') }}</th><th>{{ _('Status') }}</th><th>{{ _('Analyst') }}</th><th>{{ _('Function') }}</th><th>{{ _('Source') }}</th><th>{{ _('Approval date') }}</th><th>{{ _('Approval summary') }}</th><th>{{ _('Actions') }}</th></tr></thead>
+        <thead><tr><th>{{ _('Borrower') }}</th><th>{{ _('Period') }}</th><th>{{ _('Revenue') }}</th><th>{{ _('EBITDA') }}</th><th>{{ _('Debt') }}</th><th>{{ _('Cash') }}</th><th>{{ _('Status') }}</th><th>{{ _('Analyst') }}</th><th>{{ _('Function') }}</th><th>{{ _('Source') }}</th><th>{{ _('Advanced ratios') }}</th><th>{{ _('Approval date') }}</th><th>{{ _('Approval summary') }}</th><th>{{ _('Actions') }}</th></tr></thead>
         <tbody>
           {% for f in financials %}
           {% set ap = financial_approval_info.get(f.id, {}) %}
+          {% set sp = spreading_details.get(f.id, {}) if spreading_details else {} %}
+          {% set sp_sections = spreading_sections.get(f.id, []) if spreading_sections else [] %}
           <tr class="credit-history-row" tabindex="0" data-history-popup="1" data-title="{{ (f.borrower.name if f.borrower else '-')|e }}" data-history='{{ (ap.logs if ap and ap.logs else [])|tojson|forceescape }}' data-phases='{{ (ap.phases if ap and ap.phases else [])|tojson|forceescape }}'>
             <td><i class="bi bi-clock-history credit-history-hint" aria-hidden="true"></i>{{ f.borrower.name if f.borrower else '-' }}</td>
             <td>{{ f.period_label }} {{ f.fiscal_year }}</td>
@@ -254,6 +286,56 @@
             <td>{{ f.analyst_user.email if f.analyst_user else '-' }}</td>
             <td>{{ f.analyst_function_ref.label if f.analyst_function_ref else '-' }}</td>
             <td>{{ f.import_source or 'manual' }}</td>
+            <td>
+              {% if sp_sections %}
+              <div class="accordion" id="spread-acc-{{ f.id }}">
+                <div class="accordion-item">
+                  <h2 class="accordion-header" id="spread-head-{{ f.id }}">
+                    <button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" data-bs-target="#spread-body-{{ f.id }}" aria-expanded="false" aria-controls="spread-body-{{ f.id }}">
+                      {{ _('Show ratios by section') }}
+                    </button>
+                  </h2>
+                  <div id="spread-body-{{ f.id }}" class="accordion-collapse collapse" aria-labelledby="spread-head-{{ f.id }}" data-bs-parent="#spread-acc-{{ f.id }}">
+                    <div class="accordion-body p-2">
+                      <div class="accordion" id="spread-sections-{{ f.id }}">
+                        {% for sec in sp_sections %}
+                        <div class="accordion-item">
+                          <h2 class="accordion-header" id="spread-sec-head-{{ f.id }}-{{ sec.key }}">
+                            <button class="accordion-button collapsed py-1" type="button" data-bs-toggle="collapse" data-bs-target="#spread-sec-body-{{ f.id }}-{{ sec.key }}" aria-expanded="false" aria-controls="spread-sec-body-{{ f.id }}-{{ sec.key }}">
+                              {{ sec.label }}
+                            </button>
+                          </h2>
+                          <div id="spread-sec-body-{{ f.id }}-{{ sec.key }}" class="accordion-collapse collapse" aria-labelledby="spread-sec-head-{{ f.id }}-{{ sec.key }}" data-bs-parent="#spread-sections-{{ f.id }}">
+                            <div class="accordion-body p-1">
+                              <div class="table-responsive">
+                                <table class="table table-sm mb-1">
+                                  <thead>
+                                    <tr><th>{{ _('Metric') }}</th><th class="text-end">{{ _('Value') }}</th></tr>
+                                  </thead>
+                                  <tbody>
+                                    {% for m in sec.metrics %}
+                                    <tr>
+                                      <td class="small">{{ m.label }}</td>
+                                      <td class="small text-end">{{ '%.3f'|format(m.value) if m.value is not none else '-' }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        {% endfor %}
+                      </div>
+                      <div class="small text-secondary">{{ _('Confidence') }}: {{ sp.get('confidence', '-') }}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {% else %}
+              <span class="text-secondary">-</span>
+              {% endif %}
+            </td>
             <td>{{ f.approval_date.strftime('%d/%m/%Y') if f.approval_date else (ap.approved_at.strftime('%d/%m/%Y') if ap and ap.approved_at else '-') }}</td>
             <td>
               <div class="small"><strong>{{ _('Current task') }}:</strong> {{ ap.current_task if ap else '-' }}</div>
@@ -278,7 +360,7 @@
             </td>
           </tr>
           {% else %}
-          <tr><td colspan="13" class="text-secondary">{{ _('No financial statements yet.') }}</td></tr>
+          <tr><td colspan="14" class="text-secondary">{{ _('No financial statements yet.') }}</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -329,4 +411,68 @@
   })();
 </script>
 {% include "credit/_history_popup_assets.html" %}
+
+<script>
+  (function () {
+    const btn = document.getElementById('ai-find-companies-btn');
+    const queryInput = document.getElementById('ai-company-query');
+    const listEl = document.getElementById('ai-company-candidates');
+    if (!btn || !queryInput || !listEl) return;
+
+    const csrfToken = document.querySelector('input[name="csrf_token"]')?.value || '';
+
+    function renderCandidates(rows) {
+      if (!Array.isArray(rows) || !rows.length) {
+        listEl.innerHTML = '<div class="text-secondary">{{ _('No candidates found by AI.') }}</div>';
+        return;
+      }
+      listEl.innerHTML = rows.map(function (r, idx) {
+        const name = String(r.name || '').trim();
+        const country = String(r.country || '').trim();
+        const reason = String(r.reason || '').trim();
+        return '' +
+          '<button type="button" class="btn btn-sm btn-outline-primary text-start w-100 mb-1 ai-company-candidate" data-name="' + name.replace(/"/g, '&quot;') + '">' +
+            '<div><strong>' + name + '</strong>' + (country ? (' <span class="text-secondary">(' + country + ')</span>') : '') + '</div>' +
+            (reason ? ('<div class="small text-secondary">' + reason + '</div>') : '') +
+          '</button>';
+      }).join('');
+
+      listEl.querySelectorAll('.ai-company-candidate').forEach(function (el) {
+        el.addEventListener('click', function () {
+          queryInput.value = el.getAttribute('data-name') || '';
+          listEl.querySelectorAll('.ai-company-candidate').forEach(function (x) { x.classList.remove('active'); });
+          el.classList.add('active');
+        });
+      });
+    }
+
+    btn.addEventListener('click', async function () {
+      const query = String(queryInput.value || '').trim();
+      if (!query) {
+        listEl.innerHTML = '<div class="text-warning">{{ _('Company query is required.') }}</div>';
+        return;
+      }
+      listEl.innerHTML = '<div class="text-secondary">{{ _('Searching with AI...') }}</div>';
+      try {
+        const response = await fetch('{{ url_for("credit.financials_company_candidates_ai") }}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken,
+          },
+          credentials: 'same-origin',
+          body: JSON.stringify({ query: query }),
+        });
+        const data = await response.json();
+        if (!response.ok || !data.ok) {
+          listEl.innerHTML = '<div class="text-warning">' + (data.error || '{{ _('Unable to fetch candidates.') }}') + '</div>';
+          return;
+        }
+        renderCandidates(data.companies || []);
+      } catch (err) {
+        listEl.innerHTML = '<div class="text-danger">{{ _('Unable to fetch candidates.') }}</div>';
+      }
+    });
+  })();
+</script>
 {% endblock %}
