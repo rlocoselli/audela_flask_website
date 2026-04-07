@@ -2462,9 +2462,9 @@
               (q.rationale ? ('<div class="small text-secondary mb-2">' + escHtml(q.rationale) + '</div>') : '') +
               '<div class="d-flex flex-wrap gap-1">' + opts + '</div>' +
               '<div class="mt-2">' +
-                '<button type="button" class="btn btn-sm btn-outline-secondary" data-ai-sq-more="1" data-ai-sq-id="' + escHtml(q.id) + '" data-ai-sq-question="' + escHtml(q.question) + '">{{ _(\'Suggérer d\'autres options\') }}</button>' +
+                '<button type="button" class="btn btn-sm btn-outline-secondary" data-ai-sq-more="1" data-ai-sq-id="' + escHtml(q.id) + '" data-ai-sq-question="' + escHtml(q.question) + '">{{ _("Suggérer d\'autres options") }}</button>' +
               '</div>' +
-              (answeredValue ? ('<div class="small text-success mt-2">{{ _(\'Réponse sélectionnée\') }}: ' + escHtml(answeredValue) + '</div>') : '') +
+              (answeredValue ? ('<div class="small text-success mt-2">{{ _("Réponse sélectionnée") }}: ' + escHtml(answeredValue) + '</div>') : '') +
             '</div>';
         }).join('');
       }
@@ -7209,9 +7209,9 @@
           const question = String(moreBtn.getAttribute('data-ai-sq-question') || '').trim();
           if (!question) return;
           const ctx = String((aiBuilder && aiBuilder.draft && aiBuilder.draft.context) || '').trim() || '-';
-          const enrichedMore = '{{ _(\'Suggérer d\'autres options\') }}: ' + question + '. ' +
-            '{{ _(\'Contexte actuel du projet\') }}: ' + ctx + '. ' +
-            '{{ _(\'Générer 4 options courtes et actionnables.\') }}';
+          const enrichedMore = '{{ _("Suggérer d\'autres options") }}: ' + question + '. ' +
+            '{{ _("Contexte actuel du projet") }}: ' + ctx + '. ' +
+            '{{ _("Générer 4 options courtes et actionnables.") }}';
           aiHandleUserMessage(enrichedMore);
           return;
         }
@@ -7233,7 +7233,7 @@
         syncAiBuilderToState();
         renderAiBuilder();
         const enriched = question
-          ? ('{{ _(\'Pergunta IA\') }}: ' + question + '. {{ _(\'Minha resposta\') }}: ' + value)
+          ? ('{{ _("Pergunta IA") }}: ' + question + '. {{ _("Minha resposta") }}: ' + value)
           : value;
         aiHandleUserMessage(enriched);
       });
