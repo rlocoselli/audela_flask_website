@@ -541,9 +541,9 @@ def public_kanban_state_save(token: str):
 
 
 def _project_ai_extract_sprints(text: str) -> int:
-    m = re.search(r"(\d+)\s*sprint", text, flags=re.IGNORECASE)
+    m = re.search(r"(\d+)\s*(?:sprints?|itera(?:c(?:ao|oes)|ci(?:on(?:es)?)|zioni?|tion(?:s)?)|fases?)", text, flags=re.IGNORECASE)
     if not m:
-        m = re.search(r"sprint\s*(\d+)", text, flags=re.IGNORECASE)
+        m = re.search(r"(?:sprints?|itera(?:c(?:ao|oes)|ci(?:on(?:es)?)|zioni?|tion(?:s)?)|fases?)\s*(\d+)", text, flags=re.IGNORECASE)
     if not m:
         return 0
     try:
@@ -556,7 +556,11 @@ def _project_ai_extract_name(text: str) -> str:
     q = re.search(r"[\"“](.+?)[\"”]", text)
     if q and q.group(1):
         return str(q.group(1)).strip()[:120]
-    m = re.search(r"(?:projeto|project)\s+([\w\-\s]{4,60})", text, flags=re.IGNORECASE)
+    m = re.search(
+        r"(?:projeto|project|projet|proyecto|progetto|projekt)\s+(?:erstellen\s+)?([A-Za-zÀ-ÿ0-9][\w\-\s]{2,80}?)(?=\s+(?:com|with|con|mit|de|del|para|pour|per|sprints?|itera|respons|owners?|verantwort)|$)",
+        text,
+        flags=re.IGNORECASE,
+    )
     if not m:
         return ""
     return str(m.group(1)).strip()[:120]
@@ -583,7 +587,7 @@ def _project_ai_extract_responsibles(text: str) -> list[str]:
         return []
 
     pattern = re.compile(
-        r"(?:respons[aá]vel(?:eis)?|respons[aá]veis?|owners?|responsables?)\s*(?::|\-|\bé\b|\bis\b)?\s*(.+)$",
+        r"(?:respons[aá]vel(?:eis)?|respons[aá]veis?|owners?|responsables?|responsabili|verantwortliche(?:n)?)\s*(?::|\-|\bé\b|\bis\b|\bes\b|\bsono\b|\bund\b)?\s*(.+)$",
         flags=re.IGNORECASE,
     )
     m = pattern.search(raw)
@@ -595,14 +599,14 @@ def _project_ai_extract_responsibles(text: str) -> list[str]:
         return []
 
     out: list[str] = []
-    parts = re.split(r"[,;/]|\se\s|\sand\s|\s+\+\s+", candidate, flags=re.IGNORECASE)
+    parts = re.split(r"[,;/]|\se\s|\sand\s|\sy\s|\se\s|\set\s|\bund\s|\s+\+\s+", candidate, flags=re.IGNORECASE)
     for part in parts:
-        name = re.sub(r"^(?:o|a|os|as|um|uma|the)\s+", "", str(part or "").strip(), flags=re.IGNORECASE)
+        name = re.sub(r"^(?:o|a|os|as|um|uma|the|el|la|los|las|il|lo|gli|le|der|die|das)\s+", "", str(part or "").strip(), flags=re.IGNORECASE)
         name = re.sub(r"^[\-:\s]+", "", name)
-        name = re.sub(r"\s+(?:por favor|please)$", "", name, flags=re.IGNORECASE)
+        name = re.sub(r"\s+(?:por favor|please|por favor|per favore|s'il vous plait|bitte)$", "", name, flags=re.IGNORECASE)
         if not name:
             continue
-        if re.fullmatch(r"(?:respons[aá]vel(?:eis)?|respons[aá]veis?|owner|owners?)", name, flags=re.IGNORECASE):
+        if re.fullmatch(r"(?:respons[aá]vel(?:eis)?|respons[aá]veis?|owner|owners?|responsables?|responsabili|verantwortliche(?:n)?)", name, flags=re.IGNORECASE):
             continue
         if name not in out:
             out.append(name[:120])
@@ -667,8 +671,8 @@ def _project_ai_merge_draft(base: dict, incoming: dict) -> dict:
 
 def _project_ai_extract_hours(text: str) -> tuple[float | None, float | None]:
     t = text or ""
-    m_work = re.search(r"(?:carga|trabalho|work)\s*(?:de)?\s*(\d+(?:[\.,]\d+)?)\s*h", t, flags=re.IGNORECASE)
-    m_avail = re.search(r"(?:dispon[ií]veis?|capacidade|available)\s*(?:de)?\s*(\d+(?:[\.,]\d+)?)\s*h", t, flags=re.IGNORECASE)
+    m_work = re.search(r"(?:carga|trabalho|work|carga de trabajo|carico|charge|arbeitslast)\s*(?:de|do|da|di)?\s*(\d+(?:[\.,]\d+)?)\s*h", t, flags=re.IGNORECASE)
+    m_avail = re.search(r"(?:dispon[ií]veis?|capacidade|available|disponibles?|disponibil[ií]|disponibilit[aà]|capacit[aà]|fahig(?:keit|keiten))\s*(?:de|do|da|di)?\s*(\d+(?:[\.,]\d+)?)\s*h", t, flags=re.IGNORECASE)
     w = None
     a = None
     if m_work:
@@ -754,6 +758,22 @@ def _project_ai_task_description(task: str, sprint: str, owner: str, context: st
         "de": ("Ziel", "Umfang", "Akzeptanzkriterien", "Abhaengigkeiten", "Ausfuehrungsnotizen", "Verantwortlich", "Sprint"),
         "fr": ("Objectif", "Perimetre", "Criteres d'acceptation", "Dependances", "Notes d'execution", "Responsable", "Sprint"),
     }
+    criteria_by_lang = {
+        "pt": "1) Entrega validada 2) Sem bloqueios criticos 3) Evidencia registrada",
+        "en": "1) Validated delivery 2) No critical blockers 3) Evidence recorded",
+        "es": "1) Entrega validada 2) Sin bloqueos criticos 3) Evidencia registrada",
+        "it": "1) Consegna validata 2) Nessun blocco critico 3) Evidenza registrata",
+        "de": "1) Lieferung validiert 2) Keine kritischen Blocker 3) Nachweis dokumentiert",
+        "fr": "1) Livraison validee 2) Aucun blocage critique 3) Preuve enregistree",
+    }
+    deps_by_lang = {
+        "pt": "APIs, dados de homologacao, revisao tecnica",
+        "en": "APIs, staging data, technical review",
+        "es": "APIs, datos de homologacion, revision tecnica",
+        "it": "API, dati di collaudo, revisione tecnica",
+        "de": "APIs, Staging-Daten, technische Pruefung",
+        "fr": "APIs, donnees de recette, revue technique",
+    }
     o, s, c, d, n, ow, sp = labels.get(l, labels["pt"])
     ctx = (context or "").strip() or "-"
     owner_v = (owner or "-").strip() or "-"
@@ -762,8 +782,8 @@ def _project_ai_task_description(task: str, sprint: str, owner: str, context: st
     return "\n".join([
         f"{o}: {objective}",
         f"{s}: {ctx}",
-        f"{c}: 1) Entrega validada 2) Sem bloqueios criticos 3) Evidencia registrada",
-        f"{d}: APIs, dados de homologacao, revisao tecnica",
+        f"{c}: {criteria_by_lang.get(l, criteria_by_lang['pt'])}",
+        f"{d}: {deps_by_lang.get(l, deps_by_lang['pt'])}",
         f"{n}: {ow} {owner_v} | {sp} {sprint_v}",
     ])
 
@@ -894,6 +914,7 @@ def _project_ai_safe_charter(ai_charter: dict | None) -> dict:
 
 
 def _project_ai_fallback_charter(draft: dict, plan_tasks: list[dict], lang: str) -> dict:
+    l = normalize_lang(lang)
     project_name = str(draft.get("name") or "Projeto").strip() or "Projeto"
     project_type = str(draft.get("type") or "Digital").strip() or "Digital"
     context = str(draft.get("context") or "").strip()
@@ -920,7 +941,15 @@ def _project_ai_fallback_charter(draft: dict, plan_tasks: list[dict], lang: str)
 
     deliverable_lines = []
     milestone_lines = []
-    milestone_prefix = "Gate" if family == "engineering" else "Milestone"
+    milestone_prefix_by_lang = {
+        "pt": "Gate" if family == "engineering" else "Marco",
+        "en": "Gate" if family == "engineering" else "Milestone",
+        "es": "Gate" if family == "engineering" else "Hito",
+        "it": "Gate" if family == "engineering" else "Milestone",
+        "de": "Gate" if family == "engineering" else "Meilenstein",
+        "fr": "Gate" if family == "engineering" else "Jalon",
+    }
+    milestone_prefix = milestone_prefix_by_lang.get(l, milestone_prefix_by_lang["pt"])
     for sprint in sprint_names:
         picks = tasks_by_sprint.get(sprint, [])
         if picks:
@@ -930,11 +959,43 @@ def _project_ai_fallback_charter(draft: dict, plan_tasks: list[dict], lang: str)
             deliverable_lines.append(f"- {sprint}")
             milestone_lines.append(f"- {milestone_prefix}: {sprint}")
 
-    objective = (
-        f'Entregar o projeto "{project_name}" com incrementos validados por sprint, '
-        "com nomenclatura e entregas alinhadas ao dominio tecnico informado."
+    objective_by_lang = {
+        "pt": f'Entregar o projeto "{project_name}" com incrementos validados por sprint, com nomenclatura e entregas alinhadas ao dominio tecnico informado.',
+        "en": f'Deliver project "{project_name}" with validated sprint increments, with naming and deliverables aligned to the provided technical domain.',
+        "es": f'Entregar el proyecto "{project_name}" con incrementos validados por sprint, con nomenclatura y entregables alineados al dominio tecnico informado.',
+        "it": f'Consegnare il progetto "{project_name}" con incrementi validati per sprint, con nomenclatura e deliverable allineati al dominio tecnico indicato.',
+        "de": f'Projekt "{project_name}" mit validierten Sprint-Inkrementen liefern, mit Benennung und Lieferobjekten passend zur angegebenen technischen Domaene.',
+        "fr": f'Livrer le projet "{project_name}" avec des increments valides par sprint, avec une nomenclature et des livrables alignes au domaine technique fourni.',
+    }
+    scope_label_by_lang = {
+        "pt": "Escopo",
+        "en": "Scope",
+        "es": "Alcance",
+        "it": "Ambito",
+        "de": "Umfang",
+        "fr": "Perimetre",
+    }
+    context_label_by_lang = {
+        "pt": "Contexto",
+        "en": "Context",
+        "es": "Contexto",
+        "it": "Contesto",
+        "de": "Kontext",
+        "fr": "Contexte",
+    }
+    context_default_by_lang = {
+        "pt": "Definir no kickoff com stakeholders.",
+        "en": "Define during kickoff with stakeholders.",
+        "es": "Definir en el kickoff con stakeholders.",
+        "it": "Definire nel kickoff con gli stakeholder.",
+        "de": "Im Kickoff mit Stakeholdern definieren.",
+        "fr": "A definir lors du kickoff avec les parties prenantes.",
+    }
+    objective = objective_by_lang.get(l, objective_by_lang["pt"])
+    scope = (
+        f"{scope_label_by_lang.get(l, scope_label_by_lang['pt'])}: {project_type}.\n"
+        f"{context_label_by_lang.get(l, context_label_by_lang['pt'])}: {context or context_default_by_lang.get(l, context_default_by_lang['pt'])}"
     )
-    scope = f"Escopo: {project_type}.\nContexto: {context or 'Definir no kickoff com stakeholders.'}"
     return {
         "objectives": objective[:3000],
         "scope": scope[:3000],
@@ -1239,6 +1300,8 @@ def ai_project_chat():
         "You are a PM assistant building a project setup from chat. "
         "Extract and update draft fields from the user request. "
         "Return concise reply + structured draft. "
+        f"Use language '{lang}' for ALL generated text fields and sentences (reply, plan_tasks.task, plan_tasks.description, planning_note, charter.objectives, charter.scope, charter.deliverables, charter.milestones, smart_questions labels and values). "
+        "Do not use Portuguese unless language is 'pt'. Do not mix languages in output. "
         "When project type is engineering/naval/nuclear/industrial, avoid UX/UI or app-centric tasks and prefer engineering design, interfaces, procurement, compliance and verification tasks. "
         "Name each sprint according to its dominant tasks and project domain; avoid generic labels like Sprint 1/Sprint 2. "
         "Also return a creative project charter in key 'charter' with string fields: "
@@ -1344,14 +1407,14 @@ def ai_project_chat():
     if not safe_plan_tasks:
         safe_plan_tasks = _project_ai_fallback_plan(draft)
     for item in safe_plan_tasks:
-        if not str(item.get("description") or "").strip():
-            item["description"] = _project_ai_task_description(
-                str(item.get("task") or ""),
-                str(item.get("sprint") or ""),
-                str(item.get("owner") or ""),
-                str(draft.get("context") or ""),
-                lang,
-            )
+        # Keep descriptions language-consistent with current UI selection.
+        item["description"] = _project_ai_task_description(
+            str(item.get("task") or ""),
+            str(item.get("sprint") or ""),
+            str(item.get("owner") or ""),
+            str(draft.get("context") or ""),
+            lang,
+        )
         if item.get("priority") not in {"low", "medium", "high"}:
             item["priority"] = _project_ai_task_priority(str(item.get("task") or ""))
 

@@ -2117,6 +2117,7 @@
         plan_tasks: [],
         planning_note: '',
         smart_questions: [],
+        smart_answers: {},
         charter: { objectives: '', scope: '', deliverables: '', milestones: '' },
         spec_pdf_name: '',
       };
@@ -2166,8 +2167,8 @@
 
       function aiExtractSprints(text){
         const t = (text || '').toLowerCase();
-        let m = t.match(/(\d+)\s*sprint/);
-        if (!m) m = t.match(/sprint\s*(\d+)/);
+        let m = t.match(/(\d+)\s*(?:sprints?|itera(?:c(?:ao|oes)|ci(?:on(?:es)?)|zioni?|tion(?:s)?)|fases?)/);
+        if (!m) m = t.match(/(?:sprints?|itera(?:c(?:ao|oes)|ci(?:on(?:es)?)|zioni?|tion(?:s)?)|fases?)\s*(\d+)/);
         if (!m) return 0;
         const n = Math.max(1, Math.min(12, Math.round(num(m[1]))));
         return n;
@@ -2175,10 +2176,12 @@
 
       function aiExtractResponsibles(text){
         const t = (text || '').trim();
-        const m = t.match(/(?:respons[aá]vel(?:eis)?|respons[aá]veis?|owners?|responsables?)\s*(?::|\-|\bé\b|\bis\b)?\s*(.+)$/i);
+        const m = t.match(/(?:respons[aá]vel(?:eis)?|respons[aá]veis?|owners?|responsables?|responsabili|verantwortliche(?:n)?)\s*(?::|\-|\bé\b|\bis\b|\bes\b|\bsono\b|\bund\b)?\s*(.+)$/i);
         if (!m) return [];
-        return m[1].split(/[,;/]|\se\s|\sand\s|\s+\+\s+/i).map(function(x){
-          return normalizeManagerName(String(x || '').replace(/^(?:o|a|os|as|um|uma|the)\s+/i, '').replace(/\s+(?:por favor|please)$/i, ''));
+        return m[1].split(/[,;/]|\se\s|\sand\s|\sy\s|\set\s|\bund\s|\s+\+\s+/i).map(function(x){
+          return normalizeManagerName(String(x || '')
+            .replace(/^(?:o|a|os|as|um|uma|the|el|la|los|las|il|lo|gli|le|der|die|das)\s+/i, '')
+            .replace(/\s+(?:por favor|please|per favore|s'il vous plait|bitte)$/i, ''));
         }).filter(Boolean);
       }
 
@@ -2186,7 +2189,7 @@
         const t = (text || '').trim();
         const quoted = t.match(/["“](.+?)["”]/);
         if (quoted && quoted[1]) return quoted[1].trim();
-        const m = t.match(/(?:projeto|project)\s+([\w\-\s]{4,60})/i);
+        const m = t.match(/(?:projeto|project|projet|proyecto|progetto|projekt)\s+(?:erstellen\s+)?([A-Za-zÀ-ÿ0-9][\w\-\s]{2,80}?)(?=\s+(?:com|with|con|mit|de|del|para|pour|per|sprints?|itera|respons|owners?|verantwort)|$)/i);
         if (m && m[1]) return m[1].trim();
         return '';
       }
@@ -2215,28 +2218,49 @@
       }
 
       function normalizeAiSmartQuestions(rows){
-        return (Array.isArray(rows) ? rows : []).slice(0, 8).map(function(r, idx){
+        const seenQuestions = new Set();
+        return (Array.isArray(rows) ? rows : []).slice(0, 12).map(function(r, idx){
           const q = (r && typeof r === 'object') ? r : {};
           const rawOpts = Array.isArray(q.options) ? q.options : [];
+          const seenOpt = new Set();
           const opts = rawOpts.slice(0, 6).map(function(o){
             if (o && typeof o === 'object') {
               const label = String(o.label || o.value || '').trim();
               const value = String(o.value || o.label || '').trim();
-              return label ? { label: label, value: value || label } : null;
+              const key = (label + '|' + (value || label)).toLowerCase();
+              if (!label || seenOpt.has(key)) return null;
+              seenOpt.add(key);
+              return { label: label, value: value || label };
             }
             const text = String(o || '').trim();
-            return text ? { label: text, value: text } : null;
+            const key = text.toLowerCase();
+            if (!text || seenOpt.has(key)) return null;
+            seenOpt.add(key);
+            return { label: text, value: text };
           }).filter(Boolean);
           const question = String(q.question || '').trim();
           const rationale = String(q.rationale || '').trim();
           if (!question) return null;
+          const questionKey = question.toLowerCase();
+          if (seenQuestions.has(questionKey)) return null;
+          seenQuestions.add(questionKey);
           return {
             id: String(q.id || ('sq-' + idx)),
             question: question,
             rationale: rationale,
             options: opts,
           };
-        }).filter(Boolean);
+        }).filter(Boolean).slice(0, 8);
+      }
+
+      function aiPruneSmartAnswers(){
+        const validIds = new Set(normalizeAiSmartQuestions(aiBuilder.smart_questions || []).map(function(q){ return String(q.id || ''); }));
+        const src = (aiBuilder.smart_answers && typeof aiBuilder.smart_answers === 'object') ? aiBuilder.smart_answers : {};
+        const next = {};
+        Object.keys(src).forEach(function(k){
+          if (validIds.has(String(k))) next[k] = src[k];
+        });
+        aiBuilder.smart_answers = next;
       }
 
       function aiGenerateSmartQuestionsLocal(){
@@ -2253,10 +2277,10 @@
             question: '{{ _('Quel type de projet souhaitez-vous lancer ?') }}',
             rationale: '{{ _('Le type influence les tâches générées, les risques et les jalons.') }}',
             options: [
-              { label: 'Software', value: 'Tipo do projeto: Software.' },
-              { label: 'Engenharia', value: 'Tipo do projeto: Engenharia.' },
-              { label: 'Naval', value: 'Tipo do projeto: Naval.' },
-              { label: 'Nuclear', value: 'Tipo do projeto: Nuclear.' },
+              { label: 'Software', value: "{{ _('Tipo do projeto: Software.') }}" },
+              { label: "{{ _('Engenharia') }}", value: "{{ _('Tipo do projeto: Engenharia.') }}" },
+              { label: 'Naval', value: "{{ _('Tipo do projeto: Naval.') }}" },
+              { label: 'Nuclear', value: "{{ _('Tipo do projeto: Nuclear.') }}" },
             ],
           });
         }
@@ -2267,7 +2291,7 @@
             id: 'sq-sprints',
             question: '{{ _('Quantos sprints você deseja para este escopo?') }}',
             rationale: '{{ _('A duração impacta dependências, capacidade e entregáveis.') }}',
-            options: base.map(function(n){ return { label: String(n) + ' sprints', value: 'Planejar com ' + n + ' sprints.' }; }),
+            options: base.map(function(n){ return { label: String(n) + ' sprints', value: "{{ _('Planejar com') }} " + n + ' sprints.' }; }),
           });
         }
 
@@ -2278,14 +2302,14 @@
             rationale: '{{ _('Precisamos de responsáveis para distribuir carga e custo.') }}',
             options: (family === 'engineering')
               ? [
-                  { label: '{{ _('Engenharia + Interface + Conformidade') }}', value: 'Responsáveis: Engenharia, Interface técnica e Conformidade dedicados.' },
-                  { label: '{{ _('Equipe enxuta') }}', value: 'Responsáveis: PM técnico, Engenheiro líder e QA/Conformidade.' },
-                  { label: '{{ _('Equipe expandida') }}', value: 'Responsáveis: PM, Engenharia de detalhe, Suprimentos, QA e Compliance.' },
+                  { label: "{{ _('Engenharia + Interface + Conformidade') }}", value: "{{ _('Responsáveis: Engenharia, Interface técnica e Conformidade dedicados.') }}" },
+                  { label: "{{ _('Equipe enxuta') }}", value: "{{ _('Responsáveis: PM técnico, Engenheiro líder e QA/Conformidade.') }}" },
+                  { label: "{{ _('Equipe expandida') }}", value: "{{ _('Responsáveis: PM, Engenharia de detalhe, Suprimentos, QA e Compliance.') }}" },
                 ]
               : [
-                  { label: '{{ _('Backend + Frontend + QA') }}', value: 'Responsáveis: Backend, Frontend e QA dedicados.' },
-                  { label: '{{ _('Equipe enxuta') }}', value: 'Responsáveis: PM técnico e 2 engenheiros full-stack.' },
-                  { label: '{{ _('Equipe expandida') }}', value: 'Responsáveis: PM, Arquiteto, Backend, Frontend, QA e Compliance.' },
+                  { label: "{{ _('Backend + Frontend + QA') }}", value: "{{ _('Responsáveis: Backend, Frontend e QA dedicados.') }}" },
+                  { label: "{{ _('Equipe enxuta') }}", value: "{{ _('Responsáveis: PM técnico e 2 engenheiros full-stack.') }}" },
+                  { label: "{{ _('Equipe expandida') }}", value: "{{ _('Responsáveis: PM, Arquiteto, Backend, Frontend, QA e Compliance.') }}" },
                 ],
           });
         }
@@ -2296,9 +2320,9 @@
             question: '{{ _('Qual trilha de governança e conformidade deve ser priorizada?') }}',
             rationale: '{{ _('Projetos regulados exigem marcos e gate reviews específicos.') }}',
             options: [
-              { label: '{{ _('Gate de segurança') }}', value: 'Priorizar gate de segurança e revisão regulatória em cada sprint.' },
-              { label: '{{ _('Validação documental') }}', value: 'Incluir validação documental obrigatória antes de cada milestone.' },
-              { label: '{{ _('Conformidade contínua') }}', value: 'Aplicar checklist de conformidade contínua com auditoria mensal.' },
+              { label: "{{ _('Gate de segurança') }}", value: "{{ _('Priorizar gate de segurança e revisão regulatória em cada sprint.') }}" },
+              { label: "{{ _('Validação documental') }}", value: "{{ _('Incluir validação documental obrigatória antes de cada milestone.') }}" },
+              { label: "{{ _('Conformidade contínua') }}", value: "{{ _('Aplicar checklist de conformidade contínua com auditoria mensal.') }}" },
             ],
           });
         }
@@ -2309,9 +2333,9 @@
             question: '{{ _('Qual foco deve orientar o próximo refinamento do plano?') }}',
             rationale: '{{ _('Escolher o foco ajuda a priorizar ajustes automáticos.') }}',
             options: [
-              { label: '{{ _('Reduzir risco crítico') }}', value: 'Refinar plano para reduzir caminho crítico e riscos altos.' },
-              { label: '{{ _('Acelerar entrega') }}', value: 'Refinar plano para reduzir duração total e acelerar entregas.' },
-              { label: '{{ _('Balancear carga') }}', value: 'Refinar plano para balancear capacidade entre responsáveis.' },
+              { label: "{{ _('Reduzir risco crítico') }}", value: "{{ _('Refinar plano para reduzir caminho crítico e riscos altos.') }}" },
+              { label: "{{ _('Acelerar entrega') }}", value: "{{ _('Refinar plano para reduzir duração total e acelerar entregas.') }}" },
+              { label: "{{ _('Balancear carga') }}", value: "{{ _('Refinar plano para balancear capacidade entre responsáveis.') }}" },
             ],
           });
         }
@@ -2341,6 +2365,8 @@
         aiBuilder.plan_tasks = Array.isArray(raw.plan_tasks) ? raw.plan_tasks.slice(0, 120) : aiBuilder.plan_tasks;
         aiBuilder.planning_note = String(raw.planning_note || aiBuilder.planning_note || '').trim();
         aiBuilder.smart_questions = normalizeAiSmartQuestions(raw.smart_questions || aiBuilder.smart_questions || []);
+        aiBuilder.smart_answers = (raw.smart_answers && typeof raw.smart_answers === 'object') ? raw.smart_answers : {};
+        aiPruneSmartAnswers();
         const charter = (raw.charter && typeof raw.charter === 'object') ? raw.charter : {};
         aiBuilder.charter.objectives = String(charter.objectives || aiBuilder.charter.objectives || '').trim();
         aiBuilder.charter.scope = String(charter.scope || aiBuilder.charter.scope || '').trim();
@@ -2361,6 +2387,7 @@
             plan_tasks: Array.isArray(a.plan_tasks) ? a.plan_tasks.slice(0, 120) : [],
             planning_note: String(a.planning_note || '').trim(),
             smart_questions: normalizeAiSmartQuestions(a.smart_questions || []),
+            smart_answers: (a.smart_answers && typeof a.smart_answers === 'object') ? a.smart_answers : {},
             charter: (a.charter && typeof a.charter === 'object') ? a.charter : {},
             spec_pdf_name: String(a.spec_pdf_name || '').trim(),
           });
@@ -2382,6 +2409,7 @@
           plan_tasks: (Array.isArray(aiBuilder.plan_tasks) ? aiBuilder.plan_tasks : []).slice(0, 120),
           planning_note: aiBuilder.planning_note || '',
           smart_questions: normalizeAiSmartQuestions(aiBuilder.smart_questions || []),
+          smart_answers: (aiBuilder.smart_answers && typeof aiBuilder.smart_answers === 'object') ? aiBuilder.smart_answers : {},
           charter: {
             objectives: aiBuilder.charter.objectives || '',
             scope: aiBuilder.charter.scope || '',
@@ -2407,6 +2435,7 @@
         aiBuilder.plan_tasks = [];
         aiBuilder.planning_note = '';
         aiBuilder.smart_questions = [];
+        aiBuilder.smart_answers = {};
         aiBuilder.charter = { objectives: '', scope: '', deliverables: '', milestones: '' };
         aiBuilder.spec_pdf_name = '';
       }
@@ -2420,14 +2449,22 @@
           return;
         }
         el.innerHTML = rows.map(function(q){
+          const answeredValue = String((aiBuilder.smart_answers && aiBuilder.smart_answers[q.id]) || '').trim();
           const opts = (q.options || []).map(function(o){
-            return '<button type="button" class="btn btn-sm btn-outline-primary" data-ai-sq-value="' + escHtml(o.value) + '">' + escHtml(o.label) + '</button>';
+            const isSelected = answeredValue && (answeredValue === String(o.value || '').trim());
+            const klass = isSelected ? 'btn btn-sm btn-success' : 'btn btn-sm btn-outline-primary';
+            const selectedMark = isSelected ? ' <i class="bi bi-check2"></i>' : '';
+            return '<button type="button" class="' + klass + '" data-ai-sq-id="' + escHtml(q.id) + '" data-ai-sq-question="' + escHtml(q.question) + '" data-ai-sq-value="' + escHtml(o.value) + '">' + escHtml(o.label) + selectedMark + '</button>';
           }).join(' ');
           return '' +
             '<div class="border rounded p-2 mb-2">' +
               '<div class="fw-semibold mb-1">' + escHtml(q.question) + '</div>' +
               (q.rationale ? ('<div class="small text-secondary mb-2">' + escHtml(q.rationale) + '</div>') : '') +
               '<div class="d-flex flex-wrap gap-1">' + opts + '</div>' +
+              '<div class="mt-2">' +
+                '<button type="button" class="btn btn-sm btn-outline-secondary" data-ai-sq-more="1" data-ai-sq-id="' + escHtml(q.id) + '" data-ai-sq-question="' + escHtml(q.question) + '">{{ _(\'Suggérer d\'autres options\') }}</button>' +
+              '</div>' +
+              (answeredValue ? ('<div class="small text-success mt-2">{{ _(\'Réponse sélectionnée\') }}: ' + escHtml(answeredValue) + '</div>') : '') +
             '</div>';
         }).join('');
       }
@@ -2461,6 +2498,7 @@
           plan_tasks: JSON.parse(JSON.stringify((aiBuilder.plan_tasks || []).slice(0, 120))),
           planning_note: String(aiBuilder.planning_note || ''),
           smart_questions: normalizeAiSmartQuestions(aiBuilder.smart_questions || []),
+          smart_answers: (aiBuilder.smart_answers && typeof aiBuilder.smart_answers === 'object') ? aiBuilder.smart_answers : {},
           charter: JSON.parse(JSON.stringify(aiBuilder.charter || {})),
           spec_pdf_name: String(aiBuilder.spec_pdf_name || ''),
         });
@@ -2478,6 +2516,7 @@
         aiBuilder.plan_tasks = normalizeAiPlanTasks(Array.isArray(archive.plan_tasks) ? archive.plan_tasks : []);
         aiBuilder.planning_note = String(archive.planning_note || '').trim();
         aiBuilder.smart_questions = normalizeAiSmartQuestions(archive.smart_questions || []);
+        aiBuilder.smart_answers = (archive.smart_answers && typeof archive.smart_answers === 'object') ? archive.smart_answers : {};
         aiBuilder.charter = Object.assign({ objectives: '', scope: '', deliverables: '', milestones: '' }, (archive.charter && typeof archive.charter === 'object') ? archive.charter : {});
         aiBuilder.spec_pdf_name = String(archive.spec_pdf_name || '').trim();
         const specInput = document.getElementById('pm-ai-spec-pdf');
@@ -2766,13 +2805,30 @@
       function aiBuildKanbanDescription(taskTitle, sprintName, owner, context, lang){
         const b = aiLocalizedBundle(lang);
         const objective = aiTaskObjective(taskTitle, lang);
+        const key = normalizeLangCode(lang);
         const contextLine = String(context || '').trim() || '-';
         const ownerLine = String(owner || '-').trim() || '-';
+        const criteriaByLang = {
+          pt: '1) Entrega validada 2) Sem bloqueios críticos 3) Evidência registrada',
+          en: '1) Validated delivery 2) No critical blockers 3) Evidence recorded',
+          es: '1) Entrega validada 2) Sin bloqueos críticos 3) Evidencia registrada',
+          it: '1) Consegna validata 2) Nessun blocco critico 3) Evidenza registrata',
+          de: '1) Validierte Lieferung 2) Keine kritischen Blocker 3) Nachweis dokumentiert',
+          fr: '1) Livraison validée 2) Aucun blocage critique 3) Preuve enregistrée',
+        };
+        const depsByLang = {
+          pt: 'APIs, dados de homologação, revisão técnica',
+          en: 'APIs, staging data, technical review',
+          es: 'APIs, datos de homologación, revisión técnica',
+          it: 'API, dati di collaudo, revisione tecnica',
+          de: 'APIs, Staging-Daten, technische Prüfung',
+          fr: 'APIs, données de recette, revue technique',
+        };
         return [
           b.objective + ': ' + objective,
           b.scope + ': ' + contextLine,
-          b.criteria + ': 1) Entrega validada 2) Sem bloqueios críticos 3) Evidência registrada',
-          b.deps + ': APIs, dados de homologação, revisão técnica',
+          b.criteria + ': ' + (criteriaByLang[key] || criteriaByLang.pt),
+          b.deps + ': ' + (depsByLang[key] || depsByLang.pt),
           b.notes + ': ' + b.owner + ' ' + ownerLine + ' | ' + b.sprint + ' ' + (sprintName || '-'),
         ].join('\n');
       }
@@ -2784,15 +2840,110 @@
       }
 
       function aiSeedGovernanceAndPmo(pid, projectName, owners, sprintNames){
+        const lang = currentChatLang();
+        const key = normalizeLangCode(lang);
         const ownerA = owners[0] || 'PM';
         const ownerB = owners[1] || ownerA;
         const s1 = sprintNames[0] || 'Sprint 1';
+        const g = {
+          pt: {
+            sponsor: 'Sponsor',
+            techLead: 'Tech Lead',
+            riskApi: 'Dependencia externa de API critica',
+            riskApiMitigation: 'Plano de fallback e testes de contrato no ',
+            riskCapacity: 'Sobrecarga de responsavel em entregas paralelas',
+            riskCapacityMitigation: 'Balancear tarefas por capacidade diaria e redistribuir no daily',
+            issueEnv: 'Ambiente de homologacao ainda sem dados realistas',
+            decisionArch: 'Arquitetura modular com entregas incrementais por sprint',
+            changeTitle: 'Ajustar escopo do MVP por prioridade de negocio',
+            changeDesc: 'Revisao apos refinamento inicial para foco no fluxo core.',
+            charterTitle: 'Project Charter - ',
+            kickoffTitle: 'Kickoff ',
+            kickoffNotes: 'Alinhamento de objetivos, riscos iniciais e plano de sprint.',
+          },
+          en: {
+            sponsor: 'Sponsor',
+            techLead: 'Tech Lead',
+            riskApi: 'Critical external API dependency',
+            riskApiMitigation: 'Fallback plan and contract tests in ',
+            riskCapacity: 'Owner overload in parallel deliveries',
+            riskCapacityMitigation: 'Balance tasks by daily capacity and rebalance in the daily meeting',
+            issueEnv: 'Staging environment still lacks realistic data',
+            decisionArch: 'Modular architecture with incremental sprint deliveries',
+            changeTitle: 'Adjust MVP scope by business priority',
+            changeDesc: 'Review after initial refinement to focus on the core flow.',
+            charterTitle: 'Project Charter - ',
+            kickoffTitle: 'Kickoff ',
+            kickoffNotes: 'Alignment on objectives, initial risks and sprint plan.',
+          },
+          es: {
+            sponsor: 'Sponsor',
+            techLead: 'Tech Lead',
+            riskApi: 'Dependencia externa critica de API',
+            riskApiMitigation: 'Plan de contingencia y pruebas de contrato en ',
+            riskCapacity: 'Sobrecarga del responsable en entregas paralelas',
+            riskCapacityMitigation: 'Balancear tareas por capacidad diaria y redistribuir en el daily',
+            issueEnv: 'El entorno de homologacion aun no tiene datos realistas',
+            decisionArch: 'Arquitectura modular con entregas incrementales por sprint',
+            changeTitle: 'Ajustar alcance del MVP por prioridad de negocio',
+            changeDesc: 'Revision tras refinamiento inicial para foco en el flujo core.',
+            charterTitle: 'Project Charter - ',
+            kickoffTitle: 'Kickoff ',
+            kickoffNotes: 'Alineacion de objetivos, riesgos iniciales y plan de sprint.',
+          },
+          it: {
+            sponsor: 'Sponsor',
+            techLead: 'Tech Lead',
+            riskApi: 'Dipendenza critica da API esterna',
+            riskApiMitigation: 'Piano di fallback e test di contratto in ',
+            riskCapacity: 'Sovraccarico del responsabile su consegne parallele',
+            riskCapacityMitigation: 'Bilanciare i task per capacita giornaliera e ridistribuire nel daily',
+            issueEnv: 'L\'ambiente di collaudo non ha ancora dati realistici',
+            decisionArch: 'Architettura modulare con consegne incrementali per sprint',
+            changeTitle: 'Adeguare lo scope MVP in base alla priorita business',
+            changeDesc: 'Revisione dopo il primo refinement per focalizzarsi sul flusso core.',
+            charterTitle: 'Project Charter - ',
+            kickoffTitle: 'Kickoff ',
+            kickoffNotes: 'Allineamento su obiettivi, rischi iniziali e piano sprint.',
+          },
+          de: {
+            sponsor: 'Sponsor',
+            techLead: 'Tech Lead',
+            riskApi: 'Kritische externe API-Abhaengigkeit',
+            riskApiMitigation: 'Fallback-Plan und Vertragstests in ',
+            riskCapacity: 'Ueberlastung der verantwortlichen Person bei parallelen Lieferungen',
+            riskCapacityMitigation: 'Aufgaben nach Tageskapazitaet ausbalancieren und im Daily neu verteilen',
+            issueEnv: 'Die Staging-Umgebung hat noch keine realistischen Daten',
+            decisionArch: 'Modulare Architektur mit inkrementellen Sprint-Lieferungen',
+            changeTitle: 'MVP-Umfang nach Business-Prioritaet anpassen',
+            changeDesc: 'Review nach erster Verfeinerung mit Fokus auf den Kernfluss.',
+            charterTitle: 'Project Charter - ',
+            kickoffTitle: 'Kickoff ',
+            kickoffNotes: 'Abstimmung zu Zielen, initialen Risiken und Sprint-Plan.',
+          },
+          fr: {
+            sponsor: 'Sponsor',
+            techLead: 'Tech Lead',
+            riskApi: 'Dependance critique a une API externe',
+            riskApiMitigation: 'Plan de fallback et tests de contrat dans ',
+            riskCapacity: 'Surcharge du responsable sur des livraisons paralleles',
+            riskCapacityMitigation: 'Equilibrer les taches par capacite quotidienne et redistribuer au daily',
+            issueEnv: 'L\'environnement de recette ne contient pas encore de donnees realistes',
+            decisionArch: 'Architecture modulaire avec livraisons incrementales par sprint',
+            changeTitle: 'Ajuster le scope du MVP selon la priorite metier',
+            changeDesc: 'Revue apres le premier raffinement pour se concentrer sur le flux core.',
+            charterTitle: 'Project Charter - ',
+            kickoffTitle: 'Kickoff ',
+            kickoffNotes: 'Alignement sur les objectifs, les risques initiaux et le plan de sprint.',
+          },
+        };
+        const txt = g[key] || g.pt;
 
         state.stakeholders.push({
           id: uid(),
           project_id: pid,
           name: 'Sponsor ' + aiConstellationName(0),
-          role: 'Sponsor',
+          role: txt.sponsor,
           influence: 'high',
           interest: 'high',
           contact: ownerA,
@@ -2801,7 +2952,7 @@
           id: uid(),
           project_id: pid,
           name: 'Tech Lead ' + aiStarName(1),
-          role: 'Tech Lead',
+          role: txt.techLead,
           influence: 'medium',
           interest: 'high',
           contact: ownerB,
@@ -2810,20 +2961,20 @@
         state.risks.push({
           id: uid(),
           project_id: pid,
-          risk: 'Dependencia externa de API critica',
+          risk: txt.riskApi,
           probability: 'medium',
           impact: 'high',
-          mitigation: 'Plano de fallback e testes de contrato no ' + s1,
+          mitigation: txt.riskApiMitigation + s1,
           owner: ownerA,
           status: 'open',
         });
         state.risks.push({
           id: uid(),
           project_id: pid,
-          risk: 'Sobrecarga de responsavel em entregas paralelas',
+          risk: txt.riskCapacity,
           probability: 'medium',
           impact: 'medium',
-          mitigation: 'Balancear tarefas por capacidade diaria e redistribuir no daily',
+          mitigation: txt.riskCapacityMitigation,
           owner: ownerB,
           status: 'open',
         });
@@ -2831,7 +2982,7 @@
         state.issues.push({
           id: uid(),
           project_id: pid,
-          issue: 'Ambiente de homologacao ainda sem dados realistas',
+          issue: txt.issueEnv,
           owner: ownerB,
           status: 'open',
           due_date: '',
@@ -2840,7 +2991,7 @@
         state.decisions.push({
           id: uid(),
           project_id: pid,
-          decision: 'Arquitetura modular com entregas incrementais por sprint',
+          decision: txt.decisionArch,
           owner: ownerA,
           decided_at: new Date().toISOString().slice(0, 10),
         });
@@ -2848,8 +2999,8 @@
         state.changes.push({
           id: uid(),
           project_id: pid,
-          title: 'Ajustar escopo do MVP por prioridade de negocio',
-          description: 'Revisao apos refinamento inicial para foco no fluxo core.',
+          title: txt.changeTitle,
+          description: txt.changeDesc,
           owner: ownerA,
           status: 'draft',
           approved_by: '',
@@ -2859,7 +3010,7 @@
         state.documents.push({
           id: uid(),
           project_id: pid,
-          title: 'Project Charter - ' + projectName,
+          title: txt.charterTitle + projectName,
           url: '',
           owner: ownerA,
         });
@@ -2867,15 +3018,16 @@
         state.meetings.push({
           id: uid(),
           project_id: pid,
-          title: 'Kickoff ' + s1,
+          title: txt.kickoffTitle + s1,
           when: '',
-          notes: 'Alinhamento de objetivos, riscos iniciais e plano de sprint.',
+          notes: txt.kickoffNotes,
         });
       }
 
       function aiSeedGovernanceCharter(projectName, draft, sprintNames, charterSuggestion, planRows){
         const meta = metaForProject();
         const lang = currentChatLang();
+        const langKey = normalizeLangCode(lang);
         const context = String((draft && draft.context) || '').trim();
         const projectType = String((draft && draft.type) || '').trim() || 'Digital';
         const family = aiProjectFamily(projectType);
@@ -2893,11 +3045,32 @@
           if (picks.length) return '- ' + sn + ': ' + picks.join(' + ');
           return '- ' + sn;
         }).join('\n');
-        const milestonePrefix = family === 'engineering' ? 'Gate' : 'Milestone';
+        const milestonePrefixByLang = {
+          pt: family === 'engineering' ? 'Gate' : 'Marco',
+          en: family === 'engineering' ? 'Gate' : 'Milestone',
+          es: family === 'engineering' ? 'Gate' : 'Hito',
+          it: family === 'engineering' ? 'Gate' : 'Milestone',
+          de: family === 'engineering' ? 'Gate' : 'Meilenstein',
+          fr: family === 'engineering' ? 'Gate' : 'Jalon',
+        };
+        const milestonePrefix = milestonePrefixByLang[langKey] || milestonePrefixByLang.pt;
         const milestoneLines = sprintNames.map(function(sn){
           const focus = (tasksBySprint[sn] || [])[0] || sn;
           return '- ' + milestonePrefix + ': ' + focus;
         }).join('\n');
+
+        function aiTextLooksPortuguese(text){
+          const raw = String(text || '').toLowerCase();
+          if (!raw) return false;
+          return /\b(projeto|escopo|entrega|entregas|contexto|responsavel|negocio|com\s+incrementos)\b/.test(raw);
+        }
+
+        function pickSuggestedOrFallback(suggestedValue, fallbackValue){
+          const sv = String(suggestedValue || '').trim();
+          if (!sv) return fallbackValue;
+          if (langKey !== 'pt' && aiTextLooksPortuguese(sv)) return fallbackValue;
+          return sv;
+        }
 
         const objectiveByLang = {
           pt: 'Entregar o projeto "' + projectName + '" com incremento validado por sprint, priorizando valor de negocio e previsibilidade.',
@@ -2917,16 +3090,16 @@
         };
 
         if (!String((meta.charter && meta.charter.objectives) || '').trim()) {
-          meta.charter.objectives = String(suggested.objectives || '').trim() || (objectiveByLang[lang] || objectiveByLang.pt);
+          meta.charter.objectives = pickSuggestedOrFallback(suggested.objectives, (objectiveByLang[langKey] || objectiveByLang.pt));
         }
         if (!String((meta.charter && meta.charter.scope) || '').trim()) {
-          meta.charter.scope = String(suggested.scope || '').trim() || (scopeByLang[lang] || scopeByLang.pt);
+          meta.charter.scope = pickSuggestedOrFallback(suggested.scope, (scopeByLang[langKey] || scopeByLang.pt));
         }
         if (!String((meta.charter && meta.charter.deliverables) || '').trim()) {
-          meta.charter.deliverables = String(suggested.deliverables || '').trim() || deliveryLines;
+          meta.charter.deliverables = pickSuggestedOrFallback(suggested.deliverables, deliveryLines);
         }
         if (!String((meta.charter && meta.charter.milestones) || '').trim()) {
-          meta.charter.milestones = String(suggested.milestones || '').trim() || milestoneLines;
+          meta.charter.milestones = pickSuggestedOrFallback(suggested.milestones, milestoneLines);
         }
       }
 
@@ -3278,7 +3451,7 @@
         const hasSpecPdf = !!(specInput && specInput.files && specInput.files[0]);
         if (!text && !hasSpecPdf) return;
         aiPushMessage('user', text || '{{ _('Analyser le cahier des charges PDF attaché et générer le plan du projet.') }}');
-        const wantsCreate = /\b(criar projeto|criar|gerar projeto)\b/i.test(text);
+        const wantsCreate = /\b(criar projeto|criar|gerar projeto|create project|create|generate project|creer projet|creer|generer projet|crear proyecto|crear|generar proyecto|creare progetto|creare|generare progetto|projekt erstellen|erstellen)\b/i.test(text);
         const localType = aiTypeFromText(text);
         const localResp = aiExtractResponsibles(text);
 
@@ -3314,6 +3487,7 @@
           } else {
             aiBuilder.smart_questions = aiGenerateSmartQuestionsLocal();
           }
+          aiPruneSmartAnswers();
           if (server.charter && typeof server.charter === 'object') {
             aiBuilder.charter.objectives = String(server.charter.objectives || '').trim();
             aiBuilder.charter.scope = String(server.charter.scope || '').trim();
@@ -3336,6 +3510,7 @@
 
         aiHandleUserMessageLocal(text);
         aiBuilder.smart_questions = aiGenerateSmartQuestionsLocal();
+        aiPruneSmartAnswers();
         syncAiBuilderToState();
 
         if (wantsCreate) {
@@ -6969,11 +7144,41 @@
         aiHandleUserMessage(msg);
       });
       document.getElementById('pm-ai-smart-questions')?.addEventListener('click', function(e){
-        const btn = e.target && e.target.closest ? e.target.closest('[data-ai-sq-value]') : null;
+        const target = e.target && e.target.closest ? e.target : null;
+        if (!target) return;
+
+        const moreBtn = target.closest('[data-ai-sq-more]');
+        if (moreBtn) {
+          const question = String(moreBtn.getAttribute('data-ai-sq-question') || '').trim();
+          if (!question) return;
+          const ctx = String((aiBuilder && aiBuilder.draft && aiBuilder.draft.context) || '').trim() || '-';
+          const enrichedMore = '{{ _(\'Suggérer d\'autres options\') }}: ' + question + '. ' +
+            '{{ _(\'Contexte actuel du projet\') }}: ' + ctx + '. ' +
+            '{{ _(\'Générer 4 options courtes et actionnables.\') }}';
+          aiHandleUserMessage(enrichedMore);
+          return;
+        }
+
+        const btn = target.closest('[data-ai-sq-value]');
         if (!btn) return;
+        const qid = String(btn.getAttribute('data-ai-sq-id') || '').trim();
+        const question = String(btn.getAttribute('data-ai-sq-question') || '').trim();
         const value = String(btn.getAttribute('data-ai-sq-value') || '').trim();
         if (!value) return;
-        aiHandleUserMessage(value);
+        if (qid) {
+          aiBuilder.smart_answers = aiBuilder.smart_answers || {};
+          aiBuilder.smart_answers[qid] = value;
+          // Remove answered card to keep focus on unanswered follow-ups.
+          aiBuilder.smart_questions = normalizeAiSmartQuestions((aiBuilder.smart_questions || []).filter(function(q){
+            return String((q && q.id) || '') !== qid;
+          }));
+        }
+        syncAiBuilderToState();
+        renderAiBuilder();
+        const enriched = question
+          ? ('{{ _(\'Pergunta IA\') }}: ' + question + '. {{ _(\'Minha resposta\') }}: ' + value)
+          : value;
+        aiHandleUserMessage(enriched);
       });
       document.getElementById('pm-ai-archives-filter')?.addEventListener('change', function(e){
         aiArchiveProjectFilter = String((e.target && e.target.value) || '').trim();
