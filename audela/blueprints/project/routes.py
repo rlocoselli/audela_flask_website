@@ -797,6 +797,74 @@ def _project_ai_task_priority(task: str) -> str:
     return "medium"
 
 
+def _project_ai_task_kind(task: str) -> str:
+    t = (task or "").lower()
+    if "backlog" in t or "refin" in t:
+        return "backlog"
+    if "ux" in t or "design" in t:
+        return "ux"
+    if "backend" in t:
+        return "backend"
+    if "frontend" in t:
+        return "frontend"
+    if any(k in t for k in ["qa", "test", "integra", "verification", "verifica", "compliance"]):
+        return "qa"
+    if "review" in t or "demo" in t:
+        return "review"
+    if "retro" in t:
+        return "retro"
+    if "scope" in t or "requirements freeze" in t:
+        return "scope"
+    if "engineering concept" in t:
+        return "concept"
+    if "detailed engineering" in t or "interfaces" in t:
+        return "detail"
+    if "procurement" in t or "fabrication" in t:
+        return "proc"
+    return "generic"
+
+
+def _project_ai_localized_task_label(kind: str, lang: str, family: str) -> str:
+    l = normalize_lang(lang)
+    software = {
+        "backlog": {"pt": "Refinamento backlog", "en": "Backlog refinement", "es": "Refinamiento de backlog", "it": "Raffinamento backlog", "de": "Backlog-Verfeinerung", "fr": "Raffinement backlog"},
+        "ux": {"pt": "Design UX/UI", "en": "UX/UI design", "es": "Diseno UX/UI", "it": "Design UX/UI", "de": "UX/UI-Design", "fr": "Design UX/UI"},
+        "backend": {"pt": "Implementacao backend", "en": "Backend implementation", "es": "Implementacion backend", "it": "Implementazione backend", "de": "Backend-Implementierung", "fr": "Implementation backend"},
+        "frontend": {"pt": "Implementacao frontend", "en": "Frontend implementation", "es": "Implementacion frontend", "it": "Implementazione frontend", "de": "Frontend-Implementierung", "fr": "Implementation frontend"},
+        "qa": {"pt": "Integracao e testes", "en": "Integration and tests", "es": "Integracion y pruebas", "it": "Integrazione e test", "de": "Integration und Tests", "fr": "Integration et tests"},
+        "review": {"pt": "Review e demo", "en": "Review and demo", "es": "Revision y demo", "it": "Review e demo", "de": "Review und Demo", "fr": "Review et demo"},
+        "retro": {"pt": "Retro e plano seguinte", "en": "Retro and next plan", "es": "Retro y plan siguiente", "it": "Retro e piano successivo", "de": "Retro und nachster Plan", "fr": "Retro et plan suivant"},
+    }
+    engineering = {
+        "scope": {"pt": "Congelamento de escopo e requisitos", "en": "Scope and requirements freeze", "es": "Cierre de alcance y requisitos", "it": "Congelamento di ambito e requisiti", "de": "Umfangs- und Anforderungsfreeze", "fr": "Gel du perimetre et des exigences"},
+        "concept": {"pt": "Conceito de engenharia", "en": "Engineering concept design", "es": "Concepto de ingenieria", "it": "Concept di ingegneria", "de": "Engineering-Konzept", "fr": "Concept d'ingenierie"},
+        "detail": {"pt": "Engenharia detalhada e interfaces", "en": "Detailed engineering and interfaces", "es": "Ingenieria de detalle e interfaces", "it": "Ingegneria di dettaglio e interfacce", "de": "Detail-Engineering und Schnittstellen", "fr": "Ingenierie detaillee et interfaces"},
+        "proc": {"pt": "Pacote de suprimentos e fabricacao", "en": "Procurement and fabrication package", "es": "Paquete de compras y fabricacion", "it": "Pacchetto procurement e fabbricazione", "de": "Beschaffungs- und Fertigungspaket", "fr": "Package approvisionnement et fabrication"},
+        "qa": {"pt": "Verificacao, QA e conformidade", "en": "Verification, QA and compliance checks", "es": "Verificacion, QA y conformidad", "it": "Verifica, QA e conformita", "de": "Verifikation, QA und Compliance-Prufungen", "fr": "Verification, QA et conformite"},
+        "review": software["review"],
+        "retro": software["retro"],
+    }
+    bank = engineering if family == "engineering" else software
+    row = bank.get(kind) or software.get(kind)
+    if not row:
+        return ""
+    return row.get(l) or row.get("pt") or ""
+
+
+def _project_ai_localize_task_title(task: str, sprint: str, lang: str, family: str) -> str:
+    raw = (task or "").strip()
+    kind = _project_ai_task_kind(raw)
+    if kind == "generic":
+        return raw
+    label = _project_ai_localized_task_label(kind, lang, family)
+    if not label:
+        return raw
+    sprint_name = (sprint or "").strip()
+    if sprint_name:
+        return f"{sprint_name} - {label}"
+    return label
+
+
 def _project_family(project_type: str) -> str:
     t = (project_type or "").strip().lower()
     if any(k in t for k in ["eng", "engenh", "engineering", "naval", "nuclear", "industrial", "construction", "civil", "mechanic", "mecanic"]):
@@ -857,6 +925,14 @@ def _project_ai_fallback_plan(draft: dict) -> list[dict]:
             task_qa = f"{sprint} - Integration and tests"
         task_review = f"{sprint} - Sprint review"
         task_retro = f"{sprint} - Retro and next planning"
+
+        task_backlog = _project_ai_localize_task_title(task_backlog, sprint, lang, family)
+        task_ux = _project_ai_localize_task_title(task_ux, sprint, lang, family)
+        task_be = _project_ai_localize_task_title(task_be, sprint, lang, family)
+        task_fe = _project_ai_localize_task_title(task_fe, sprint, lang, family)
+        task_qa = _project_ai_localize_task_title(task_qa, sprint, lang, family)
+        task_review = _project_ai_localize_task_title(task_review, sprint, lang, family)
+        task_retro = _project_ai_localize_task_title(task_retro, sprint, lang, family)
 
         plan.append({"ref": backlog_ref, "sprint": sprint, "task": task_backlog, "owner": owner_a, "duration_days": 1, "work_hours_per_day": work_hpd, "available_hours_per_day": avail_hpd, "predecessor_ref": prev_review_ref, "dependency_type": "FS", "description": _project_ai_task_description(task_backlog, sprint, owner_a, context, lang), "priority": _project_ai_task_priority(task_backlog)})
         plan.append({"ref": ux_ref, "sprint": sprint, "task": task_ux, "owner": owner_b, "duration_days": 2, "work_hours_per_day": work_hpd, "available_hours_per_day": avail_hpd, "predecessor_ref": backlog_ref, "dependency_type": "FS", "description": _project_ai_task_description(task_ux, sprint, owner_b, context, lang), "priority": _project_ai_task_priority(task_ux)})
@@ -1150,10 +1226,22 @@ def _project_ai_default_smart_questions(draft: dict, plan_tasks: list[dict], lan
                 "fr": "Quel type de projet décrit le mieux votre objectif actuel ?",
             }, "Qual tipo de projeto melhor descreve seu objetivo atual?"),
             "options": [
-                {"label": "Software", "value": "Tipo do projeto: Software"},
-                {"label": "Engenharia", "value": "Tipo do projeto: Engenharia"},
-                {"label": "Naval", "value": "Tipo do projeto: Naval"},
-                {"label": "Nuclear", "value": "Tipo do projeto: Nuclear"},
+                {
+                    "label": txt({"pt": "Software", "en": "Software", "es": "Software", "it": "Software", "de": "Software", "fr": "Logiciel"}, "Software"),
+                    "value": txt({"pt": "Tipo do projeto: Software", "en": "Project type: Software", "es": "Tipo de proyecto: Software", "it": "Tipo di progetto: Software", "de": "Projekttyp: Software", "fr": "Type de projet : Logiciel"}, "Tipo do projeto: Software"),
+                },
+                {
+                    "label": txt({"pt": "Engenharia", "en": "Engineering", "es": "Ingenieria", "it": "Ingegneria", "de": "Engineering", "fr": "Ingenierie"}, "Engenharia"),
+                    "value": txt({"pt": "Tipo do projeto: Engenharia", "en": "Project type: Engineering", "es": "Tipo de proyecto: Ingenieria", "it": "Tipo di progetto: Ingegneria", "de": "Projekttyp: Engineering", "fr": "Type de projet : Ingenierie"}, "Tipo do projeto: Engenharia"),
+                },
+                {
+                    "label": txt({"pt": "Naval", "en": "Naval", "es": "Naval", "it": "Navale", "de": "Nautisch", "fr": "Naval"}, "Naval"),
+                    "value": txt({"pt": "Tipo do projeto: Naval", "en": "Project type: Naval", "es": "Tipo de proyecto: Naval", "it": "Tipo di progetto: Navale", "de": "Projekttyp: Nautisch", "fr": "Type de projet : Naval"}, "Tipo do projeto: Naval"),
+                },
+                {
+                    "label": txt({"pt": "Nuclear", "en": "Nuclear", "es": "Nuclear", "it": "Nucleare", "de": "Nuklear", "fr": "Nucleaire"}, "Nuclear"),
+                    "value": txt({"pt": "Tipo do projeto: Nuclear", "en": "Project type: Nuclear", "es": "Tipo de proyecto: Nuclear", "it": "Tipo di progetto: Nucleare", "de": "Projekttyp: Nuklear", "fr": "Type de projet : Nucleaire"}, "Tipo do projeto: Nuclear"),
+                },
             ],
         })
 
@@ -1169,7 +1257,17 @@ def _project_ai_default_smart_questions(draft: dict, plan_tasks: list[dict], lan
                 "de": "Welchen Sprint-Horizont bevorzugen Sie für diese Lieferung?",
                 "fr": "Quel horizon de sprints préférez-vous pour cette livraison ?",
             }, "Qual horizonte de sprints você prefere para esta entrega?"),
-            "options": [{"label": f"{n} sprints", "value": f"Planejar com {n} sprints"} for n in opts],
+            "options": [{
+                "label": f"{n} sprints",
+                "value": txt({
+                    "pt": f"Planejar com {n} sprints",
+                    "en": f"Plan with {n} sprints",
+                    "es": f"Planificar con {n} sprints",
+                    "it": f"Pianificare con {n} sprint",
+                    "de": f"Mit {n} Sprints planen",
+                    "fr": f"Planifier avec {n} sprints",
+                }, f"Planejar com {n} sprints"),
+            } for n in opts],
         })
 
     if not owners:
@@ -1184,9 +1282,18 @@ def _project_ai_default_smart_questions(draft: dict, plan_tasks: list[dict], lan
                 "fr": "Comment souhaitez-vous structurer les responsables principaux ?",
             }, "Como deseja estruturar os responsáveis principais?"),
             "options": [
-                {"label": "Backend + Frontend + QA", "value": "Responsáveis dedicados para Backend, Frontend e QA"},
-                {"label": "Equipe enxuta", "value": "Equipe enxuta com PM técnico e time full-stack"},
-                {"label": "Equipe expandida", "value": "Equipe expandida com Arquitetura, QA e Compliance"},
+                {
+                    "label": txt({"pt": "Backend + Frontend + QA", "en": "Backend + Frontend + QA", "es": "Backend + Frontend + QA", "it": "Backend + Frontend + QA", "de": "Backend + Frontend + QA", "fr": "Backend + Frontend + QA"}, "Backend + Frontend + QA"),
+                    "value": txt({"pt": "Responsáveis dedicados para Backend, Frontend e QA", "en": "Dedicated owners for Backend, Frontend and QA", "es": "Responsables dedicados para Backend, Frontend y QA", "it": "Responsabili dedicati per Backend, Frontend e QA", "de": "Dedizierte Verantwortliche fuer Backend, Frontend und QA", "fr": "Responsables dedies pour Backend, Frontend et QA"}, "Responsáveis dedicados para Backend, Frontend e QA"),
+                },
+                {
+                    "label": txt({"pt": "Equipe enxuta", "en": "Lean team", "es": "Equipo compacto", "it": "Team snello", "de": "Schlankes Team", "fr": "Equipe legere"}, "Equipe enxuta"),
+                    "value": txt({"pt": "Equipe enxuta com PM técnico e time full-stack", "en": "Lean team with technical PM and full-stack team", "es": "Equipo compacto con PM tecnico y equipo full-stack", "it": "Team snello con PM tecnico e team full-stack", "de": "Schlankes Team mit technischem PM und Full-Stack-Team", "fr": "Equipe legere avec PM technique et equipe full-stack"}, "Equipe enxuta com PM técnico e time full-stack"),
+                },
+                {
+                    "label": txt({"pt": "Equipe expandida", "en": "Extended team", "es": "Equipo ampliado", "it": "Team esteso", "de": "Erweitertes Team", "fr": "Equipe etendue"}, "Equipe expandida"),
+                    "value": txt({"pt": "Equipe expandida com Arquitetura, QA e Compliance", "en": "Extended team with Architecture, QA and Compliance", "es": "Equipo ampliado con Arquitectura, QA y Compliance", "it": "Team esteso con Architettura, QA e Compliance", "de": "Erweitertes Team mit Architektur, QA und Compliance", "fr": "Equipe etendue avec Architecture, QA et Compliance"}, "Equipe expandida com Arquitetura, QA e Compliance"),
+                },
             ],
         })
 
@@ -1202,9 +1309,18 @@ def _project_ai_default_smart_questions(draft: dict, plan_tasks: list[dict], lan
                 "fr": "Quelle piste de gouvernance/conformité devons-nous prioriser ?",
             }, "Qual trilha de governança/conformidade devemos priorizar?"),
             "options": [
-                {"label": "Gate de segurança", "value": "Priorizar gate de segurança em cada sprint"},
-                {"label": "Validação documental", "value": "Incluir validação documental antes de cada milestone"},
-                {"label": "Conformidade contínua", "value": "Aplicar checklist contínuo de conformidade"},
+                {
+                    "label": txt({"pt": "Gate de segurança", "en": "Safety gate", "es": "Puerta de seguridad", "it": "Gate di sicurezza", "de": "Sicherheits-Gate", "fr": "Gate de securite"}, "Gate de segurança"),
+                    "value": txt({"pt": "Priorizar gate de segurança em cada sprint", "en": "Prioritize a safety gate in each sprint", "es": "Priorizar puerta de seguridad en cada sprint", "it": "Dare priorita al gate di sicurezza in ogni sprint", "de": "Sicherheits-Gate in jedem Sprint priorisieren", "fr": "Prioriser un gate de securite a chaque sprint"}, "Priorizar gate de segurança em cada sprint"),
+                },
+                {
+                    "label": txt({"pt": "Validação documental", "en": "Document validation", "es": "Validacion documental", "it": "Validazione documentale", "de": "Dokumentenvalidierung", "fr": "Validation documentaire"}, "Validação documental"),
+                    "value": txt({"pt": "Incluir validação documental antes de cada milestone", "en": "Include document validation before each milestone", "es": "Incluir validacion documental antes de cada hito", "it": "Includere validazione documentale prima di ogni milestone", "de": "Dokumentenvalidierung vor jedem Meilenstein einplanen", "fr": "Inclure une validation documentaire avant chaque jalon"}, "Incluir validação documental antes de cada milestone"),
+                },
+                {
+                    "label": txt({"pt": "Conformidade contínua", "en": "Continuous compliance", "es": "Cumplimiento continuo", "it": "Conformita continua", "de": "Kontinuierliche Compliance", "fr": "Conformite continue"}, "Conformidade contínua"),
+                    "value": txt({"pt": "Aplicar checklist contínuo de conformidade", "en": "Apply a continuous compliance checklist", "es": "Aplicar checklist continuo de cumplimiento", "it": "Applicare checklist continua di conformita", "de": "Kontinuierliche Compliance-Checkliste anwenden", "fr": "Appliquer une checklist continue de conformite"}, "Aplicar checklist contínuo de conformidade"),
+                },
             ],
         })
 
@@ -1220,9 +1336,18 @@ def _project_ai_default_smart_questions(draft: dict, plan_tasks: list[dict], lan
                 "fr": "Quel focus doit guider le prochain raffinement du plan ?",
             }, "Qual foco deve orientar o próximo refinamento do plano?"),
             "options": [
-                {"label": "Reduzir risco crítico", "value": "Refinar plano para reduzir risco crítico"},
-                {"label": "Acelerar entrega", "value": "Refinar plano para acelerar entrega"},
-                {"label": "Balancear carga", "value": "Refinar plano para balancear carga entre responsáveis"},
+                {
+                    "label": txt({"pt": "Reduzir risco crítico", "en": "Reduce critical risk", "es": "Reducir riesgo critico", "it": "Ridurre rischio critico", "de": "Kritisches Risiko reduzieren", "fr": "Reduire le risque critique"}, "Reduzir risco crítico"),
+                    "value": txt({"pt": "Refinar plano para reduzir risco crítico", "en": "Refine plan to reduce critical risk", "es": "Refinar plan para reducir riesgo critico", "it": "Rifinire il piano per ridurre il rischio critico", "de": "Plan verfeinern, um kritisches Risiko zu reduzieren", "fr": "Affiner le plan pour reduire le risque critique"}, "Refinar plano para reduzir risco crítico"),
+                },
+                {
+                    "label": txt({"pt": "Acelerar entrega", "en": "Accelerate delivery", "es": "Acelerar entrega", "it": "Accelerare consegna", "de": "Lieferung beschleunigen", "fr": "Accelerer la livraison"}, "Acelerar entrega"),
+                    "value": txt({"pt": "Refinar plano para acelerar entrega", "en": "Refine plan to accelerate delivery", "es": "Refinar plan para acelerar entrega", "it": "Rifinire il piano per accelerare la consegna", "de": "Plan verfeinern, um die Lieferung zu beschleunigen", "fr": "Affiner le plan pour accelerer la livraison"}, "Refinar plano para acelerar entrega"),
+                },
+                {
+                    "label": txt({"pt": "Balancear carga", "en": "Balance workload", "es": "Equilibrar carga", "it": "Bilanciare carico", "de": "Auslastung ausbalancieren", "fr": "Equilibrer la charge"}, "Balancear carga"),
+                    "value": txt({"pt": "Refinar plano para balancear carga entre responsáveis", "en": "Refine plan to balance workload across owners", "es": "Refinar plan para equilibrar carga entre responsables", "it": "Rifinire il piano per bilanciare il carico tra i responsabili", "de": "Plan verfeinern, um die Auslastung zwischen Verantwortlichen auszugleichen", "fr": "Affiner le plan pour equilibrer la charge entre responsables"}, "Refinar plano para balancear carga entre responsáveis"),
+                },
             ],
         })
 
@@ -1406,7 +1531,14 @@ def ai_project_chat():
         })
     if not safe_plan_tasks:
         safe_plan_tasks = _project_ai_fallback_plan(draft)
+    family = _project_family(str(draft.get("type") or ""))
     for item in safe_plan_tasks:
+        item["task"] = _project_ai_localize_task_title(
+            str(item.get("task") or ""),
+            str(item.get("sprint") or ""),
+            lang,
+            family,
+        )
         # Keep descriptions language-consistent with current UI selection.
         item["description"] = _project_ai_task_description(
             str(item.get("task") or ""),
@@ -1418,24 +1550,20 @@ def ai_project_chat():
         if item.get("priority") not in {"low", "medium", "high"}:
             item["priority"] = _project_ai_task_priority(str(item.get("task") or ""))
 
-    if _project_family(str(draft.get("type") or "")) == "engineering":
+    if family == "engineering":
         for item in safe_plan_tasks:
             task_name = str(item.get("task") or "")
             lowered = task_name.lower()
             if any(k in lowered for k in ["ux", "ui"]):
-                item["task"] = re.sub(r"(?i)ux/?ui.*$", "Engineering concept design", task_name).strip(" -")
-                if not item["task"]:
-                    item["task"] = "Engineering concept design"
+                normalized = re.sub(r"(?i)ux/?ui.*$", "Engineering concept design", task_name).strip(" -")
+                item["task"] = _project_ai_localize_task_title(normalized, str(item.get("sprint") or ""), lang, family)
             elif "frontend" in lowered:
-                item["task"] = re.sub(r"(?i)frontend.*$", "Procurement and fabrication package", task_name).strip(" -")
-                if not item["task"]:
-                    item["task"] = "Procurement and fabrication package"
+                normalized = re.sub(r"(?i)frontend.*$", "Procurement and fabrication package", task_name).strip(" -")
+                item["task"] = _project_ai_localize_task_title(normalized, str(item.get("sprint") or ""), lang, family)
             elif "backend" in lowered:
-                item["task"] = re.sub(r"(?i)backend.*$", "Detailed engineering and interfaces", task_name).strip(" -")
-                if not item["task"]:
-                    item["task"] = "Detailed engineering and interfaces"
+                normalized = re.sub(r"(?i)backend.*$", "Detailed engineering and interfaces", task_name).strip(" -")
+                item["task"] = _project_ai_localize_task_title(normalized, str(item.get("sprint") or ""), lang, family)
 
-    family = _project_family(str(draft.get("type") or ""))
     if family == "engineering":
         for item in safe_plan_tasks:
             item["sprint"] = _project_ai_sanitize_sprint_name_for_family(str(item.get("sprint") or ""), family)

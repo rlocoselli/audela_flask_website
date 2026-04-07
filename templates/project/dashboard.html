@@ -2208,10 +2208,10 @@
         if (projectType) aiBuilder.draft.type = projectType;
 
         const parts = [];
-        if (projectType) parts.push('tipo: ' + projectType);
-        if (complexity) parts.push('complexidade: ' + complexity);
-        if (delivery) parts.push('modelo de delivery: ' + delivery);
-        if (constraint) parts.push('restricao principal: ' + constraint);
+        if (projectType) parts.push("{{ _('Type de projet') }}: " + projectType);
+        if (complexity) parts.push("{{ _('Complexité') }}: " + complexity);
+        if (delivery) parts.push("{{ _('Mode de delivery') }}: " + delivery);
+        if (constraint) parts.push("{{ _('Contrainte principale') }}: " + constraint);
         if (!parts.length) return '';
 
         return '{{ _('Refinar planejamento com os seguintes parâmetros') }}: ' + parts.join(', ') + '.';
@@ -2759,14 +2759,18 @@
         for (const el of candidates) {
           if (el && el.value) return normalizeLangCode(el.value);
         }
+        // Prefer current UI language rendered by server/page over persisted module state.
+        if (document.documentElement && document.documentElement.lang) {
+          return normalizeLangCode(document.documentElement.lang);
+        }
+        if (CURRENT_LANG) return normalizeLangCode(CURRENT_LANG);
         try {
           const u = new URL(window.location.href);
           const qpLang = u.searchParams.get('lang');
           if (qpLang) return normalizeLangCode(qpLang);
         } catch (_) {}
         if (state.notifications && state.notifications.lang) return normalizeLangCode(state.notifications.lang);
-        if (document.documentElement && document.documentElement.lang) return normalizeLangCode(document.documentElement.lang);
-        return normalizeLangCode(CURRENT_LANG || 'pt');
+        return 'pt';
       }
 
       function aiLocalizedBundle(lang){
@@ -2800,6 +2804,57 @@
         if (/integration|integra|qa|backend|critical|critico|bloqueio/.test(t)) return 'high';
         if (/review|retro|planning|refin|backlog|ux|design/.test(t)) return 'medium';
         return 'medium';
+      }
+
+      function aiTaskKind(taskTitle){
+        const t = String(taskTitle || '').toLowerCase();
+        if (/backlog|refin/.test(t)) return 'backlog';
+        if (/ux|design/.test(t)) return 'ux';
+        if (/backend/.test(t)) return 'backend';
+        if (/frontend/.test(t)) return 'frontend';
+        if (/qa|test|integra|verification|verifica|compliance/.test(t)) return 'qa';
+        if (/review|demo/.test(t)) return 'review';
+        if (/retro/.test(t)) return 'retro';
+        if (/scope|requirements freeze/.test(t)) return 'scope';
+        if (/engineering concept/.test(t)) return 'concept';
+        if (/detailed engineering|interfaces/.test(t)) return 'detail';
+        if (/procurement|fabrication/.test(t)) return 'proc';
+        return 'generic';
+      }
+
+      function aiLocalizedTaskLabel(kind, lang, family){
+        const key = normalizeLangCode(lang);
+        const software = {
+          backlog: { pt: 'Refinamento backlog', en: 'Backlog refinement', es: 'Refinamiento de backlog', it: 'Raffinamento backlog', de: 'Backlog-Verfeinerung', fr: 'Raffinement backlog' },
+          ux: { pt: 'Design UX/UI', en: 'UX/UI design', es: 'Diseno UX/UI', it: 'Design UX/UI', de: 'UX/UI-Design', fr: 'Design UX/UI' },
+          backend: { pt: 'Implementacao backend', en: 'Backend implementation', es: 'Implementacion backend', it: 'Implementazione backend', de: 'Backend-Implementierung', fr: 'Implementation backend' },
+          frontend: { pt: 'Implementacao frontend', en: 'Frontend implementation', es: 'Implementacion frontend', it: 'Implementazione frontend', de: 'Frontend-Implementierung', fr: 'Implementation frontend' },
+          qa: { pt: 'Integracao e testes', en: 'Integration and tests', es: 'Integracion y pruebas', it: 'Integrazione e test', de: 'Integration und Tests', fr: 'Integration et tests' },
+          review: { pt: 'Review e demo', en: 'Review and demo', es: 'Revision y demo', it: 'Review e demo', de: 'Review und Demo', fr: 'Review et demo' },
+          retro: { pt: 'Retro e plano seguinte', en: 'Retro and next plan', es: 'Retro y plan siguiente', it: 'Retro e piano successivo', de: 'Retro und nachster Plan', fr: 'Retro et plan suivant' },
+        };
+        const engineering = {
+          scope: { pt: 'Congelamento de escopo e requisitos', en: 'Scope and requirements freeze', es: 'Cierre de alcance y requisitos', it: 'Congelamento di ambito e requisiti', de: 'Umfangs- und Anforderungsfreeze', fr: 'Gel du perimetre et des exigences' },
+          concept: { pt: 'Conceito de engenharia', en: 'Engineering concept design', es: 'Concepto de ingenieria', it: 'Concept di ingegneria', de: 'Engineering-Konzept', fr: 'Concept d\'ingenierie' },
+          detail: { pt: 'Engenharia detalhada e interfaces', en: 'Detailed engineering and interfaces', es: 'Ingenieria de detalle e interfaces', it: 'Ingegneria di dettaglio e interfacce', de: 'Detail-Engineering und Schnittstellen', fr: 'Ingenierie detaillee et interfaces' },
+          proc: { pt: 'Pacote de suprimentos e fabricacao', en: 'Procurement and fabrication package', es: 'Paquete de compras y fabricacion', it: 'Pacchetto procurement e fabbricazione', de: 'Beschaffungs- und Fertigungspaket', fr: 'Package approvisionnement et fabrication' },
+          qa: { pt: 'Verificacao, QA e conformidade', en: 'Verification, QA and compliance checks', es: 'Verificacion, QA y conformidad', it: 'Verifica, QA e conformita', de: 'Verifikation, QA und Compliance-Prufungen', fr: 'Verification, QA et conformite' },
+          review: software.review,
+          retro: software.retro,
+        };
+        const bank = family === 'engineering' ? engineering : software;
+        const row = bank[kind] || software[kind] || null;
+        if (!row) return '';
+        return row[key] || row.pt || '';
+      }
+
+      function aiMaybeLocalizeTaskTitle(taskTitle, sprintName, lang, family){
+        const kind = aiTaskKind(taskTitle);
+        if (kind === 'generic') return String(taskTitle || '').trim();
+        const label = aiLocalizedTaskLabel(kind, lang, family);
+        if (!label) return String(taskTitle || '').trim();
+        const prefix = String(sprintName || '').trim();
+        return prefix ? (prefix + ' - ' + label) : label;
       }
 
       function aiBuildKanbanDescription(taskTitle, sprintName, owner, context, lang){
@@ -3106,6 +3161,7 @@
       function aiBuildDefaultPlan(){
         const d = aiBuilder.draft;
         const chatLang = currentChatLang();
+        const family = aiProjectFamily(d.type);
         const sprintCount = Math.max(1, Math.min(12, Math.round(num(d.sprints || 3))));
         const owners = d.responsibles.length ? d.responsibles : ['PM'];
         const pid = uid();
@@ -3126,7 +3182,6 @@
         const planRows = normalizeAiPlanTasks(aiBuilder.plan_tasks);
         const effectivePlan = planRows.length ? planRows : (function(){
           const out = [];
-          const family = aiProjectFamily(d.type);
           for (let i = 1; i <= sprintCount; i += 1) {
             const sprintName = aiSprintName(i - 1);
             const ownerA = owners[(i - 1) % owners.length] || 'PM';
@@ -3173,6 +3228,8 @@
             sprintAlias[source] = aiInferSprintNameFromTasks(source, effectivePlan, Object.keys(sprintAlias).length);
           }
           p.sprint = sprintAlias[source];
+          p.task = aiMaybeLocalizeTaskTitle(p.task, p.sprint, chatLang, family) || String(p.task || '').trim();
+          p.description = aiBuildKanbanDescription(p.task, p.sprint, p.owner || '', d.context || '', chatLang);
         });
 
         effectivePlan.forEach(function(p){

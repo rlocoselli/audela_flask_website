@@ -6936,6 +6936,12 @@ _PROJECT_MODULE_I18N["en"].update({
     "Réponse sélectionnée": "Selected answer",
     "Pergunta IA": "AI question",
     "Minha resposta": "My answer",
+    "Tableau": "Board",
+    "Gouvernance": "Governance",
+    "Responsables": "Owners",
+    "Reporting": "Reporting",
+    "Gantt": "Gantt",
+    "Notifications": "Notifications",
 })
 
 _PROJECT_MODULE_I18N["es"].update({
@@ -6968,6 +6974,12 @@ _PROJECT_MODULE_I18N["es"].update({
     "Réponse sélectionnée": "Respuesta seleccionada",
     "Pergunta IA": "Pregunta IA",
     "Minha resposta": "Mi respuesta",
+    "Tableau": "Tablero",
+    "Gouvernance": "Gobernanza",
+    "Responsables": "Responsables",
+    "Reporting": "Informes",
+    "Gantt": "Gantt",
+    "Notifications": "Notificaciones",
 })
 
 _PROJECT_MODULE_I18N["it"].update({
@@ -7000,6 +7012,12 @@ _PROJECT_MODULE_I18N["it"].update({
     "Réponse sélectionnée": "Risposta selezionata",
     "Pergunta IA": "Domanda IA",
     "Minha resposta": "La mia risposta",
+    "Tableau": "Bacheca",
+    "Gouvernance": "Governance",
+    "Responsables": "Responsabili",
+    "Reporting": "Reportistica",
+    "Gantt": "Gantt",
+    "Notifications": "Notifiche",
 })
 
 _PROJECT_MODULE_I18N["de"].update({
@@ -7009,6 +7027,12 @@ _PROJECT_MODULE_I18N["de"].update({
     "Réponse sélectionnée": "Ausgewählte Antwort",
     "Pergunta IA": "KI-Frage",
     "Minha resposta": "Meine Antwort",
+    "Tableau": "Board",
+    "Gouvernance": "Governance",
+    "Responsables": "Verantwortliche",
+    "Reporting": "Berichte",
+    "Gantt": "Gantt",
+    "Notifications": "Benachrichtigungen",
 })
 
 _PROJECT_MODULE_I18N.setdefault("fr", {}).update({
