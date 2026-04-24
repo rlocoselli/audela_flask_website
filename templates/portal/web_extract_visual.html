@@ -4,9 +4,41 @@
 {% block head_extra %}
 {{ super() }}
 <style>
+  :root {
+    --vis-accent: #0f60a1;
+    --vis-accent-strong: #0b4f86;
+    --vis-surface: #f8fbff;
+    --vis-ink-soft: #5f6b7a;
+  }
   .vis-studio {
-    background: linear-gradient(160deg, rgba(15, 96, 161, 0.06), rgba(15, 96, 161, 0.01));
-    border: 1px solid rgba(15, 96, 161, 0.14);
+    background: linear-gradient(165deg, rgba(15, 96, 161, 0.07), rgba(255, 255, 255, 0.92));
+    border: 1px solid rgba(15, 96, 161, 0.16);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  }
+  .vis-command-bar {
+    background: linear-gradient(90deg, rgba(15, 96, 161, 0.08), rgba(15, 96, 161, 0.02));
+    border: 1px solid rgba(15, 96, 161, 0.2);
+    border-radius: 14px;
+    padding: 8px 10px;
+  }
+  .vis-stat-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    padding: 4px 10px;
+    background: #fff;
+    border: 1px solid rgba(15, 96, 161, 0.2);
+    color: #12324f;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .vis-stat-chip i {
+    color: var(--vis-accent);
+  }
+  .vis-card-head {
+    background: linear-gradient(180deg, rgba(248, 251, 255, 0.95), rgba(244, 248, 253, 0.9)) !important;
+    border-bottom: 1px solid rgba(15, 96, 161, 0.12) !important;
   }
   .vis-rec-dot {
     width: 8px;
@@ -39,6 +71,8 @@
   .vis-action-item {
     cursor: grab;
     transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+    background: linear-gradient(180deg, #ffffff, #fbfdff);
+    border-color: rgba(15, 96, 161, 0.2) !important;
   }
   .vis-action-item.dragging {
     opacity: .55;
@@ -56,6 +90,216 @@
   .vis-accordion .accordion-button {
     font-weight: 600;
     font-size: 0.95rem;
+    border-radius: 10px !important;
+  }
+  .vis-soft-note {
+    font-size: 12px;
+    color: var(--vis-ink-soft);
+  }
+  .vis-presets {
+    border: 1px dashed rgba(15, 96, 161, 0.3);
+    border-radius: 12px;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.55);
+  }
+  .vis-action-minimap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    padding: 6px 0;
+  }
+  .vis-action-node {
+    min-width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #e7f1fb;
+    color: #0b4f86;
+    border: 1px solid rgba(15, 96, 161, 0.32);
+    font-size: 11px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .vis-action-link {
+    width: 16px;
+    height: 2px;
+    background: rgba(15, 96, 161, 0.32);
+    border-radius: 99px;
+  }
+  .vis-skeleton {
+    display: none;
+  }
+  .vis-skeleton.show {
+    display: block;
+  }
+  .vis-skeleton-line {
+    height: 12px;
+    border-radius: 8px;
+    background: linear-gradient(90deg, #edf2f8 20%, #f8fbff 40%, #edf2f8 60%);
+    background-size: 300% 100%;
+    animation: visSkeleton 1.15s infinite;
+    margin-bottom: 10px;
+  }
+  @keyframes visSkeleton {
+    0% { background-position: 100% 0; }
+    100% { background-position: 0 0; }
+  }
+  .vis-shell {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(248, 251, 255, 0.6));
+    border-radius: 18px;
+    padding: 10px;
+  }
+  .vis-risk-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    border-radius: 999px;
+    padding: 2px 7px;
+    margin-left: 6px;
+  }
+  .vis-risk-low {
+    color: #0f5132;
+    background: #d1e7dd;
+  }
+  .vis-risk-medium {
+    color: #664d03;
+    background: #fff3cd;
+  }
+  .vis-risk-high {
+    color: #842029;
+    background: #f8d7da;
+  }
+  .vis-confidence-wrap {
+    margin-top: 6px;
+  }
+  .vis-confidence-track {
+    width: 100%;
+    height: 8px;
+    background: #e9f0f7;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .vis-confidence-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #0f60a1, #30a46c);
+    width: 0;
+    transition: width .25s ease;
+  }
+  .vis-confidence-explain {
+    display: none;
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(15, 96, 161, 0.2);
+    background: #f8fbff;
+    font-size: 12px;
+    color: #334155;
+  }
+  .vis-confidence-explain.show {
+    display: block;
+  }
+  /* Multi-table tabs */
+  .vis-multi-tab-nav {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex-wrap: wrap;
+    border-bottom: 2px solid rgba(15, 96, 161, 0.15);
+    margin-bottom: 12px;
+    padding-bottom: 0;
+  }
+  .vis-multi-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--vis-ink-soft);
+    background: transparent;
+    cursor: pointer;
+    white-space: nowrap;
+    position: relative;
+    bottom: -2px;
+    transition: background .15s, color .15s;
+  }
+  .vis-multi-tab-btn.active {
+    background: #ffffff;
+    color: var(--vis-accent);
+    border-color: rgba(15, 96, 161, 0.2);
+    border-bottom-color: #ffffff;
+    box-shadow: 0 -2px 0 0 var(--vis-accent) inset;
+  }
+  .vis-multi-tab-btn:hover:not(.active) {
+    background: rgba(15, 96, 161, 0.06);
+    color: var(--vis-accent);
+  }
+  .vis-multi-tab-add {
+    border-style: dashed;
+    border-color: rgba(15, 96, 161, 0.3);
+    color: var(--vis-accent);
+  }
+  .vis-multi-tab-close {
+    font-size: 10px;
+    line-height: 1;
+    opacity: .55;
+    margin-left: 2px;
+  }
+  .vis-multi-tab-close:hover {
+    opacity: 1;
+  }
+  .vis-table-pane {
+    display: none;
+  }
+  .vis-table-pane.active {
+    display: block;
+  }
+  .vis-table-name-input {
+    border: none;
+    background: transparent;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--vis-ink-soft);
+    max-width: 90px;
+    outline: none;
+    cursor: text;
+  }
+  .vis-table-pane .vis-pane-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+    padding: 6px 8px;
+    background: #f8fbff;
+    border: 1px solid rgba(15, 96, 161, 0.12);
+    border-radius: 10px;
+  }
+  .vis-pane-selector {
+    flex: 1;
+    min-width: 120px;
+    font-size: 12px;
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px solid rgba(15, 96, 161, 0.25);
+  }
+  /* Action highlight flash */
+  .vis-action-item.highlight-flash {
+    animation: visHighlight 1.2s ease;
+  }
+  @keyframes visHighlight {
+    0%  { box-shadow: 0 0 0 0 rgba(15, 96, 161, 0); }
+    20% { box-shadow: 0 0 0 5px rgba(15, 96, 161, 0.45); background: #e7f1fb; }
+    80% { box-shadow: 0 0 0 3px rgba(15, 96, 161, 0.2); background: #f0f7ff; }
+    100%{ box-shadow: 0 0 0 0 rgba(15, 96, 161, 0); background: linear-gradient(180deg, #ffffff, #fbfdff); }
   }
   .vis-browser-card.maximized {
     position: fixed;
@@ -88,7 +332,15 @@
   </a>
 </div>
 
-<div class="row g-3">
+<div class="vis-command-bar d-flex flex-wrap align-items-center gap-2 mb-3">
+  <span class="vis-stat-chip"><i class="bi bi-stars"></i>{{ _('Studio Pro') }}</span>
+  <span class="vis-stat-chip" id="vis-stat-url"><i class="bi bi-globe2"></i>{{ _('URL: non chargée') }}</span>
+  <span class="vis-stat-chip" id="vis-stat-selector"><i class="bi bi-table"></i>{{ _('Table: auto') }}</span>
+  <span class="vis-stat-chip" id="vis-stat-actions"><i class="bi bi-diagram-3"></i>{{ _('Actions: 0') }}</span>
+  <span class="vis-stat-chip" id="vis-stat-rows"><i class="bi bi-list-ol"></i>{{ _('Lignes: 0') }}</span>
+</div>
+
+<div class="row g-3 vis-shell">
   <div class="col-12 col-xl-4">
     <div class="card border-0 shadow-sm rounded-4 h-100 vis-studio">
       <div class="card-body">
@@ -177,6 +429,14 @@
           <button id="vis-preview" class="btn btn-primary btn-sm" type="button" data-tour="{{ _('Prévisualisez l\'extraction avant de sauvegarder.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="6"><i class="bi bi-play-circle me-1"></i>{{ _('Prévisualiser extraction') }}</button>
           <button id="vis-copy-step" class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-clipboard me-1"></i>{{ _('Copier step ETL') }}</button>
         </div>
+        <div class="vis-presets mt-2">
+          <div class="small fw-semibold mb-1">{{ _('Smart Extract presets') }}</div>
+          <div class="d-flex flex-wrap gap-2">
+            <button id="vis-preset-ecommerce" class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-bag-check me-1"></i>{{ _('E-commerce') }}</button>
+            <button id="vis-preset-listing" class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-card-list me-1"></i>{{ _('Listings') }}</button>
+            <button id="vis-preset-financial" class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-graph-up-arrow me-1"></i>{{ _('Finance Table') }}</button>
+          </div>
+        </div>
 
               </div>
             </div>
@@ -225,11 +485,13 @@
           <button id="vis-add-wait" class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-hourglass-split me-1"></i>{{ _('Ajouter attente') }}</button>
           <button id="vis-add-scroll" class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-arrow-down-up me-1"></i>{{ _('Ajouter scroll') }}</button>
           <button id="vis-add-select" class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-menu-button me-1"></i>{{ _('Ajouter select') }}</button>
+          <button id="vis-stabilize-selectors" class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-magic me-1"></i>{{ _('Stabiliser selectors') }}</button>
           <button id="vis-undo-action" class="btn btn-outline-secondary btn-sm" type="button" disabled><i class="bi bi-arrow-counterclockwise me-1"></i>{{ _('Annuler') }}</button>
           <button id="vis-replay-actions" class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-play-btn me-1"></i>{{ _('Rejouer robot') }}</button>
           <button id="vis-clear-actions" class="btn btn-outline-danger btn-sm" type="button"><i class="bi bi-trash me-1"></i>{{ _('Vider') }}</button>
         </div>
         <div class="small text-secondary mb-2">{{ _('Mode intuitif: enregistrez clics, saisies et attentes, puis rejouez la séquence avant extraction.') }}</div>
+        <div id="vis-actions-minimap" class="vis-action-minimap" aria-label="Action timeline"></div>
         <div id="vis-actions-list" class="small" style="max-height:180px;overflow:auto;"></div>
 
               </div>
@@ -260,8 +522,11 @@
 
   <div class="col-12 col-xl-8">
     <div id="vis-browser-card" class="card border-0 shadow-sm rounded-4 mb-3 vis-browser-card">
-      <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-2 d-flex align-items-center justify-content-between gap-2">
-        <span class="fw-semibold">{{ _('Page cible (proxy)') }}</span>
+      <div class="card-header vis-card-head border-0 rounded-top-4 py-2 d-flex align-items-center justify-content-between gap-2">
+        <div>
+          <span class="fw-semibold">{{ _('Page cible (proxy)') }}</span>
+          <div class="vis-soft-note">{{ _('Simple clic: capter texte / table. Double clic: ouvrir action mapping.') }}</div>
+        </div>
         <div class="d-flex gap-1">
           <button id="vis-browser-max" class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-arrows-fullscreen me-1"></i>{{ _('Maximiser') }}</button>
         </div>
@@ -272,12 +537,21 @@
     </div>
 
     <div class="card border-0 shadow-sm rounded-4" data-tour="{{ _('Le résultat s\'affiche ici et peut être sauvegardé en CSV.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="8">
-      <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-2 d-flex align-items-center justify-content-between gap-2">
+      <div class="card-header vis-card-head border-0 rounded-top-4 py-2 d-flex align-items-center justify-content-between gap-2">
         <span class="fw-semibold">{{ _('Résultat') }}</span>
+        <div class="d-flex align-items-center gap-1">
+          <button id="vis-add-table" class="btn btn-outline-primary btn-sm" type="button"><i class="bi bi-plus-lg me-1"></i>{{ _('+ Table') }}</button>
+          <button id="vis-confidence-help" class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-info-circle me-1"></i>{{ _('Pourquoi ?') }}</button>
+          <span id="vis-confidence-badge" class="badge text-bg-light border">{{ _('Confiance: 0%') }}</span>
+        </div>
       </div>
       <div class="card-body">
         <div id="vis-error" class="alert alert-danger d-none"></div>
         <div id="vis-meta" class="small text-secondary mb-2"></div>
+        <div class="vis-confidence-wrap">
+          <div class="vis-confidence-track"><div id="vis-confidence-fill" class="vis-confidence-fill"></div></div>
+        </div>
+        <div id="vis-confidence-explain" class="vis-confidence-explain"></div>
 
         <div class="border rounded-3 p-2 mb-3 bg-body-tertiary">
           <div class="d-flex align-items-center justify-content-between mb-2">
@@ -292,39 +566,27 @@
           <div id="vis-mapping-wrap" class="small"></div>
         </div>
 
-        <form id="vis-save-form" method="post" action="{{ url_for('portal.web_extract_save_file') }}" class="row g-2 mb-3">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="hidden" name="url" id="vis-save-url" value="{{ url_input or '' }}">
-          <input type="hidden" name="schema" id="vis-save-schema" value="{{ schema_input or '' }}">
-          <input type="hidden" name="max_rows" id="vis-save-max-rows" value="{{ max_rows or 200 }}">
-          <input type="hidden" name="table_selector" id="vis-save-table-selector" value="{{ table_selector or '' }}">
-          <input type="hidden" name="verify_ssl" id="vis-save-verify-ssl" value="{{ '1' if verify_ssl else '0' }}">
+        {# Hidden fields shared by all table save forms #}
+        <input type="hidden" id="vis-save-url" value="{{ url_input or '' }}">
+        <input type="hidden" id="vis-save-schema" value="{{ schema_input or '' }}">
+        <input type="hidden" id="vis-save-max-rows" value="{{ max_rows or 200 }}">
+        <input type="hidden" id="vis-save-table-selector" value="{{ table_selector or '' }}">
+        <input type="hidden" id="vis-save-verify-ssl" value="{{ '1' if verify_ssl else '0' }}">
 
-          <div class="col-12 col-lg-3">
-            <label class="form-label">{{ _('Dossier') }}</label>
-            <select class="form-select" name="folder_id">
-              <option value="">{{ _('Racine') }}</option>
-              {% for f in folders or [] %}
-                <option value="{{ f.id }}">{{ f.name }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="col-12 col-lg-3">
-            <label class="form-label">{{ _('Nom du fichier') }}</label>
-            <input class="form-control" name="file_name" value="web_extract.csv">
-          </div>
-          <div class="col-12 col-lg-4">
-            <label class="form-label">{{ _('Nom affiché') }}</label>
-            <input class="form-control" name="display_name" value="Web extract">
-          </div>
-          <div class="col-12 col-lg-2 d-flex align-items-end">
-            <button class="btn btn-success w-100" type="submit">
-              <i class="bi bi-save me-1"></i>{{ _('Salvar') }}
-            </button>
-          </div>
-        </form>
+        {# Legacy single-table compat — keeps renderResultTable() working for mapping #}
+        <div id="vis-result-skeleton" class="vis-skeleton mb-2" aria-hidden="true">
+          <div class="vis-skeleton-line" style="width:65%;"></div>
+          <div class="vis-skeleton-line" style="width:92%;"></div>
+          <div class="vis-skeleton-line" style="width:88%;"></div>
+          <div class="vis-skeleton-line" style="width:95%;"></div>
+          <div class="vis-skeleton-line" style="width:76%;"></div>
+        </div>
 
-        <div id="vis-table-wrap" class="table-responsive"></div>
+        {# Multi-table tabbed area #}
+        <div id="vis-multi-tabs-nav" class="vis-multi-tab-nav"></div>
+        <div id="vis-multi-tabs-content"></div>
+        {# Hidden compat div — renderResultTable() targets this; it will be wired to active pane #}
+        <div id="vis-table-wrap" class="d-none"></div>
       </div>
     </div>
   </div>
@@ -407,10 +669,14 @@
   const errorEl = document.getElementById('vis-error');
   const metaEl = document.getElementById('vis-meta');
   const tableWrap = document.getElementById('vis-table-wrap');
+  const multiTabsNavEl = document.getElementById('vis-multi-tabs-nav');
+  const multiTabsContentEl = document.getElementById('vis-multi-tabs-content');
+  const addTableBtn = document.getElementById('vis-add-table');
+  const resultSkeletonEl = document.getElementById('vis-result-skeleton');
+  const actionsMiniMapEl = document.getElementById('vis-actions-minimap');
   const actionsListEl = document.getElementById('vis-actions-list');
   const actionsSummaryEl = document.getElementById('vis-actions-summary');
   const stepJsonEl = document.getElementById('vis-step-json');
-  const saveForm = document.getElementById('vis-save-form');
   const saveUrlEl = document.getElementById('vis-save-url');
   const saveSchemaEl = document.getElementById('vis-save-schema');
   const saveMaxRowsEl = document.getElementById('vis-save-max-rows');
@@ -454,6 +720,18 @@
   const actionTextColumnEl = document.getElementById('vis-am-text-column');
   const actionTextColumnPresetEl = document.getElementById('vis-am-text-column-preset');
   const actionNumberEl = document.getElementById('vis-am-number');
+  const presetEcommerceBtn = document.getElementById('vis-preset-ecommerce');
+  const presetListingBtn = document.getElementById('vis-preset-listing');
+  const presetFinancialBtn = document.getElementById('vis-preset-financial');
+  const stabilizeSelectorsBtn = document.getElementById('vis-stabilize-selectors');
+  const statUrlEl = document.getElementById('vis-stat-url');
+  const statSelectorEl = document.getElementById('vis-stat-selector');
+  const statActionsEl = document.getElementById('vis-stat-actions');
+  const statRowsEl = document.getElementById('vis-stat-rows');
+  const confidenceHelpBtn = document.getElementById('vis-confidence-help');
+  const confidenceBadgeEl = document.getElementById('vis-confidence-badge');
+  const confidenceFillEl = document.getElementById('vis-confidence-fill');
+  const confidenceExplainEl = document.getElementById('vis-confidence-explain');
 
   let visualActions = {{ (selected_config.visual_actions if selected_config and selected_config.visual_actions else [])|tojson }};
   let latestStep = null;
@@ -471,6 +749,219 @@
   let lastHoverData = null;
   let browserMaximized = false;
   let suppressClickUntilTs = 0;
+  let confidenceExplainOpen = false;
+
+  // Multi-table state
+  let multiTables = [{ id: 1, name: 'Table 1', selector: '', columns: [], rows: [] }];
+  let activeTableId = 1;
+  let multiTableNextId = 2;
+
+  const folderOptionsHtml = () => {
+    const opts = ['<option value="">{{ _("Racine") }}</option>'];
+    {% for f in folders or [] %}opts.push('<option value="{{ f.id }}">{{ f.name }}</option>');{% endfor %}
+    return opts.join('');
+  };
+
+  const buildTablePaneHtml = (tbl) => {
+    const tid = tbl.id;
+    return `<div class="vis-table-pane" data-table-id="${tid}">
+      <div class="vis-pane-toolbar">
+        <label class="vis-soft-note mb-0 me-1">Sélecteur:</label>
+        <input class="vis-pane-selector form-control-sm" data-table-id="${tid}" type="text" placeholder="table, .class, #id..." value="${_escapeHtml(tbl.selector)}">
+        <button class="btn btn-outline-primary btn-sm vis-pane-run" data-table-id="${tid}" type="button"><i class="bi bi-play-fill me-1"></i>{{ _('Extraire') }}</button>
+        <span class="vis-soft-note ms-auto" data-rows-label="${tid}"></span>
+      </div>
+      <div class="vis-result-skeleton-pane vis-skeleton mb-2" aria-hidden="true" data-skeleton="${tid}" style="display:none">
+        <div class="vis-skeleton-line" style="width:70%;"></div>
+        <div class="vis-skeleton-line" style="width:90%;"></div>
+        <div class="vis-skeleton-line" style="width:85%;"></div>
+      </div>
+      <div class="table-responsive mb-2" data-table-result="${tid}"></div>
+      <form method="post" action="{{ url_for('portal.web_extract_save_file') }}" class="row g-2 mb-1 vis-pane-save-form" data-table-id="${tid}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="url" class="sync-url" value="">
+        <input type="hidden" name="schema" class="sync-schema" value="">
+        <input type="hidden" name="max_rows" class="sync-max-rows" value="200">
+        <input type="hidden" name="table_selector" value="${_escapeHtml(tbl.selector)}">
+        <input type="hidden" name="verify_ssl" class="sync-verify-ssl" value="0">
+        <input type="hidden" name="rows_json" class="rows-json" value="">
+        <div class="col-12 col-lg-4">
+          <label class="form-label small mb-1">{{ _('Dossier') }}</label>
+          <select class="form-select form-select-sm" name="folder_id">${folderOptionsHtml()}</select>
+        </div>
+        <div class="col-12 col-lg-3">
+          <label class="form-label small mb-1">{{ _('Nom du fichier') }}</label>
+          <input class="form-control form-control-sm" name="file_name" value="table_${tid}.csv">
+        </div>
+        <div class="col-12 col-lg-3">
+          <label class="form-label small mb-1">{{ _('Nom affiché') }}</label>
+          <input class="form-control form-control-sm" name="display_name" value="Table ${tid}">
+        </div>
+        <div class="col-12 col-lg-2 d-flex align-items-end">
+          <button class="btn btn-success btn-sm w-100" type="submit"><i class="bi bi-save me-1"></i>{{ _('Sauvegarder') }}</button>
+        </div>
+      </form>
+    </div>`;
+  };
+
+  const renderMultiTabs = () => {
+    if (!multiTabsNavEl || !multiTabsContentEl) return;
+    // Nav tabs
+    multiTabsNavEl.innerHTML = multiTables.map((t) => {
+      const isActive = t.id === activeTableId;
+      const closeBtn = multiTables.length > 1
+        ? `<button class="vis-multi-tab-close btn p-0 border-0" data-close-table="${t.id}" title="{{ _('Supprimer') }}">✕</button>`
+        : '';
+      return `<button class="vis-multi-tab-btn${isActive ? ' active' : ''}" data-tab-id="${t.id}">${_escapeHtml(t.name)}${closeBtn}</button>`;
+    }).join('') + '<button class="vis-multi-tab-btn vis-multi-tab-add" id="vis-add-table-tab" title="{{ _('Ajouter une table') }}"><i class="bi bi-plus-lg"></i></button>';
+
+    // Pane content
+    multiTabsContentEl.innerHTML = multiTables.map((t) => buildTablePaneHtml(t)).join('');
+
+    // Mark active pane
+    multiTabsContentEl.querySelectorAll('.vis-table-pane').forEach((p) => {
+      p.classList.toggle('active', Number(p.dataset.tableId) === activeTableId);
+    });
+
+    // Sync hidden fields
+    syncMultiTableHiddenFields();
+
+    // Wire tab clicks
+    multiTabsNavEl.querySelectorAll('[data-tab-id]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        if (ev.target.closest('[data-close-table]')) return;
+        activeTableId = Number(btn.dataset.tabId);
+        renderMultiTabs();
+      });
+    });
+    // Wire close buttons
+    multiTabsNavEl.querySelectorAll('[data-close-table]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const rid = Number(btn.dataset.closeTable);
+        multiTables = multiTables.filter((t) => t.id !== rid);
+        if (activeTableId === rid) activeTableId = multiTables[0]?.id || 1;
+        renderMultiTabs();
+      });
+    });
+    // Wire + tab
+    document.getElementById('vis-add-table-tab')?.addEventListener('click', addTable);
+
+    // Wire run buttons
+    multiTabsContentEl.querySelectorAll('.vis-pane-run').forEach((btn) => {
+      btn.addEventListener('click', () => runTablePreview(Number(btn.dataset.tableId)));
+    });
+
+    // Wire selector inputs
+    multiTabsContentEl.querySelectorAll('.vis-pane-selector').forEach((inp) => {
+      inp.addEventListener('change', () => {
+        const tbl = multiTables.find((t) => t.id === Number(inp.dataset.tableId));
+        if (tbl) tbl.selector = String(inp.value || '').trim();
+      });
+    });
+  };
+
+  const syncMultiTableHiddenFields = () => {
+    const url = String(saveUrlEl?.value || urlEl?.value || '').trim();
+    const schema = String(saveSchemaEl?.value || schemaEl?.value || '').trim();
+    const maxRows = String(saveMaxRowsEl?.value || maxRowsEl?.value || '200');
+    const verSsl = String(saveVerifySslEl?.value || (sslEl?.checked ? '1' : '0'));
+    multiTabsContentEl?.querySelectorAll('.sync-url').forEach((el) => { el.value = url; });
+    multiTabsContentEl?.querySelectorAll('.sync-schema').forEach((el) => { el.value = schema; });
+    multiTabsContentEl?.querySelectorAll('.sync-max-rows').forEach((el) => { el.value = maxRows; });
+    multiTabsContentEl?.querySelectorAll('.sync-verify-ssl').forEach((el) => { el.value = verSsl; });
+  };
+
+  const setTablePaneResult = (id, columns, rows) => {
+    const resultEl = multiTabsContentEl?.querySelector(`[data-table-result="${id}"]`);
+    const skeletonEl = multiTabsContentEl?.querySelector(`[data-skeleton="${id}"]`);
+    const rowsLabel = multiTabsContentEl?.querySelector(`[data-rows-label="${id}"]`);
+    const tbl = multiTables.find((t) => t.id === id);
+    if (tbl) { tbl.columns = columns; tbl.rows = rows; }
+
+    if (skeletonEl) skeletonEl.style.display = 'none';
+    if (rowsLabel) rowsLabel.textContent = `${rows.length} {{ _('ligne(s)') }}`;
+
+    if (!resultEl) return;
+    const cols = Array.isArray(columns) ? columns : [];
+    const rs = Array.isArray(rows) ? rows : [];
+    if (!cols.length) {
+      resultEl.innerHTML = '<div class="text-secondary small py-2">{{ _("Aucune colonne détectée.") }}</div>';
+      return;
+    }
+    const th = cols.map((c) => `<th>${_escapeHtml(String(c || ''))}</th>`).join('');
+    const body = rs.slice(0, 200).map((r) => {
+      const arr = Array.isArray(r) ? r : [];
+      return `<tr>${cols.map((_, i) => `<td>${_escapeHtml(String(arr[i] ?? ''))}</td>`).join('')}</tr>`;
+    }).join('');
+    resultEl.innerHTML = `<table class="table table-sm table-hover"><thead><tr>${th}</tr></thead><tbody>${body}</tbody></table>`;
+
+    // Update rows_json hidden field for save form
+    const form = multiTabsContentEl?.querySelector(`.vis-pane-save-form[data-table-id="${id}"]`);
+    if (form) {
+      const rjEl = form.querySelector('.rows-json');
+      if (rjEl) rjEl.value = JSON.stringify({ columns: cols, rows: rs });
+      const selectorInput = form.querySelector('input[name="table_selector"]');
+      if (selectorInput && tbl) selectorInput.value = tbl.selector || '';
+    }
+  };
+
+  const addTable = () => {
+    const id = multiTableNextId++;
+    multiTables.push({ id, name: `Table ${id}`, selector: '', columns: [], rows: [] });
+    activeTableId = id;
+    renderMultiTabs();
+  };
+
+  const runTablePreview = async (id) => {
+    const tbl = multiTables.find((t) => t.id === id);
+    if (!tbl) return;
+    const selector = tbl.selector || String(tableSelectorEl?.value || '').trim();
+    const skeletonEl = multiTabsContentEl?.querySelector(`[data-skeleton="${id}"]`);
+    const rowsLabel = multiTabsContentEl?.querySelector(`[data-rows-label="${id}"]`);
+    if (skeletonEl) skeletonEl.style.display = 'block';
+    if (rowsLabel) rowsLabel.textContent = '{{ _("Chargement...") }}';
+    const payload = {
+      url: String(urlEl?.value || '').trim(),
+      schema: String(schemaEl?.value || '').trim(),
+      max_rows: Math.max(10, Math.min(1000, toInt(maxRowsEl?.value, 200))),
+      verify_ssl: !!sslEl?.checked,
+      table_selector: selector,
+      actions: selector
+        ? [{ type: 'extract_table', selector }]
+        : visualActions,
+      field_mapping: fieldMapping,
+    };
+    if (!/^https?:\/\//i.test(payload.url)) {
+      showError('{{ _("URL inválida.") }}');
+      if (skeletonEl) skeletonEl.style.display = 'none';
+      return;
+    }
+    try {
+      const resp = await fetch('{{ url_for("portal.web_extract_visual_run") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}' },
+        body: JSON.stringify(payload),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) throw new Error(data.error || 'Erreur');
+      const result = data.result || {};
+      const cols = Array.isArray(result.columns) ? result.columns : [];
+      const rows = Array.isArray(result.rows) ? result.rows : [];
+      setTablePaneResult(id, cols, rows);
+      // If it's the primary table, also sync sourceColumns/sourceRows for mapping
+      if (id === multiTables[0]?.id) {
+        const patched = applyTextCaptureActions(cols, rows);
+        sourceColumns = patched.columns;
+        sourceRows = patched.rows;
+        renderMappingEditor();
+        updateStudioStats(sourceRows.length);
+      }
+    } catch (e) {
+      if (skeletonEl) skeletonEl.style.display = 'none';
+      if (rowsLabel) rowsLabel.textContent = `{{ _("Erreur") }}: ${e?.message || ''}`;
+    }
+  };
 
   const showError = (msg) => {
     errorEl.textContent = msg || '';
@@ -502,6 +993,221 @@
       recStatusEl.classList.add('text-secondary');
       recStatusEl.innerHTML = '<span id="vis-rec-dot" class="vis-rec-dot"></span>{{ _('Mode pause') }}';
     }
+  };
+
+  const updateStudioStats = (rowsCount = null) => {
+    if (statUrlEl) {
+      const rawUrl = String(urlEl?.value || '').trim();
+      let txt = '{{ _('URL: non chargée') }}';
+      if (rawUrl) {
+        try {
+          const parsed = new URL(rawUrl);
+          txt = `URL: ${parsed.hostname}`;
+        } catch (_) {
+          txt = `URL: ${rawUrl.slice(0, 34)}`;
+        }
+      }
+      statUrlEl.innerHTML = `<i class="bi bi-globe2"></i>${txt}`;
+    }
+    if (statSelectorEl) {
+      const selector = String(tableSelectorEl?.value || '').trim() || 'auto';
+      statSelectorEl.innerHTML = `<i class="bi bi-table"></i>Table: ${selector.slice(0, 24)}`;
+    }
+    if (statActionsEl) {
+      statActionsEl.innerHTML = `<i class="bi bi-diagram-3"></i>Actions: ${visualActions.length}`;
+    }
+    if (statRowsEl) {
+      const rows = Number.isInteger(rowsCount) ? rowsCount : (Array.isArray(sourceRows) ? sourceRows.length : 0);
+      statRowsEl.innerHTML = `<i class="bi bi-list-ol"></i>Lignes: ${rows}`;
+    }
+  };
+
+  const setResultLoading = (isLoading) => {
+    if (resultSkeletonEl) resultSkeletonEl.classList.toggle('show', !!isLoading);
+    if (tableWrap) tableWrap.classList.toggle('d-none', !!isLoading);
+  };
+
+  const renderActionMiniMap = () => {
+    if (!actionsMiniMapEl) return;
+    if (!visualActions.length) {
+      actionsMiniMapEl.innerHTML = '<span class="text-secondary small">{{ _('Timeline vide') }}</span>';
+      return;
+    }
+    const code = (type) => {
+      const t = String(type || '').trim();
+      if (t === 'navigate') return 'N';
+      if (t === 'click') return 'C';
+      if (t === 'input') return 'I';
+      if (t === 'wait') return 'W';
+      if (t === 'scroll') return 'S';
+      if (t === 'select') return 'D';
+      if (t === 'extract_table') return 'T';
+      if (t === 'extract_text') return 'X';
+      return 'A';
+    };
+    actionsMiniMapEl.innerHTML = visualActions.map((a, i) => {
+      const node = `<span class="vis-action-node" title="${String(a.type || '')}">${code(a.type)}</span>`;
+      const link = i < visualActions.length - 1 ? '<span class="vis-action-link"></span>' : '';
+      return `${node}${link}`;
+    }).join('');
+  };
+
+  const selectorRiskLevel = (selector) => {
+    const s = String(selector || '').trim();
+    if (!s) return 'medium';
+    if (s.includes('#') || s.includes('[name=') || s.includes('[data-testid=')) return 'low';
+    if (s.includes('nth-of-type') || s.includes('>') || s.length > 42) return 'high';
+    if (s.includes(':') || s.includes('.')) return 'medium';
+    return 'medium';
+  };
+
+  const riskBadgeHtml = (selector) => {
+    const level = selectorRiskLevel(selector);
+    const cls = level === 'low' ? 'vis-risk-low' : (level === 'high' ? 'vis-risk-high' : 'vis-risk-medium');
+    const lbl = level === 'low' ? 'stable' : (level === 'high' ? 'fragile' : 'medium');
+    return `<span class="vis-risk-badge ${cls}">${lbl}</span>`;
+  };
+
+  const buildConfidenceBreakdown = () => {
+    const total = visualActions.length || 1;
+    let high = 0;
+    let medium = 0;
+    let extracts = 0;
+    let missingSelector = 0;
+    visualActions.forEach((a) => {
+      const t = String(a?.type || '').trim();
+      if (t === 'extract_table' || t === 'extract_text') extracts += 1;
+      if (!a?.selector) {
+        if (t === 'click' || t === 'input' || t === 'select' || t === 'extract_table' || t === 'extract_text') {
+          missingSelector += 1;
+        }
+        return;
+      }
+      const r = selectorRiskLevel(a.selector);
+      if (r === 'high') high += 1;
+      else if (r === 'medium') medium += 1;
+    });
+    const schemaCount = parseSchemaFields().length;
+    const coverageBonus = Math.min(8, schemaCount);
+    let score = 72 + (extracts * 5) + coverageBonus - (high * 12) - (medium * 4) - (missingSelector * 10) - Math.max(0, total - 10);
+    score = Math.max(18, Math.min(98, score));
+    return { score, high, medium, extracts, schemaCount, missingSelector, total };
+  };
+
+  const highlightActionsByFilter = (filterFn) => {
+    if (!actionsListEl) return;
+    actionsListEl.querySelectorAll('.vis-action-item').forEach((item) => {
+      const idx = Number(item.dataset.actionIndex);
+      const a = visualActions[idx];
+      if (a && filterFn(a, idx)) {
+        item.classList.remove('highlight-flash');
+        void item.offsetWidth; // reflow to restart animation
+        item.classList.add('highlight-flash');
+      }
+    });
+    actionsListEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  };
+
+  const updateConfidenceUi = () => {
+    const b = buildConfidenceBreakdown();
+    const score = b.score;
+    if (confidenceBadgeEl) confidenceBadgeEl.textContent = `Confiance: ${score}%`;
+    if (confidenceFillEl) confidenceFillEl.style.width = `${score}%`;
+    if (confidenceExplainEl) {
+      const rows = [
+        { label: `Score global`, value: `${score}%`, filter: null },
+        { label: `Actions d'extraction`, value: String(b.extracts), filter: (a) => a.type === 'extract_table' || a.type === 'extract_text' },
+        { label: `Selectors fragiles`, value: `${b.high} fragile(s) · ${b.medium} moyen(s)`, filter: (a) => a.selector && selectorRiskLevel(a.selector) !== 'low' },
+        { label: `Sans selector`, value: String(b.missingSelector), filter: (a) => { const t = a.type || ''; return !a.selector && ['click','input','select','extract_table','extract_text'].includes(t); } },
+        { label: `Couverture schéma`, value: `${b.schemaCount} champ(s)`, filter: null },
+      ];
+      confidenceExplainEl.innerHTML = rows.map((r, i) => {
+        const clickable = r.filter ? ' style="cursor:pointer;text-decoration:underline dotted;" title="Cliquer pour surligner dans timeline"' : '';
+        return `<div data-explain-row="${i}"${clickable}><b>${r.label}:</b> ${r.value}</div>`;
+      }).join('');
+
+      rows.forEach((r, i) => {
+        if (!r.filter) return;
+        const rowEl = confidenceExplainEl.querySelector(`[data-explain-row="${i}"]`);
+        if (rowEl) rowEl.addEventListener('click', () => highlightActionsByFilter(r.filter));
+      });
+
+      confidenceExplainEl.classList.toggle('show', confidenceExplainOpen);
+    }
+  };
+
+  const stabilizeSingleSelector = (selector, doc) => {
+    const original = String(selector || '').trim();
+    if (!original) return original;
+    if (!doc) return original;
+    let el = null;
+    try { el = doc.querySelector(original); } catch (_) { el = null; }
+    if (!el) return original;
+    if (el.id) return `#${cssEscape(el.id)}`;
+    const name = String(el.getAttribute && el.getAttribute('name') || '').trim();
+    if (name) return `${String(el.tagName || 'div').toLowerCase()}[name="${cssEscape(name)}"]`;
+    const dt = String(el.getAttribute && el.getAttribute('data-testid') || '').trim();
+    if (dt) return `${String(el.tagName || 'div').toLowerCase()}[data-testid="${cssEscape(dt)}"]`;
+    const cls = Array.from(el.classList || []).find((c) => /^[a-zA-Z][a-zA-Z0-9_-]{2,}$/.test(c) && !/\d{3,}/.test(c));
+    if (cls) return `${String(el.tagName || 'div').toLowerCase()}.${cssEscape(cls)}`;
+    return bestElementSelector(el) || original;
+  };
+
+  const stabilizeSelectors = () => {
+    let doc = null;
+    try {
+      doc = frame.contentDocument || (frame.contentWindow && frame.contentWindow.document);
+    } catch (_) {
+      doc = null;
+    }
+    if (!doc) {
+      showError('{{ _('Chargez d\'abord une page pour stabiliser les selectors.') }}');
+      return;
+    }
+    let changed = 0;
+    withActionHistory(() => {
+      visualActions = visualActions.map((a) => {
+        if (!a || !a.selector) return a;
+        const next = stabilizeSingleSelector(a.selector, doc);
+        if (next && next !== a.selector) changed += 1;
+        return { ...a, selector: next || a.selector };
+      });
+    });
+    metaEl.textContent = changed
+      ? `{{ _('Selectors stabilisés') }}: ${changed}`
+      : '{{ _('Selectors déjà stables.') }}';
+    showError('');
+  };
+
+  const applySmartPreset = (kind) => {
+    const k = String(kind || '').trim();
+    withActionHistory(() => {
+      if (k === 'ecommerce') {
+        if (!String(schemaEl.value || '').trim()) schemaEl.value = 'product, price, rating, availability';
+        visualActions = [
+          { type: 'wait', ms: 700 },
+          { type: 'scroll', px: 600 },
+          { type: 'extract_table', selector: String(tableSelectorEl.value || 'table').trim() || 'table' },
+        ];
+      } else if (k === 'listing') {
+        if (!String(schemaEl.value || '').trim()) schemaEl.value = 'title, subtitle, location, date';
+        visualActions = [
+          { type: 'wait', ms: 600 },
+          { type: 'scroll', px: 420 },
+          { type: 'extract_text', selector: 'h1,h2,h3', text: 'listing headline', target: 'column', column_name: 'title' },
+        ];
+      } else if (k === 'financial') {
+        if (!String(schemaEl.value || '').trim()) schemaEl.value = 'line_item, period, value';
+        if (!String(tableSelectorEl.value || '').trim()) tableSelectorEl.value = 'table';
+        visualActions = [
+          { type: 'wait', ms: 850 },
+          { type: 'extract_table', selector: String(tableSelectorEl.value || 'table').trim() || 'table' },
+        ];
+      }
+    });
+    renderMappingEditor();
+    updateStudioStats();
+    metaEl.textContent = '{{ _('Preset appliqué. Ajustez puis lancez la prévisualisation.') }}';
   };
 
   const toInt = (v, fallback) => {
@@ -637,6 +1343,7 @@
     mutator();
     renderActions();
     refreshStepJson();
+    updateStudioStats();
   };
 
   const ensureActionModal = () => {
@@ -968,17 +1675,20 @@
     if (!visualActions.length) {
       actionsListEl.innerHTML = '<div class="text-secondary">{{ _('Aucune action.') }}</div>';
       renderActionsSummary();
+      renderActionMiniMap();
+      updateConfidenceUi();
       return;
     }
     actionsListEl.innerHTML = visualActions.map((a, i) => {
       const selector = a.selector ? ` <span class="text-secondary">(${a.selector})</span>` : '';
+      const risk = a.selector ? riskBadgeHtml(a.selector) : '';
       const value = a.value ? ` <span class="text-secondary">= "${String(a.value).slice(0, 40)}"</span>` : '';
       const textCaptured = a.text ? ` <span class="text-secondary">"${String(a.text).slice(0, 40)}"</span>` : '';
       const waitMs = a.ms ? ` <span class="text-secondary">${a.ms}ms</span>` : '';
       const where = a.type === 'extract_text' ? ` <span class="text-secondary">${String(a.target || 'column')} : ${String(a.column_name || 'captured_text')}</span>` : '';
       const chip = `<span class="vis-action-chip">${String(a.type || '')}</span>`;
       return `<div class="vis-action-item border rounded-2 px-2 py-1 mb-1 d-flex align-items-center justify-content-between" draggable="true" data-action-index="${i}">` +
-        `<div><i class="bi bi-grip-vertical vis-drag-handle"></i><b>${i + 1}.</b> ${chip}${selector}${value}${textCaptured}${where}${waitMs}</div>` +
+        `<div><i class="bi bi-grip-vertical vis-drag-handle"></i><b>${i + 1}.</b> ${chip}${risk}${selector}${value}${textCaptured}${where}${waitMs}</div>` +
         `<div class="d-flex align-items-center gap-1">` +
           `<button class="btn btn-sm btn-link p-0" data-move-up="${i}" title="Up"><i class="bi bi-arrow-up-circle"></i></button>` +
           `<button class="btn btn-sm btn-link p-0" data-move-down="${i}" title="Down"><i class="bi bi-arrow-down-circle"></i></button>` +
@@ -1075,6 +1785,8 @@
     });
 
     renderActionsSummary();
+    renderActionMiniMap();
+    updateConfidenceUi();
   };
 
   const parseSchemaFields = () => {
@@ -1188,6 +1900,9 @@
     if (cfgVerifySslEl) cfgVerifySslEl.value = latestStep.config.verify_ssl ? '1' : '0';
     if (cfgActionsEl) cfgActionsEl.value = JSON.stringify(Array.isArray(latestStep.config.visual_actions) ? latestStep.config.visual_actions : []);
     if (cfgFieldMappingEl) cfgFieldMappingEl.value = JSON.stringify(latestStep.config.field_mapping || {});
+    updateStudioStats();
+    updateConfidenceUi();
+    syncMultiTableHiddenFields();
   };
 
   const bestTableSelector = (el) => {
@@ -1506,18 +2221,9 @@
   };
 
   const renderResultTable = (columns, rows) => {
-    const cols = Array.isArray(columns) ? columns : [];
-    const rs = Array.isArray(rows) ? rows : [];
-    if (!cols.length) {
-      tableWrap.innerHTML = '<div class="text-secondary">{{ _('Aucune colonne détectée.') }}</div>';
-      return;
-    }
-    const th = cols.map((c) => `<th>${String(c || '')}</th>`).join('');
-    const body = rs.map((r) => {
-      const arr = Array.isArray(r) ? r : [];
-      return `<tr>${cols.map((_, i) => `<td>${String(arr[i] ?? '')}</td>`).join('')}</tr>`;
-    }).join('');
-    tableWrap.innerHTML = `<table class="table table-sm"><thead><tr>${th}</tr></thead><tbody>${body}</tbody></table>`;
+    // Render into the active table pane (ID of first table = 1 / main preview)
+    const targetId = multiTables[0]?.id || 1;
+    setTablePaneResult(targetId, columns, rows);
   };
 
   const runPreview = async () => {
@@ -1537,6 +2243,7 @@
     }
 
     showError('');
+    setResultLoading(true);
     metaEl.textContent = '{{ _('Chargement...') }}';
 
     try {
@@ -1559,10 +2266,15 @@
       const patched = applyTextCaptureActions(baseCols, baseRows);
       sourceColumns = patched.columns;
       sourceRows = patched.rows;
+      // Show result in the first (main) table pane
+      activeTableId = multiTables[0]?.id || 1;
+      renderMultiTabs();
       renderResultTable(sourceColumns, sourceRows);
       renderMappingEditor();
+      updateStudioStats(Array.isArray(sourceRows) ? sourceRows.length : 0);
       latestStep = data.workflow_step || buildStep();
       stepJsonEl.value = JSON.stringify(latestStep, null, 2);
+      setResultLoading(false);
     } catch (e) {
       showError(e && e.message ? e.message : 'Erreur');
       metaEl.textContent = '';
@@ -1570,11 +2282,22 @@
       sourceColumns = [];
       sourceRows = [];
       renderMappingEditor();
+      updateStudioStats(0);
+      setResultLoading(false);
     }
   };
 
   document.getElementById('vis-load').addEventListener('click', loadFrame);
   document.getElementById('vis-preview').addEventListener('click', runPreview);
+  presetEcommerceBtn?.addEventListener('click', () => applySmartPreset('ecommerce'));
+  presetListingBtn?.addEventListener('click', () => applySmartPreset('listing'));
+  presetFinancialBtn?.addEventListener('click', () => applySmartPreset('financial'));
+  stabilizeSelectorsBtn?.addEventListener('click', stabilizeSelectors);
+  addTableBtn?.addEventListener('click', addTable);
+  confidenceHelpBtn?.addEventListener('click', () => {
+    confidenceExplainOpen = !confidenceExplainOpen;
+    if (confidenceExplainEl) confidenceExplainEl.classList.toggle('show', confidenceExplainOpen);
+  });
   browserMaxBtn?.addEventListener('click', () => {
     setBrowserMaximized(!browserMaximized);
   });
@@ -1736,11 +2459,14 @@
   });
 
   renderActions();
+  renderActionMiniMap();
   renderMappingEditor();
+  renderMultiTabs();
   refreshStepJson();
   refreshUndoUi();
   setRecorderUi();
   setInspectUi();
+  updateStudioStats(0);
   setBrowserMaximized(false);
   if ((urlEl.value || '').trim()) {
     loadFrame();
