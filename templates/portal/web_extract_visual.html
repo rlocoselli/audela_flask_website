@@ -1380,15 +1380,30 @@
         ev.preventDefault();
         ev.stopPropagation();
         const selector = bestTableSelector(target);
-        if (!selector) {
-          showError('{{ _('Cliquez dans une table HTML ou activez Enregistrer pour capturer des clics robot.') }}');
+        if (selector) {
+          tableSelectorEl.value = selector;
+          withActionHistory(() => {
+            visualActions.push({ type: 'extract_table', selector });
+          });
+          showError('');
           return;
         }
-        tableSelectorEl.value = selector;
-        withActionHistory(() => {
-          visualActions.push({ type: 'extract_table', selector });
-        });
-        showError('');
+
+        const text = String(target.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 400);
+        if (text) {
+          lastHoverData = {
+            selector: bestElementSelector(target),
+            text,
+            tableSelector: '',
+            tableColumns: [],
+            desc: describeElement(target),
+          };
+          metaEl.textContent = `{{ _('Texte capturé') }}: ${text.slice(0, 120)}`;
+          showError('');
+          return;
+        }
+
+        showError('{{ _('Aucun texte détecté sur cet élément.') }}');
       };
       const onDoubleClick = async (ev) => {
         if (!ev.target) return;
