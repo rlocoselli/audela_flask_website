@@ -4,6 +4,18 @@ on:
   push:
     branches:
       - main
+  workflow_call:
+    inputs:
+      celery_action:
+        description: "Celery mode during deploy"
+        required: false
+        type: string
+        default: keep
+      install_mode:
+        description: "Deployment mode"
+        required: false
+        type: string
+        default: incremental
   workflow_dispatch:
     inputs:
       celery_action:
@@ -38,7 +50,8 @@ jobs:
         continue-on-error: true
         env:
           SERVER_ENV_FILE: ${{ secrets.SERVER_ENV_FILE }}
-          INSTALL_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.install_mode || 'incremental' }}
+          INSTALL_MODE: ${{ inputs.install_mode || github.event.inputs.install_mode || 'incremental' }}
+          CELERY_ACTION: ${{ inputs.celery_action || github.event.inputs.celery_action || 'keep' }}
           APP_RELEASE: ${{ github.sha }}
           GRAFANA_HOSTNAME: ${{ secrets.GRAFANA_HOSTNAME }}
           GRAFANA_HOSTNAME_ALT: ${{ secrets.GRAFANA_HOSTNAME_ALT }}
@@ -60,13 +73,12 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           timeout: 90s
           command_timeout: 40m
-          envs: SERVER_ENV_FILE,INSTALL_MODE,APP_RELEASE,GRAFANA_HOSTNAME,GRAFANA_HOSTNAME_ALT,SITE_URL,BRIDGE_CALLBACK_URL,BRIDGE_CLIENT_ID,BRIDGE_CLIENT_SECRET,BRIDGE_BASE_URL,BRIDGE_VERSION,POWENS_CLIENT_ID,POWENS_CLIENT_SECRET,POWENS_WEBHOOK_SECRET,ENCRYPTION_KEY
+          envs: SERVER_ENV_FILE,INSTALL_MODE,CELERY_ACTION,APP_RELEASE,GRAFANA_HOSTNAME,GRAFANA_HOSTNAME_ALT,SITE_URL,BRIDGE_CALLBACK_URL,BRIDGE_CLIENT_ID,BRIDGE_CLIENT_SECRET,BRIDGE_BASE_URL,BRIDGE_VERSION,POWENS_CLIENT_ID,POWENS_CLIENT_SECRET,POWENS_WEBHOOK_SECRET,ENCRYPTION_KEY
 
           script: &deploy_script |
             set -e
             echo "🚀 Deploy started (root)"
 
-            CELERY_ACTION="${{ github.event_name == 'workflow_dispatch' && github.event.inputs.celery_action || 'keep' }}"
             echo "🧭 Celery action for this deploy: ${CELERY_ACTION}"
             echo "🧭 Install mode for this deploy: ${INSTALL_MODE}"
 
@@ -467,7 +479,8 @@ jobs:
         if: steps.deploy_ssh_1.outcome == 'failure'
         env:
           SERVER_ENV_FILE: ${{ secrets.SERVER_ENV_FILE }}
-          INSTALL_MODE: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.install_mode || 'incremental' }}
+          INSTALL_MODE: ${{ inputs.install_mode || github.event.inputs.install_mode || 'incremental' }}
+          CELERY_ACTION: ${{ inputs.celery_action || github.event.inputs.celery_action || 'keep' }}
           APP_RELEASE: ${{ github.sha }}
           GRAFANA_HOSTNAME: ${{ secrets.GRAFANA_HOSTNAME }}
           GRAFANA_HOSTNAME_ALT: ${{ secrets.GRAFANA_HOSTNAME_ALT }}
@@ -489,7 +502,7 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           timeout: 90s
           command_timeout: 40m
-          envs: SERVER_ENV_FILE,INSTALL_MODE,APP_RELEASE,GRAFANA_HOSTNAME,GRAFANA_HOSTNAME_ALT,SITE_URL,BRIDGE_CALLBACK_URL,BRIDGE_CLIENT_ID,BRIDGE_CLIENT_SECRET,BRIDGE_BASE_URL,BRIDGE_VERSION,POWENS_CLIENT_ID,POWENS_CLIENT_SECRET,POWENS_WEBHOOK_SECRET,ENCRYPTION_KEY
+          envs: SERVER_ENV_FILE,INSTALL_MODE,CELERY_ACTION,APP_RELEASE,GRAFANA_HOSTNAME,GRAFANA_HOSTNAME_ALT,SITE_URL,BRIDGE_CALLBACK_URL,BRIDGE_CLIENT_ID,BRIDGE_CLIENT_SECRET,BRIDGE_BASE_URL,BRIDGE_VERSION,POWENS_CLIENT_ID,POWENS_CLIENT_SECRET,POWENS_WEBHOOK_SECRET,ENCRYPTION_KEY
           script: *deploy_script
 
       - name: Fail if SSH deploy failed twice

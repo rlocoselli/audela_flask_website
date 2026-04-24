@@ -1,0 +1,47 @@
+name: Release (Migrate + Deploy)
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_ref:
+        description: "Git ref to deploy before migrations (branch/tag/sha)"
+        required: false
+        default: "main"
+      install_mode:
+        description: "Deployment mode"
+        required: true
+        type: choice
+        options:
+          - incremental
+          - full_install
+        default: incremental
+      celery_action:
+        description: "Celery mode during deploy"
+        required: true
+        type: choice
+        options:
+          - keep
+          - enable
+          - disable
+        default: keep
+
+concurrency:
+  group: release-migrate-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Run DB migrations
+    uses: ./.github/workflows/migrations-only.yml
+    with:
+      git_ref: ${{ github.event.inputs.git_ref || 'main' }}
+    secrets: inherit
+
+  deploy:
+    name: Deploy application
+    needs: migrate
+    uses: ./.github/workflows/deploy.yml
+    with:
+      install_mode: ${{ github.event.inputs.install_mode || 'incremental' }}
+      celery_action: ${{ github.event.inputs.celery_action || 'keep' }}
+    secrets: inherit

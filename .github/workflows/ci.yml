@@ -62,6 +62,29 @@ jobs:
         run: |
           python scripts/i18n_lint.py --max 250 || true
 
+      - name: Python compile preflight
+        run: |
+          python -m py_compile audela/blueprints/credit/routes.py
+          python -m py_compile audela/i18n.py
+          python -m py_compile audela/tasks/project_notifications.py
+
+      - name: Validate Credit template syntax
+        env:
+          AUTO_CREATE_DB: "false"
+        run: |
+          python - <<'PY'
+          from audela import create_app
+
+          app = create_app()
+          with app.app_context():
+              names = app.jinja_env.list_templates(
+                  filter_func=lambda n: n.startswith("credit/") and n.endswith(".html")
+              )
+              for name in names:
+                  app.jinja_env.get_template(name)
+          print(f"validated {len(names)} credit templates")
+          PY
+
       - name: Wait for PostgreSQL
         env:
           PGPASSWORD: ${{ env.CI_POSTGRES_PASSWORD }}
