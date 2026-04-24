@@ -39,13 +39,19 @@ from ...models.project_management import ProjectWorkspace
 from ...models.etl_catalog import ETLConnection
 from ...security import require_roles
 from ...services.query_service import QueryExecutionError, execute_sql
-from ...services.datasource_service import decrypt_config, introspect_source
+from ...services.datasource_service import (
+    decrypt_config,
+    introspect_source,
+    introspect_source_tables,
+    introspect_source_table_columns,
+)
 from ...services.nlq_service import generate_sql_from_nl
 from ...services.pdf_export import table_to_pdf_bytes
 from ...services.xlsx_export import table_to_xlsx_bytes
 from ...services.ai_service import analyze_with_ai
 from ...services.statistics_service import run_statistics_analysis, stats_report_to_pdf_bytes
 from ...services.report_render_service import report_to_pdf_bytes
+from ...services.report_ai_service import generate_report_layout_from_prompt, compact_schema_meta as compact_report_schema_meta
 from ...services.web_extract_service import extract_structured_table_from_web
 from ...services.alerting_dispatch import dispatch_alerting_for_result
 from ...services.file_storage_service import (
@@ -472,6 +478,7 @@ def _web_extract_state_for_tenant(tenant: Tenant) -> dict:
         if not cfg_id or not cfg_name:
             continue
         visual_actions = item.get("visual_actions") if isinstance(item.get("visual_actions"), list) else []
+        field_mapping = item.get("field_mapping") if isinstance(item.get("field_mapping"), dict) else {}
         configs.append(
             {
                 "id": cfg_id,
@@ -482,6 +489,7 @@ def _web_extract_state_for_tenant(tenant: Tenant) -> dict:
                 "table_selector": str(item.get("table_selector") or "").strip(),
                 "verify_ssl": bool(item.get("verify_ssl", True)),
                 "visual_actions": visual_actions,
+                "field_mapping": field_mapping,
                 "updated_at": str(item.get("updated_at") or ""),
             }
         )
@@ -3349,6 +3357,30 @@ def api_source_schema(source_id: int):
     return jsonify(meta)
 
 
+@bp.route("/api/sources/<int:source_id>/tables")
+@login_required
+@require_roles("tenant_admin", "creator")
+def api_source_tables(source_id: int):
+    _require_tenant()
+    src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first_or_404()
+    meta = introspect_source_tables(src)
+    return jsonify(meta)
+
+
+@bp.route("/api/sources/<int:source_id>/table-columns")
+@login_required
+@require_roles("tenant_admin", "creator")
+def api_source_table_columns(source_id: int):
+    _require_tenant()
+    src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first_or_404()
+    table_name = (request.args.get("table") or "").strip()
+    schema_name = (request.args.get("schema") or "").strip() or None
+    if not table_name:
+        return jsonify({"error": tr("Table manquante.", getattr(g, "lang", None))}), 400
+    cols = introspect_source_table_columns(src, table_name, schema=schema_name)
+    return jsonify(cols)
+
+
 @bp.route("/api/files/<int:file_id>/schema")
 @login_required
 @require_roles("tenant_admin", "creator")
@@ -5705,6 +5737,20 @@ def web_extract_config_save():
         except Exception:
             visual_actions = []
 
+    field_mapping: dict[str, str] = {}
+    field_mapping_json = (request.form.get("field_mapping_json") or "").strip()
+    if field_mapping_json:
+        try:
+            parsed = json.loads(field_mapping_json)
+            if isinstance(parsed, dict):
+                for k, v in parsed.items():
+                    key = str(k or "").strip()
+                    val = str(v or "").strip()
+                    if key and val:
+                        field_mapping[key] = val
+        except Exception:
+            field_mapping = {}
+
     if not config_name:
         flash(tr("Nom de configuration requis.", getattr(g, "lang", None)), "error")
         dest = "portal.web_extract_visual" if from_page == "visual" else "portal.web_extract"
@@ -5733,6 +5779,7 @@ def web_extract_config_save():
         "table_selector": table_selector,
         "verify_ssl": bool(verify_ssl),
         "visual_actions": visual_actions,
+        "field_mapping": field_mapping,
         "updated_at": datetime.utcnow().isoformat(),
     }
 
@@ -5925,11 +5972,13 @@ def web_extract_visual():
     except Exception:
         max_rows = 200
     verify_ssl = (request.args.get("verify_ssl") or "1").strip().lower() in {"1", "true", "on", "yes"}
+    field_mapping: dict[str, str] = {}
 
     if selected_config:
         url_input = str(selected_config.get("url") or url_input).strip()
         schema_input = str(selected_config.get("schema") or schema_input).strip()
         table_selector = str(selected_config.get("table_selector") or table_selector).strip()
+        field_mapping = selected_config.get("field_mapping") if isinstance(selected_config.get("field_mapping"), dict) else {}
         try:
             max_rows = max(10, min(1000, int(selected_config.get("max_rows") or max_rows)))
         except Exception:
@@ -5945,6 +5994,7 @@ def web_extract_visual():
         table_selector=table_selector,
         max_rows=max_rows,
         verify_ssl=verify_ssl,
+        field_mapping=field_mapping,
         web_extract_configs=web_extract_configs,
         selected_config_id=selected_config_id,
         selected_config=selected_config,
@@ -6019,6 +6069,13 @@ def web_extract_visual_run():
         "yes",
     }
     actions = payload.get("actions") if isinstance(payload.get("actions"), list) else []
+    raw_field_mapping = payload.get("field_mapping") if isinstance(payload.get("field_mapping"), dict) else {}
+    field_mapping: dict[str, str] = {}
+    for k, v in raw_field_mapping.items():
+        key = str(k or "").strip()
+        val = str(v or "").strip()
+        if key and val:
+            field_mapping[key] = val
     try:
         max_rows = max(10, min(1000, int(str(payload.get("max_rows") or "200").strip() or 200)))
     except Exception:
@@ -6037,6 +6094,24 @@ def web_extract_visual_run():
             table_selector=table_selector,
         )
 
+        out_columns = list(extracted.columns or [])
+        out_rows = list(extracted.rows or [])
+        if field_mapping:
+            source_index = {str(col): idx for idx, col in enumerate(out_columns)}
+            mapped_columns = list(field_mapping.keys())
+            mapped_rows: list[list[Any]] = []
+            for row in out_rows:
+                vals = list(row) if isinstance(row, list) else []
+                mapped_row: list[Any] = []
+                for dst in mapped_columns:
+                    src = field_mapping.get(dst, "")
+                    idx = source_index.get(src)
+                    mapped_row.append(vals[idx] if idx is not None and idx < len(vals) else None)
+                mapped_rows.append(mapped_row)
+            if mapped_columns:
+                out_columns = mapped_columns
+                out_rows = mapped_rows
+
         workflow_step = {
             "type": "extract.web",
             "config": {
@@ -6046,6 +6121,7 @@ def web_extract_visual_run():
                 "verify_ssl": bool(verify_ssl),
                 "table_selector": table_selector,
                 "visual_actions": actions,
+                "field_mapping": field_mapping,
             },
         }
 
@@ -6053,8 +6129,8 @@ def web_extract_visual_run():
             {
                 "ok": True,
                 "result": {
-                    "columns": extracted.columns,
-                    "rows": extracted.rows,
+                    "columns": out_columns,
+                    "rows": out_rows,
                     "mode": extracted.mode,
                     "source_url": extracted.source_url,
                 },
@@ -6475,6 +6551,49 @@ def report_builder(report_id: int):
     )
 
 
+@bp.route("/api/reports/<int:report_id>/assistant/generate", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def api_report_ai_generate(report_id: int):
+    _require_tenant()
+    rep = Report.query.filter_by(id=report_id, tenant_id=g.tenant.id).first_or_404()
+    src = DataSource.query.filter_by(id=rep.source_id, tenant_id=g.tenant.id).first_or_404()
+    payload = request.get_json(silent=True) or {}
+    prompt = str(payload.get("prompt") or "").strip()
+    if not prompt:
+        return jsonify({"error": "prompt required"}), 400
+
+    questions = Question.query.filter_by(tenant_id=g.tenant.id, source_id=src.id).order_by(Question.name.asc()).all()
+    try:
+        schema_meta = compact_report_schema_meta(introspect_source(src))
+    except Exception as exc:
+        schema_meta = {"schemas": [], "error": str(exc)}
+
+    question_context = []
+    for q in questions[:40]:
+        cols: list[str] = []
+        try:
+            qres = execute_sql(src, q.sql_text or "", {"tenant_id": g.tenant.id}, row_limit=1)
+            raw_cols = qres.get("columns") if isinstance(qres, dict) else []
+            cols = [str(c).strip() for c in (raw_cols or []) if str(c).strip()]
+        except Exception:
+            cols = []
+        question_context.append({"id": q.id, "name": q.name, "columns": cols})
+
+    context = {
+        "report_id": rep.id,
+        "report_name": rep.name,
+        "source": {"id": src.id, "name": src.name, "type": src.type},
+        "schema": schema_meta,
+        "questions": question_context,
+    }
+    try:
+        result = generate_report_layout_from_prompt(prompt, context, lang=getattr(g, "lang", None))
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"ok": True, **result})
+
+
 @bp.route("/reports/<int:report_id>/view", methods=["GET"])
 @login_required
 def report_view(report_id: int):
@@ -6543,6 +6662,10 @@ def report_view(report_id: int):
             return ""
         if isinstance(v, (datetime, date)):
             return _fmt_date(v, date_fmt or "dd/MM/yyyy")
+        if date_fmt:
+            dt_like = _coerce_date_like(v)
+            if dt_like is not None:
+                return _fmt_date(dt_like, date_fmt)
         if decimals is not None and isinstance(v, (int, float, str)):
             return _fmt_number(v, decimals)
         return str(v)
@@ -6558,11 +6681,23 @@ def report_view(report_id: int):
             s = str(v).strip()
             if not s:
                 return None
-            s = s.replace(" ", "")
-            if "," in s and "." not in s:
-                s = s.replace(",", ".")
-            elif "," in s and "." in s:
-                s = s.replace(",", "")
+            s = s.replace("\u00a0", "").replace("\u202f", "").replace(" ", "")
+            s = re.sub(r"[^0-9,\.\-]", "", s)
+            if not s:
+                return None
+            if "," in s and "." in s:
+                # Keep the right-most separator as decimal marker.
+                if s.rfind(",") > s.rfind("."):
+                    s = s.replace(".", "")
+                    s = s.replace(",", ".")
+                else:
+                    s = s.replace(",", "")
+            elif "," in s:
+                if s.count(",") > 1:
+                    head, tail = s.rsplit(",", 1)
+                    s = head.replace(",", "") + "." + tail
+                else:
+                    s = s.replace(",", ".")
             return float(s)
         except Exception:
             return None
@@ -6571,24 +6706,30 @@ def report_view(report_id: int):
         m = str(mode or "").strip().lower()
         if m == "count":
             return len(rows or [])
-        if m != "sum":
+        if m not in {"sum", "avg", "min", "max"}:
             return None
         idx = _find_col_index(cols, sum_field)
         if idx < 0:
             return None
-        total = 0.0
-        used = False
+        nums: list[float] = []
         for r in rows or []:
             if not isinstance(r, (list, tuple)) or idx >= len(r):
                 continue
             num = _to_float(r[idx])
             if num is None:
                 continue
-            total += num
-            used = True
-        if not used:
+            nums.append(num)
+        if not nums:
             return None
-        return total
+        if m == "sum":
+            return sum(nums)
+        if m == "avg":
+            return sum(nums) / len(nums)
+        if m == "min":
+            return min(nums)
+        if m == "max":
+            return max(nums)
+        return None
 
     def _format_group_metric(v: float | int | None, mode: str, decimals: int | None, date_fmt: str | None) -> str:
         if v is None:
@@ -6613,6 +6754,56 @@ def report_view(report_id: int):
             if str(c).lower() == low:
                 return i
         return -1
+
+    def _parse_group_by_spec(spec: str) -> tuple[str, str]:
+        raw = str(spec or "").strip()
+        if not raw:
+            return "", ""
+        m = re.match(r"^(month_year|year_month|month|year)\(([^()]+)\)$", raw, flags=re.I)
+        if m:
+            return m.group(1).lower(), str(m.group(2) or "").strip()
+        return "field", raw
+
+    def _coerce_date_like(v: object) -> date | datetime | None:
+        if isinstance(v, (date, datetime)):
+            return v
+        if v in (None, ""):
+            return None
+        s = str(v).strip()
+        if not s:
+            return None
+        for candidate in (s, s.replace("Z", "+00:00")):
+            try:
+                return datetime.fromisoformat(candidate)
+            except Exception:
+                pass
+        for fmt in ("%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%d/%m/%Y", "%d/%m/%Y %H:%M"):
+            try:
+                return datetime.strptime(s, fmt)
+            except Exception:
+                pass
+        return None
+
+    def _group_value_for_row(row: list, cols: list, spec: str, date_fmt: str | None) -> str:
+        mode, field_name = _parse_group_by_spec(spec)
+        idx = _find_col_index(cols, field_name)
+        if idx < 0:
+            return ""
+        v = row[idx] if isinstance(row, (list, tuple)) and idx < len(row) else None
+        if mode == "field":
+            return _format_cell(v, None, date_fmt)
+        dt_value = _coerce_date_like(v)
+        if not dt_value:
+            return _format_cell(v, None, date_fmt)
+        if isinstance(dt_value, date) and not isinstance(dt_value, datetime):
+            dt_value = datetime(dt_value.year, dt_value.month, dt_value.day)
+        if mode == "year":
+            return f"{dt_value.year:04d}"
+        if mode == "month":
+            return f"{dt_value.month:02d}"
+        if mode in {"month_year", "year_month"}:
+            return f"{dt_value.month:02d}/{dt_value.year:04d}"
+        return _format_cell(v, None, date_fmt)
 
     def _sort_rows(rows: list, idx: int, desc: bool) -> list:
         if idx < 0:
@@ -6686,6 +6877,11 @@ def report_view(report_id: int):
             pass
         if isinstance(v, (datetime, date)):
             return _fmt_date(v, f)
+        # If a date-style format is requested, try parsing textual timestamps/dates.
+        if any(tok in f for tok in ("yyyy", "MM", "dd", "HH", "mm", "ss")):
+            dt_like = _coerce_date_like(v)
+            if dt_like is not None:
+                return _fmt_date(dt_like, f)
         return str(v if v is not None else "")
 
     def _safe_ident(name: str) -> str:
@@ -6889,13 +7085,40 @@ def report_view(report_id: int):
 
                     try:
                         dataset_rows = []
+                        dataset_rows_raw = []
                         table_style_cfg = (first_cfg.get("table") if isinstance(first_cfg.get("table"), dict) else {})
                         table_style_cfg = {
                             "theme": str(table_style_cfg.get("theme") or "crystal").strip().lower() or "crystal",
                             "zebra": bool(table_style_cfg.get("zebra")),
                             "repeat_header": bool(table_style_cfg.get("repeat_header", True)),
                             "header_bg": str(table_style_cfg.get("header_bg") or "").strip(),
+                            "group_subtotal_mode": str(table_style_cfg.get("group_subtotal_mode") or "").strip().lower(),
+                            "group_subtotal_field": str(table_style_cfg.get("group_subtotal_field") or "").strip(),
+                            "group_subtotal_label": str(table_style_cfg.get("group_subtotal_label") or "").strip() or "Sous-total",
+                            "grand_total": bool(table_style_cfg.get("grand_total")),
+                            "grand_total_label": str(table_style_cfg.get("grand_total_label") or "").strip() or "Grand total",
+                            "footer_item_count": bool(table_style_cfg.get("footer_item_count")),
+                            "footer_item_count_label": str(table_style_cfg.get("footer_item_count_label") or "").strip() or "Items",
                         }
+                        if table_style_cfg["group_subtotal_mode"] not in ("count", "sum", "avg", "min", "max"):
+                            table_style_cfg["group_subtotal_mode"] = ""
+
+                        # A per-field aggregation setting can override rowset table subtotal settings.
+                        for rb in run:
+                            rcfg = rb.get("config") if isinstance(rb.get("config"), dict) else {}
+                            agg = rcfg.get("aggregation") if isinstance(rcfg.get("aggregation"), dict) else {}
+                            agg_mode = str(agg.get("mode") or "").strip().lower()
+                            if agg_mode not in ("count", "sum", "avg", "min", "max"):
+                                continue
+                            rbind = (rcfg.get("binding") or {}) if isinstance(rcfg.get("binding"), dict) else {}
+                            agg_field = str(rbind.get("field") or "").strip()
+                            table_style_cfg["group_subtotal_mode"] = agg_mode
+                            table_style_cfg["group_subtotal_field"] = "" if agg_mode == "count" else agg_field
+                            agg_label = str(agg.get("label") or "").strip()
+                            if agg_label:
+                                table_style_cfg["group_subtotal_label"] = agg_label
+                            table_style_cfg["grand_total"] = bool(agg.get("grand_total", True))
+                            break
                         if source_kind == "question":
                             qid = int(first_bind.get("question_id") or 0)
                             q = q_by_id.get(qid)
@@ -6906,6 +7129,7 @@ def report_view(report_id: int):
                             rows_all = res.get("rows") or []
                             col_map = {str(c): i for i, c in enumerate(cols_all)}
                             for rr in rows_all:
+                                row_out_raw: list[object] = []
                                 row_out: list[str] = []
                                 for rb in run:
                                     rcfg = rb.get("config") if isinstance(rb.get("config"), dict) else {}
@@ -6917,10 +7141,12 @@ def report_view(report_id: int):
                                     if ridx is None:
                                         ridx = col_map.get(field.lower())
                                     val = rr[ridx] if isinstance(rr, (list, tuple)) and ridx is not None and ridx < len(rr) else None
+                                    row_out_raw.append(val)
                                     sval = _apply_bound_format(val, fmt)
                                     if sval in ("", None):
                                         sval = empty_text
                                     row_out.append(str(sval or ""))
+                                dataset_rows_raw.append(row_out_raw)
                                 dataset_rows.append(row_out)
 
                         elif source_kind == "table":
@@ -6934,19 +7160,23 @@ def report_view(report_id: int):
                             res = execute_sql(src, sql, {"tenant_id": g.tenant.id}, row_limit=100)
                             rows_all = res.get("rows") or []
                             for rr in rows_all:
+                                row_out_raw: list[object] = []
                                 row_out: list[str] = []
                                 for cidx, rb in enumerate(run):
                                     rcfg = rb.get("config") if isinstance(rb.get("config"), dict) else {}
                                     fmt = str(rcfg.get("format") or "").strip()
                                     empty_text = str(rcfg.get("empty_text") or "")
                                     val = rr[cidx] if isinstance(rr, (list, tuple)) and cidx < len(rr) else None
+                                    row_out_raw.append(val)
                                     sval = _apply_bound_format(val, fmt)
                                     if sval in ("", None):
                                         sval = empty_text
                                     row_out.append(str(sval or ""))
+                                dataset_rows_raw.append(row_out_raw)
                                 dataset_rows.append(row_out)
 
                         headers = []
+                        metric_cols = []
                         column_styles = []
                         group_idx = -1
                         group_label_tpl = 'Groupe: {group}'
@@ -6957,11 +7187,27 @@ def report_view(report_id: int):
                                 group_idx = ridx
                                 group_label_tpl = str(rcfg.get("group_label") or 'Groupe: {group}')
                                 group_count = True
+                        # Backward-compat: older AI-sanitized layouts may have lost group_key,
+                        # while keeping subtotal config. Infer grouping from the first date-like
+                        # formatted field (or first column) so subtotals can still render.
+                        if group_idx < 0 and str(table_style_cfg.get("group_subtotal_mode") or "").strip().lower():
+                            fallback_group_idx = -1
+                            for ridx, rb in enumerate(run):
+                                rcfg = rb.get("config") if isinstance(rb.get("config"), dict) else {}
+                                rfmt = str(rcfg.get("format") or "").strip().lower()
+                                if any(token in rfmt for token in ("yyyy", "yy", "mm", "dd")):
+                                    fallback_group_idx = ridx
+                                    group_label_tpl = str(rcfg.get("group_label") or 'Groupe: {group}')
+                                    break
+                            if fallback_group_idx < 0 and run:
+                                fallback_group_idx = 0
+                            group_idx = fallback_group_idx
                         for rb in run:
                             rcfg = rb.get("config") if isinstance(rb.get("config"), dict) else {}
                             rbind = (rcfg.get("binding") or {}) if isinstance(rcfg.get("binding"), dict) else {}
                             h = str(rb.get("title") or "").strip() or str(rbind.get("field") or "")
                             headers.append(h)
+                            metric_cols.append(str(rbind.get("field") or "").strip() or h)
                             rst = rb.get("style") if isinstance(rb.get("style"), dict) else {}
                             column_styles.append({
                                 "color": str(rst.get("color") or "").strip(),
@@ -6991,21 +7237,51 @@ def report_view(report_id: int):
                             "rows": dataset_rows,
                             "column_styles": column_styles,
                         }
+                        if table_style_cfg.get("footer_item_count"):
+                            blocks_data[key]["footer_item_count"] = f"{table_style_cfg.get('footer_item_count_label')}: {len(dataset_rows)}"
                         if group_idx >= 0:
                             groups_map: dict[str, list[list[str]]] = {}
-                            for rr in dataset_rows:
-                                gval = rr[group_idx] if group_idx < len(rr) else ''
-                                groups_map.setdefault(str(gval), []).append(rr)
+                            groups_map_raw: dict[str, list[list[object]]] = {}
+                            for rr_fmt, rr_raw in zip(dataset_rows, dataset_rows_raw):
+                                gval = rr_fmt[group_idx] if group_idx < len(rr_fmt) else ''
+                                gkey = str(gval)
+                                groups_map.setdefault(gkey, []).append(rr_fmt)
+                                groups_map_raw.setdefault(gkey, []).append(rr_raw)
                             groups = []
                             for gname, grows in groups_map.items():
-                                groups.append({
+                                grows_raw = groups_map_raw.get(gname) or []
+                                grp_payload = {
                                     "name": gname,
                                     "label": group_label_tpl.replace('{group}', str(gname)),
                                     "count": len(grows),
                                     "rows": grows,
-                                })
+                                }
+                                subtotal_mode = str(table_style_cfg.get("group_subtotal_mode") or "").strip().lower()
+                                if subtotal_mode:
+                                    subtotal_value = _group_metric(grows_raw, metric_cols, subtotal_mode, str(table_style_cfg.get("group_subtotal_field") or ""))
+                                    subtotal_text = _format_group_metric(subtotal_value, subtotal_mode, None, None)
+                                    if subtotal_text == "" and subtotal_mode != "count":
+                                        subtotal_value = _group_metric(grows_raw, metric_cols, "count", "")
+                                        subtotal_text = _format_group_metric(subtotal_value, "count", None, None)
+                                    if subtotal_text != "":
+                                        grp_payload["subtotal"] = f"{table_style_cfg.get('group_subtotal_label')}: {subtotal_text}"
+                                groups.append(grp_payload)
                             blocks_data[key]["groups"] = groups
                             blocks_data[key]["group_count"] = group_count
+                        if table_style_cfg.get("grand_total") and str(table_style_cfg.get("group_subtotal_mode") or "").strip().lower():
+                            grand_mode = str(table_style_cfg.get("group_subtotal_mode") or "").strip().lower()
+                            grand_value = _group_metric(
+                                dataset_rows_raw,
+                                metric_cols,
+                                grand_mode,
+                                str(table_style_cfg.get("group_subtotal_field") or ""),
+                            )
+                            grand_text = _format_group_metric(grand_value, grand_mode, None, None)
+                            if grand_text == "" and grand_mode != "count":
+                                grand_value = _group_metric(dataset_rows_raw, metric_cols, "count", "")
+                                grand_text = _format_group_metric(grand_value, "count", None, None)
+                            if grand_text != "":
+                                blocks_data[key]["grand_total"] = f"{table_style_cfg.get('grand_total_label')}: {grand_text}"
                         idx = j
                         continue
                     except Exception as e:
@@ -7050,7 +7326,7 @@ def report_view(report_id: int):
                         group_label = str(tcfg.get("group_label") or "{group}")
                         group_count = bool(tcfg.get("group_count"))
                         group_subtotal_mode = str(tcfg.get("group_subtotal_mode") or "").strip().lower()
-                        if group_subtotal_mode not in ("count", "sum"):
+                        if group_subtotal_mode not in ("count", "sum", "avg", "min", "max"):
                             group_subtotal_mode = ""
                         group_subtotal_field = str(tcfg.get("group_subtotal_field") or "").strip()
                         group_subtotal_label = str(tcfg.get("group_subtotal_label") or "").strip() or "Sous-total"
@@ -7058,7 +7334,8 @@ def report_view(report_id: int):
                         grand_total_label = str(tcfg.get("grand_total_label") or "").strip() or "Grand total"
                         footer_item_count = bool(tcfg.get("footer_item_count"))
                         footer_item_count_label = str(tcfg.get("footer_item_count_label") or "").strip() or "Items"
-                        group_idx = _find_col_index(cols, group_by)
+                        _, group_field = _parse_group_by_spec(group_by)
+                        group_idx = _find_col_index(cols, group_field)
 
                         # format cells
                         rows_fmt = [[_format_cell(c, decimals, date_fmt) for c in r] for r in rows]
@@ -7069,8 +7346,7 @@ def report_view(report_id: int):
                         if group_idx >= 0:
                             groups_map: dict[str, dict[str, list]] = {}
                             for rr, rf in zip(rows, rows_fmt):
-                                gv = rr[group_idx] if isinstance(rr, (list, tuple)) and group_idx < len(rr) else ""
-                                gs = _format_cell(gv, None, date_fmt)
+                                gs = _group_value_for_row(rr, cols, group_by, date_fmt)
                                 bucket = groups_map.setdefault(gs, {"raw": [], "fmt": []})
                                 bucket["raw"].append(rr)
                                 bucket["fmt"].append(rf)
@@ -7089,6 +7365,9 @@ def report_view(report_id: int):
                                 if group_subtotal_mode:
                                     subtotal_value = _group_metric(grows_raw, cols, group_subtotal_mode, group_subtotal_field)
                                     subtotal_text = _format_group_metric(subtotal_value, group_subtotal_mode, decimals, date_fmt)
+                                    if subtotal_text == "" and group_subtotal_mode != "count":
+                                        subtotal_value = _group_metric(grows_raw, cols, "count", "")
+                                        subtotal_text = _format_group_metric(subtotal_value, "count", decimals, date_fmt)
                                     if subtotal_text != "":
                                         grp_payload["subtotal"] = f"{group_subtotal_label}: {subtotal_text}"
                                 groups.append(grp_payload)
@@ -7097,6 +7376,9 @@ def report_view(report_id: int):
                         if grand_total and group_subtotal_mode:
                             grand_value = _group_metric(rows, cols, group_subtotal_mode, group_subtotal_field)
                             grand_text = _format_group_metric(grand_value, group_subtotal_mode, decimals, date_fmt)
+                            if grand_text == "" and group_subtotal_mode != "count":
+                                grand_value = _group_metric(rows, cols, "count", "")
+                                grand_text = _format_group_metric(grand_value, "count", decimals, date_fmt)
                             if grand_text != "":
                                 payload["grand_total"] = f"{grand_total_label}: {grand_text}"
                         blocks_data[key] = payload
@@ -7124,6 +7406,7 @@ def report_view(report_id: int):
                 cfg = bb.get("config") if isinstance(bb.get("config"), dict) else {}
                 bind = (cfg.get("binding") or {}) if isinstance(cfg.get("binding"), dict) else {}
                 source_kind = (bind.get("source") or "").strip().lower()
+                fmt = str(cfg.get("format") or "").strip()
                 try:
                     if source_kind == "question":
                         qid = int(bind.get("question_id") or 0)
@@ -7135,6 +7418,9 @@ def report_view(report_id: int):
                         value = _table_field_value(table_name, field)
                     else:
                         value = ""
+
+                    if fmt:
+                        value = _apply_bound_format(value, fmt)
 
                     if value in (None, ""):
                         value = str(cfg.get("empty_text") or "")
@@ -7630,6 +7916,20 @@ def api_question_data(question_id: int):
         db.session.rollback()
 
     return jsonify(res)
+
+
+@bp.route("/api/questions/<int:question_id>/columns", methods=["GET"])
+@login_required
+def api_question_columns(question_id: int):
+    """Return question columns with minimal payload for report builder explorer."""
+    _require_tenant()
+    q = Question.query.filter_by(id=question_id, tenant_id=g.tenant.id).first_or_404()
+    src = DataSource.query.filter_by(id=q.source_id, tenant_id=g.tenant.id).first_or_404()
+    try:
+        res = execute_sql(src, q.sql_text, params={"tenant_id": g.tenant.id}, row_limit=1)
+    except QueryExecutionError as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"columns": res.get("columns") or []})
 
 
 @bp.route("/api/questions/<int:question_id>/viz", methods=["POST"])

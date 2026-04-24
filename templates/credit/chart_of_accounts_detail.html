@@ -1,0 +1,312 @@
+{% extends "credit/page_base.html" %}
+{% set title = _('Chart of Accounts') + ' – ' + coa.name %}
+{% set active_page = 'chart_of_accounts' %}
+
+{% block credit_page_content %}
+
+{# ── Breadcrumb / header ── #}
+<div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
+  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('credit.chart_of_accounts') }}">
+    <i class="bi bi-arrow-left me-1"></i>{{ _('Charts of accounts') }}
+  </a>
+  <span class="fw-semibold ms-1">{{ coa.name }}</span>
+  <a class="btn btn-sm btn-outline-primary ms-auto" href="{{ url_for('credit.financials_grid', coa_id=coa.id) }}">
+    <i class="bi bi-table me-1"></i>{{ _('Open financial grid') }}
+  </a>
+  <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#modalEditMeta">
+    <i class="bi bi-gear me-1"></i>{{ _('Settings') }}
+  </button>
+</div>
+
+{# ── Account lines grid ── #}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-list-columns-reverse me-1"></i>{{ _('Account lines') }}</span>
+    <button class="btn btn-sm btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#modalAddLine">
+      <i class="bi bi-plus-lg me-1"></i>{{ _('Add line') }}
+    </button>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0 align-middle" id="coaLinesTable">
+        <thead class="table-light">
+          <tr>
+            <th style="width:2rem"></th>
+            <th>{{ _('Code') }}</th>
+            <th>{{ _('Label') }}</th>
+            <th>{{ _('Type') }}</th>
+            <th>{{ _('Formula / expression') }}</th>
+            <th>{{ _('Indent') }}</th>
+            <th>{{ _('Ratio') }}</th>
+            <th>{{ _('Ratio code') }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="coaLinesTbody" data-coa-id="{{ coa.id }}">
+          {% for line in lines %}
+          <tr class="coa-line-row {{ 'table-secondary fw-semibold' if line.line_type == 'header' else '' }}
+                                  {{ 'fst-italic text-secondary' if line.line_type == 'separator' else '' }}
+                                  {{ 'table-warning' if line.line_type in ('formula', 'total') else '' }}"
+            data-line-id="{{ line.id }}">
+            <td class="drag-handle text-secondary" style="cursor:grab" title="{{ _('Drag to reorder') }}">
+              <i class="bi bi-grip-vertical"></i>
+            </td>
+            {# Editable code #}
+            <td>
+              <span class="editable-cell font-monospace small" data-field="code"
+                data-line-id="{{ line.id }}" data-value="{{ line.code or '' }}">{{ line.code or '–' }}</span>
+            </td>
+            {# Editable label, indented visually #}
+            <td style="padding-left: {{ (line.indent_level * 1.25 + 0.5)|round(2) }}rem">
+              <span class="editable-cell" data-field="label"
+                data-line-id="{{ line.id }}" data-value="{{ line.label }}">{{ line.label }}</span>
+            </td>
+            {# Editable type #}
+            <td>
+              <span class="editable-cell" data-field="line_type"
+                data-line-id="{{ line.id }}" data-value="{{ line.line_type }}"
+                data-type="select" data-options="header,data,formula,total,separator">
+                <span class="badge
+                  {% if line.line_type == 'header' %}text-bg-secondary
+                  {% elif line.line_type == 'formula' %}text-bg-warning
+                  {% elif line.line_type == 'total' %}text-bg-dark
+                  {% elif line.line_type == 'separator' %}text-bg-light border
+                  {% else %}text-bg-primary{% endif %}">{{ _(line.line_type) }}</span>
+              </span>
+            </td>
+            {# Editable formula #}
+            <td>
+              <span class="editable-cell font-monospace small" data-field="formula_expr"
+                data-line-id="{{ line.id }}" data-value="{{ line.formula_expr or '' }}">
+                {{ line.formula_expr or '–' if line.line_type in ('formula', 'total') else '–' }}
+              </span>
+            </td>
+            {# Editable indent #}
+            <td>
+              <span class="editable-cell" data-field="indent_level"
+                data-line-id="{{ line.id }}" data-value="{{ line.indent_level }}">{{ line.indent_level }}</span>
+            </td>
+            {# Ratio toggle #}
+            <td class="text-center">
+              <input type="checkbox" class="form-check-input ratio-toggle"
+                {% if line.is_ratio %}checked{% endif %}
+                data-line-id="{{ line.id }}"
+                title="{{ _('Mark as ratio') }}">
+            </td>
+            {# Editable ratio code #}
+            <td>
+              <span class="editable-cell font-monospace small" data-field="ratio_code"
+                data-line-id="{{ line.id }}" data-value="{{ line.ratio_code or '' }}">{{ line.ratio_code or '–' }}</span>
+            </td>
+            <td>
+              <form method="post" class="d-inline" onsubmit="return confirm('{{ _('Delete this line?') }}')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="delete_line">
+                <input type="hidden" name="line_id" value="{{ line.id }}">
+                <button class="btn btn-outline-danger btn-sm" type="submit">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="9" class="text-secondary p-3">{{ _('No lines yet. Add the first line above.') }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{# ── Add line modal ── #}
+<div class="modal fade" id="modalAddLine" tabindex="-1" aria-labelledby="modalAddLineLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="add_line">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalAddLineLabel">{{ _('Add account line') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Close') }}"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label">{{ _('Code') }}</label>
+              <input class="form-control font-monospace" name="code" placeholder="e.g. ebitda">
+            </div>
+            <div class="col-md-8">
+              <label class="form-label">{{ _('Label') }} <span class="text-danger">*</span></label>
+              <input class="form-control" name="label" required placeholder="{{ _('Line description') }}">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">{{ _('Type') }}</label>
+              <select class="form-select" name="line_type" id="newLineType">
+                {% for lt in line_types %}
+                <option value="{{ lt }}">{{ _(lt) }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-8" id="formulaRow">
+              <label class="form-label">{{ _('Formula expression') }}</label>
+              <input class="form-control font-monospace" name="formula_expr"
+                placeholder="{{ _('e.g. revenue - cost_of_goods_sold') }}">
+              <div class="form-text">{{ _('Use line codes from this chart. Operators: + - * / ( )') }}</div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">{{ _('Indent level') }}</label>
+              <input class="form-control" type="number" name="indent_level" value="0" min="0" max="5">
+            </div>
+            <div class="col-md-3 d-flex align-items-end pb-1 gap-2">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="is_ratio" value="1" id="newIsRatio">
+                <label class="form-check-label" for="newIsRatio">{{ _('Is ratio') }}</label>
+              </div>
+            </div>
+            <div class="col-md-6" id="ratioCodeRow">
+              <label class="form-label">{{ _('Ratio code') }}</label>
+              <input class="form-control font-monospace" name="ratio_code" placeholder="e.g. leverage">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ _('Cancel') }}</button>
+          <button type="submit" class="btn btn-primary">{{ _('Add line') }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{# ── Settings / meta modal ── #}
+<div class="modal fade" id="modalEditMeta" tabindex="-1" aria-labelledby="modalEditMetaLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="update_meta">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalEditMetaLabel">{{ _('Chart settings') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Close') }}"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label">{{ _('Name') }}</label>
+              <input class="form-control" name="name" value="{{ coa.name }}" required>
+            </div>
+            <div class="col-12">
+              <label class="form-label">{{ _('Description') }}</label>
+              <textarea class="form-control" name="description" rows="2">{{ coa.description or '' }}</textarea>
+            </div>
+            <div class="col-12">
+              <label class="form-label">{{ _('Sector') }}</label>
+              <select class="form-select" name="sector_id">
+                <option value="">{{ _('All sectors') }}</option>
+                {% for s in sectors %}
+                <option value="{{ s.id }}" {% if coa.sector_id == s.id %}selected{% endif %}>
+                  {{ s.display_name(current_lang) }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ _('Cancel') }}</button>
+          <button type="submit" class="btn btn-primary">{{ _('Save') }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var coaId = document.getElementById('coaLinesTbody').dataset.coaId;
+  var csrfToken = document.querySelector('input[name=csrf_token]').value;
+
+  // ── Inline cell editing ──────────────────────────────────────────────────
+  document.querySelectorAll('.editable-cell').forEach(function (cell) {
+    cell.addEventListener('dblclick', function () {
+      if (cell.querySelector('input, select')) return; // already editing
+      var field = cell.dataset.field;
+      var value = cell.dataset.value;
+      var lineId = cell.dataset.lineId;
+      var original = cell.innerHTML;
+
+      var input;
+      if (cell.dataset.type === 'select') {
+        input = document.createElement('select');
+        input.className = 'form-select form-select-sm';
+        (cell.dataset.options || '').split(',').forEach(function (opt) {
+          var o = document.createElement('option');
+          o.value = opt.trim();
+          o.textContent = opt.trim();
+          if (opt.trim() === value) o.selected = true;
+          input.appendChild(o);
+        });
+      } else {
+        input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'form-control form-control-sm';
+        input.value = value;
+      }
+
+      cell.innerHTML = '';
+      cell.appendChild(input);
+      input.focus();
+
+      function save() {
+        var newVal = input.value.trim();
+        var payload = { [field]: newVal };
+        if (field === 'indent_level') payload[field] = parseInt(newVal) || 0;
+        fetch('/credit/chart-of-accounts/' + coaId + '/lines/' + lineId + '/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+          body: JSON.stringify(payload),
+        }).then(function (r) { return r.json(); }).then(function (data) {
+          if (data.ok) {
+            cell.dataset.value = newVal;
+            cell.textContent = newVal || '–';
+            // Reload page to reflect badge / indent changes properly
+            if (field === 'line_type' || field === 'indent_level') window.location.reload();
+          } else {
+            cell.innerHTML = original;
+          }
+        }).catch(function () { cell.innerHTML = original; });
+      }
+
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); save(); }
+        if (e.key === 'Escape') { cell.innerHTML = original; }
+      });
+      input.addEventListener('blur', save);
+    });
+  });
+
+  // ── Ratio checkbox toggle ────────────────────────────────────────────────
+  document.querySelectorAll('.ratio-toggle').forEach(function (chk) {
+    chk.addEventListener('change', function () {
+      var lineId = chk.dataset.lineId;
+      fetch('/credit/chart-of-accounts/' + coaId + '/lines/' + lineId + '/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify({ is_ratio: chk.checked }),
+      });
+    });
+  });
+
+  // ── Show/hide formula row in Add Line modal ──────────────────────────────
+  var newLineTypeSelect = document.getElementById('newLineType');
+  if (newLineTypeSelect) {
+    function toggleFormulaRow() {
+      var showFormula = ['formula', 'total'].includes(newLineTypeSelect.value);
+      document.getElementById('formulaRow').style.display = showFormula ? '' : 'none';
+    }
+    newLineTypeSelect.addEventListener('change', toggleFormulaRow);
+    toggleFormulaRow();
+  }
+})();
+</script>
+{% endblock %}

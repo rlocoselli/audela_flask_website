@@ -144,6 +144,13 @@ def extract_web(config: Dict[str, Any], ctx, app=None):
     table_selector = str(config.get("table_selector") or "").strip()
     verify_ssl = bool(config.get("verify_ssl", True))
     visual_actions = config.get("visual_actions") if isinstance(config.get("visual_actions"), list) else []
+    raw_field_mapping = config.get("field_mapping") if isinstance(config.get("field_mapping"), dict) else {}
+    field_mapping: dict[str, str] = {}
+    for k, v in raw_field_mapping.items():
+        key = str(k or "").strip()
+        val = str(v or "").strip()
+        if key and val:
+            field_mapping[key] = val
 
     lang = None
     try:
@@ -172,11 +179,25 @@ def extract_web(config: Dict[str, Any], ctx, app=None):
         elif isinstance(row, dict):
             out.append(dict(row))
 
+    if field_mapping:
+        mapped_out: list[dict[str, Any]] = []
+        for rec in out:
+            if not isinstance(rec, dict):
+                continue
+            mapped = {}
+            for dst, src in field_mapping.items():
+                mapped[str(dst)] = rec.get(str(src))
+            mapped_out.append(mapped)
+        if mapped_out:
+            out = mapped_out
+            cols = list(field_mapping.keys())
+
     ctx.meta["web_extract"] = {
         "url": extracted.source_url,
         "mode": extracted.mode,
         "table_selector": table_selector,
         "visual_actions_count": len(visual_actions),
+        "field_mapping_count": len(field_mapping),
         "columns": cols,
         "rows": len(out),
     }
@@ -808,6 +829,9 @@ def transform_python_advanced(config: Dict[str, Any], ctx, app=None):
         "meta": ctx.meta,
         "data": data,
         "rows": data,
+        "input_data": data,
+        "current_data": data,
+        "table_data": ctx.meta.get("table_data") if isinstance(ctx.meta.get("table_data"), dict) else {},
         "result": None,
         "table": table,
     }
@@ -815,6 +839,11 @@ def transform_python_advanced(config: Dict[str, Any], ctx, app=None):
     exec(rendered_code, global_env, local_env)
 
     result = local_env.get("result")
+    if result is None:
+        for alias in ("output_data", "cleaned_data", "transformed_data", "result_data"):
+            if local_env.get(alias) is not None:
+                result = local_env.get(alias)
+                break
     if result is None:
         result = local_env.get("data", data)
 

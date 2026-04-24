@@ -71,6 +71,41 @@ function _showMessageModal(message, title) {
   m.bs.show();
 }
 
+function _showToast(message, title, variant) {
+  const toastId = `etlToast${Date.now()}`;
+  let host = document.getElementById('etlToastHost');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'etlToastHost';
+    host.className = 'toast-container position-fixed top-0 end-0 p-3';
+    host.style.zIndex = '1080';
+    document.body.appendChild(host);
+  }
+  const borderClass = variant === 'danger'
+    ? 'border-danger-subtle'
+    : (variant === 'warning' ? 'border-warning-subtle' : 'border-success-subtle');
+  const textClass = variant === 'danger'
+    ? 'text-danger'
+    : (variant === 'warning' ? 'text-warning-emphasis' : 'text-success');
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = `
+    <div id="${toastId}" class="toast align-items-center border ${borderClass}" role="status" aria-live="polite" aria-atomic="true">
+      <div class="d-flex">
+        <div class="toast-body">
+          <div class="fw-semibold ${textClass}">${_escapeHtml(title || t('Information') || 'Information')}</div>
+          <div>${_escapeHtml(message || '')}</div>
+        </div>
+        <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>
+    </div>
+  `;
+  const toastEl = wrapper.firstElementChild;
+  host.appendChild(toastEl);
+  const toast = new bootstrap.Toast(toastEl, { delay: 4500 });
+  toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove(), { once: true });
+  toast.show();
+}
+
 function _showConfirmModal(message, title) {
   return new Promise((resolve) => {
     const m = _getUiModal();
@@ -691,6 +726,62 @@ function _normalizeDecisionNodeOutputs(drawflowPayload) {
   return drawflowPayload;
 }
 
+function _cloneDrawflowPayload(payload) {
+  try {
+    return JSON.parse(JSON.stringify(payload || {}));
+  } catch (err) {
+    return payload || {};
+  }
+}
+
+function _mergeDrawflowPayloads(basePayload, incomingPayload) {
+  const merged = _cloneDrawflowPayload(basePayload);
+  const normalizedIncoming = _cloneDrawflowPayload(_normalizeDecisionNodeOutputs(incomingPayload));
+  merged.drawflow = merged.drawflow || {};
+  merged.drawflow.Home = merged.drawflow.Home || { data: {} };
+  merged.drawflow.Home.data = merged.drawflow.Home.data || {};
+
+  const baseNodes = merged.drawflow.Home.data;
+  const incomingNodes = (((normalizedIncoming || {}).drawflow || {}).Home || {}).data || {};
+  const incomingEntries = Object.entries(incomingNodes);
+  if (!incomingEntries.length) return merged;
+
+  const existingIds = Object.keys(baseNodes).map((id) => Number(id)).filter((id) => Number.isFinite(id));
+  let nextId = (existingIds.length ? Math.max(...existingIds) : 0) + 1;
+  const sourceXs = incomingEntries.map(([, node]) => Number(node?.pos_x) || 0);
+  const minX = sourceXs.length ? Math.min(...sourceXs) : 0;
+  const idMap = {};
+
+  incomingEntries.forEach(([oldId]) => {
+    idMap[String(oldId)] = String(nextId);
+    nextId += 1;
+  });
+
+  incomingEntries.forEach(([oldId, node]) => {
+    const newId = idMap[String(oldId)];
+    const copy = _cloneDrawflowPayload(node);
+    copy.id = Number(newId);
+    copy.pos_x = (Number(copy.pos_x) || 0) - minX + 520;
+    copy.pos_y = (Number(copy.pos_y) || 0) + 40;
+
+    const remapConnections = (bucket, keyName) => {
+      Object.values(bucket || {}).forEach((port) => {
+        const conns = Array.isArray(port?.connections) ? port.connections : [];
+        conns.forEach((conn) => {
+          const oldRef = String(conn?.[keyName] ?? '');
+          if (idMap[oldRef]) conn[keyName] = idMap[oldRef];
+        });
+      });
+    };
+
+    remapConnections(copy.outputs, 'node');
+    remapConnections(copy.inputs, 'node');
+    baseNodes[newId] = copy;
+  });
+
+  return merged;
+}
+
 function addNode(type) {
   const cfg = _defaultConfig(type);
   const outputs = (type === "transform.decision.scalar") ? 2 : 1;
@@ -1169,6 +1260,7 @@ function refreshDbSources() {
           sel.appendChild(opt);
         });
       }
+      _syncAiDbSourceSelect();
     })
     .catch(err => console.error("db sources:", err));
 }
@@ -1187,8 +1279,143 @@ function refreshApiSources() {
           sel.appendChild(opt);
         });
       }
+      _syncAiApiSourceSelect();
     })
     .catch(err => console.error("api sources:", err));
+}
+
+function _syncAiDbSourceSelect() {
+  const sel = document.getElementById("aiDbSourceSelect");
+  if (!sel) return;
+  const selected = new Set(Array.from(sel.selectedOptions || []).map(opt => String(opt.value)));
+  sel.innerHTML = "";
+  _dbSources.forEach(s => {
+    const opt = document.createElement("option");
+    opt.value = s.id;
+    opt.textContent = `${s.name} (${s.type})`;
+    if (selected.has(String(s.id))) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+function _syncAiApiSourceSelect() {
+  const sel = document.getElementById("aiApiSourceSelect");
+  if (!sel) return;
+  const selected = new Set(Array.from(sel.selectedOptions || []).map(opt => String(opt.value)));
+  sel.innerHTML = "";
+  _apiSources.forEach(s => {
+    const opt = document.createElement("option");
+    opt.value = s.id;
+    opt.textContent = `${s.name}`;
+    if (selected.has(String(s.id))) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+function _selectedValues(selectId) {
+  const el = document.getElementById(selectId);
+  if (!el) return [];
+  return Array.from(el.selectedOptions || []).map(opt => opt.value).filter(Boolean);
+}
+
+async function generateWorkflowWithAi() {
+  const promptEl = document.getElementById("aiWorkflowPrompt");
+  const modeEl = document.getElementById("aiWorkflowMode");
+  const btn = document.getElementById("btnAiGenerateWorkflow");
+  const previewEl = document.getElementById("etlPreview");
+  const prompt = (promptEl && promptEl.value ? promptEl.value : "").trim();
+  const mode = (modeEl && modeEl.value ? modeEl.value : 'replace');
+  if (!prompt) {
+    _showMessageModal(t('Describe the workflow you want first.') || 'Describe the workflow you want first.', t('Validation') || 'Validation');
+    return;
+  }
+
+  const current = editor.export();
+  const existingNodes = Object.keys(((((current || {}).drawflow || {}).Home || {}).data) || {});
+  if (existingNodes.length && mode === 'replace') {
+    const ok = await _showConfirmModal(
+      t('Generate a new workflow from AI and replace the current canvas?') || 'Generate a new workflow from AI and replace the current canvas?',
+      t('AI assistant') || 'AI assistant'
+    );
+    if (!ok) return;
+  }
+
+  const payload = {
+    prompt,
+    db_source_ids: _selectedValues("aiDbSourceSelect"),
+    api_source_ids: _selectedValues("aiApiSourceSelect"),
+  };
+
+  const oldHtml = btn ? btn.innerHTML : "";
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>' + (t('Generating with AI...') || 'Generating with AI...');
+  }
+  if (previewEl) previewEl.textContent = t('Generating workflow with AI...') || 'Generating workflow with AI...';
+
+  try {
+    const res = await _fetchJson("/etl/api/assistant/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const normalizedIncoming = _normalizeDecisionNodeOutputs(res.drawflow);
+    const finalGraph = (mode === 'append' && existingNodes.length)
+      ? _mergeDrawflowPayloads(current, normalizedIncoming)
+      : normalizedIncoming;
+    editor.clear();
+    setWorkflowName(res.name || 'ai_generated_workflow');
+    editor.import(finalGraph);
+    let draftSaved = false;
+    let draftSaveError = null;
+    try {
+      await _fetchJson('/etl/api/workflows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(finalGraph)
+      });
+      draftSaved = true;
+      refreshWorkflows();
+    } catch (saveErr) {
+      draftSaveError = String(saveErr?.message || saveErr || '');
+      console.warn('AI workflow auto-save failed', saveErr);
+    }
+    if (previewEl) {
+      previewEl.textContent = _jsonPretty({
+        summary: res.summary || '',
+        warnings: res.warnings || [],
+        mode,
+        draft_saved: draftSaved,
+        draft_save_error: draftSaveError,
+        workflow: res.workflow || {}
+      });
+    }
+    if (draftSaved) {
+      _showToast(
+        t('AI workflow draft saved automatically.') || 'AI workflow draft saved automatically.',
+        t('Saved automatically') || 'Saved automatically',
+        'success'
+      );
+    } else {
+      _showToast(
+        _tf('AI workflow generated, but auto-save failed: {error}', { error: draftSaveError || (t('Unknown error') || 'Unknown error') }),
+        t('Auto-save failed') || 'Auto-save failed',
+        'warning'
+      );
+    }
+    const successMsg = draftSaved
+      ? (res.summary || (t('Workflow generated, loaded, and saved automatically.') || 'Workflow generated, loaded, and saved automatically.'))
+      : (res.summary || (t('Workflow generated and loaded into the builder.') || 'Workflow generated and loaded into the builder.'));
+    _showMessageModal(successMsg, t('AI assistant') || 'AI assistant');
+  } catch (err) {
+    if (previewEl) previewEl.textContent = String(err.message || err);
+    _showMessageModal((t('AI generation error: {error}') || 'AI generation error: {error}').replace('{error}', String(err.message || err)), t('Error') || 'Error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = oldHtml;
+    }
+  }
 }
 
 function testSelectedDbSource() {
@@ -1769,7 +1996,7 @@ async function runWorkflow() {
 
 function _nodeIdFromElement(el) {
   if (!el || !el.id) return null;
-  const m = el.id.match(/^node-(\d+)$/);
+  const m = el.id.match(/^node-(.+)$/);
   return m ? m[1] : null;
 }
 
@@ -2067,7 +2294,7 @@ function openNodeConfig(nodeId) {
             </div>
           </div>
         </div>
-        <div class="form-text">Available vars: data, rows, meta, ctx, table(name). Placeholder in code string: {{table:staging}}</div>
+        <div class="form-text">Available vars: data, rows, input_data, current_data, table_data, meta, ctx, table(name). Output vars accepted: result, output_data, cleaned_data, transformed_data. Placeholder in code string: {{table:staging}}</div>
       </div>
       <div class="mt-3" id="cfg_py_examples">
         <div class="small fw-semibold mb-2">Examples</div>
@@ -2500,6 +2727,8 @@ function initEtlBuilder() {
   refreshJobs();
   refreshDbSources();
   refreshApiSources();
+  const btnAi = document.getElementById("btnAiGenerateWorkflow");
+  if (btnAi) btnAi.addEventListener("click", generateWorkflowWithAi);
 
   const params = new URLSearchParams(window.location.search);
   const load = params.get("load");

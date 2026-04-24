@@ -1,0 +1,200 @@
+{#
+  Borrower Picker Component
+  Usage:
+    {% set bp_field = 'borrower_id' %}
+    {% set bp_label_field = 'borrower_name_display' %}
+    {% set bp_initial_id = selected_borrower_id|default('') %}
+    {% set bp_initial_name = selected_borrower_name|default('') %}
+    {% include 'credit/_borrower_picker.html' %}
+
+  Or via macro call:
+    from 'credit/_borrower_picker.html' import borrower_picker
+    {{ borrower_picker('borrower_id', selected_id=deal.borrower_id, selected_name=deal.borrower.name) }}
+
+  The component outputs:
+    - A hidden input[name=bp_field] with the selected borrower id
+    - A visible readonly text button that opens the picker modal
+    - The modal itself (one instance per page – use the macro to avoid duplicates)
+#}
+{%- macro borrower_picker(field_name, selected_id='', selected_name='', required=False, modal_id='modalBorrowerPicker') -%}
+<div class="borrower-picker-widget" data-field="{{ field_name }}" data-modal="{{ modal_id }}">
+  <input type="hidden" name="{{ field_name }}" id="{{ field_name }}_hidden" value="{{ selected_id }}">
+  <div class="input-group">
+    <input type="text" class="form-control" id="{{ field_name }}_display"
+      value="{{ selected_name }}" readonly placeholder="{{ _('Select borrower...') }}"
+      {% if required %}required{% endif %}
+      style="background:#fff;cursor:pointer"
+      data-bs-toggle="modal" data-bs-target="#{{ modal_id }}">
+    <button class="btn btn-outline-secondary" type="button"
+      data-bs-toggle="modal" data-bs-target="#{{ modal_id }}"
+      title="{{ _('Browse borrowers') }}">
+      <i class="bi bi-search"></i>
+    </button>
+    {% if not required %}
+    <button class="btn btn-outline-danger" type="button" id="{{ field_name }}_clear"
+      title="{{ _('Clear') }}" {% if not selected_id %}style="display:none"{% endif %}>
+      <i class="bi bi-x-lg"></i>
+    </button>
+    {% endif %}
+  </div>
+</div>
+{%- endmacro -%}
+
+{#
+  Modal (include once per page – typically at the end of the block)
+  Usage: {{ borrower_picker_modal() }}
+#}
+{%- macro borrower_picker_modal(modal_id='modalBorrowerPicker') -%}
+<div class="modal fade" id="{{ modal_id }}" tabindex="-1"
+  aria-labelledby="{{ modal_id }}Label" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="{{ modal_id }}Label">
+          <i class="bi bi-people me-2"></i>{{ _('Select Borrower') }}
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Close') }}"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-search"></i></span>
+            <input type="text" class="form-control" id="{{ modal_id }}Search"
+              placeholder="{{ _('Filter by name...') }}" autocomplete="off">
+          </div>
+        </div>
+        <div id="{{ modal_id }}TableWrap" style="max-height:400px;overflow-y:auto">
+          <table class="table table-sm table-hover align-middle mb-0">
+            <thead class="table-light sticky-top">
+              <tr>
+                <th>{{ _('Name') }}</th>
+                <th>{{ _('Sector') }}</th>
+                <th>{{ _('Country') }}</th>
+                <th>{{ _('Rating') }}</th>
+              </tr>
+            </thead>
+            <tbody id="{{ modal_id }}Body">
+              <tr><td colspan="4" class="text-secondary text-center py-3">
+                <span class="spinner-border spinner-border-sm me-1"></span>{{ _('Loading...') }}
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer justify-content-start">
+        <small class="text-secondary" id="{{ modal_id }}Count"></small>
+        <button type="button" class="btn btn-outline-secondary ms-auto" data-bs-dismiss="modal">
+          {{ _('Cancel') }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var MODAL_ID = {{ modal_id | tojson }};
+  var modalEl = document.getElementById(MODAL_ID);
+  if (!modalEl) return;
+
+  var searchInput  = document.getElementById(MODAL_ID + 'Search');
+  var tbody        = document.getElementById(MODAL_ID + 'Body');
+  var countEl      = document.getElementById(MODAL_ID + 'Count');
+  var activeWidget = null;   // the .borrower-picker-widget that opened the modal
+  var debounceTimer;
+
+  // Track which widget triggered the modal
+  document.querySelectorAll('.borrower-picker-widget').forEach(function (widget) {
+    widget.querySelectorAll('[data-bs-target="#' + MODAL_ID + '"]').forEach(function (trigger) {
+      trigger.addEventListener('click', function () { activeWidget = widget; });
+    });
+  });
+
+  // On open: focus search and load
+  modalEl.addEventListener('shown.bs.modal', function () {
+    if (searchInput) { searchInput.value = ''; searchInput.focus(); }
+    loadBorrowers('');
+  });
+
+  // Search with debounce
+  if (searchInput) {
+    searchInput.addEventListener('input', function () {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(function () { loadBorrowers(searchInput.value); }, 220);
+    });
+  }
+
+  function loadBorrowers(q) {
+    tbody.innerHTML = '<tr><td colspan="4" class="text-secondary text-center py-3">' +
+      '<span class="spinner-border spinner-border-sm me-1"></span></td></tr>';
+    fetch('/credit/api/borrowers?q=' + encodeURIComponent(q), {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (countEl) countEl.textContent = data.length + ' {{ _("result(s)") }}';
+      if (!data.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-secondary text-center py-3">{{ _("No borrowers found.") }}</td></tr>';
+        return;
+      }
+      var html = '';
+      data.forEach(function (b) {
+        html += '<tr class="borrower-picker-row" style="cursor:pointer" ' +
+          'data-id="' + b.id + '" data-name="' + (b.name || '').replace(/"/g,'&quot;') + '">' +
+          '<td class="fw-semibold">' + escHtml(b.name) + '</td>' +
+          '<td class="text-secondary small">' + escHtml(b.sector) + '</td>' +
+          '<td class="text-secondary small">' + escHtml(b.country) + '</td>' +
+          '<td>' + (b.rating ? '<span class="badge text-bg-secondary">' + escHtml(b.rating) + '</span>' : '') + '</td>' +
+          '</tr>';
+      });
+      tbody.innerHTML = html;
+      // Click to select
+      tbody.querySelectorAll('.borrower-picker-row').forEach(function (row) {
+        row.addEventListener('click', function () { selectBorrower(row.dataset.id, row.dataset.name); });
+      });
+    })
+    .catch(function () {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-danger text-center">{{ _("Error loading borrowers.") }}</td></tr>';
+    });
+  }
+
+  function selectBorrower(id, name) {
+    if (activeWidget) {
+      var fieldName = activeWidget.dataset.field;
+      var hiddenInput  = document.getElementById(fieldName + '_hidden');
+      var displayInput = document.getElementById(fieldName + '_display');
+      var clearBtn     = document.getElementById(fieldName + '_clear');
+      if (hiddenInput) {
+        hiddenInput.value = id;
+        hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      if (displayInput) displayInput.value = name;
+      if (clearBtn) clearBtn.style.display = '';
+    }
+    bootstrap.Modal.getInstance(modalEl).hide();
+  }
+
+  // Clear button
+  document.querySelectorAll('.borrower-picker-widget').forEach(function (widget) {
+    var clearBtn = document.getElementById(widget.dataset.field + '_clear');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function () {
+        var fieldName = widget.dataset.field;
+        var hi = document.getElementById(fieldName + '_hidden');
+        var di = document.getElementById(fieldName + '_display');
+        if (hi) {
+          hi.value = '';
+          hi.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        if (di) di.value = '';
+        clearBtn.style.display = 'none';
+      });
+    }
+  });
+
+  function escHtml(s) {
+    return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+}());
+</script>
+{%- endmacro -%}

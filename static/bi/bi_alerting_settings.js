@@ -406,7 +406,7 @@
           </div>
           <div class="col-12 col-md-2">
             <label class="form-label small mb-1">${escapeHtml(t('Nome'))}</label>
-            <input class="form-control form-control-sm ar-name" type="text" value="${escapeHtml(r.name)}" placeholder="SLA API crítica">
+            <input class="form-control form-control-sm ar-name" type="text" value="${escapeHtml(r.name)}" placeholder="${escapeHtml(t('SLA API crítica'))}">
           </div>
           <div class="col-6 col-md-2">
             <label class="form-label small mb-1">${escapeHtml(t('Tipo'))}</label>
@@ -499,15 +499,15 @@
             <div class="d-flex flex-wrap gap-2">
               <div class="form-check form-check-inline mb-0">
                 <input class="form-check-input ar-channel" data-channel="email" type="checkbox" ${r.channels.includes('email') ? 'checked' : ''}>
-                <label class="form-check-label small">E-mail</label>
+                <label class="form-check-label small">${escapeHtml(t('E-mail'))}</label>
               </div>
               <div class="form-check form-check-inline mb-0">
                 <input class="form-check-input ar-channel" data-channel="slack" type="checkbox" ${r.channels.includes('slack') ? 'checked' : ''}>
-                <label class="form-check-label small">Slack</label>
+                <label class="form-check-label small">${escapeHtml(t('Slack'))}</label>
               </div>
               <div class="form-check form-check-inline mb-0">
                 <input class="form-check-input ar-channel" data-channel="teams" type="checkbox" ${r.channels.includes('teams') ? 'checked' : ''}>
-                <label class="form-check-label small">Teams</label>
+                <label class="form-check-label small">${escapeHtml(t('Teams'))}</label>
               </div>
             </div>
           </div>

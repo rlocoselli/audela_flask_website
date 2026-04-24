@@ -13,6 +13,32 @@
     .rb-block .meta { display:flex; align-items:center; gap:.5rem; }
     .rb-block .badge { font-weight:600; }
     .rb-drop-hint { color: var(--bs-secondary-color); font-size:.9rem; }
+    .rb-dropzone {
+      position: relative;
+      min-height: 120px;
+    }
+    .rb-dropzone .rb-drop-hint { position: relative; }
+    .rb-block-instance { position: absolute; box-sizing: border-box; }
+    .rb-size-group .btn { padding: .15rem .4rem; line-height: 1.1; }
+    .rb-span-label {
+      min-width: 54px;
+      font-variant-numeric: tabular-nums;
+      pointer-events: none;
+    }
+    .rb-resize-handle {
+      position: absolute;
+      right: 4px;
+      bottom: 4px;
+      width: 14px;
+      height: 14px;
+      border-right: 2px solid rgba(108, 117, 125, 0.65);
+      border-bottom: 2px solid rgba(108, 117, 125, 0.65);
+      border-radius: 2px;
+      cursor: ew-resize;
+      opacity: .7;
+    }
+    .rb-block-instance:hover .rb-resize-handle { opacity: 1; }
+    .rb-block-instance.rb-dragging { opacity: .75; z-index: 100; }
     .rb-color-palette .rb-swatch { cursor: pointer; }
     .rb-color-palette .rb-swatch { padding:0; }
     .rb-color-palette .rb-swatch:not(.btn) { border:none; }
@@ -23,17 +49,9 @@
     .rb-data-field small { color: var(--bs-secondary-color); }
     .rb-data-search { border-radius: .6rem; }
     .rb-rich-toolbar .btn { min-width: 34px; }
-    #rb-detail.rb-dropzone {
-      display: grid !important;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: .5rem;
-    }
-    #rb-detail .rb-drop-hint { grid-column: 1 / -1; }
-    #rb-detail .rb-block-instance[data-type="data_field"] { grid-column: auto; }
-    #rb-detail .rb-block-instance:not([data-type="data_field"]) { grid-column: 1 / -1; }
     @media (max-width: 991.98px) {
-      #rb-detail.rb-dropzone { grid-template-columns: 1fr; }
-      #rb-detail .rb-block-instance[data-type="data_field"] { grid-column: 1 / -1; }
+      .rb-block-instance { width: 100% !important; left: 0 !important; }
+      .rb-resize-handle { display: none; }
     }
     .rb-floating-explorer {
       position: fixed;
@@ -127,137 +145,181 @@
 </div>
 
 <div class="row g-4">
-  <!-- Palette / Settings -->
+  <!-- Sidebar accordions -->
   <div class="col-lg-4">
-    <div class="rb-panel p-3 mb-4" data-tour="{{ _('Ajoutez des blocs de base (texte, markdown, image, question, champ) par glisser-déposer.') }}" data-tour-title="{{ _('Tutoriel Report') }}" data-tour-order="3">
-      <div class="d-flex align-items-center justify-content-between mb-2">
-        <div class="fw-semibold">{{ _('Componentes') }}</div>
-        <span class="text-muted small">{{ _('Arraste e solte') }}</span>
+    <div class="accordion accordion-flush border rounded-3 shadow-sm" id="rb-left-accordion">
+
+      <!-- 1. Assistant IA -->
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="rb-acc-h-ai">
+          <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#rb-acc-ai" aria-expanded="true" aria-controls="rb-acc-ai">
+            <i class="bi bi-stars me-2 text-primary"></i>
+            <span class="fw-semibold me-2">{{ _('Assistant IA') }}</span>
+            <span class="badge text-bg-primary">{{ _('Bêta') }}</span>
+          </button>
+        </h2>
+        <div id="rb-acc-ai" class="accordion-collapse collapse show" data-bs-parent="#rb-left-accordion">
+          <div class="accordion-body p-3">
+            <div class="small text-muted mb-2">{{ _('Describe the report you want. AI will prepare the bands, blocks, and starter bindings automatically.') }}</div>
+            <div class="mb-2">
+              <label class="form-label">{{ _('What should this report show?') }}</label>
+              <textarea class="form-control" id="rb-ai-prompt" rows="4" placeholder="{{ _('Example: Build a monthly sales performance report with a title, generation date, top KPIs, a detailed table, and a short conclusion.') }}"></textarea>
+            </div>
+            <div class="d-grid">
+              <button class="btn btn-primary" type="button" id="rb-ai-generate"><i class="bi bi-stars me-1"></i>{{ _('Generate report with AI') }}</button>
+            </div>
+            <div class="form-text mt-2" id="rb-ai-summary">{{ _('AI can use the source schema and saved questions linked to this report source.') }}</div>
+          </div>
+        </div>
       </div>
 
-      <div id="rb-palette" class="rb-palette d-grid gap-2">
-        <div class="rb-item rb-block" data-type="text" data-title="{{ _('Texto') }}">
-          <div class="meta">
-            <span class="badge text-bg-secondary">T</span>
-            <div>
-              <div class="fw-semibold">{{ _('Texto') }}</div>
-              <div class="text-muted small">{{ _('Título / parágrafo simples') }}</div>
+      <!-- 2. Composants -->
+      <div class="accordion-item" data-tour="{{ _('Ajoutez des blocs de base (texte, markdown, image, question, champ) par glisser-déposer.') }}" data-tour-title="{{ _('Tutoriel Report') }}" data-tour-order="3">
+        <h2 class="accordion-header" id="rb-acc-h-components">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#rb-acc-components" aria-expanded="false" aria-controls="rb-acc-components">
+            <i class="bi bi-grid-1x2 me-2"></i>
+            <span class="fw-semibold me-2">{{ _('Composants') }}</span>
+            <span class="text-muted small">{{ _('Glisser-déposer') }}</span>
+          </button>
+        </h2>
+        <div id="rb-acc-components" class="accordion-collapse collapse" data-bs-parent="#rb-left-accordion">
+          <div class="accordion-body p-3">
+            <div id="rb-palette" class="rb-palette d-grid gap-2">
+              <div class="rb-item rb-block" data-type="text" data-title="{{ _('Texto') }}">
+                <div class="meta">
+                  <span class="badge text-bg-secondary">T</span>
+                  <div>
+                    <div class="fw-semibold">{{ _('Texto') }}</div>
+                    <div class="text-muted small">{{ _('Título / parágrafo simples') }}</div>
+                  </div>
+                </div>
+                <i class="bi bi-grip-vertical"></i>
+              </div>
+              <div class="rb-item rb-block" data-type="markdown" data-title="{{ _('Markdown') }}">
+                <div class="meta">
+                  <span class="badge text-bg-secondary">MD</span>
+                  <div>
+                    <div class="fw-semibold">{{ _('Markdown') }}</div>
+                    <div class="text-muted small">{{ _('Texto com formatação') }}</div>
+                  </div>
+                </div>
+                <i class="bi bi-grip-vertical"></i>
+              </div>
+              <div class="rb-item rb-block" data-type="image" data-title="{{ _('Imagem') }}">
+                <div class="meta">
+                  <span class="badge text-bg-secondary">IMG</span>
+                  <div>
+                    <div class="fw-semibold">{{ _('Imagem') }}</div>
+                    <div class="text-muted small">{{ _('Figura / logotipo / screenshot') }}</div>
+                  </div>
+                </div>
+                <i class="bi bi-grip-vertical"></i>
+              </div>
+              <div class="rb-item rb-block" data-type="question" data-title="{{ _('Tabela') }}">
+                <div class="meta">
+                  <span class="badge text-bg-secondary">Q</span>
+                  <div>
+                    <div class="fw-semibold">{{ _('Tabela/Gráfico de pergunta') }}</div>
+                    <div class="text-muted small">{{ _('Reaproveita uma Pergunta salva') }}</div>
+                  </div>
+                </div>
+                <i class="bi bi-grip-vertical"></i>
+              </div>
+              <div class="rb-item rb-block" data-type="field" data-title="{{ _('Campo') }}">
+                <div class="meta">
+                  <span class="badge text-bg-secondary">F</span>
+                  <div>
+                    <div class="fw-semibold">{{ _('Campo') }}</div>
+                    <div class="text-muted small">{{ _('Data / data-hora (sistema)') }}</div>
+                  </div>
+                </div>
+                <i class="bi bi-grip-vertical"></i>
+              </div>
+            </div>
+            <div class="form-text mt-2">
+              {{ _('Bandas: Report Header (1ª pág.), Page Header (todas), Detail, Page Footer (todas), Report Footer (última). Clique no bloco para editar.') }}
             </div>
           </div>
-          <i class="bi bi-grip-vertical"></i>
         </div>
+      </div>
 
-        <div class="rb-item rb-block" data-type="markdown" data-title="{{ _('Markdown') }}">
-          <div class="meta">
-            <span class="badge text-bg-secondary">MD</span>
-            <div>
-              <div class="fw-semibold">{{ _('Markdown') }}</div>
-              <div class="text-muted small">{{ _('Texto com formatação') }}</div>
+      <!-- 3. Insérer -->
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="rb-acc-h-insert">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#rb-acc-insert" aria-expanded="false" aria-controls="rb-acc-insert">
+            <i class="bi bi-plus-circle me-2"></i>
+            <span class="fw-semibold">{{ _('Insérer') }}</span>
+          </button>
+        </h2>
+        <div id="rb-acc-insert" class="accordion-collapse collapse" data-bs-parent="#rb-left-accordion">
+          <div class="accordion-body p-3 d-grid gap-3">
+            <div data-tour="{{ _('Insérez rapidement une question existante dans la zone Detail.') }}" data-tour-title="{{ _('Tutoriel Report') }}" data-tour-order="4">
+              <label class="form-label fw-semibold">{{ _('Adicionar pergunta') }}</label>
+              <div class="d-flex gap-2">
+                <select id="rb-question" class="form-select">
+                  <option value="">--</option>
+                  {% for q in questions %}
+                    <option value="{{ q.id }}">{{ q.name }}</option>
+                  {% endfor %}
+                </select>
+                <button class="btn btn-outline-primary" id="rb-add-question" type="button">{{ _('Inserir') }}</button>
+              </div>
+              <div class="form-text">{{ _('Isso cria um bloco "Pergunta" no detalhe do relatório.') }}</div>
+            </div>
+            <div data-tour="{{ _('Insérez une image par URL pour votre logo ou illustration.') }}" data-tour-title="{{ _('Tutoriel Report') }}" data-tour-order="5">
+              <label class="form-label fw-semibold">{{ _('Adicionar imagem') }}</label>
+              <div class="d-flex gap-2">
+                <input id="rb-image-url" class="form-control" placeholder="{{ _('URL (https://...)') }}" />
+                <button class="btn btn-outline-primary" id="rb-add-image" type="button">{{ _('Inserir') }}</button>
+              </div>
+              <div class="form-text">{{ _('Isso cria um bloco "Imagem" no detalhe do relatório.') }}</div>
             </div>
           </div>
-          <i class="bi bi-grip-vertical"></i>
         </div>
+      </div>
 
-        <div class="rb-item rb-block" data-type="image" data-title="{{ _('Imagem') }}">
-          <div class="meta">
-            <span class="badge text-bg-secondary">IMG</span>
+      <!-- 4. Configurações -->
+      <div class="accordion-item" id="rb-settings-panel" data-tour="{{ _('Choisissez un modèle de document et un style global avant de finaliser.') }}" data-tour-title="{{ _('Tutoriel Report') }}" data-tour-order="6">
+        <h2 class="accordion-header" id="rb-acc-h-settings">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#rb-acc-settings" aria-expanded="false" aria-controls="rb-acc-settings">
+            <i class="bi bi-sliders me-2"></i>
+            <span class="fw-semibold">{{ _('Configurações') }}</span>
+          </button>
+        </h2>
+        <div id="rb-acc-settings" class="accordion-collapse collapse" data-bs-parent="#rb-left-accordion">
+          <div class="accordion-body p-3 d-grid gap-3">
             <div>
-              <div class="fw-semibold">{{ _('Imagem') }}</div>
-              <div class="text-muted small">{{ _('Figura / logotipo / screenshot') }}</div>
+              <label class="form-label fw-semibold">{{ _('Templates de document') }}</label>
+              <div class="btn-group w-100" role="group" aria-label="Document templates">
+                <button type="button" class="btn btn-outline-secondary" data-rb-doc-template="invoice">{{ _('Facture') }}</button>
+                <button type="button" class="btn btn-outline-secondary" data-rb-doc-template="letter">{{ _('Lettre') }}</button>
+                <button type="button" class="btn btn-outline-secondary" data-rb-doc-template="quote">{{ _('Devis') }}</button>
+              </div>
+              <div class="form-text">{{ _('Préremplit le rapport avec une structure type.') }}</div>
+            </div>
+            <div>
+              <label class="form-label fw-semibold">{{ _('Style global des tableaux') }}</label>
+              <div class="btn-group w-100" role="group" aria-label="Report style templates">
+                <button type="button" class="btn btn-outline-secondary" data-rb-style-template="crystal">{{ _('Classique') }}</button>
+                <button type="button" class="btn btn-outline-secondary" data-rb-style-template="professional">{{ _('Professionnel') }}</button>
+                <button type="button" class="btn btn-outline-secondary" data-rb-style-template="minimal">{{ _('Minimaliste') }}</button>
+              </div>
+              <div class="form-text">{{ _('Aplica o estilo em todas as tabelas de Pergunta com um clique.') }}</div>
+            </div>
+            <div>
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="rb-setting-page-number" checked />
+                <label class="form-check-label" for="rb-setting-page-number">{{ _('Numeração de páginas no PDF') }}</label>
+              </div>
+              <label class="form-label">{{ _('Formato') }}</label>
+              <input class="form-control" id="rb-setting-page-label" placeholder="Page {page} / {pages}" value="Page {page} / {pages}" />
+              <div class="form-text">{{ _('Use {page} e {pages}.') }}</div>
             </div>
           </div>
-          <i class="bi bi-grip-vertical"></i>
-        </div>
-
-        <div class="rb-item rb-block" data-type="question" data-title="{{ _('Tabela') }}">
-          <div class="meta">
-            <span class="badge text-bg-secondary">Q</span>
-            <div>
-              <div class="fw-semibold">{{ _('Tabela/Gráfico de pergunta') }}</div>
-              <div class="text-muted small">{{ _('Reaproveita uma Pergunta salva') }}</div>
-            </div>
-          </div>
-          <i class="bi bi-grip-vertical"></i>
-        </div>
-
-        <div class="rb-item rb-block" data-type="field" data-title="{{ _('Campo') }}">
-          <div class="meta">
-            <span class="badge text-bg-secondary">F</span>
-            <div>
-              <div class="fw-semibold">{{ _('Campo') }}</div>
-              <div class="text-muted small">{{ _('Data / data-hora (sistema)') }}</div>
-            </div>
-          </div>
-          <i class="bi bi-grip-vertical"></i>
         </div>
       </div>
 
-      <hr>
-
-      <div class="fw-semibold mb-2" data-tour="{{ _('Insérez rapidement une question existante dans la zone Detail.') }}" data-tour-title="{{ _('Tutoriel Report') }}" data-tour-order="4">{{ _('Adicionar pergunta') }}</div>
-      <div class="d-flex gap-2">
-        <select id="rb-question" class="form-select">
-          <option value="">--</option>
-          {% for q in questions %}
-            <option value="{{ q.id }}">{{ q.name }}</option>
-          {% endfor %}
-        </select>
-        <button class="btn btn-outline-primary" id="rb-add-question" type="button">{{ _('Inserir') }}</button>
-      </div>
-      <div class="form-text">{{ _('Isso cria um bloco “Pergunta” no detalhe do relatório.') }}</div>
-
-      <hr>
-
-      <div class="fw-semibold mb-2" data-tour="{{ _('Insérez une image par URL pour votre logo ou illustration.') }}" data-tour-title="{{ _('Tutoriel Report') }}" data-tour-order="5">{{ _('Adicionar imagem') }}</div>
-      <div class="d-flex gap-2">
-        <input id="rb-image-url" class="form-control" placeholder="{{ _('URL (https://...)') }}" />
-        <button class="btn btn-outline-primary" id="rb-add-image" type="button">{{ _('Inserir') }}</button>
-      </div>
-      <div class="form-text">{{ _('Isso cria um bloco “Imagem” no detalhe do relatório.') }}</div>
-
-      <div class="fw-semibold mb-2">{{ _('Dica') }}</div>
-      <div class="text-muted small">
-        {{ _('Bandas de relatório: Report Header (1ª página), Page Header (todas), Detail, Page Footer (todas), Report Footer (última). Clique no bloco para editar.') }}
-      </div>
-    </div>
-
-    
-
-    <div class="rb-panel p-3 mb-4" id="rb-settings-panel" data-tour="{{ _('Choisissez un modèle de document et un style global avant de finaliser.') }}" data-tour-title="{{ _('Tutoriel Report') }}" data-tour-order="6">
-      <div class="fw-semibold mb-2">{{ _('Configurações') }}</div>
-      <div class="mb-3">
-        <label class="form-label">{{ _('Templates de document') }}</label>
-        <div class="btn-group w-100" role="group" aria-label="Document templates">
-          <button type="button" class="btn btn-outline-secondary" data-rb-doc-template="invoice">{{ _('Facture') }}</button>
-          <button type="button" class="btn btn-outline-secondary" data-rb-doc-template="letter">{{ _('Lettre') }}</button>
-          <button type="button" class="btn btn-outline-secondary" data-rb-doc-template="quote">{{ _('Devis') }}</button>
-        </div>
-        <div class="form-text">{{ _('Préremplit le rapport avec une structure type. Vous pouvez ensuite personnaliser les champs.') }}</div>
-      </div>
-
-      <div class="mb-3">
-        <label class="form-label">{{ _('Template de estilo do relatório') }}</label>
-        <div class="btn-group w-100" role="group" aria-label="Report style templates">
-          <button type="button" class="btn btn-outline-secondary" data-rb-style-template="crystal">{{ _('Classique') }}</button>
-          <button type="button" class="btn btn-outline-secondary" data-rb-style-template="professional">{{ _('Professionnel') }}</button>
-          <button type="button" class="btn btn-outline-secondary" data-rb-style-template="minimal">{{ _('Minimaliste') }}</button>
-        </div>
-        <div class="form-text">{{ _('Aplica o estilo em todas as tabelas de Pergunta com um clique.') }}</div>
-      </div>
-      <div class="form-check mb-2">
-        <input class="form-check-input" type="checkbox" id="rb-setting-page-number" checked />
-        <label class="form-check-label" for="rb-setting-page-number">{{ _('Numeração de páginas no PDF') }}</label>
-      </div>
-      <div class="mb-0">
-        <label class="form-label" for="rb-setting-page-label">{{ _('Formato') }}</label>
-        <input class="form-control" id="rb-setting-page-label" placeholder="Page {page} / {pages}" value="Page {page} / {pages}" />
-        <div class="form-text">{{ _('Use {page} e {pages}.') }}</div>
-      </div>
-    </div>
-<div class="alert alert-info mb-0">
-      <div class="fw-semibold">{{ _('Report Builder') }}</div>
-      <div class="small">{{ _('Use “Visualizar” para ver o relatório e “PDF” para exportar com cabeçalho/rodapé repetidos e número de página.') }}</div>
-    </div>
+    </div><!-- /.accordion -->
   </div>
 
   <!-- Canvas -->
@@ -270,7 +332,7 @@
       <iframe
         id="rb-live-preview"
         title="{{ _('Preview') }}"
-        src="{{ preview_url }}"
+        src="about:blank"
         class="rb-live-frame"
       ></iframe>
     </div>
@@ -284,7 +346,7 @@
               <div class="rb-section-title">{{ _('Report Header') }}</div>
               <span class="text-muted small">{{ _('Apenas na 1ª página') }}</span>
             </div>
-            <div id="rb-report-header" class="rb-dropzone d-grid gap-2">
+            <div id="rb-report-header" class="rb-dropzone">
               <div class="rb-drop-hint">{{ _('Arraste aqui...') }}</div>
             </div>
           </div>
@@ -296,7 +358,7 @@
               <div class="rb-section-title">{{ _('Page Header') }}</div>
               <span class="text-muted small">{{ _('Repete em todas as páginas') }}</span>
             </div>
-            <div id="rb-page-header" class="rb-dropzone d-grid gap-2">
+            <div id="rb-page-header" class="rb-dropzone">
               <div class="rb-drop-hint">{{ _('Arraste aqui...') }}</div>
             </div>
           </div>
@@ -308,7 +370,7 @@
               <div class="rb-section-title">{{ _('Detail') }}</div>
               <span class="text-muted small">{{ _('Conteúdo principal') }}</span>
             </div>
-            <div id="rb-detail" class="rb-dropzone d-grid gap-2">
+            <div id="rb-detail" class="rb-dropzone">
               <div class="rb-drop-hint">{{ _('Arraste aqui...') }}</div>
             </div>
           </div>
@@ -320,7 +382,7 @@
               <div class="rb-section-title">{{ _('Page Footer') }}</div>
               <span class="text-muted small">{{ _('Repete em todas as páginas') }}</span>
             </div>
-            <div id="rb-page-footer" class="rb-dropzone d-grid gap-2">
+            <div id="rb-page-footer" class="rb-dropzone">
               <div class="rb-drop-hint">{{ _('Arraste aqui...') }}</div>
             </div>
           </div>
@@ -332,7 +394,7 @@
               <div class="rb-section-title">{{ _('Report Footer') }}</div>
               <span class="text-muted small">{{ _('Apenas na última página') }}</span>
             </div>
-            <div id="rb-report-footer" class="rb-dropzone d-grid gap-2">
+            <div id="rb-report-footer" class="rb-dropzone">
               <div class="rb-drop-hint">{{ _('Arraste aqui...') }}</div>
             </div>
           </div>
@@ -440,8 +502,14 @@
           <div class="d-none" id="rb-edit-image-group">
             <div class="row g-3">
               <div class="col-12">
+                <label class="form-label" for="rb-edit-image-file">{{ _('Carregar imagem') }}</label>
+                <input class="form-control" type="file" id="rb-edit-image-file" accept="image/*" />
+                <div class="form-text" id="rb-edit-image-upload-status">{{ _('Selecione uma imagem para inserir no relatório.') }}</div>
+              </div>
+              <div class="col-12">
                 <label class="form-label" for="rb-edit-image-url">{{ _('URL da imagem') }}</label>
                 <input class="form-control" id="rb-edit-image-url" placeholder="{{ _('https://...') }}" />
+                <div class="form-text">{{ _('Você também pode colar uma URL externa.') }}</div>
               </div>
               <div class="col-md-6">
                 <label class="form-label" for="rb-edit-image-alt">{{ _('Texto alternativo (alt)') }}</label>
@@ -656,6 +724,35 @@
                 <input class="form-control" id="rb-edit-data-group-label" placeholder="{{ _('Groupe: {group}') }}" />
                 <div class="form-text">{{ _('Utilisez {group}.') }}</div>
               </div>
+
+              <div class="col-12">
+                <div class="fw-semibold small text-muted text-uppercase">{{ _('Agrégations') }}</div>
+              </div>
+
+              <div class="col-md-4">
+                <label class="form-label" for="rb-edit-data-agg-mode">{{ _('Fonction') }}</label>
+                <select class="form-select" id="rb-edit-data-agg-mode">
+                  <option value="">{{ _('Sans') }}</option>
+                  <option value="count">{{ _('Count (lignes)') }}</option>
+                  <option value="sum">{{ _('Somme') }}</option>
+                  <option value="avg">{{ _('Moyenne') }}</option>
+                  <option value="min">{{ _('Minimum') }}</option>
+                  <option value="max">{{ _('Maximum') }}</option>
+                </select>
+                <div class="form-text">{{ _('Appliqué par groupe sur ce champ.') }}</div>
+              </div>
+
+              <div class="col-md-4">
+                <label class="form-label" for="rb-edit-data-agg-label">{{ _('Libellé subtotal') }}</label>
+                <input class="form-control" id="rb-edit-data-agg-label" placeholder="{{ _('Sous-total') }}" />
+              </div>
+
+              <div class="col-md-4">
+                <div class="form-check mt-4">
+                  <input class="form-check-input" type="checkbox" id="rb-edit-data-agg-grand" />
+                  <label class="form-check-label" for="rb-edit-data-agg-grand">{{ _('Afficher grand total') }}</label>
+                </div>
+              </div>
             </div>
             <hr>
           </div>
@@ -748,8 +845,12 @@
     sourceId: {{ source.id }},
     apiUrl: "{{ url_for('portal.api_report_get', report_id=report.id) }}",
     saveUrl: "{{ url_for('portal.api_report_save', report_id=report.id) }}",
+    aiGenerateUrl: "{{ url_for('portal.api_report_ai_generate', report_id=report.id) }}",
     previewUrl: "{{ preview_url }}",
     sourceSchemaUrl: "{{ url_for('portal.api_source_schema', source_id=source.id) }}",
+    sourceTablesUrl: "{{ url_for('portal.api_source_tables', source_id=source.id) }}",
+    sourceTableColumnsUrl: "{{ url_for('portal.api_source_table_columns', source_id=source.id) }}",
+    questionColumnsUrlTemplate: "/app/api/questions/__QID__/columns",
     csrfToken: "{{ csrf_token() }}",
   };
 </script>

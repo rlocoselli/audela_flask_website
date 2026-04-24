@@ -1,0 +1,304 @@
+{% extends "credit/page_base.html" %}
+{% from 'credit/_borrower_picker.html' import borrower_picker, borrower_picker_modal %}
+{% set title = _('Financial Statements Grid') %}
+{% set active_page = 'financials_grid' %}
+
+{% block credit_page_content %}
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-info-subtle d-flex align-items-center gap-2">
+    <i class="bi bi-journal-richtext"></i>
+    <strong>{{ _('Plan comptable tutorial') }}</strong>
+  </div>
+  <div class="card-body small">
+    <p class="mb-2 text-secondary">{{ _('How to configure and use Plan Comptable end-to-end') }}</p>
+    <div class="row g-2">
+      <div class="col-12 col-lg-6">
+        <div class="border rounded p-2 h-100">
+          <div class="fw-semibold">{{ _('Step 5 - Open Financial Grid') }}</div>
+          <div class="text-secondary">{{ _('Select borrower and chart, then add periods (FY, H1, Q1...).') }}</div>
+          <div class="fw-semibold mt-2">{{ _('Step 6 - Enter period values') }}</div>
+          <div class="text-secondary">{{ _('Double-click data cells to input values; formulas recalculate automatically.') }}</div>
+        </div>
+      </div>
+      <div class="col-12 col-lg-6">
+        <div class="border rounded p-2 h-100">
+          <div class="fw-semibold">{{ _('Step 7 - Review ratios') }}</div>
+          <div class="text-secondary">{{ _('Mark key lines as ratios to drive credit analysis.') }}</div>
+          <div class="fw-semibold mt-2">{{ _('Borrower picker tutorial') }}</div>
+          <div class="text-secondary">{{ _('Use the search popup to filter borrowers by name, then select one.') }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Toolbar ── #}
+<div class="d-flex gap-2 mb-3 flex-wrap align-items-end">
+  <span class="fw-semibold me-1"><i class="bi bi-table me-1"></i>{{ _('Financial Statements Grid') }}</span>
+
+  <form method="get" class="d-flex gap-2 flex-wrap align-items-end ms-auto" id="gridFilterForm">
+    <div style="min-width:260px">
+      <label class="form-label mb-0 small">{{ _('Borrower') }}</label>
+      {% set _sel_b = borrowers | selectattr('id', 'equalto', selected_borrower_id) | list %}
+      {{ borrower_picker('borrower_id',
+           selected_id=selected_borrower_id or '',
+           selected_name=(_sel_b[0].name if _sel_b else ''),
+           modal_id='modalBorrPickerGrid') }}
+    </div>
+    <div>
+      <label class="form-label mb-0 small">{{ _('Chart of accounts') }}</label>
+      <select class="form-select form-select-sm" name="coa_id" onchange="this.form.submit()" style="min-width:200px">
+        <option value="">{{ _('Select chart') }}</option>
+        {% for c in charts %}
+        <option value="{{ c.id }}" {% if selected_coa_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    {% if selected_coa_id %}
+    <a class="btn btn-sm btn-outline-secondary align-self-end"
+      href="{{ url_for('credit.chart_of_accounts_detail', coa_id=selected_coa_id) }}">
+      <i class="bi bi-pencil-square me-1"></i>{{ _('Edit chart') }}
+    </a>
+    {% endif %}
+
+    {% if selected_borrower_id %}
+    <button type="button" class="btn btn-sm btn-outline-primary align-self-end"
+      data-bs-toggle="modal" data-bs-target="#modalAddPeriod">
+      <i class="bi bi-plus-lg me-1"></i>{{ _('Add period') }}
+    </button>
+    {% endif %}
+  </form>
+</div>
+
+{% if not selected_borrower_id or not selected_coa_id %}
+<div class="alert alert-info">
+  {{ _('Select a borrower and a chart of accounts to view and edit the financial grid.') }}
+</div>
+
+{% elif not statements %}
+<div class="alert alert-warning">
+  {{ _('No financial statements found for this borrower. Add a period to start entering data.') }}
+</div>
+
+{% else %}
+
+{# ── Grid ── #}
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center">
+    <span>
+      {{ coa.name if coa else '' }}
+      {% if statements %}
+      · <span class="text-secondary">{{ statements[0].borrower.name if statements[0].borrower else '' }}</span>
+      {% endif %}
+    </span>
+    <span class="small text-secondary">{{ _('Double-click a cell to edit') }}</span>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-sm table-bordered mb-0 align-middle" id="financialGridTable">
+        <thead class="table-light">
+          <tr>
+            <th style="min-width:260px">{{ _('Account line') }}</th>
+            <th style="min-width:110px">{{ _('Code') }}</th>
+            {% for stmt in statements %}
+            <th class="text-center" style="min-width:170px">
+              <div class="fw-semibold">{{ stmt.period_label }} {{ stmt.fiscal_year }}</div>
+              <div class="mt-1">
+                <span class="badge {% if stmt.spreading_status == 'in_progress' %}text-bg-primary{% elif stmt.spreading_status == 'needs_review' %}text-bg-warning{% elif stmt.spreading_status == 'complete' %}text-bg-success{% else %}text-bg-secondary{% endif %}">
+                  {{ _(stmt.spreading_status) }}
+                </span>
+              </div>
+            </th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for line in lines %}
+          {% set row_class = '' %}
+          {% if line.line_type == 'header' %}{% set row_class = 'table-secondary fw-semibold' %}
+          {% elif line.line_type in ('formula', 'total') %}{% set row_class = 'table-warning fst-italic' %}
+          {% elif line.line_type == 'separator' %}{% set row_class = '' %}
+          {% endif %}
+          <tr class="{{ row_class }}">
+            <td style="padding-left: {{ (line.indent_level * 1.25 + 0.5)|round(2) }}rem">
+              {% if line.line_type == 'separator' %}
+              <hr class="my-1">
+              {% else %}
+              {{ line.label }}
+              {% if line.is_ratio %}
+              <span class="badge text-bg-info ms-1" title="{{ _('Ratio') }}"><i class="bi bi-percent"></i></span>
+              {% endif %}
+              {% endif %}
+            </td>
+            <td class="text-center text-secondary small font-monospace">{{ line.code or '' }}</td>
+            {% for stmt in statements %}
+            {% set cell_val = grid.get(line.id, {}).get(stmt.id) %}
+            <td class="text-end
+              {% if line.line_type == 'separator' %}border-0
+              {% elif line.line_type in ('formula', 'total') %}text-warning-emphasis bg-warning-subtle fw-semibold{% endif %}"
+              {% if line.line_type == 'data' %}
+              data-editable="1"
+              data-stmt-id="{{ stmt.id }}"
+              data-line-id="{{ line.id }}"
+              data-value="{{ cell_val if cell_val is not none else '' }}"
+              title="{{ _('Double-click to edit') }}"
+              style="cursor:pointer"
+              {% endif %}>
+              {% if line.line_type == 'separator' %}{% elif cell_val is not none %}
+              <span class="cell-display">{{ '%.2f'|format(cell_val|float) }}</span>
+              {% else %}
+              <span class="cell-display text-secondary">–</span>
+              {% endif %}
+            </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# ── Add period modal ── #}
+<div class="modal fade" id="modalAddPeriod" tabindex="-1" aria-labelledby="modalAddPeriodLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" id="addPeriodForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="add_period">
+        <input type="hidden" name="borrower_id" value="{{ selected_borrower_id or '' }}">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalAddPeriodLabel">{{ _('Add financial period') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Close') }}"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">{{ _('Period label') }}</label>
+              <select class="form-select" name="period_label">
+                <option value="FY">FY {{ _('(full year)') }}</option>
+                <option value="H1">H1 {{ _('(first half)') }}</option>
+                <option value="H2">H2 {{ _('(second half)') }}</option>
+                <option value="Q1">Q1</option>
+                <option value="Q2">Q2</option>
+                <option value="Q3">Q3</option>
+                <option value="Q4">Q4</option>
+                <option value="LTM">LTM {{ _('(last 12 months)') }}</option>
+                <option value="Budget">Budget</option>
+                <option value="Forecast">Forecast</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ _('Fiscal year') }}</label>
+              <input class="form-control" type="number" name="fiscal_year"
+                value="{{ statements[-1].fiscal_year + 1 if statements else 2025 }}" min="2000" max="2099">
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ _('Cancel') }}</button>
+          <button type="submit" class="btn btn-primary">{{ _('Add period') }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var csrfToken = (document.querySelector('meta[name=csrf-token]') || {}).content
+    || (document.querySelector('input[name=csrf_token]') || {}).value || '';
+
+  // ── Inline cell editing ──────────────────────────────────────────────────
+  document.querySelectorAll('[data-editable="1"]').forEach(function (cell) {
+    cell.addEventListener('dblclick', function () {
+      if (cell.querySelector('input')) return;
+      var stmtId  = cell.dataset.stmtId;
+      var lineId  = cell.dataset.lineId;
+      var current = cell.dataset.value;
+      var display = cell.querySelector('.cell-display');
+
+      var input = document.createElement('input');
+      input.type = 'number';
+      input.step = '0.01';
+      input.className = 'form-control form-control-sm text-end';
+      input.value = current;
+      input.style.width = '100%';
+      cell.innerHTML = '';
+      cell.appendChild(input);
+      input.focus();
+      input.select();
+
+      function save() {
+        var newVal = input.value.trim();
+        fetch('{{ url_for("credit.financials_grid") }}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken,
+          },
+          body: JSON.stringify({
+            action: 'save_cell',
+            statement_id: parseInt(stmtId),
+            line_id: parseInt(lineId),
+            value: newVal,
+          }),
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          cell.innerHTML = '';
+          var span = document.createElement('span');
+          span.className = 'cell-display';
+          if (data.ok) {
+            cell.dataset.value = newVal;
+            var num = parseFloat(newVal);
+            span.textContent = isNaN(num) ? '–' : num.toFixed(2);
+          } else {
+            span.textContent = current || '–';
+            span.className += ' text-danger';
+          }
+          cell.appendChild(span);
+        })
+        .catch(function () {
+          cell.innerHTML = '<span class="cell-display text-secondary">' + (current || '–') + '</span>';
+        });
+      }
+
+      input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); save(); }
+        if (e.key === 'Escape') {
+          cell.innerHTML = '<span class="cell-display">' +
+            (current ? parseFloat(current).toFixed(2) : '<span class="text-secondary">–</span>') + '</span>';
+        }
+      });
+      input.addEventListener('blur', function () {
+        // slight delay to avoid double-trigger with enter
+        setTimeout(function () { if (cell.querySelector('input')) save(); }, 100);
+      });
+    });
+  });
+})();
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var hidden = document.getElementById('borrower_id_hidden');
+  if (hidden) {
+    hidden.addEventListener('change', function () {
+      var form = document.getElementById('gridFilterForm');
+      if (form) form.submit();
+    });
+    var observer = new MutationObserver(function () {
+      var form = document.getElementById('gridFilterForm');
+      if (form) form.submit();
+    });
+    observer.observe(hidden, { attributes: true, attributeFilter: ['value'] });
+  }
+});
+</script>
+
+{{ borrower_picker_modal(modal_id='modalBorrPickerGrid') }}
+{% endblock %}

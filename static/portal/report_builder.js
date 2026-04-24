@@ -160,6 +160,64 @@
     'rb-page-footer',
     'rb-report-footer'
   ];
+  const RB_GRID_COLS = 12;
+
+  function normalizeColSpan (value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return RB_GRID_COLS;
+    return Math.max(1, Math.min(RB_GRID_COLS, Math.round(n)));
+  }
+
+  function applyBlockColSpan (el, span) {
+    if (!el) return RB_GRID_COLS;
+    const n = normalizeColSpan(span);
+    el.setAttribute('data-col-span', String(n));
+    el.style.width = `${Math.round(n / RB_GRID_COLS * 10000) / 100}%`;
+    return n;
+  }
+
+  function applyBlockPosition (el, x, y) {
+    if (!el) return;
+    const nx = Math.max(0, Math.round(Number(x) || 0));
+    const ny = Math.max(0, Math.round(Number(y) || 0));
+    el.setAttribute('data-pos-x', String(nx));
+    el.setAttribute('data-pos-y', String(ny));
+    el.style.left = `${nx}px`;
+    el.style.top = `${ny}px`;
+  }
+
+  function nextStackY (zone, spacing = 8) {
+    if (!zone) return 0;
+    const blocks = Array.from(zone.children).filter(c => c.classList.contains('rb-block-instance'));
+    let maxBottom = 0;
+    blocks.forEach((b) => {
+      const y = Math.max(0, Math.round(Number(b.getAttribute('data-pos-y') || b.offsetTop || 0)));
+      const bottom = y + Math.max(0, b.offsetHeight || 0);
+      if (bottom > maxBottom) maxBottom = bottom;
+    });
+    return maxBottom ? (maxBottom + spacing) : 0;
+  }
+
+  function ensureBlockPositionInZone (zone, el, preferredPos) {
+    if (!zone || !el) return;
+    const hasPos = el.hasAttribute('data-pos-x') || el.hasAttribute('data-pos-y');
+    const fallbackY = nextStackY(zone);
+    const px = preferredPos && Number.isFinite(Number(preferredPos.x)) ? Number(preferredPos.x) : (hasPos ? Number(el.getAttribute('data-pos-x') || 0) : 0);
+    const py = preferredPos && Number.isFinite(Number(preferredPos.y)) ? Number(preferredPos.y) : (hasPos ? Number(el.getAttribute('data-pos-y') || 0) : fallbackY);
+    applyBlockPosition(el, px, py);
+    expandDropzoneHeight(zone);
+  }
+
+  function expandDropzoneHeight (zone) {
+    if (!zone) return;
+    const blocks = Array.from(zone.children).filter(c => c.classList.contains('rb-block-instance'));
+    let maxBottom = 120;
+    blocks.forEach(b => {
+      const bottom = (Math.round(Number(b.getAttribute('data-pos-y') || 0)) + b.offsetHeight);
+      if (bottom > maxBottom) maxBottom = bottom;
+    });
+    zone.style.minHeight = `${maxBottom + 16}px`;
+  }
 
   function normalizeDropHints () {
     for (const id of ZONES) {
@@ -224,11 +282,26 @@
     const type = (b.type || '').toLowerCase();
     if (type === 'data_field') {
       const bind = (b.config && b.config.binding) ? b.config.binding : {};
+      const agg = (b.config && typeof b.config.aggregation === 'object') ? b.config.aggregation : {};
+      const aggMode = String(agg.mode || '').trim().toLowerCase();
+      let aggLabel = '';
+      if (['count', 'sum', 'avg', 'min', 'max'].includes(aggMode)) {
+        const map = {
+          count: t('Count'),
+          sum: t('Sum'),
+          avg: t('Avg'),
+          min: t('Min'),
+          max: t('Max')
+        };
+        const base = map[aggMode] || aggMode.toUpperCase();
+        const grand = !!agg.grand_total;
+        aggLabel = ` [Agg: ${base}${grand ? ', GT' : ''}]`;
+      }
       if (bind.source === 'question') {
         const qlbl = bind.question_name || tf('Pergunta #{id}', { id: bind.question_id || '?' });
-        return `${qlbl}.${bind.field || ''}`;
+        return `${qlbl}.${bind.field || ''}${aggLabel}`;
       }
-      if (bind.source === 'table') return `${bind.table || ''}.${bind.field || ''}`;
+      if (bind.source === 'table') return `${bind.table || ''}.${bind.field || ''}${aggLabel}`;
       return t('Campo de dados');
     }
     if (type === 'question') {
@@ -267,6 +340,12 @@
     el.className = 'rb-block rb-block-instance';
     el.setAttribute('data-type', type);
     el.setAttribute('data-title', String(title || ''));
+
+    const layoutCfg = (block.layout && typeof block.layout === 'object') ? block.layout : {};
+    const initialSpan = normalizeColSpan(layoutCfg.col_span);
+    applyBlockColSpan(el, initialSpan);
+    const hasLayoutPos = Object.prototype.hasOwnProperty.call(layoutCfg, 'x') || Object.prototype.hasOwnProperty.call(layoutCfg, 'y');
+    if (hasLayoutPos) applyBlockPosition(el, layoutCfg.x, layoutCfg.y);
 
     const content = (block.content != null ? block.content : block.text) || '';
     if (content) el.setAttribute('data-content', String(content));
@@ -308,11 +387,95 @@
         <button type="button" class="btn btn-sm btn-outline-secondary rb-edit" title="${t('Editar')}"><i class="bi bi-pencil"></i></button>
         <button type="button" class="btn btn-sm btn-outline-danger rb-remove" title="${t('Remover')}"><i class="bi bi-x"></i></button>
       </div>
+      <div class="rb-resize-handle" title="${escapeHtml(t('Glisser pour redimensionner'))}"></div>
     `;
+
+    const setSpan = (n, { autosave = true } = {}) => {
+      applyBlockColSpan(el, n);
+      normalizeDropHints();
+      expandDropzoneHeight(el.parentElement);
+      if (autosave) _rbScheduleAutoSave();
+    };
+
+    // Drag block to absolute position via its .meta area
+    const metaArea = el.querySelector('.meta');
+    if (metaArea) {
+      metaArea.style.cursor = 'grab';
+      metaArea.addEventListener('pointerdown', (e) => {
+        // Only left-button, ignore if clicking a button/input inside meta
+        if (e.button !== 0) return;
+        if (e.target.closest('button, input, select, textarea, a')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const zone = el.parentElement;
+        if (!zone) return;
+
+        const zoneRect = zone.getBoundingClientRect();
+        const startClientX = e.clientX;
+        const startClientY = e.clientY;
+        const startLeft = Math.round(Number(el.getAttribute('data-pos-x') || 0));
+        const startTop = Math.round(Number(el.getAttribute('data-pos-y') || 0));
+
+        el.classList.add('rb-dragging');
+        metaArea.style.cursor = 'grabbing';
+        el.setPointerCapture(e.pointerId);
+
+        const onMove = (ev) => {
+          const dx = ev.clientX - startClientX;
+          const dy = ev.clientY - startClientY;
+          const nx = Math.max(0, startLeft + Math.round(dx));
+          const ny = Math.max(0, startTop + Math.round(dy));
+          applyBlockPosition(el, nx, ny);
+          expandDropzoneHeight(zone);
+        };
+        const onUp = () => {
+          el.classList.remove('rb-dragging');
+          metaArea.style.cursor = 'grab';
+          el.removeEventListener('pointermove', onMove);
+          el.removeEventListener('pointerup', onUp);
+          _rbScheduleAutoSave();
+        };
+
+        el.addEventListener('pointermove', onMove);
+        el.addEventListener('pointerup', onUp);
+      });
+    }
+
+    const resizeHandle = el.querySelector('.rb-resize-handle');
+    if (resizeHandle) {
+      resizeHandle.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const zone = el.parentElement;
+        if (!zone) return;
+
+        const startX = Number(e.clientX || 0);
+        const startSpan = normalizeColSpan(el.getAttribute('data-col-span'));
+        const zoneRect = zone.getBoundingClientRect();
+        const colWidth = Math.max(20, zoneRect.width / RB_GRID_COLS);
+
+        const onMove = (ev) => {
+          const dx = Number(ev.clientX || 0) - startX;
+          const deltaCols = Math.round(dx / colWidth);
+          const next = normalizeColSpan(startSpan + deltaCols);
+          setSpan(next, { autosave: false });
+        };
+        const onUp = () => {
+          window.removeEventListener('pointermove', onMove);
+          window.removeEventListener('pointerup', onUp);
+          _rbScheduleAutoSave();
+        };
+
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+      });
+    }
 
     el.querySelector('.rb-remove').addEventListener('click', (e) => {
       e.preventDefault();
+      const zone = el.parentElement;
       el.remove();
+      expandDropzoneHeight(zone);
       normalizeDropHints();
     });
 
@@ -349,6 +512,16 @@
     const st = readStyleFromEl(el);
     if (st) out.style = st;
 
+    const spanRaw = el.getAttribute('data-col-span');
+    const span = normalizeColSpan(spanRaw);
+    const posX = Math.max(0, Math.round(Number(el.getAttribute('data-pos-x') || 0)));
+    const posY = Math.max(0, Math.round(Number(el.getAttribute('data-pos-y') || 0)));
+    const layoutObj = {};
+    if (span !== RB_GRID_COLS) layoutObj.col_span = span;
+    if (posX) layoutObj.x = posX;
+    if (posY) layoutObj.y = posY;
+    if (Object.keys(layoutObj).length) out.layout = layoutObj;
+
     return out;
   }
 
@@ -368,6 +541,12 @@
       const dz = qs('#' + id);
       if (!dz) return [];
       const blocks = Array.from(dz.children).filter(el => el.classList.contains('rb-block-instance'));
+      blocks.sort((a, b) => {
+        const ay = Math.round(Number(a.getAttribute('data-pos-y') || 0));
+        const by = Math.round(Number(b.getAttribute('data-pos-y') || 0));
+        if (ay !== by) return ay - by;
+        return Math.round(Number(a.getAttribute('data-pos-x') || 0)) - Math.round(Number(b.getAttribute('data-pos-x') || 0));
+      });
       return blocks.map(el => readBlockFromEl(el));
     }
 
@@ -383,6 +562,117 @@
         report_footer: readZone('rb-report-footer')
       }
     };
+  }
+
+  function layoutHasBlocks () {
+    const layout = extractLayoutFromDom();
+    const bands = layout && layout.bands ? layout.bands : {};
+    return Object.values(bands).some(items => Array.isArray(items) && items.length > 0);
+  }
+
+  function applyLayoutToCanvas (layout) {
+    const reportHeader = qs('#rb-report-header');
+    const pageHeader = qs('#rb-page-header');
+    const detail = qs('#rb-detail');
+    const pageFooter = qs('#rb-page-footer');
+    const reportFooter = qs('#rb-report-footer');
+    const zoneMap = {
+      'rb-report-header': reportHeader,
+      'rb-page-header': pageHeader,
+      'rb-detail': detail,
+      'rb-page-footer': pageFooter,
+      'rb-report-footer': reportFooter
+    };
+    const bandToZone = {
+      report_header: 'rb-report-header',
+      page_header: 'rb-page-header',
+      detail: 'rb-detail',
+      page_footer: 'rb-page-footer',
+      report_footer: 'rb-report-footer'
+    };
+    const settings = (layout && layout.settings) || {};
+    const spn = qs('#rb-setting-page-number');
+    const spl = qs('#rb-setting-page-label');
+    if (spn) spn.checked = settings.page_number !== false;
+    if (spl) spl.value = String(settings.page_number_label || 'Page {page} / {pages}');
+
+    const bands = layout && layout.bands ? layout.bands : null;
+    const secs = layout && layout.sections ? layout.sections : null;
+    const effective = bands ? {
+      report_header: bands.report_header || [],
+      page_header: bands.page_header || [],
+      detail: bands.detail || [],
+      page_footer: bands.page_footer || [],
+      report_footer: bands.report_footer || []
+    } : {
+      report_header: [],
+      page_header: (secs && Array.isArray(secs.header)) ? secs.header : [],
+      detail: (secs && Array.isArray(secs.body)) ? secs.body : [],
+      page_footer: (secs && Array.isArray(secs.footer)) ? secs.footer : [],
+      report_footer: []
+    };
+
+    for (const bandKey of Object.keys(bandToZone)) {
+      const zoneId = bandToZone[bandKey];
+      const zone = zoneMap[zoneId];
+      if (!zone) continue;
+      zone.innerHTML = `<div class="rb-drop-hint">${t('Arraste aqui...')}</div>`;
+      const blocks = Array.isArray(effective[bandKey]) ? effective[bandKey] : [];
+      for (const b of blocks) {
+        const bb = { ...b };
+        if (bb.text != null && bb.content == null) bb.content = bb.text;
+        if (bb.image_url != null && bb.url == null) bb.url = bb.image_url;
+        if (bb.type === 'data_field' && bb.config && bb.config.binding) {
+          _registerBindingPlaceholders(bb.config.binding);
+        }
+        const el = makeBlockEl(bb);
+        zone.appendChild(el);
+        const pos = (bb.layout && typeof bb.layout === 'object') ? bb.layout : null;
+        ensureBlockPositionInZone(zone, el, pos);
+      }
+      expandDropzoneHeight(zone);
+    }
+    normalizeDropHints();
+  }
+
+  async function generateReportWithAi () {
+    const cfg = window.__RB || {};
+    const btn = qs('#rb-ai-generate');
+    const promptEl = qs('#rb-ai-prompt');
+    const summaryEl = qs('#rb-ai-summary');
+    const prompt = String(promptEl && promptEl.value || '').trim();
+    if (!prompt) {
+      rbAlert(t('Describe the report you want first.'), { title: t('Validation') });
+      return;
+    }
+    if (layoutHasBlocks()) {
+      const ok = await rbConfirm(t('Replace current report layout with AI proposal?'), { title: t('AI report assistant') });
+      if (!ok) return;
+    }
+    const oldHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>${t('Generating report with AI...')}`;
+    }
+    if (summaryEl) summaryEl.textContent = t('Generating report layout with AI...');
+    try {
+      const res = await jsonFetch(cfg.aiGenerateUrl, { method: 'POST', body: JSON.stringify({ prompt }) });
+      applyLayoutToCanvas(res.layout || {});
+      await _rbSaveLayoutAndRefreshPreview({ silent: true });
+      if (summaryEl) summaryEl.textContent = res.summary || t('AI-generated report layout loaded.');
+      if (window.uiToast) window.uiToast(res.summary || t('AI-generated report layout loaded.'), { variant: 'success' });
+      else rbAlert(res.summary || t('AI-generated report layout loaded.'), { title: t('AI report assistant') });
+    } catch (err) {
+      const msg = err && err.error ? err.error : String(err && err.message ? err.message : err || t('Unknown error'));
+      if (summaryEl) summaryEl.textContent = msg;
+      if (window.uiToast) window.uiToast(msg, { variant: 'danger' });
+      else rbAlert(msg, { title: t('Erreur') });
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = oldHtml;
+      }
+    }
   }
 
   // -------------------------
@@ -412,6 +702,8 @@
       insertPlaceholderBtn: qs('#rb-edit-insert-placeholder', modalEl),
 
       imageGroup: qs('#rb-edit-image-group', modalEl),
+      imageFile: qs('#rb-edit-image-file', modalEl),
+      imageUploadStatus: qs('#rb-edit-image-upload-status', modalEl),
       imageUrl: qs('#rb-edit-image-url', modalEl),
       imageAlt: qs('#rb-edit-image-alt', modalEl),
       imageCaption: qs('#rb-edit-image-caption', modalEl),
@@ -450,6 +742,9 @@
       dataFormatInput: qs('#rb-edit-data-format', modalEl),
       dataGroupKeyInput: qs('#rb-edit-data-group-key', modalEl),
       dataGroupLabelInput: qs('#rb-edit-data-group-label', modalEl),
+      dataAggModeInput: qs('#rb-edit-data-agg-mode', modalEl),
+      dataAggLabelInput: qs('#rb-edit-data-agg-label', modalEl),
+      dataAggGrandInput: qs('#rb-edit-data-agg-grand', modalEl),
 
       colorInput: qs('#rb-edit-color', modalEl),
       bgInput: qs('#rb-edit-bg', modalEl),
@@ -595,6 +890,55 @@
       _editor.imageAlt.addEventListener('input', updatePreview);
     }
 
+    // Image upload from local device -> embed as data URL in layout
+    if (_editor.imageFile && _editor.imageUrl) {
+      _editor.imageFile.addEventListener('change', () => {
+        const f = (_editor.imageFile.files && _editor.imageFile.files[0]) ? _editor.imageFile.files[0] : null;
+        if (!f) return;
+        const statusEl = _editor.imageUploadStatus;
+        const setStatus = (msg) => {
+          if (!statusEl) return;
+          statusEl.textContent = String(msg || '');
+        };
+
+        if (!String(f.type || '').toLowerCase().startsWith('image/')) {
+          setStatus(t('Fichier invalide: sélectionnez une image.'));
+          try { _editor.imageFile.value = ''; } catch (e) {}
+          return;
+        }
+
+        const maxBytes = 1_500_000;
+        if (Number(f.size || 0) > maxBytes) {
+          setStatus(t('Image trop grande (max 1.5 MB).'));
+          try { _editor.imageFile.value = ''; } catch (e) {}
+          return;
+        }
+
+        const reader = new FileReader();
+        setStatus(tf('Chargement: {name}', { name: f.name || t('image') }));
+        reader.onload = () => {
+          const dataUrl = String(reader.result || '');
+          if (!dataUrl.startsWith('data:image/')) {
+            setStatus(t('Erreur de lecture de l\'image.'));
+            return;
+          }
+          _editor.imageUrl.value = dataUrl;
+          if (_editor.imageAlt && !_editor.imageAlt.value) {
+            _editor.imageAlt.value = String((f.name || '').replace(/\.[^.]+$/, '') || '').trim();
+          }
+          if (_editor.imagePreview) {
+            _editor.imagePreview.src = dataUrl;
+            _editor.imagePreview.alt = String(_editor.imageAlt ? (_editor.imageAlt.value || '') : '').trim();
+          }
+          setStatus(tf('Image ajoutée: {name}', { name: f.name || t('image') }));
+        };
+        reader.onerror = () => {
+          setStatus(t('Erreur de lecture de l\'image.'));
+        };
+        reader.readAsDataURL(f);
+      });
+    }
+
     // Save button
     _editor.saveBtn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -649,7 +993,7 @@
         out.config.table.group_count = !!(_editor.qGroupCount && _editor.qGroupCount.checked);
         {
           let subtotalMode = String((_editor.qSubtotalMode && _editor.qSubtotalMode.value) || '').trim().toLowerCase();
-          if (!['count', 'sum'].includes(subtotalMode)) subtotalMode = '';
+          if (!['count', 'sum', 'avg', 'min', 'max'].includes(subtotalMode)) subtotalMode = '';
           out.config.table.group_subtotal_mode = subtotalMode;
         }
         out.config.table.group_subtotal_field = String((_editor.qSubtotalField && _editor.qSubtotalField.value) || '').trim();
@@ -674,6 +1018,19 @@
         out.config.format = String((_editor.dataFormatInput && _editor.dataFormatInput.value) || '').trim();
         out.config.group_key = !!(_editor.dataGroupKeyInput && _editor.dataGroupKeyInput.checked);
         out.config.group_label = String((_editor.dataGroupLabelInput && _editor.dataGroupLabelInput.value) || '').trim() || 'Groupe: {group}';
+        {
+          let mode = String((_editor.dataAggModeInput && _editor.dataAggModeInput.value) || '').trim().toLowerCase();
+          if (!['count', 'sum', 'avg', 'min', 'max'].includes(mode)) mode = '';
+          if (mode) {
+            out.config.aggregation = {
+              mode,
+              label: String((_editor.dataAggLabelInput && _editor.dataAggLabelInput.value) || '').trim() || 'Sous-total',
+              grand_total: !!(_editor.dataAggGrandInput && _editor.dataAggGrandInput.checked)
+            };
+          } else {
+            delete out.config.aggregation;
+          }
+        }
       }
 
       // Style (hex fields stored without leading '#')
@@ -749,6 +1106,10 @@
     // Image
     if (type === 'image') {
       ed.imageGroup.classList.remove('d-none');
+      if (ed.imageFile) {
+        try { ed.imageFile.value = ''; } catch (e) {}
+      }
+      if (ed.imageUploadStatus) ed.imageUploadStatus.textContent = t('Sélectionnez une image pour l\'insérer dans le rapport.');
       ed.imageUrl.value = block.url || '';
       ed.imageAlt.value = block.alt || '';
       ed.imageCaption.value = block.caption || '';
@@ -760,6 +1121,10 @@
       }
     } else {
       ed.imageGroup.classList.add('d-none');
+      if (ed.imageFile) {
+        try { ed.imageFile.value = ''; } catch (e) {}
+      }
+      if (ed.imageUploadStatus) ed.imageUploadStatus.textContent = t('Sélectionnez une image pour l\'insérer dans le rapport.');
       if (ed.imageUrl) ed.imageUrl.value = '';
       if (ed.imageAlt) ed.imageAlt.value = '';
       if (ed.imageCaption) ed.imageCaption.value = '';
@@ -832,6 +1197,7 @@
       ed.dataFieldGroup.classList.remove('d-none');
       const cfg = block.config || {};
       const bind = (cfg.binding && typeof cfg.binding === 'object') ? cfg.binding : {};
+      const agg = (cfg.aggregation && typeof cfg.aggregation === 'object') ? cfg.aggregation : {};
       const sourceLabel = bind.source === 'question'
         ? `${bind.question_name || tf('Pergunta #{id}', { id: bind.question_id || '?' })}.${bind.field || ''}`
         : `${bind.table || ''}.${bind.field || ''}`;
@@ -840,6 +1206,12 @@
       if (ed.dataFormatInput) ed.dataFormatInput.value = cfg.format || '';
       if (ed.dataGroupKeyInput) ed.dataGroupKeyInput.checked = !!cfg.group_key;
       if (ed.dataGroupLabelInput) ed.dataGroupLabelInput.value = cfg.group_label || 'Groupe: {group}';
+      if (ed.dataAggModeInput) {
+        const mode = String(agg.mode || '').toLowerCase();
+        ed.dataAggModeInput.value = ['count', 'sum', 'avg', 'min', 'max'].includes(mode) ? mode : '';
+      }
+      if (ed.dataAggLabelInput) ed.dataAggLabelInput.value = agg.label || 'Sous-total';
+      if (ed.dataAggGrandInput) ed.dataAggGrandInput.checked = (agg.grand_total !== false);
     } else {
       ed.dataFieldGroup.classList.add('d-none');
       if (ed.dataBindingInput) ed.dataBindingInput.value = '';
@@ -847,6 +1219,9 @@
       if (ed.dataFormatInput) ed.dataFormatInput.value = '';
       if (ed.dataGroupKeyInput) ed.dataGroupKeyInput.checked = false;
       if (ed.dataGroupLabelInput) ed.dataGroupLabelInput.value = 'Groupe: {group}';
+      if (ed.dataAggModeInput) ed.dataAggModeInput.value = '';
+      if (ed.dataAggLabelInput) ed.dataAggLabelInput.value = 'Sous-total';
+      if (ed.dataAggGrandInput) ed.dataAggGrandInput.checked = true;
     }
 
     const st = block.style || {};
@@ -860,8 +1235,14 @@
 
     ed.onSave = (updatedBlock) => {
       const parent = el.parentElement;
+      const oldX = Number(el.getAttribute('data-pos-x') || 0);
+      const oldY = Number(el.getAttribute('data-pos-y') || 0);
       const newEl = makeBlockEl(updatedBlock);
-      if (parent) parent.replaceChild(newEl, el);
+      if (parent) {
+        parent.replaceChild(newEl, el);
+        const hasLayoutPos = updatedBlock && updatedBlock.layout && (Object.prototype.hasOwnProperty.call(updatedBlock.layout, 'x') || Object.prototype.hasOwnProperty.call(updatedBlock.layout, 'y'));
+        ensureBlockPositionInZone(parent, newEl, hasLayoutPos ? updatedBlock.layout : { x: oldX, y: oldY });
+      }
       normalizeDropHints();
     };
 
@@ -963,8 +1344,13 @@
     if (!block.style.color && !block.style.background && !block.style.align) delete block.style;
 
     const parent = el.parentElement;
+    const oldX = Number(el.getAttribute('data-pos-x') || 0);
+    const oldY = Number(el.getAttribute('data-pos-y') || 0);
     const newEl = makeBlockEl(block);
-    if (parent) parent.replaceChild(newEl, el);
+    if (parent) {
+      parent.replaceChild(newEl, el);
+      ensureBlockPositionInZone(parent, newEl, { x: oldX, y: oldY });
+    }
     normalizeDropHints();
   }
 
@@ -980,6 +1366,19 @@
   let _rbAutoSaving = false;
   let _rbAutoSaveQueued = false;
   let _rbPreviewVisible = true;
+  let _rbExplorerLoaded = false;
+  let _rbExplorerLoading = false;
+
+  async function _rbEnsureDataExplorerLoaded (cfg) {
+    if (_rbExplorerLoaded || _rbExplorerLoading) return;
+    _rbExplorerLoading = true;
+    try {
+      await initDataExplorer(cfg || window.__RB || {});
+      _rbExplorerLoaded = true;
+    } finally {
+      _rbExplorerLoading = false;
+    }
+  }
 
   function _rbPreviewElements () {
     return {
@@ -1008,6 +1407,17 @@
     if (els.status && !_rbPreviewVisible) {
       els.status.textContent = t('Preview hidden');
     }
+    if (!_rbPreviewVisible && els.iframe) {
+      els.iframe.src = 'about:blank';
+    }
+  }
+
+  function _rbLoadPreviewNow () {
+    const cfg = window.__RB || {};
+    const els = _rbPreviewElements();
+    if (!els.iframe || !cfg.previewUrl) return;
+    const sep = cfg.previewUrl.includes('?') ? '&' : '?';
+    els.iframe.src = `${cfg.previewUrl}${sep}_ts=${Date.now()}`;
   }
 
   async function _rbSaveLayoutAndRefreshPreview (opts) {
@@ -1068,9 +1478,21 @@
     }, 800);
   }
 
-  function getQuestionDataUrl (qid) {
+  function getQuestionColumnsUrl (qid) {
     const id = Number(qid || 0);
-    return `/app/api/questions/${id}/data`;
+    const cfg = window.__RB || {};
+    const tpl = String(cfg.questionColumnsUrlTemplate || '/app/api/questions/__QID__/columns');
+    return tpl.replace('__QID__', String(id));
+  }
+
+  function getSourceTableColumnsUrl (cfg, tableName, schemaName) {
+    const base = String((cfg && cfg.sourceTableColumnsUrl) || '');
+    if (!base) return '';
+    const q = new URLSearchParams();
+    q.set('table', String(tableName || ''));
+    if (schemaName) q.set('schema', String(schemaName));
+    const sep = base.includes('?') ? '&' : '?';
+    return `${base}${sep}${q.toString()}`;
   }
 
   function createFieldDragItem (meta) {
@@ -1105,7 +1527,7 @@
     const qWrap = qs('#rb-data-questions');
     const search = qs('#rb-data-search');
     const tablesCount = qs('#rb-data-tables-count');
-    if (!tablesWrap || !cfg || !cfg.sourceSchemaUrl) return;
+    if (!tablesWrap || !cfg || (!cfg.sourceTablesUrl && !cfg.sourceSchemaUrl)) return;
 
     function applyFilter () {
       const q = String((search && search.value) || '').trim().toLowerCase();
@@ -1133,8 +1555,48 @@
       search.addEventListener('input', applyFilter);
     }
 
+    async function loadTableColumnsInto (fieldsBox, tableName, schemaName) {
+      const url = getSourceTableColumnsUrl(cfg, tableName, schemaName);
+      if (!url) {
+        fieldsBox.innerHTML = `<div class="text-danger small">${t('Falha ao carregar esquema da fonte.')}</div>`;
+        return;
+      }
+      const payload = await jsonFetch(url);
+      const columns = Array.isArray(payload.columns) ? payload.columns : [];
+      fieldsBox.innerHTML = '';
+
+      const seenCols = new Set();
+      for (const col of columns) {
+        const colName = String((col && col.name) || '').trim();
+        if (!colName) continue;
+        const key = colName.toLowerCase();
+        if (seenCols.has(key)) continue;
+        seenCols.add(key);
+
+        const colType = String((col && (col.type || col.data_type)) || '').trim();
+        const field = createFieldDragItem({
+          field: colName,
+          sub: `${tableName}${colType ? ` · ${colType}` : ''}`,
+          title: `${tableName}.${colName}`,
+          searchText: `${tableName} ${colName} ${colType}`,
+          binding: {
+            source: 'table',
+            table: tableName,
+            field: colName
+          }
+        });
+        _registerBindingPlaceholders({ source: 'table', table: tableName, field: colName });
+        fieldsBox.appendChild(field);
+      }
+      if (!columns.length) {
+        fieldsBox.innerHTML = `<div class="text-muted small">${t('Sem colunas retornadas.')}</div>`;
+      }
+      mountDragSource(fieldsBox);
+      fieldsBox.dataset.loaded = '1';
+    }
+
     try {
-      const schema = await jsonFetch(cfg.sourceSchemaUrl);
+      const schema = await jsonFetch(cfg.sourceTablesUrl || cfg.sourceSchemaUrl);
       const schemas = Array.isArray(schema.schemas) ? schema.schemas : [];
       tablesWrap.innerHTML = '';
 
@@ -1144,7 +1606,6 @@
         for (const tbl of tables) {
           totalTables += 1;
           const tableName = String(tbl.name || '').trim();
-          const columns = Array.isArray(tbl.columns) ? tbl.columns : [];
           const seenCols = new Set();
 
           const card = document.createElement('div');
@@ -1161,38 +1622,49 @@
           `;
 
           const fieldsBox = qs('#' + fieldsId, card);
-          for (const col of columns) {
-            const colName = String((col && col.name) || '').trim();
-            if (!colName) continue;
-            {
+          const columns = Array.isArray(tbl.columns) ? tbl.columns : [];
+          if (columns.length) {
+            for (const col of columns) {
+              const colName = String((col && col.name) || '').trim();
+              if (!colName) continue;
               const key = colName.toLowerCase();
               if (seenCols.has(key)) continue;
               seenCols.add(key);
+              const colType = String((col && (col.type || col.data_type)) || '').trim();
+              const field = createFieldDragItem({
+                field: colName,
+                sub: `${tableName}${colType ? ` · ${colType}` : ''}`,
+                title: `${tableName}.${colName}`,
+                searchText: `${tableName} ${colName} ${colType}`,
+                binding: {
+                  source: 'table',
+                  table: tableName,
+                  field: colName
+                }
+              });
+              _registerBindingPlaceholders({ source: 'table', table: tableName, field: colName });
+              fieldsBox.appendChild(field);
             }
-            const colType = String((col && (col.type || col.data_type)) || '').trim();
-            const field = createFieldDragItem({
-              field: colName,
-              sub: `${tableName}${colType ? ` · ${colType}` : ''}`,
-              title: `${tableName}.${colName}`,
-              searchText: `${tableName} ${colName} ${colType}`,
-              binding: {
-                source: 'table',
-                table: tableName,
-                field: colName
-              }
-            });
-            _registerBindingPlaceholders({ source: 'table', table: tableName, field: colName });
-            fieldsBox.appendChild(field);
+            fieldsBox.dataset.loaded = '1';
+            mountDragSource(fieldsBox);
           }
 
           const tgl = qs(`[data-rb-toggle="${fieldsId}"]`, card);
           if (tgl) {
-            tgl.addEventListener('click', () => {
+            tgl.addEventListener('click', async () => {
+              if (fieldsBox.classList.contains('d-none') && fieldsBox.dataset.loaded !== '1') {
+                fieldsBox.innerHTML = `<div class="text-muted small">${t('Carregando campos...')}</div>`;
+                try {
+                  await loadTableColumnsInto(fieldsBox, tableName, String(sch.name || '').trim());
+                } catch (err) {
+                  fieldsBox.innerHTML = `<div class="text-danger small">${escapeHtml(String((err && err.error) || err || 'erro'))}</div>`;
+                }
+              }
               fieldsBox.classList.toggle('d-none');
+              applyFilter();
             });
           }
 
-          mountDragSource(fieldsBox);
           tablesWrap.appendChild(card);
         }
       }
@@ -1226,14 +1698,12 @@
             fieldsWrap.innerHTML = `<div class="text-muted small">${t('Carregando campos...')}</div>`;
             try {
               const token = window.__RB && window.__RB.csrfToken;
-              const resp = await fetch(getQuestionDataUrl(qid), {
-                method: 'POST',
+              const resp = await fetch(getQuestionColumnsUrl(qid), {
+                method: 'GET',
                 credentials: 'same-origin',
                 headers: {
-                  'Content-Type': 'application/json',
                   ...(token ? { 'X-CSRFToken': token } : {})
-                },
-                body: JSON.stringify({ params: {} })
+                }
               });
               const payload = await resp.json().catch(() => ({}));
               if (!resp.ok) throw new Error(payload.error || t('Erro ao carregar campos da pergunta.'));
@@ -1279,7 +1749,7 @@
     }
   }
 
-  function initFloatingExplorerPanel () {
+  function initFloatingExplorerPanel (cfg) {
     const panel = qs('#rb-floating-explorer');
     if (!panel) return;
 
@@ -1288,6 +1758,7 @@
     const collapseBtn = qs('#rb-floating-explorer-collapse');
     const dockBtn = qs('#rb-floating-explorer-dock');
     const keyCollapsed = 'rb.explorer.collapsed';
+    const keyVisible = 'rb.explorer.visible';
 
     function setCollapsed (on) {
       panel.classList.toggle('is-collapsed', !!on);
@@ -1303,6 +1774,8 @@
     function toggleVisible () {
       const hidden = panel.style.display === 'none';
       panel.style.display = hidden ? '' : 'none';
+      try { localStorage.setItem(keyVisible, hidden ? '1' : '0'); } catch (e) {}
+      if (hidden) _rbEnsureDataExplorerLoaded(cfg);
     }
 
     function dockDefault () {
@@ -1339,6 +1812,13 @@
       setCollapsed(localStorage.getItem(keyCollapsed) === '1');
     } catch (e) {
       setCollapsed(false);
+    }
+    try {
+      const visible = localStorage.getItem(keyVisible) === '1';
+      panel.style.display = visible ? '' : 'none';
+      if (visible) _rbEnsureDataExplorerLoaded(cfg);
+    } catch (e) {
+      panel.style.display = 'none';
     }
 
     if (!head) return;
@@ -1620,8 +2100,11 @@
       zone.innerHTML = `<div class="rb-drop-hint">${t('Arraste aqui...')}</div>`;
       const blocks = Array.isArray(tpl[band]) ? tpl[band] : [];
       for (const b of blocks) {
-        zone.appendChild(makeBlockEl(b));
+        const el = makeBlockEl(b);
+        zone.appendChild(el);
+        ensureBlockPositionInZone(zone, el);
       }
+      expandDropzoneHeight(zone);
     }
     normalizeDropHints();
     return true;
@@ -1662,24 +2145,30 @@
     const reportFooter = qs('#rb-report-footer');
     const saveBtn = qs('#rb-save');
     const previewToggleBtn = qs('#rb-preview-toggle');
+    const aiGenerateBtn = qs('#rb-ai-generate');
 
     try {
       const key = `rb.preview.visible.${Number(cfg.reportId || 0)}`;
-      _rbPreviewVisible = localStorage.getItem(key) !== '0';
+      const storedPreview = localStorage.getItem(key);
+      _rbPreviewVisible = storedPreview === null ? false : storedPreview !== '0';
       if (previewToggleBtn) {
         previewToggleBtn.addEventListener('click', () => {
           _rbPreviewVisible = !_rbPreviewVisible;
           try { localStorage.setItem(key, _rbPreviewVisible ? '1' : '0'); } catch (e) {}
           _rbApplyPreviewVisibility();
-          if (_rbPreviewVisible) _rbSaveLayoutAndRefreshPreview({ silent: true });
+          if (_rbPreviewVisible) {
+            _rbLoadPreviewNow();
+            _rbSaveLayoutAndRefreshPreview({ silent: true });
+          }
         });
       }
     } catch (e) {
       _rbPreviewVisible = true;
     }
     _rbApplyPreviewVisibility();
+    if (_rbPreviewVisible) _rbLoadPreviewNow();
 
-    initFloatingExplorerPanel();
+    initFloatingExplorerPanel(cfg);
 
     Sortable.create(palette, {
       group: { name: 'rb', pull: 'clone', put: false },
@@ -1691,10 +2180,13 @@
       return {
         group: { name: 'rb', pull: true, put: true },
         animation: 150,
+        filter: '.rb-resize-handle, .meta',
+        preventOnFilter: false,
         onAdd: (evt) => {
           const it = evt.item;
           if (!it) return;
           if (it.classList.contains('rb-block-instance')) {
+            ensureBlockPositionInZone(evt.to, it);
             normalizeDropHints();
             return;
           }
@@ -1728,7 +2220,16 @@
           }
 
           const newEl = makeBlockEl(block);
+          // Position block at cursor drop coordinates relative to zone
+          const zone = evt.to;
+          if (zone && evt.originalEvent) {
+            const zRect = zone.getBoundingClientRect();
+            const dropX = Math.max(0, Math.round(evt.originalEvent.clientX - zRect.left));
+            const dropY = Math.max(0, Math.round(evt.originalEvent.clientY - zRect.top));
+            applyBlockPosition(newEl, dropX, dropY);
+          }
           it.replaceWith(newEl);
+          ensureBlockPositionInZone(newEl.parentElement, newEl);
           normalizeDropHints();
 
           // open editor immediately for most blocks
@@ -1746,70 +2247,14 @@
     Sortable.create(pageFooter, zoneOptions());
     Sortable.create(reportFooter, zoneOptions());
 
-    await initDataExplorer(cfg);
+    // Explorer loads on first open to avoid heavy schema rendering at page start.
     bindDocumentTemplateButtons();
     bindStyleTemplateButtons();
 
     // Load existing layout
     try {
       const rep = await jsonFetch(cfg.apiUrl);
-      const layout = rep.layout || {};
-      const settings = (layout.settings || {});
-      const spn = qs('#rb-setting-page-number');
-      const spl = qs('#rb-setting-page-label');
-      if (spn) spn.checked = settings.page_number !== false;
-      if (spl) spl.value = String(settings.page_number_label || 'Page {page} / {pages}');
-
-
-      // Backward compat: sections -> bands
-      const bands = layout.bands || null;
-      const secs = layout.sections || null;
-      const effective = bands ? {
-        report_header: bands.report_header || [],
-        page_header: bands.page_header || [],
-        detail: bands.detail || [],
-        page_footer: bands.page_footer || [],
-        report_footer: bands.report_footer || []
-      } : {
-        report_header: [],
-        page_header: (secs && Array.isArray(secs.header)) ? secs.header : [],
-        detail: (secs && Array.isArray(secs.body)) ? secs.body : [],
-        page_footer: (secs && Array.isArray(secs.footer)) ? secs.footer : [],
-        report_footer: []
-      };
-
-      const zoneMap = {
-        'rb-report-header': reportHeader,
-        'rb-page-header': pageHeader,
-        'rb-detail': detail,
-        'rb-page-footer': pageFooter,
-        'rb-report-footer': reportFooter
-      };
-
-      const bandToZone = {
-        report_header: 'rb-report-header',
-        page_header: 'rb-page-header',
-        detail: 'rb-detail',
-        page_footer: 'rb-page-footer',
-        report_footer: 'rb-report-footer'
-      };
-
-      for (const bandKey of Object.keys(bandToZone)) {
-        const zoneId = bandToZone[bandKey];
-        const dz = zoneMap[zoneId];
-        if (!dz) continue;
-        dz.innerHTML = `<div class="rb-drop-hint">${t('Arraste aqui...')}</div>`;
-        const blocks = Array.isArray(effective[bandKey]) ? effective[bandKey] : [];
-        for (const b of blocks) {
-          const bb = { ...b };
-          if (bb.text != null && bb.content == null) bb.content = bb.text;
-          if (bb.image_url != null && bb.url == null) bb.url = bb.image_url;
-          if (bb.type === 'data_field' && bb.config && bb.config.binding) {
-            _registerBindingPlaceholders(bb.config.binding);
-          }
-          dz.appendChild(makeBlockEl(bb));
-        }
-      }
+      applyLayoutToCanvas(rep.layout || {});
     } catch (e) {
       // ignore
     }
@@ -1836,6 +2281,7 @@
             }
           }
         }));
+        ensureBlockPositionInZone(detail, detail.lastElementChild);
         normalizeDropHints();
         _rbScheduleAutoSave();
       });
@@ -1851,6 +2297,7 @@
         if (!url) return;
         const el = makeBlockEl({ type: 'image', title: t('Imagem'), url });
         detail.appendChild(el);
+        ensureBlockPositionInZone(detail, el);
         imgUrlInput.value = '';
         normalizeDropHints();
         editBlock(el);
@@ -1866,6 +2313,7 @@
         e.preventDefault();
         const el = makeBlockEl({ type: 'field', title: t('Data'), config: { kind: 'date', format: 'dd/MM/yyyy' } });
         pageHeader.appendChild(el);
+        ensureBlockPositionInZone(pageHeader, el);
         normalizeDropHints();
         editBlock(el);
         _rbScheduleAutoSave();
@@ -1876,6 +2324,7 @@
         e.preventDefault();
         const el = makeBlockEl({ type: 'field', title: t('Data e hora'), config: { kind: 'datetime', format: 'dd/MM/yyyy HH:mm' } });
         pageHeader.appendChild(el);
+        ensureBlockPositionInZone(pageHeader, el);
         normalizeDropHints();
         editBlock(el);
         _rbScheduleAutoSave();
@@ -1911,6 +2360,12 @@
         } finally {
           saveBtn.disabled = false;
         }
+      });
+    }
+    if (aiGenerateBtn) {
+      aiGenerateBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        await generateReportWithAi();
       });
     }
   }

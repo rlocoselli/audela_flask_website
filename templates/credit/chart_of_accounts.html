@@ -1,0 +1,255 @@
+{% extends "credit/page_base.html" %}
+{% set title = _('Chart of Accounts') %}
+{% set active_page = 'chart_of_accounts' %}
+
+{% block credit_page_content %}
+
+{# ── Action bar ── #}
+<div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
+  <h5 class="mb-0 fw-semibold">{{ _('Chart of Accounts') }}</h5>
+  <button class="btn btn-sm btn-primary ms-auto" type="button" data-bs-toggle="modal" data-bs-target="#modalNewCoA">
+    <i class="bi bi-plus-lg me-1"></i>{{ _('New chart of accounts') }}
+  </button>
+</div>
+
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-info-subtle d-flex align-items-center gap-2">
+    <i class="bi bi-journal-richtext"></i>
+    <strong>{{ _('Plan comptable tutorial') }}</strong>
+  </div>
+  <div class="card-body">
+    <p class="mb-3 text-secondary">{{ _('How to configure and use Plan Comptable end-to-end') }}</p>
+    <div class="row g-3 small">
+      <div class="col-12 col-lg-6">
+        <div class="border rounded p-3 h-100">
+          <div class="fw-semibold">1. {{ _('Step 1 - Clone a standard template') }}</div>
+          <div class="text-secondary">{{ _('Choose IFRS, PCG, OHADA, US GAAP or SNC.') }}</div>
+          <div class="fw-semibold mt-2">2. {{ _('Step 2 - Rename and scope to sector') }}</div>
+          <div class="text-secondary">{{ _('Set a business name and optional sector.') }}</div>
+          <div class="fw-semibold mt-2">3. {{ _('Step 3 - Customize lines') }}</div>
+          <div class="text-secondary">{{ _('Add headers, data lines, formulas, totals and ratio flags.') }}</div>
+          <div class="fw-semibold mt-2">4. {{ _('Step 4 - Define formulas safely') }}</div>
+          <div class="text-secondary">{{ _('Use line codes in expressions: e.g. ebitda = gross_profit - opex.') }}</div>
+        </div>
+      </div>
+      <div class="col-12 col-lg-6">
+        <div class="border rounded p-3 h-100">
+          <div class="fw-semibold">5. {{ _('Step 5 - Open Financial Grid') }}</div>
+          <div class="text-secondary">{{ _('Select borrower and chart, then add periods (FY, H1, Q1...).') }}</div>
+          <div class="fw-semibold mt-2">6. {{ _('Step 6 - Enter period values') }}</div>
+          <div class="text-secondary">{{ _('Double-click data cells to input values; formulas recalculate automatically.') }}</div>
+          <div class="fw-semibold mt-2">7. {{ _('Step 7 - Review ratios') }}</div>
+          <div class="text-secondary">{{ _('Mark key lines as ratios to drive credit analysis.') }}</div>
+          <div class="fw-semibold mt-2">8. {{ _('Step 8 - Iterate by sector') }}</div>
+          <div class="text-secondary">{{ _('Keep multiple custom charts per sector and borrower type.') }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="alert alert-light border mt-3 mb-0 small">
+      <i class="bi bi-search me-1"></i>{{ _('Borrower picker tutorial') }}: {{ _('Use the search popup to filter borrowers by name, then select one.') }}
+    </div>
+  </div>
+</div>
+
+{# ── Standard templates section ── #}
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-header bg-body-tertiary">
+    <i class="bi bi-stars me-1 text-warning"></i>
+    <strong>{{ _('Standard templates') }}</strong>
+    <span class="text-secondary ms-2 small">{{ _('Based on recognised accounting standards. Clone and customise.') }}</span>
+  </div>
+  <div class="card-body">
+    <div class="row g-3">
+      {% for tpl_key in system_templates %}
+      {% set meta = system_templates_meta.get(tpl_key, {}) %}
+      <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
+        <div class="border rounded-3 p-3 h-100 d-flex flex-column gap-2">
+          <div class="d-flex align-items-start gap-2">
+            <span class="fs-4 text-{{ meta.color|default('primary') }}">
+              <i class="bi {{ meta.icon|default('bi-file-earmark-spreadsheet') }}"></i>
+            </span>
+            <div class="flex-grow-1">
+              <div class="fw-semibold lh-sm small">{{ _(meta.label|default(tpl_key|capitalize)) }}</div>
+              <span class="badge text-bg-{{ meta.color|default('secondary') }} mt-1">{{ _(meta.standard|default('Standard')) }}</span>
+            </div>
+          </div>
+          <div class="mt-auto pt-1">
+            <button type="button" class="btn btn-sm btn-outline-{{ meta.color|default('primary') }} w-100"
+              data-bs-toggle="modal" data-bs-target="#modalNewCoA"
+              data-template="{{ tpl_key }}"
+              data-suggested-name="{{ _(meta.label|default(tpl_key|capitalize)) }}">
+              <i class="bi bi-copy me-1"></i>{{ _('Clone & customise') }}
+            </button>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{# ── Tenant CoA list ── #}
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-body-tertiary d-flex align-items-center gap-2">
+    <i class="bi bi-list-columns-reverse me-1"></i>
+    <strong>{{ _('Your custom charts of accounts') }}</strong>
+    <span class="badge text-bg-secondary ms-auto">{{ charts|length }}</span>
+  </div>
+  <div class="card-body p-0">
+    {% if charts %}
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0 align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>{{ _('Name') }}</th>
+            <th>{{ _('Sector') }}</th>
+            <th class="text-center">{{ _('Lines') }}</th>
+            <th>{{ _('Updated') }}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in charts %}
+          <tr>
+            <td>
+              <a href="{{ url_for('credit.chart_of_accounts_detail', coa_id=c.id) }}" class="fw-semibold text-decoration-none">
+                {{ c.name }}
+              </a>
+              {% if c.description %}<div class="small text-secondary">{{ c.description }}</div>{% endif %}
+            </td>
+            <td><span class="text-secondary small">{{ c.sector.display_name(current_lang) if c.sector else '&ndash;' }}</span></td>
+            <td class="text-center"><span class="badge text-bg-light border">{{ c.lines.count() }}</span></td>
+            <td class="text-secondary small">{{ c.updated_at.strftime('%d/%m/%Y') if c.updated_at else '&ndash;' }}</td>
+            <td class="text-nowrap">
+              <a class="btn btn-outline-secondary btn-sm" title="{{ _('Edit lines') }}"
+                href="{{ url_for('credit.chart_of_accounts_detail', coa_id=c.id) }}">
+                <i class="bi bi-pencil-square"></i>
+              </a>
+              <a class="btn btn-outline-primary btn-sm ms-1" title="{{ _('Financial Grid') }}"
+                href="{{ url_for('credit.financials_grid') }}?coa_id={{ c.id }}">
+                <i class="bi bi-table"></i>
+              </a>
+              <button type="button" class="btn btn-outline-danger btn-sm ms-1" title="{{ _('Delete') }}"
+                data-bs-toggle="modal" data-bs-target="#modalDeleteCoA"
+                data-coa-id="{{ c.id }}" data-coa-name="{{ c.name|e }}">
+                <i class="bi bi-trash"></i>
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="p-4 text-center text-secondary">
+      <i class="bi bi-inbox fs-2 d-block mb-2 opacity-50"></i>
+      {{ _('No custom charts of accounts yet.') }}<br>
+      <span class="small">{{ _('Clone one of the standard templates above to get started.') }}</span>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{# ── New CoA modal ── #}
+<div class="modal fade" id="modalNewCoA" tabindex="-1" aria-labelledby="modalNewCoALabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="create">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalNewCoALabel">{{ _('New chart of accounts') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Close') }}"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label fw-semibold">{{ _('Start from template') }}</label>
+              <select class="form-select" name="from_template" id="fromTemplateSelect">
+                <option value="">{{ _('Blank (no template)') }}</option>
+                {% for tpl_key in system_templates %}
+                {% set meta = system_templates_meta.get(tpl_key, {}) %}
+                <option value="{{ tpl_key }}">{{ _(meta.label|default(tpl_key|capitalize)) }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold">{{ _('Name') }} <span class="text-danger">*</span></label>
+              <input class="form-control" name="name" id="newCoAName" required placeholder="{{ _('e.g. General IFRS – SME') }}">
+            </div>
+            <div class="col-12">
+              <label class="form-label">{{ _('Description') }}</label>
+              <textarea class="form-control" name="description" rows="2"></textarea>
+            </div>
+            <div class="col-12">
+              <label class="form-label">{{ _('Sector (optional)') }}</label>
+              <select class="form-select" name="sector_id">
+                <option value="">{{ _('All sectors') }}</option>
+                {% for s in sectors %}
+                <option value="{{ s.id }}">{{ s.display_name(current_lang) }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ _('Cancel') }}</button>
+          <button type="submit" class="btn btn-primary"><i class="bi bi-check2 me-1"></i>{{ _('Create') }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{# ── Delete CoA modal ── #}
+<div class="modal fade" id="modalDeleteCoA" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="delete">
+        <input type="hidden" name="coa_id" id="deleteCoAId">
+        <div class="modal-header bg-danger-subtle">
+          <h5 class="modal-title">{{ _('Delete chart of accounts') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Close') }}"></button>
+        </div>
+        <div class="modal-body">
+          {{ _('Delete') }} <strong id="deleteCoAName"></strong>?
+          <div class="alert alert-warning mt-2 small mb-0 py-2">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            {{ _('This will also remove all account lines and spreading values.') }}
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ _('Cancel') }}</button>
+          <button type="submit" class="btn btn-danger"><i class="bi bi-trash me-1"></i>{{ _('Delete') }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+// When "Clone & customise" clicked: pre-select template + pre-fill name
+document.querySelectorAll('[data-template]').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    var sel = document.getElementById('fromTemplateSelect');
+    var nameInput = document.getElementById('newCoAName');
+    if (sel) sel.value = btn.dataset.template;
+    if (nameInput && btn.dataset.suggestedName) {
+      nameInput.value = btn.dataset.suggestedName + ' \u2013 ' + new Date().getFullYear();
+    }
+  });
+});
+
+// Populate delete modal
+var deleteModal = document.getElementById('modalDeleteCoA');
+if (deleteModal) {
+  deleteModal.addEventListener('show.bs.modal', function (e) {
+    var btn = e.relatedTarget;
+    document.getElementById('deleteCoAId').value = btn.dataset.coaId;
+    document.getElementById('deleteCoAName').textContent = btn.dataset.coaName;
+  });
+}
+</script>
+{% endblock %}

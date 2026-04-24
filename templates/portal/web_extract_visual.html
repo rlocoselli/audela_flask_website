@@ -1,6 +1,82 @@
 {% extends "portal/layout.html" %}
 {% set title = _('Web Scraping IA - Mode visuel') %}
 
+{% block head_extra %}
+{{ super() }}
+<style>
+  .vis-studio {
+    background: linear-gradient(160deg, rgba(15, 96, 161, 0.06), rgba(15, 96, 161, 0.01));
+    border: 1px solid rgba(15, 96, 161, 0.14);
+  }
+  .vis-rec-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    background: #9ca3af;
+    margin-right: 6px;
+  }
+  .vis-rec-dot.live {
+    background: #dc2626;
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.55);
+    animation: visPulse 1.3s infinite;
+  }
+  @keyframes visPulse {
+    0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.45); }
+    70% { box-shadow: 0 0 0 9px rgba(220, 38, 38, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+  }
+  .vis-action-chip {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    font-weight: 700;
+    border-radius: 999px;
+    padding: 2px 8px;
+    background: rgba(15, 96, 161, 0.09);
+    color: #0f60a1;
+  }
+  .vis-action-item {
+    cursor: grab;
+    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+  }
+  .vis-action-item.dragging {
+    opacity: .55;
+    transform: scale(.99);
+  }
+  .vis-action-item.drag-over {
+    border-color: rgba(15, 96, 161, 0.55) !important;
+    box-shadow: 0 0 0 2px rgba(15, 96, 161, 0.12);
+  }
+  .vis-drag-handle {
+    color: #6b7280;
+    margin-right: 8px;
+    cursor: grab;
+  }
+  .vis-accordion .accordion-button {
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+  .vis-browser-card.maximized {
+    position: fixed;
+    inset: 12px;
+    z-index: 1080;
+    margin: 0 !important;
+    border-radius: 14px !important;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.28) !important;
+  }
+  .vis-browser-card.maximized .card-body {
+    height: calc(100vh - 86px) !important;
+  }
+  .vis-browser-card.maximized #vis-frame {
+    height: 100% !important;
+  }
+  body.vis-browser-maximized {
+    overflow: hidden;
+  }
+</style>
+{% endblock %}
+
 {% block portal_content %}
 <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
   <div>
@@ -14,8 +90,17 @@
 
 <div class="row g-3">
   <div class="col-12 col-xl-4">
-    <div class="card border-0 shadow-sm rounded-4 h-100">
+    <div class="card border-0 shadow-sm rounded-4 h-100 vis-studio">
       <div class="card-body">
+        <div class="accordion vis-accordion" id="vis-left-accordion">
+          <div class="accordion-item border-0 bg-transparent">
+            <h2 class="accordion-header" id="vis-left-params-h">
+              <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#vis-left-params" aria-expanded="true" aria-controls="vis-left-params">
+                {{ _('Paramètres') }}
+              </button>
+            </h2>
+            <div id="vis-left-params" class="accordion-collapse collapse show" aria-labelledby="vis-left-params-h" data-bs-parent="#vis-left-accordion">
+              <div class="accordion-body px-0 pt-2">
         <div class="mb-2 fw-semibold">{{ _('Paramètres') }}</div>
 
         <form method="get" action="{{ url_for('portal.web_extract_visual') }}" class="row g-2 mb-2" data-tour="{{ _('Chargez une configuration visuelle existante.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="2">
@@ -43,6 +128,7 @@
           <input type="hidden" name="table_selector" id="vis-config-table-selector" value="{{ table_selector or '' }}">
           <input type="hidden" name="verify_ssl" id="vis-config-verify-ssl" value="{{ '1' if verify_ssl else '0' }}">
           <input type="hidden" name="visual_actions_json" id="vis-config-actions" value="[]">
+          <input type="hidden" name="field_mapping_json" id="vis-config-field-mapping" value="{}">
 
           <div class="col-8">
             <label class="form-label">{{ _('Nom de la config') }}</label>
@@ -92,35 +178,119 @@
           <button id="vis-copy-step" class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-clipboard me-1"></i>{{ _('Copier step ETL') }}</button>
         </div>
 
-        <hr>
-        <div class="d-flex align-items-center justify-content-between">
-          <div class="fw-semibold">{{ _('Workflow visuel') }}</div>
-          <button id="vis-clear-actions" class="btn btn-outline-secondary btn-sm" type="button">{{ _('Vider') }}</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item border-0 bg-transparent">
+            <h2 class="accordion-header" id="vis-left-inspect-h">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#vis-left-inspect" aria-expanded="false" aria-controls="vis-left-inspect">
+                {{ _('Inspecteur') }}
+              </button>
+            </h2>
+            <div id="vis-left-inspect" class="accordion-collapse collapse" aria-labelledby="vis-left-inspect-h" data-bs-parent="#vis-left-accordion">
+              <div class="accordion-body px-0 pt-2">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <div class="fw-semibold">{{ _('Robot visuel') }}</div>
+          <div class="d-flex gap-1">
+            <button id="vis-inspect-toggle" class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-crosshair me-1"></i>{{ _('Inspecter champs') }}</button>
+            <button id="vis-record" class="btn btn-outline-primary btn-sm" type="button"><i class="bi bi-record-circle me-1"></i>{{ _('Enregistrer') }}</button>
+            <button id="vis-stop" class="btn btn-outline-danger btn-sm" type="button"><i class="bi bi-stop-circle me-1"></i>{{ _('Stop enregistrement') }}</button>
+          </div>
         </div>
-        <div class="small text-secondary mb-2">{{ _('Cliquez dans la page: le sélecteur de la table est capturé automatiquement.') }}</div>
+        <div id="vis-rec-status" class="small mb-2 text-secondary"><span id="vis-rec-dot" class="vis-rec-dot"></span>{{ _('Mode pause') }}</div>
+        <div id="vis-inspect-status" class="small mb-2 text-secondary">{{ _('Inspecteur inactif') }}</div>
+        <div id="vis-hover-info" class="small border rounded-2 px-2 py-1 mb-2 bg-body-tertiary text-secondary">{{ _('Survolez un élément de la page pour voir son type, son nom et son sélecteur.') }}</div>
+        <div class="d-flex flex-wrap gap-2 mb-2">
+          <button id="vis-capture-table-struct" class="btn btn-outline-primary btn-sm" type="button"><i class="bi bi-table me-1"></i>{{ _('Table entière -> structurer') }}</button>
+          <button id="vis-capture-text-col" class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-textarea-t me-1"></i>{{ _('Texte -> colonne') }}</button>
+          <button id="vis-capture-text-row" class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-list-ul me-1"></i>{{ _('Texte -> ligne') }}</button>
+        </div>
+
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item border-0 bg-transparent">
+            <h2 class="accordion-header" id="vis-left-robot-h">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#vis-left-robot" aria-expanded="false" aria-controls="vis-left-robot">
+                {{ _('Robot workflow') }}
+              </button>
+            </h2>
+            <div id="vis-left-robot" class="accordion-collapse collapse" aria-labelledby="vis-left-robot-h" data-bs-parent="#vis-left-accordion">
+              <div class="accordion-body px-0 pt-2">
+        <div id="vis-actions-summary" class="small mb-2 text-secondary"></div>
+        <div class="d-flex flex-wrap gap-2 mb-2">
+          <button id="vis-add-navigate" class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-box-arrow-up-right me-1"></i>{{ _('Ajouter navigation') }}</button>
+          <button id="vis-add-wait" class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-hourglass-split me-1"></i>{{ _('Ajouter attente') }}</button>
+          <button id="vis-add-scroll" class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-arrow-down-up me-1"></i>{{ _('Ajouter scroll') }}</button>
+          <button id="vis-add-select" class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-menu-button me-1"></i>{{ _('Ajouter select') }}</button>
+          <button id="vis-undo-action" class="btn btn-outline-secondary btn-sm" type="button" disabled><i class="bi bi-arrow-counterclockwise me-1"></i>{{ _('Annuler') }}</button>
+          <button id="vis-replay-actions" class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-play-btn me-1"></i>{{ _('Rejouer robot') }}</button>
+          <button id="vis-clear-actions" class="btn btn-outline-danger btn-sm" type="button"><i class="bi bi-trash me-1"></i>{{ _('Vider') }}</button>
+        </div>
+        <div class="small text-secondary mb-2">{{ _('Mode intuitif: enregistrez clics, saisies et attentes, puis rejouez la séquence avant extraction.') }}</div>
         <div id="vis-actions-list" class="small" style="max-height:180px;overflow:auto;"></div>
+
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item border-0 bg-transparent">
+            <h2 class="accordion-header" id="vis-left-json-h">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#vis-left-json" aria-expanded="false" aria-controls="vis-left-json">
+                {{ _('Step ETL (JSON)') }}
+              </button>
+            </h2>
+            <div id="vis-left-json" class="accordion-collapse collapse" aria-labelledby="vis-left-json-h" data-bs-parent="#vis-left-accordion">
+              <div class="accordion-body px-0 pt-2">
 
         <div class="mt-2">
           <label class="form-label">{{ _('Step ETL (JSON)') }}</label>
           <textarea id="vis-step-json" class="form-control" rows="7" readonly></textarea>
+        </div>
+
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
   <div class="col-12 col-xl-8">
-    <div class="card border-0 shadow-sm rounded-4 mb-3">
-      <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-2 fw-semibold">{{ _('Page cible (proxy)') }}</div>
-      <div class="card-body p-0" style="height:440px;" data-tour="{{ _('Cliquez une table dans la page pour capturer le sélecteur automatiquement.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="5">
+    <div id="vis-browser-card" class="card border-0 shadow-sm rounded-4 mb-3 vis-browser-card">
+      <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-2 d-flex align-items-center justify-content-between gap-2">
+        <span class="fw-semibold">{{ _('Page cible (proxy)') }}</span>
+        <div class="d-flex gap-1">
+          <button id="vis-browser-max" class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-arrows-fullscreen me-1"></i>{{ _('Maximiser') }}</button>
+        </div>
+      </div>
+      <div class="card-body p-0" style="height:520px;" data-tour="{{ _('Cliquez une table dans la page pour capturer le sélecteur automatiquement.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="5">
         <iframe id="vis-frame" title="visual web" style="width:100%;height:100%;border:0;background:#fff;"></iframe>
       </div>
     </div>
 
     <div class="card border-0 shadow-sm rounded-4" data-tour="{{ _('Le résultat s\'affiche ici et peut être sauvegardé en CSV.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="8">
-      <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-2 fw-semibold">{{ _('Résultat') }}</div>
+      <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-2 d-flex align-items-center justify-content-between gap-2">
+        <span class="fw-semibold">{{ _('Résultat') }}</span>
+      </div>
       <div class="card-body">
         <div id="vis-error" class="alert alert-danger d-none"></div>
         <div id="vis-meta" class="small text-secondary mb-2"></div>
+
+        <div class="border rounded-3 p-2 mb-3 bg-body-tertiary">
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <div class="fw-semibold">{{ _('Mapping visuel des champs') }}</div>
+            <div class="d-flex gap-1">
+              <button id="vis-schema-from-detected" class="btn btn-outline-secondary btn-sm" type="button">{{ _('Utiliser colonnes détectées') }}</button>
+              <button id="vis-auto-map" class="btn btn-outline-secondary btn-sm" type="button">{{ _('Auto-mapping') }}</button>
+              <button id="vis-apply-mapping" class="btn btn-outline-primary btn-sm" type="button">{{ _('Appliquer mapping') }}</button>
+            </div>
+          </div>
+          <div id="vis-mapping-help" class="small text-secondary mb-2">{{ _('Mappez chaque champ cible vers une colonne détectée pour obtenir un résultat propre.') }}</div>
+          <div id="vis-mapping-wrap" class="small"></div>
+        </div>
 
         <form id="vis-save-form" method="post" action="{{ url_for('portal.web_extract_save_file') }}" class="row g-2 mb-3">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -159,6 +329,67 @@
     </div>
   </div>
 </div>
+
+<div class="modal fade" id="vis-action-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="vis-action-modal-title">{{ _('Configurer action robot') }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="vis-am-error" class="alert alert-danger d-none py-2"></div>
+        <input type="hidden" id="vis-am-type" value="">
+        <div id="vis-am-url-wrap" class="mb-2 d-none">
+          <label class="form-label">{{ _('URL') }}</label>
+          <input id="vis-am-url" class="form-control" type="url" placeholder="https://example.com">
+        </div>
+        <div id="vis-am-selector-wrap" class="mb-2 d-none">
+          <label class="form-label">{{ _('Sélecteur CSS') }}</label>
+          <input id="vis-am-selector" class="form-control" type="text" placeholder=".btn-primary">
+        </div>
+        <div id="vis-am-select-list-wrap" class="mb-2 d-none">
+          <div class="d-flex align-items-center justify-content-between gap-2">
+            <label class="form-label mb-0">{{ _('Select détecté dans la page') }}</label>
+            <button class="btn btn-outline-secondary btn-sm" type="button" id="vis-am-refresh-selects">
+              <i class="bi bi-arrow-clockwise me-1"></i>{{ _('Rafraîchir') }}
+            </button>
+          </div>
+          <select id="vis-am-select-list" class="form-select mt-1"></select>
+        </div>
+        <div id="vis-am-value-wrap" class="mb-2 d-none">
+          <label class="form-label">{{ _('Valeur') }}</label>
+          <input id="vis-am-value" class="form-control" type="text" placeholder="value">
+        </div>
+        <div id="vis-am-text-target-wrap" class="mb-2 d-none">
+          <label class="form-label">{{ _('Enregistrer comme') }}</label>
+          <select id="vis-am-text-target" class="form-select">
+            <option value="column">{{ _('Colonne') }}</option>
+            <option value="row">{{ _('Ligne') }}</option>
+          </select>
+        </div>
+        <div id="vis-am-text-column-wrap" class="mb-2 d-none">
+          <label class="form-label">{{ _('Nom de colonne cible') }}</label>
+          <input id="vis-am-text-column" class="form-control" type="text" placeholder="captured_text">
+        </div>
+        <div id="vis-am-text-column-preset-wrap" class="mb-2 d-none">
+          <label class="form-label">{{ _('Choisir une colonne existante') }}</label>
+          <select id="vis-am-text-column-preset" class="form-select">
+            <option value="">{{ _('Sélectionner...') }}</option>
+          </select>
+        </div>
+        <div id="vis-am-number-wrap" class="mb-2 d-none">
+          <label class="form-label" id="vis-am-number-label">{{ _('Valeur numérique') }}</label>
+          <input id="vis-am-number" class="form-control" type="number" step="1">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ _('Annuler') }}</button>
+        <button type="button" class="btn btn-primary" id="vis-am-save">{{ _('Valider') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block body_scripts %}
@@ -171,10 +402,13 @@
   const maxRowsEl = document.getElementById('vis-max-rows');
   const sslEl = document.getElementById('vis-ssl');
   const frame = document.getElementById('vis-frame');
+  const browserCardEl = document.getElementById('vis-browser-card');
+  const browserMaxBtn = document.getElementById('vis-browser-max');
   const errorEl = document.getElementById('vis-error');
   const metaEl = document.getElementById('vis-meta');
   const tableWrap = document.getElementById('vis-table-wrap');
   const actionsListEl = document.getElementById('vis-actions-list');
+  const actionsSummaryEl = document.getElementById('vis-actions-summary');
   const stepJsonEl = document.getElementById('vis-step-json');
   const saveForm = document.getElementById('vis-save-form');
   const saveUrlEl = document.getElementById('vis-save-url');
@@ -189,13 +423,85 @@
   const cfgTableSelectorEl = document.getElementById('vis-config-table-selector');
   const cfgVerifySslEl = document.getElementById('vis-config-verify-ssl');
   const cfgActionsEl = document.getElementById('vis-config-actions');
+  const cfgFieldMappingEl = document.getElementById('vis-config-field-mapping');
+  const mappingWrap = document.getElementById('vis-mapping-wrap');
+  const recStatusEl = document.getElementById('vis-rec-status');
+  const recDotEl = document.getElementById('vis-rec-dot');
+  const inspectStatusEl = document.getElementById('vis-inspect-status');
+  const hoverInfoEl = document.getElementById('vis-hover-info');
+  const undoActionBtn = document.getElementById('vis-undo-action');
+  const inspectToggleBtn = document.getElementById('vis-inspect-toggle');
+  const actionModalEl = document.getElementById('vis-action-modal');
+  const actionModalTitleEl = document.getElementById('vis-action-modal-title');
+  const actionModalErrorEl = document.getElementById('vis-am-error');
+  const actionModalSaveEl = document.getElementById('vis-am-save');
+  const actionTypeEl = document.getElementById('vis-am-type');
+  const actionUrlWrapEl = document.getElementById('vis-am-url-wrap');
+  const actionSelectorWrapEl = document.getElementById('vis-am-selector-wrap');
+  const actionSelectListWrapEl = document.getElementById('vis-am-select-list-wrap');
+  const actionValueWrapEl = document.getElementById('vis-am-value-wrap');
+  const actionTextTargetWrapEl = document.getElementById('vis-am-text-target-wrap');
+  const actionTextColumnWrapEl = document.getElementById('vis-am-text-column-wrap');
+  const actionTextColumnPresetWrapEl = document.getElementById('vis-am-text-column-preset-wrap');
+  const actionNumberWrapEl = document.getElementById('vis-am-number-wrap');
+  const actionNumberLabelEl = document.getElementById('vis-am-number-label');
+  const actionUrlEl = document.getElementById('vis-am-url');
+  const actionSelectorEl = document.getElementById('vis-am-selector');
+  const actionSelectListEl = document.getElementById('vis-am-select-list');
+  const actionRefreshSelectsEl = document.getElementById('vis-am-refresh-selects');
+  const actionValueEl = document.getElementById('vis-am-value');
+  const actionTextTargetEl = document.getElementById('vis-am-text-target');
+  const actionTextColumnEl = document.getElementById('vis-am-text-column');
+  const actionTextColumnPresetEl = document.getElementById('vis-am-text-column-preset');
+  const actionNumberEl = document.getElementById('vis-am-number');
 
-  let visualActions = [];
+  let visualActions = {{ (selected_config.visual_actions if selected_config and selected_config.visual_actions else [])|tojson }};
   let latestStep = null;
+  let isRecording = false;
+  let sourceColumns = [];
+  let sourceRows = [];
+  let fieldMapping = {{ (field_mapping or {})|tojson }};
+  let dragActionIndex = null;
+  let actionHistory = [];
+  const ACTION_HISTORY_MAX = 40;
+  let actionModal = null;
+  let inspectMode = false;
+  let hoverOutlineEl = null;
+  let hoverBadgeEl = null;
+  let lastHoverData = null;
+  let browserMaximized = false;
+  let suppressClickUntilTs = 0;
 
   const showError = (msg) => {
     errorEl.textContent = msg || '';
     errorEl.classList.toggle('d-none', !msg);
+  };
+
+  const setBrowserMaximized = (maximized) => {
+    browserMaximized = !!maximized;
+    if (browserCardEl) browserCardEl.classList.toggle('maximized', browserMaximized);
+    document.body.classList.toggle('vis-browser-maximized', browserMaximized);
+    if (browserMaxBtn) {
+      browserMaxBtn.classList.toggle('btn-primary', browserMaximized);
+      browserMaxBtn.classList.toggle('btn-outline-secondary', !browserMaximized);
+      browserMaxBtn.innerHTML = browserMaximized
+        ? '<i class="bi bi-fullscreen-exit me-1"></i>{{ _('Réduire') }}'
+        : '<i class="bi bi-arrows-fullscreen me-1"></i>{{ _('Maximiser') }}';
+    }
+  };
+
+  const setRecorderUi = () => {
+    if (!recStatusEl || !recDotEl) return;
+    if (isRecording) {
+      recDotEl.classList.add('live');
+      recStatusEl.classList.remove('text-secondary');
+      recStatusEl.classList.add('text-danger');
+      recStatusEl.innerHTML = '<span id="vis-rec-dot" class="vis-rec-dot live"></span>{{ _('Enregistrement actif') }}';
+    } else {
+      recStatusEl.classList.remove('text-danger');
+      recStatusEl.classList.add('text-secondary');
+      recStatusEl.innerHTML = '<span id="vis-rec-dot" class="vis-rec-dot"></span>{{ _('Mode pause') }}';
+    }
   };
 
   const toInt = (v, fallback) => {
@@ -203,15 +509,653 @@
     return Number.isFinite(n) ? n : fallback;
   };
 
+  const refreshUndoUi = () => {
+    if (!undoActionBtn) return;
+    undoActionBtn.disabled = actionHistory.length === 0;
+  };
+
+  const summarizeAction = (a) => {
+    const type = String(a && a.type ? a.type : '').trim();
+    if (type === 'navigate') return `Naviguer ${String(a.url || '').trim()}`;
+    if (type === 'wait') return `Attendre ${String(a.ms || 700)} ms`;
+    if (type === 'scroll') return `Scroll ${String(a.px || 450)} px`;
+    if (type === 'select') return `Sélectionner ${String(a.selector || '').trim()}`;
+    if (type === 'input') return `Saisir ${String(a.selector || '').trim()}`;
+    if (type === 'click') return `Cliquer ${String(a.selector || '').trim()}`;
+    if (type === 'extract_table') return `Extraire table ${String(a.selector || '').trim()}`;
+    if (type === 'extract_text') {
+      const where = String(a.target || 'column') === 'row' ? 'ligne' : 'colonne';
+      return `Texte -> ${where} (${String(a.column_name || 'captured_text')})`;
+    }
+    return type || 'Action';
+  };
+
+  const getCapturedTextFromFrame = () => {
+    try {
+      const doc = frame.contentDocument || (frame.contentWindow && frame.contentWindow.document);
+      if (!doc) return '';
+      const selected = String(doc.getSelection ? doc.getSelection().toString() : '').trim();
+      if (selected) return selected;
+    } catch (_) {}
+    const fallback = String((lastHoverData && lastHoverData.text) || '').trim();
+    return fallback;
+  };
+
+  const renderActionsSummary = () => {
+    if (!actionsSummaryEl) return;
+    if (!visualActions.length) {
+      actionsSummaryEl.textContent = '{{ _('Séquence: aucune action pour le moment.') }}';
+      return;
+    }
+    const short = visualActions.slice(0, 5).map((a) => summarizeAction(a));
+    const suffix = visualActions.length > 5 ? ` +${visualActions.length - 5}` : '';
+    actionsSummaryEl.textContent = `Séquence: ${short.join(' -> ')}${suffix}`;
+  };
+
+  const normalizeKey = (v) => String(v || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+  const mappingHelp = (msg) => {
+    const fallback = '{{ _('Mappez chaque champ cible vers une colonne détectée pour obtenir un résultat propre.') }}';
+    if (mappingWrap) mappingWrap.dataset.help = msg || fallback;
+    const el = document.getElementById('vis-mapping-help');
+    if (el) el.textContent = msg || fallback;
+  };
+
+  const setInspectUi = () => {
+    if (inspectToggleBtn) {
+      inspectToggleBtn.classList.toggle('btn-outline-secondary', !inspectMode);
+      inspectToggleBtn.classList.toggle('btn-primary', inspectMode);
+      inspectToggleBtn.innerHTML = inspectMode
+        ? '<i class="bi bi-eye-slash me-1"></i>{{ _('Arrêter inspection') }}'
+        : '<i class="bi bi-crosshair me-1"></i>{{ _('Inspecter champs') }}';
+    }
+    if (inspectStatusEl) {
+      inspectStatusEl.classList.toggle('text-secondary', !inspectMode);
+      inspectStatusEl.classList.toggle('text-primary', inspectMode);
+      inspectStatusEl.textContent = inspectMode ? '{{ _('Inspecteur actif') }}' : '{{ _('Inspecteur inactif') }}';
+    }
+  };
+
+  const clearHoverOverlay = () => {
+    if (hoverOutlineEl) {
+      hoverOutlineEl.remove();
+      hoverOutlineEl = null;
+    }
+    if (hoverBadgeEl) {
+      hoverBadgeEl.remove();
+      hoverBadgeEl = null;
+    }
+  };
+
+  const ensureHoverOverlay = (doc) => {
+    if (!doc || !doc.body) return;
+    if (!hoverOutlineEl) {
+      hoverOutlineEl = doc.createElement('div');
+      hoverOutlineEl.style.position = 'absolute';
+      hoverOutlineEl.style.pointerEvents = 'none';
+      hoverOutlineEl.style.border = '2px solid #0f60a1';
+      hoverOutlineEl.style.background = 'rgba(15,96,161,0.08)';
+      hoverOutlineEl.style.zIndex = '2147483646';
+      hoverOutlineEl.style.display = 'none';
+      doc.body.appendChild(hoverOutlineEl);
+    }
+    if (!hoverBadgeEl) {
+      hoverBadgeEl = doc.createElement('div');
+      hoverBadgeEl.style.position = 'fixed';
+      hoverBadgeEl.style.pointerEvents = 'none';
+      hoverBadgeEl.style.zIndex = '2147483647';
+      hoverBadgeEl.style.padding = '4px 8px';
+      hoverBadgeEl.style.borderRadius = '8px';
+      hoverBadgeEl.style.fontSize = '11px';
+      hoverBadgeEl.style.fontWeight = '600';
+      hoverBadgeEl.style.background = 'rgba(17,24,39,0.88)';
+      hoverBadgeEl.style.color = '#f9fafb';
+      hoverBadgeEl.style.display = 'none';
+      doc.body.appendChild(hoverBadgeEl);
+    }
+  };
+
+  const describeElement = (el) => {
+    if (!el) return '';
+    const tag = String(el.tagName || '').toLowerCase();
+    const type = String(el.getAttribute && el.getAttribute('type') || '').trim();
+    const name = String(el.getAttribute && el.getAttribute('name') || '').trim();
+    const id = String(el.id || '').trim();
+    const cls = Array.from(el.classList || []).slice(0, 2).join('.');
+    const selector = bestElementSelector(el);
+    return `${tag}${type ? ` [type=${type}]` : ''}${name ? ` name=${name}` : ''}${id ? ` id=${id}` : ''}${cls ? ` .${cls}` : ''} -> ${selector}`;
+  };
+
+  const pushActionHistory = () => {
+    actionHistory.push(JSON.stringify(visualActions));
+    if (actionHistory.length > ACTION_HISTORY_MAX) actionHistory.shift();
+    refreshUndoUi();
+  };
+
+  const withActionHistory = (mutator) => {
+    pushActionHistory();
+    mutator();
+    renderActions();
+    refreshStepJson();
+  };
+
+  const ensureActionModal = () => {
+    if (actionModal) return actionModal;
+    if (window.bootstrap && window.bootstrap.Modal) {
+      actionModal = new window.bootstrap.Modal(actionModalEl);
+      return actionModal;
+    }
+    return null;
+  };
+
+  const setModalError = (msg) => {
+    if (!actionModalErrorEl) return;
+    actionModalErrorEl.textContent = msg || '';
+    actionModalErrorEl.classList.toggle('d-none', !msg);
+  };
+
+  const _escapeHtml = (s) => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+  const slugifyColumnName = (txt) => {
+    const raw = String(txt || '').toLowerCase().trim();
+    const slug = raw
+      .replace(/[^a-z0-9\s_-]/g, ' ')
+      .replace(/[\s_-]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+    return slug || 'captured_text';
+  };
+
+  const getColumnCandidates = () => {
+    const out = [];
+    const seen = new Set();
+    const push = (v) => {
+      const val = String(v || '').trim();
+      if (!val || seen.has(val)) return;
+      seen.add(val);
+      out.push(val);
+    };
+    parseSchemaFields().forEach(push);
+    (sourceColumns || []).forEach((c) => push(String(c || '')));
+    Object.keys(fieldMapping || {}).forEach(push);
+    return out;
+  };
+
+  const populateTextColumnPresets = (preferred = '') => {
+    if (!actionTextColumnPresetEl) return;
+    const cols = getColumnCandidates();
+    const options = ['<option value="">{{ _('Sélectionner...') }}</option>']
+      .concat(cols.map((c) => `<option value="${_escapeHtml(c)}">${_escapeHtml(c)}</option>`));
+    actionTextColumnPresetEl.innerHTML = options.join('');
+    if (preferred && cols.includes(preferred)) {
+      actionTextColumnPresetEl.value = preferred;
+    } else {
+      actionTextColumnPresetEl.value = '';
+    }
+  };
+
+  const frameSelectTargets = () => {
+    try {
+      const doc = frame.contentDocument || (frame.contentWindow && frame.contentWindow.document);
+      if (!doc) return [];
+      const out = [];
+      const seen = new Set();
+      const nodes = Array.from(doc.querySelectorAll('select'));
+      nodes.forEach((el, idx) => {
+        const selector = String(bestElementSelector(el) || '').trim();
+        if (!selector || seen.has(selector)) return;
+        seen.add(selector);
+        const name = String(el.getAttribute('name') || '').trim();
+        const id = String(el.id || '').trim();
+        const optionCount = Array.isArray(el.options) ? el.options.length : 0;
+        let label = selector;
+        if (name) label = `${name} (${selector})`;
+        else if (id) label = `#${id} (${selector})`;
+        out.push({ selector, label: `${idx + 1}. ${label} - ${optionCount} option(s)` });
+      });
+      return out;
+    } catch (_) {
+      return [];
+    }
+  };
+
+  const populateSelectTargets = (preferredSelector = '') => {
+    if (!actionSelectListEl) return 0;
+    const targets = frameSelectTargets();
+    if (!targets.length) {
+      actionSelectListEl.innerHTML = `<option value="">${_escapeHtml('{{ _('Aucun select détecté. Chargez la page puis rafraîchissez.') }}')}</option>`;
+      actionSelectListEl.value = '';
+      return 0;
+    }
+    actionSelectListEl.innerHTML =
+      `<option value="">${_escapeHtml('{{ _('Sélectionner...') }}')}</option>` +
+      targets.map((t) => `<option value="${_escapeHtml(t.selector)}">${_escapeHtml(t.label)}</option>`).join('');
+    const found = targets.some((t) => t.selector === preferredSelector);
+    actionSelectListEl.value = found ? preferredSelector : targets[0].selector;
+    return targets.length;
+  };
+
+  const readActionFromModal = () => {
+    const type = String(actionTypeEl?.value || '').trim();
+    if (type === 'navigate') {
+      const url = String(actionUrlEl?.value || '').trim();
+      if (!/^https?:\/\//i.test(url)) throw new Error('{{ _('URL inválida. Use http:// ou https://.') }}');
+      return { type, url };
+    }
+    if (type === 'wait') {
+      const ms = Math.max(100, Math.min(10000, parseInt(String(actionNumberEl?.value || '700'), 10) || 700));
+      return { type, ms };
+    }
+    if (type === 'scroll') {
+      const px = parseInt(String(actionNumberEl?.value || '450'), 10) || 450;
+      return { type, px };
+    }
+    if (type === 'select' || type === 'input') {
+      const selector = type === 'select'
+        ? String(actionSelectListEl?.value || '').trim()
+        : String(actionSelectorEl?.value || '').trim();
+      if (!selector) throw new Error('{{ _('Sélecteur CSS requis.') }}');
+      return { type, selector, value: String(actionValueEl?.value || '') };
+    }
+    if (type === 'click' || type === 'extract_table') {
+      const selector = String(actionSelectorEl?.value || '').trim();
+      if (!selector) throw new Error('{{ _('Sélecteur CSS requis.') }}');
+      return { type, selector };
+    }
+    if (type === 'extract_text') {
+      const selector = String(actionSelectorEl?.value || '').trim();
+      if (!selector) throw new Error('{{ _('Sélecteur CSS requis.') }}');
+      const text = String(actionValueEl?.value || '').trim();
+      if (!text) throw new Error('{{ _('Texte requis.') }}');
+      const target = String(actionTextTargetEl?.value || 'column').trim() === 'row' ? 'row' : 'column';
+      const columnName = String(actionTextColumnEl?.value || '').trim() || 'captured_text';
+      return { type, selector, text, target, column_name: columnName };
+    }
+    throw new Error('{{ _('Type d\'action non supporté.') }}');
+  };
+
+  const openActionModal = ({ type, initial = {}, title = '' }) => {
+    const modalApi = ensureActionModal();
+    if (!modalApi) return Promise.resolve(null);
+
+    if (actionTypeEl) actionTypeEl.value = String(type || '').trim();
+    if (actionModalTitleEl) actionModalTitleEl.textContent = title || '{{ _('Configurer action robot') }}';
+    setModalError('');
+
+    actionUrlWrapEl?.classList.add('d-none');
+    actionSelectorWrapEl?.classList.add('d-none');
+    actionSelectListWrapEl?.classList.add('d-none');
+    actionValueWrapEl?.classList.add('d-none');
+    actionTextTargetWrapEl?.classList.add('d-none');
+    actionTextColumnWrapEl?.classList.add('d-none');
+    actionTextColumnPresetWrapEl?.classList.add('d-none');
+    actionNumberWrapEl?.classList.add('d-none');
+    if (actionModalSaveEl) actionModalSaveEl.disabled = false;
+
+    if (actionUrlEl) actionUrlEl.value = String(initial.url || '');
+    if (actionSelectorEl) actionSelectorEl.value = String(initial.selector || '');
+    if (actionValueEl) actionValueEl.value = String(initial.value || '');
+    if (actionTextTargetEl) actionTextTargetEl.value = String(initial.target || 'column') === 'row' ? 'row' : 'column';
+    if (actionTextColumnEl) actionTextColumnEl.value = String(initial.column_name || 'captured_text');
+    if (actionNumberEl) actionNumberEl.value = '';
+
+    const t = String(type || '').trim();
+    if (t === 'navigate') {
+      actionUrlWrapEl?.classList.remove('d-none');
+      if (actionUrlEl) actionUrlEl.value = String(initial.url || urlEl.value || 'https://');
+    } else if (t === 'wait') {
+      actionNumberWrapEl?.classList.remove('d-none');
+      if (actionNumberLabelEl) actionNumberLabelEl.textContent = '{{ _('Durée d\'attente en millisecondes') }}';
+      if (actionNumberEl) actionNumberEl.value = String(initial.ms || 700);
+    } else if (t === 'scroll') {
+      actionNumberWrapEl?.classList.remove('d-none');
+      if (actionNumberLabelEl) actionNumberLabelEl.textContent = '{{ _('Scroll vertical (pixels)') }}';
+      if (actionNumberEl) actionNumberEl.value = String(initial.px || 450);
+    } else if (t === 'select') {
+      actionSelectListWrapEl?.classList.remove('d-none');
+      actionValueWrapEl?.classList.remove('d-none');
+      const count = populateSelectTargets(String(initial.selector || ''));
+      if (actionModalSaveEl) actionModalSaveEl.disabled = count === 0;
+      if (count === 0) setModalError('{{ _('Aucun select détecté dans la page chargée.') }}');
+    } else if (t === 'input') {
+      actionSelectorWrapEl?.classList.remove('d-none');
+      actionValueWrapEl?.classList.remove('d-none');
+    } else if (t === 'extract_text') {
+      actionSelectorWrapEl?.classList.remove('d-none');
+      actionValueWrapEl?.classList.remove('d-none');
+      actionTextTargetWrapEl?.classList.remove('d-none');
+      actionTextColumnWrapEl?.classList.remove('d-none');
+      actionTextColumnPresetWrapEl?.classList.remove('d-none');
+      if (actionSelectorEl) actionSelectorEl.value = String(initial.selector || (lastHoverData && lastHoverData.selector) || '');
+      if (actionValueEl) actionValueEl.value = String(initial.text || getCapturedTextFromFrame() || '');
+      if (actionTextColumnEl && !actionTextColumnEl.value) {
+        actionTextColumnEl.value = slugifyColumnName(actionValueEl ? actionValueEl.value : '');
+      }
+      populateTextColumnPresets(String(initial.column_name || actionTextColumnEl?.value || ''));
+    } else if (t === 'click' || t === 'extract_table') {
+      actionSelectorWrapEl?.classList.remove('d-none');
+    }
+
+    return new Promise((resolve) => {
+      let done = false;
+      const cleanup = () => {
+        actionModalSaveEl?.removeEventListener('click', onSave);
+        actionModalEl?.removeEventListener('hidden.bs.modal', onHidden);
+      };
+      const finish = (payload) => {
+        if (done) return;
+        done = true;
+        cleanup();
+        resolve(payload);
+      };
+      const onHidden = () => finish(null);
+      const onSave = () => {
+        try {
+          const action = readActionFromModal();
+          modalApi.hide();
+          finish(action);
+        } catch (err) {
+          setModalError(String(err && err.message ? err.message : err));
+        }
+      };
+      actionModalSaveEl?.addEventListener('click', onSave);
+      actionModalEl?.addEventListener('hidden.bs.modal', onHidden, { once: true });
+      modalApi.show();
+    });
+  };
+
+  actionRefreshSelectsEl?.addEventListener('click', () => {
+    const current = String(actionSelectListEl?.value || '').trim();
+    const count = populateSelectTargets(current);
+    if (actionModalSaveEl) actionModalSaveEl.disabled = count === 0;
+    if (!count) setModalError('{{ _('Aucun select détecté dans la page chargée.') }}');
+    else setModalError('');
+  });
+
+  actionTextColumnPresetEl?.addEventListener('change', () => {
+    const selected = String(actionTextColumnPresetEl.value || '').trim();
+    if (selected && actionTextColumnEl) actionTextColumnEl.value = selected;
+  });
+
+  actionValueEl?.addEventListener('input', () => {
+    const type = String(actionTypeEl?.value || '').trim();
+    if (type !== 'extract_text' || !actionTextColumnEl) return;
+    const current = String(actionTextColumnEl.value || '').trim();
+    if (!current || current === 'captured_text') {
+      actionTextColumnEl.value = slugifyColumnName(actionValueEl.value || '');
+    }
+  });
+
+  const moveAction = (fromIdx, toIdx) => {
+    if (!Number.isInteger(fromIdx) || !Number.isInteger(toIdx)) return;
+    if (fromIdx < 0 || fromIdx >= visualActions.length) return;
+    if (toIdx < 0 || toIdx >= visualActions.length) return;
+    if (fromIdx === toIdx) return;
+    withActionHistory(() => {
+      const [item] = visualActions.splice(fromIdx, 1);
+      visualActions.splice(toIdx, 0, item);
+    });
+  };
+
+  const editAction = async (idx) => {
+    if (!Number.isInteger(idx) || idx < 0 || idx >= visualActions.length) return;
+    const a = visualActions[idx] || {};
+    const type = String(a.type || '').trim();
+    const updated = await openActionModal({
+      type,
+      initial: a,
+      title: '{{ _('Éditer action robot') }}',
+    });
+    if (!updated) return;
+    withActionHistory(() => {
+      visualActions[idx] = updated;
+    });
+  };
+
+  const addActionWithModal = async (type, defaults = {}) => {
+    const added = await openActionModal({
+      type,
+      initial: defaults,
+      title: '{{ _('Ajouter action robot') }}',
+    });
+    if (!added) return;
+    withActionHistory(() => {
+      visualActions.push(added);
+    });
+  };
+
+  const applyTextCaptureActions = (columns, rows) => {
+    const cols = Array.isArray(columns) ? [...columns] : [];
+    const rs = Array.isArray(rows) ? rows.map((r) => (Array.isArray(r) ? [...r] : [])) : [];
+    const textActions = visualActions.filter((a) => String(a?.type || '').trim() === 'extract_text');
+    if (!textActions.length) return { columns: cols, rows: rs };
+
+    textActions.forEach((a) => {
+      const text = String(a.text || '').trim();
+      if (!text) return;
+      const columnName = String(a.column_name || 'captured_text').trim() || 'captured_text';
+      const target = String(a.target || 'column').trim() === 'row' ? 'row' : 'column';
+
+      let colIdx = cols.indexOf(columnName);
+      if (colIdx < 0) {
+        cols.push(columnName);
+        colIdx = cols.length - 1;
+        for (let i = 0; i < rs.length; i += 1) {
+          while (rs[i].length < cols.length) rs[i].push(null);
+        }
+      }
+
+      if (target === 'column') {
+        for (let i = 0; i < rs.length; i += 1) {
+          while (rs[i].length < cols.length) rs[i].push(null);
+          rs[i][colIdx] = text;
+        }
+      } else {
+        const newRow = new Array(cols.length).fill(null);
+        newRow[colIdx] = text;
+        rs.push(newRow);
+      }
+    });
+
+    return { columns: cols, rows: rs };
+  };
+
   const renderActions = () => {
     if (!visualActions.length) {
       actionsListEl.innerHTML = '<div class="text-secondary">{{ _('Aucune action.') }}</div>';
+      renderActionsSummary();
       return;
     }
     actionsListEl.innerHTML = visualActions.map((a, i) => {
       const selector = a.selector ? ` <span class="text-secondary">(${a.selector})</span>` : '';
-      return `<div class="border rounded-2 px-2 py-1 mb-1"><b>${i + 1}.</b> ${a.type}${selector}</div>`;
+      const value = a.value ? ` <span class="text-secondary">= "${String(a.value).slice(0, 40)}"</span>` : '';
+      const textCaptured = a.text ? ` <span class="text-secondary">"${String(a.text).slice(0, 40)}"</span>` : '';
+      const waitMs = a.ms ? ` <span class="text-secondary">${a.ms}ms</span>` : '';
+      const where = a.type === 'extract_text' ? ` <span class="text-secondary">${String(a.target || 'column')} : ${String(a.column_name || 'captured_text')}</span>` : '';
+      const chip = `<span class="vis-action-chip">${String(a.type || '')}</span>`;
+      return `<div class="vis-action-item border rounded-2 px-2 py-1 mb-1 d-flex align-items-center justify-content-between" draggable="true" data-action-index="${i}">` +
+        `<div><i class="bi bi-grip-vertical vis-drag-handle"></i><b>${i + 1}.</b> ${chip}${selector}${value}${textCaptured}${where}${waitMs}</div>` +
+        `<div class="d-flex align-items-center gap-1">` +
+          `<button class="btn btn-sm btn-link p-0" data-move-up="${i}" title="Up"><i class="bi bi-arrow-up-circle"></i></button>` +
+          `<button class="btn btn-sm btn-link p-0" data-move-down="${i}" title="Down"><i class="bi bi-arrow-down-circle"></i></button>` +
+          `<button class="btn btn-sm btn-link p-0" data-duplicate-action="${i}" title="Duplicate"><i class="bi bi-files"></i></button>` +
+          `<button class="btn btn-sm btn-link p-0" data-edit-action="${i}" title="Edit"><i class="bi bi-pencil-square"></i></button>` +
+          `<button class="btn btn-sm btn-link text-danger p-0" data-remove-action="${i}"><i class="bi bi-x-circle"></i></button>` +
+        `</div>` +
+      `</div>`;
     }).join('');
+
+    actionsListEl.querySelectorAll('.vis-action-item').forEach((itemEl) => {
+      itemEl.addEventListener('dragstart', (ev) => {
+        const idx = parseInt(itemEl.getAttribute('data-action-index') || '-1', 10);
+        if (!Number.isInteger(idx) || idx < 0) return;
+        dragActionIndex = idx;
+        itemEl.classList.add('dragging');
+        if (ev.dataTransfer) {
+          ev.dataTransfer.effectAllowed = 'move';
+          ev.dataTransfer.setData('text/plain', String(idx));
+        }
+      });
+
+      itemEl.addEventListener('dragover', (ev) => {
+        ev.preventDefault();
+        itemEl.classList.add('drag-over');
+      });
+
+      itemEl.addEventListener('dragleave', () => {
+        itemEl.classList.remove('drag-over');
+      });
+
+      itemEl.addEventListener('drop', (ev) => {
+        ev.preventDefault();
+        itemEl.classList.remove('drag-over');
+        const toIdx = parseInt(itemEl.getAttribute('data-action-index') || '-1', 10);
+        let fromIdx = dragActionIndex;
+        if (!Number.isInteger(fromIdx) || fromIdx < 0) {
+          const raw = ev.dataTransfer ? ev.dataTransfer.getData('text/plain') : '-1';
+          fromIdx = parseInt(raw || '-1', 10);
+        }
+        moveAction(fromIdx, toIdx);
+      });
+
+      itemEl.addEventListener('dragend', () => {
+        dragActionIndex = null;
+        itemEl.classList.remove('dragging');
+        actionsListEl.querySelectorAll('.vis-action-item.drag-over').forEach((el) => el.classList.remove('drag-over'));
+      });
+    });
+
+    actionsListEl.querySelectorAll('[data-move-up]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.getAttribute('data-move-up') || '-1', 10);
+        if (!Number.isInteger(idx) || idx <= 0) return;
+        moveAction(idx, idx - 1);
+      });
+    });
+
+    actionsListEl.querySelectorAll('[data-move-down]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.getAttribute('data-move-down') || '-1', 10);
+        if (!Number.isInteger(idx) || idx < 0 || idx >= visualActions.length - 1) return;
+        moveAction(idx, idx + 1);
+      });
+    });
+
+    actionsListEl.querySelectorAll('[data-remove-action]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.getAttribute('data-remove-action') || '-1', 10);
+        if (Number.isFinite(idx) && idx >= 0 && idx < visualActions.length) {
+          withActionHistory(() => {
+            visualActions.splice(idx, 1);
+          });
+        }
+      });
+    });
+
+    actionsListEl.querySelectorAll('[data-duplicate-action]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.getAttribute('data-duplicate-action') || '-1', 10);
+        if (!Number.isFinite(idx) || idx < 0 || idx >= visualActions.length) return;
+        withActionHistory(() => {
+          const clone = JSON.parse(JSON.stringify(visualActions[idx] || {}));
+          visualActions.splice(idx + 1, 0, clone);
+        });
+      });
+    });
+
+    actionsListEl.querySelectorAll('[data-edit-action]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.getAttribute('data-edit-action') || '-1', 10);
+        editAction(idx);
+      });
+    });
+
+    renderActionsSummary();
+  };
+
+  const parseSchemaFields = () => {
+    return String(schemaEl.value || '')
+      .split(/[;,\n]/g)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  };
+
+  const renderMappingEditor = () => {
+    const targets = parseSchemaFields();
+    if (!sourceColumns.length) {
+      mappingHelp('{{ _('Étape 1: lancez Prévisualiser extraction pour détecter les colonnes source.') }}');
+      mappingWrap.innerHTML = '<div class="text-secondary">{{ _('Aucune colonne détectée pour le moment.') }}</div>';
+      return;
+    }
+    if (!targets.length) {
+      mappingHelp('{{ _('Étape 2: ajoutez des colonnes souhaitées, ou cliquez Utiliser colonnes détectées.') }}');
+      mappingWrap.innerHTML = '<div class="text-secondary">{{ _('Ajoutez d\'abord des colonnes souhaitées pour mapper.') }}</div>';
+      return;
+    }
+    mappingHelp('{{ _('Étape 3: mappez chaque champ cible à une colonne détectée, puis cliquez Appliquer mapping.') }}');
+    const options = ['<option value="">{{ _('Sélectionner...') }}</option>']
+      .concat((sourceColumns || []).map((c) => `<option value="${String(c)}">${String(c)}</option>`))
+      .join('');
+    mappingWrap.innerHTML = targets.map((target, idx) => {
+      const mapped = fieldMapping[target] || '';
+      return `
+        <div class="row g-2 align-items-center mb-1">
+          <div class="col-5"><label class="form-label mb-0 small">${target}</label></div>
+          <div class="col-7">
+            <select class="form-select form-select-sm" data-map-target="${target}" data-map-idx="${idx}">
+              ${options}
+            </select>
+          </div>
+        </div>
+      `;
+    }).join('');
+    mappingWrap.querySelectorAll('[data-map-target]').forEach((sel) => {
+      const key = sel.getAttribute('data-map-target') || '';
+      sel.value = fieldMapping[key] || '';
+      sel.addEventListener('change', () => {
+        const val = String(sel.value || '').trim();
+        if (val) fieldMapping[key] = val;
+        else delete fieldMapping[key];
+        refreshStepJson();
+      });
+    });
+  };
+
+  const applyMappingToResult = () => {
+    const targets = parseSchemaFields();
+    if (!targets.length || !sourceColumns.length || !sourceRows.length) {
+      showError('{{ _('Mapping impossible: vérifiez les colonnes détectées et les colonnes souhaitées.') }}');
+      return;
+    }
+    const index = {};
+    sourceColumns.forEach((c, i) => { index[String(c)] = i; });
+    const mappedRows = sourceRows.map((r) => {
+      const arr = Array.isArray(r) ? r : [];
+      return targets.map((target) => {
+        const src = fieldMapping[target] || '';
+        const idx = index[src];
+        return Number.isInteger(idx) ? arr[idx] : null;
+      });
+    });
+    renderResultTable(targets, mappedRows);
+    showError('');
+  };
+
+  const autoMapFields = () => {
+    const targets = parseSchemaFields();
+    if (!targets.length || !sourceColumns.length) return;
+    const srcByNorm = {};
+    sourceColumns.forEach((c) => { srcByNorm[normalizeKey(c)] = c; });
+    targets.forEach((t) => {
+      const norm = normalizeKey(t);
+      if (srcByNorm[norm]) fieldMapping[t] = srcByNorm[norm];
+    });
+    renderMappingEditor();
+    refreshStepJson();
   };
 
   const buildStep = () => ({
@@ -223,6 +1167,7 @@
       verify_ssl: !!sslEl.checked,
       table_selector: (tableSelectorEl.value || '').trim(),
       visual_actions: visualActions,
+      field_mapping: fieldMapping,
     }
   });
 
@@ -242,6 +1187,7 @@
     if (cfgTableSelectorEl) cfgTableSelectorEl.value = latestStep.config.table_selector || '';
     if (cfgVerifySslEl) cfgVerifySslEl.value = latestStep.config.verify_ssl ? '1' : '0';
     if (cfgActionsEl) cfgActionsEl.value = JSON.stringify(Array.isArray(latestStep.config.visual_actions) ? latestStep.config.visual_actions : []);
+    if (cfgFieldMappingEl) cfgFieldMappingEl.value = JSON.stringify(latestStep.config.field_mapping || {});
   };
 
   const bestTableSelector = (el) => {
@@ -253,6 +1199,110 @@
     const allTables = Array.from(table.ownerDocument.querySelectorAll('table'));
     const idx = allTables.indexOf(table);
     return idx >= 0 ? `table:nth-of-type(${idx + 1})` : 'table';
+  };
+
+  const tableColumnsFromElement = (tableEl) => {
+    try {
+      if (!tableEl) return [];
+      const headers = Array.from(tableEl.querySelectorAll('thead th'))
+        .map((th) => String(th.textContent || '').replace(/\s+/g, ' ').trim())
+        .filter(Boolean);
+      if (headers.length) return headers;
+      const firstRow = tableEl.querySelector('tr');
+      if (!firstRow) return [];
+      const cells = Array.from(firstRow.querySelectorAll('th,td'))
+        .map((c) => String(c.textContent || '').replace(/\s+/g, ' ').trim());
+      if (!cells.length) return [];
+      const looksHeader = cells.some((c) => /[A-Za-zÀ-ÿ]/.test(c || ''));
+      if (looksHeader) return cells.map((c, i) => c || `col_${i + 1}`);
+      return cells.map((_, i) => `col_${i + 1}`);
+    } catch (_) {
+      return [];
+    }
+  };
+
+  const cssEscape = (value) => {
+    try {
+      if (window.CSS && typeof window.CSS.escape === 'function') return window.CSS.escape(value);
+    } catch (_) {}
+    return String(value || '').replace(/([ #;?%&,.+*~':\"!^$\[\]()=>|/@])/g, '\\$1');
+  };
+
+  const bestElementSelector = (el) => {
+    if (!el || !el.ownerDocument) return '';
+    if (el.id) return `#${cssEscape(el.id)}`;
+    const dataName = el.getAttribute && (el.getAttribute('name') || el.getAttribute('data-testid'));
+    if (dataName) return `${el.tagName.toLowerCase()}[name="${cssEscape(dataName)}"]`;
+    const classes = Array.from(el.classList || []).filter(Boolean).slice(0, 2);
+    if (classes.length) return `${el.tagName.toLowerCase()}.${classes.map(cssEscape).join('.')}`;
+    const tag = el.tagName ? el.tagName.toLowerCase() : 'div';
+    const siblings = Array.from(el.parentElement ? el.parentElement.children : []).filter((x) => x.tagName === el.tagName);
+    const pos = siblings.indexOf(el) + 1;
+    return `${tag}:nth-of-type(${Math.max(1, pos)})`;
+  };
+
+  const collectDomCatalog = () => {
+    try {
+      const doc = frame.contentDocument || (frame.contentWindow && frame.contentWindow.document);
+      if (!doc) return [];
+      const kinds = [
+        { kind: 'input', query: 'input' },
+        { kind: 'select', query: 'select' },
+        { kind: 'textarea', query: 'textarea' },
+        { kind: 'button', query: 'button' },
+        { kind: 'link', query: 'a[href]' },
+        { kind: 'table', query: 'table' },
+      ];
+      const rows = [];
+      const seen = new Set();
+      for (const item of kinds) {
+        const nodes = Array.from(doc.querySelectorAll(item.query)).slice(0, 80);
+        for (const el of nodes) {
+          const selector = bestElementSelector(el);
+          if (!selector || seen.has(selector)) continue;
+          seen.add(selector);
+          const name = String(el.getAttribute('name') || '').trim();
+          const id = String(el.id || '').trim();
+          const type = String(el.getAttribute('type') || '').trim();
+          const label = String(el.getAttribute('aria-label') || el.getAttribute('placeholder') || el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 70);
+          rows.push({ kind: item.kind, selector, name, id, type, label });
+        }
+      }
+      return rows;
+    } catch (_) {
+      return [];
+    }
+  };
+
+  const highlightSelectorInFrame = (selector) => {
+    try {
+      const doc = frame.contentDocument || (frame.contentWindow && frame.contentWindow.document);
+      if (!doc) return;
+      const el = doc.querySelector(selector);
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      ensureHoverOverlay(doc);
+      if (hoverOutlineEl) {
+        hoverOutlineEl.style.display = 'block';
+        hoverOutlineEl.style.left = `${rect.left + (doc.defaultView ? doc.defaultView.scrollX : 0)}px`;
+        hoverOutlineEl.style.top = `${rect.top + (doc.defaultView ? doc.defaultView.scrollY : 0)}px`;
+        hoverOutlineEl.style.width = `${Math.max(0, rect.width)}px`;
+        hoverOutlineEl.style.height = `${Math.max(0, rect.height)}px`;
+      }
+      if (el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+      if (hoverInfoEl) hoverInfoEl.textContent = describeElement(el);
+      lastHoverData = {
+        selector,
+        text: String(el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 400),
+        tableSelector: bestTableSelector(el),
+        tableColumns: tableColumnsFromElement(el.closest ? el.closest('table') : null),
+        desc: describeElement(el),
+      };
+    } catch (_) {}
+  };
+
+  const renderDomCatalog = () => {
+    // Intentionally disabled: visual detected-fields panel removed from UI.
   };
 
   const loadFrame = () => {
@@ -268,28 +1318,176 @@
     frame.src = proxyUrl.toString();
   };
 
+  const waitForFrameLoad = async () => {
+    await new Promise((resolve) => {
+      const done = () => {
+        frame.removeEventListener('load', done);
+        resolve();
+      };
+      frame.addEventListener('load', done);
+    });
+  };
+
   const installFrameClickCapture = () => {
     try {
       const doc = frame.contentDocument || (frame.contentWindow && frame.contentWindow.document);
       if (!doc) return;
+      ensureHoverOverlay(doc);
+      const onMove = (ev) => {
+        if (!inspectMode || !ev.target) return;
+        const target = ev.target;
+        if (!hoverOutlineEl || !hoverBadgeEl) return;
+        const rect = target.getBoundingClientRect();
+        hoverOutlineEl.style.display = 'block';
+        hoverOutlineEl.style.left = `${rect.left + (doc.defaultView ? doc.defaultView.scrollX : 0)}px`;
+        hoverOutlineEl.style.top = `${rect.top + (doc.defaultView ? doc.defaultView.scrollY : 0)}px`;
+        hoverOutlineEl.style.width = `${Math.max(0, rect.width)}px`;
+        hoverOutlineEl.style.height = `${Math.max(0, rect.height)}px`;
+        hoverBadgeEl.style.display = 'block';
+        hoverBadgeEl.style.left = `${Math.min((ev.clientX || 0) + 12, (doc.defaultView ? doc.defaultView.innerWidth : 1200) - 320)}px`;
+        hoverBadgeEl.style.top = `${Math.max((ev.clientY || 0) - 20, 8)}px`;
+        const desc = describeElement(target);
+        hoverBadgeEl.textContent = desc;
+        if (hoverInfoEl) hoverInfoEl.textContent = desc;
+        lastHoverData = {
+          selector: bestElementSelector(target),
+          text: String(target.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 400),
+          tableSelector: bestTableSelector(target),
+          tableColumns: tableColumnsFromElement(target.closest ? target.closest('table') : null),
+          desc,
+        };
+      };
+      const onLeave = () => {
+        if (hoverOutlineEl) hoverOutlineEl.style.display = 'none';
+        if (hoverBadgeEl) hoverBadgeEl.style.display = 'none';
+      };
       const onClick = (ev) => {
+        if (Date.now() < suppressClickUntilTs) return;
+        if (!ev.target) return;
+        const target = ev.target;
+        const selectedText = String(doc.getSelection ? doc.getSelection().toString() : '').trim();
+        if (selectedText) return;
+        if (isRecording) {
+          const selectorAny = bestElementSelector(target);
+          if (selectorAny) {
+            withActionHistory(() => {
+              visualActions.push({ type: 'click', selector: selectorAny });
+            });
+          }
+          return;
+        }
+
         ev.preventDefault();
         ev.stopPropagation();
-        const selector = bestTableSelector(ev.target);
+        const selector = bestTableSelector(target);
         if (!selector) {
-          showError('{{ _('Cliquez dans une table HTML.') }}');
+          showError('{{ _('Cliquez dans une table HTML ou activez Enregistrer pour capturer des clics robot.') }}');
           return;
         }
         tableSelectorEl.value = selector;
-        visualActions.push({ type: 'extract_table', selector });
-        renderActions();
-        refreshStepJson();
+        withActionHistory(() => {
+          visualActions.push({ type: 'extract_table', selector });
+        });
         showError('');
       };
+      const onDoubleClick = async (ev) => {
+        if (!ev.target) return;
+        const target = ev.target;
+        const selected = String(doc.getSelection ? doc.getSelection().toString() : '').trim();
+        const text = selected || String(target.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 400);
+        const selector = bestElementSelector(target);
+        if (!text || !selector) return;
+        suppressClickUntilTs = Date.now() + 380;
+        ev.preventDefault();
+        ev.stopPropagation();
+        const suggestedColumn = slugifyColumnName(text.split(/\s+/).slice(0, 4).join(' '));
+        const added = await openActionModal({
+          type: 'extract_text',
+          initial: {
+            selector,
+            text,
+            target: 'column',
+            column_name: suggestedColumn,
+          },
+          title: '{{ _('Mapper texte sélectionné') }}',
+        });
+        if (!added) return;
+        withActionHistory(() => {
+          visualActions.push(added);
+        });
+        metaEl.textContent = '{{ _('Texte mappé via double-clic.') }}';
+      };
+      const onInput = (ev) => {
+        if (!isRecording || !ev.target) return;
+        const target = ev.target;
+        const tag = String(target.tagName || '').toLowerCase();
+        if (!['input', 'textarea', 'select'].includes(tag)) return;
+        const selector = bestElementSelector(target);
+        if (!selector) return;
+        const value = String(target.value || '');
+        withActionHistory(() => {
+          if (tag === 'select') visualActions.push({ type: 'select', selector, value });
+          else visualActions.push({ type: 'input', selector, value });
+        });
+      };
       doc.addEventListener('click', onClick, true);
+      doc.addEventListener('dblclick', onDoubleClick, true);
+      doc.addEventListener('change', onInput, true);
+      doc.addEventListener('mousemove', onMove, true);
+      doc.addEventListener('mouseout', onLeave, true);
+      renderDomCatalog();
     } catch (e) {
       showError('{{ _('Impossible de capturer les clics pour cette page.') }}');
     }
+  };
+
+  const replayActions = async () => {
+    try {
+      let doc = frame.contentDocument || (frame.contentWindow && frame.contentWindow.document);
+      if (!doc) return;
+      for (const action of visualActions) {
+        const type = String(action.type || '').trim();
+        if (type === 'navigate') {
+          const nextUrl = String(action.url || '').trim();
+          if (!/^https?:\/\//i.test(nextUrl)) continue;
+          urlEl.value = nextUrl;
+          loadFrame();
+          await waitForFrameLoad();
+          doc = frame.contentDocument || (frame.contentWindow && frame.contentWindow.document);
+          continue;
+        }
+        if (type === 'wait') {
+          const ms = Math.max(100, Math.min(10000, parseInt(String(action.ms || '700'), 10) || 700));
+          await new Promise((resolve) => setTimeout(resolve, ms));
+          continue;
+        }
+        if (type === 'scroll') {
+          const amount = parseInt(String(action.px || '450'), 10) || 450;
+          if (frame.contentWindow && typeof frame.contentWindow.scrollBy === 'function') {
+            frame.contentWindow.scrollBy({ top: amount, behavior: 'smooth' });
+            await new Promise((resolve) => setTimeout(resolve, 420));
+          }
+          continue;
+        }
+        const selector = String(action.selector || '').trim();
+        if (!selector) continue;
+        const el = doc.querySelector(selector);
+        if (!el) continue;
+        if (type === 'click') {
+          el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: frame.contentWindow || window }));
+        } else if (type === 'input') {
+          el.focus();
+          el.value = String(action.value || '');
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        } else if (type === 'select') {
+          el.focus();
+          el.value = String(action.value || '');
+          el.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        await new Promise((resolve) => setTimeout(resolve, 220));
+      }
+    } catch (_) {}
   };
 
   const renderResultTable = (columns, rows) => {
@@ -315,6 +1513,7 @@
       verify_ssl: !!sslEl.checked,
       table_selector: (tableSelectorEl.value || '').trim(),
       actions: visualActions,
+      field_mapping: fieldMapping,
     };
 
     if (!/^https?:\/\//i.test(payload.url)) {
@@ -340,18 +1539,146 @@
       }
       const result = data.result || {};
       metaEl.textContent = `${result.mode || 'table'} • ${Array.isArray(result.rows) ? result.rows.length : 0} {{ _('lignes') }}`;
-      renderResultTable(result.columns || [], result.rows || []);
+      const baseCols = Array.isArray(result.columns) ? result.columns : [];
+      const baseRows = Array.isArray(result.rows) ? result.rows : [];
+      const patched = applyTextCaptureActions(baseCols, baseRows);
+      sourceColumns = patched.columns;
+      sourceRows = patched.rows;
+      renderResultTable(sourceColumns, sourceRows);
+      renderMappingEditor();
       latestStep = data.workflow_step || buildStep();
       stepJsonEl.value = JSON.stringify(latestStep, null, 2);
     } catch (e) {
       showError(e && e.message ? e.message : 'Erreur');
       metaEl.textContent = '';
       tableWrap.innerHTML = '';
+      sourceColumns = [];
+      sourceRows = [];
+      renderMappingEditor();
     }
   };
 
   document.getElementById('vis-load').addEventListener('click', loadFrame);
   document.getElementById('vis-preview').addEventListener('click', runPreview);
+  browserMaxBtn?.addEventListener('click', () => {
+    setBrowserMaximized(!browserMaximized);
+  });
+  document.getElementById('vis-record').addEventListener('click', () => {
+    isRecording = true;
+    showError('');
+    metaEl.textContent = '{{ _('Enregistrement robot actif: cliquez et saisissez dans la page.') }}';
+    setRecorderUi();
+  });
+  document.getElementById('vis-stop').addEventListener('click', () => {
+    isRecording = false;
+    metaEl.textContent = '{{ _('Enregistrement arrêté.') }}';
+    setRecorderUi();
+  });
+  inspectToggleBtn?.addEventListener('click', () => {
+    inspectMode = !inspectMode;
+    setInspectUi();
+    if (!inspectMode) {
+      clearHoverOverlay();
+      if (hoverInfoEl) hoverInfoEl.textContent = '{{ _('Survolez un élément de la page pour voir son type, son nom et son sélecteur.') }}';
+    }
+  });
+  document.getElementById('vis-add-navigate').addEventListener('click', () => {
+    addActionWithModal('navigate', { url: String(urlEl.value || '').trim() || 'https://' });
+  });
+  document.getElementById('vis-add-wait').addEventListener('click', () => {
+    addActionWithModal('wait', { ms: 700 });
+  });
+  document.getElementById('vis-add-scroll').addEventListener('click', () => {
+    addActionWithModal('scroll', { px: 450 });
+  });
+  document.getElementById('vis-add-select').addEventListener('click', () => {
+    addActionWithModal('select', { selector: 'select[name=""]', value: '' });
+  });
+  document.getElementById('vis-undo-action').addEventListener('click', () => {
+    if (!actionHistory.length) return;
+    const snapshot = actionHistory.pop();
+    refreshUndoUi();
+    try {
+      const restored = JSON.parse(snapshot || '[]');
+      if (Array.isArray(restored)) {
+        visualActions = restored;
+        renderActions();
+        refreshStepJson();
+      }
+    } catch (_) {}
+  });
+  document.getElementById('vis-replay-actions').addEventListener('click', replayActions);
+  document.getElementById('vis-schema-from-detected').addEventListener('click', () => {
+    if (!sourceColumns.length) {
+      showError('{{ _('Aucune colonne détectée. Lancez d\'abord Prévisualiser extraction.') }}');
+      return;
+    }
+    schemaEl.value = sourceColumns.join(', ');
+    renderMappingEditor();
+    refreshStepJson();
+    showError('');
+  });
+  document.getElementById('vis-auto-map').addEventListener('click', () => {
+    autoMapFields();
+    showError('');
+  });
+  document.getElementById('vis-capture-text-col').addEventListener('click', async () => {
+    const selector = String((lastHoverData && lastHoverData.selector) || '').trim();
+    const text = getCapturedTextFromFrame();
+    if (!selector) {
+      showError('{{ _('Survolez un élément avant de capturer son texte.') }}');
+      return;
+    }
+    if (!text) {
+      showError('{{ _('Aucun texte détecté. Sélectionnez du texte ou survolez un élément avec contenu.') }}');
+      return;
+    }
+    const defaults = { type: 'extract_text', selector, text, target: 'column', column_name: 'captured_text' };
+    const added = await openActionModal({ type: 'extract_text', initial: defaults, title: '{{ _('Ajouter capture texte') }}' });
+    if (!added) return;
+    withActionHistory(() => {
+      visualActions.push(added);
+    });
+  });
+  document.getElementById('vis-capture-text-row').addEventListener('click', async () => {
+    const selector = String((lastHoverData && lastHoverData.selector) || '').trim();
+    const text = getCapturedTextFromFrame();
+    if (!selector) {
+      showError('{{ _('Survolez un élément avant de capturer son texte.') }}');
+      return;
+    }
+    if (!text) {
+      showError('{{ _('Aucun texte détecté. Sélectionnez du texte ou survolez un élément avec contenu.') }}');
+      return;
+    }
+    const defaults = { type: 'extract_text', selector, text, target: 'row', column_name: 'captured_text' };
+    const added = await openActionModal({ type: 'extract_text', initial: defaults, title: '{{ _('Ajouter capture texte') }}' });
+    if (!added) return;
+    withActionHistory(() => {
+      visualActions.push(added);
+    });
+  });
+  document.getElementById('vis-capture-table-struct').addEventListener('click', async () => {
+    const tableSelector = String((lastHoverData && lastHoverData.tableSelector) || '').trim();
+    const cols = Array.isArray(lastHoverData && lastHoverData.tableColumns) ? lastHoverData.tableColumns : [];
+    if (!tableSelector) {
+      showError('{{ _('Survolez une table HTML avant de lancer la structuration.') }}');
+      return;
+    }
+    tableSelectorEl.value = tableSelector;
+    if (!(schemaEl.value || '').trim() && cols.length) {
+      schemaEl.value = cols.join(', ');
+    }
+    withActionHistory(() => {
+      visualActions.push({ type: 'extract_table', selector: tableSelector });
+    });
+    showError('');
+    await runPreview();
+  });
+  document.getElementById('vis-apply-mapping').addEventListener('click', () => {
+    applyMappingToResult();
+    refreshStepJson();
+  });
   document.getElementById('vis-clear-actions').addEventListener('click', () => {
     visualActions = [];
     renderActions();
@@ -379,9 +1706,27 @@
     el.addEventListener('change', refreshStepJson);
     el.addEventListener('input', refreshStepJson);
   });
+  schemaEl.addEventListener('change', renderMappingEditor);
+  schemaEl.addEventListener('input', renderMappingEditor);
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape' && isRecording) {
+      isRecording = false;
+      metaEl.textContent = '{{ _('Enregistrement arrêté (Escape).') }}';
+      setRecorderUi();
+      return;
+    }
+    if (ev.key === 'Escape' && browserMaximized) {
+      setBrowserMaximized(false);
+    }
+  });
 
   renderActions();
+  renderMappingEditor();
   refreshStepJson();
+  refreshUndoUi();
+  setRecorderUi();
+  setInspectUi();
+  setBrowserMaximized(false);
   if ((urlEl.value || '').trim()) {
     loadFrame();
   }

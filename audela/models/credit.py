@@ -539,3 +539,75 @@ class CreditBacklogTask(db.Model):
     assigned_user = db.relationship("User", foreign_keys=[assigned_user_id])
     assigned_group = db.relationship("CreditAnalystGroup")
     created_by = db.relationship("User", foreign_keys=[created_by_user_id])
+
+
+# ─── Chart of Accounts ───────────────────────────────────────────────────────
+
+class CreditChartOfAccounts(db.Model):
+    """A named chart of accounts (CoA) that structures financial statement spreading."""
+
+    __tablename__ = "credit_chart_of_accounts"
+
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = db.Column(db.String(180), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    # Optional sector linkage (used for template association)
+    sector_id = db.Column(db.Integer, db.ForeignKey("credit_sectors.id", ondelete="SET NULL"), nullable=True, index=True)
+    # is_template: True = visible to all tenants as a template (system-level when tenant_id == 0/null)
+    is_template = db.Column(db.Boolean, nullable=False, default=False)
+    is_system = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    sector = db.relationship("CreditSector")
+    lines = db.relationship(
+        "CreditAccountLine",
+        backref="chart",
+        lazy="dynamic",
+        order_by="CreditAccountLine.sort_order",
+        cascade="all, delete-orphan",
+    )
+
+
+class CreditAccountLine(db.Model):
+    """A row in a chart of accounts (header, data line, formula, subtotal…)."""
+
+    __tablename__ = "credit_account_lines"
+
+    id = db.Column(db.Integer, primary_key=True)
+    chart_id = db.Column(db.Integer, db.ForeignKey("credit_chart_of_accounts.id", ondelete="CASCADE"), nullable=False, index=True)
+    code = db.Column(db.String(32), nullable=True)
+    label = db.Column(db.String(240), nullable=False)
+    # line_type: header | data | formula | total | separator
+    line_type = db.Column(db.String(32), nullable=False, default="data")
+    # formula_expr: references other line codes, e.g. "revenue - cost_of_sales"
+    formula_expr = db.Column(db.String(512), nullable=True)
+    sort_order = db.Column(db.Integer, nullable=False, default=0)
+    indent_level = db.Column(db.Integer, nullable=False, default=0)
+    is_ratio = db.Column(db.Boolean, nullable=False, default=False)
+    ratio_code = db.Column(db.String(64), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    values = db.relationship(
+        "CreditSpreadingLineValue",
+        backref="line",
+        lazy="dynamic",
+        cascade="all, delete-orphan",
+    )
+
+
+class CreditSpreadingLineValue(db.Model):
+    """The actual numeric value for one account line on one financial statement (i.e. one period)."""
+
+    __tablename__ = "credit_spreading_line_values"
+    __table_args__ = (
+        UniqueConstraint("statement_id", "line_id", name="uq_spreading_line_values_stmt_line"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    statement_id = db.Column(db.Integer, db.ForeignKey("credit_financial_statements.id", ondelete="CASCADE"), nullable=False, index=True)
+    line_id = db.Column(db.Integer, db.ForeignKey("credit_account_lines.id", ondelete="CASCADE"), nullable=False, index=True)
+    value = db.Column(db.Numeric(20, 4), nullable=True)
+
+    statement = db.relationship("CreditFinancialStatement", backref=db.backref("line_values", lazy="dynamic"))

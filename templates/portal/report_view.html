@@ -50,6 +50,16 @@
     }
     .rp-floating-filters .rp-floating-body { overflow: auto; padding: .7rem; }
     .rp-floating-filters.is-collapsed .rp-floating-body { display: none; }
+    .rp-band-grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: .75rem;
+      align-items: start;
+    }
+    .rp-band-item {
+      grid-column: span 12;
+      min-width: 0;
+    }
     @media (max-width: 991.98px) {
       .rp-floating-filters {
         right: 8px;
@@ -60,6 +70,8 @@
         max-height: 60vh;
       }
       .rp-floating-filters .rp-floating-head { cursor: default; }
+      .rp-band-grid { grid-template-columns: 1fr; }
+      .rp-band-item { grid-column: 1 / -1 !important; }
     }
   </style>
 {% endblock %}
@@ -113,10 +125,15 @@
           {% set blocks = b.get(band_name) or [] %}
           {% if blocks %}
             <div class="col-12">
-              <div class="d-grid gap-3">
+              <div class="rp-band-grid">
 
                 {% for blk in blocks %}
                   {% set btype = (blk.type or blk.get('type') or '') %}
+                  {% set lcfg = (blk.layout or blk.get('layout') or {}) %}
+                  {% set col_span_raw = (lcfg.get('col_span') if lcfg is mapping else 12) %}
+                  {% set col_span = (col_span_raw|int if col_span_raw else 12) %}
+                  {% if col_span < 1 %}{% set col_span = 1 %}{% endif %}
+                  {% if col_span > 12 %}{% set col_span = 12 %}{% endif %}
                   {% set st = (blk.style or blk.get('style') or {}) %}
                   {% set color = st.get('color') if st is mapping else '' %}
                   {% set bg = st.get('background') if st is mapping else '' %}
@@ -133,22 +150,21 @@
                   {% set style_inline = style_inline ~ ('font-style:italic;' if italic else '') %}
                   {% set style_inline = style_inline ~ ('text-decoration:underline;' if underline else '') %}
 
+                  <div class="rp-band-item" style="grid-column: span {{ col_span }};">
+
                   {% if btype in ['text','markdown'] %}
-                    <div class="border rounded-4 p-3 bg-body" style="{{ style_inline }}">
-                      {% if blk.title or blk.get('title') %}
-                        <div class="fw-semibold mb-1">{{ blk.title or blk.get('title') }}</div>
-                      {% endif %}
-                      <div class="text-secondary" style="white-space: pre-wrap;{% if color %} color: {{ color }};{% endif %}">
+                    <div class="rounded-4 p-3" style="{{ style_inline }}">
+                      <div style="white-space: pre-wrap;{% if not color %} color: var(--bs-secondary-color);{% endif %}">
                         {{ blk.content or blk.get('content') or blk.text or blk.get('text') }}
                       </div>
                     </div>
 
                   {% elif btype == 'field' %}
-                    <div class="border rounded-4 p-3 bg-body" style="{{ style_inline }}">
+                    <div class="rounded-4 p-3" style="{{ style_inline }}">
                       {% if blk.title or blk.get('title') %}
                         <div class="fw-semibold mb-1">{{ blk.title or blk.get('title') }}</div>
                       {% endif %}
-                      <div class="text-secondary" {% if color %}style="color: {{ color }};"{% endif %}>
+                      <div {% if not color %}style="color: var(--bs-secondary-color);"{% endif %}>
                         {{ blk.value or blk.get('value') }}
                       </div>
                     </div>
@@ -158,14 +174,14 @@
                     {% set d = blocks_data.get(key) %}
                     {% set field_name = (blk.title or blk.get('title') or key or 'value') %}
                     {% set field_value = ((d.value if d else '') or '') %}
-                    <div class="border rounded-4 p-3 bg-body" style="{{ style_inline }}" data-rp-field="{{ field_name }}" data-rp-value="{{ field_value }}">
+                    <div class="rounded-4 p-3" style="{{ style_inline }}" data-rp-field="{{ field_name }}" data-rp-value="{{ field_value }}">
                       {% if blk.title or blk.get('title') %}
                         <div class="fw-semibold mb-1">{{ blk.title or blk.get('title') }}</div>
                       {% endif %}
                       {% if d and d.error %}
                         <div class="alert alert-danger py-2 mb-0">{{ d.error }}</div>
                       {% else %}
-                        <div class="text-secondary" {% if color %}style="color: {{ color }};"{% endif %}>
+                        <div {% if not color %}style="color: var(--bs-secondary-color);"{% endif %}>
                           {{ (d.value if d else '') or '' }}
                         </div>
                       {% endif %}
@@ -178,7 +194,7 @@
                     {% set tcfg = cfg.get('table') if cfg.get('table') is mapping else {} %}
                     {% set zebra = (tcfg.get('zebra') or False) %}
                     {% set header_bg = (tcfg.get('header_bg') or '') %}
-                    <div class="border rounded-4 p-3 bg-body" style="{{ style_inline }}">
+                    <div class="rounded-4 p-3" style="{{ style_inline }}">
                       {% if blk.title or blk.get('title') %}
                         <div class="fw-semibold mb-2">{{ blk.title or blk.get('title') }}</div>
                       {% endif %}
@@ -236,9 +252,18 @@
                                   </tbody>
                                 </table>
                               </div>
+                              {% if g.subtotal %}
+                                <div class="small fw-semibold text-end mt-2">{{ g.subtotal }}</div>
+                              {% endif %}
                             </div>
                           {% endfor %}
                         </div>
+                        {% if d.grand_total %}
+                          <div class="small fw-bold text-end mt-2">{{ d.grand_total }}</div>
+                        {% endif %}
+                        {% if d.footer_item_count %}
+                          <div class="small text-end mt-1">{{ d.footer_item_count }}</div>
+                        {% endif %}
                       {% elif d and d.rows %}
                         <div class="table-responsive">
                           <table class="table table-sm align-middle mb-0 {% if zebra %}table-striped{% endif %}">
@@ -282,8 +307,14 @@
                             </tbody>
                           </table>
                         </div>
+                        {% if d.grand_total %}
+                          <div class="small fw-bold text-end mt-2">{{ d.grand_total }}</div>
+                        {% endif %}
+                        {% if d.footer_item_count %}
+                          <div class="small text-end mt-1">{{ d.footer_item_count }}</div>
+                        {% endif %}
                       {% else %}
-                        <div class="text-secondary small">{{ _('Sem linhas retornadas.') }}</div>
+                        <div class="small" {% if not color %}style="color: var(--bs-secondary-color);"{% endif %}>{{ _('Sem linhas retornadas.') }}</div>
                       {% endif %}
                     </div>
 
@@ -295,26 +326,22 @@
                     {% set caption = blk.caption or blk.get('caption') or '' %}
                     {% set style_inline2 = (('background:' ~ bg ~ ';') if bg else '') ~ (('text-align:' ~ align2 ~ ';') if align2 else '') %}
 
-                    <div class="border rounded-4 p-3 bg-body" style="{{ style_inline2 }}">
+                    {% if url %}
+                    <div class="rounded-4 p-3" style="{{ style_inline2 }}">
                       {% if blk.title or blk.get('title') %}
                         <div class="fw-semibold mb-2" {% if color %}style="color: {{ color }};"{% endif %}>
                           {{ blk.title or blk.get('title') }}
                         </div>
                       {% endif %}
-
-                      {% if url %}
-                        <img src="{{ url }}" alt="{{ alt }}"
-                             style="max-width:100%; {% if width %}width: {{ width }};{% endif %} border-radius: .5rem;" />
-                      {% else %}
-                        <div class="text-secondary small">{{ _('Imagem não disponível') }}</div>
-                      {% endif %}
-
+                      <img src="{{ url }}" alt="{{ alt }}"
+                           style="max-width:100%; {% if width %}width: {{ width }};{% endif %} border-radius: .5rem;" />
                       {% if caption %}
-                        <div class="text-secondary small mt-2" {% if color %}style="color: {{ color }};"{% endif %}>
+                        <div class="small mt-2" {% if color %}style="color: {{ color }};"{% else %}style="color: var(--bs-secondary-color);"{% endif %}>
                           {{ caption }}
                         </div>
                       {% endif %}
                     </div>
+                    {% endif %}
 
                   {% elif btype == 'question' %}
                     {% set key = blk._key or blk.get('_key') or '' %}
@@ -329,7 +356,7 @@
                     {% set q = questions.get(qid) %}
                     {% set d = blocks_data.get(key) %}
 
-                    <div class="border rounded-4 p-3 bg-body">
+                    <div class="rounded-4 p-3" style="{{ style_inline }}">
                       <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
                         <div class="fw-semibold"><i class="bi bi-ui-checks me-1"></i>{{ q.name if q else (_('Question #') ~ qid) }}</div>
                         <span class="badge text-bg-light border">{{ theme_label }}</span>
@@ -407,6 +434,8 @@
                       {% endif %}
                     </div>
                   {% endif %}
+
+                  </div>
 
                 {% endfor %}
 

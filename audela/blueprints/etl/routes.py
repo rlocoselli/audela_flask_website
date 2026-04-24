@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import create_engine, text
 
@@ -16,6 +17,8 @@ from audela.etl.workflow_loader import normalize_workflow
 from audela.extensions import csrf, db
 from audela.services.subscription_service import SubscriptionService
 from audela.services.etl_jobs_service import load_jobs, upsert_job, delete_job, run_job
+from audela.services.datasource_service import introspect_source
+from audela.services.etl_ai_service import compact_schema_meta, generate_etl_workflow_from_prompt
 
 bp = Blueprint("etl", __name__, url_prefix="/etl")
 
@@ -57,6 +60,88 @@ def _workflows_dir() -> str:
     d = os.path.join(base, tenant_slug)
     os.makedirs(d, exist_ok=True)
     return d
+
+
+def _parse_id_list(value: Any) -> list[int]:
+    if isinstance(value, list):
+        raw = value
+    elif value in (None, ""):
+        raw = []
+    else:
+        raw = [value]
+    out: list[int] = []
+    for item in raw:
+        try:
+            out.append(int(item))
+        except Exception:
+            continue
+    return out
+
+
+def _ai_source_context(db_source_ids: list[int], api_source_ids: list[int]) -> dict[str, Any]:
+    tenant = getattr(g, "tenant", None)
+    context: dict[str, Any] = {"db_sources": [], "api_sources": [], "rules": {}}
+
+    if tenant is not None:
+        db_sources = (
+            DataSource.query.filter_by(tenant_id=tenant.id)
+            .order_by(DataSource.name.asc())
+            .all()
+        )
+        for src in db_sources:
+            item = {"id": src.id, "name": src.name, "type": src.type}
+            if not db_source_ids or src.id in db_source_ids:
+                try:
+                    item["schema"] = compact_schema_meta(introspect_source(src))
+                except Exception as exc:
+                    item["schema_error"] = str(exc)
+            context["db_sources"].append(item)
+
+        try:
+            rows = db.session.execute(
+                text(
+                    "SELECT id, name, base_url, method, headers, params "
+                    "FROM data_sources WHERE tenant_id=:tenant_id AND type='api' ORDER BY name ASC"
+                ),
+                {"tenant_id": tenant.id},
+            ).mappings().all()
+        except Exception:
+            rows = []
+        for row in rows:
+            item = {
+                "id": row.get("id"),
+                "name": row.get("name"),
+                "base_url": row.get("base_url"),
+                "method": row.get("method") or "GET",
+            }
+            if not api_source_ids or int(row.get("id")) in api_source_ids:
+                headers = row.get("headers") if isinstance(row.get("headers"), dict) else {}
+                params = row.get("params") if isinstance(row.get("params"), dict) else {}
+                item["request_shape"] = {
+                    "header_keys": sorted([str(k) for k in headers.keys()]),
+                    "param_keys": sorted([str(k) for k in params.keys()]),
+                }
+            context["api_sources"].append(item)
+
+    context["rules"] = {
+        "allowed_step_types": sorted([
+            "extract.http",
+            "extract.web",
+            "extract.sql",
+            "transform.mapping",
+            "transform.cleaning_rules",
+            "transform.python_advanced",
+            "transform.decision.scalar",
+            "load.staging_table",
+            "load.warehouse",
+            "notify.integration",
+        ]),
+        "selected_db_source_ids": db_source_ids,
+        "selected_api_source_ids": api_source_ids,
+        "prefer_selected_sources": True,
+        "output_format": "normalized_workflow_json",
+    }
+    return context
 
 
 @bp.get("/api/jobs")
@@ -103,6 +188,30 @@ def run_saved_job(job_id: str):
 @bp.get("/builder")
 def builder():
     return render_template("portal/etl_builder.html")
+
+
+@bp.post("/api/assistant/generate")
+@csrf.exempt
+def ai_generate_workflow():
+    payload = request.get_json(force=True, silent=False) or {}
+    prompt = str(payload.get("prompt") or "").strip()
+    if not prompt:
+        return jsonify({"ok": False, "error": "prompt required"}), 400
+
+    db_source_ids = _parse_id_list(payload.get("db_source_ids"))
+    api_source_ids = _parse_id_list(payload.get("api_source_ids"))
+    source_context = _ai_source_context(db_source_ids, api_source_ids)
+
+    try:
+        result = generate_etl_workflow_from_prompt(
+            prompt,
+            source_context,
+            lang=getattr(g, "lang", None),
+        )
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+    return jsonify({"ok": True, **result})
 
 @bp.get("/api/workflows")
 def list_workflows():

@@ -104,9 +104,9 @@
         const pk = colPrimaryKey(c);
         const chips = [];
         if (type) chips.push(type);
-        if (pk === true) chips.push('PK');
-        if (nullable === true) chips.push('NULL');
-        if (nullable === false) chips.push('NOT NULL');
+        if (pk === true) chips.push(t('PK'));
+        if (nullable === true) chips.push(t('NULL'));
+        if (nullable === false) chips.push(t('NOT NULL'));
         row.textContent = chips.length ? `${name} — ${chips.join(' · ')}` : name;
         listWrap.appendChild(row);
       });

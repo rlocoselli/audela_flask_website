@@ -1,4 +1,5 @@
 {% extends "credit/page_base.html" %}
+{% from 'credit/_borrower_picker.html' import borrower_picker, borrower_picker_modal %}
 {% set title = _('Audela Credit Deals') %}
 {% set active_page = 'deals' %}
 {% set credit_mode = request.args.get('mode', 'search') %}
@@ -16,10 +17,7 @@
     <form method="post" class="row g-2">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="col-md-3">
-        <select class="form-select" name="borrower_id" required>
-          <option value="">{{ _('Borrower') }}</option>
-          {% for b in borrowers %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
-        </select>
+        {{ borrower_picker('borrower_id', required=True, modal_id='modalBorrPicker') }}
       </div>
       <div class="col-md-2"><input class="form-control" name="code" placeholder="{{ _('Code') }}" required></div>
       <div class="col-md-3"><input class="form-control" name="purpose" placeholder="{{ _('Purpose') }}"></div>
@@ -39,37 +37,73 @@
 {% endif %}
 
 {% if credit_mode != 'add' %}
-{% if edit_deal %}
-<div class="card border-0 shadow-sm mb-3">
-  <div class="card-header bg-body-tertiary">{{ _('Edit deal') }}</div>
-  <div class="card-body">
-    <form method="post" class="row g-2">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="action" value="update">
-      <input type="hidden" name="deal_id" value="{{ edit_deal.id }}">
-      <div class="col-md-3">
-        <select class="form-select" name="borrower_id" required>
-          {% for b in borrowers %}<option value="{{ b.id }}" {% if edit_deal.borrower_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="col-md-2"><input class="form-control" name="code" value="{{ edit_deal.code }}" required></div>
-      <div class="col-md-3"><input class="form-control" name="purpose" value="{{ edit_deal.purpose or '' }}"></div>
-      <div class="col-md-2"><input class="form-control" name="requested_amount" value="{{ edit_deal.requested_amount or 0 }}"></div>
-      <div class="col-md-2">
-        <select class="form-select" name="status">
-          <option value="in_review" {% if edit_deal.status == 'in_review' %}selected{% endif %}>{{ _('In review') }}</option>
-          <option value="memo" {% if edit_deal.status == 'memo' %}selected{% endif %}>{{ _('Credit memo') }}</option>
-          <option value="approved" {% if edit_deal.status == 'approved' %}selected{% endif %}>{{ _('Approved') }}</option>
-          <option value="rejected" {% if edit_deal.status == 'rejected' %}selected{% endif %}>{{ _('Rejected') }}</option>
-        </select>
-      </div>
-      <div class="col-12 d-flex gap-2">
-        <button class="btn btn-primary" type="submit">{{ _('Save changes') }}</button>
-        <a class="btn btn-outline-secondary" href="{{ url_for('credit.deals', mode='search') }}">{{ _('Cancel') }}</a>
-      </div>
-    </form>
+
+{# ── Edit deal modal ── #}
+<div class="modal fade" id="modalEditDeal" tabindex="-1" aria-labelledby="modalEditDealLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form method="post" id="editDealForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="update">
+        <input type="hidden" name="deal_id" id="editDealId">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalEditDealLabel">{{ _('Edit deal') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Close') }}"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">{{ _('Borrower') }}</label>
+              {{ borrower_picker('borrower_id', modal_id='modalBorrPickerEdit', required=True) }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ _('Code') }}</label>
+              <input class="form-control" name="code" id="editDealCode" required>
+            </div>
+            <div class="col-md-8">
+              <label class="form-label">{{ _('Purpose') }}</label>
+              <input class="form-control" name="purpose" id="editDealPurpose" placeholder="{{ _('Purpose') }}">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">{{ _('Amount') }}</label>
+              <input class="form-control" name="requested_amount" id="editDealAmount" placeholder="0">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ _('Status') }}</label>
+              <select class="form-select" name="status" id="editDealStatus">
+                <option value="in_review">{{ _('In review') }}</option>
+                <option value="memo">{{ _('Credit memo') }}</option>
+                <option value="approved">{{ _('Approved') }}</option>
+                <option value="rejected">{{ _('Rejected') }}</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ _('Cancel') }}</button>
+          <button type="submit" class="btn btn-primary">{{ _('Save changes') }}</button>
+        </div>
+      </form>
+    </div>
   </div>
 </div>
+
+{% if edit_deal %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var modal = new bootstrap.Modal(document.getElementById('modalEditDeal'));
+  document.getElementById('editDealId').value = {{ edit_deal.id }};
+  document.getElementById('editDealCode').value = {{ edit_deal.code | tojson }};
+  document.getElementById('editDealPurpose').value = {{ (edit_deal.purpose or '') | tojson }};
+  document.getElementById('editDealAmount').value = {{ edit_deal.requested_amount or 0 }};
+  var bhi = document.getElementById('borrower_id_hidden');
+  var bdi = document.getElementById('borrower_id_display');
+  if (bhi) bhi.value = {{ edit_deal.borrower_id or 0 }};
+  if (bdi && {{ edit_deal.borrower | tojson }}) bdi.value = {{ (edit_deal.borrower.name if edit_deal.borrower else '') | tojson }};
+  document.getElementById('editDealStatus').value = {{ edit_deal.status | tojson }};
+  modal.show();
+});
+</script>
 {% endif %}
 <div class="card border-0 shadow-sm">
   <div class="card-header bg-body-tertiary border-bottom-0 pb-0">
@@ -150,7 +184,18 @@
               </details>
               {% endif %}
             </td>
-            <td><a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.deals', mode='search', edit_id=d.id, borrower_id=selected_borrower_id, status=selected_status) }}">{{ _('Edit') }}</a></td>
+            <td>
+              <button type="button" class="btn btn-outline-secondary btn-sm btn-edit-deal"
+                data-deal-id="{{ d.id }}"
+                data-deal-code="{{ d.code|e }}"
+                data-deal-purpose="{{ (d.purpose or '')|e }}"
+                data-deal-amount="{{ d.requested_amount or 0 }}"
+                data-deal-borrower-id="{{ d.borrower_id or '' }}"
+                data-deal-borrower-name="{{ d.borrower.name|e if d.borrower else '' }}"
+                data-deal-status="{{ d.status|e }}"
+                data-bs-toggle="modal"
+                data-bs-target="#modalEditDeal">{{ _('Edit') }}</button>
+            </td>
           </tr>
           {% else %}
           <tr><td colspan="8" class="text-secondary">{{ _('No deals yet.') }}</td></tr>
@@ -162,4 +207,27 @@
 </div>
 {% endif %}
 {% include "credit/_history_popup_assets.html" %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('.btn-edit-deal').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.getElementById('editDealId').value       = btn.dataset.dealId;
+      document.getElementById('editDealCode').value     = btn.dataset.dealCode;
+      document.getElementById('editDealPurpose').value  = btn.dataset.dealPurpose;
+      document.getElementById('editDealAmount').value   = btn.dataset.dealAmount;
+      document.getElementById('editDealStatus').value   = btn.dataset.dealStatus;
+      // populate borrower picker (edit modal uses modal id 'modalBorrPickerEdit')
+      var bhi = document.getElementById('borrower_id_hidden');
+      var bdi = document.getElementById('borrower_id_display');
+      var bcl = document.getElementById('borrower_id_clear');
+      if (bhi) bhi.value = btn.dataset.dealBorrowerId || '';
+      if (bdi) bdi.value = btn.dataset.dealBorrowerName || '';
+      if (bcl) bcl.style.display = btn.dataset.dealBorrowerId ? '' : 'none';
+    });
+  });
+});
+</script>
+{{ borrower_picker_modal(modal_id='modalBorrPicker') }}
+{{ borrower_picker_modal(modal_id='modalBorrPickerEdit') }}
 {% endblock %}

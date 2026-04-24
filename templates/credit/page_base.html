@@ -24,6 +24,8 @@
         {% if credit_menu_access.get('workflow', True) %}<a class="btn btn-sm {% if active_page == 'approval_workflow' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.approval_workflow') }}">{{ _('Approval Workflow') }}</a>{% endif %}
         {% if credit_menu_access.get('workflow', True) and (current_user.has_role('tenant_admin') or current_user.has_role('credit_admin')) %}<a class="btn btn-sm {% if active_page == 'approval_uam' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.approval_uam') }}">{{ _('Credit UAM') }}</a>{% endif %}
         {% if credit_menu_access.get('documents', True) %}<a class="btn btn-sm {% if active_page == 'documents' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.documents') }}">{{ _('Documents') }}</a>{% endif %}
+        <a class="btn btn-sm {% if active_page == 'chart_of_accounts' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.chart_of_accounts') }}">{{ _('Chart of Accounts') }}</a>
+        <a class="btn btn-sm {% if active_page == 'financials_grid' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.financials_grid') }}">{{ _('Financial Grid') }}</a>
         <a class="btn btn-sm {% if active_page == 'references' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.references') }}">{{ _('References') }}</a>
         <a class="btn btn-sm {% if active_page == 'reports' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.reports') }}">{{ _('Reports') }}</a>
       </div>

@@ -50,6 +50,9 @@ from ...models.credit import (
     CreditRating,
     CreditRatioSnapshot,
     CreditSector,
+    CreditChartOfAccounts,
+    CreditAccountLine,
+    CreditSpreadingLineValue,
 )
 from ...services.ai_service import analyze_with_ai
 from ...services.subscription_service import SubscriptionService
@@ -10653,3 +10656,557 @@ def reports_csv(slug: str):
     response.headers["Content-Type"] = "text/csv; charset=utf-8"
     response.headers["Content-Disposition"] = f"attachment; filename=credit_report_{slug}.csv"
     return response
+
+
+# ─── Chart of Accounts ───────────────────────────────────────────────────────
+
+# Built-in CoA templates (sector_code -> list of line dicts).
+# These are only used to seed a new CoA when the user clones a template.
+# Metadata for system CoA templates shown in the UI
+_SYSTEM_COA_META: dict[str, dict] = {
+    "general": {"label": "General (IFRS-inspired)", "standard": "Standard IFRS", "icon": "bi-globe", "color": "primary"},
+    "pcg": {"label": "PCG (Plan Comptable General)", "standard": "French GAAP", "icon": "bi-flag", "color": "info"},
+    "ohada": {"label": "OHADA (SYSCOHADA Revised)", "standard": "OHADA", "icon": "bi-globe2", "color": "warning"},
+    "us_gaap": {"label": "US GAAP (Basic)", "standard": "US GAAP", "icon": "bi-bar-chart-line", "color": "success"},
+    "snc": {"label": "SNC (Portugal / NCRF)", "standard": "Portuguese GAAP", "icon": "bi-building", "color": "secondary"},
+    "real_estate": {"label": "Real Estate (DSCR/LTV)", "standard": "Sector", "icon": "bi-house-door", "color": "danger"},
+    "retail": {"label": "Retail / Distribution", "standard": "Sector", "icon": "bi-cart3", "color": "dark"},
+    "manufacturing": {"label": "Manufacturing / Industry", "standard": "Sector", "icon": "bi-gear-wide-connected", "color": "secondary"},
+}
+
+_SYSTEM_COA_TEMPLATES: dict[str, list[dict]] = {
+    # ── IFRS-inspired general template ──────────────────────────────────────
+    "general": [
+        {"code": "REV", "label": "Revenue", "line_type": "header", "indent_level": 0},
+        {"code": "rev_total", "label": "Total revenue", "line_type": "data", "indent_level": 1},
+        {"code": "COGS", "label": "Cost of goods sold", "line_type": "header", "indent_level": 0},
+        {"code": "cogs_total", "label": "Total COGS", "line_type": "data", "indent_level": 1},
+        {"code": "gross_profit", "label": "Gross profit", "line_type": "formula", "formula_expr": "rev_total - cogs_total", "indent_level": 0},
+        {"code": "OPEX", "label": "Operating expenses", "line_type": "header", "indent_level": 0},
+        {"code": "opex_personnel", "label": "Personnel costs", "line_type": "data", "indent_level": 1},
+        {"code": "opex_other", "label": "Other operating expenses", "line_type": "data", "indent_level": 1},
+        {"code": "ebitda", "label": "EBITDA", "line_type": "formula", "formula_expr": "gross_profit - opex_personnel - opex_other", "indent_level": 0, "is_ratio": True, "ratio_code": "ebitda"},
+        {"code": "da", "label": "Depreciation & Amortisation", "line_type": "data", "indent_level": 1},
+        {"code": "ebit", "label": "EBIT", "line_type": "formula", "formula_expr": "ebitda - da", "indent_level": 0},
+        {"code": "finance_costs", "label": "Finance costs", "line_type": "data", "indent_level": 1},
+        {"code": "taxes", "label": "Income taxes", "line_type": "data", "indent_level": 1},
+        {"code": "net_income", "label": "Net income", "line_type": "formula", "formula_expr": "ebit - finance_costs - taxes", "indent_level": 0, "is_ratio": True, "ratio_code": "net_income"},
+        {"code": "SEP1", "label": "", "line_type": "separator", "indent_level": 0},
+        {"code": "BS_ASSETS", "label": "Assets", "line_type": "header", "indent_level": 0},
+        {"code": "cash", "label": "Cash & equivalents", "line_type": "data", "indent_level": 1, "is_ratio": True, "ratio_code": "cash"},
+        {"code": "receivables", "label": "Trade receivables", "line_type": "data", "indent_level": 1},
+        {"code": "inventories", "label": "Inventories", "line_type": "data", "indent_level": 1},
+        {"code": "current_assets", "label": "Total current assets", "line_type": "formula", "formula_expr": "cash + receivables + inventories", "indent_level": 1},
+        {"code": "fixed_assets", "label": "Fixed assets (net)", "line_type": "data", "indent_level": 1},
+        {"code": "total_assets", "label": "Total assets", "line_type": "total", "formula_expr": "current_assets + fixed_assets", "indent_level": 0},
+        {"code": "BS_LIAB", "label": "Liabilities & Equity", "line_type": "header", "indent_level": 0},
+        {"code": "st_debt", "label": "Short-term debt", "line_type": "data", "indent_level": 1},
+        {"code": "lt_debt", "label": "Long-term debt", "line_type": "data", "indent_level": 1},
+        {"code": "total_debt", "label": "Total debt", "line_type": "formula", "formula_expr": "st_debt + lt_debt", "indent_level": 1, "is_ratio": True, "ratio_code": "total_debt"},
+        {"code": "equity", "label": "Equity", "line_type": "data", "indent_level": 1},
+        {"code": "total_liab_equity", "label": "Total liabilities & equity", "line_type": "total", "formula_expr": "total_debt + equity", "indent_level": 0},
+        {"code": "SEP2", "label": "", "line_type": "separator", "indent_level": 0},
+        {"code": "RATIOS", "label": "Key ratios", "line_type": "header", "indent_level": 0},
+        {"code": "leverage", "label": "Net Debt / EBITDA", "line_type": "formula", "formula_expr": "(total_debt - cash) / ebitda", "indent_level": 1, "is_ratio": True, "ratio_code": "leverage"},
+        {"code": "debt_service", "label": "EBITDA / Finance costs", "line_type": "formula", "formula_expr": "ebitda / finance_costs", "indent_level": 1, "is_ratio": True, "ratio_code": "debt_service_coverage"},
+    ],
+    "real_estate": [
+        {"code": "rental_income", "label": "Rental income", "line_type": "data", "indent_level": 1},
+        {"code": "service_charges", "label": "Service charges recovered", "line_type": "data", "indent_level": 1},
+        {"code": "gross_income", "label": "Gross income", "line_type": "formula", "formula_expr": "rental_income + service_charges", "indent_level": 0},
+        {"code": "vacancy_loss", "label": "Vacancy loss", "line_type": "data", "indent_level": 1},
+        {"code": "opex_re", "label": "Operating expenses", "line_type": "data", "indent_level": 1},
+        {"code": "noi", "label": "Net Operating Income (NOI)", "line_type": "formula", "formula_expr": "gross_income - vacancy_loss - opex_re", "indent_level": 0, "is_ratio": True, "ratio_code": "noi"},
+        {"code": "debt_service_re", "label": "Debt service", "line_type": "data", "indent_level": 1},
+        {"code": "dscr_re", "label": "DSCR", "line_type": "formula", "formula_expr": "noi / debt_service_re", "indent_level": 0, "is_ratio": True, "ratio_code": "dscr"},
+        {"code": "property_value", "label": "Property value", "line_type": "data", "indent_level": 1},
+        {"code": "total_debt_re", "label": "Total debt", "line_type": "data", "indent_level": 1},
+        {"code": "ltv", "label": "LTV", "line_type": "formula", "formula_expr": "total_debt_re / property_value", "indent_level": 0, "is_ratio": True, "ratio_code": "ltv"},
+    ],
+    "retail": [
+        {"code": "net_sales", "label": "Net sales", "line_type": "data", "indent_level": 1},
+        {"code": "cogs_retail", "label": "Cost of goods sold", "line_type": "data", "indent_level": 1},
+        {"code": "gross_profit_retail", "label": "Gross profit", "line_type": "formula", "formula_expr": "net_sales - cogs_retail", "indent_level": 0},
+        {"code": "gross_margin_pct", "label": "Gross margin %", "line_type": "formula", "formula_expr": "gross_profit_retail / net_sales * 100", "indent_level": 1, "is_ratio": True, "ratio_code": "gross_margin"},
+        {"code": "selling_exp", "label": "Selling expenses", "line_type": "data", "indent_level": 1},
+        {"code": "admin_exp", "label": "Admin & G&A", "line_type": "data", "indent_level": 1},
+        {"code": "ebitda_retail", "label": "EBITDA", "line_type": "formula", "formula_expr": "gross_profit_retail - selling_exp - admin_exp", "indent_level": 0, "is_ratio": True, "ratio_code": "ebitda"},
+        {"code": "inventories_retail", "label": "Inventories", "line_type": "data", "indent_level": 1},
+        {"code": "receivables_retail", "label": "Trade receivables", "line_type": "data", "indent_level": 1},
+        {"code": "payables_retail", "label": "Trade payables", "line_type": "data", "indent_level": 1},
+        {"code": "wc_retail", "label": "Working capital", "line_type": "formula", "formula_expr": "inventories_retail + receivables_retail - payables_retail", "indent_level": 0, "is_ratio": True, "ratio_code": "working_capital"},
+    ],
+    "manufacturing": [
+        {"code": "mfg_revenue", "label": "Revenue", "line_type": "data", "indent_level": 1},
+        {"code": "raw_materials", "label": "Raw materials", "line_type": "data", "indent_level": 1},
+        {"code": "direct_labour", "label": "Direct labour", "line_type": "data", "indent_level": 1},
+        {"code": "overheads", "label": "Manufacturing overheads", "line_type": "data", "indent_level": 1},
+        {"code": "cogs_mfg", "label": "Total COGS", "line_type": "formula", "formula_expr": "raw_materials + direct_labour + overheads", "indent_level": 1},
+        {"code": "gross_profit_mfg", "label": "Gross profit", "line_type": "formula", "formula_expr": "mfg_revenue - cogs_mfg", "indent_level": 0},
+        {"code": "ebitda_mfg", "label": "EBITDA", "line_type": "data", "indent_level": 0, "is_ratio": True, "ratio_code": "ebitda"},
+        {"code": "capex_mfg", "label": "Capex", "line_type": "data", "indent_level": 1},
+        {"code": "fcf_mfg", "label": "Free cash flow (proxy)", "line_type": "formula", "formula_expr": "ebitda_mfg - capex_mfg", "indent_level": 0, "is_ratio": True, "ratio_code": "fcf"},
+    ],
+    # ── PCG – Plan Comptable Général (France) ───────────────────────────────
+    "pcg": [
+        {"code": "PCG_P",     "label": "COMPTE DE RÉSULTAT",                "line_type": "header",    "indent_level": 0},
+        {"code": "ca",        "label": "Chiffre d'affaires net (70)",        "line_type": "data",      "indent_level": 1},
+        {"code": "prod_stock","label": "Variation de stocks de produits (71)","line_type": "data",     "indent_level": 1},
+        {"code": "prod_immo", "label": "Prod. immobilisée (72)",             "line_type": "data",      "indent_level": 1},
+        {"code": "subv_expl", "label": "Subventions d'exploitation (74)",    "line_type": "data",      "indent_level": 1},
+        {"code": "prod_expl", "label": "Production de l'exercice",           "line_type": "formula",   "formula_expr": "ca + prod_stock + prod_immo + subv_expl", "indent_level": 0},
+        {"code": "achats",    "label": "Achats et varia. de stocks (60+603)","line_type": "data",      "indent_level": 1},
+        {"code": "serv_ext",  "label": "Services extérieurs (61-62)",        "line_type": "data",      "indent_level": 1},
+        {"code": "imp_taxes", "label": "Impôts et taxes (63)",               "line_type": "data",      "indent_level": 1},
+        {"code": "charges_p", "label": "Charges de personnel (64)",          "line_type": "data",      "indent_level": 1},
+        {"code": "dot_amort", "label": "Dotations amort. & provisions (68)", "line_type": "data",      "indent_level": 1},
+        {"code": "cons_expl", "label": "Consommation de l'exercice",         "line_type": "formula",   "formula_expr": "achats + serv_ext", "indent_level": 1},
+        {"code": "va",        "label": "Valeur ajoutée",                     "line_type": "formula",   "formula_expr": "prod_expl - cons_expl", "indent_level": 0, "is_ratio": True, "ratio_code": "va"},
+        {"code": "ebe",       "label": "Excédent brut d'exploitation (EBE)", "line_type": "formula",   "formula_expr": "va + subv_expl - imp_taxes - charges_p", "indent_level": 0, "is_ratio": True, "ratio_code": "ebitda"},
+        {"code": "res_expl",  "label": "Résultat d'exploitation",            "line_type": "formula",   "formula_expr": "ebe - dot_amort", "indent_level": 0, "is_ratio": True, "ratio_code": "ebit"},
+        {"code": "res_fin",   "label": "Résultat financier (76-66)",         "line_type": "data",      "indent_level": 1},
+        {"code": "res_courant","label": "Résultat courant avant IS",         "line_type": "formula",   "formula_expr": "res_expl + res_fin", "indent_level": 0},
+        {"code": "res_excep", "label": "Résultat exceptionnel (77-67)",      "line_type": "data",      "indent_level": 1},
+        {"code": "is",        "label": "Impôt sur les bénéfices (69)",       "line_type": "data",      "indent_level": 1},
+        {"code": "res_net",   "label": "Résultat net",                       "line_type": "total",     "formula_expr": "res_courant + res_excep - is", "indent_level": 0, "is_ratio": True, "ratio_code": "net_income"},
+        {"code": "SEP_PCG",   "label": "",                                   "line_type": "separator", "indent_level": 0},
+        {"code": "PCG_B",     "label": "BILAN (simplifié)",                  "line_type": "header",    "indent_level": 0},
+        {"code": "immo_net",  "label": "Immobilisations nettes (2-28-29)",   "line_type": "data",      "indent_level": 1},
+        {"code": "stocks_pcg","label": "Stocks (3)",                         "line_type": "data",      "indent_level": 1},
+        {"code": "creances",  "label": "Créances clients (41)",              "line_type": "data",      "indent_level": 1},
+        {"code": "tresorerie","label": "Trésorerie (5)",                     "line_type": "data",      "indent_level": 1},
+        {"code": "actif_total","label": "Total actif",                       "line_type": "total",     "formula_expr": "immo_net + stocks_pcg + creances + tresorerie", "indent_level": 0},
+        {"code": "cap_propres","label": "Capitaux propres (1)",              "line_type": "data",      "indent_level": 1},
+        {"code": "dettes_fin","label": "Dettes financières (16)",            "line_type": "data",      "indent_level": 1},
+        {"code": "fournisseurs","label": "Dettes fournisseurs (40)",         "line_type": "data",      "indent_level": 1},
+        {"code": "passif_total","label": "Total passif",                     "line_type": "total",     "formula_expr": "cap_propres + dettes_fin + fournisseurs", "indent_level": 0},
+        {"code": "SEP_PCG2",  "label": "",                                   "line_type": "separator", "indent_level": 0},
+        {"code": "PCG_R",     "label": "RATIOS CLÉS",                        "line_type": "header",    "indent_level": 0},
+        {"code": "rdettes_ebe","label": "Dettes fin. / EBE",                 "line_type": "formula",   "formula_expr": "dettes_fin / ebe", "indent_level": 1, "is_ratio": True, "ratio_code": "leverage"},
+        {"code": "couv_fin",  "label": "EBE / Charges financières",          "line_type": "formula",   "formula_expr": "ebe / (res_fin * -1)", "indent_level": 1, "is_ratio": True, "ratio_code": "interest_coverage"},
+    ],
+    # ── OHADA – SYSCOHADA Révisé ─────────────────────────────────────────────
+    "ohada": [
+        {"code": "OHADA_P",   "label": "COMPTE DE RÉSULTAT SYSCOHADA",       "line_type": "header",   "indent_level": 0},
+        {"code": "ta",        "label": "Ventes de marchandises (TA)",         "line_type": "data",     "indent_level": 1},
+        {"code": "ra",        "label": "Achats de marchd. (RA)",             "line_type": "data",     "indent_level": 1},
+        {"code": "mbc",       "label": "Marge brute sur marchandises (MB)",  "line_type": "formula",  "formula_expr": "ta - ra", "indent_level": 0},
+        {"code": "tb",        "label": "Ventes de produits fabriqués (TB+TC)","line_type": "data",    "indent_level": 1},
+        {"code": "rb",        "label": "Achats matières premières (RB)",     "line_type": "data",     "indent_level": 1},
+        {"code": "xb",        "label": "Variation de stocks mat. (XB)",      "line_type": "data",     "indent_level": 1},
+        {"code": "va_ohada",  "label": "Valeur Ajoutée (VA)",                "line_type": "formula",  "formula_expr": "mbc + tb - rb - xb", "indent_level": 0, "is_ratio": True, "ratio_code": "va"},
+        {"code": "tf",        "label": "Subventions exploitation (TF)",      "line_type": "data",     "indent_level": 1},
+        {"code": "rf",        "label": "Impôts et taxes (RF)",               "line_type": "data",     "indent_level": 1},
+        {"code": "rg",        "label": "Charges de personnel (RG)",          "line_type": "data",     "indent_level": 1},
+        {"code": "ebe_ohada", "label": "Excédent Brut d'Exploitation (EBE)", "line_type": "formula",  "formula_expr": "va_ohada + tf - rf - rg", "indent_level": 0, "is_ratio": True, "ratio_code": "ebitda"},
+        {"code": "rk",        "label": "Dotations amort. & prov. (RK+RL)",  "line_type": "data",     "indent_level": 1},
+        {"code": "re_ohada",  "label": "Résultat d'exploitation",            "line_type": "formula",  "formula_expr": "ebe_ohada - rk", "indent_level": 0, "is_ratio": True, "ratio_code": "ebit"},
+        {"code": "ti",        "label": "Revenus financiers (TI)",            "line_type": "data",     "indent_level": 1},
+        {"code": "ri",        "label": "Frais financiers (RI)",              "line_type": "data",     "indent_level": 1},
+        {"code": "rc_ohada",  "label": "Résultat des activités ordinaires",  "line_type": "formula",  "formula_expr": "re_ohada + ti - ri", "indent_level": 0},
+        {"code": "thu",       "label": "Produits HAO (THU+TI)",              "line_type": "data",     "indent_level": 1},
+        {"code": "rhu",       "label": "Charges HAO (RHU)",                  "line_type": "data",     "indent_level": 1},
+        {"code": "is_ohada",  "label": "Impôt sur le résultat",              "line_type": "data",     "indent_level": 1},
+        {"code": "rn_ohada",  "label": "Résultat net",                       "line_type": "total",    "formula_expr": "rc_ohada + thu - rhu - is_ohada", "indent_level": 0, "is_ratio": True, "ratio_code": "net_income"},
+        {"code": "SEP_OH",    "label": "",                                   "line_type": "separator","indent_level": 0},
+        {"code": "OHADA_R",   "label": "RATIOS",                             "line_type": "header",   "indent_level": 0},
+        {"code": "lev_ohada", "label": "Endettement / EBE",                  "line_type": "formula",  "formula_expr": "ri / ebe_ohada", "indent_level": 1, "is_ratio": True, "ratio_code": "leverage"},
+    ],
+    # ── US GAAP (basic income statement + balance sheet) ─────────────────────
+    "us_gaap": [
+        {"code": "USGAAP_IS", "label": "INCOME STATEMENT",                  "line_type": "header",   "indent_level": 0},
+        {"code": "net_revenues","label": "Net revenues",                    "line_type": "data",     "indent_level": 1},
+        {"code": "cogs_us",    "label": "Cost of revenues",                 "line_type": "data",     "indent_level": 1},
+        {"code": "gross_profit_us","label": "Gross profit",                 "line_type": "formula",  "formula_expr": "net_revenues - cogs_us", "indent_level": 0},
+        {"code": "sga",        "label": "Selling, general & administrative","line_type": "data",     "indent_level": 1},
+        {"code": "rd",         "label": "Research & development",           "line_type": "data",     "indent_level": 1},
+        {"code": "other_opex_us","label": "Other operating expenses",       "line_type": "data",     "indent_level": 1},
+        {"code": "operating_income","label": "Operating income (EBIT)",     "line_type": "formula",  "formula_expr": "gross_profit_us - sga - rd - other_opex_us", "indent_level": 0, "is_ratio": True, "ratio_code": "ebit"},
+        {"code": "interest_exp_us","label": "Interest expense",             "line_type": "data",     "indent_level": 1},
+        {"code": "interest_inc","label": "Interest income",                 "line_type": "data",     "indent_level": 1},
+        {"code": "pretax_income","label": "Income before income taxes",     "line_type": "formula",  "formula_expr": "operating_income - interest_exp_us + interest_inc", "indent_level": 0},
+        {"code": "income_tax_us","label": "Income tax expense",             "line_type": "data",     "indent_level": 1},
+        {"code": "net_income_us","label": "Net income",                     "line_type": "total",    "formula_expr": "pretax_income - income_tax_us", "indent_level": 0, "is_ratio": True, "ratio_code": "net_income"},
+        {"code": "da_us",      "label": "D&A (add-back for EBITDA)",        "line_type": "data",     "indent_level": 1},
+        {"code": "ebitda_us",  "label": "EBITDA (derived)",                 "line_type": "formula",  "formula_expr": "operating_income + da_us", "indent_level": 0, "is_ratio": True, "ratio_code": "ebitda"},
+        {"code": "SEP_US1",    "label": "",                                  "line_type": "separator","indent_level": 0},
+        {"code": "USGAAP_BS",  "label": "BALANCE SHEET",                    "line_type": "header",   "indent_level": 0},
+        {"code": "cash_us",    "label": "Cash and cash equivalents",        "line_type": "data",     "indent_level": 1},
+        {"code": "ar_us",      "label": "Accounts receivable (net)",        "line_type": "data",     "indent_level": 1},
+        {"code": "inv_us",     "label": "Inventories",                      "line_type": "data",     "indent_level": 1},
+        {"code": "ppe_us",     "label": "PP&E (net)",                       "line_type": "data",     "indent_level": 1},
+        {"code": "intangibles_us","label": "Intangibles & goodwill",        "line_type": "data",     "indent_level": 1},
+        {"code": "total_assets_us","label": "Total assets",                 "line_type": "total",    "formula_expr": "cash_us + ar_us + inv_us + ppe_us + intangibles_us", "indent_level": 0},
+        {"code": "ap_us",      "label": "Accounts payable",                 "line_type": "data",     "indent_level": 1},
+        {"code": "std_us",     "label": "Short-term debt & current LTD",   "line_type": "data",     "indent_level": 1},
+        {"code": "ltd_us",     "label": "Long-term debt",                   "line_type": "data",     "indent_level": 1},
+        {"code": "equity_us",  "label": "Total stockholders' equity",       "line_type": "data",     "indent_level": 1},
+        {"code": "total_liab_us","label": "Total liabilities & equity",     "line_type": "total",    "formula_expr": "ap_us + std_us + ltd_us + equity_us", "indent_level": 0},
+        {"code": "SEP_US2",    "label": "",                                  "line_type": "separator","indent_level": 0},
+        {"code": "USGAAP_R",   "label": "KEY CREDIT RATIOS",                "line_type": "header",   "indent_level": 0},
+        {"code": "net_debt_us","label": "Net debt",                         "line_type": "formula",  "formula_expr": "std_us + ltd_us - cash_us", "indent_level": 1},
+        {"code": "leverage_us","label": "Net Debt / EBITDA",                "line_type": "formula",  "formula_expr": "net_debt_us / ebitda_us", "indent_level": 1, "is_ratio": True, "ratio_code": "leverage"},
+        {"code": "icr_us",     "label": "Interest Coverage (EBITDA/IE)",   "line_type": "formula",  "formula_expr": "ebitda_us / interest_exp_us", "indent_level": 1, "is_ratio": True, "ratio_code": "interest_coverage"},
+    ],
+    # ── SNC – Sistema de Normalização Contabilística (Portugal / NCRF) ───────
+    "snc": [
+        {"code": "SNC_DR",    "label": "DEMONSTRAÇÃO DE RESULTADOS",        "line_type": "header",   "indent_level": 0},
+        {"code": "vn",        "label": "Vendas e serv. prestados (71+72)",  "line_type": "data",     "indent_level": 1},
+        {"code": "subsid",    "label": "Subsídios à exploração (75)",       "line_type": "data",     "indent_level": 1},
+        {"code": "gafsub",    "label": "Ganhos imput. activ. subsidiárias", "line_type": "data",     "indent_level": 1},
+        {"code": "cmvmc",     "label": "CMVMC (61)",                        "line_type": "data",     "indent_level": 1},
+        {"code": "fse",       "label": "Fornec. e serv. externos (62)",     "line_type": "data",     "indent_level": 1},
+        {"code": "gastos_p",  "label": "Gastos c/ pessoal (63)",            "line_type": "data",     "indent_level": 1},
+        {"code": "impost_taxa","label": "Impostos e taxas (68)",            "line_type": "data",     "indent_level": 1},
+        {"code": "ebitda_snc","label": "EBITDA",                            "line_type": "formula",  "formula_expr": "vn + subsid - cmvmc - fse - gastos_p - impost_taxa", "indent_level": 0, "is_ratio": True, "ratio_code": "ebitda"},
+        {"code": "gastos_dep","label": "Gastos depreciação (64)",           "line_type": "data",     "indent_level": 1},
+        {"code": "res_op_snc","label": "Resultado operacional",             "line_type": "formula",  "formula_expr": "ebitda_snc - gastos_dep", "indent_level": 0, "is_ratio": True, "ratio_code": "ebit"},
+        {"code": "jrs_suportados","label": "Juros e gast. financiamento (69)","line_type": "data",  "indent_level": 1},
+        {"code": "jrs_obtidos","label": "Juros e rend. obtidos (79)",       "line_type": "data",     "indent_level": 1},
+        {"code": "rai",       "label": "Resultado antes de impostos",       "line_type": "formula",  "formula_expr": "res_op_snc - jrs_suportados + jrs_obtidos", "indent_level": 0},
+        {"code": "irc",       "label": "Imposto sobre o rendimento (81)",   "line_type": "data",     "indent_level": 1},
+        {"code": "rli",       "label": "Resultado líquido do período",      "line_type": "total",    "formula_expr": "rai - irc", "indent_level": 0, "is_ratio": True, "ratio_code": "net_income"},
+        {"code": "SEP_SNC",   "label": "",                                   "line_type": "separator","indent_level": 0},
+        {"code": "SNC_BAL",   "label": "BALANÇO",                          "line_type": "header",   "indent_level": 0},
+        {"code": "ativo_nf",  "label": "Ativos não correntes (4)",          "line_type": "data",     "indent_level": 1},
+        {"code": "ativo_cor", "label": "Ativos correntes (1+2+3)",          "line_type": "data",     "indent_level": 1},
+        {"code": "total_ativo","label": "Total do ativo",                   "line_type": "total",    "formula_expr": "ativo_nf + ativo_cor", "indent_level": 0},
+        {"code": "cap_prop",  "label": "Capital próprio (5)",               "line_type": "data",     "indent_level": 1},
+        {"code": "passivo_nc","label": "Passivo não corrente (25+26)",      "line_type": "data",     "indent_level": 1},
+        {"code": "passivo_c", "label": "Passivo corrente (22+23+27)",       "line_type": "data",     "indent_level": 1},
+        {"code": "total_cap_passivo","label": "Total capital próprio + passivo","line_type": "total","formula_expr": "cap_prop + passivo_nc + passivo_c", "indent_level": 0},
+        {"code": "SEP_SNC2",  "label": "",                                   "line_type": "separator","indent_level": 0},
+        {"code": "SNC_R",     "label": "RÁCIOS",                            "line_type": "header",   "indent_level": 0},
+        {"code": "autonomia_fin","label": "Autonomia financeira",           "line_type": "formula",  "formula_expr": "cap_prop / total_ativo", "indent_level": 1, "is_ratio": True, "ratio_code": "equity_ratio"},
+        {"code": "div_ebitda","label": "Dívida líq. / EBITDA",             "line_type": "formula",  "formula_expr": "(passivo_nc - ativo_cor) / ebitda_snc", "indent_level": 1, "is_ratio": True, "ratio_code": "leverage"},
+    ],
+}
+
+
+def _coa_seed_lines(chart: CreditChartOfAccounts, template_key: str) -> None:
+    """Populate account lines from a system template."""
+    lines_defs = _SYSTEM_COA_TEMPLATES.get(template_key, _SYSTEM_COA_TEMPLATES["general"])
+    for i, ld in enumerate(lines_defs):
+        line = CreditAccountLine(
+            chart_id=chart.id,
+            code=ld.get("code"),
+            label=ld.get("label", ""),
+            line_type=ld.get("line_type", "data"),
+            formula_expr=ld.get("formula_expr"),
+            sort_order=i,
+            indent_level=ld.get("indent_level", 0),
+            is_ratio=ld.get("is_ratio", False),
+            ratio_code=ld.get("ratio_code"),
+        )
+        db.session.add(line)
+
+
+@bp.route("/chart-of-accounts", methods=["GET", "POST"])
+@login_required
+def chart_of_accounts():
+    _require_tenant()
+    tid = get_current_tenant_id()
+    sectors = CreditSector.query.order_by(CreditSector.name).all()
+
+    if request.method == "POST":
+        action = request.form.get("action", "create")
+
+        if action == "create":
+            name = request.form.get("name", "").strip()
+            if not name:
+                flash(_("Name is required."), "danger")
+                return redirect(url_for("credit.chart_of_accounts"))
+            desc = request.form.get("description", "").strip() or None
+            sector_id = _to_int(request.form.get("sector_id")) or None
+            template_key = request.form.get("from_template", "").strip() or None
+            coa = CreditChartOfAccounts(
+                tenant_id=tid,
+                name=name,
+                description=desc,
+                sector_id=sector_id,
+                is_template=False,
+                is_system=False,
+            )
+            db.session.add(coa)
+            db.session.flush()
+            if template_key:
+                _coa_seed_lines(coa, template_key)
+            db.session.commit()
+            flash(_("Chart of accounts created."), "success")
+            return redirect(url_for("credit.chart_of_accounts_detail", coa_id=coa.id))
+
+        elif action == "delete":
+            coa_id = _to_int(request.form.get("coa_id"))
+            coa = CreditChartOfAccounts.query.filter_by(id=coa_id, tenant_id=tid).first_or_404()
+            db.session.delete(coa)
+            db.session.commit()
+            flash(_("Chart of accounts deleted."), "success")
+            return redirect(url_for("credit.chart_of_accounts"))
+
+    if request.method == "GET":
+        has_any_chart = db.session.query(CreditChartOfAccounts.id).filter_by(tenant_id=tid).first()
+        if not has_any_chart:
+            coa = CreditChartOfAccounts(
+                tenant_id=tid,
+                name="General IFRS - Default",
+                description="Auto-seeded default chart of accounts",
+                sector_id=None,
+                is_template=False,
+                is_system=False,
+            )
+            db.session.add(coa)
+            db.session.flush()
+            _coa_seed_lines(coa, "general")
+            db.session.commit()
+
+    charts = CreditChartOfAccounts.query.filter_by(tenant_id=tid).order_by(CreditChartOfAccounts.name).all()
+    return render_template(
+        "credit/chart_of_accounts.html",
+        charts=charts,
+        sectors=sectors,
+        system_templates=list(_SYSTEM_COA_TEMPLATES.keys()),
+        system_templates_meta=_SYSTEM_COA_META,
+    )
+
+
+@bp.route("/chart-of-accounts/<int:coa_id>", methods=["GET", "POST"])
+@login_required
+def chart_of_accounts_detail(coa_id: int):
+    _require_tenant()
+    tid = get_current_tenant_id()
+    coa = CreditChartOfAccounts.query.filter_by(id=coa_id, tenant_id=tid).first_or_404()
+    sectors = CreditSector.query.order_by(CreditSector.name).all()
+
+    if request.method == "POST":
+        action = request.form.get("action", "")
+
+        if action == "update_meta":
+            name = request.form.get("name", "").strip()
+            if name:
+                coa.name = name
+            coa.description = request.form.get("description", "").strip() or None
+            coa.sector_id = _to_int(request.form.get("sector_id")) or None
+            db.session.commit()
+            flash(_("Chart of accounts updated."), "success")
+            return redirect(url_for("credit.chart_of_accounts_detail", coa_id=coa.id))
+
+        elif action == "add_line":
+            existing_count = coa.lines.count()
+            code = request.form.get("code", "").strip() or None
+            label = request.form.get("label", "").strip()
+            if not label:
+                flash(_("Label is required."), "danger")
+                return redirect(url_for("credit.chart_of_accounts_detail", coa_id=coa.id))
+            line = CreditAccountLine(
+                chart_id=coa.id,
+                code=code,
+                label=label,
+                line_type=request.form.get("line_type", "data"),
+                formula_expr=request.form.get("formula_expr", "").strip() or None,
+                sort_order=existing_count,
+                indent_level=_to_int(request.form.get("indent_level")) or 0,
+                is_ratio=request.form.get("is_ratio") == "1",
+                ratio_code=request.form.get("ratio_code", "").strip() or None,
+            )
+            db.session.add(line)
+            db.session.commit()
+            flash(_("Line added."), "success")
+            return redirect(url_for("credit.chart_of_accounts_detail", coa_id=coa.id))
+
+        elif action == "delete_line":
+            line_id = _to_int(request.form.get("line_id"))
+            line = CreditAccountLine.query.filter_by(id=line_id, chart_id=coa.id).first_or_404()
+            db.session.delete(line)
+            db.session.commit()
+            flash(_("Line deleted."), "success")
+            return redirect(url_for("credit.chart_of_accounts_detail", coa_id=coa.id))
+
+        elif action == "reorder":
+            order_json = request.form.get("order_json", "[]")
+            try:
+                order = json.loads(order_json)
+                ids = [int(x) for x in order]
+            except Exception:
+                ids = []
+            for rank, lid in enumerate(ids):
+                CreditAccountLine.query.filter_by(id=lid, chart_id=coa.id).update({"sort_order": rank})
+            db.session.commit()
+            return jsonify({"ok": True})
+
+    lines = coa.lines.order_by(CreditAccountLine.sort_order).all()
+    return render_template(
+        "credit/chart_of_accounts_detail.html",
+        coa=coa,
+        lines=lines,
+        sectors=sectors,
+        line_types=["header", "data", "formula", "total", "separator"],
+    )
+
+
+@bp.route("/chart-of-accounts/<int:coa_id>/lines/<int:line_id>/update", methods=["POST"])
+@login_required
+def coa_line_update(coa_id: int, line_id: int):
+    """Inline JSON update for a single account line (used by grid editing)."""
+    _require_tenant()
+    tid = get_current_tenant_id()
+    coa = CreditChartOfAccounts.query.filter_by(id=coa_id, tenant_id=tid).first_or_404()
+    line = CreditAccountLine.query.filter_by(id=line_id, chart_id=coa.id).first_or_404()
+
+    payload = request.get_json(silent=True) or {}
+    for field in ("code", "label", "line_type", "formula_expr", "ratio_code"):
+        if field in payload:
+            setattr(line, field, payload[field] or None if field != "label" else payload[field])
+    if "indent_level" in payload:
+        line.indent_level = int(payload["indent_level"])
+    if "is_ratio" in payload:
+        line.is_ratio = bool(payload["is_ratio"])
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+@bp.route("/api/borrowers")
+@login_required
+def api_borrowers():
+    """Return JSON list of borrowers filtered by ?q= (name search), max 30."""
+    _require_tenant()
+    tid = get_current_tenant_id()
+    q = request.args.get("q", "").strip()
+    query = CreditBorrower.query.filter_by(tenant_id=tid)
+    if q:
+        query = query.filter(CreditBorrower.name.ilike(f"%{q}%"))
+    borrowers = query.order_by(CreditBorrower.name).limit(30).all()
+    return jsonify([
+        {
+            "id": b.id,
+            "name": b.name,
+            "sector": b.sector_ref.display_name("en") if b.sector_ref else (b.sector or ""),
+            "country": b.country_ref.name if b.country_ref else (b.country or ""),
+            "rating": b.rating_ref.code if b.rating_ref else (b.internal_rating or ""),
+        }
+        for b in borrowers
+    ])
+
+
+@bp.route("/financials-grid", methods=["GET", "POST"])
+@login_required
+def financials_grid():
+    """Show financial statements as period columns with a CoA as row structure."""
+    _require_tenant()
+    tid = get_current_tenant_id()
+    borrowers = CreditBorrower.query.filter_by(tenant_id=tid).order_by(CreditBorrower.name).all()
+    charts = CreditChartOfAccounts.query.filter_by(tenant_id=tid).order_by(CreditChartOfAccounts.name).all()
+
+    selected_borrower_id = _to_int(request.values.get("borrower_id")) or None
+    selected_coa_id = _to_int(request.values.get("coa_id")) or None
+    selected_borrower = None
+    if selected_borrower_id:
+        selected_borrower = CreditBorrower.query.filter_by(id=selected_borrower_id, tenant_id=tid).first()
+
+    if request.method == "POST":
+        payload = request.get_json(silent=True)
+        if payload and payload.get("action") == "save_cell":
+            stmt_id = int(payload.get("statement_id", 0))
+            line_id = int(payload.get("line_id", 0))
+            raw_val = payload.get("value", "")
+            stmt = CreditFinancialStatement.query.filter_by(id=stmt_id, tenant_id=tid).first_or_404()
+            line = CreditAccountLine.query.filter_by(id=line_id).first_or_404()
+            if line.line_type not in ("data",):
+                return jsonify({"ok": False, "error": "formula lines are computed"})
+            try:
+                val = Decimal(str(raw_val).strip()) if raw_val not in ("", None) else None
+            except Exception:
+                return jsonify({"ok": False, "error": "invalid value"})
+            existing = CreditSpreadingLineValue.query.filter_by(statement_id=stmt_id, line_id=line_id).first()
+            if existing:
+                existing.value = val
+            else:
+                db.session.add(CreditSpreadingLineValue(statement_id=stmt_id, line_id=line_id, value=val))
+            db.session.commit()
+            return jsonify({"ok": True})
+
+        if request.form.get("action") == "add_period":
+            borrower_id = _to_int(request.form.get("borrower_id"))
+            period_label = request.form.get("period_label", "FY").strip()
+            fiscal_year = _to_int(request.form.get("fiscal_year")) or datetime.utcnow().year
+            if borrower_id:
+                stmt = CreditFinancialStatement(
+                    tenant_id=tid,
+                    borrower_id=borrower_id,
+                    period_label=period_label,
+                    fiscal_year=fiscal_year,
+                    revenue=0,
+                    ebitda=0,
+                    total_debt=0,
+                    cash=0,
+                    net_income=0,
+                    spreading_status="in_progress",
+                )
+                db.session.add(stmt)
+                db.session.commit()
+                flash(_("Period added."), "success")
+            else:
+                flash(_("Borrower is required."), "warning")
+            return redirect(url_for("credit.financials_grid", borrower_id=borrower_id or "", coa_id=selected_coa_id or ""))
+
+    statements: list[CreditFinancialStatement] = []
+    lines: list[CreditAccountLine] = []
+    grid: dict[int, dict[int, Decimal | None]] = {}
+    coa: CreditChartOfAccounts | None = None
+
+    if selected_borrower_id:
+        statements = (
+            CreditFinancialStatement.query
+            .filter_by(tenant_id=tid, borrower_id=selected_borrower_id)
+            .order_by(CreditFinancialStatement.fiscal_year, CreditFinancialStatement.period_label)
+            .all()
+        )
+    if selected_coa_id:
+        coa = CreditChartOfAccounts.query.filter_by(id=selected_coa_id, tenant_id=tid).first()
+        if coa:
+            lines = coa.lines.order_by(CreditAccountLine.sort_order).all()
+
+    if lines and statements:
+        stmt_ids = [s.id for s in statements]
+        line_ids = [l.id for l in lines]
+        raw_values = CreditSpreadingLineValue.query.filter(
+            CreditSpreadingLineValue.statement_id.in_(stmt_ids),
+            CreditSpreadingLineValue.line_id.in_(line_ids),
+        ).all()
+        val_lookup: dict[tuple[int, int], Decimal | None] = {(v.statement_id, v.line_id): v.value for v in raw_values}
+
+        def _compute_row(line: CreditAccountLine, stmt_id: int, code_vals: dict[str, float]) -> Decimal | None:
+            if line.line_type == "data":
+                return val_lookup.get((stmt_id, line.id))
+            if line.line_type in ("formula", "total") and line.formula_expr:
+                try:
+                    result = eval(line.formula_expr, {"__builtins__": {}}, code_vals)  # noqa: S307
+                    return Decimal(str(result))
+                except Exception:
+                    return None
+            return None
+
+        for stmt in statements:
+            code_vals: dict[str, float] = {}
+            for line in lines:
+                v = _compute_row(line, stmt.id, code_vals)
+                if line.code and v is not None:
+                    try:
+                        code_vals[line.code] = float(v)
+                    except Exception:
+                        pass
+                if line.id not in grid:
+                    grid[line.id] = {}
+                grid[line.id][stmt.id] = v
+
+    return render_template(
+        "credit/financials_grid.html",
+        borrowers=borrowers,
+        charts=charts,
+        selected_borrower_id=selected_borrower_id,
+        selected_borrower=selected_borrower,
+        selected_coa_id=selected_coa_id,
+        coa=coa,
+        statements=statements,
+        lines=lines,
+        grid=grid,
+    )

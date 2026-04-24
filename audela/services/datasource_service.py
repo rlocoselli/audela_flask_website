@@ -248,6 +248,106 @@ def introspect_source(source: DataSource) -> dict[str, Any]:
     return out
 
 
+def introspect_source_tables(source: DataSource, *, max_tables_per_schema: int = 500) -> dict[str, Any]:
+    """Return schemas with table/view names only (no columns)."""
+    if (source.type or "").lower() == "workspace":
+        meta = introspect_source(source)
+        out: dict[str, Any] = {"schemas": []}
+        for schema in (meta.get("schemas") or []):
+            tables = []
+            for table in (schema.get("tables") or [])[:max_tables_per_schema]:
+                tables.append({
+                    "name": table.get("name"),
+                    "kind": table.get("kind") or "table",
+                })
+            out["schemas"].append({"name": schema.get("name") or "default", "tables": tables})
+        return out
+
+    cfg = decrypt_config(source)
+    default_schema = cfg.get("default_schema")
+
+    eng = get_engine(source)
+    insp = inspect(eng)
+    try:
+        schemas = insp.get_schema_names()
+    except Exception:
+        schemas = [default_schema] if default_schema else [None]
+
+    out: dict[str, Any] = {"schemas": []}
+    for schema in schemas:
+        if default_schema and schema not in (default_schema, None):
+            continue
+        schema_name = schema or default_schema or "default"
+        try:
+            table_names = insp.get_table_names(schema=schema)
+        except Exception:
+            table_names = []
+        try:
+            view_names = insp.get_view_names(schema=schema)
+        except Exception:
+            view_names = []
+
+        names_with_kind: list[tuple[str, str]] = []
+        seen_names: set[str] = set()
+        for name in table_names:
+            n = str(name or "").strip()
+            if not n or n in seen_names:
+                continue
+            seen_names.add(n)
+            names_with_kind.append((n, "table"))
+        for name in view_names:
+            n = str(name or "").strip()
+            if not n or n in seen_names:
+                continue
+            seen_names.add(n)
+            names_with_kind.append((n, "view"))
+
+        tables = [
+            {"name": tname, "kind": kind}
+            for tname, kind in sorted(names_with_kind, key=lambda x: x[0])[:max_tables_per_schema]
+        ]
+        out["schemas"].append({"name": schema_name, "tables": tables})
+    return out
+
+
+def introspect_source_table_columns(source: DataSource, table_name: str, *, schema: str | None = None) -> dict[str, Any]:
+    """Return columns for one table/view only."""
+    tname = str(table_name or "").strip()
+    if not tname:
+        return {"columns": []}
+
+    if (source.type or "").lower() == "workspace":
+        meta = introspect_source(source)
+        schema_req = str(schema or "").strip().lower()
+        for sch in (meta.get("schemas") or []):
+            sch_name = str(sch.get("name") or "default")
+            if schema_req and sch_name.lower() != schema_req:
+                continue
+            for table in (sch.get("tables") or []):
+                if str(table.get("name") or "").strip().lower() != tname.lower():
+                    continue
+                cols = []
+                for col in (table.get("columns") or []):
+                    if isinstance(col, dict):
+                        cols.append({"name": col.get("name"), "type": str(col.get("type") or "")})
+                    else:
+                        cols.append({"name": str(col), "type": ""})
+                return {"columns": cols}
+        return {"columns": []}
+
+    eng = get_engine(source)
+    insp = inspect(eng)
+
+    try:
+        cols = insp.get_columns(tname, schema=schema)
+    except Exception:
+        cols = []
+
+    return {
+        "columns": [{"name": c.get("name"), "type": str(c.get("type") or "")} for c in cols]
+    }
+
+
 def clear_engine_cache() -> None:
     """Clear cached SQLAlchemy engines (use after changing a datasource URL)."""
     try:

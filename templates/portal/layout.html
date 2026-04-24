@@ -98,11 +98,6 @@
       <div class="bi-menu-group-body" data-group-scope="desktop" data-group-body="automation">
         {% if bi_menu_access.integrations %}<a class="nav-link" href="{{ _p('portal.integrations_hub') }}"><i class="bi bi-link-45deg me-2"></i>{{ _('Integrações') }}</a>{% endif %}
         {% if bi_menu_access.etl %}<a class="nav-link" href="{{ _p('portal.etls_list') }}"><i class="bi bi-diagram-3 me-2"></i>{{ _('ETL') }}</a>{% endif %}
-        {% if (not _is_bi_lite) and bi_menu_access.etl %}
-        <a class="nav-link" href="{{ url_for('etl.builder') }}">
-          <i class="bi bi-diagram-3 me-2"></i>{{ _('ETL Builder') }}
-        </a>
-        {% endif %}
         {% if bi_menu_access.web_extract %}<a class="nav-link" href="{{ _p('portal.web_extract') }}"><i class="bi bi-globe2 me-2"></i>{{ _('Web Scraping IA') }}</a>{% endif %}
         {% if bi_menu_access.sources_diagram %}<a class="nav-link" href="{{ _p('portal.sources_diagram') }}"><i class="bi bi-diagram-3 me-2"></i>{{ _('Diagrama de fontes') }}</a>{% endif %}
         {% if bi_menu_access.runs %}<a class="nav-link" href="{{ _p('portal.runs_list') }}"><i class="bi bi-clock-history me-2"></i>{{ _('Execuções') }}</a>{% endif %}
@@ -376,7 +371,6 @@
       <div class="bi-menu-group-body" data-group-scope="mobile" data-group-body="automation">
         {% if bi_menu_access.integrations %}<a class="nav-link" href="{{ _p('portal.integrations_hub') }}">{{ _('Integrações') }}</a>{% endif %}
         {% if bi_menu_access.etl %}<a class="nav-link" href="{{ _p('portal.etls_list') }}">{{ _('ETL') }}</a>{% endif %}
-        {% if (not _is_bi_lite) and bi_menu_access.etl %}<a class="nav-link" href="{{ url_for('etl.builder') }}">{{ _('ETL Builder') }}</a>{% endif %}
         {% if bi_menu_access.web_extract %}<a class="nav-link" href="{{ _p('portal.web_extract') }}">{{ _('Web Scraping IA') }}</a>{% endif %}
         {% if bi_menu_access.sources_diagram %}<a class="nav-link" href="{{ _p('portal.sources_diagram') }}">{{ _('Diagrama de fontes') }}</a>{% endif %}
         {% if bi_menu_access.runs %}<a class="nav-link" href="{{ _p('portal.runs_list') }}">{{ _('Execuções') }}</a>{% endif %}
