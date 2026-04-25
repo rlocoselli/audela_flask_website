@@ -1,4 +1,5 @@
 {% extends "credit/page_base.html" %}
+{% from 'credit/_borrower_picker.html' import borrower_picker, borrower_picker_modal with context %}
 {% set title = _('Audela Credit Utilizations') %}
 {% set active_page = 'utilizations' %}
 {% set credit_mode = request.args.get('mode', 'search') %}
@@ -37,12 +38,8 @@
 
   <div class="col-md-3">
     <label class="form-label mb-1">{{ _('Borrower') }}</label>
-    <select class="form-select" name="borrower_id" required>
-      <option value="">{{ _('Select') }}</option>
-      {% for b in borrowers %}
-      <option value="{{ b.id }}" {% if row and row.borrower_id == b.id %}selected{% endif %}>{{ b.name }}</option>
-      {% endfor %}
-    </select>
+    {% set _row_b = borrowers | selectattr('id', 'equalto', (row.borrower_id if row else None)) | list %}
+    {{ borrower_picker('borrower_id', selected_id=(row.borrower_id if row else ''), selected_name=(_row_b[0].name if _row_b else ''), required=True, modal_id='modalBorrowerPickerUtilizationsForm', input_id_prefix=('utilization_edit_borrower_' ~ row.id if row else 'utilization_add_borrower')) }}
   </div>
   <div class="col-md-3">
     <label class="form-label mb-1">{{ _('Deal') }}</label>
@@ -133,12 +130,8 @@
       <input type="hidden" name="mode" value="search">
       <div class="col-12 col-lg-3">
         <label class="form-label mb-1">{{ _('Borrower') }}</label>
-        <select class="form-select" name="borrower_id">
-          <option value="">{{ _('All') }}</option>
-          {% for b in borrowers %}
-          <option value="{{ b.id }}" {% if selected_borrower_id == b.id %}selected{% endif %}>{{ b.name }}</option>
-          {% endfor %}
-        </select>
+        {% set _sel_b = borrowers | selectattr('id', 'equalto', selected_borrower_id) | list %}
+        {{ borrower_picker('borrower_id', selected_id=selected_borrower_id or '', selected_name=(_sel_b[0].name if _sel_b else ''), modal_id='modalBorrowerPickerUtilizationsFilter', input_id_prefix='utilizations_filter_borrower') }}
       </div>
       <div class="col-12 col-lg-3">
         <label class="form-label mb-1">{{ _('Deal') }}</label>
@@ -225,4 +218,6 @@
   </div>
 </div>
 {% endif %}
+{{ borrower_picker_modal(modal_id='modalBorrowerPickerUtilizationsForm') }}
+{{ borrower_picker_modal(modal_id='modalBorrowerPickerUtilizationsFilter') }}
 {% endblock %}

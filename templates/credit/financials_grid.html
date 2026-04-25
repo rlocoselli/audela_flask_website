@@ -1,9 +1,25 @@
 {% extends "credit/page_base.html" %}
-{% from 'credit/_borrower_picker.html' import borrower_picker, borrower_picker_modal %}
+{% from 'credit/_borrower_picker.html' import borrower_picker, borrower_picker_modal with context %}
 {% set title = _('Financial Statements Grid') %}
 {% set active_page = 'financials_grid' %}
 
 {% block credit_page_content %}
+
+<style>
+  .grid-ai-suggest-wrap {
+    position: relative;
+  }
+
+  #gridAiSuggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1085;
+    max-height: 280px;
+    overflow-y: auto;
+  }
+</style>
 
 <div class="card border-0 shadow-sm mb-3">
   <div class="card-header bg-info-subtle d-flex align-items-center gap-2">
@@ -68,9 +84,122 @@
       data-bs-toggle="modal" data-bs-target="#modalAddPeriod">
       <i class="bi bi-plus-lg me-1"></i>{{ _('Add period') }}
     </button>
+    {% if selected_coa_id %}
+    <button type="button" class="btn btn-sm btn-outline-success align-self-end"
+      data-bs-toggle="modal" data-bs-target="#modalPdfImportGrid">
+      <i class="bi bi-file-earmark-pdf me-1"></i>{{ _('Import PDF statement') }}
+    </button>
+    {% endif %}
     {% endif %}
   </form>
 </div>
+
+{% if false and selected_borrower_id and selected_coa_id %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header bg-body-tertiary">
+    <strong><i class="bi bi-stars me-1"></i>{{ _('AI auto-fill from internet') }}</strong>
+  </div>
+  <div class="card-body">
+    <div class="row g-2 align-items-end">
+      <div class="col-12 col-lg-8">
+        <label class="form-label mb-1">{{ _('Company full name') }}</label>
+        <div class="grid-ai-suggest-wrap">
+          <input id="gridAiCompany" class="form-control" type="text" placeholder="{{ _('Ex: Empresa XYZ S.A.') }}" autocomplete="off">
+          <div id="gridAiSuggestions" class="list-group shadow-sm mt-1 d-none"></div>
+        </div>
+      </div>
+      <div class="col-12 col-lg-4 d-grid">
+        <button id="gridAiAutofillBtn" class="btn btn-outline-primary" type="button">
+          <i class="bi bi-magic me-1"></i>{{ _('Find available periods') }}
+        </button>
+      </div>
+      <div class="col-12">
+        <div id="gridAiStatus" class="small text-secondary"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endif %}
+
+{% if selected_borrower_id and selected_coa_id %}
+<div class="modal fade" id="modalPdfImportGrid" tabindex="-1" aria-labelledby="modalPdfImportGridLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" enctype="multipart/form-data" id="pdfImportGridForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="pdf_autofill">
+        <input type="hidden" name="borrower_id" value="{{ selected_borrower_id or '' }}">
+        <input type="hidden" name="coa_id" value="{{ selected_coa_id or '' }}">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalPdfImportGridLabel">{{ _('Import financial statement PDF') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Close') }}"></button>
+        </div>
+        <div class="modal-body">
+          <div class="alert alert-info py-2 small mb-2">
+            {{ _('Upload one financial statement PDF. The system extracts fields with AI and matches values with your chart of accounts lines.') }}
+          </div>
+          <div class="mb-2">
+            <label class="form-label">{{ _('PDF file') }}</label>
+            <input class="form-control" type="file" name="pdf_file" accept="application/pdf" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">{{ _('Company full name (optional)') }}</label>
+            <input class="form-control" name="company_name" placeholder="{{ _('Defaults to selected borrower name') }}">
+          </div>
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label">{{ _('Period label (optional)') }}</label>
+              <select class="form-select" name="period_label">
+                <option value="">{{ _('Auto detect') }}</option>
+                <option value="FY">FY</option>
+                <option value="H1">H1</option>
+                <option value="H2">H2</option>
+                <option value="Q1">Q1</option>
+                <option value="Q2">Q2</option>
+                <option value="Q3">Q3</option>
+                <option value="Q4">Q4</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ _('Fiscal year (optional)') }}</label>
+              <input class="form-control" type="number" name="fiscal_year" min="2000" max="2099" placeholder="{{ _('Auto detect') }}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ _('Precision unit') }}</label>
+              <select class="form-select" name="unit_scale">
+                <option value="1">{{ _('Units') }}</option>
+                <option value="10">{{ _('Tens') }}</option>
+                <option value="100">{{ _('Hundreds') }}</option>
+                <option value="1000" selected>{{ _('Thousands') }}</option>
+                <option value="1000000">{{ _('Millions') }}</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ _('Currency') }}</label>
+              <select class="form-select" name="currency">
+                <option value="">{{ _('Auto detect') }}</option>
+                <option value="EUR">EUR</option>
+                <option value="USD">USD</option>
+                <option value="GBP">GBP</option>
+                <option value="CHF">CHF</option>
+                <option value="MAD">MAD</option>
+                <option value="XOF">XOF</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ _('Cancel') }}</button>
+          <button id="pdfImportGridSubmitBtn" type="submit" class="btn btn-success">
+            <i class="bi bi-upload me-1"></i>{{ _('Extract and map to chart') }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 {% if not selected_borrower_id or not selected_coa_id %}
 <div class="alert alert-info">
@@ -103,13 +232,76 @@
             <th style="min-width:260px">{{ _('Account line') }}</th>
             <th style="min-width:110px">{{ _('Code') }}</th>
             {% for stmt in statements %}
+            {% set _period_opt = statement_period_options.get(stmt.id, {}) if statement_period_options is defined else {} %}
+            {% set _period_unit = (_period_opt.get('unit_scale', 1) or 1)|int %}
+            {% set _period_currency = _period_opt.get('currency', '') %}
+            {% if _period_unit == 1 %}
+            {% set _unit_label = _('Units') %}
+            {% elif _period_unit == 10 %}
+            {% set _unit_label = 'x10' %}
+            {% elif _period_unit == 100 %}
+            {% set _unit_label = 'x100' %}
+            {% elif _period_unit == 1000 %}
+            {% set _unit_label = 'x1000' %}
+            {% elif _period_unit == 1000000 %}
+            {% set _unit_label = 'x1M' %}
+            {% else %}
+            {% set _unit_label = _('Units') %}
+            {% endif %}
             <th class="text-center" style="min-width:170px">
               <div class="fw-semibold">{{ stmt.period_label }} {{ stmt.fiscal_year }}</div>
+              <div class="small text-secondary">{{ _('Source') }}: {{ stmt.import_source or _('manual') }}</div>
+              <div class="small text-secondary">{{ _('Display') }}: {{ _unit_label }}{% if _period_currency %} · {{ _period_currency }}{% endif %}</div>
+              <form method="post" class="mt-1 d-flex gap-1 align-items-center justify-content-center flex-wrap">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="set_period_options">
+                <input type="hidden" name="statement_id" value="{{ stmt.id }}">
+                <input type="hidden" name="borrower_id" value="{{ selected_borrower_id or '' }}">
+                <input type="hidden" name="coa_id" value="{{ selected_coa_id or '' }}">
+                <select class="form-select form-select-sm" name="unit_scale" onchange="this.form.submit()" style="min-width:92px">
+                  <option value="1" {% if _period_unit == 1 %}selected{% endif %}>{{ _('Units') }}</option>
+                  <option value="10" {% if _period_unit == 10 %}selected{% endif %}>x10</option>
+                  <option value="100" {% if _period_unit == 100 %}selected{% endif %}>x100</option>
+                  <option value="1000" {% if _period_unit == 1000 %}selected{% endif %}>x1000</option>
+                  <option value="1000000" {% if _period_unit == 1000000 %}selected{% endif %}>x1M</option>
+                </select>
+                <select class="form-select form-select-sm" name="currency" onchange="this.form.submit()" style="min-width:92px">
+                  <option value="" {% if not _period_currency %}selected{% endif %}>{{ _('Auto') }}</option>
+                  <option value="EUR" {% if _period_currency == 'EUR' %}selected{% endif %}>EUR</option>
+                  <option value="USD" {% if _period_currency == 'USD' %}selected{% endif %}>USD</option>
+                  <option value="GBP" {% if _period_currency == 'GBP' %}selected{% endif %}>GBP</option>
+                  <option value="CHF" {% if _period_currency == 'CHF' %}selected{% endif %}>CHF</option>
+                  <option value="MAD" {% if _period_currency == 'MAD' %}selected{% endif %}>MAD</option>
+                  <option value="XOF" {% if _period_currency == 'XOF' %}selected{% endif %}>XOF</option>
+                </select>
+              </form>
               <div class="mt-1">
-                <span class="badge {% if stmt.spreading_status == 'in_progress' %}text-bg-primary{% elif stmt.spreading_status == 'needs_review' %}text-bg-warning{% elif stmt.spreading_status == 'complete' %}text-bg-success{% else %}text-bg-secondary{% endif %}">
+                <span class="badge {% if stmt.spreading_status == 'in_progress' %}text-bg-primary{% elif stmt.spreading_status == 'needs_review' %}text-bg-warning{% elif stmt.spreading_status == 'completed' %}text-bg-success{% else %}text-bg-secondary{% endif %}">
                   {{ _(stmt.spreading_status) }}
                 </span>
               </div>
+              <form method="post" class="mt-1 d-flex gap-1 align-items-center justify-content-center">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="set_period_status">
+                <input type="hidden" name="statement_id" value="{{ stmt.id }}">
+                <input type="hidden" name="borrower_id" value="{{ selected_borrower_id or '' }}">
+                <input type="hidden" name="coa_id" value="{{ selected_coa_id or '' }}">
+                <select class="form-select form-select-sm" name="spreading_status" onchange="this.form.submit()" style="min-width:130px">
+                  <option value="in_progress" {% if stmt.spreading_status == 'in_progress' %}selected{% endif %}>{{ _('In progress') }}</option>
+                  <option value="needs_review" {% if stmt.spreading_status == 'needs_review' %}selected{% endif %}>{{ _('Review') }}</option>
+                  <option value="completed" {% if stmt.spreading_status == 'completed' %}selected{% endif %}>{{ _('Approved / Done') }}</option>
+                </select>
+              </form>
+              <form method="post" class="mt-1" onsubmit="return confirm('{{ _('Delete this financial period?') }}');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="delete_period">
+                <input type="hidden" name="statement_id" value="{{ stmt.id }}">
+                <input type="hidden" name="borrower_id" value="{{ selected_borrower_id or '' }}">
+                <input type="hidden" name="coa_id" value="{{ selected_coa_id or '' }}">
+                <button type="submit" class="btn btn-outline-danger btn-sm px-2 py-0" title="{{ _('Delete period') }}">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
             </th>
             {% endfor %}
           </tr>
@@ -138,10 +330,12 @@
             <td class="text-end
               {% if line.line_type == 'separator' %}border-0
               {% elif line.line_type in ('formula', 'total') %}text-warning-emphasis bg-warning-subtle fw-semibold{% endif %}"
-              {% if line.line_type == 'data' %}
-              data-editable="1"
+              {% if line.line_type != 'separator' %}
               data-stmt-id="{{ stmt.id }}"
               data-line-id="{{ line.id }}"
+              {% endif %}
+              {% if line.line_type == 'data' %}
+              data-editable="1"
               data-value="{{ cell_val if cell_val is not none else '' }}"
               title="{{ _('Double-click to edit') }}"
               style="cursor:pointer"
@@ -207,10 +401,94 @@
   </div>
 </div>
 
+{% if false %}
+<div class="modal fade" id="modalAiPeriods" tabindex="-1" aria-labelledby="modalAiPeriodsLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalAiPeriodsLabel">{{ _('Internet financial periods') }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" data-ai-close-periods="1" aria-label="{{ _('Close') }}"></button>
+      </div>
+      <div class="modal-body">
+        <div id="gridAiPeriodsMeta" class="small text-secondary mb-2"></div>
+        <div class="row g-2 mb-2">
+          <div class="col-12 col-md-6">
+            <label class="form-label mb-1 small">{{ _('Precision unit') }}</label>
+            <select id="gridAiUnitScale" class="form-select form-select-sm">
+              <option value="1">{{ _('Units') }}</option>
+              <option value="10">{{ _('Tens') }}</option>
+              <option value="100">{{ _('Hundreds') }}</option>
+              <option value="1000" selected>{{ _('Thousands') }}</option>
+              <option value="1000000">{{ _('Millions') }}</option>
+            </select>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label mb-1 small">{{ _('Currency') }}</label>
+            <select id="gridAiCurrency" class="form-select form-select-sm">
+              <option value="">{{ _('Auto detect') }}</option>
+              <option value="EUR">EUR</option>
+              <option value="USD">USD</option>
+              <option value="GBP">GBP</option>
+              <option value="CHF">CHF</option>
+              <option value="MAD">MAD</option>
+              <option value="XOF">XOF</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th style="width:40px"><input id="gridAiSelectAllPeriods" type="checkbox" checked></th>
+                <th>{{ _('Period') }}</th>
+                <th>{{ _('Source') }}</th>
+                <th>{{ _('Already in grid') }}</th>
+                <th>{{ _('Current status') }}</th>
+              </tr>
+            </thead>
+            <tbody id="gridAiPeriodsTbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" data-ai-close-periods="1">{{ _('Cancel') }}</button>
+        <button id="gridAiImportSelectedBtn" type="button" class="btn btn-primary">
+          <i class="bi bi-download me-1"></i>{{ _('Import selected periods') }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <script>
 (function () {
   var csrfToken = (document.querySelector('meta[name=csrf-token]') || {}).content
     || (document.querySelector('input[name=csrf_token]') || {}).value || '';
+  var selectedCoaId = {{ (selected_coa_id or 0)|int }};
+
+  function setCellValue(stmtId, lineId, value) {
+    var selector = '[data-stmt-id="' + String(stmtId) + '"][data-line-id="' + String(lineId) + '"]';
+    var cell = document.querySelector(selector);
+    if (!cell) return;
+    var display = cell.querySelector('.cell-display');
+    if (!display) {
+      display = document.createElement('span');
+      display.className = 'cell-display';
+      cell.innerHTML = '';
+      cell.appendChild(display);
+    }
+    if (value === null || value === undefined || Number.isNaN(Number(value))) {
+      display.className = 'cell-display text-secondary';
+      display.textContent = '–';
+      if (cell.dataset.editable === '1') cell.dataset.value = '';
+      return;
+    }
+    var num = Number(value);
+    display.className = 'cell-display';
+    display.textContent = num.toFixed(2);
+    if (cell.dataset.editable === '1') cell.dataset.value = String(num);
+  }
 
   // ── Inline cell editing ──────────────────────────────────────────────────
   document.querySelectorAll('[data-editable="1"]').forEach(function (cell) {
@@ -218,8 +496,7 @@
       if (cell.querySelector('input')) return;
       var stmtId  = cell.dataset.stmtId;
       var lineId  = cell.dataset.lineId;
-      var current = cell.dataset.value;
-      var display = cell.querySelector('.cell-display');
+      var current = String(cell.dataset.value || '').trim();
 
       var input = document.createElement('input');
       input.type = 'number';
@@ -232,8 +509,40 @@
       input.focus();
       input.select();
 
+      function restoreCell(val) {
+        if (!val) {
+          cell.innerHTML = '<span class="cell-display text-secondary">–</span>';
+          cell.dataset.value = '';
+          return;
+        }
+        var parsed = parseFloat(val);
+        if (isNaN(parsed)) {
+          cell.innerHTML = '<span class="cell-display text-secondary">–</span>';
+          cell.dataset.value = '';
+          return;
+        }
+        cell.innerHTML = '<span class="cell-display">' + parsed.toFixed(2) + '</span>';
+        cell.dataset.value = parsed.toFixed(2);
+      }
+
+      function isUnchanged(newVal, oldVal) {
+        var a = String(newVal || '').trim();
+        var b = String(oldVal || '').trim();
+        if (!a && !b) return true;
+        var na = parseFloat(a);
+        var nb = parseFloat(b);
+        if (!isNaN(na) && !isNaN(nb)) {
+          return Math.abs(na - nb) < 1e-9;
+        }
+        return a === b;
+      }
+
       function save() {
         var newVal = input.value.trim();
+        if (isUnchanged(newVal, current)) {
+          restoreCell(current);
+          return;
+        }
         fetch('{{ url_for("credit.financials_grid") }}', {
           method: 'POST',
           headers: {
@@ -244,6 +553,7 @@
             action: 'save_cell',
             statement_id: parseInt(stmtId),
             line_id: parseInt(lineId),
+            coa_id: selectedCoaId,
             value: newVal,
           }),
         })
@@ -253,9 +563,19 @@
           var span = document.createElement('span');
           span.className = 'cell-display';
           if (data.ok) {
-            cell.dataset.value = newVal;
             var num = parseFloat(newVal);
-            span.textContent = isNaN(num) ? '–' : num.toFixed(2);
+            if (isNaN(num)) {
+              span.textContent = '–';
+              span.className += ' text-secondary';
+              cell.dataset.value = '';
+            } else {
+              span.textContent = num.toFixed(2);
+              cell.dataset.value = num.toFixed(2);
+            }
+            var recalc = data.recalculated || {};
+            Object.keys(recalc).forEach(function (lineIdKey) {
+              setCellValue(stmtId, lineIdKey, recalc[lineIdKey]);
+            });
           } else {
             span.textContent = current || '–';
             span.className += ' text-danger';
@@ -263,15 +583,14 @@
           cell.appendChild(span);
         })
         .catch(function () {
-          cell.innerHTML = '<span class="cell-display text-secondary">' + (current || '–') + '</span>';
+          restoreCell(current);
         });
       }
 
       input.addEventListener('keydown', function (e) {
         if (e.key === 'Enter') { e.preventDefault(); save(); }
         if (e.key === 'Escape') {
-          cell.innerHTML = '<span class="cell-display">' +
-            (current ? parseFloat(current).toFixed(2) : '<span class="text-secondary">–</span>') + '</span>';
+          restoreCell(current);
         }
       });
       input.addEventListener('blur', function () {
@@ -280,6 +599,360 @@
       });
     });
   });
+
+  var aiBtn = document.getElementById('gridAiAutofillBtn');
+  var aiInput = document.getElementById('gridAiCompany');
+  var aiStatus = document.getElementById('gridAiStatus');
+  var aiSuggestions = document.getElementById('gridAiSuggestions');
+  var aiPeriodsModalEl = document.getElementById('modalAiPeriods');
+  var aiPeriodsTbody = document.getElementById('gridAiPeriodsTbody');
+  var aiPeriodsMeta = document.getElementById('gridAiPeriodsMeta');
+  var aiImportSelectedBtn = document.getElementById('gridAiImportSelectedBtn');
+  var aiSelectAllPeriods = document.getElementById('gridAiSelectAllPeriods');
+  var aiUnitScaleSelect = document.getElementById('gridAiUnitScale');
+  var aiCurrencySelect = document.getElementById('gridAiCurrency');
+  var aiPeriodsModal = aiPeriodsModalEl && window.bootstrap ? new bootstrap.Modal(aiPeriodsModalEl) : null;
+  var pdfImportGridForm = document.getElementById('pdfImportGridForm');
+  var pdfImportGridSubmitBtn = document.getElementById('pdfImportGridSubmitBtn');
+  var previewPeriods = [];
+  var suggestTimer = null;
+  var lastSuggestQuery = '';
+
+  function hideAiPeriodsModal() {
+    if (aiPeriodsModal) {
+      aiPeriodsModal.hide();
+      return;
+    }
+    if (!aiPeriodsModalEl) return;
+    aiPeriodsModalEl.classList.remove('show');
+    aiPeriodsModalEl.style.display = 'none';
+    aiPeriodsModalEl.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('modal-open');
+    document.querySelectorAll('.modal-backdrop').forEach(function (el) { el.remove(); });
+  }
+
+  function showAiPeriodsModal() {
+    if (aiPeriodsModal) {
+      aiPeriodsModal.show();
+      return;
+    }
+    if (!aiPeriodsModalEl) return;
+    aiPeriodsModalEl.classList.add('show');
+    aiPeriodsModalEl.style.display = 'block';
+    aiPeriodsModalEl.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('modal-open');
+    if (!document.querySelector('.modal-backdrop')) {
+      var backdrop = document.createElement('div');
+      backdrop.className = 'modal-backdrop fade show';
+      backdrop.setAttribute('data-ai-close-periods', '1');
+      document.body.appendChild(backdrop);
+    }
+  }
+
+  function renderSuggestions(companies) {
+    if (!aiSuggestions) return;
+    aiSuggestions.innerHTML = '';
+    if (!companies || !companies.length) {
+      aiSuggestions.classList.add('d-none');
+      return;
+    }
+    var grouped = {
+      tenant: companies.filter(function (row) { return String(row.source_scope || '') === 'tenant'; }),
+      internet: companies.filter(function (row) { return String(row.source_scope || '') === 'internet'; }),
+      other: companies.filter(function (row) {
+        var scope = String(row.source_scope || '');
+        return scope !== 'tenant' && scope !== 'internet';
+      }),
+    };
+
+    function appendGroup(title, rows) {
+      if (!rows.length) return;
+      var hdr = document.createElement('div');
+      hdr.className = 'list-group-item py-1 px-2 bg-body-tertiary text-secondary small fw-semibold';
+      hdr.textContent = title;
+      aiSuggestions.appendChild(hdr);
+
+      rows.forEach(function (row) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'list-group-item list-group-item-action';
+        var country = row.country ? ' · ' + row.country : '';
+        var reason = row.reason ? ('<div class="small text-secondary">' + row.reason + '</div>') : '';
+        var source = String(row.source || '');
+        var sourceLabel = String(row.source_label || (source === 'local' ? 'Borrower local' : 'AI'));
+        var badgeClass = source === 'local' ? 'text-bg-secondary' : 'text-bg-info';
+        var score = (typeof row.score === 'number') ? row.score : parseFloat(row.score || '0');
+        var scoreLabel = (!isNaN(score) && score > 0) ? ('<span class="small text-secondary ms-2">' + Math.round(score * 100) + '%</span>') : '';
+        btn.innerHTML = ''
+          + '<div class="d-flex align-items-center justify-content-between gap-2">'
+          + '<div class="fw-semibold">' + row.name + country + scoreLabel + '</div>'
+          + '<span class="badge ' + badgeClass + '">' + sourceLabel + '</span>'
+          + '</div>'
+          + reason;
+        btn.addEventListener('click', function () {
+          aiInput.value = row.name || '';
+          aiSuggestions.classList.add('d-none');
+        });
+        aiSuggestions.appendChild(btn);
+      });
+    }
+
+    appendGroup('{{ _('Tenant database') }}', grouped.tenant);
+    appendGroup('{{ _('Internet results') }}', grouped.internet);
+    appendGroup('{{ _('Other suggestions') }}', grouped.other);
+
+    aiSuggestions.classList.remove('d-none');
+  }
+
+  function showSuggestionsLoading() {
+    if (!aiSuggestions) return;
+    aiSuggestions.innerHTML = '<div class="list-group-item small text-secondary"><span class="spinner-border spinner-border-sm me-2"></span>{{ _('Searching suggestions...') }}</div>';
+    aiSuggestions.classList.remove('d-none');
+  }
+
+  function renderPeriodsModal(companyName, periods, meta) {
+    previewPeriods = Array.isArray(periods) ? periods : [];
+    if (!aiPeriodsTbody || !aiPeriodsMeta) return;
+    aiPeriodsTbody.innerHTML = '';
+    aiPeriodsMeta.textContent = meta || '';
+    if (!previewPeriods.length) {
+      var row = document.createElement('tr');
+      row.innerHTML = '<td colspan="5" class="text-secondary">{{ _('No internet periods found for this company.') }}</td>';
+      aiPeriodsTbody.appendChild(row);
+      showAiPeriodsModal();
+      return;
+    }
+    previewPeriods.forEach(function (p, idx) {
+      var tr = document.createElement('tr');
+      var checked = p.exists ? '' : 'checked';
+      var exists = p.exists ? '{{ _('Yes') }}' : '{{ _('No') }}';
+      var status = p.existing_status || '—';
+      var sourceLabel = p.internet_source || 'AI';
+      var sourceUrl = String(p.source_url || '');
+      var sourceReliability = String(p.source_reliability || 'low');
+      var sourceNote = String(p.source_note || '');
+      var reliabilityBadgeClass = sourceReliability === 'high' ? 'text-bg-success' : (sourceReliability === 'medium' ? 'text-bg-warning text-dark' : 'text-bg-danger');
+      var reliabilityLabel = sourceReliability === 'high' ? '{{ _('Verified') }}' : (sourceReliability === 'medium' ? '{{ _('Partially verified') }}' : '{{ _('Unreliable') }}');
+      var sourceHtml = '<span class="badge text-bg-info">{{ _('Internet') }}</span> <span class="badge ' + reliabilityBadgeClass + '">' + reliabilityLabel + '</span> ';
+      if (sourceUrl) {
+        sourceHtml += '<a href="' + sourceUrl + '" target="_blank" rel="noopener noreferrer" class="small">' + sourceLabel + '</a>';
+      } else {
+        sourceHtml += '<span class="small text-warning">{{ _('No official source URL returned') }}</span>';
+        if (sourceLabel) {
+          sourceHtml += '<div class="small text-secondary">' + sourceLabel + '</div>';
+        }
+      }
+      if (sourceNote) {
+        sourceHtml += '<div class="small text-secondary">' + sourceNote + '</div>';
+      }
+      if (p.exists && p.existing_source) {
+        sourceHtml += ' <span class="badge text-bg-secondary">{{ _('Current') }}: ' + p.existing_source + '</span>';
+      }
+      tr.innerHTML = ''
+        + '<td><input class="grid-ai-period-check" type="checkbox" value="' + p.key + '" ' + checked + '></td>'
+        + '<td><div class="fw-semibold">' + p.title + '</div></td>'
+        + '<td><div class="small">' + sourceHtml + '</div></td>'
+        + '<td>' + exists + '</td>'
+        + '<td>' + status + '</td>';
+      aiPeriodsTbody.appendChild(tr);
+    });
+    if (aiSelectAllPeriods) {
+      aiSelectAllPeriods.checked = true;
+      aiSelectAllPeriods.indeterminate = false;
+    }
+    showAiPeriodsModal();
+  }
+
+  if (aiBtn && aiInput && aiStatus) {
+    aiInput.addEventListener('input', function () {
+      var query = String(aiInput.value || '').trim();
+      if (suggestTimer) clearTimeout(suggestTimer);
+      if (!query || query.length < 3) {
+        renderSuggestions([]);
+        return;
+      }
+      suggestTimer = setTimeout(function () {
+        if (query.toLowerCase() === lastSuggestQuery) return;
+        lastSuggestQuery = query.toLowerCase();
+        showSuggestionsLoading();
+        fetch('{{ url_for("credit.financials_company_candidates_ai") }}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken,
+          },
+          credentials: 'same-origin',
+          body: JSON.stringify({ query: query }),
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          renderSuggestions(data && data.ok ? (data.companies || []) : []);
+        })
+        .catch(function () {
+          renderSuggestions([]);
+        });
+      }, 300);
+    });
+
+    aiBtn.addEventListener('click', function () {
+      var companyName = String(aiInput.value || '').trim();
+      if (!companyName) {
+        aiStatus.className = 'small text-warning';
+        aiStatus.textContent = '{{ _('Company full name is required.') }}';
+        return;
+      }
+      aiBtn.disabled = true;
+      aiStatus.className = 'small text-secondary';
+      aiStatus.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>{{ _('Checking internet financial periods...') }}';
+
+      fetch('{{ url_for("credit.financials_grid") }}', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrfToken,
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          action: 'ai_periods_preview',
+          borrower_id: {{ (selected_borrower_id or 0)|int }},
+          coa_id: selectedCoaId,
+          company_name: companyName,
+        }),
+      })
+      .then(function (r) {
+        return r.text().then(function (txt) {
+          var parsed = null;
+          try { parsed = txt ? JSON.parse(txt) : {}; } catch (e) { parsed = null; }
+          if (!r.ok) {
+            var msg = (parsed && parsed.error) ? parsed.error : ('HTTP ' + r.status);
+            throw new Error(msg);
+          }
+          if (!parsed || typeof parsed !== 'object') {
+            throw new Error('{{ _('Invalid server response for periods preview.') }}');
+          }
+          return parsed;
+        });
+      })
+      .then(function (data) {
+        if (!data.ok) {
+          aiStatus.className = 'small text-danger';
+          aiStatus.textContent = data.error || '{{ _('Unable to fetch periods from internet.') }}';
+          return;
+        }
+        var periods = Array.isArray(data.periods) ? data.periods : [];
+        var meta = '{{ _('Company') }}: ' + (data.company_name || companyName)
+          + (data.currency ? (' · {{ _('Currency') }}: ' + data.currency) : '')
+          + (data.confidence ? (' · {{ _('Confidence') }}: ' + data.confidence) : '');
+        renderPeriodsModal(companyName, periods, meta);
+        if (!periods.length) {
+          aiStatus.className = 'small text-warning';
+          aiStatus.textContent = '{{ _('No period found from internet for this company.') }}';
+        } else {
+          aiStatus.className = 'small text-info';
+          aiStatus.textContent = '{{ _('Select periods to import in the popup.') }}';
+        }
+      })
+      .catch(function (err) {
+        aiStatus.className = 'small text-danger';
+        aiStatus.textContent = (err && err.message) ? err.message : '{{ _('Unable to fetch periods from internet.') }}';
+      })
+      .finally(function () {
+        aiBtn.disabled = false;
+      });
+    });
+
+    document.addEventListener('click', function (event) {
+      var target = event.target && event.target.closest ? event.target.closest('[data-ai-close-periods="1"]') : null;
+      if (!target) return;
+      event.preventDefault();
+      hideAiPeriodsModal();
+    });
+
+    if (aiPeriodsModalEl) {
+      aiPeriodsModalEl.addEventListener('click', function (event) {
+        if (event.target === aiPeriodsModalEl) {
+          hideAiPeriodsModal();
+        }
+      });
+    }
+
+    if (aiSelectAllPeriods) {
+      aiSelectAllPeriods.addEventListener('change', function () {
+        document.querySelectorAll('.grid-ai-period-check').forEach(function (cb) {
+          cb.checked = !!aiSelectAllPeriods.checked;
+        });
+      });
+    }
+
+    if (aiImportSelectedBtn) {
+      aiImportSelectedBtn.addEventListener('click', function () {
+        var companyName = String(aiInput.value || '').trim();
+        var selectedKeys = Array.from(document.querySelectorAll('.grid-ai-period-check:checked')).map(function (cb) {
+          return cb.value;
+        });
+        if (!companyName) {
+          aiStatus.className = 'small text-warning';
+          aiStatus.textContent = '{{ _('Company full name is required.') }}';
+          return;
+        }
+        if (!selectedKeys.length) {
+          aiStatus.className = 'small text-warning';
+          aiStatus.textContent = '{{ _('Select at least one period to import.') }}';
+          return;
+        }
+
+        aiImportSelectedBtn.disabled = true;
+        aiImportSelectedBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>{{ _('Importing...') }}';
+        var unitScale = parseInt((aiUnitScaleSelect && aiUnitScaleSelect.value) ? aiUnitScaleSelect.value : '1', 10);
+        if (!unitScale || [1, 10, 100, 1000, 1000000].indexOf(unitScale) === -1) unitScale = 1;
+        var currency = (aiCurrencySelect && aiCurrencySelect.value) ? String(aiCurrencySelect.value).trim().toUpperCase() : '';
+        fetch('{{ url_for("credit.financials_grid") }}', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken,
+          },
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            action: 'ai_autofill',
+            borrower_id: {{ (selected_borrower_id or 0)|int }},
+            coa_id: selectedCoaId,
+            company_name: companyName,
+            selected_period_keys: selectedKeys,
+            unit_scale: unitScale,
+            currency: currency,
+          }),
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (!data.ok) {
+            aiStatus.className = 'small text-danger';
+            aiStatus.textContent = data.error || '{{ _('Unable to run AI auto-fill.') }}';
+            return;
+          }
+          aiStatus.className = 'small text-success';
+          aiStatus.textContent = data.message || '{{ _('AI auto-fill completed.') }}';
+          hideAiPeriodsModal();
+          window.location.reload();
+        })
+        .catch(function () {
+          aiStatus.className = 'small text-danger';
+          aiStatus.textContent = '{{ _('Unable to run AI auto-fill.') }}';
+        })
+        .finally(function () {
+          aiImportSelectedBtn.disabled = false;
+          aiImportSelectedBtn.innerHTML = '<i class="bi bi-download me-1"></i>{{ _('Import selected periods') }}';
+        });
+      });
+    }
+  }
+
+  if (pdfImportGridForm && pdfImportGridSubmitBtn) {
+    pdfImportGridForm.addEventListener('submit', function () {
+      pdfImportGridSubmitBtn.disabled = true;
+      pdfImportGridSubmitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>{{ _('Extracting and mapping...') }}';
+    });
+  }
 })();
 </script>
 

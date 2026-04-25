@@ -40,8 +40,9 @@ def _lit(s: str) -> str:
 
 
 def _rewrite_schema_prefixes(sql_text: str) -> str:
-    """Allow users to write files.<alias> or db.<table> in the editor."""
+    """Allow users to write files.<alias>, db.<table>, or db<source_id>.<table>."""
     sql_text = re.sub(r"\bfiles\.", "", sql_text, flags=re.I)
+    sql_text = re.sub(r"\bdb(\d+)\.", r"db_\1_", sql_text, flags=re.I)
     sql_text = re.sub(r"\bdb\.", "db_", sql_text, flags=re.I)
     return sql_text
 
@@ -138,6 +139,32 @@ def _import_db_table(con, eng, schema: str | None, table_name: str, *, max_rows:
     con.unregister("__tmp_db__")
 
 
+def _import_db_table_as(
+    con,
+    eng,
+    schema: str | None,
+    table_name: str,
+    dest_prefix: str,
+    *,
+    max_rows: int,
+):
+    """Import a DB table sample into DuckDB under a custom destination prefix."""
+    t = table_name.strip()
+    if not t:
+        return
+    safe = _sanitize_table_name(t)
+    dest = _ident(f"{dest_prefix}_{safe}")
+    if schema:
+        sql = f'SELECT * FROM "{schema}"."{t}" LIMIT {int(max_rows)}'
+    else:
+        sql = f'SELECT * FROM "{t}" LIMIT {int(max_rows)}'
+
+    df = pd.read_sql_query(sql, eng)
+    con.register("__tmp_db__", df)
+    con.execute(f"CREATE OR REPLACE TABLE {dest} AS SELECT * FROM __tmp_db__")
+    con.unregister("__tmp_db__")
+
+
 def execute_workspace_sql(
     workspace_source: DataSource,
     sql_text: str,
@@ -188,26 +215,87 @@ def execute_workspace_sql(
             abs_path = resolve_abs_path(workspace_source.tenant_id, asset.storage_path)
             _register_file_view(con, alias, abs_path, asset.file_format, max_rows)
 
-    # Optionally import DB tables
-    base_id = cfg.get("db_source_id")
-    if base_id:
-        base = DataSource.query.filter_by(id=int(base_id), tenant_id=workspace_source.tenant_id).first()
-        if base:
-            base_cfg = decrypt_json(base.config_encrypted)
-            schema = base_cfg.get("default_schema")
-            eng = get_engine(base)
-            db_tables_cfg = cfg.get("db_tables")
-            if isinstance(db_tables_cfg, str):
-                db_tables = [x.strip() for x in db_tables_cfg.split(",") if x.strip()]
-            elif isinstance(db_tables_cfg, list):
-                db_tables = [str(x).strip() for x in db_tables_cfg if str(x).strip()]
-            else:
-                db_tables = []
-            for t in db_tables[:50]:
+    # Optionally import DB tables from one or more sources.
+    raw_source_ids = cfg.get("db_source_ids") or []
+    db_source_ids: list[int] = []
+    if isinstance(raw_source_ids, list):
+        for x in raw_source_ids:
+            try:
+                sid = int(x or 0)
+            except Exception:
+                sid = 0
+            if sid > 0 and sid not in db_source_ids:
+                db_source_ids.append(sid)
+
+    # Backward compatibility for legacy workspaces.
+    if not db_source_ids:
+        try:
+            base_id = int(cfg.get("db_source_id") or 0)
+        except Exception:
+            base_id = 0
+        if base_id > 0:
+            db_source_ids = [base_id]
+
+    db_tables_cfg = cfg.get("db_tables")
+    db_table_entries: list[dict[str, Any]] = []
+    if isinstance(db_tables_cfg, str):
+        # Legacy: plain list of tables bound to first source.
+        if db_source_ids:
+            db_table_entries = [
+                {"source_id": int(db_source_ids[0]), "table": x.strip()}
+                for x in db_tables_cfg.split(",")
+                if x.strip()
+            ]
+    elif isinstance(db_tables_cfg, list):
+        for item in db_tables_cfg:
+            if isinstance(item, dict):
                 try:
-                    _import_db_table(con, eng, schema, t, max_rows=max_rows)
+                    sid = int(item.get("source_id") or 0)
                 except Exception:
-                    # ignore broken tables
+                    sid = 0
+                tname = str(item.get("table") or "").strip()
+                if sid > 0 and tname:
+                    db_table_entries.append({"source_id": sid, "table": tname})
+            else:
+                tname = str(item).strip()
+                if tname and db_source_ids:
+                    db_table_entries.append({"source_id": int(db_source_ids[0]), "table": tname})
+
+    if db_source_ids and db_table_entries:
+        bases = {
+            int(src.id): src
+            for src in DataSource.query.filter(
+                DataSource.tenant_id == workspace_source.tenant_id,
+                DataSource.id.in_(db_source_ids),
+            ).all()
+        }
+        for sid in db_source_ids:
+            base = bases.get(int(sid))
+            if not base:
+                continue
+            try:
+                base_cfg = decrypt_json(base.config_encrypted)
+                schema = base_cfg.get("default_schema")
+                eng = get_engine(base)
+            except Exception:
+                continue
+
+            source_tables = [x.get("table") for x in db_table_entries if int(x.get("source_id") or 0) == sid]
+            seen_tables: set[str] = set()
+            for t in source_tables[:80]:
+                tt = str(t or "").strip()
+                if not tt:
+                    continue
+                key = tt.lower()
+                if key in seen_tables:
+                    continue
+                seen_tables.add(key)
+                try:
+                    _import_db_table_as(con, eng, schema, tt, f"db_{sid}", max_rows=max_rows)
+                    # Backward alias for first selected source: db.<table> -> db_<table>
+                    if sid == db_source_ids[0]:
+                        _import_db_table(con, eng, schema, tt, max_rows=max_rows)
+                except Exception:
                     continue
 
     # Execute query
@@ -286,7 +374,7 @@ def introspect_workspace(workspace_source: DataSource) -> dict[str, Any]:
 
     out["schemas"].append({"name": "files", "tables": file_tables})
 
-    # DB tables (MVP: no columns until first run)
+    # DB tables
     db_tables_cfg = cfg.get("db_tables")
     if isinstance(db_tables_cfg, str):
         db_tables = [x.strip() for x in db_tables_cfg.split(",") if x.strip()]
@@ -295,17 +383,65 @@ def introspect_workspace(workspace_source: DataSource) -> dict[str, Any]:
     else:
         db_tables = []
 
+    raw_source_ids = cfg.get("db_source_ids") or []
+    db_source_ids: list[int] = []
+    if isinstance(raw_source_ids, list):
+        for x in raw_source_ids:
+            try:
+                sid = int(x or 0)
+            except Exception:
+                sid = 0
+            if sid > 0 and sid not in db_source_ids:
+                db_source_ids.append(sid)
+    if not db_source_ids:
+        try:
+            legacy_sid = int(cfg.get("db_source_id") or 0)
+        except Exception:
+            legacy_sid = 0
+        if legacy_sid > 0:
+            db_source_ids = [legacy_sid]
+
+    db_table_entries: list[dict[str, Any]] = []
+    if isinstance(db_tables_cfg, str):
+        if db_source_ids:
+            db_table_entries = [{"source_id": int(db_source_ids[0]), "table": t} for t in db_tables]
+    elif isinstance(db_tables_cfg, list):
+        for item in db_tables_cfg:
+            if isinstance(item, dict):
+                try:
+                    sid = int(item.get("source_id") or 0)
+                except Exception:
+                    sid = 0
+                t = str(item.get("table") or "").strip()
+                if sid > 0 and t:
+                    db_table_entries.append({"source_id": sid, "table": t})
+            else:
+                t = str(item).strip()
+                if t and db_source_ids:
+                    db_table_entries.append({"source_id": int(db_source_ids[0]), "table": t})
+
     db_tables_out: list[dict[str, Any]] = []
-    base_id = cfg.get("db_source_id")
-    if base_id and db_tables:
-        base = DataSource.query.filter_by(id=int(base_id), tenant_id=workspace_source.tenant_id).first()
+    bases = {
+        int(src.id): src
+        for src in DataSource.query.filter(
+            DataSource.tenant_id == workspace_source.tenant_id,
+            DataSource.id.in_(db_source_ids),
+        ).all()
+    } if db_source_ids else {}
+
+    for sid in db_source_ids:
+        base = bases.get(int(sid))
+        source_tables = [x.get("table") for x in db_table_entries if int(x.get("source_id") or 0) == sid]
+        source_tables = [str(x).strip() for x in source_tables if str(x).strip()][:200]
+        if not source_tables:
+            continue
         if base:
             try:
                 base_cfg = decrypt_json(base.config_encrypted)
                 schema = base_cfg.get("default_schema")
                 eng = get_engine(base)
                 insp = inspect(eng)
-                for t in db_tables[:200]:
+                for t in source_tables:
                     safe = _sanitize_table_name(t)
                     cols = []
                     try:
@@ -313,13 +449,18 @@ def introspect_workspace(workspace_source: DataSource) -> dict[str, Any]:
                         cols = [{"name": c.get("name"), "type": str(c.get("type"))} for c in raw_cols]
                     except Exception:
                         cols = []
-                    db_tables_out.append({"name": safe, "columns": cols})
+                    db_tables_out.append({"name": f"db{sid}.{safe}", "columns": cols})
+                    if sid == db_source_ids[0]:
+                        # Backward alias for first source.
+                        db_tables_out.append({"name": safe, "columns": cols})
             except Exception:
-                db_tables_out = [{"name": _sanitize_table_name(t), "columns": []} for t in db_tables[:200]]
+                for t in source_tables:
+                    safe = _sanitize_table_name(t)
+                    db_tables_out.append({"name": f"db{sid}.{safe}", "columns": []})
         else:
-            db_tables_out = [{"name": _sanitize_table_name(t), "columns": []} for t in db_tables[:200]]
-    else:
-        db_tables_out = [{"name": _sanitize_table_name(t), "columns": []} for t in db_tables[:200]]
+            for t in source_tables:
+                safe = _sanitize_table_name(t)
+                db_tables_out.append({"name": f"db{sid}.{safe}", "columns": []})
 
     out["schemas"].append({"name": "db", "tables": db_tables_out})
 

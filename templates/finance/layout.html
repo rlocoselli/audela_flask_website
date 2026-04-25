@@ -289,6 +289,95 @@
       filter: brightness(.97);
     }
 
+    /* Keep outline buttons readable across finance pages (hover/focus/active). */
+    .finance-top-actions .btn[class*="btn-outline-"],
+    .container-fluid.pb-4 .btn[class*="btn-outline-"],
+    #financeQuickActionsMenu .btn[class*="btn-outline-"],
+    #financeHelpChatPanel .btn[class*="btn-outline-"],
+    footer .btn[class*="btn-outline-"] {
+      transition: all .16s ease;
+    }
+
+    .finance-top-actions .btn.btn-outline-primary:hover,
+    .container-fluid.pb-4 .btn.btn-outline-primary:hover,
+    #financeQuickActionsMenu .btn.btn-outline-primary:hover,
+    #financeHelpChatPanel .btn.btn-outline-primary:hover,
+    footer .btn.btn-outline-primary:hover,
+    .finance-top-actions .btn.btn-outline-primary:focus,
+    .container-fluid.pb-4 .btn.btn-outline-primary:focus,
+    #financeQuickActionsMenu .btn.btn-outline-primary:focus,
+    #financeHelpChatPanel .btn.btn-outline-primary:focus,
+    footer .btn.btn-outline-primary:focus {
+      color: #1e3a8a;
+      border-color: #93c5fd;
+      background: #eff6ff;
+      box-shadow: 0 0 0 .12rem rgba(59, 130, 246, 0.15);
+    }
+
+    .finance-top-actions .btn.btn-outline-secondary:hover,
+    .container-fluid.pb-4 .btn.btn-outline-secondary:hover,
+    #financeQuickActionsMenu .btn.btn-outline-secondary:hover,
+    #financeHelpChatPanel .btn.btn-outline-secondary:hover,
+    footer .btn.btn-outline-secondary:hover,
+    .finance-top-actions .btn.btn-outline-secondary:focus,
+    .container-fluid.pb-4 .btn.btn-outline-secondary:focus,
+    #financeQuickActionsMenu .btn.btn-outline-secondary:focus,
+    #financeHelpChatPanel .btn.btn-outline-secondary:focus,
+    footer .btn.btn-outline-secondary:focus {
+      color: #0f172a;
+      border-color: #cbd5e1;
+      background: #f8fafc;
+      box-shadow: 0 0 0 .12rem rgba(148, 163, 184, 0.2);
+    }
+
+    .finance-top-actions .btn.btn-outline-success:hover,
+    .container-fluid.pb-4 .btn.btn-outline-success:hover,
+    #financeQuickActionsMenu .btn.btn-outline-success:hover,
+    #financeHelpChatPanel .btn.btn-outline-success:hover,
+    footer .btn.btn-outline-success:hover,
+    .finance-top-actions .btn.btn-outline-success:focus,
+    .container-fluid.pb-4 .btn.btn-outline-success:focus,
+    #financeQuickActionsMenu .btn.btn-outline-success:focus,
+    #financeHelpChatPanel .btn.btn-outline-success:focus,
+    footer .btn.btn-outline-success:focus {
+      color: #166534;
+      border-color: #86efac;
+      background: #f0fdf4;
+      box-shadow: 0 0 0 .12rem rgba(74, 222, 128, 0.2);
+    }
+
+    .finance-top-actions .btn.btn-outline-warning:hover,
+    .container-fluid.pb-4 .btn.btn-outline-warning:hover,
+    #financeQuickActionsMenu .btn.btn-outline-warning:hover,
+    #financeHelpChatPanel .btn.btn-outline-warning:hover,
+    footer .btn.btn-outline-warning:hover,
+    .finance-top-actions .btn.btn-outline-warning:focus,
+    .container-fluid.pb-4 .btn.btn-outline-warning:focus,
+    #financeQuickActionsMenu .btn.btn-outline-warning:focus,
+    #financeHelpChatPanel .btn.btn-outline-warning:focus,
+    footer .btn.btn-outline-warning:focus {
+      color: #854d0e;
+      border-color: #fcd34d;
+      background: #fffbeb;
+      box-shadow: 0 0 0 .12rem rgba(251, 191, 36, 0.2);
+    }
+
+    .finance-top-actions .btn.btn-outline-danger:hover,
+    .container-fluid.pb-4 .btn.btn-outline-danger:hover,
+    #financeQuickActionsMenu .btn.btn-outline-danger:hover,
+    #financeHelpChatPanel .btn.btn-outline-danger:hover,
+    footer .btn.btn-outline-danger:hover,
+    .finance-top-actions .btn.btn-outline-danger:focus,
+    .container-fluid.pb-4 .btn.btn-outline-danger:focus,
+    #financeQuickActionsMenu .btn.btn-outline-danger:focus,
+    #financeHelpChatPanel .btn.btn-outline-danger:focus,
+    footer .btn.btn-outline-danger:focus {
+      color: #9f1239;
+      border-color: #fda4af;
+      background: #fff1f2;
+      box-shadow: 0 0 0 .12rem rgba(251, 113, 133, 0.2);
+    }
+
     #financeQuickActionsMenu .btn {
       display: inline-flex;
       align-items: center;

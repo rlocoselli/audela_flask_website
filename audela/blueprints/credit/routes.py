@@ -7,10 +7,13 @@ import ast
 import csv
 import io
 import calendar
+import math
+import ipaddress
 import json
 import re
 import requests
-from urllib.parse import parse_qs, urlencode
+from difflib import SequenceMatcher
+from urllib.parse import parse_qs, urlencode, urlparse
 from html import escape as html_escape
 from html import unescape as html_unescape
 
@@ -2709,26 +2712,108 @@ def _mapping_from_form(form, prefix: str = "map_") -> dict[str, str]:
     return out
 
 
-def _extract_pdf_text(pdf_bytes: bytes, max_chars: int = 24000) -> str:
+def _extract_pdf_text(
+    pdf_bytes: bytes,
+    max_chars: int | None = None,
+    max_pages_text: int | None = None,
+    max_pages_ocr: int = 12,
+) -> str:
     try:
         import pdfplumber
     except Exception:
-        return ""
+        pdfplumber = None  # type: ignore[assignment]
 
     chunks: list[str] = []
+    total_len = 0
+    hard_cap = int(max_chars) if isinstance(max_chars, int) and max_chars > 0 else None
+    if pdfplumber is not None:
+        try:
+            with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+                pages = pdf.pages if not max_pages_text or max_pages_text <= 0 else pdf.pages[:max_pages_text]
+                for page in pages:
+                    txt = (page.extract_text() or "").strip()
+                    if txt:
+                        chunks.append(txt)
+                        total_len += len(txt)
+                    if hard_cap and total_len >= hard_cap:
+                        break
+        except Exception:
+            pass
+
+    out = "\n".join(chunks)
+    if out.strip():
+        return out[:hard_cap] if hard_cap else out
+
+    # OCR fallback for scanned/image-based PDFs.
     try:
-        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-            for page in pdf.pages[:30]:
-                txt = (page.extract_text() or "").strip()
-                if txt:
-                    chunks.append(txt)
-                if sum(len(c) for c in chunks) >= max_chars:
-                    break
+        from pdf2image import convert_from_bytes
+        import pytesseract
+
+        ocr_chunks: list[str] = []
+        last_page = int(max_pages_ocr) if isinstance(max_pages_ocr, int) and max_pages_ocr > 0 else 12
+        images = convert_from_bytes(pdf_bytes, first_page=1, last_page=last_page, dpi=180)
+        ocr_len = 0
+        for img in images:
+            txt = (pytesseract.image_to_string(img) or "").strip()
+            if txt:
+                ocr_chunks.append(txt)
+                ocr_len += len(txt)
+            if hard_cap and ocr_len >= hard_cap:
+                break
+        ocr_text = "\n".join(ocr_chunks)
+        return ocr_text[:hard_cap] if hard_cap else ocr_text
     except Exception:
         return ""
 
-    out = "\n".join(chunks)
-    return out[:max_chars]
+
+def _chunk_text_for_ai(text: str, max_chunk_chars: int = 12000, overlap_chars: int = 350) -> list[str]:
+    src = str(text or "").strip()
+    if not src:
+        return []
+    if max_chunk_chars < 2000:
+        max_chunk_chars = 2000
+
+    lines = src.splitlines()
+    chunks: list[str] = []
+    current_lines: list[str] = []
+    current_len = 0
+
+    for raw_line in lines:
+        line = raw_line.rstrip()
+        add_len = len(line) + 1
+        if current_lines and (current_len + add_len) > max_chunk_chars:
+            chunk_text = "\n".join(current_lines).strip()
+            if chunk_text:
+                chunks.append(chunk_text)
+            if overlap_chars > 0 and chunk_text:
+                tail = chunk_text[-overlap_chars:]
+                current_lines = [tail]
+                current_len = len(tail)
+            else:
+                current_lines = []
+                current_len = 0
+
+        current_lines.append(line)
+        current_len += add_len
+
+    if current_lines:
+        chunk_text = "\n".join(current_lines).strip()
+        if chunk_text:
+            chunks.append(chunk_text)
+
+    if not chunks:
+        return [src]
+
+    # Guardrail for very large files: limit calls by regrouping contiguous chunks.
+    max_calls = 16
+    if len(chunks) <= max_calls:
+        return chunks
+
+    grouped: list[str] = []
+    size = int(math.ceil(len(chunks) / float(max_calls)))
+    for i in range(0, len(chunks), size):
+        grouped.append("\n\n".join(chunks[i : i + size]))
+    return grouped
 
 
 def _parse_first_json_object(text: str) -> dict | None:
@@ -2767,7 +2852,7 @@ def _ai_extract_financial_payload(pdf_text: str, lang: str | None = None) -> dic
         data_bundle={
             "question": "credit_pdf_spreading",
             "source": "credit_financial_statement_pdf",
-            "result": {"pdf_text": pdf_text[:18000]},
+            "result": {"pdf_text": pdf_text[:45000]},
         },
         user_message=prompt,
         lang=lang,
@@ -2781,6 +2866,79 @@ def _ai_extract_financial_payload(pdf_text: str, lang: str | None = None) -> dic
 
     raw = _parse_first_json_object(str(ai.get("raw") or ""))
     return raw if isinstance(raw, dict) else None
+
+
+def _heuristic_extract_financial_payload_from_pdf_text(pdf_text: str, company_name: str = "") -> dict | None:
+    text = str(pdf_text or "").strip()
+    if not text:
+        return None
+
+    lines = [ln.strip() for ln in text.splitlines() if ln and ln.strip()]
+    if not lines:
+        return None
+
+    def _line_number_candidate(line: str) -> Decimal | None:
+        tokens = re.findall(r"[-+]?\d[\d\s.,]{2,}", line)
+        best: Decimal | None = None
+        for token in tokens:
+            val = _parse_decimal_loose_optional(str(token).replace(" ", ""))
+            if val is None:
+                continue
+            if best is None or abs(val) > abs(best):
+                best = val
+        return best
+
+    def _find_value(keywords: tuple[str, ...]) -> Decimal | None:
+        for line in lines:
+            low = line.lower()
+            if any(k in low for k in keywords):
+                val = _line_number_candidate(line)
+                if val is not None:
+                    return val
+        return None
+
+    year_matches = re.findall(r"\b(20\d{2}|19\d{2})\b", text)
+    fiscal_year = date.today().year
+    if year_matches:
+        parsed_years = [int(y) for y in year_matches]
+        plausible = [y for y in parsed_years if 1900 <= y <= (date.today().year + 1)]
+        if plausible:
+            fiscal_year = max(plausible)
+
+    revenue = _find_value(("revenue", "turnover", "sales", "chiffre d'affaires", "ricavi"))
+    ebitda = _find_value(("ebitda",))
+    cash = _find_value(("cash", "cash and cash equivalents", "trésorerie", "cassa"))
+    net_income = _find_value(("net income", "net profit", "profit for the year", "resultat net", "utile netto"))
+    total_assets = _find_value(("total assets", "assets total", "totale attivo", "total actif"))
+    total_liabilities = _find_value(("total liabilities", "passivo", "total passif"))
+    equity = _find_value(("equity", "shareholders' equity", "patrimonio netto", "capitaux propres"))
+    total_debt = _find_value(("total debt", "financial debt", "debito finanziario", "dette financiere"))
+
+    if total_debt is None and total_liabilities is not None:
+        total_debt = total_liabilities
+
+    if all(v is None for v in (revenue, ebitda, cash, net_income, total_assets, total_liabilities, equity, total_debt)):
+        return None
+
+    return {
+        "company_name": str(company_name or "")[:220],
+        "period_label": "FY",
+        "fiscal_year": fiscal_year,
+        "confidence": 0.35,
+        "currency": "",
+        "statement": {
+            "revenue": _float_or_none(revenue),
+            "ebitda": _float_or_none(ebitda),
+            "cash": _float_or_none(cash),
+            "net_income": _float_or_none(net_income),
+            "total_assets": _float_or_none(total_assets),
+            "total_liabilities": _float_or_none(total_liabilities),
+            "equity": _float_or_none(equity),
+            "total_debt": _float_or_none(total_debt),
+            "spreading_status": "needs_review",
+        },
+        "line_items": [],
+    }
 
 
 def _credit_spreading_details_store(tenant: Tenant | None) -> dict[str, object]:
@@ -3335,51 +3493,137 @@ def _statement_values_from_ai_payload(payload: dict[str, object]) -> dict[str, o
 
 
 def _ai_extract_financial_payload_rich(company_name: str, pdf_text: str, lang: str | None = None) -> dict | None:
-    context = {
-        "company_name": str(company_name or "").strip(),
-        "pdf_text": (pdf_text or "")[:18000],
-        "has_pdf": bool((pdf_text or "").strip()),
-    }
-    prompt = (
-        "Extract one annual credit spreading package. Return ONLY valid JSON. "
-        "Schema: {company_name, period_label, fiscal_year, confidence, currency, statement, line_items}. "
-        "statement must include at least: revenue, ebitda, total_debt, cash, net_income, spreading_status, "
-        "and if available current_assets,total_assets,current_liabilities,total_liabilities,equity,receivables,inventory,interest_expense,ebit. "
-        "line_items must be an array of {label, category, subcategory, value}. "
-        "category values should be one of asset, liability, equity, income, expense, debt, cash, other. "
-        "If data is uncertain, still provide best estimate and set low confidence."
+    company = str(company_name or "").strip()
+    text = str(pdf_text or "").strip()
+    if not text:
+        return None
+
+    chunks = _chunk_text_for_ai(text, max_chunk_chars=12000, overlap_chars=350)
+    if not chunks:
+        return None
+    total_chunks = len(chunks)
+
+    segment_prompt = (
+        "You receive one segment of a financial PDF. "
+        "Extract only values explicitly found in this segment. Return ONLY valid JSON with schema: "
+        "{company_name, period_label, fiscal_year, confidence, currency, statement, line_items}. "
+        "statement can include: revenue, ebitda, total_debt, cash, net_income, spreading_status, "
+        "current_assets,total_assets,current_liabilities,total_liabilities,equity,receivables,inventory,interest_expense,ebit. "
+        "line_items is an array of {label, category, subcategory, value}. "
+        "If a field is absent in this segment, leave it null or omit it."
     )
 
-    ai = analyze_with_ai(
+    segment_payloads: list[dict] = []
+    for idx, chunk in enumerate(chunks, start=1):
+        ai = analyze_with_ai(
+            data_bundle={
+                "question": "credit_spreading_financials_pdf_segment",
+                "source": "credit_financial_spreading_pdf_chunk",
+                "result": {
+                    "company_name": company,
+                    "chunk_index": idx,
+                    "chunk_total": len(chunks),
+                    "pdf_text_chunk": chunk,
+                },
+            },
+            user_message=segment_prompt,
+            lang=lang,
+            extra_json_keys=["statement", "line_items", "company_name", "currency", "confidence", "period_label", "fiscal_year"],
+        )
+        if not isinstance(ai, dict):
+            continue
+
+        candidate: dict | None = None
+        if isinstance(ai.get("statement"), dict):
+            candidate = {
+                "company_name": ai.get("company_name") or company,
+                "currency": ai.get("currency"),
+                "confidence": ai.get("confidence"),
+                "period_label": ai.get("period_label"),
+                "fiscal_year": ai.get("fiscal_year"),
+                "statement": ai.get("statement"),
+                "line_items": ai.get("line_items") if isinstance(ai.get("line_items"), list) else [],
+            }
+        else:
+            parsed = _parse_first_json_object(str(ai.get("analysis") or ""))
+            if isinstance(parsed, dict):
+                candidate = parsed
+            else:
+                raw = _parse_first_json_object(str(ai.get("raw") or ""))
+                if isinstance(raw, dict):
+                    candidate = raw
+
+        if isinstance(candidate, dict):
+            candidate["chunk_index"] = idx
+            segment_payloads.append(candidate)
+
+    if not segment_payloads:
+        return None
+
+    if len(segment_payloads) == 1:
+        one = dict(segment_payloads[0])
+        one["ai_chunks_total"] = total_chunks
+        one["ai_chunks_usable"] = len(segment_payloads)
+        one["ai_strategy"] = "single_chunk"
+        return one
+
+    # Reduce pass: merge all chunk-level candidates into one annual package.
+    reduce_prompt = (
+        "You receive multiple partial extraction JSON payloads from different PDF segments for the same company. "
+        "Consolidate them into ONE final annual spreading payload. Return ONLY valid JSON with schema: "
+        "{company_name, period_label, fiscal_year, confidence, currency, statement, line_items}. "
+        "Rules: prefer consistent values repeated across segments; keep most plausible annual values; "
+        "deduplicate line_items by label; keep numeric values only."
+    )
+    reduced = analyze_with_ai(
         data_bundle={
-            "question": "credit_spreading_financials_company_or_pdf",
-            "source": "credit_financial_spreading",
-            "result": context,
+            "question": "credit_spreading_financials_pdf_reduce",
+            "source": "credit_financial_spreading_pdf_reduce",
+            "result": {
+                "company_name": company,
+                "segment_count": len(segment_payloads),
+                "segment_payloads": segment_payloads,
+            },
         },
-        user_message=prompt,
+        user_message=reduce_prompt,
         lang=lang,
         extra_json_keys=["statement", "line_items", "company_name", "currency", "confidence", "period_label", "fiscal_year"],
     )
-    if not isinstance(ai, dict):
-        return None
 
-    if isinstance(ai.get("statement"), dict):
-        payload = {
-            "company_name": ai.get("company_name") or context["company_name"],
-            "currency": ai.get("currency"),
-            "confidence": ai.get("confidence"),
-            "period_label": ai.get("period_label"),
-            "fiscal_year": ai.get("fiscal_year"),
-            "statement": ai.get("statement"),
-            "line_items": ai.get("line_items") if isinstance(ai.get("line_items"), list) else [],
+    if isinstance(reduced, dict) and isinstance(reduced.get("statement"), dict):
+        return {
+            "company_name": reduced.get("company_name") or company,
+            "currency": reduced.get("currency"),
+            "confidence": reduced.get("confidence"),
+            "period_label": reduced.get("period_label"),
+            "fiscal_year": reduced.get("fiscal_year"),
+            "statement": reduced.get("statement"),
+            "line_items": reduced.get("line_items") if isinstance(reduced.get("line_items"), list) else [],
+            "ai_chunks_total": total_chunks,
+            "ai_chunks_usable": len(segment_payloads),
+            "ai_strategy": "multi_chunk_reduce",
         }
-        return payload
 
-    parsed = _parse_first_json_object(str(ai.get("analysis") or ""))
+    parsed = _parse_first_json_object(str((reduced or {}).get("analysis") if isinstance(reduced, dict) else ""))
     if parsed and isinstance(parsed, dict):
+        parsed["ai_chunks_total"] = total_chunks
+        parsed["ai_chunks_usable"] = len(segment_payloads)
+        parsed["ai_strategy"] = "multi_chunk_reduce_parsed"
         return parsed
-    raw = _parse_first_json_object(str(ai.get("raw") or ""))
-    return raw if isinstance(raw, dict) else None
+
+    # Fallback: return most confident chunk output.
+    def _confidence_val(payload: dict) -> float:
+        try:
+            return float(payload.get("confidence") or 0)
+        except Exception:
+            return 0.0
+
+    segment_payloads.sort(key=_confidence_val, reverse=True)
+    best = dict(segment_payloads[0])
+    best["ai_chunks_total"] = total_chunks
+    best["ai_chunks_usable"] = len(segment_payloads)
+    best["ai_strategy"] = "multi_chunk_fallback_best"
+    return best
 
 
 def _resolve_borrower_for_ai_import(tenant_id: int, borrower_id: int | None, company_name: str) -> CreditBorrower | None:
@@ -3447,6 +3691,27 @@ def _ai_suggest_companies(query_text: str, lang: str | None = None) -> list[dict
     return out
 
 
+def _company_name_similarity_score(query_text: str, company_name: str) -> float:
+    query = re.sub(r"\s+", " ", str(query_text or "").strip().lower())
+    name = re.sub(r"\s+", " ", str(company_name or "").strip().lower())
+    if not query or not name:
+        return 0.0
+
+    ratio = SequenceMatcher(None, query, name).ratio()
+    query_tokens = [token for token in re.split(r"[^a-z0-9]+", query) if token]
+    name_tokens = [token for token in re.split(r"[^a-z0-9]+", name) if token]
+
+    token_overlap = 0.0
+    if query_tokens:
+        name_set = set(name_tokens)
+        token_overlap = sum(1 for token in query_tokens if token in name_set) / float(len(query_tokens))
+
+    starts_with_bonus = 0.1 if name.startswith(query) else 0.0
+    contains_bonus = 0.05 if query in name else 0.0
+    score = (ratio * 0.55) + (token_overlap * 0.35) + starts_with_bonus + contains_bonus
+    return min(1.0, max(0.0, score))
+
+
 def _ai_extract_company_statements(company_name: str, lang: str | None = None) -> dict | None:
     name = str(company_name or "").strip()
     if not name:
@@ -3456,10 +3721,11 @@ def _ai_extract_company_statements(company_name: str, lang: str | None = None) -
         "For the selected company, provide a compact structured spreading for recent fiscal years. "
         "Return ONLY JSON with keys: company_name, currency, confidence, statements. "
         "statements must be an array (max 5) sorted newest to oldest. "
-        "Each statement item: {period_label, fiscal_year, statement, line_items}. "
+        "Each statement item: {period_label, fiscal_year, source_url, source_name, statement, line_items}. "
         "statement should include revenue, ebitda, total_debt, cash, net_income, spreading_status and if available "
         "current_assets,total_assets,current_liabilities,total_liabilities,equity,receivables,inventory,interest_expense,ebit. "
-        "line_items should be list of {label, category, subcategory, value}."
+        "line_items should be list of {label, category, subcategory, value}. "
+        "source_url must be an official/public source URL (annual report, investor relations, regulator filing, exchange filing)."
     )
 
     ai = analyze_with_ai(
@@ -3490,6 +3756,59 @@ def _ai_extract_company_statements(company_name: str, lang: str | None = None) -
     if raw and isinstance(raw.get("statements"), list):
         return raw
     return None
+
+
+def _ai_enrich_statement_sources(
+    company_name: str,
+    periods: list[tuple[int, str]],
+    lang: str | None = None,
+) -> dict[str, dict[str, str]]:
+    name = str(company_name or "").strip()
+    if not name or not periods:
+        return {}
+
+    period_rows = [
+        {"fiscal_year": int(year), "period_label": str(label or "FY").strip().upper()}
+        for year, label in periods[:8]
+    ]
+
+    prompt = (
+        "For each requested period, provide an official source URL for financial statements. "
+        "Return ONLY JSON with key 'sources' as an array. "
+        "Each item must be: {fiscal_year, period_label, source_url, source_name, publisher}. "
+        "source_url should point to investor relations, annual report, exchange filing, or regulator filing."
+    )
+
+    ai = analyze_with_ai(
+        data_bundle={
+            "question": "credit_company_official_sources",
+            "source": "credit_company_source_enrichment",
+            "result": {
+                "company_name": name,
+                "periods": period_rows,
+            },
+        },
+        user_message=prompt,
+        lang=lang,
+        extra_json_keys=["sources"],
+    )
+    rows = ai.get("sources") if isinstance(ai, dict) and isinstance(ai.get("sources"), list) else []
+
+    out: dict[str, dict[str, str]] = {}
+    for row in rows[:16]:
+        if not isinstance(row, dict):
+            continue
+        fiscal_year = _to_int(str(row.get("fiscal_year") or ""))
+        period_label = str(row.get("period_label") or "FY").strip().upper() or "FY"
+        source_url = str(row.get("source_url") or "").strip()
+        if not fiscal_year:
+            continue
+        key = f"{fiscal_year}:{period_label}"
+        out[key] = {
+            "source_url": source_url[:500],
+            "source_name": str(row.get("source_name") or row.get("publisher") or "").strip()[:180],
+        }
+    return out
 
 
 _CREDIT_SYSTEM_ROLES: tuple[tuple[str, str], ...] = (
@@ -7139,6 +7458,8 @@ def financials():
     borrowers = CreditBorrower.query.filter_by(tenant_id=g.tenant.id).order_by(CreditBorrower.name.asc()).all()
     users = User.query.filter_by(tenant_id=g.tenant.id).order_by(User.email.asc()).all()
     functions = CreditAnalystFunction.query.filter_by(tenant_id=g.tenant.id).order_by(CreditAnalystFunction.label.asc()).all()
+    charts = CreditChartOfAccounts.query.filter_by(tenant_id=g.tenant.id).order_by(CreditChartOfAccounts.name.asc()).all()
+    default_grid_coa_id = _to_int(request.args.get("coa_id")) or (charts[0].id if charts else None)
     csv_templates = _financial_csv_templates(g.tenant)
     edit_statement_id = _to_int(request.args.get("statement_id")) if credit_mode == "edit" else None
 
@@ -7312,6 +7633,8 @@ def financials():
         selected_borrower_id=selected_borrower_id,
         users=users,
         functions=functions,
+        charts=charts,
+        default_grid_coa_id=default_grid_coa_id,
         edit_statement=edit_statement,
         financial_approval_info=financial_approval_info,
         csv_templates=csv_templates,
@@ -7333,9 +7656,73 @@ def financials_company_candidates_ai():
     if not query_text:
         return jsonify({"ok": False, "error": _("Company query is required."), "companies": []}), 400
 
-    companies = _ai_suggest_companies(query_text, getattr(g, "lang", None))
+    ai_companies = _ai_suggest_companies(query_text, getattr(g, "lang", None))
+    companies: list[dict[str, object]] = []
+    seen_names: set[str] = set()
+
+    for item in ai_companies:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        if not name:
+            continue
+        key = name.lower()
+        if key in seen_names:
+            continue
+        seen_names.add(key)
+        companies.append(
+            {
+                "name": name[:220],
+                "country": str(item.get("country") or "").strip()[:80],
+                "reason": str(item.get("reason") or "").strip()[:260],
+                "source": "ai",
+                "source_label": "AI",
+                "source_scope": "internet",
+                "score": round(_company_name_similarity_score(query_text, name), 4),
+            }
+        )
+
+    # Include tenant borrowers with similarity scoring (not only SQL contains).
+    local_rows = CreditBorrower.query.filter_by(tenant_id=g.tenant.id).order_by(CreditBorrower.name.asc()).limit(300).all()
+    ranked_local: list[tuple[float, str]] = []
+    for b in local_rows:
+        b_name = str(b.name or "").strip()
+        if not b_name:
+            continue
+        score = _company_name_similarity_score(query_text, b_name)
+        if score <= 0.10:
+            continue
+        ranked_local.append((score, b_name))
+
+    ranked_local.sort(key=lambda row: (row[0], row[1].lower()), reverse=True)
+    for score, b_name in ranked_local[:10]:
+        if b_name.lower() in seen_names:
+            continue
+        seen_names.add(b_name.lower())
+        companies.append(
+            {
+                "name": b_name[:220],
+                "country": "",
+                "reason": _("Existing borrower in your tenant"),
+                "source": "local",
+                "source_label": _("Borrower local"),
+                "source_scope": "tenant",
+                "score": round(score, 4),
+            }
+        )
+
+    companies.sort(
+        key=lambda row: (
+            float(row.get("score") or 0.0),
+            1 if str(row.get("source") or "") == "local" else 0,
+            str(row.get("name") or "").lower(),
+        ),
+        reverse=True,
+    )
+
+    companies = companies[:10]
     if not companies:
-        return jsonify({"ok": True, "companies": [], "message": _("No candidates found by AI.")})
+        return jsonify({"ok": True, "companies": [], "message": _("No candidates found.")})
     return jsonify({"ok": True, "companies": companies})
 
 
@@ -7464,6 +7851,9 @@ def financials_delete(statement_id: int):
     selected_borrower_id = _to_int(request.form.get("borrower_id"))
     db.session.query(CreditRatioSnapshot).filter_by(
         tenant_id=g.tenant.id,
+        statement_id=statement.id,
+    ).delete(synchronize_session=False)
+    db.session.query(CreditSpreadingLineValue).filter_by(
         statement_id=statement.id,
     ).delete(synchronize_session=False)
     _credit_spreading_details_delete(g.tenant, statement.id)
@@ -7675,7 +8065,7 @@ def financials_import_pdf_ai():
         if not pdf_bytes:
             flash(_("Unable to read PDF file."), "warning")
             return redirect(url_for("credit.financials", mode="add"))
-        pdf_text = _extract_pdf_text(pdf_bytes)
+        pdf_text = _extract_pdf_text(pdf_bytes, max_chars=None, max_pages_text=None, max_pages_ocr=30)
         if not pdf_text.strip() and not company_name:
             flash(_("No readable text found in PDF."), "warning")
             return redirect(url_for("credit.financials", mode="add"))
@@ -7689,6 +8079,9 @@ def financials_import_pdf_ai():
 
     statement_data = _statement_values_from_ai_payload(payload)
     confidence = statement_data.get("advanced", {}).get("confidence") if isinstance(statement_data.get("advanced"), dict) else None
+    ai_chunks_total = _to_int(str(payload.get("ai_chunks_total") or "")) if isinstance(payload, dict) else None
+    ai_chunks_usable = _to_int(str(payload.get("ai_chunks_usable") or "")) if isinstance(payload, dict) else None
+    ai_strategy = str(payload.get("ai_strategy") or "").strip()[:64] if isinstance(payload, dict) else ""
 
     statement = CreditFinancialStatement(
         tenant_id=g.tenant.id,
@@ -7725,6 +8118,9 @@ def financials_import_pdf_ai():
                 "totals": advanced_payload.get("totals") if isinstance(advanced_payload.get("totals"), dict) else {},
                 "ratios": advanced_payload.get("ratios") if isinstance(advanced_payload.get("ratios"), dict) else {},
                 "created_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+                "ai_chunks_total": ai_chunks_total,
+                "ai_chunks_usable": ai_chunks_usable,
+                "ai_strategy": ai_strategy,
             },
         )
 
@@ -7732,9 +8128,30 @@ def financials_import_pdf_ai():
     db.session.commit()
 
     if confidence is None:
-        flash(_("AI PDF import completed."), "success")
+        if ai_chunks_total and ai_chunks_total > 1:
+            flash(
+                _(
+                    "AI PDF import completed (segments analyzed: {total}, usable: {usable}).",
+                    total=ai_chunks_total,
+                    usable=(ai_chunks_usable or 0),
+                ),
+                "success",
+            )
+        else:
+            flash(_("AI PDF import completed."), "success")
     else:
-        flash(_("AI PDF import completed (confidence: {value}).", value=confidence), "success")
+        if ai_chunks_total and ai_chunks_total > 1:
+            flash(
+                _(
+                    "AI PDF import completed (confidence: {value}, segments analyzed: {total}, usable: {usable}).",
+                    value=confidence,
+                    total=ai_chunks_total,
+                    usable=(ai_chunks_usable or 0),
+                ),
+                "success",
+            )
+        else:
+            flash(_("AI PDF import completed (confidence: {value}).", value=confidence), "success")
     return redirect(url_for("credit.financials", mode="search", borrower_id=borrower.id))
 
 
@@ -11981,6 +12398,147 @@ def api_borrowers():
     ])
 
 
+def _normalize_financial_key(raw: object) -> str:
+    token = re.sub(r"[^a-z0-9]+", "_", str(raw or "").strip().lower())
+    return token.strip("_")
+
+
+def _build_statement_grid_values(
+    lines: list[CreditAccountLine],
+    val_lookup: dict[tuple[int, int], Decimal | None],
+    statement_id: int,
+) -> tuple[dict[int, Decimal | None], dict[str, float]]:
+    row_values: dict[int, Decimal | None] = {}
+    code_vals: dict[str, float] = {}
+
+    for line in lines:
+        value: Decimal | None = None
+        if line.line_type == "data":
+            value = val_lookup.get((statement_id, line.id))
+        elif line.line_type in ("formula", "total") and line.formula_expr:
+            try:
+                result = eval(line.formula_expr, {"__builtins__": {}}, code_vals)  # noqa: S307
+                value = Decimal(str(result))
+            except Exception:
+                value = None
+
+        row_values[int(line.id)] = value
+        if line.code and value is not None:
+            try:
+                code_vals[str(line.code)] = float(value)
+            except Exception:
+                pass
+
+    return row_values, code_vals
+
+
+def _extract_statement_totals_from_code_vals(code_vals: dict[str, float]) -> dict[str, Decimal | None]:
+    norm: dict[str, Decimal] = {}
+    for key, value in code_vals.items():
+        nkey = _normalize_financial_key(key)
+        if not nkey:
+            continue
+        try:
+            norm[nkey] = Decimal(str(value))
+        except Exception:
+            continue
+
+    def pick(*candidates: str) -> Decimal | None:
+        for candidate in candidates:
+            found = norm.get(candidate)
+            if found is not None:
+                return found
+        return None
+
+    total_debt = pick("total_debt", "total_debt_re", "debt_total")
+    if total_debt is None:
+        st_debt = pick("st_debt", "short_term_debt", "debt_short_term")
+        lt_debt = pick("lt_debt", "long_term_debt", "debt_long_term")
+        if st_debt is not None or lt_debt is not None:
+            total_debt = (st_debt or Decimal("0")) + (lt_debt or Decimal("0"))
+
+    return {
+        "revenue": pick("rev_total", "revenue", "net_sales", "sales", "turnover", "gross_income", "rental_income"),
+        "ebitda": pick("ebitda", "ebitda_retail", "noi"),
+        "total_debt": total_debt,
+        "cash": pick("cash", "cash_equivalents", "cash_and_equivalents"),
+        "net_income": pick("net_income", "net_profit", "profit"),
+    }
+
+
+def _sync_statement_totals_and_ratios(statement: CreditFinancialStatement, code_vals: dict[str, float]) -> bool:
+    mapped = _extract_statement_totals_from_code_vals(code_vals)
+    changed = False
+
+    for field_name, value in mapped.items():
+        if value is None:
+            continue
+        rounded = value.quantize(Decimal("0.01"))
+        if getattr(statement, field_name) != rounded:
+            setattr(statement, field_name, rounded)
+            changed = True
+
+    if changed:
+        db.session.query(CreditRatioSnapshot).filter_by(
+            tenant_id=statement.tenant_id,
+            statement_id=statement.id,
+        ).delete(synchronize_session=False)
+        _create_ratio_snapshot_for_statement(statement)
+
+    return changed
+
+
+def _as_decimal_optional(value: object) -> Decimal | None:
+    if value is None:
+        return None
+    if isinstance(value, Decimal):
+        return value
+    try:
+        return Decimal(str(value))
+    except Exception:
+        return None
+
+
+def _pick_ai_value_for_line(line: CreditAccountLine, source_values: dict[str, Decimal | None]) -> Decimal | None:
+    code_key = _normalize_financial_key(line.code)
+    if code_key:
+        direct = source_values.get(code_key)
+        if direct is not None:
+            return direct
+
+    label_key = _normalize_financial_key(line.label)
+    if not label_key:
+        return None
+
+    checks: list[tuple[tuple[str, ...], str]] = [
+        (("net", "income"), "net_income"),
+        (("ebitda",), "ebitda"),
+        (("short", "debt"), "st_debt"),
+        (("long", "debt"), "lt_debt"),
+        (("total", "debt"), "total_debt"),
+        (("cash",), "cash"),
+        (("equity",), "equity"),
+        (("receivable",), "receivables"),
+        (("inventor",), "inventories"),
+        (("current", "asset"), "current_assets"),
+        (("total", "asset"), "total_assets"),
+        (("interest",), "finance_costs"),
+        (("finance", "cost"), "finance_costs"),
+        (("ebit",), "ebit"),
+        (("revenue",), "rev_total"),
+        (("sales",), "net_sales"),
+        (("turnover",), "revenue"),
+        (("gross", "income"), "rev_total"),
+    ]
+
+    for needles, key in checks:
+        if all(token in label_key for token in needles):
+            guessed = source_values.get(key)
+            if guessed is not None:
+                return guessed
+    return None
+
+
 @bp.route("/financials-grid", methods=["GET", "POST"])
 @login_required
 def financials_grid():
@@ -11993,14 +12551,139 @@ def financials_grid():
     selected_borrower_id = _to_int(request.values.get("borrower_id")) or None
     selected_coa_id = _to_int(request.values.get("coa_id")) or None
     selected_borrower = None
+    internet_flow_enabled = False
     if selected_borrower_id:
         selected_borrower = CreditBorrower.query.filter_by(id=selected_borrower_id, tenant_id=tid).first()
 
+    def _is_disallowed_source_host(host: str) -> bool:
+        value = str(host or "").strip().lower().split(":", 1)[0]
+        if not value:
+            return True
+        if value in {"localhost", "127.0.0.1", "::1"}:
+            return True
+        if value.endswith(".local") or value.endswith(".internal"):
+            return True
+        try:
+            addr = ipaddress.ip_address(value)
+            return bool(
+                addr.is_private
+                or addr.is_loopback
+                or addr.is_link_local
+                or addr.is_reserved
+                or addr.is_multicast
+            )
+        except ValueError:
+            return False
+
+    def _assess_source_url_reliability(company: str, source_url: str) -> tuple[str, str, str, str]:
+        url = str(source_url or "").strip()
+        if not url:
+            return "medium", "", "", _("No source URL provided by AI; verification fallback was used.")
+
+        try:
+            parsed = urlparse(url)
+        except Exception:
+            return "low", "", "", _("Invalid source URL format.")
+
+        host = str(parsed.netloc or "").strip().lower().split(":", 1)[0]
+        if parsed.scheme not in {"http", "https"}:
+            return "low", "", host, _("Unsupported source URL scheme.")
+        if _is_disallowed_source_host(host):
+            return "low", "", host, _("Source host is not allowed for verification.")
+
+        blocked_hosts = {
+            "facebook.com",
+            "www.facebook.com",
+            "instagram.com",
+            "www.instagram.com",
+            "youtube.com",
+            "www.youtube.com",
+            "x.com",
+            "twitter.com",
+            "www.twitter.com",
+            "wikipedia.org",
+            "www.wikipedia.org",
+        }
+        if host in blocked_hosts:
+            return "low", "", host, _("Source host is not considered an official financial source.")
+
+        company_tokens = [
+            token for token in re.split(r"[^a-z0-9]+", str(company or "").lower())
+            if len(token) >= 4
+        ]
+        token_match = any(token in host for token in company_tokens)
+        financial_path = (parsed.path or "").lower()
+        finance_hint = any(tag in financial_path for tag in ("investor", "financial", "annual", "report", "filing"))
+
+        try:
+            resp = requests.get(
+                url,
+                timeout=6,
+                allow_redirects=True,
+                headers={"User-Agent": "Mozilla/5.0 (compatible; AudelaCreditBot/1.0)"},
+                stream=True,
+            )
+            final_url = str(resp.url or url)
+            final_host = str(urlparse(final_url).netloc or host).split(":", 1)[0].lower()
+            code = int(resp.status_code or 0)
+            resp.close()
+            if code < 200 or code >= 400:
+                if code in {401, 403, 429} and (token_match or finance_hint):
+                    return "medium", url[:500], final_host, _("Source host appears official but blocks automated verification (HTTP {code}).", code=code)
+                return "low", "", final_host, _("Source URL returned HTTP status {code}.", code=code)
+
+            if token_match or finance_hint:
+                return "high", final_url[:500], final_host, _("Source URL reachable and plausibly official.")
+            return "medium", final_url[:500], final_host, _("Source URL reachable but official match is uncertain.")
+        except Exception:
+            if token_match or finance_hint:
+                return "medium", url[:500], host, _("Source URL format looks relevant but could not be verified online.")
+            return "low", "", host, _("Could not verify source URL reliability.")
+
+    def _extract_statement_source_meta(row: dict | None) -> tuple[str, str]:
+        if not isinstance(row, dict):
+            return "", ""
+        source_url = ""
+        for key in ("source_url", "official_url", "filing_url", "url", "source_link"):
+            candidate = str(row.get(key) or "").strip()
+            if candidate.lower().startswith(("http://", "https://")):
+                source_url = candidate[:500]
+                break
+        if not source_url and isinstance(row.get("source"), dict):
+            nested = row.get("source") or {}
+            for key in ("url", "source_url", "official_url", "link"):
+                candidate = str(nested.get(key) or "").strip()
+                if candidate.lower().startswith(("http://", "https://")):
+                    source_url = candidate[:500]
+                    break
+        source_label = ""
+        for key in ("source_title", "source_name", "source_label", "publisher", "filing_name"):
+            candidate = str(row.get(key) or "").strip()
+            if candidate:
+                source_label = candidate[:180]
+                break
+        if not source_label and isinstance(row.get("source"), dict):
+            nested = row.get("source") or {}
+            for key in ("title", "name", "label", "publisher"):
+                candidate = str(nested.get(key) or "").strip()
+                if candidate:
+                    source_label = candidate[:180]
+                    break
+        if not source_label and source_url:
+            try:
+                source_label = (urlparse(source_url).netloc or source_url)[:180]
+            except Exception:
+                source_label = source_url[:180]
+        return source_url, source_label
+
     if request.method == "POST":
         payload = request.get_json(silent=True)
+        if payload and str(payload.get("action") or "").startswith("ai_") and not internet_flow_enabled:
+            return jsonify({"ok": False, "error": _("Internet flow is disabled. Use PDF import for reliable mapping.")}), 400
         if payload and payload.get("action") == "save_cell":
             stmt_id = int(payload.get("statement_id", 0))
             line_id = int(payload.get("line_id", 0))
+            coa_id = _to_int(str(payload.get("coa_id") or ""))
             raw_val = payload.get("value", "")
             stmt = CreditFinancialStatement.query.filter_by(id=stmt_id, tenant_id=tid).first_or_404()
             line = CreditAccountLine.query.filter_by(id=line_id).first_or_404()
@@ -12015,8 +12698,693 @@ def financials_grid():
                 existing.value = val
             else:
                 db.session.add(CreditSpreadingLineValue(statement_id=stmt_id, line_id=line_id, value=val))
+
+            recalc_values: dict[str, float | None] = {}
+            if coa_id:
+                coa_for_sync = CreditChartOfAccounts.query.filter_by(id=coa_id, tenant_id=tid).first()
+                if coa_for_sync:
+                    lines_for_sync = coa_for_sync.lines.order_by(CreditAccountLine.sort_order).all()
+                    sync_line_ids = [l.id for l in lines_for_sync]
+                    raw_sync_values = CreditSpreadingLineValue.query.filter(
+                        CreditSpreadingLineValue.statement_id == stmt.id,
+                        CreditSpreadingLineValue.line_id.in_(sync_line_ids),
+                    ).all() if sync_line_ids else []
+                    sync_lookup: dict[tuple[int, int], Decimal | None] = {
+                        (v.statement_id, v.line_id): v.value for v in raw_sync_values
+                    }
+                    row_values, code_vals = _build_statement_grid_values(lines_for_sync, sync_lookup, stmt.id)
+                    _sync_statement_totals_and_ratios(stmt, code_vals)
+                    recalc_values = {
+                        str(lid): (float(v) if v is not None else None)
+                        for lid, v in row_values.items()
+                    }
+
             db.session.commit()
-            return jsonify({"ok": True})
+            return jsonify(
+                {
+                    "ok": True,
+                    "recalculated": recalc_values,
+                    "statement_totals": {
+                        "revenue": float(stmt.revenue or 0),
+                        "ebitda": float(stmt.ebitda or 0),
+                        "total_debt": float(stmt.total_debt or 0),
+                        "cash": float(stmt.cash or 0),
+                        "net_income": float(stmt.net_income or 0),
+                    },
+                }
+            )
+
+        if payload and payload.get("action") == "ai_periods_preview":
+            borrower_id = _to_int(str(payload.get("borrower_id") or ""))
+            coa_id = _to_int(str(payload.get("coa_id") or ""))
+            company_name = str(payload.get("company_name") or "").strip()
+            if not borrower_id or not coa_id or not company_name:
+                return jsonify({"ok": False, "error": _("Borrower, chart and company name are required.")}), 400
+
+            borrower = CreditBorrower.query.filter_by(id=borrower_id, tenant_id=tid).first()
+            coa_for_ai = CreditChartOfAccounts.query.filter_by(id=coa_id, tenant_id=tid).first()
+            if not borrower or not coa_for_ai:
+                return jsonify({"ok": False, "error": _("Invalid borrower or chart.")}), 400
+
+            try:
+                ai_payload = _ai_extract_company_statements(company_name, getattr(g, "lang", None))
+                ai_rows = ai_payload.get("statements") if isinstance(ai_payload, dict) and isinstance(ai_payload.get("statements"), list) else []
+
+                # Fallback when the model returns only one statement payload format.
+                if not ai_rows:
+                    one_statement_payload = _ai_extract_financial_payload_rich(company_name, "", getattr(g, "lang", None))
+                    if isinstance(one_statement_payload, dict) and isinstance(one_statement_payload.get("statement"), dict):
+                        ai_rows = [
+                            {
+                                "period_label": one_statement_payload.get("period_label"),
+                                "fiscal_year": one_statement_payload.get("fiscal_year"),
+                                "statement": one_statement_payload.get("statement"),
+                                "line_items": one_statement_payload.get("line_items") if isinstance(one_statement_payload.get("line_items"), list) else [],
+                                "currency": one_statement_payload.get("currency"),
+                                "confidence": one_statement_payload.get("confidence"),
+                            }
+                        ]
+
+                if ai_rows:
+                    requested_periods = []
+                    for raw_row in ai_rows[:8]:
+                        if not isinstance(raw_row, dict):
+                            continue
+                        parsed = _statement_values_from_ai_payload(raw_row)
+                        fy = int(parsed.get("fiscal_year") or date.today().year)
+                        pl = str(parsed.get("period_label") or "FY").strip().upper() or "FY"
+                        requested_periods.append((fy, pl))
+                    source_fallbacks = _ai_enrich_statement_sources(company_name, requested_periods, getattr(g, "lang", None))
+                    if source_fallbacks:
+                        for raw_row in ai_rows:
+                            if not isinstance(raw_row, dict):
+                                continue
+                            parsed = _statement_values_from_ai_payload(raw_row)
+                            fy = int(parsed.get("fiscal_year") or date.today().year)
+                            pl = str(parsed.get("period_label") or "FY").strip().upper() or "FY"
+                            key = f"{fy}:{pl}"
+                            if str(raw_row.get("source_url") or "").strip():
+                                continue
+                            fallback = source_fallbacks.get(key)
+                            if not fallback:
+                                continue
+                            raw_row["source_url"] = fallback.get("source_url")
+                            if not str(raw_row.get("source_name") or "").strip() and fallback.get("source_name"):
+                                raw_row["source_name"] = fallback.get("source_name")
+            except Exception:
+                return jsonify({"ok": False, "error": _("Internet lookup failed. Verify AI provider credentials and retry.")}), 502
+
+            if not ai_rows:
+                return jsonify({"ok": False, "error": _("AI did not return usable statements.")}), 400
+
+            existing = (
+                CreditFinancialStatement.query
+                .filter_by(tenant_id=tid, borrower_id=borrower.id)
+                .order_by(CreditFinancialStatement.fiscal_year, CreditFinancialStatement.period_label)
+                .all()
+            )
+            existing_by_key: dict[tuple[int, str], CreditFinancialStatement] = {
+                (int(s.fiscal_year), str(s.period_label or "FY").strip().upper()): s
+                for s in existing
+            }
+
+            period_map: dict[str, dict[str, object]] = {}
+            for raw_row in ai_rows[:8]:
+                if not isinstance(raw_row, dict):
+                    continue
+                parsed = _statement_values_from_ai_payload(raw_row)
+                fiscal_year = int(parsed.get("fiscal_year") or date.today().year)
+                period_label = str(parsed.get("period_label") or "FY").strip() or "FY"
+                period_key = f"{fiscal_year}:{period_label.upper()}"
+                existing_stmt = existing_by_key.get((fiscal_year, period_label.upper()))
+                source_url, source_label = _extract_statement_source_meta(raw_row)
+                source_reliability, verified_source_url, source_host, source_note = _assess_source_url_reliability(company_name, source_url)
+                period_map[period_key] = {
+                    "key": period_key,
+                    "fiscal_year": fiscal_year,
+                    "period_label": period_label,
+                    "title": f"{period_label} {fiscal_year}",
+                    "exists": bool(existing_stmt),
+                    "existing_status": str(existing_stmt.spreading_status or "") if existing_stmt else "",
+                    "existing_source": str(existing_stmt.import_source or "") if existing_stmt else "",
+                    "internet_source": source_label or source_host or "internet_ai",
+                    "source_url": verified_source_url,
+                    "source_reliability": source_reliability,
+                    "source_note": source_note,
+                }
+
+            periods = list(period_map.values())
+            periods.sort(key=lambda p: (int(p.get("fiscal_year") or 0), str(p.get("period_label") or "")), reverse=True)
+
+            return jsonify(
+                {
+                    "ok": True,
+                    "company_name": (ai_payload or {}).get("company_name") if isinstance(ai_payload, dict) else company_name,
+                    "currency": (ai_payload or {}).get("currency") if isinstance(ai_payload, dict) else None,
+                    "confidence": (ai_payload or {}).get("confidence") if isinstance(ai_payload, dict) else None,
+                    "periods": periods,
+                }
+            )
+
+        if payload and payload.get("action") == "ai_autofill":
+            borrower_id = _to_int(str(payload.get("borrower_id") or ""))
+            coa_id = _to_int(str(payload.get("coa_id") or ""))
+            company_name = str(payload.get("company_name") or "").strip()
+            raw_unit_scale = _to_int(str(payload.get("unit_scale") or "")) or 1
+            unit_scale = raw_unit_scale if raw_unit_scale in {1, 10, 100, 1000, 1000000} else 1
+            selected_currency = str(payload.get("currency") or "").strip().upper()[:12]
+            if not borrower_id or not coa_id or not company_name:
+                return jsonify({"ok": False, "error": _("Borrower, chart and company name are required.")}), 400
+
+            borrower = CreditBorrower.query.filter_by(id=borrower_id, tenant_id=tid).first()
+            coa_for_ai = CreditChartOfAccounts.query.filter_by(id=coa_id, tenant_id=tid).first()
+            if not borrower or not coa_for_ai:
+                return jsonify({"ok": False, "error": _("Invalid borrower or chart.")}), 400
+
+            ai_payload = _ai_extract_company_statements(company_name, getattr(g, "lang", None))
+            ai_rows = ai_payload.get("statements") if isinstance(ai_payload, dict) and isinstance(ai_payload.get("statements"), list) else []
+            if not ai_rows:
+                return jsonify({"ok": False, "error": _("AI did not return usable statements.")}), 400
+
+            requested_periods = []
+            for raw_row in ai_rows[:8]:
+                if not isinstance(raw_row, dict):
+                    continue
+                parsed = _statement_values_from_ai_payload(raw_row)
+                fy = int(parsed.get("fiscal_year") or date.today().year)
+                pl = str(parsed.get("period_label") or "FY").strip().upper() or "FY"
+                requested_periods.append((fy, pl))
+            source_fallbacks = _ai_enrich_statement_sources(company_name, requested_periods, getattr(g, "lang", None))
+            if source_fallbacks:
+                for raw_row in ai_rows:
+                    if not isinstance(raw_row, dict):
+                        continue
+                    parsed = _statement_values_from_ai_payload(raw_row)
+                    fy = int(parsed.get("fiscal_year") or date.today().year)
+                    pl = str(parsed.get("period_label") or "FY").strip().upper() or "FY"
+                    key = f"{fy}:{pl}"
+                    if str(raw_row.get("source_url") or "").strip():
+                        continue
+                    fallback = source_fallbacks.get(key)
+                    if not fallback:
+                        continue
+                    raw_row["source_url"] = fallback.get("source_url")
+                    if not str(raw_row.get("source_name") or "").strip() and fallback.get("source_name"):
+                        raw_row["source_name"] = fallback.get("source_name")
+
+            requested_period_keys = payload.get("selected_period_keys")
+            allowed_period_keys: set[str] | None = None
+            allowed_period_years: set[int] = set()
+            if isinstance(requested_period_keys, list):
+                parsed_keys = {
+                    str(k).strip().upper()
+                    for k in requested_period_keys
+                    if str(k or "").strip()
+                }
+                allowed_period_keys = parsed_keys if parsed_keys else set()
+                for key in parsed_keys:
+                    year_token = key.split(":", 1)[0].strip()
+                    year_val = _to_int(year_token)
+                    if year_val:
+                        allowed_period_years.add(year_val)
+
+            lines_for_ai = coa_for_ai.lines.order_by(CreditAccountLine.sort_order).all()
+            data_lines = [line for line in lines_for_ai if line.line_type == "data"]
+            if not data_lines:
+                return jsonify({"ok": False, "error": _("Selected chart has no input lines.")}), 400
+
+            statements = (
+                CreditFinancialStatement.query
+                .filter_by(tenant_id=tid, borrower_id=borrower.id)
+                .order_by(CreditFinancialStatement.fiscal_year, CreditFinancialStatement.period_label)
+                .all()
+            )
+            by_key: dict[tuple[int, str], CreditFinancialStatement] = {
+                (int(s.fiscal_year), str(s.period_label or "FY").strip().upper()): s
+                for s in statements
+            }
+
+            touched_statement_ids: set[int] = set()
+            statement_source_ref: dict[int, str] = {}
+            statement_options_ref: dict[int, dict[str, object]] = {}
+            created_periods = 0
+            updated_cells = 0
+            imported_periods = 0
+
+            scale_decimal = Decimal(str(unit_scale)) if unit_scale > 1 else Decimal("1")
+
+            def _apply_unit_scale(value: Decimal | None) -> Decimal | None:
+                if value is None:
+                    return None
+                try:
+                    return value / scale_decimal
+                except Exception:
+                    return value
+
+            for raw_row in ai_rows[:5]:
+                if not isinstance(raw_row, dict):
+                    continue
+                parsed = _statement_values_from_ai_payload(raw_row)
+                fiscal_year = int(parsed.get("fiscal_year") or date.today().year)
+                period_label = str(parsed.get("period_label") or "FY").strip() or "FY"
+                period_key = (fiscal_year, period_label.upper())
+                period_key_payload = f"{fiscal_year}:{period_label.upper()}"
+                if allowed_period_keys is not None:
+                    exact_match = period_key_payload.upper() in allowed_period_keys
+                    year_match = fiscal_year in allowed_period_years
+                    if not exact_match and not year_match:
+                        continue
+
+                statement = by_key.get(period_key)
+                if not statement:
+                    statement = CreditFinancialStatement(
+                        tenant_id=tid,
+                        borrower_id=borrower.id,
+                        period_label=period_label,
+                        fiscal_year=fiscal_year,
+                        revenue=Decimal("0"),
+                        ebitda=Decimal("0"),
+                        total_debt=Decimal("0"),
+                        cash=Decimal("0"),
+                        net_income=Decimal("0"),
+                        spreading_status="needs_review",
+                        imported_by_user_id=getattr(current_user, "id", None),
+                        import_source=f"grid_ai:{company_name[:96]}",
+                    )
+                    db.session.add(statement)
+                    db.session.flush()
+                    by_key[period_key] = statement
+                    created_periods += 1
+
+                source_url, source_label = _extract_statement_source_meta(raw_row)
+                source_reliability, verified_source_url, source_host, source_note = _assess_source_url_reliability(company_name, source_url)
+                source_host = ""
+                if verified_source_url:
+                    try:
+                        source_host = str(urlparse(verified_source_url).netloc or "").strip()
+                    except Exception:
+                        source_host = ""
+                if source_reliability == "low":
+                    statement_source_ref[int(statement.id)] = ("unverified:" + (source_label or company_name))[:72]
+                else:
+                    statement_source_ref[int(statement.id)] = (source_host or source_label or company_name)[:72]
+                statement_options_ref[int(statement.id)] = {
+                    "unit_scale": unit_scale,
+                    "currency": selected_currency,
+                    "source_url": verified_source_url,
+                    "source_label": source_label,
+                    "source_reliability": source_reliability,
+                    "source_note": source_note,
+                }
+
+                advanced = parsed.get("advanced") if isinstance(parsed.get("advanced"), dict) else {}
+                totals = advanced.get("totals") if isinstance(advanced.get("totals"), dict) else {}
+
+                source_values: dict[str, Decimal | None] = {
+                    "rev_total": _apply_unit_scale(_as_decimal_optional(parsed.get("revenue"))),
+                    "revenue": _apply_unit_scale(_as_decimal_optional(parsed.get("revenue"))),
+                    "net_sales": _apply_unit_scale(_as_decimal_optional(parsed.get("revenue"))),
+                    "ebitda": _apply_unit_scale(_as_decimal_optional(parsed.get("ebitda"))),
+                    "ebitda_retail": _apply_unit_scale(_as_decimal_optional(parsed.get("ebitda"))),
+                    "total_debt": _apply_unit_scale(_as_decimal_optional(parsed.get("total_debt"))),
+                    "total_debt_re": _apply_unit_scale(_as_decimal_optional(parsed.get("total_debt"))),
+                    "cash": _apply_unit_scale(_as_decimal_optional(parsed.get("cash"))),
+                    "net_income": _apply_unit_scale(_as_decimal_optional(parsed.get("net_income"))),
+                    "current_assets": _apply_unit_scale(_as_decimal_optional(totals.get("current_assets"))),
+                    "total_assets": _apply_unit_scale(_as_decimal_optional(totals.get("total_assets"))),
+                    "equity": _apply_unit_scale(_as_decimal_optional(totals.get("equity"))),
+                    "receivables": _apply_unit_scale(_as_decimal_optional(totals.get("receivables"))),
+                    "receivables_retail": _apply_unit_scale(_as_decimal_optional(totals.get("receivables"))),
+                    "inventories": _apply_unit_scale(_as_decimal_optional(totals.get("inventory"))),
+                    "inventories_retail": _apply_unit_scale(_as_decimal_optional(totals.get("inventory"))),
+                    "st_debt": _apply_unit_scale(_as_decimal_optional(totals.get("debt_short_term"))),
+                    "lt_debt": _apply_unit_scale(_as_decimal_optional(totals.get("debt_long_term"))),
+                    "ebit": _apply_unit_scale(_as_decimal_optional(totals.get("ebit"))),
+                    "finance_costs": _apply_unit_scale(_as_decimal_optional(totals.get("interest_expense"))),
+                }
+
+                for line in data_lines:
+                    line_value = _pick_ai_value_for_line(line, source_values)
+                    if line_value is None:
+                        continue
+                    existing = CreditSpreadingLineValue.query.filter_by(
+                        statement_id=statement.id,
+                        line_id=line.id,
+                    ).first()
+                    if existing:
+                        existing.value = line_value
+                    else:
+                        db.session.add(
+                            CreditSpreadingLineValue(
+                                statement_id=statement.id,
+                                line_id=line.id,
+                                value=line_value,
+                            )
+                        )
+                    updated_cells += 1
+
+                touched_statement_ids.add(int(statement.id))
+                imported_periods += 1
+
+            if not touched_statement_ids:
+                if allowed_period_keys is not None:
+                    return jsonify({"ok": False, "error": _("No selected period could be imported from AI output.")}), 400
+                return jsonify({"ok": False, "error": _("No period could be filled from AI output.")}), 400
+
+            ai_line_ids = [line.id for line in lines_for_ai]
+            raw_ai_values = CreditSpreadingLineValue.query.filter(
+                CreditSpreadingLineValue.statement_id.in_(list(touched_statement_ids)),
+                CreditSpreadingLineValue.line_id.in_(ai_line_ids),
+            ).all() if ai_line_ids else []
+            ai_lookup: dict[tuple[int, int], Decimal | None] = {
+                (v.statement_id, v.line_id): v.value for v in raw_ai_values
+            }
+
+            for statement_id in touched_statement_ids:
+                statement = CreditFinancialStatement.query.filter_by(id=statement_id, tenant_id=tid).first()
+                if not statement:
+                    continue
+                row_vals_unused, code_vals = _build_statement_grid_values(lines_for_ai, ai_lookup, statement_id)
+                _sync_statement_totals_and_ratios(statement, code_vals)
+                statement.spreading_status = "needs_review"
+                statement.imported_by_user_id = getattr(current_user, "id", None)
+                currency_tag = selected_currency or "auto"
+                source_ref = statement_source_ref.get(int(statement.id), company_name[:72])
+                statement.import_source = f"grid_ai:{source_ref}:{currency_tag}:u{unit_scale}"[:120]
+                _maybe_create_backlog_task_for_statement_spreading(statement, getattr(current_user, "id", None))
+
+            details_store = _credit_spreading_details_store(g.tenant)
+            for statement_id in touched_statement_ids:
+                merged = {}
+                existing_payload = details_store.get(str(int(statement_id)))
+                if isinstance(existing_payload, dict):
+                    merged.update(existing_payload)
+                merged.update(statement_options_ref.get(int(statement_id), {}))
+                _credit_spreading_details_set(g.tenant, int(statement_id), merged)
+
+            db.session.commit()
+            return jsonify(
+                {
+                    "ok": True,
+                    "message": _(
+                        "AI autofill completed: {cells} cells updated, {periods} periods imported, {created} new periods created.",
+                        cells=updated_cells,
+                        periods=imported_periods,
+                        created=created_periods,
+                    ),
+                }
+            )
+
+        if request.form.get("action") == "set_period_status":
+            statement_id = _to_int(request.form.get("statement_id"))
+            borrower_id = _to_int(request.form.get("borrower_id"))
+            coa_id = _to_int(request.form.get("coa_id"))
+            raw_status = str(request.form.get("spreading_status") or "").strip().lower()
+            status_map = {
+                "in_progress": "in_progress",
+                "in progress": "in_progress",
+                "review": "needs_review",
+                "needs_review": "needs_review",
+                "needs review": "needs_review",
+                "approved": "completed",
+                "done": "completed",
+                "completed": "completed",
+            }
+            next_status = status_map.get(raw_status)
+
+            statement = CreditFinancialStatement.query.filter_by(id=statement_id, tenant_id=tid).first() if statement_id else None
+            if not statement:
+                flash(_("Financial period not found."), "warning")
+            elif not next_status:
+                flash(_("Invalid period status."), "warning")
+            else:
+                statement.spreading_status = next_status
+                db.session.commit()
+                flash(_("Period status updated."), "success")
+
+            return redirect(url_for("credit.financials_grid", borrower_id=borrower_id or "", coa_id=coa_id or ""))
+
+        if request.form.get("action") == "delete_period":
+            statement_id = _to_int(request.form.get("statement_id"))
+            borrower_id = _to_int(request.form.get("borrower_id"))
+            coa_id = _to_int(request.form.get("coa_id"))
+
+            statement = CreditFinancialStatement.query.filter_by(id=statement_id, tenant_id=tid).first() if statement_id else None
+            if not statement:
+                flash(_("Financial period not found."), "warning")
+                return redirect(url_for("credit.financials_grid", borrower_id=borrower_id or "", coa_id=coa_id or ""))
+
+            db.session.query(CreditRatioSnapshot).filter_by(
+                tenant_id=tid,
+                statement_id=statement.id,
+            ).delete(synchronize_session=False)
+            db.session.query(CreditSpreadingLineValue).filter_by(
+                statement_id=statement.id,
+            ).delete(synchronize_session=False)
+            _credit_spreading_details_delete(g.tenant, statement.id)
+            db.session.delete(statement)
+            db.session.commit()
+            flash(_("Financial period deleted."), "success")
+            return redirect(url_for("credit.financials_grid", borrower_id=borrower_id or "", coa_id=coa_id or ""))
+
+        if request.form.get("action") == "set_period_options":
+            statement_id = _to_int(request.form.get("statement_id"))
+            borrower_id = _to_int(request.form.get("borrower_id"))
+            coa_id = _to_int(request.form.get("coa_id"))
+            unit_scale = _to_int(request.form.get("unit_scale")) or 1
+            currency = str(request.form.get("currency") or "").strip().upper()[:12]
+
+            if unit_scale not in {1, 10, 100, 1000, 1000000}:
+                unit_scale = 1
+
+            statement = CreditFinancialStatement.query.filter_by(id=statement_id, tenant_id=tid).first() if statement_id else None
+            if not statement:
+                flash(_("Financial period not found."), "warning")
+                return redirect(url_for("credit.financials_grid", borrower_id=borrower_id or "", coa_id=coa_id or ""))
+
+            details_store = _credit_spreading_details_store(g.tenant)
+            merged = {}
+            existing_payload = details_store.get(str(int(statement.id)))
+            if isinstance(existing_payload, dict):
+                merged.update(existing_payload)
+            merged["unit_scale"] = int(unit_scale)
+            merged["currency"] = currency
+            _credit_spreading_details_set(g.tenant, int(statement.id), merged)
+
+            flash(_("Period unit and currency saved."), "success")
+            return redirect(url_for("credit.financials_grid", borrower_id=borrower_id or "", coa_id=coa_id or ""))
+
+        if request.form.get("action") == "pdf_autofill":
+            borrower_id = _to_int(request.form.get("borrower_id"))
+            coa_id = _to_int(request.form.get("coa_id"))
+            unit_scale = _to_int(request.form.get("unit_scale")) or 1
+            currency = str(request.form.get("currency") or "").strip().upper()[:12]
+            period_label_form = str(request.form.get("period_label") or "").strip()
+            fiscal_year_form = _to_int(request.form.get("fiscal_year"))
+            company_name = str(request.form.get("company_name") or "").strip()
+            upload = request.files.get("pdf_file")
+
+            if unit_scale not in {1, 10, 100, 1000, 1000000}:
+                unit_scale = 1
+
+            if not borrower_id or not coa_id:
+                flash(_("Borrower and chart are required for PDF import."), "warning")
+                return redirect(url_for("credit.financials_grid", borrower_id=borrower_id or "", coa_id=coa_id or ""))
+
+            borrower = CreditBorrower.query.filter_by(id=borrower_id, tenant_id=tid).first()
+            coa_for_pdf = CreditChartOfAccounts.query.filter_by(id=coa_id, tenant_id=tid).first()
+            if not borrower or not coa_for_pdf:
+                flash(_("Invalid borrower or chart."), "warning")
+                return redirect(url_for("credit.financials_grid", borrower_id=borrower_id or "", coa_id=coa_id or ""))
+
+            if not upload or not upload.filename:
+                flash(_("Upload a PDF financial statement file."), "warning")
+                return redirect(url_for("credit.financials_grid", borrower_id=borrower_id, coa_id=coa_id))
+
+            pdf_bytes = upload.read() or b""
+            if not pdf_bytes:
+                flash(_("Unable to read PDF file."), "warning")
+                return redirect(url_for("credit.financials_grid", borrower_id=borrower_id, coa_id=coa_id))
+
+            pdf_text = _extract_pdf_text(pdf_bytes, max_chars=None, max_pages_text=None, max_pages_ocr=30)
+            if not pdf_text.strip():
+                flash(_("No readable text found in PDF."), "warning")
+                return redirect(url_for("credit.financials_grid", borrower_id=borrower_id, coa_id=coa_id))
+
+            company_ref = company_name or borrower.name
+            payload_pdf = _ai_extract_financial_payload_rich(company_ref, pdf_text, getattr(g, "lang", None))
+            if not payload_pdf:
+                payload_pdf = _ai_extract_financial_payload(pdf_text, getattr(g, "lang", None))
+            if not payload_pdf:
+                payload_pdf = _heuristic_extract_financial_payload_from_pdf_text(pdf_text, company_ref)
+            if not payload_pdf:
+                flash(_("Could not extract usable financial fields from PDF. Try a clearer PDF or set period/unit manually."), "warning")
+                return redirect(url_for("credit.financials_grid", borrower_id=borrower_id, coa_id=coa_id))
+
+            parsed = _statement_values_from_ai_payload(payload_pdf)
+            ai_chunks_total = _to_int(str(payload_pdf.get("ai_chunks_total") or "")) if isinstance(payload_pdf, dict) else None
+            ai_chunks_usable = _to_int(str(payload_pdf.get("ai_chunks_usable") or "")) if isinstance(payload_pdf, dict) else None
+            ai_strategy = str(payload_pdf.get("ai_strategy") or "").strip()[:64] if isinstance(payload_pdf, dict) else ""
+            period_label = period_label_form or str(parsed.get("period_label") or "FY").strip() or "FY"
+            fiscal_year = fiscal_year_form or int(parsed.get("fiscal_year") or date.today().year)
+
+            statement = (
+                CreditFinancialStatement.query
+                .filter_by(
+                    tenant_id=tid,
+                    borrower_id=borrower.id,
+                    fiscal_year=fiscal_year,
+                    period_label=period_label,
+                )
+                .first()
+            )
+            if not statement:
+                statement = CreditFinancialStatement(
+                    tenant_id=tid,
+                    borrower_id=borrower.id,
+                    period_label=period_label,
+                    fiscal_year=fiscal_year,
+                    revenue=Decimal("0"),
+                    ebitda=Decimal("0"),
+                    total_debt=Decimal("0"),
+                    cash=Decimal("0"),
+                    net_income=Decimal("0"),
+                    spreading_status="needs_review",
+                    imported_by_user_id=getattr(current_user, "id", None),
+                    import_source=f"pdf_ai:{str(upload.filename or 'upload.pdf')[:72]}",
+                )
+                db.session.add(statement)
+                db.session.flush()
+
+            scale_decimal = Decimal(str(unit_scale)) if unit_scale > 1 else Decimal("1")
+
+            def _apply_unit_scale(value: Decimal | None) -> Decimal | None:
+                if value is None:
+                    return None
+                try:
+                    return value / scale_decimal
+                except Exception:
+                    return value
+
+            advanced = parsed.get("advanced") if isinstance(parsed.get("advanced"), dict) else {}
+            totals = advanced.get("totals") if isinstance(advanced.get("totals"), dict) else {}
+            lines_for_pdf = coa_for_pdf.lines.order_by(CreditAccountLine.sort_order).all()
+            data_lines = [line for line in lines_for_pdf if line.line_type == "data"]
+            if not data_lines:
+                flash(_("Selected chart has no input lines."), "warning")
+                return redirect(url_for("credit.financials_grid", borrower_id=borrower_id, coa_id=coa_id))
+
+            source_values: dict[str, Decimal | None] = {
+                "rev_total": _apply_unit_scale(_as_decimal_optional(parsed.get("revenue"))),
+                "revenue": _apply_unit_scale(_as_decimal_optional(parsed.get("revenue"))),
+                "net_sales": _apply_unit_scale(_as_decimal_optional(parsed.get("revenue"))),
+                "ebitda": _apply_unit_scale(_as_decimal_optional(parsed.get("ebitda"))),
+                "ebitda_retail": _apply_unit_scale(_as_decimal_optional(parsed.get("ebitda"))),
+                "total_debt": _apply_unit_scale(_as_decimal_optional(parsed.get("total_debt"))),
+                "total_debt_re": _apply_unit_scale(_as_decimal_optional(parsed.get("total_debt"))),
+                "cash": _apply_unit_scale(_as_decimal_optional(parsed.get("cash"))),
+                "net_income": _apply_unit_scale(_as_decimal_optional(parsed.get("net_income"))),
+                "current_assets": _apply_unit_scale(_as_decimal_optional(totals.get("current_assets"))),
+                "total_assets": _apply_unit_scale(_as_decimal_optional(totals.get("total_assets"))),
+                "equity": _apply_unit_scale(_as_decimal_optional(totals.get("equity"))),
+                "receivables": _apply_unit_scale(_as_decimal_optional(totals.get("receivables"))),
+                "receivables_retail": _apply_unit_scale(_as_decimal_optional(totals.get("receivables"))),
+                "inventories": _apply_unit_scale(_as_decimal_optional(totals.get("inventory"))),
+                "inventories_retail": _apply_unit_scale(_as_decimal_optional(totals.get("inventory"))),
+                "st_debt": _apply_unit_scale(_as_decimal_optional(totals.get("debt_short_term"))),
+                "lt_debt": _apply_unit_scale(_as_decimal_optional(totals.get("debt_long_term"))),
+                "ebit": _apply_unit_scale(_as_decimal_optional(totals.get("ebit"))),
+                "finance_costs": _apply_unit_scale(_as_decimal_optional(totals.get("interest_expense"))),
+            }
+
+            updated_cells = 0
+            for line in data_lines:
+                line_value = _pick_ai_value_for_line(line, source_values)
+                if line_value is None:
+                    continue
+                existing_val = CreditSpreadingLineValue.query.filter_by(
+                    statement_id=statement.id,
+                    line_id=line.id,
+                ).first()
+                if existing_val:
+                    existing_val.value = line_value
+                else:
+                    db.session.add(
+                        CreditSpreadingLineValue(
+                            statement_id=statement.id,
+                            line_id=line.id,
+                            value=line_value,
+                        )
+                    )
+                updated_cells += 1
+
+            if updated_cells == 0:
+                flash(_("PDF parsed but no chart lines were matched. Review chart codes/labels and retry."), "warning")
+                return redirect(url_for("credit.financials_grid", borrower_id=borrower_id, coa_id=coa_id))
+
+            line_ids = [line.id for line in lines_for_pdf]
+            raw_values = CreditSpreadingLineValue.query.filter(
+                CreditSpreadingLineValue.statement_id == statement.id,
+                CreditSpreadingLineValue.line_id.in_(line_ids),
+            ).all() if line_ids else []
+            lookup: dict[tuple[int, int], Decimal | None] = {(v.statement_id, v.line_id): v.value for v in raw_values}
+            row_vals_unused, code_vals = _build_statement_grid_values(lines_for_pdf, lookup, statement.id)
+            _sync_statement_totals_and_ratios(statement, code_vals)
+            statement.spreading_status = "needs_review"
+            statement.imported_by_user_id = getattr(current_user, "id", None)
+            currency_tag = currency or "auto"
+            statement.import_source = f"pdf_ai:{str(upload.filename or 'upload.pdf')[:48]}:{currency_tag}:u{unit_scale}"[:120]
+
+            details_store = _credit_spreading_details_store(g.tenant)
+            merged_payload = {}
+            existing_payload = details_store.get(str(int(statement.id)))
+            if isinstance(existing_payload, dict):
+                merged_payload.update(existing_payload)
+            merged_payload.update(
+                {
+                    "unit_scale": unit_scale,
+                    "currency": currency,
+                    "company_name": company_ref[:220],
+                    "source": "pdf_ai",
+                    "source_name": str(upload.filename or "upload.pdf")[:180],
+                    "confidence": advanced.get("confidence") if isinstance(advanced, dict) else None,
+                    "line_items": advanced.get("line_items") if isinstance(advanced.get("line_items"), list) else [],
+                    "totals": advanced.get("totals") if isinstance(advanced.get("totals"), dict) else {},
+                    "ratios": advanced.get("ratios") if isinstance(advanced.get("ratios"), dict) else {},
+                    "ai_chunks_total": ai_chunks_total,
+                    "ai_chunks_usable": ai_chunks_usable,
+                    "ai_strategy": ai_strategy,
+                    "created_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+                }
+            )
+            _credit_spreading_details_set(g.tenant, int(statement.id), merged_payload)
+
+            _maybe_create_backlog_task_for_statement_spreading(statement, getattr(current_user, "id", None))
+            db.session.commit()
+
+            if ai_chunks_total and ai_chunks_total > 1:
+                flash(
+                    _(
+                        "PDF import completed: {cells} mapped cells for {period} {year}. Segments analyzed: {total}, usable: {usable}.",
+                        cells=updated_cells,
+                        period=period_label,
+                        year=fiscal_year,
+                        total=ai_chunks_total,
+                        usable=(ai_chunks_usable or 0),
+                    ),
+                    "success",
+                )
+            else:
+                flash(
+                    _(
+                        "PDF import completed: {cells} mapped cells for {period} {year}.",
+                        cells=updated_cells,
+                        period=period_label,
+                        year=fiscal_year,
+                    ),
+                    "success",
+                )
+            return redirect(url_for("credit.financials_grid", borrower_id=borrower_id, coa_id=coa_id))
 
         if request.form.get("action") == "add_period":
             borrower_id = _to_int(request.form.get("borrower_id"))
@@ -12054,6 +13422,8 @@ def financials_grid():
             .order_by(CreditFinancialStatement.fiscal_year, CreditFinancialStatement.period_label)
             .all()
         )
+
+    statement_period_options: dict[int, dict[str, object]] = _credit_spreading_details_for_rows(g.tenant, statements) if statements else {}
     if selected_coa_id:
         coa = CreditChartOfAccounts.query.filter_by(id=selected_coa_id, tenant_id=tid).first()
         if coa:
@@ -12067,30 +13437,12 @@ def financials_grid():
             CreditSpreadingLineValue.line_id.in_(line_ids),
         ).all()
         val_lookup: dict[tuple[int, int], Decimal | None] = {(v.statement_id, v.line_id): v.value for v in raw_values}
-
-        def _compute_row(line: CreditAccountLine, stmt_id: int, code_vals: dict[str, float]) -> Decimal | None:
-            if line.line_type == "data":
-                return val_lookup.get((stmt_id, line.id))
-            if line.line_type in ("formula", "total") and line.formula_expr:
-                try:
-                    result = eval(line.formula_expr, {"__builtins__": {}}, code_vals)  # noqa: S307
-                    return Decimal(str(result))
-                except Exception:
-                    return None
-            return None
-
         for stmt in statements:
-            code_vals: dict[str, float] = {}
-            for line in lines:
-                v = _compute_row(line, stmt.id, code_vals)
-                if line.code and v is not None:
-                    try:
-                        code_vals[line.code] = float(v)
-                    except Exception:
-                        pass
-                if line.id not in grid:
-                    grid[line.id] = {}
-                grid[line.id][stmt.id] = v
+            row_values, code_vals_unused = _build_statement_grid_values(lines, val_lookup, stmt.id)
+            for line_id, value in row_values.items():
+                if line_id not in grid:
+                    grid[line_id] = {}
+                grid[line_id][stmt.id] = value
 
     return render_template(
         "credit/financials_grid.html",
@@ -12103,4 +13455,5 @@ def financials_grid():
         statements=statements,
         lines=lines,
         grid=grid,
+        statement_period_options=statement_period_options,
     )

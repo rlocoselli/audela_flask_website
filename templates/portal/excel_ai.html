@@ -5,11 +5,50 @@
 {% block head_extra %}
   {{ super() }}
   <style>
-    .excel-style-picker .style-btn { min-width: 130px; display: flex; align-items: center; gap: .45rem; }
-    .excel-style-picker .style-btn.active { border-width: 2px; }
-    .excel-color-picker .color-btn { min-width: 115px; display: flex; align-items: center; gap: .45rem; }
+    .excel-style-picker .style-btn {
+      min-width: 130px;
+      display: flex;
+      align-items: center;
+      gap: .45rem;
+      color: #334155;
+      border-color: #cbd5e1;
+      background: #fff;
+      transition: all .16s ease;
+    }
+    .excel-style-picker .style-btn:hover,
+    .excel-style-picker .style-btn:focus,
+    .excel-color-picker .color-btn:hover,
+    .excel-color-picker .color-btn:focus {
+      color: #0f172a;
+      border-color: #93c5fd;
+      background: #eff6ff;
+      box-shadow: 0 0 0 .12rem rgba(59, 130, 246, 0.15);
+    }
+    .excel-style-picker .style-btn.active {
+      border-width: 2px;
+      border-color: #1d4ed8;
+      color: #fff;
+      background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%);
+      box-shadow: 0 8px 18px rgba(37, 99, 235, 0.24);
+    }
+    .excel-color-picker .color-btn {
+      min-width: 115px;
+      display: flex;
+      align-items: center;
+      gap: .45rem;
+      color: #334155;
+      border-color: #cbd5e1;
+      background: #fff;
+      transition: all .16s ease;
+    }
     .excel-color-picker .swatch { width: 14px; height: 14px; border-radius: 999px; border: 1px solid rgba(0,0,0,.15); }
-    .excel-color-picker .color-btn.active { border-width: 2px; }
+    .excel-color-picker .color-btn.active {
+      border-width: 2px;
+      border-color: #1d4ed8;
+      color: #0f172a;
+      background: #dbeafe;
+      box-shadow: 0 6px 14px rgba(59, 130, 246, 0.18);
+    }
   </style>
 {% endblock %}
 
@@ -120,42 +159,45 @@
           </label>
         </div>
 
-        <div class="form-check mt-2">
-          <input class="form-check-input" type="checkbox" value="1" id="excel-add-pivot" checked>
-          <label class="form-check-label" for="excel-add-pivot">
-            {{ _('Adicionar pivot (feuille Pivot + PivotDynamic interactif)') }}
-          </label>
-        </div>
+        <details class="portal-collapsible">
+          <summary>{{ _('Opções avançadas (pivot)') }}</summary>
+          <div class="form-check mt-2">
+            <input class="form-check-input" type="checkbox" value="1" id="excel-add-pivot" checked>
+            <label class="form-check-label" for="excel-add-pivot">
+              {{ _('Adicionar pivot (feuille Pivot + PivotDynamic interactif)') }}
+            </label>
+          </div>
 
-        <div class="row g-2 mt-1" id="excel-pivot-config-box">
-          <div class="col-12">
-            <div class="small fw-semibold text-uppercase text-secondary">{{ _('Pivot') }}</div>
+          <div class="row g-2 mt-1" id="excel-pivot-config-box">
+            <div class="col-12">
+              <div class="small fw-semibold text-uppercase text-secondary">{{ _('Pivot') }}</div>
+            </div>
+            <div class="col-12 col-lg-4">
+              <label class="form-label">{{ _('Pivot linhas') }}</label>
+              <input class="form-control" id="excel-pivot-rows" placeholder="{{ _('Ex.: país, produto') }}" />
+              <div class="form-text">{{ _('Liste des champs ligne (séparés par virgule).') }}</div>
+            </div>
+            <div class="col-12 col-lg-4">
+              <label class="form-label">{{ _('Pivot colunas') }}</label>
+              <input class="form-control" id="excel-pivot-cols" placeholder="{{ _('Ex.: mês') }}" />
+              <div class="form-text">{{ _('Champ colonne optionnel.') }}</div>
+            </div>
+            <div class="col-12 col-lg-2">
+              <label class="form-label">{{ _('Pivot valor') }}</label>
+              <input class="form-control" id="excel-pivot-value" placeholder="{{ _('Ex.: receita') }}" />
+            </div>
+            <div class="col-12 col-lg-2">
+              <label class="form-label">{{ _('Agrégation') }}</label>
+              <select class="form-select" id="excel-pivot-agg">
+                <option value="sum">SUM</option>
+                <option value="count">COUNT</option>
+                <option value="avg">AVG</option>
+                <option value="min">MIN</option>
+                <option value="max">MAX</option>
+              </select>
+            </div>
           </div>
-          <div class="col-12 col-lg-4">
-            <label class="form-label">{{ _('Pivot linhas') }}</label>
-            <input class="form-control" id="excel-pivot-rows" placeholder="{{ _('Ex.: país, produto') }}" />
-            <div class="form-text">{{ _('Liste des champs ligne (séparés par virgule).') }}</div>
-          </div>
-          <div class="col-12 col-lg-4">
-            <label class="form-label">{{ _('Pivot colunas') }}</label>
-            <input class="form-control" id="excel-pivot-cols" placeholder="{{ _('Ex.: mês') }}" />
-            <div class="form-text">{{ _('Champ colonne optionnel.') }}</div>
-          </div>
-          <div class="col-12 col-lg-2">
-            <label class="form-label">{{ _('Pivot valor') }}</label>
-            <input class="form-control" id="excel-pivot-value" placeholder="{{ _('Ex.: receita') }}" />
-          </div>
-          <div class="col-12 col-lg-2">
-            <label class="form-label">{{ _('Agrégation') }}</label>
-            <select class="form-select" id="excel-pivot-agg">
-              <option value="sum">SUM</option>
-              <option value="count">COUNT</option>
-              <option value="avg">AVG</option>
-              <option value="min">MIN</option>
-              <option value="max">MAX</option>
-            </select>
-          </div>
-        </div>
+        </details>
 
         <div class="d-flex align-items-center gap-2 mt-4">
           <button class="btn btn-primary" id="excel-generate">

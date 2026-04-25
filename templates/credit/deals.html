@@ -1,5 +1,5 @@
 {% extends "credit/page_base.html" %}
-{% from 'credit/_borrower_picker.html' import borrower_picker, borrower_picker_modal %}
+{% from 'credit/_borrower_picker.html' import borrower_picker, borrower_picker_modal with context %}
 {% set title = _('Audela Credit Deals') %}
 {% set active_page = 'deals' %}
 {% set credit_mode = request.args.get('mode', 'search') %}
@@ -17,7 +17,7 @@
     <form method="post" class="row g-2">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="col-md-3">
-        {{ borrower_picker('borrower_id', required=True, modal_id='modalBorrPicker') }}
+        {{ borrower_picker('borrower_id', required=True, modal_id='modalBorrPicker', input_id_prefix='deal_add_borrower') }}
       </div>
       <div class="col-md-2"><input class="form-control" name="code" placeholder="{{ _('Code') }}" required></div>
       <div class="col-md-3"><input class="form-control" name="purpose" placeholder="{{ _('Purpose') }}"></div>
@@ -54,7 +54,7 @@
           <div class="row g-3">
             <div class="col-md-6">
               <label class="form-label">{{ _('Borrower') }}</label>
-              {{ borrower_picker('borrower_id', modal_id='modalBorrPickerEdit', required=True) }}
+              {{ borrower_picker('borrower_id', modal_id='modalBorrPickerEdit', required=True, input_id_prefix='deal_edit_borrower') }}
             </div>
             <div class="col-md-6">
               <label class="form-label">{{ _('Code') }}</label>
@@ -96,8 +96,8 @@ document.addEventListener('DOMContentLoaded', function () {
   document.getElementById('editDealCode').value = {{ edit_deal.code | tojson }};
   document.getElementById('editDealPurpose').value = {{ (edit_deal.purpose or '') | tojson }};
   document.getElementById('editDealAmount').value = {{ edit_deal.requested_amount or 0 }};
-  var bhi = document.getElementById('borrower_id_hidden');
-  var bdi = document.getElementById('borrower_id_display');
+  var bhi = document.getElementById('deal_edit_borrower_hidden');
+  var bdi = document.getElementById('deal_edit_borrower_display');
   if (bhi) bhi.value = {{ edit_deal.borrower_id or 0 }};
   if (bdi && {{ edit_deal.borrower | tojson }}) bdi.value = {{ (edit_deal.borrower.name if edit_deal.borrower else '') | tojson }};
   document.getElementById('editDealStatus').value = {{ edit_deal.status | tojson }};
@@ -111,12 +111,8 @@ document.addEventListener('DOMContentLoaded', function () {
       <input type="hidden" name="mode" value="search">
       <div class="col-12 col-lg-5">
         <label class="form-label mb-1">{{ _('Borrower') }}</label>
-        <select class="form-select" name="borrower_id">
-          <option value="">{{ _('All') }}</option>
-          {% for b in borrowers %}
-          <option value="{{ b.id }}" {% if selected_borrower_id == b.id %}selected{% endif %}>{{ b.name }}</option>
-          {% endfor %}
-        </select>
+        {% set _sel_b = borrowers | selectattr('id', 'equalto', selected_borrower_id) | list %}
+        {{ borrower_picker('borrower_id', selected_id=selected_borrower_id or '', selected_name=(_sel_b[0].name if _sel_b else ''), modal_id='modalBorrPickerFilter', input_id_prefix='deal_filter_borrower') }}
       </div>
       <div class="col-12 col-lg-3">
         <label class="form-label mb-1">{{ _('Status') }}</label>
@@ -230,4 +226,5 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 {{ borrower_picker_modal(modal_id='modalBorrPicker') }}
 {{ borrower_picker_modal(modal_id='modalBorrPickerEdit') }}
+{{ borrower_picker_modal(modal_id='modalBorrPickerFilter') }}
 {% endblock %}

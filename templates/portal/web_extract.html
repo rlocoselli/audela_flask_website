@@ -1,29 +1,59 @@
 {% extends "portal/layout.html" %}
 {% set title = _('Web Scraping IA') %}
 
+{% block head_extra %}
+  {{ super() }}
+  <style>
+    /* Keep action options readable on hover/focus in Web Extract. */
+    .webext-page .btn.btn-outline-primary,
+    .webext-page .btn.btn-outline-secondary,
+    .webext-page .btn.btn-outline-success,
+    .webext-page .btn.btn-outline-danger,
+    .webext-page .btn.btn-light {
+      color: #334155;
+      transition: all .16s ease;
+    }
+    .webext-page .btn.btn-outline-primary:hover,
+    .webext-page .btn.btn-outline-secondary:hover,
+    .webext-page .btn.btn-outline-success:hover,
+    .webext-page .btn.btn-outline-danger:hover,
+    .webext-page .btn.btn-light:hover,
+    .webext-page .btn.btn-outline-primary:focus,
+    .webext-page .btn.btn-outline-secondary:focus,
+    .webext-page .btn.btn-outline-success:focus,
+    .webext-page .btn.btn-outline-danger:focus,
+    .webext-page .btn.btn-light:focus {
+      color: #0f172a;
+      border-color: #93c5fd;
+      background: #eff6ff;
+      box-shadow: 0 0 0 .12rem rgba(59, 130, 246, 0.15);
+    }
+    .webext-page .form-select,
+    .webext-page .form-select option {
+      color: #1f2937;
+    }
+  </style>
+{% endblock %}
+
 {% block portal_content %}
+<div class="webext-page">
 <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
   <div>
     <h1 class="h4 mb-1" data-tour="{{ _('Collectez et structurez des données web en quelques étapes.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="1">{{ _('Web Scraping IA') }}</h1>
-    <div class="text-secondary">{{ _('Donnez une URL, structurez les données et affichez un tableau de colonnes.') }}</div>
+    <div class="text-secondary">{{ _('Donnez une URL, laissez l\'assistant préparer la configuration et extrayez le tableau.') }}</div>
   </div>
   <a class="btn btn-outline-primary" href="{{ url_for('portal.web_extract_visual', url=url_input or '', schema=schema_input or '', max_rows=max_rows or 200, table_selector=table_selector or '', verify_ssl='1' if verify_ssl else '0') }}" data-tour="{{ _('Passez en mode visuel pour capturer le sélecteur de table par clic.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="9">
     <i class="bi bi-diagram-3 me-1"></i>{{ _('Mode visuel') }}
   </a>
 </div>
 
-<div class="card border-0 shadow-sm rounded-4 mb-3" data-tour="{{ _('Suivez ces étapes pour créer une source Excel utilisable dans le BI.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="2">
+<div class="card border-0 shadow-sm rounded-4 mb-3" data-tour="{{ _('Suivez ces étapes pour configurer et extraire vos données web.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="2">
   <div class="card-body">
-    <div class="fw-semibold mb-1"><i class="bi bi-file-earmark-spreadsheet me-1"></i>{{ _('Comment créer une source Excel ?') }}</div>
-    <ol class="small mb-2">
-      <li>{{ _('1) Chargez d\'abord votre fichier Excel dans Files.') }}</li>
-      <li>{{ _('2) Créez un workspace et sélectionnez ce fichier.') }}</li>
-      <li>{{ _('3) Utilisez ce workspace comme source BI (SQL, Questions, Dashboards).') }}</li>
-    </ol>
-    <div class="d-flex gap-2 flex-wrap">
-      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.files_home') }}"><i class="bi bi-folder2-open me-1"></i>{{ _('Ouvrir Files') }}</a>
-      <a class="btn btn-outline-primary btn-sm" href="{{ url_for('portal.workspaces_new') }}"><i class="bi bi-plus-circle me-1"></i>{{ _('Créer workspace') }}</a>
-      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.workspaces_list') }}"><i class="bi bi-grid me-1"></i>{{ _('Voir workspaces') }}</a>
+    <div class="fw-semibold mb-2"><i class="bi bi-lightning-charge me-1"></i>{{ _('Flux rapide') }}</div>
+    <div class="d-flex flex-wrap gap-2 small">
+      <span class="badge rounded-pill text-bg-light border px-3 py-2">{{ _('1. Décrire la source') }}</span>
+      <span class="badge rounded-pill text-bg-light border px-3 py-2">{{ _('2. Générer la config IA') }}</span>
+      <span class="badge rounded-pill text-bg-light border px-3 py-2">{{ _('3. Extraire puis exporter') }}</span>
     </div>
   </div>
 </div>
@@ -40,49 +70,28 @@
   <div class="alert alert-danger" role="alert">{{ error }}</div>
 {% endif %}
 
-<div class="card border-0 shadow-sm rounded-4 mb-3" data-tour="{{ _('Choisissez une configuration sauvegardée ou créez-en une nouvelle.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="2">
-  <div class="card-body">
-    <div class="row g-2 align-items-end">
-      <div class="col-12 col-lg-6">
-        <form method="get" action="{{ url_for('portal.web_extract') }}" class="row g-2">
-          <div class="col-12 col-md-8">
-            <label class="form-label">{{ _('Configuration') }}</label>
-            <select class="form-select" name="config_id">
-              <option value="">{{ _('Sélectionner...') }}</option>
-              {% for c in web_extract_configs or [] %}
-                <option value="{{ c.id }}" {% if selected_config_id == c.id %}selected{% endif %}>{{ c.name }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="col-12 col-md-4 d-flex align-items-end">
-            <button class="btn btn-outline-primary w-100" type="submit"><i class="bi bi-folder2-open me-1"></i>{{ _('Charger') }}</button>
-          </div>
-        </form>
+<div class="row g-3 mb-3 align-items-start">
+  <div class="col-12 col-xl-8">
+    <div class="card border-0 shadow-sm rounded-4 h-100">
+      <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-3">
+        <div class="fw-semibold"><i class="bi bi-sliders me-1"></i>{{ _('Paramètres d\'extraction') }}</div>
       </div>
-      <div class="col-12 col-lg-6">
-        <form method="post" action="{{ url_for('portal.web_extract_config_delete') }}" class="row g-2">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="hidden" name="from_page" value="standard">
-          <div class="col-12 col-md-8">
-            <label class="form-label">{{ _('Config sélectionnée') }}</label>
-            <input class="form-control" value="{% for c in web_extract_configs or [] %}{% if selected_config_id == c.id %}{{ c.name }}{% endif %}{% endfor %}" readonly>
-            <input type="hidden" name="config_id" value="{{ selected_config_id or '' }}">
-          </div>
-          <div class="col-12 col-md-4 d-flex align-items-end">
-            <button class="btn btn-outline-danger w-100" type="submit" {% if not selected_config_id %}disabled{% endif %}><i class="bi bi-trash me-1"></i>{{ _('Supprimer') }}</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="card border-0 shadow-sm rounded-4 mb-3">
-  <div class="card-body">
-    <form method="post" action="{{ url_for('portal.web_extract') }}" class="row g-3">
+      <div class="card-body pt-3">
+        <form method="post" action="{{ url_for('portal.web_extract') }}" class="row g-3">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="config_id" value="{{ selected_config_id or '' }}">
       <input type="hidden" name="from_page" value="standard">
+
+      <div class="col-12" data-tour="{{ _('Décrivez votre besoin en texte naturel et laissez l\'assistant proposer la configuration.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="3">
+        <label class="form-label">{{ _('Assistant IA (texte -> configuration)') }}</label>
+        <textarea
+          class="form-control"
+          name="assistant_prompt"
+          rows="3"
+          placeholder="Ex: Récupère les prix produits depuis https://example.com/shop, colonnes name, price, category, selector .products-table, max rows 300"
+        ></textarea>
+        <div class="form-text">{{ _('Décrivez la source, les colonnes attendues, un sélecteur CSS éventuel et le nombre de lignes.') }}</div>
+      </div>
 
       <div class="col-12">
         <label class="form-label">{{ _('URL web') }}</label>
@@ -115,18 +124,62 @@
         </div>
       </div>
 
-      <div class="col-12 d-flex gap-2 justify-content-end">
+      <div class="col-12 d-flex gap-2 justify-content-end flex-wrap">
         <div class="me-auto" style="min-width:260px;">
           <input class="form-control" name="config_name" placeholder="{{ _('Nom de la config') }}" value="{% for c in web_extract_configs or [] %}{% if selected_config_id == c.id %}{{ c.name }}{% endif %}{% endfor %}">
         </div>
         <button class="btn btn-outline-success" type="submit" formaction="{{ url_for('portal.web_extract_config_save') }}" formmethod="post">
           <i class="bi bi-bookmark-plus me-1"></i>{{ _('Salvar config') }}
         </button>
+        <button class="btn btn-outline-primary" type="submit" formaction="{{ url_for('portal.web_extract_assistant_config') }}" formmethod="post">
+          <i class="bi bi-stars me-1"></i>{{ _('Générer config IA') }}
+        </button>
         <button class="btn btn-primary" type="submit" data-tour="{{ _('Lancez l\'extraction structurée.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="6">
           <i class="bi bi-globe2 me-1"></i>{{ _('Extraire et structurer') }}
         </button>
       </div>
-    </form>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-xl-4" data-tour="{{ _('Choisissez une configuration sauvegardée ou supprimez-la.') }}" data-tour-title="{{ _('Tutoriel Scraping') }}" data-tour-order="2">
+    <div class="card border-0 shadow-sm rounded-4">
+      <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-3">
+        <div class="fw-semibold"><i class="bi bi-bookmarks me-1"></i>{{ _('Configurations sauvegardées') }}</div>
+      </div>
+      <div class="card-body pt-3">
+        <form method="get" action="{{ url_for('portal.web_extract') }}" class="row g-2 mb-3">
+          <div class="col-12">
+            <label class="form-label">{{ _('Configuration') }}</label>
+            <select class="form-select" name="config_id">
+              <option value="">{{ _('Sélectionner...') }}</option>
+              {% for c in web_extract_configs or [] %}
+                <option value="{{ c.id }}" {% if selected_config_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12 d-grid">
+            <button class="btn btn-outline-primary" type="submit"><i class="bi bi-folder2-open me-1"></i>{{ _('Charger') }}</button>
+          </div>
+        </form>
+
+        <form method="post" action="{{ url_for('portal.web_extract_config_delete') }}" class="row g-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="from_page" value="standard">
+          <input type="hidden" name="config_id" value="{{ selected_config_id or '' }}">
+          <div class="col-12">
+            <label class="form-label">{{ _('Config sélectionnée') }}</label>
+            <input class="form-control" value="{% for c in web_extract_configs or [] %}{% if selected_config_id == c.id %}{{ c.name }}{% endif %}{% endfor %}" readonly>
+          </div>
+          <div class="col-12 d-grid">
+            <button class="btn btn-outline-danger" type="submit" {% if not selected_config_id %}disabled{% endif %}><i class="bi bi-trash me-1"></i>{{ _('Supprimer') }}</button>
+          </div>
+        </form>
+
+        <div class="small text-secondary mt-3">{{ _('Astuce: chargez une configuration existante puis affinez via l\'assistant IA.') }}</div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -210,6 +263,7 @@
     </div>
   </div>
 {% endif %}
+</div>
 {% endblock %}
 
 {% block body_scripts %}

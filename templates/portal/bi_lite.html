@@ -8,10 +8,77 @@
   <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
   <script src="{{ url_for('static', filename='bi/bi_viz.js') }}"></script>
   <style>
-    .viz-type-picker .vt-btn { min-width: 104px; display: flex; align-items: center; gap: .45rem; }
+    .bi-lite-hero {
+      background: linear-gradient(135deg, #f8fbff 0%, #eef5ff 55%, #f2f9ff 100%);
+      border: 1px solid #d8e7ff;
+      border-radius: 14px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+    }
+    .bi-lite-hero h1 { margin-bottom: .2rem; }
+    .viz-type-picker .vt-btn {
+      min-width: 104px;
+      display: flex;
+      align-items: center;
+      gap: .45rem;
+      color: #344256;
+      border-color: #cbd6e2;
+      background: #fff;
+      transition: all .16s ease;
+    }
     .viz-type-picker .vt-btn i { font-size: 1.05rem; }
-    .viz-type-picker .vt-btn.active { border-width: 2px; }
+    .viz-type-picker .vt-btn:hover,
+    .viz-type-picker .vt-btn:focus {
+      color: #1e3a8a;
+      border-color: #93c5fd;
+      background: #eff6ff;
+      box-shadow: 0 0 0 .12rem rgba(59, 130, 246, 0.15);
+    }
+    .viz-type-picker .vt-btn.active,
+    .viz-type-picker .vt-btn.active:hover,
+    .viz-type-picker .vt-btn.active:focus {
+      border-width: 2px;
+      color: #fff;
+      border-color: #1d4ed8;
+      background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%);
+      box-shadow: 0 8px 18px rgba(37, 99, 235, 0.24);
+    }
+    /* Keep option buttons readable on hover/focus for all BI Lite controls. */
+    #biLiteForm .btn.btn-outline-secondary,
+    #biLiteForm .btn.btn-outline-primary,
+    #biLiteForm .btn.btn-outline-warning,
+    #biLiteForm .btn.btn-outline-success,
+    #biLiteForm .btn.btn-light,
+    #biLiteExecutiveQuickLinks .btn,
+    #biLiteExecutiveDownload {
+      color: #334155;
+      transition: all .16s ease;
+    }
+    #biLiteForm .btn.btn-outline-secondary:hover,
+    #biLiteForm .btn.btn-outline-primary:hover,
+    #biLiteForm .btn.btn-outline-warning:hover,
+    #biLiteForm .btn.btn-outline-success:hover,
+    #biLiteForm .btn.btn-light:hover,
+    #biLiteForm .btn.btn-outline-secondary:focus,
+    #biLiteForm .btn.btn-outline-primary:focus,
+    #biLiteForm .btn.btn-outline-warning:focus,
+    #biLiteForm .btn.btn-outline-success:focus,
+    #biLiteForm .btn.btn-light:focus,
+    #biLiteExecutiveQuickLinks .btn:hover,
+    #biLiteExecutiveQuickLinks .btn:focus,
+    #biLiteExecutiveDownload:hover,
+    #biLiteExecutiveDownload:focus {
+      color: #0f172a;
+    }
+    #biLiteForm .form-select,
+    #biLiteForm .form-select option {
+      color: #1f2937;
+    }
     #biLiteVizPreview { min-height: 280px; }
+    #biLiteVizPreview {
+      background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+      border: 1px solid #dbe7f8 !important;
+    }
     #biLiteTablesList { max-height: 340px; overflow: auto; border: 1px solid #dbe3ef; border-radius: .6rem; }
     #biLiteTablesList .tbl-item { display: flex; align-items: center; gap: .55rem; padding: .45rem .6rem; border-bottom: 1px solid #eef2f7; }
     #biLiteTablesList .tbl-item:last-child { border-bottom: 0; }
@@ -58,7 +125,7 @@
   <div class="col-12">
     <div class="card border-0 shadow-sm">
       <div class="card-body">
-        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+        <div class="bi-lite-hero d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
           <div>
             <h1 class="h4 mb-1">{{ _('BI Lite') }}</h1>
             <div class="text-secondary small">{{ _('Simple AI-first analytics for everyday users.') }}</div>
@@ -142,31 +209,36 @@
           </div>
 
           <div class="col-12">
-            <label class="form-label mb-1" for="biLiteExecutiveGuide">{{ _('Executive output style guide (free text)') }}</label>
-            <textarea id="biLiteExecutiveGuide" class="form-control" rows="2" placeholder="{{ _('Example: style editorial, palette ocean blue, sections KPI + charts + timeline, hide SQL, concise tone for CEO') }}"></textarea>
-            <div class="d-none d-flex flex-wrap align-items-center gap-2 mt-2" id="biLiteExecutiveGuideChips">
-              <span class="small text-secondary">{{ _('Shortcuts') }}:</span>
-              <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="palette ocean blue">{{ _('Palette: Ocean') }}</button>
-              <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="palette forest green">{{ _('Palette: Forest') }}</button>
-              <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="style editorial">{{ _('Style: Editorial') }}</button>
-              <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="style corporate board">{{ _('Style: Board') }}</button>
-              <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="sections kpi charts trends timeline data">{{ _('Sections: Full') }}</button>
-              <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="without sql">{{ _('Hide SQL') }}</button>
-              <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="images football stadium supporters club">{{ _('Images: Football') }}</button>
-              <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="images banking finance executive">{{ _('Images: Banking') }}</button>
-              <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="images enterprise corporate strategy">{{ _('Images: Enterprise') }}</button>
-              <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="tone concise for executive committee">{{ _('Tone: Concise') }}</button>
-            </div>
-            <div class="d-none d-flex flex-wrap align-items-center gap-2 mt-2" id="biLiteExecutiveGuidePresets">
-              <span class="small text-secondary">{{ _('Preset packs') }}:</span>
-              <button class="btn btn-outline-primary btn-sm" type="button" data-guide-preset="style corporate board; palette graphite; sections kpi charts trends timeline data; without sql; tone concise for board">{{ _('Board pack') }}</button>
-              <button class="btn btn-outline-primary btn-sm" type="button" data-guide-preset="style editorial; palette ocean blue; sections kpi charts trends timeline data; tone concise with strategic highlights">{{ _('Investor pack') }}</button>
-              <button class="btn btn-outline-primary btn-sm" type="button" data-guide-preset="style modern tech; palette forest green; sections kpi charts data timeline; tone operational and actionable">{{ _('Operational pack') }}</button>
-              <button class="btn btn-outline-warning btn-sm" type="button" data-guide-preset="style editorial; palette ocean blue; sections kpi charts trends timeline images data; images football stadium supporters club team; tone concise and competitive for club board">{{ _('Football Club pack') }}</button>
-              <button class="btn btn-outline-warning btn-sm" type="button" data-guide-preset="style corporate board; palette graphite; sections kpi charts trends timeline images data; images banking finance executive risk management; tone concise for banking committee">{{ _('Banking pack') }}</button>
-              <button class="btn btn-outline-warning btn-sm" type="button" data-guide-preset="style modern tech; palette forest green; sections kpi charts trends timeline images data; images enterprise corporate strategy leadership; tone concise for enterprise leadership">{{ _('Enterprise pack') }}</button>
-              <button class="btn btn-outline-secondary btn-sm" type="button" id="biLiteExecutiveGuideReset">{{ _('Reset guide') }}</button>
-            </div>
+            <details class="portal-collapsible" id="biLiteAdvancedOptions">
+              <summary>{{ _('Advanced executive options') }}</summary>
+              <div class="mt-2">
+                <label class="form-label mb-1" for="biLiteExecutiveGuide">{{ _('Executive output style guide (free text)') }}</label>
+                <textarea id="biLiteExecutiveGuide" class="form-control" rows="2" placeholder="{{ _('Example: style editorial, palette ocean blue, sections KPI + charts + timeline, hide SQL, concise tone for CEO') }}"></textarea>
+                <div class="d-none d-flex flex-wrap align-items-center gap-2 mt-2" id="biLiteExecutiveGuideChips">
+                  <span class="small text-secondary">{{ _('Shortcuts') }}:</span>
+                  <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="palette ocean blue">{{ _('Palette: Ocean') }}</button>
+                  <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="palette forest green">{{ _('Palette: Forest') }}</button>
+                  <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="style editorial">{{ _('Style: Editorial') }}</button>
+                  <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="style corporate board">{{ _('Style: Board') }}</button>
+                  <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="sections kpi charts trends timeline data">{{ _('Sections: Full') }}</button>
+                  <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="without sql">{{ _('Hide SQL') }}</button>
+                  <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="images football stadium supporters club">{{ _('Images: Football') }}</button>
+                  <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="images banking finance executive">{{ _('Images: Banking') }}</button>
+                  <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="images enterprise corporate strategy">{{ _('Images: Enterprise') }}</button>
+                  <button class="btn btn-light btn-sm border rounded-pill" type="button" data-guide="tone concise for executive committee">{{ _('Tone: Concise') }}</button>
+                </div>
+                <div class="d-none d-flex flex-wrap align-items-center gap-2 mt-2" id="biLiteExecutiveGuidePresets">
+                  <span class="small text-secondary">{{ _('Preset packs') }}:</span>
+                  <button class="btn btn-outline-primary btn-sm" type="button" data-guide-preset="style corporate board; palette graphite; sections kpi charts trends timeline data; without sql; tone concise for board">{{ _('Board pack') }}</button>
+                  <button class="btn btn-outline-primary btn-sm" type="button" data-guide-preset="style editorial; palette ocean blue; sections kpi charts trends timeline data; tone concise with strategic highlights">{{ _('Investor pack') }}</button>
+                  <button class="btn btn-outline-primary btn-sm" type="button" data-guide-preset="style modern tech; palette forest green; sections kpi charts data timeline; tone operational and actionable">{{ _('Operational pack') }}</button>
+                  <button class="btn btn-outline-warning btn-sm" type="button" data-guide-preset="style editorial; palette ocean blue; sections kpi charts trends timeline images data; images football stadium supporters club team; tone concise and competitive for club board">{{ _('Football Club pack') }}</button>
+                  <button class="btn btn-outline-warning btn-sm" type="button" data-guide-preset="style corporate board; palette graphite; sections kpi charts trends timeline images data; images banking finance executive risk management; tone concise for banking committee">{{ _('Banking pack') }}</button>
+                  <button class="btn btn-outline-warning btn-sm" type="button" data-guide-preset="style modern tech; palette forest green; sections kpi charts trends timeline images data; images enterprise corporate strategy leadership; tone concise for enterprise leadership">{{ _('Enterprise pack') }}</button>
+                  <button class="btn btn-outline-secondary btn-sm" type="button" id="biLiteExecutiveGuideReset">{{ _('Reset guide') }}</button>
+                </div>
+              </div>
+            </details>
           </div>
         </form>
       </div>
@@ -186,7 +258,9 @@
     <div class="card border-0 shadow-sm h-100">
       <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center">
         <span>{{ _('Result preview') }}</span>
-        <span class="badge text-bg-light border" id="biLiteRowCount">0</span>
+        <div class="d-flex align-items-center gap-2">
+          <span class="badge text-bg-light border" id="biLiteRowCount">0</span>
+        </div>
       </div>
       <div class="card-body">
         <div class="mb-2">
@@ -215,20 +289,12 @@
 
         <div id="biLiteVizPreview" class="border rounded bg-body-tertiary mb-3"></div>
 
-        <details class="mb-2">
+        <details class="portal-collapsible mb-2">
           <summary class="small">{{ _('Generated SQL') }}</summary>
           <pre id="biLiteSql" class="small bg-body-tertiary border rounded p-2 mb-0" style="white-space:pre-wrap;">--</pre>
         </details>
 
         <div id="biLiteWarnings" class="small text-warning mb-2 d-none"></div>
-        <div class="table-responsive" style="max-height: 420px;">
-          <table class="table table-sm table-striped align-middle" id="biLiteTable">
-            <thead></thead>
-            <tbody>
-              <tr><td class="text-secondary">{{ _('No result yet.') }}</td></tr>
-            </tbody>
-          </table>
-        </div>
       </div>
     </div>
   </div>
@@ -331,6 +397,7 @@
     const insightEl = document.getElementById('biLiteInsight');
     const sqlEl = document.getElementById('biLiteSql');
     const rowCountEl = document.getElementById('biLiteRowCount');
+    const aiModeBadgeEl = null;
     const tableEl = document.getElementById('biLiteTable');
     const warningsEl = document.getElementById('biLiteWarnings');
     const dashboardStatusEl = document.getElementById('biLiteDashboardStatus');
@@ -366,7 +433,7 @@
     const vizTypeEl = document.getElementById('biLiteVizType');
     const vizPreviewEl = document.getElementById('biLiteVizPreview');
     const vizBtns = Array.from(document.querySelectorAll('#biLiteVizPicker .vt-btn'));
-    if (!form || !sourceEl || !pickTablesBtn || !pickQuestionsBtn || !tablesSummaryEl || !questionsSummaryEl || !promptEl || !runBtn || !insightEl || !sqlEl || !rowCountEl || !tableEl || !warningsEl || !createDashBtn || !dashboardStatusEl || !createComparisonEl || !vizTypeEl || !vizPreviewEl || !createExecutiveBtn || !executiveStatusEl || !executiveOpenTabEl || !executiveGuideEl || !executiveQuickLinksEl || !executiveJumpTopEl || !executiveDownloadTopEl || !executiveFrameEl || !executiveDownloadEl || !executiveLoadingEl || !executiveLoadingTimeEl || !executivePreviewSectionEl || !tablesModalEl || !tablesSearchEl || !tablesListEl || !tablesCountEl || !tablesApplyBtn || !tablesClearBtn || !tablesCloseBtn || !questionsModalEl || !questionsSearchEl || !questionsListEl || !questionsCountEl || !questionsApplyBtn || !questionsClearBtn || !questionsCloseBtn) return;
+    if (!form || !sourceEl || !pickTablesBtn || !pickQuestionsBtn || !tablesSummaryEl || !questionsSummaryEl || !promptEl || !runBtn || !insightEl || !sqlEl || !rowCountEl || !warningsEl || !createDashBtn || !dashboardStatusEl || !createComparisonEl || !vizTypeEl || !vizPreviewEl || !createExecutiveBtn || !executiveStatusEl || !executiveOpenTabEl || !executiveGuideEl || !executiveQuickLinksEl || !executiveJumpTopEl || !executiveDownloadTopEl || !executiveFrameEl || !executiveDownloadEl || !executiveLoadingEl || !executiveLoadingTimeEl || !executivePreviewSectionEl || !tablesModalEl || !tablesSearchEl || !tablesListEl || !tablesCountEl || !tablesApplyBtn || !tablesClearBtn || !tablesCloseBtn || !questionsModalEl || !questionsSearchEl || !questionsListEl || !questionsCountEl || !questionsApplyBtn || !questionsClearBtn || !questionsCloseBtn) return;
 
     let rawData = { columns: [], rows: [] };
     let executiveHtmlUrl = '';
@@ -487,6 +554,7 @@
       executiveStatusEl.classList.toggle('text-danger', !!isError);
       executiveStatusEl.classList.toggle('text-secondary', !isError);
     }
+
 
     function setTablesSummary() {
       if (!selectedTables.length) {
@@ -688,6 +756,7 @@
     }
 
     function renderTable(columns, rows) {
+      if (!tableEl) return;
       const thead = tableEl.querySelector('thead');
       const tbody = tableEl.querySelector('tbody');
       if (!thead || !tbody) return;

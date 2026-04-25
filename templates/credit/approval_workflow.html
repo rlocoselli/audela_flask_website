@@ -1,4 +1,5 @@
 {% extends "credit/page_base.html" %}
+{% from 'credit/_borrower_picker.html' import borrower_picker, borrower_picker_modal with context %}
 {% set title = _('Audela Credit Approval Workflow') %}
 {% set active_page = 'approval_workflow' %}
 {% set credit_mode = request.args.get('mode', 'search') %}
@@ -32,6 +33,23 @@
 
   .matrix-stage-row.is-active {
     background: rgba(13, 110, 253, 0.1);
+  }
+
+  #approval-tab-rules .card-header {
+    padding-top: 0.55rem;
+    padding-bottom: 0.55rem;
+  }
+
+  #approval-tab-rules .card-body {
+    padding: 0.9rem;
+  }
+
+  #approval-tab-rules .table > :not(caption) > * > * {
+    padding: 0.45rem 0.5rem;
+  }
+
+  #approval-tab-rules .form-text {
+    margin-top: 0.2rem;
   }
 </style>
 
@@ -173,54 +191,74 @@
       </div>
 
       <div class="col-12">
-        <div class="border rounded-3 bg-body-tertiary p-2">
-          <div class="fw-semibold small mb-1">{{ _('Decision function catalog') }}</div>
-          <div class="small text-secondary mb-2">
-            {{ _('Decision function keys are fixed in code and must stay in English.') }}
+        <div class="accordion mb-3" id="workflowDesignerOptionsAccordion">
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="workflowDesignerToolsHeading">
+              <button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" data-bs-target="#workflowDesignerToolsPanel" aria-expanded="false" aria-controls="workflowDesignerToolsPanel">
+                {{ _('Designer options') }}
+              </button>
+            </h2>
+            <div id="workflowDesignerToolsPanel" class="accordion-collapse collapse" aria-labelledby="workflowDesignerToolsHeading" data-bs-parent="#workflowDesignerOptionsAccordion">
+              <div class="accordion-body">
+                <div class="d-flex flex-wrap gap-2 mb-2">
+                  <button class="btn btn-outline-primary btn-sm" type="button" id="addTaskNode">{{ _('Add task node') }}</button>
+                  <button class="btn btn-outline-secondary btn-sm" type="button" id="addDecisionNode">{{ _('Add decision node') }}</button>
+                  <button class="btn btn-outline-dark btn-sm" type="button" id="autoArrangeDiagram">{{ _('Auto arrange') }}</button>
+                  <button class="btn btn-outline-success btn-sm" type="button" id="includeApprovalSteps">{{ _('Include approval steps') }}</button>
+                  <div class="form-check form-switch align-self-center ms-1">
+                    <input class="form-check-input" type="checkbox" role="switch" id="diagramSnapGrid">
+                    <label class="form-check-label small" for="diagramSnapGrid">{{ _('Snap to grid') }}</label>
+                  </div>
+                </div>
+                <div class="small text-secondary">{{ _('Drag cards to reorder, or drag nodes directly in the BPM preview to organize layout.') }}</div>
+              </div>
+            </div>
           </div>
-          <div class="alert alert-light border py-2 small mb-2">
-            <div><strong>{{ _('Routing behavior') }}:</strong> <code>True</code> => <code>if_required</code>, <code>False</code> => <code>if_not_required</code>.</div>
-            <div>{{ _('Example') }}: <code>fn:require_risk_manager?true=if_required&amp;false=if_not_required</code>.</div>
-          </div>
-          <div class="table-responsive">
-            <table class="table table-sm mb-0 align-middle">
-              <thead>
-                <tr>
-                  <th style="width: 15%;">{{ _('Function key') }}</th>
-                  <th style="width: 32%;">{{ _('Behavior') }}</th>
-                  <th style="width: 14%;">{{ _('Return type') }}</th>
-                  <th style="width: 19%;">{{ _('Example output') }}</th>
-                  <th style="width: 20%;">{{ _('Decision rule example') }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for item in workflow_decision_function_docs %}
-                <tr>
-                  <td><code>{{ item.key }}</code></td>
-                  <td>{{ item.behavior or item.description }}</td>
-                  <td><code>{{ item.returns }}</code></td>
-                  <td class="small">{{ item.example_output }}</td>
-                  <td><code>{{ item.example }}</code></td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
 
-      <div class="col-12">
-        <div class="d-flex flex-wrap gap-2 mb-2">
-          <button class="btn btn-outline-primary btn-sm" type="button" id="addTaskNode">{{ _('Add task node') }}</button>
-          <button class="btn btn-outline-secondary btn-sm" type="button" id="addDecisionNode">{{ _('Add decision node') }}</button>
-          <button class="btn btn-outline-dark btn-sm" type="button" id="autoArrangeDiagram">{{ _('Auto arrange') }}</button>
-          <button class="btn btn-outline-success btn-sm" type="button" id="includeApprovalSteps">{{ _('Include approval steps') }}</button>
-          <div class="form-check form-switch align-self-center ms-1">
-            <input class="form-check-input" type="checkbox" role="switch" id="diagramSnapGrid">
-            <label class="form-check-label small" for="diagramSnapGrid">{{ _('Snap to grid') }}</label>
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="workflowFunctionCatalogHeading">
+              <button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" data-bs-target="#workflowFunctionCatalogPanel" aria-expanded="false" aria-controls="workflowFunctionCatalogPanel">
+                {{ _('Decision function catalog') }}
+              </button>
+            </h2>
+            <div id="workflowFunctionCatalogPanel" class="accordion-collapse collapse" aria-labelledby="workflowFunctionCatalogHeading" data-bs-parent="#workflowDesignerOptionsAccordion">
+              <div class="accordion-body">
+                <div class="small text-secondary mb-2">
+                  {{ _('Decision function keys are fixed in code and must stay in English.') }}
+                </div>
+                <div class="alert alert-light border py-2 small mb-2">
+                  <div><strong>{{ _('Routing behavior') }}:</strong> <code>True</code> => <code>if_required</code>, <code>False</code> => <code>if_not_required</code>.</div>
+                  <div>{{ _('Example') }}: <code>fn:require_risk_manager?true=if_required&amp;false=if_not_required</code>.</div>
+                </div>
+                <div class="table-responsive">
+                  <table class="table table-sm mb-0 align-middle">
+                    <thead>
+                      <tr>
+                        <th style="width: 15%;">{{ _('Function key') }}</th>
+                        <th style="width: 32%;">{{ _('Behavior') }}</th>
+                        <th style="width: 14%;">{{ _('Return type') }}</th>
+                        <th style="width: 19%;">{{ _('Example output') }}</th>
+                        <th style="width: 20%;">{{ _('Decision rule example') }}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for item in workflow_decision_function_docs %}
+                      <tr>
+                        <td><code>{{ item.key }}</code></td>
+                        <td>{{ item.behavior or item.description }}</td>
+                        <td><code>{{ item.returns }}</code></td>
+                        <td class="small">{{ item.example_output }}</td>
+                        <td><code>{{ item.example }}</code></td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
           </div>
-          <span class="small text-secondary align-self-center">{{ _('Drag cards to reorder, or drag nodes directly in the BPM preview to organize layout.') }}</span>
         </div>
+
         <div class="border rounded-3 bg-body-tertiary p-2 mb-3" id="workflowDiagramBox">
           <div class="small fw-semibold mb-2">{{ _('BPM diagram preview') }}</div>
           <div id="workflowDiagram" class="overflow-auto"></div>
@@ -417,13 +455,7 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="action" value="bind_borrower_workflow">
       <div class="col-md-5">
-        <label class="form-label">{{ _('Borrower') }}</label>
-        <select class="form-select" name="borrower_id" required>
-          <option value="">{{ _('Select borrower') }}</option>
-          {% for b in borrowers %}
-          <option value="{{ b.id }}">{{ b.name }}</option>
-          {% endfor %}
-        </select>
+        {{ borrower_picker('borrower_id', selected_id='', required=true, placeholder=_('Select borrower'), modal_id='modalBorrowerPickerApprovalWorkflow', input_id_prefix='approval_bind_borrower') }}
       </div>
       <div class="col-md-5">
         <label class="form-label">{{ _('Workflow') }}</label>
@@ -633,330 +665,378 @@
   </div>
 </div>
 
-<div class="card border-0 shadow-sm mb-3">
-  <div class="card-header bg-body-tertiary">{{ _('Stage thresholds table') }}</div>
-  <div class="card-body border-bottom">
-    <form method="post" class="row g-2 align-items-end">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="action" value="add_stage_option">
-      <input type="hidden" name="workflow_id" value="{{ active_workflow_id }}">
-      <div class="col-md-4">
-        <label class="form-label">{{ _('New stage code') }}</label>
-        <input class="form-control" name="stage_code" placeholder="legal_review">
-      </div>
-      <div class="col-md-6">
-        <label class="form-label">{{ _('Stage label') }}</label>
-        <input class="form-control" name="stage_label" placeholder="Legal review">
-      </div>
-      <div class="col-md-2">
-        <button class="btn btn-outline-primary w-100" type="submit">{{ _('Add stage') }}</button>
-      </div>
-    </form>
-  </div>
-  <div class="card-body p-0">
-    <div class="table-responsive">
-      <table class="table table-sm mb-0" id="matrixStagesTable">
-        <thead>
-          <tr><th>{{ _('Stage') }}</th><th>{{ _('Minimum amount') }}</th><th>{{ _('Risk grades') }}</th><th class="text-end">{{ _('Action') }}</th></tr>
-        </thead>
-        <tbody>
-          {% for stage_code, stage_label in matrix_stage_options %}
-          {% set stage_data = approval_matrix.by_stage.get(stage_code, {}) %}
-          {% set stage_min = stage_data.get('min_amount', '') %}
-          {% set stage_grades = stage_data.get('risk_grades_list', []) %}
-          <tr class="matrix-stage-row" data-stage="{{ stage_code }}" tabindex="0" style="cursor:pointer;">
-            <td><strong>{{ stage_label }}</strong></td>
-            <td>{{ stage_min or '-' }}</td>
-            <td>{{ stage_grades|join(', ') if stage_grades else '-' }}</td>
-            <td class="text-end">
-              <button type="button" class="btn btn-outline-primary btn-sm matrix-stage-pick" data-stage="{{ stage_code }}">{{ _('Edit threshold') }}</button>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+<div class="card border-0 shadow-sm mb-3" id="workflow-rules-nav">
+  <div class="card-body py-2">
+    <div class="small text-secondary mb-2">{{ _('Quick navigation') }}</div>
+    <div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-outline-secondary btn-sm" href="#workflow-rules-stages">{{ _('Stages') }}</a>
+      <a class="btn btn-outline-secondary btn-sm" href="#workflow-rules-quick">{{ _('Quick matrix update') }}</a>
+      <a class="btn btn-outline-secondary btn-sm" href="#workflow-rules-full">{{ _('Full matrix editor') }}</a>
+      <a class="btn btn-outline-secondary btn-sm" href="#workflow-rules-steps">{{ _('Workflow steps') }}</a>
     </div>
   </div>
 </div>
 
-<div class="card border-0 shadow-sm mb-3">
-  <div class="card-header bg-body-tertiary">{{ _('Approval matrix by amount and risk') }}</div>
-  <div class="card-body">
-    <div class="border rounded-3 p-3 mb-3 bg-body-tertiary">
-      <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
-        <div class="fw-semibold">{{ _('Quick matrix update and approval') }}</div>
-        <span class="badge text-bg-info">{{ _('Recommended') }}</span>
+<div class="row g-3 mb-3 align-items-start">
+  <div class="col-12 col-xxl-4" id="workflow-rules-stages">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-body-tertiary d-flex align-items-center justify-content-between gap-2">
+        <span>{{ _('Stage thresholds table') }}</span>
+        <span class="badge text-bg-light border">{{ matrix_stage_options|length }}</span>
       </div>
-      {% set quick_default_stage = matrix_stage_options[0][0] if matrix_stage_options else '' %}
-      {% set quick_default_data = approval_matrix.by_stage.get(quick_default_stage, {}) if quick_default_stage else {} %}
-      <form method="post" class="row g-2 align-items-end" id="quickMatrixForm">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="workflow_id" value="{{ active_workflow_id }}">
-        <div class="col-md-3">
-          <label class="form-label">{{ _('Stage') }}</label>
-          <select class="form-select" id="quickMatrixStage" name="quick_stage">
-            {% for stage_code, stage_label in matrix_stage_options %}
-            {% set stage_data = approval_matrix.by_stage.get(stage_code, {}) %}
-            <option
-              value="{{ stage_code }}"
-              data-min="{{ stage_data.get('min_amount', '') }}"
-              data-grades="{{ stage_data.get('risk_grades_list', [])|join(',') }}"
-              {% if stage_code == quick_default_stage %}selected{% endif %}
-            >{{ stage_label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">{{ _('Minimum amount') }}</label>
-          <input class="form-control" id="quickMatrixMinAmount" name="quick_min_amount" value="{{ quick_default_data.get('min_amount', '') }}" placeholder="0">
-        </div>
-        <div class="col-md-4">
-          <label class="form-label">{{ _('Risk grades') }}</label>
-          {% set quick_selected_grades = quick_default_data.get('risk_grades_list', []) %}
-          <select class="form-select" id="quickMatrixRiskGrades" name="quick_risk_grades" multiple size="4">
-            {% for grade in matrix_grade_options %}
-            <option value="{{ grade }}" {% if grade in quick_selected_grades %}selected{% endif %}>{{ grade }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="col-md-2 d-grid gap-2">
-          <button class="btn btn-primary" type="submit" name="action" value="save_matrix_quick">{{ _('Save draft') }}</button>
-          <button class="btn btn-success" type="submit" name="action" value="save_matrix_quick_approve" onclick="return confirm('{{ _('Save and approve matrix for this stage?') }}');">{{ _('Save + approve') }}</button>
-        </div>
-        <div class="col-12 form-text">{{ _('Use this quick form for day-to-day updates. Use the full editor below for bulk stage changes.') }}</div>
-      </form>
-    </div>
-
-    <div class="small text-secondary mb-3">
-      <span><strong>{{ _('Last update') }}:</strong> {{ approval_matrix_meta.updated_at or '-' }}{% if approval_matrix_meta.updated_by %} ({{ approval_matrix_meta.updated_by }}){% endif %}</span>
-      <span class="mx-2">|</span>
-      <span><strong>{{ _('Last approval') }}:</strong> {{ approval_matrix_meta.approved_at or '-' }}{% if approval_matrix_meta.approved_by %} ({{ approval_matrix_meta.approved_by }}){% endif %}</span>
-    </div>
-
-    <div class="alert alert-info py-2 small" role="alert">
-      <div><strong>{{ _('How this matrix works') }}:</strong></div>
-      <div>1. {{ _('For each stage, you can define an amount threshold and/or risk grades.') }}</div>
-      <div>2. {{ _('A stage becomes required when at least one condition matches: amount threshold reached OR risk grade listed.') }}</div>
-      <div>3. {{ _('If both fields are empty for a stage, that stage remains always required.') }}</div>
-      <div>4. {{ _('Threshold 0 means the amount condition always matches, so the stage stays required for all amounts.') }}</div>
-      <div>5. {{ _('Matrix changes affect workflow progression for next expected steps; an already created pending approval is not retroactively replaced.') }}</div>
-      <div>6. {{ _('Use "Recalculate pending approvals" to realign existing pending approvals with the latest matrix.') }}</div>
-    </div>
-    <form method="post" class="row g-2 align-items-end" id="approvalMatrixForm">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="workflow_id" value="{{ active_workflow_id }}">
-      <div class="col-md-4">
-        <label class="form-label">{{ _('Stage') }}</label>
-        <select class="form-select" id="matrixTargetStage" name="matrix_target_stage">
-          {% for stage_code, stage_label in matrix_stage_options %}
-          <option value="{{ stage_code }}">{{ stage_label }}</option>
-          {% endfor %}
-        </select>
-        <div class="form-text">{{ _('Choose the stage to edit, or click a row in the stage table above.') }}</div>
-      </div>
-
-      {% for stage_code, stage_label in matrix_stage_options %}
-      {% set stage_data = approval_matrix.by_stage.get(stage_code, {}) %}
-      <input type="hidden" name="matrix_stage_codes" value="{{ stage_code }}">
-      <div class="col-12 matrix-stage-editor" data-stage="{{ stage_code }}">
-        <div class="row g-2">
-          <div class="col-md-4">
-            <label class="form-label">{{ _('{stage} minimum amount', stage=stage_label) }}</label>
-            <input class="form-control" name="matrix_min_amount__{{ stage_code }}" value="{{ stage_data.get('min_amount', '') }}" placeholder="0">
+      <div class="card-body border-bottom">
+        <form method="post" class="row g-2 align-items-end">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="add_stage_option">
+          <input type="hidden" name="workflow_id" value="{{ active_workflow_id }}">
+          <div class="col-md-4 col-12">
+            <label class="form-label">{{ _('New stage code') }}</label>
+            <input class="form-control" name="stage_code" placeholder="legal_review">
           </div>
-          <div class="col-md-8">
-            <label class="form-label">{{ _('{stage} risk grades', stage=stage_label) }}</label>
-            {% set selected_grades = stage_data.get('risk_grades_list', []) %}
-            <select class="form-select" name="matrix_risk_grades__{{ stage_code }}" multiple size="6">
-              {% for grade in matrix_grade_options %}
-              <option value="{{ grade }}" {% if grade in selected_grades %}selected{% endif %}>{{ grade }}</option>
+          <div class="col-md-5 col-12">
+            <label class="form-label">{{ _('Stage label') }}</label>
+            <input class="form-control" name="stage_label" placeholder="Legal review">
+          </div>
+          <div class="col-md-3 col-12">
+            <button class="btn btn-outline-primary w-100" type="submit">{{ _('Add stage') }}</button>
+          </div>
+        </form>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm mb-0" id="matrixStagesTable">
+            <thead>
+              <tr><th>{{ _('Stage') }}</th><th>{{ _('Minimum amount') }}</th><th>{{ _('Risk grades') }}</th><th class="text-end">{{ _('Action') }}</th></tr>
+            </thead>
+            <tbody>
+              {% for stage_code, stage_label in matrix_stage_options %}
+              {% set stage_data = approval_matrix.by_stage.get(stage_code, {}) %}
+              {% set stage_min = stage_data.get('min_amount', '') %}
+              {% set stage_grades = stage_data.get('risk_grades_list', []) %}
+              <tr class="matrix-stage-row" data-stage="{{ stage_code }}" tabindex="0" style="cursor:pointer;">
+                <td><strong>{{ stage_label }}</strong></td>
+                <td>{{ stage_min or '-' }}</td>
+                <td>{{ stage_grades|join(', ') if stage_grades else '-' }}</td>
+                <td class="text-end">
+                  <button type="button" class="btn btn-outline-primary btn-sm matrix-stage-pick" data-stage="{{ stage_code }}">{{ _('Edit threshold') }}</button>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-xxl-8" id="workflow-rules-quick">
+    <div class="card border-0 shadow-sm" id="workflow-rules-full">
+      <div class="card-header bg-body-tertiary">{{ _('Approval matrix by amount and risk') }}</div>
+      <div class="card-body">
+        <div class="border rounded-3 p-3 mb-3 bg-body-tertiary">
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+            <div class="fw-semibold">{{ _('Quick matrix update and approval') }}</div>
+            <span class="badge text-bg-info">{{ _('Recommended') }}</span>
+          </div>
+          {% set quick_default_stage = matrix_stage_options[0][0] if matrix_stage_options else '' %}
+          {% set quick_default_data = approval_matrix.by_stage.get(quick_default_stage, {}) if quick_default_stage else {} %}
+          <form method="post" class="row g-2 align-items-end" id="quickMatrixForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="workflow_id" value="{{ active_workflow_id }}">
+            <div class="col-md-3">
+              <label class="form-label">{{ _('Stage') }}</label>
+              <select class="form-select" id="quickMatrixStage" name="quick_stage">
+                {% for stage_code, stage_label in matrix_stage_options %}
+                {% set stage_data = approval_matrix.by_stage.get(stage_code, {}) %}
+                <option
+                  value="{{ stage_code }}"
+                  data-min="{{ stage_data.get('min_amount', '') }}"
+                  data-grades="{{ stage_data.get('risk_grades_list', [])|join(',') }}"
+                  {% if stage_code == quick_default_stage %}selected{% endif %}
+                >{{ stage_label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">{{ _('Minimum amount') }}</label>
+              <input class="form-control" id="quickMatrixMinAmount" name="quick_min_amount" value="{{ quick_default_data.get('min_amount', '') }}" placeholder="0">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">{{ _('Risk grades') }}</label>
+              {% set quick_selected_grades = quick_default_data.get('risk_grades_list', []) %}
+              <select class="form-select" id="quickMatrixRiskGrades" name="quick_risk_grades" multiple size="4">
+                {% for grade in matrix_grade_options %}
+                <option value="{{ grade }}" {% if grade in quick_selected_grades %}selected{% endif %}>{{ grade }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-2 d-grid gap-2">
+              <button class="btn btn-primary" type="submit" name="action" value="save_matrix_quick">{{ _('Save draft') }}</button>
+              <button class="btn btn-success" type="submit" name="action" value="save_matrix_quick_approve" onclick="return confirm('{{ _('Save and approve matrix for this stage?') }}');">{{ _('Save + approve') }}</button>
+            </div>
+            <div class="col-12 form-text">{{ _('Use this quick form for day-to-day updates. Use the full editor below for bulk stage changes.') }}</div>
+          </form>
+        </div>
+
+        <div class="small text-secondary mb-3">
+          <span><strong>{{ _('Last update') }}:</strong> {{ approval_matrix_meta.updated_at or '-' }}{% if approval_matrix_meta.updated_by %} ({{ approval_matrix_meta.updated_by }}){% endif %}</span>
+          <span class="mx-2">|</span>
+          <span><strong>{{ _('Last approval') }}:</strong> {{ approval_matrix_meta.approved_at or '-' }}{% if approval_matrix_meta.approved_by %} ({{ approval_matrix_meta.approved_by }}){% endif %}</span>
+        </div>
+
+        <div class="accordion accordion-flush mb-3" id="matrixHelpAccordion">
+          <div class="accordion-item border rounded-3">
+            <h2 class="accordion-header" id="matrixHelpHeading">
+              <button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" data-bs-target="#matrixHelpPanel" aria-expanded="false" aria-controls="matrixHelpPanel">
+                {{ _('How this matrix works') }}
+              </button>
+            </h2>
+            <div id="matrixHelpPanel" class="accordion-collapse collapse" aria-labelledby="matrixHelpHeading" data-bs-parent="#matrixHelpAccordion">
+              <div class="accordion-body small">
+                <div>1. {{ _('For each stage, you can define an amount threshold and/or risk grades.') }}</div>
+                <div>2. {{ _('A stage becomes required when at least one condition matches: amount threshold reached OR risk grade listed.') }}</div>
+                <div>3. {{ _('If both fields are empty for a stage, that stage remains always required.') }}</div>
+                <div>4. {{ _('Threshold 0 means the amount condition always matches, so the stage stays required for all amounts.') }}</div>
+                <div>5. {{ _('Matrix changes affect workflow progression for next expected steps; an already created pending approval is not retroactively replaced.') }}</div>
+                <div>6. {{ _('Use "Recalculate pending approvals" to realign existing pending approvals with the latest matrix.') }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <form method="post" class="row g-2 align-items-end" id="approvalMatrixForm">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="workflow_id" value="{{ active_workflow_id }}">
+          <div class="col-md-4">
+            <label class="form-label">{{ _('Stage') }}</label>
+            <select class="form-select" id="matrixTargetStage" name="matrix_target_stage">
+              {% for stage_code, stage_label in matrix_stage_options %}
+              <option value="{{ stage_code }}">{{ stage_label }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text">{{ _('Choose the stage to edit, or click a row in the stage table above.') }}</div>
+          </div>
+
+          {% for stage_code, stage_label in matrix_stage_options %}
+          {% set stage_data = approval_matrix.by_stage.get(stage_code, {}) %}
+          <input type="hidden" name="matrix_stage_codes" value="{{ stage_code }}">
+          <div class="col-12 matrix-stage-editor" data-stage="{{ stage_code }}">
+            <div class="row g-2">
+              <div class="col-md-4">
+                <label class="form-label">{{ _('{stage} minimum amount', stage=stage_label) }}</label>
+                <input class="form-control" name="matrix_min_amount__{{ stage_code }}" value="{{ stage_data.get('min_amount', '') }}" placeholder="0">
+              </div>
+              <div class="col-md-8">
+                <label class="form-label">{{ _('{stage} risk grades', stage=stage_label) }}</label>
+                {% set selected_grades = stage_data.get('risk_grades_list', []) %}
+                <select class="form-select" name="matrix_risk_grades__{{ stage_code }}" multiple size="6">
+                  {% for grade in matrix_grade_options %}
+                  <option value="{{ grade }}" {% if grade in selected_grades %}selected{% endif %}>{{ grade }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+
+          <div class="col-12 form-text">{{ _('Leave fields empty to keep this stage always required.') }}</div>
+          <div class="col-12 form-text">{{ _('Use Ctrl/Cmd to select multiple grades in the dropdown list.') }}</div>
+          <div class="col-12 d-flex flex-wrap gap-2">
+            <button class="btn btn-primary" type="submit" name="action" value="save_matrix">{{ _('Save matrix') }}</button>
+            <button class="btn btn-outline-success" type="submit" name="action" value="save_matrix_and_approve" onclick="return confirm('{{ _('Save and approve full matrix now?') }}');">{{ _('Save + approve full matrix') }}</button>
+          </div>
+        </form>
+
+        <form method="post" class="mt-2" onsubmit="return confirm('{{ _('Recalculate all pending approvals now?') }}');">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="recalculate_pending_approvals">
+          <input type="hidden" name="workflow_id" value="{{ active_workflow_id }}">
+          <button class="btn btn-outline-warning" type="submit">{{ _('Recalculate pending approvals') }}</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="accordion mb-3" id="workflowRulesAccordion">
+  {% if credit_mode == 'add' %}
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="workflowRulesAddHeading">
+      <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#workflowRulesAddPanel" aria-expanded="false" aria-controls="workflowRulesAddPanel">
+        {{ _('Add workflow step') }}
+      </button>
+    </h2>
+    <div id="workflowRulesAddPanel" class="accordion-collapse collapse" aria-labelledby="workflowRulesAddHeading" data-bs-parent="#workflowRulesAccordion">
+      <div class="accordion-body">
+        <form method="post" class="row g-2 align-items-end">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="action" value="add_step">
+          <div class="col-md-2">
+            <label class="form-label">{{ _('Order') }}</label>
+            <input class="form-control" name="step_order" type="number" min="1" placeholder="1">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">{{ _('Stage') }}</label>
+            <select class="form-select" name="stage">
+              {% for code, label in stage_options %}
+              <option value="{{ code }}">{{ label }}</option>
               {% endfor %}
             </select>
           </div>
-        </div>
+          <div class="col-md-2">
+            <label class="form-label">{{ _('Step name') }}</label>
+            <input class="form-control" name="step_name" placeholder="{{ _('Analyst review') }}" required>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">{{ _('Group') }}</label>
+            <select class="form-select" name="group_id">
+              <option value="">{{ _('None') }}</option>
+              {% for group in groups %}
+              <option value="{{ group.id }}">{{ group.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">{{ _('Function') }}</label>
+            <select class="form-select" name="function_id">
+              <option value="">{{ _('None') }}</option>
+              {% for fn in functions %}
+              <option value="{{ fn.id }}">{{ fn.label }} ({{ fn.code }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-1">
+            <label class="form-label">{{ _('SLA days') }}</label>
+            <input class="form-control" name="sla_days" type="number" min="1" placeholder="3">
+            <div class="form-text">{{ _('Tip: 1 day = 24 hours.') }}</div>
+          </div>
+          <div class="col-md-1">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="is_required" checked id="wfRequired">
+              <label class="form-check-label" for="wfRequired">{{ _('Required') }}</label>
+            </div>
+          </div>
+          <div class="col-12"><button class="btn btn-primary" type="submit">{{ _('Add step') }}</button></div>
+        </form>
       </div>
-      {% endfor %}
-
-      <div class="col-12 form-text">{{ _('Leave fields empty to keep this stage always required.') }}</div>
-      <div class="col-12 form-text">{{ _('Use Ctrl/Cmd to select multiple grades in the dropdown list.') }}</div>
-      <div class="col-12 d-flex flex-wrap gap-2">
-        <button class="btn btn-primary" type="submit" name="action" value="save_matrix">{{ _('Save matrix') }}</button>
-        <button class="btn btn-outline-success" type="submit" name="action" value="save_matrix_and_approve" onclick="return confirm('{{ _('Save and approve full matrix now?') }}');">{{ _('Save + approve full matrix') }}</button>
-      </div>
-    </form>
-
-    <form method="post" class="mt-2" onsubmit="return confirm('{{ _('Recalculate all pending approvals now?') }}');">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="action" value="recalculate_pending_approvals">
-      <input type="hidden" name="workflow_id" value="{{ active_workflow_id }}">
-      <button class="btn btn-outline-warning" type="submit">{{ _('Recalculate pending approvals') }}</button>
-    </form>
-  </div>
-</div>
-
-{% if credit_mode == 'add' %}
-<div class="card border-0 shadow-sm mb-3">
-  <div class="card-header bg-body-tertiary">{{ _('Add workflow step') }}</div>
-  <div class="card-body">
-    <form method="post" class="row g-2 align-items-end">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="hidden" name="action" value="add_step">
-      <div class="col-md-2">
-        <label class="form-label">{{ _('Order') }}</label>
-        <input class="form-control" name="step_order" type="number" min="1" placeholder="1">
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">{{ _('Stage') }}</label>
-        <select class="form-select" name="stage">
-          {% for code, label in stage_options %}
-          <option value="{{ code }}">{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">{{ _('Step name') }}</label>
-        <input class="form-control" name="step_name" placeholder="{{ _('Analyst review') }}" required>
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">{{ _('Group') }}</label>
-        <select class="form-select" name="group_id">
-          <option value="">{{ _('None') }}</option>
-          {% for group in groups %}
-          <option value="{{ group.id }}">{{ group.name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-2">
-        <label class="form-label">{{ _('Function') }}</label>
-        <select class="form-select" name="function_id">
-          <option value="">{{ _('None') }}</option>
-          {% for fn in functions %}
-          <option value="{{ fn.id }}">{{ fn.label }} ({{ fn.code }})</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-1">
-        <label class="form-label">{{ _('SLA days') }}</label>
-        <input class="form-control" name="sla_days" type="number" min="1" placeholder="3">
-        <div class="form-text">{{ _('Tip: 1 day = 24 hours.') }}</div>
-      </div>
-      <div class="col-md-1">
-        <div class="form-check">
-          <input class="form-check-input" type="checkbox" name="is_required" checked id="wfRequired">
-          <label class="form-check-label" for="wfRequired">{{ _('Required') }}</label>
-        </div>
-      </div>
-      <div class="col-12"><button class="btn btn-primary" type="submit">{{ _('Add step') }}</button></div>
-    </form>
-  </div>
-</div>
-{% endif %}
-
-{% if selected_workflow %}
-<div class="card border-0 shadow-sm mb-3">
-  <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center flex-wrap gap-2">
-    <span>{{ _('BPM workflow to approval steps linkage') }}</span>
-    <span class="badge text-bg-light border">{{ selected_workflow_id or '-' }}</span>
-  </div>
-  <div class="card-body p-0">
-    <div class="table-responsive">
-      <table class="table table-sm mb-0">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>{{ _('BPM node') }}</th>
-            <th>{{ _('Stage') }}</th>
-            <th>{{ _('Group') }}</th>
-            <th>{{ _('Function') }}</th>
-            <th>{{ _('SLA days') }}</th>
-            <th>{{ _('Required') }}</th>
-            <th>{{ _('Linked approval step') }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in selected_workflow_steps %}
-          <tr>
-            <td>{{ row.order }}</td>
-            <td>
-              <div class="fw-semibold">{{ row.label }}</div>
-              <div class="small text-secondary">{{ row.id }}</div>
-            </td>
-            <td><code>{{ row.stage or '-' }}</code></td>
-            <td>{{ row.group_name or '-' }}</td>
-            <td>{{ row.function_label or '-' }}</td>
-            <td>{{ row.sla_days if row.sla_days else '-' }}</td>
-            <td>{{ _('Yes') if row.is_required else _('No') }}</td>
-            <td>
-              {% if row.linked_step_id %}
-              <span class="badge text-bg-success">#{{ row.linked_step_id }} · {{ row.linked_step_name }}</span>
-              {% else %}
-              <span class="badge text-bg-warning text-dark">{{ _('Not linked yet') }}</span>
-              {% endif %}
-            </td>
-          </tr>
-          {% else %}
-          <tr><td colspan="8" class="text-secondary">{{ _('No BPM task node yet.') }}</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
     </div>
   </div>
-</div>
-{% endif %}
+  {% endif %}
 
-<div class="card border-0 shadow-sm">
-  <div class="card-header bg-body-tertiary">{{ _('Approval workflow steps') }}</div>
-  <div class="card-body border-bottom">
-    <div class="d-flex flex-wrap align-items-center gap-2">
-      {% if selected_workflow_steps %}
-      {% for row in selected_workflow_steps %}
-      <span class="badge {{ 'text-bg-primary' if row.linked_step_id else 'text-bg-warning text-dark' }} p-2">#{{ row.order }} · {{ row.label }}</span>
-      {% if not loop.last %}<i class="bi bi-arrow-right text-secondary"></i>{% endif %}
-      {% endfor %}
-      {% else %}
-      {% for step in steps %}
-      <span class="badge text-bg-primary p-2">#{{ step.step_order }} · {{ step.step_name }}</span>
-      {% if not loop.last %}<i class="bi bi-arrow-right text-secondary"></i>{% endif %}
-      {% else %}
-      <span class="text-secondary">{{ _('No workflow steps yet.') }}</span>
-      {% endfor %}
-      {% endif %}
+  {% if selected_workflow %}
+  <div class="accordion-item">
+    <h2 class="accordion-header" id="workflowRulesLinkageHeading">
+      <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#workflowRulesLinkagePanel" aria-expanded="false" aria-controls="workflowRulesLinkagePanel">
+        {{ _('BPM workflow to approval steps linkage') }}
+      </button>
+    </h2>
+    <div id="workflowRulesLinkagePanel" class="accordion-collapse collapse" aria-labelledby="workflowRulesLinkageHeading" data-bs-parent="#workflowRulesAccordion">
+      <div class="accordion-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>{{ _('BPM node') }}</th>
+                <th>{{ _('Stage') }}</th>
+                <th>{{ _('Group') }}</th>
+                <th>{{ _('Function') }}</th>
+                <th>{{ _('SLA days') }}</th>
+                <th>{{ _('Required') }}</th>
+                <th>{{ _('Linked approval step') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in selected_workflow_steps %}
+              <tr>
+                <td>{{ row.order }}</td>
+                <td>
+                  <div class="fw-semibold">{{ row.label }}</div>
+                  <div class="small text-secondary">{{ row.id }}</div>
+                </td>
+                <td><code>{{ row.stage or '-' }}</code></td>
+                <td>{{ row.group_name or '-' }}</td>
+                <td>{{ row.function_label or '-' }}</td>
+                <td>{{ row.sla_days if row.sla_days else '-' }}</td>
+                <td>{{ _('Yes') if row.is_required else _('No') }}</td>
+                <td>
+                  {% if row.linked_step_id %}
+                  <span class="badge text-bg-success">#{{ row.linked_step_id }} · {{ row.linked_step_name }}</span>
+                  {% else %}
+                  <span class="badge text-bg-warning text-dark">{{ _('Not linked yet') }}</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="8" class="text-secondary">{{ _('No BPM task node yet.') }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </div>
-  <div class="card-body p-0">
-    <div class="table-responsive">
-      <table class="table table-sm mb-0">
-        <thead><tr><th>#</th><th>{{ _('Step') }}</th><th>{{ _('Stage') }}</th><th>{{ _('Group') }}</th><th>{{ _('Function') }}</th><th>{{ _('SLA days') }}</th><th>{{ _('Required') }}</th><th class="text-end">{{ _('Actions') }}</th></tr></thead>
-        <tbody>
-          {% for step in steps %}
-          <tr>
-            <td>{{ step.step_order }}</td>
-            <td>{{ step.step_name }}</td>
-            <td>{{ step.stage }}</td>
-            <td>{{ step.group.name if step.group else '-' }}</td>
-            <td>{{ step.function_ref.label if step.function_ref else (step.function_name or '-') }}</td>
-            <td>
-              {% if step.sla_days %}
-                {{ step.sla_days }} {{ _('days') }} ({{ step.sla_days * 24 }} {{ _('hours') }})
+  {% endif %}
+
+  <div class="accordion-item" id="workflow-rules-steps">
+    <h2 class="accordion-header" id="workflowRulesStepsHeading">
+      <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#workflowRulesStepsPanel" aria-expanded="true" aria-controls="workflowRulesStepsPanel">
+        {{ _('Approval workflow steps') }}
+      </button>
+    </h2>
+    <div id="workflowRulesStepsPanel" class="accordion-collapse collapse show" aria-labelledby="workflowRulesStepsHeading" data-bs-parent="#workflowRulesAccordion">
+      <div class="accordion-body p-0">
+        <div class="p-3 border-bottom">
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            {% if selected_workflow_steps %}
+            {% for row in selected_workflow_steps %}
+            <span class="badge {{ 'text-bg-primary' if row.linked_step_id else 'text-bg-warning text-dark' }} p-2">#{{ row.order }} · {{ row.label }}</span>
+            {% if not loop.last %}<i class="bi bi-arrow-right text-secondary"></i>{% endif %}
+            {% endfor %}
+            {% else %}
+            {% for step in steps %}
+            <span class="badge text-bg-primary p-2">#{{ step.step_order }} · {{ step.step_name }}</span>
+            {% if not loop.last %}<i class="bi bi-arrow-right text-secondary"></i>{% endif %}
+            {% else %}
+            <span class="text-secondary">{{ _('No workflow steps yet.') }}</span>
+            {% endfor %}
+            {% endif %}
+          </div>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead><tr><th>#</th><th>{{ _('Step') }}</th><th>{{ _('Stage') }}</th><th>{{ _('Group') }}</th><th>{{ _('Function') }}</th><th>{{ _('SLA days') }}</th><th>{{ _('Required') }}</th><th class="text-end">{{ _('Actions') }}</th></tr></thead>
+            <tbody>
+              {% for step in steps %}
+              <tr>
+                <td>{{ step.step_order }}</td>
+                <td>{{ step.step_name }}</td>
+                <td>{{ step.stage }}</td>
+                <td>{{ step.group.name if step.group else '-' }}</td>
+                <td>{{ step.function_ref.label if step.function_ref else (step.function_name or '-') }}</td>
+                <td>
+                  {% if step.sla_days %}
+                    {{ step.sla_days }} {{ _('days') }} ({{ step.sla_days * 24 }} {{ _('hours') }})
+                  {% else %}
+                    -
+                  {% endif %}
+                </td>
+                <td>{{ _('Yes') if step.is_required else _('No') }}</td>
+                <td class="text-end">
+                  <form method="post" class="d-inline" onsubmit="return confirm('{{ _('Delete this workflow step?') }}');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="action" value="delete_step">
+                    <input type="hidden" name="step_id" value="{{ step.id }}">
+                    <button class="btn btn-outline-danger btn-sm" type="submit">{{ _('Delete') }}</button>
+                  </form>
+                </td>
+              </tr>
               {% else %}
-                -
-              {% endif %}
-            </td>
-            <td>{{ _('Yes') if step.is_required else _('No') }}</td>
-            <td class="text-end">
-              <form method="post" class="d-inline" onsubmit="return confirm('{{ _('Delete this workflow step?') }}');">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="hidden" name="action" value="delete_step">
-                <input type="hidden" name="step_id" value="{{ step.id }}">
-                <button class="btn btn-outline-danger btn-sm" type="submit">{{ _('Delete') }}</button>
-              </form>
-            </td>
-          </tr>
-          {% else %}
-          <tr><td colspan="8" class="text-secondary">{{ _('No workflow steps yet.') }}</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
+              <tr><td colspan="8" class="text-secondary">{{ _('No workflow steps yet.') }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1479,7 +1559,7 @@
       window.localStorage.setItem(snapGridStorageKey, snapGridEnabled ? '1' : '0');
     }
 
-    function applyAutoArrange() {
+    function applyAutoArrange(silent) {
       nodes = nodes.map((node, index) => {
         const pos = defaultDiagramPosition(index);
         return {
@@ -1489,7 +1569,9 @@
         };
       });
       render();
-      setDesignerFeedback({{ _('Diagram auto-arranged.')|tojson }}, 'success');
+      if (!silent) {
+        setDesignerFeedback({{ _('Diagram auto-arranged.')|tojson }}, 'success');
+      }
     }
 
     function eventToSvgPoint(event) {
@@ -1991,7 +2073,7 @@
     });
 
     autoArrangeBtn && autoArrangeBtn.addEventListener('click', () => {
-      applyAutoArrange();
+      applyAutoArrange(false);
     });
 
     snapGridToggleEl && snapGridToggleEl.addEventListener('change', () => {
@@ -2178,8 +2260,29 @@
       payloadInput.value = JSON.stringify(payload);
     });
 
+    let autoArrangedOnWorkflowEntry = false;
+
+    const autoArrangeOnWorkflowEntry = () => {
+      if (autoArrangedOnWorkflowEntry) return;
+      autoArrangedOnWorkflowEntry = true;
+      applyAutoArrange(true);
+      setDesignerFeedback({{ _('Auto-arrange applied on workflow open.')|tojson }}, 'success');
+    };
+
+    const workflowTabButton = document.getElementById('approval-tab-workflows-btn');
+    workflowTabButton && workflowTabButton.addEventListener('shown.bs.tab', () => {
+      autoArrangeOnWorkflowEntry();
+    });
+
     render();
+
+    const workflowTabPane = document.getElementById('approval-tab-workflows');
+    const isWorkflowTabVisible = !!(workflowTabPane && workflowTabPane.classList.contains('show') && workflowTabPane.classList.contains('active'));
+    if (isWorkflowTabVisible) {
+      autoArrangeOnWorkflowEntry();
+    }
   })();
 </script>
 {% endif %}
+{{ borrower_picker_modal(modal_id='modalBorrowerPickerApprovalWorkflow') }}
 {% endblock %}

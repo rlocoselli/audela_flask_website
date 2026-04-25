@@ -1,4 +1,5 @@
 {% extends "credit/page_base.html" %}
+{% from 'credit/_borrower_picker.html' import borrower_picker, borrower_picker_modal with context %}
 {% set title = _('Audela Credit Reports') %}
 {% set active_page = 'reports' %}
 
@@ -17,12 +18,8 @@
       </div>
       <div class="col-12 col-md-2">
         <label class="form-label">{{ _('Borrower') }}</label>
-        <select class="form-select" name="borrower_id">
-          <option value="">{{ _('All') }}</option>
-          {% for b in filter_options.borrowers %}
-          <option value="{{ b.id }}" {% if filters.borrower_id == b.id %}selected{% endif %}>{{ b.name }}</option>
-          {% endfor %}
-        </select>
+        {% set _sel_b = filter_options.borrowers | selectattr('id', 'equalto', filters.borrower_id) | list %}
+        {{ borrower_picker('borrower_id', selected_id=filters.borrower_id or '', selected_name=(_sel_b[0].name if _sel_b else ''), modal_id='modalBorrowerPickerReports', input_id_prefix='reports_borrower') }}
       </div>
       <div class="col-12 col-md-2">
         <label class="form-label">{{ _('Risk grade') }}</label>
@@ -205,6 +202,7 @@
     </div>
   </div>
 </div>
+{{ borrower_picker_modal(modal_id='modalBorrowerPickerReports') }}
 {% endblock %}
 
 {% block body_scripts %}

@@ -6,6 +6,39 @@
   <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/echarts@5/map/js/world.js"></script>
   <style>
+    .viz-type-picker .vt-btn {
+      min-width: 110px;
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      color: #334155;
+      border-color: #cbd5e1;
+      background: #fff;
+      transition: all .16s ease;
+    }
+    .viz-type-picker .vt-btn i { font-size: 1.1rem; }
+    .viz-type-picker .vt-btn:hover,
+    .viz-type-picker .vt-btn:focus {
+      color: #0f172a;
+      border-color: #93c5fd;
+      background: #eff6ff;
+      box-shadow: 0 0 0 .12rem rgba(59, 130, 246, 0.15);
+    }
+    .viz-type-picker .vt-btn.active,
+    .viz-type-picker .vt-btn.active:hover,
+    .viz-type-picker .vt-btn.active:focus {
+      border-width: 2px;
+      border-color: #1d4ed8;
+      color: #fff;
+      background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%);
+      box-shadow: 0 8px 18px rgba(37, 99, 235, 0.24);
+    }
+    .vis-type-label { display: inline-block; }
+    /* Ensure preview area has stable height for ECharts rendering. */
+    #ex-viz.viz {
+      min-height: 320px;
+      width: 100%;
+    }
     .bi-floating-filters {
       position: fixed;
       top: 110px;
@@ -62,10 +95,6 @@
   </div>
 </div>
 
-<style>
-  /* Ensure the preview area has height so ECharts can render */
-  #ex-viz.viz { min-height: 320px; width: 100%; }
-</style>
 <div class="row g-3">
   <div class="col-12 col-lg-4">
     <div class="card border-0 shadow-sm" style="border-radius: 1rem;">
@@ -112,12 +141,6 @@
               <option value="map">{{ _('Map') }}</option>
               <option value="pivot">{{ _('Pivot') }}</option>
             </select>
-            <style>
-              .viz-type-picker .vt-btn { min-width: 110px; display:flex; align-items:center; gap:.5rem; }
-              .viz-type-picker .vt-btn i { font-size: 1.1rem; }
-              .viz-type-picker .vt-btn.active { border-width:2px; }
-              .vis-type-label { display:inline-block; }
-            </style>
           </div>
           <div class="col-6">
             <label class="form-label">{{ _('Dimensão') }}</label>
@@ -182,19 +205,22 @@
           <button class="btn btn-outline-secondary" id="ex-save"><i class="bi bi-save"></i> {{ _('Salvar visualização') }}</button>
         </div>
 
-        <hr class="my-3" />
-
-        <label class="form-label">{{ _('Adicionar ao dashboard') }}</label>
-        <div class="input-group">
-          <select class="form-select" id="ex-dashboard">
-            <option value="">--</option>
-            {% for d in dashboards %}
-              <option value="{{ d.id }}">{{ d.name }}</option>
-            {% endfor %}
-          </select>
-          <button class="btn btn-outline-primary" id="ex-add-dash">{{ _('Adicionar') }}</button>
-        </div>
-        <div class="form-text">{{ _('Cria um card no dashboard com esta visualização.') }}</div>
+        <details class="portal-collapsible">
+          <summary>{{ _('Actions avancées') }}</summary>
+          <div class="pt-2">
+            <label class="form-label">{{ _('Adicionar ao dashboard') }}</label>
+            <div class="input-group">
+              <select class="form-select" id="ex-dashboard">
+                <option value="">--</option>
+                {% for d in dashboards %}
+                  <option value="{{ d.id }}">{{ d.name }}</option>
+                {% endfor %}
+              </select>
+              <button class="btn btn-outline-primary" id="ex-add-dash">{{ _('Adicionar') }}</button>
+            </div>
+            <div class="form-text">{{ _('Cria um card no dashboard com esta visualização.') }}</div>
+          </div>
+        </details>
       </div>
     </div>
   </div>
@@ -227,7 +253,9 @@
     </div>
   </div>
   <div class="bi-floating-body">
-    <div class="row g-2 align-items-end">
+    <details class="portal-collapsible">
+      <summary>{{ _('Filtres avancés') }}</summary>
+    <div class="row g-2 align-items-end pt-2">
       <div class="col-12">
         <label class="form-label mb-1">{{ _('Campo') }}</label>
         <select id="ex-filter-field" class="form-select form-select-sm"></select>
@@ -251,6 +279,7 @@
       </div>
     </div>
     <div id="ex-filter-summary" class="mt-2"></div>
+    </details>
   </div>
 </div>
 {% endblock %}

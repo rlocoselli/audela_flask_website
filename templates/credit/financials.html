@@ -1,14 +1,24 @@
 {% extends "credit/page_base.html" %}
+{% from 'credit/_borrower_picker.html' import borrower_picker, borrower_picker_modal with context %}
 {% set title = _('Audela Credit Financials') %}
 {% set active_page = 'financials' %}
 {% set credit_mode = request.args.get('mode', 'search') %}
 
 {% block credit_page_content %}
 <div class="d-flex gap-2 mb-3">
-  <a class="btn btn-sm {% if credit_mode != 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.financials', mode='search', borrower_id=selected_borrower_id) if selected_borrower_id else url_for('credit.financials', mode='search') }}">{{ _('Search and list') }}</a>
-  <a class="btn btn-sm {% if credit_mode == 'add' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.financials', mode='add') }}">{{ _('Add and import') }}</a>
+  <a class="btn btn-sm btn-primary" href="{{ url_for('credit.financials_grid', borrower_id=selected_borrower_id or '', coa_id=default_grid_coa_id or '') }}">{{ _('Financials & Spreading Grid') }}</a>
+  <a class="btn btn-sm {% if credit_mode != 'edit' %}btn-outline-secondary{% else %}btn-primary{% endif %}" href="{{ url_for('credit.financials', mode='search', borrower_id=selected_borrower_id) if selected_borrower_id else url_for('credit.financials', mode='search') }}">{{ _('Search and list') }}</a>
   {% if edit_statement %}
   <a class="btn btn-sm {% if credit_mode == 'edit' %}btn-primary{% else %}btn-outline-secondary{% endif %}" href="{{ url_for('credit.financials', mode='edit', statement_id=edit_statement.id, borrower_id=selected_borrower_id) if selected_borrower_id else url_for('credit.financials', mode='edit', statement_id=edit_statement.id) }}">{{ _('Edit') }}</a>
+  {% endif %}
+</div>
+
+<div class="alert alert-info d-flex flex-wrap align-items-center gap-2" role="alert">
+  <span><i class="bi bi-grid-3x3-gap me-1"></i>{{ _('Grid is now the primary workflow for Financials and Spreading, with automatic totals recalculation.') }}</span>
+  {% if default_grid_coa_id %}
+  <a class="btn btn-sm btn-outline-primary ms-auto" href="{{ url_for('credit.financials_grid', borrower_id=selected_borrower_id or '', coa_id=default_grid_coa_id) }}">{{ _('Open grid') }}</a>
+  {% else %}
+  <span class="small text-warning ms-auto">{{ _('Create a chart of accounts first to use the grid.') }}</span>
   {% endif %}
 </div>
 
@@ -20,7 +30,7 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="action" value="update">
       <input type="hidden" name="statement_id" value="{{ edit_statement.id }}">
-      <div class="col-md-3"><select class="form-select" name="borrower_id" required><option value="">{{ _('Borrower') }}</option>{% for b in borrowers %}<option value="{{ b.id }}" {% if edit_statement.borrower_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}</select></div>
+      <div class="col-md-3">{{ borrower_picker('borrower_id', selected_id=edit_statement.borrower_id or '', selected_name=(edit_statement.borrower.name if edit_statement.borrower else ''), required=True, modal_id='modalBorrowerPickerFinancialsEdit', input_id_prefix='financials_edit_borrower') }}</div>
       <div class="col-md-2"><input class="form-control" name="period_label" value="{{ edit_statement.period_label or 'FY' }}" placeholder="{{ _('Period') }}"></div>
       <div class="col-md-1"><input class="form-control" name="fiscal_year" value="{{ edit_statement.fiscal_year }}"></div>
       <div class="col-md-2"><input class="form-control" name="revenue" value="{{ edit_statement.revenue or 0 }}" placeholder="{{ _('Revenue') }}"></div>
@@ -50,212 +60,13 @@
 </div>
 {% endif %}
 
-{% if credit_mode == 'add' %}
-<div class="row g-3 mb-3">
-  <div class="col-12 col-xl-6">
-    <div class="card border-0 shadow-sm h-100">
-      <div class="card-header bg-body-tertiary">{{ _('New financial statement') }}</div>
-      <div class="card-body">
-        <form method="post" class="row g-2">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <div class="col-md-3"><select class="form-select" name="borrower_id" required><option value="">{{ _('Borrower') }}</option>{% for b in borrowers %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}</select></div>
-          <div class="col-md-2"><input class="form-control" name="period_label" value="FY" placeholder="{{ _('Period') }}"></div>
-          <div class="col-md-1"><input class="form-control" name="fiscal_year" value="{{ current_year }}"></div>
-          <div class="col-md-2"><input class="form-control" name="revenue" placeholder="{{ _('Revenue') }}"></div>
-          <div class="col-md-2"><input class="form-control" name="ebitda" placeholder="{{ _('EBITDA') }}"></div>
-          <div class="col-md-2"><input class="form-control" name="total_debt" placeholder="{{ _('Total debt') }}"></div>
-          <div class="col-md-2"><input class="form-control" name="cash" placeholder="{{ _('Cash') }}"></div>
-          <div class="col-md-2"><input class="form-control" name="net_income" placeholder="{{ _('Net income') }}"></div>
-          <div class="col-md-2"><select class="form-select" name="spreading_status"><option value="in_progress">{{ _('In progress') }}</option><option value="completed">{{ _('Completed') }}</option><option value="needs_review">{{ _('Needs review') }}</option></select></div>
-          <div class="col-md-3">
-            <select class="form-select" name="analyst_user_id">
-              <option value="">{{ _('Analyst user (optional)') }}</option>
-              {% for u in users %}<option value="{{ u.id }}">{{ u.email }}</option>{% endfor %}
-            </select>
-          </div>
-          <div class="col-md-3">
-            <select class="form-select" name="analyst_function_id">
-              <option value="">{{ _('Analyst function (optional)') }}</option>
-              {% for fn in functions %}<option value="{{ fn.id }}">{{ fn.label }} ({{ fn.code }})</option>{% endfor %}
-            </select>
-          </div>
-          <div class="col-md-2"><button class="btn btn-primary w-100" type="submit">{{ _('Save') }}</button></div>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-12 col-xl-6">
-    <div class="card border-0 shadow-sm h-100">
-      <div class="card-header bg-body-tertiary">{{ _('AI spreading from company name or PDF') }}</div>
-      <div class="card-body">
-        <form method="post" action="{{ url_for('credit.financials_import_pdf_ai') }}" enctype="multipart/form-data" class="row g-2">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <div class="col-12">
-            <label class="form-label">{{ _('Company full name') }}</label>
-            <input class="form-control" type="text" name="company_name" placeholder="{{ _('Ex: Empresa XYZ S.A.') }}">
-          </div>
-          <div class="col-12">
-            <label class="form-label">{{ _('PDF') }}</label>
-            <input class="form-control" type="file" name="pdf_file" accept=".pdf,application/pdf">
-          </div>
-          <div class="col-12">
-            <select class="form-select" name="borrower_id">
-              <option value="">{{ _('Borrower (optional if company name matches)') }}</option>
-              {% for b in borrowers %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
-            </select>
-          </div>
-          <div class="col-12">
-            <select class="form-select" name="analyst_user_id">
-              <option value="">{{ _('Default analyst user (optional)') }}</option>
-              {% for u in users %}<option value="{{ u.id }}">{{ u.email }}</option>{% endfor %}
-            </select>
-          </div>
-          <div class="col-12">
-            <select class="form-select" name="analyst_function_id">
-              <option value="">{{ _('Default analyst function (optional)') }}</option>
-              {% for fn in functions %}<option value="{{ fn.id }}">{{ fn.label }} ({{ fn.code }})</option>{% endfor %}
-            </select>
-          </div>
-          <div class="col-12 small text-secondary">
-            {{ _('Provide company name and/or annual statement PDF. AI extracts assets, liabilities, equity, P&L metrics and builds credit analysis ratios.') }}
-          </div>
-          <div class="col-12"><button class="btn btn-outline-primary w-100" type="submit">{{ _('Create spreading with AI') }}</button></div>
-        </form>
-
-        <hr>
-
-        <form method="post" action="{{ url_for('credit.financials_import_company_ai') }}" class="row g-2" id="aiCompanyImportForm">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <div class="col-12">
-            <label class="form-label">{{ _('Borrower') }}</label>
-            <select class="form-select" name="borrower_id" id="ai-company-borrower">
-              <option value="">{{ _('Borrower') }}</option>
-              {% for b in borrowers %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
-            </select>
-          </div>
-          <div class="col-12">
-            <label class="form-label">{{ _('Company full name') }}</label>
-            <input class="form-control" type="text" name="company_name" id="ai-company-query" placeholder="{{ _('Ex: Empresa XYZ S.A.') }}" required>
-          </div>
-          <div class="col-12 d-grid">
-            <button class="btn btn-outline-secondary" type="button" id="ai-find-companies-btn">{{ _('Find possible companies with AI') }}</button>
-          </div>
-          <div class="col-12">
-            <div id="ai-company-candidates" class="small"></div>
-          </div>
-          <div class="col-12 d-grid">
-            <button class="btn btn-outline-primary" type="submit">{{ _('Import last fiscal years from selected company') }}</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-</div>
-{% endif %}
-
-{% if credit_mode == 'add' %}
-<div class="row g-3 mb-3">
-  <div class="col-12 col-xl-8">
-    <div class="card border-0 shadow-sm h-100">
-      <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center gap-2 flex-wrap">
-        <span>{{ _('Import financial statements (CSV)') }}</span>
-        <span class="small text-secondary">{{ _('Use mapping fields to match any CSV structure.') }}</span>
-      </div>
-      <div class="card-body">
-        <form method="post" action="{{ url_for('credit.financials_import') }}" enctype="multipart/form-data" class="row g-2">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <div class="col-md-4">
-            <label class="form-label">{{ _('CSV') }}</label>
-            <input class="form-control" type="file" name="file" accept=".csv" required>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label">{{ _('Mapping template') }}</label>
-            <select class="form-select" name="template_name" required>
-              <option value="">{{ _('Select template') }}</option>
-              {% for tpl in csv_templates %}<option value="{{ tpl.name }}">{{ tpl.name }}</option>{% endfor %}
-            </select>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label">&nbsp;</label>
-            <div class="form-text mt-0">{{ _('Template-only import: choose a saved mapping template, then import your CSV file.') }}</div>
-          </div>
-
-          <div class="col-md-3">
-            <select class="form-select" name="analyst_user_id">
-              <option value="">{{ _('Default analyst user (optional)') }}</option>
-              {% for u in users %}<option value="{{ u.id }}">{{ u.email }}</option>{% endfor %}
-            </select>
-          </div>
-          <div class="col-md-3">
-            <select class="form-select" name="analyst_function_id">
-              <option value="">{{ _('Default analyst function (optional)') }}</option>
-              {% for fn in functions %}<option value="{{ fn.id }}">{{ fn.label }} ({{ fn.code }})</option>{% endfor %}
-            </select>
-          </div>
-          <div class="col-md-6 d-flex align-items-end"><button class="btn btn-outline-primary w-100" type="submit">{{ _('Import') }}</button></div>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-12 col-xl-4">
-    <div class="card border-0 shadow-sm h-100">
-      <div class="card-header bg-body-tertiary">{{ _('CSV mapping templates') }}</div>
-      <div class="card-body">
-        <form method="post" action="{{ url_for('credit.financials_csv_template') }}" class="row g-2 mb-3">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="hidden" name="action" value="save">
-          <div class="col-12">
-            <input class="form-control" name="template_name" placeholder="{{ _('Template name') }}">
-          </div>
-          <div class="col-12 small text-secondary">{{ _('Drag and drop fields to organize your template mapping.') }}</div>
-          <div class="col-12">
-            <div id="templateMapList" class="d-flex flex-column gap-2">
-              {% for fld in csv_fields %}
-              <div class="border rounded-2 p-2 bg-body-tertiary d-flex align-items-center gap-2 map-row" draggable="true">
-                <span class="text-secondary" style="cursor: grab;">&#x2630;</span>
-                <label class="small mb-0 flex-shrink-0" style="min-width: 140px;"><code>{{ fld }}</code></label>
-                <input class="form-control form-control-sm" name="map_{{ fld }}" value="{{ default_mapping.get(fld, '') }}" placeholder="{{ _('CSV column for') }} {{ fld }}">
-              </div>
-              {% endfor %}
-            </div>
-          </div>
-          <div class="col-12"><button class="btn btn-primary w-100" type="submit">{{ _('Save template') }}</button></div>
-        </form>
-
-        <div class="list-group list-group-flush">
-          {% for tpl in csv_templates %}
-          <div class="list-group-item d-flex justify-content-between align-items-center">
-            <span>{{ tpl.name }}</span>
-            <form method="post" action="{{ url_for('credit.financials_csv_template') }}" class="d-inline" onsubmit="return confirm('{{ _('Delete this template?') }}');">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-              <input type="hidden" name="action" value="delete">
-              <input type="hidden" name="template_name" value="{{ tpl.name }}">
-              <button class="btn btn-outline-danger btn-sm" type="submit">{{ _('Delete') }}</button>
-            </form>
-          </div>
-          {% else %}
-          <div class="list-group-item text-secondary">{{ _('No templates yet.') }}</div>
-          {% endfor %}
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-{% endif %}
-
 <div class="card border-0 shadow-sm">
   <div class="card-header bg-body-tertiary border-bottom-0 pb-0">
     <form method="get" class="row g-2 align-items-end">
       <div class="col-12 col-lg-8">
         <label class="form-label fw-semibold mb-1">{{ _('Borrower') }}</label>
-        <select class="form-select form-select-lg" name="borrower_id">
-          <option value="">{{ _('Borrower') }} - {{ _('All') }}</option>
-          {% for b in borrowers %}
-          <option value="{{ b.id }}" {% if selected_borrower_id == b.id %}selected{% endif %}>{{ b.name }}</option>
-          {% endfor %}
-        </select>
+        {% set _sel_b = borrowers | selectattr('id', 'equalto', selected_borrower_id) | list %}
+        {{ borrower_picker('borrower_id', selected_id=selected_borrower_id or '', selected_name=(_sel_b[0].name if _sel_b else ''), modal_id='modalBorrowerPickerFinancialsFilter', input_id_prefix='financials_filter_borrower') }}
       </div>
       <div class="col-6 col-lg-2">
         <button class="btn btn-primary w-100" type="submit">{{ _('Filtrer') }}</button>
@@ -351,6 +162,9 @@
               {% endif %}
             </td>
             <td class="text-nowrap">
+              {% if default_grid_coa_id %}
+              <a class="btn btn-primary btn-sm" href="{{ url_for('credit.financials_grid', borrower_id=f.borrower_id, coa_id=default_grid_coa_id) }}">{{ _('Grid') }}</a>
+              {% endif %}
               <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('credit.financials', mode='edit', statement_id=f.id, borrower_id=selected_borrower_id) if selected_borrower_id else url_for('credit.financials', mode='edit', statement_id=f.id) }}">{{ _('Edit') }}</a>
               <form method="post" action="{{ url_for('credit.financials_delete', statement_id=f.id) }}" class="d-inline" onsubmit="return confirm('{{ _('Delete this financial statement?') }}');">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -368,111 +182,7 @@
   </div>
 </div>
 
-<script>
-  (function () {
-    const container = document.getElementById('templateMapList');
-    if (!container) return;
-
-    let dragged = null;
-
-    const getAfterElement = (y) => {
-      const els = [...container.querySelectorAll('.map-row:not(.dragging)')];
-      return els.reduce((closest, child) => {
-        const box = child.getBoundingClientRect();
-        const offset = y - box.top - box.height / 2;
-        if (offset < 0 && offset > closest.offset) {
-          return { offset, element: child };
-        }
-        return closest;
-      }, { offset: Number.NEGATIVE_INFINITY, element: null }).element;
-    };
-
-    container.querySelectorAll('.map-row').forEach((row) => {
-      row.addEventListener('dragstart', () => {
-        dragged = row;
-        row.classList.add('dragging');
-      });
-      row.addEventListener('dragend', () => {
-        row.classList.remove('dragging');
-        dragged = null;
-      });
-    });
-
-    container.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      if (!dragged) return;
-      const after = getAfterElement(e.clientY);
-      if (!after) {
-        container.appendChild(dragged);
-      } else {
-        container.insertBefore(dragged, after);
-      }
-    });
-  })();
-</script>
 {% include "credit/_history_popup_assets.html" %}
-
-<script>
-  (function () {
-    const btn = document.getElementById('ai-find-companies-btn');
-    const queryInput = document.getElementById('ai-company-query');
-    const listEl = document.getElementById('ai-company-candidates');
-    if (!btn || !queryInput || !listEl) return;
-
-    const csrfToken = document.querySelector('input[name="csrf_token"]')?.value || '';
-
-    function renderCandidates(rows) {
-      if (!Array.isArray(rows) || !rows.length) {
-        listEl.innerHTML = '<div class="text-secondary">{{ _('No candidates found by AI.') }}</div>';
-        return;
-      }
-      listEl.innerHTML = rows.map(function (r, idx) {
-        const name = String(r.name || '').trim();
-        const country = String(r.country || '').trim();
-        const reason = String(r.reason || '').trim();
-        return '' +
-          '<button type="button" class="btn btn-sm btn-outline-primary text-start w-100 mb-1 ai-company-candidate" data-name="' + name.replace(/"/g, '&quot;') + '">' +
-            '<div><strong>' + name + '</strong>' + (country ? (' <span class="text-secondary">(' + country + ')</span>') : '') + '</div>' +
-            (reason ? ('<div class="small text-secondary">' + reason + '</div>') : '') +
-          '</button>';
-      }).join('');
-
-      listEl.querySelectorAll('.ai-company-candidate').forEach(function (el) {
-        el.addEventListener('click', function () {
-          queryInput.value = el.getAttribute('data-name') || '';
-          listEl.querySelectorAll('.ai-company-candidate').forEach(function (x) { x.classList.remove('active'); });
-          el.classList.add('active');
-        });
-      });
-    }
-
-    btn.addEventListener('click', async function () {
-      const query = String(queryInput.value || '').trim();
-      if (!query) {
-        listEl.innerHTML = '<div class="text-warning">{{ _('Company query is required.') }}</div>';
-        return;
-      }
-      listEl.innerHTML = '<div class="text-secondary">{{ _('Searching with AI...') }}</div>';
-      try {
-        const response = await fetch('{{ url_for("credit.financials_company_candidates_ai") }}', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrfToken,
-          },
-          credentials: 'same-origin',
-          body: JSON.stringify({ query: query }),
-        });
-        const data = await response.json();
-        if (!response.ok || !data.ok) {
-          listEl.innerHTML = '<div class="text-warning">' + (data.error || '{{ _('Unable to fetch candidates.') }}') + '</div>';
-          return;
-        }
-        renderCandidates(data.companies || []);
-      } catch (err) {
-        listEl.innerHTML = '<div class="text-danger">{{ _('Unable to fetch candidates.') }}</div>';
-      }
-    });
-  })();
-</script>
+{{ borrower_picker_modal(modal_id='modalBorrowerPickerFinancialsEdit') }}
+{{ borrower_picker_modal(modal_id='modalBorrowerPickerFinancialsFilter') }}
 {% endblock %}

@@ -6,6 +6,7 @@ import io
 import json
 import re
 from typing import Any
+from urllib.parse import urlparse
 
 import requests
 
@@ -94,10 +95,55 @@ def _fetch_resource(url: str, timeout: int = 30, verify_ssl: bool = True) -> tup
             "Accept-Language": "fr,en;q=0.9,pt;q=0.8",
         },
     )
+    # Some pages (notably ratp.fr) can return Cloudflare challenge HTML instead
+    # of the target content for server-side clients. In that case, try a known
+    # official equivalent URL that is accessible server-side.
+    if _is_cloudflare_challenge_response(r):
+        fallback_url = _fallback_url_for_cloudflare(url)
+        if fallback_url:
+            rf = requests.get(
+                fallback_url,
+                timeout=timeout,
+                verify=bool(verify_ssl),
+                headers={
+                    "User-Agent": "Mozilla/5.0 (compatible; AudelaBot/1.0; +https://audela.example)",
+                    "Accept-Language": "fr,en;q=0.9,pt;q=0.8",
+                },
+            )
+            rf.raise_for_status()
+            content_type_f = (rf.headers.get("content-type") or "").lower()
+            final_url_f = str(rf.url or fallback_url)
+            return final_url_f, content_type_f, (rf.content or b"")
+
     r.raise_for_status()
     content_type = (r.headers.get("content-type") or "").lower()
     final_url = str(r.url or url)
     return final_url, content_type, (r.content or b"")
+
+
+def _is_cloudflare_challenge_response(resp: requests.Response) -> bool:
+    status = int(getattr(resp, "status_code", 0) or 0)
+    text = (resp.text or "")[:5000].lower() if hasattr(resp, "text") else ""
+    if status == 403 and ("cloudflare" in text or "just a moment" in text):
+        return True
+    if "cf-challenge" in text or "cdn-cgi/challenge-platform" in text:
+        return True
+    if "enable javascript and cookies to continue" in text:
+        return True
+    return False
+
+
+def _fallback_url_for_cloudflare(url: str) -> str:
+    parsed = urlparse(url)
+    host = (parsed.netloc or "").lower()
+    path = (parsed.path or "").strip()
+
+    # Official parity page: RATP tariffs page can be blocked by anti-bot,
+    # while IDFM page remains accessible and contains tariff information.
+    if "ratp.fr" in host and path.startswith("/titres-et-tarifs"):
+        return "https://www.iledefrance-mobilites.fr/titres-et-tarifs"
+
+    return ""
 
 
 def _table_to_headers_rows(table_rows: list[list[str]]) -> tuple[list[str], list[list[str]]]:
@@ -399,8 +445,220 @@ def extract_structured_table_from_web(
     )
 
     if used_ai:
-        return ExtractResult(columns=ai_cols, rows=ai_rows, source_url=url, mode="ai")
+        return ExtractResult(columns=ai_cols, rows=ai_rows, source_url=final_url, mode="ai")
 
     out_cols = target_cols or src_cols
     out_rows = _map_rows_to_schema(src_cols, src_rows, out_cols, max_rows=max_rows)
-    return ExtractResult(columns=out_cols, rows=out_rows, source_url=url, mode="heuristic")
+    return ExtractResult(columns=out_cols, rows=out_rows, source_url=final_url, mode="heuristic")
+
+
+def _extract_first_url(text: str) -> str:
+    m = re.search(r"https?://[^\s)\]>'\"]+", text or "", flags=re.I)
+    return str(m.group(0)).strip() if m else ""
+
+
+def _extract_selector(text: str) -> str:
+    src = text or ""
+    # Remove URLs first so domains like "oracle.com" are not mistaken as
+    # CSS class selectors (e.g. ".oracle.com").
+    src_no_urls = re.sub(r"https?://\S+", " ", src, flags=re.I)
+
+    # Only try selector extraction when user wording hints selector intent.
+    has_selector_intent = bool(
+        re.search(r"selector|sélecteur|css|id\b|class\b|table\s*:\s*nth-of-type", src_no_urls, flags=re.I)
+    )
+    if not has_selector_intent:
+        return ""
+
+    m = re.search(r"(#[-_A-Za-z0-9:.]+)", src_no_urls)
+    if m:
+        return str(m.group(1)).strip()
+    m = re.search(r"(\.[-_A-Za-z0-9:_-]+)", src_no_urls)
+    if m:
+        return str(m.group(1)).strip()
+    m = re.search(r"(table\s*:\s*nth-of-type\(\s*\d+\s*\))", src_no_urls, flags=re.I)
+    if m:
+        return str(m.group(1)).strip()
+    return ""
+
+
+def _extract_schema_candidates(text: str) -> list[str]:
+    raw = text or ""
+    marker = re.search(r"(?:colonnes?|columns?|schema|champs?)\s*[:=-]\s*(.+)", raw, flags=re.I)
+    # Keep schema empty when user did not explicitly provide schema markers.
+    if not marker:
+        return []
+    chunk = marker.group(1)
+    chunk = re.sub(r"\n+", ",", chunk)
+    parts = [p.strip(" .;:-") for p in re.split(r"[,;|]", chunk) if p and p.strip(" .;:-")]
+    out: list[str] = []
+    seen: set[str] = set()
+    for p in parts[:30]:
+        key = _norm(p)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(p)
+    return out
+
+
+def suggest_web_extract_config_from_text(
+    prompt_text: str,
+    current_url: str = "",
+    current_schema: str = "",
+    current_selector: str = "",
+    current_max_rows: int = 200,
+    current_verify_ssl: bool = True,
+    lang: str | None = None,
+) -> dict[str, Any]:
+    """Generate a scraping configuration from natural-language text.
+
+    Returns a dict with: url, schema, table_selector, max_rows, verify_ssl,
+    provider, model, used_ai.
+    """
+    text = (prompt_text or "").strip()
+    if not text:
+        return {
+            "url": current_url,
+            "schema": current_schema,
+            "table_selector": current_selector,
+            "max_rows": int(current_max_rows or 200),
+            "verify_ssl": bool(current_verify_ssl),
+            "provider": "none",
+            "model": "",
+            "used_ai": False,
+        }
+
+    runtime = resolve_ai_runtime_config(default_model="gpt-4o-mini")
+    api_key = runtime.get("api_key") or ""
+    base_url = runtime.get("base_url") or ""
+    model = runtime.get("model") or ""
+
+    fallback_url = _extract_first_url(text) or (current_url or "")
+    fallback_selector = _extract_selector(text) or (current_selector or "")
+    fallback_cols = _extract_schema_candidates(text)
+    fallback_schema = ", ".join(fallback_cols) if fallback_cols else (current_schema or "")
+
+    rows_guess = int(current_max_rows or 200)
+    m_rows = re.search(r"(?:max\s*rows?|lignes?\s*max|rows?)\s*[:= ]\s*(\d{2,4})", text, flags=re.I)
+    if m_rows:
+        try:
+            rows_guess = int(m_rows.group(1))
+        except Exception:
+            rows_guess = int(current_max_rows or 200)
+    rows_guess = max(10, min(1000, rows_guess))
+
+    ssl_guess = bool(current_verify_ssl)
+    if re.search(r"(?:sans\s+ssl|no\s+ssl|ignore\s+ssl|skip\s+ssl)", text, flags=re.I):
+        ssl_guess = False
+    elif re.search(r"(?:avec\s+ssl|verify\s+ssl|ssl\s+on)", text, flags=re.I):
+        ssl_guess = True
+
+    if not (api_key and base_url and model):
+        return {
+            "url": fallback_url,
+            "schema": fallback_schema,
+            "table_selector": fallback_selector,
+            "max_rows": rows_guess,
+            "verify_ssl": ssl_guess,
+            "provider": "none",
+            "model": "",
+            "used_ai": False,
+        }
+
+    system_prompt = (
+        "You are a web scraping configuration assistant. "
+        "Return strictly one JSON object with keys: "
+        "url (string), schema_columns (array of strings), table_selector (string), "
+        "max_rows (integer), verify_ssl (boolean). "
+        "Do not include markdown."
+    )
+
+    user_payload = {
+        "language": lang or "fr",
+        "request": text,
+        "current": {
+            "url": current_url,
+            "schema": current_schema,
+            "table_selector": current_selector,
+            "max_rows": int(current_max_rows or 200),
+            "verify_ssl": bool(current_verify_ssl),
+        },
+        "rules": [
+            "Prefer explicit URL from text.",
+            "If missing fields, keep current values.",
+            "max_rows must be in [10, 1000].",
+            "table_selector can be #id, .class or table:nth-of-type(n).",
+        ],
+    }
+
+    payload = {
+        "model": model,
+        "temperature": 0.1,
+        "response_format": {"type": "json_object"},
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
+        ],
+    }
+
+    try:
+        r = requests.post(
+            f"{str(base_url).rstrip('/')}/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json=payload,
+            timeout=(10, 45),
+        )
+        if r.status_code >= 400:
+            payload.pop("response_format", None)
+            r = requests.post(
+                f"{str(base_url).rstrip('/')}/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json=payload,
+                timeout=(10, 45),
+            )
+        r.raise_for_status()
+        data = r.json() if r.content else {}
+        txt = (data.get("choices") or [{}])[0].get("message", {}).get("content") or "{}"
+        parsed = json.loads(txt)
+    except Exception:
+        parsed = {}
+
+    ai_url = str(parsed.get("url") or "").strip() if isinstance(parsed, dict) else ""
+    ai_selector = str(parsed.get("table_selector") or "").strip() if isinstance(parsed, dict) else ""
+    ai_rows = parsed.get("max_rows") if isinstance(parsed, dict) else None
+    ai_ssl = parsed.get("verify_ssl") if isinstance(parsed, dict) else None
+    ai_cols_raw = parsed.get("schema_columns") if isinstance(parsed, dict) else None
+
+    ai_cols: list[str] = []
+    if isinstance(ai_cols_raw, list):
+        seen: set[str] = set()
+        for c in ai_cols_raw:
+            val = str(c or "").strip()
+            key = _norm(val)
+            if not val or key in seen:
+                continue
+            seen.add(key)
+            ai_cols.append(val)
+
+    try:
+        out_rows = int(ai_rows) if ai_rows is not None else rows_guess
+    except Exception:
+        out_rows = rows_guess
+    out_rows = max(10, min(1000, out_rows))
+
+    out_verify_ssl = bool(ai_ssl) if isinstance(ai_ssl, bool) else ssl_guess
+    out_url = ai_url or fallback_url
+    out_selector = ai_selector or fallback_selector
+    out_schema = ", ".join(ai_cols) if ai_cols else fallback_schema
+
+    return {
+        "url": out_url,
+        "schema": out_schema,
+        "table_selector": out_selector,
+        "max_rows": out_rows,
+        "verify_ssl": out_verify_ssl,
+        "provider": str(runtime.get("provider") or ""),
+        "model": str(model),
+        "used_ai": bool(parsed),
+    }

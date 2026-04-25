@@ -16,22 +16,26 @@
     - A visible readonly text button that opens the picker modal
     - The modal itself (one instance per page – use the macro to avoid duplicates)
 #}
-{%- macro borrower_picker(field_name, selected_id='', selected_name='', required=False, modal_id='modalBorrowerPicker') -%}
-<div class="borrower-picker-widget" data-field="{{ field_name }}" data-modal="{{ modal_id }}">
-  <input type="hidden" name="{{ field_name }}" id="{{ field_name }}_hidden" value="{{ selected_id }}">
+{%- macro borrower_picker(field_name, selected_id='', selected_name='', required=False, modal_id='modalBorrowerPicker', input_id_prefix='', disabled=False, placeholder='') -%}
+{% set _prefix = (input_id_prefix or field_name) %}
+<div class="borrower-picker-widget" data-field="{{ field_name }}" data-input-prefix="{{ _prefix }}" data-modal="{{ modal_id }}">
+  <input type="hidden" name="{{ field_name }}" id="{{ _prefix }}_hidden" value="{{ selected_id }}" {% if disabled %}disabled{% endif %}>
   <div class="input-group">
-    <input type="text" class="form-control" id="{{ field_name }}_display"
-      value="{{ selected_name }}" readonly placeholder="{{ _('Select borrower...') }}"
+    <input type="text" class="form-control" id="{{ _prefix }}_display"
+      value="{{ selected_name }}" readonly placeholder="{{ placeholder or _('Select borrower...') }}"
       {% if required %}required{% endif %}
+      {% if disabled %}disabled{% endif %}
       style="background:#fff;cursor:pointer"
       data-bs-toggle="modal" data-bs-target="#{{ modal_id }}">
     <button class="btn btn-outline-secondary" type="button"
       data-bs-toggle="modal" data-bs-target="#{{ modal_id }}"
+      {% if disabled %}disabled{% endif %}
       title="{{ _('Browse borrowers') }}">
       <i class="bi bi-search"></i>
     </button>
     {% if not required %}
-    <button class="btn btn-outline-danger" type="button" id="{{ field_name }}_clear"
+    <button class="btn btn-outline-danger" type="button" id="{{ _prefix }}_clear"
+      {% if disabled %}disabled{% endif %}
       title="{{ _('Clear') }}" {% if not selected_id %}style="display:none"{% endif %}>
       <i class="bi bi-x-lg"></i>
     </button>
@@ -160,10 +164,10 @@
 
   function selectBorrower(id, name) {
     if (activeWidget) {
-      var fieldName = activeWidget.dataset.field;
-      var hiddenInput  = document.getElementById(fieldName + '_hidden');
-      var displayInput = document.getElementById(fieldName + '_display');
-      var clearBtn     = document.getElementById(fieldName + '_clear');
+      var inputPrefix = activeWidget.dataset.inputPrefix || activeWidget.dataset.field;
+      var hiddenInput  = document.getElementById(inputPrefix + '_hidden');
+      var displayInput = document.getElementById(inputPrefix + '_display');
+      var clearBtn     = document.getElementById(inputPrefix + '_clear');
       if (hiddenInput) {
         hiddenInput.value = id;
         hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
@@ -176,12 +180,12 @@
 
   // Clear button
   document.querySelectorAll('.borrower-picker-widget').forEach(function (widget) {
-    var clearBtn = document.getElementById(widget.dataset.field + '_clear');
+    var inputPrefix = widget.dataset.inputPrefix || widget.dataset.field;
+    var clearBtn = document.getElementById(inputPrefix + '_clear');
     if (clearBtn) {
       clearBtn.addEventListener('click', function () {
-        var fieldName = widget.dataset.field;
-        var hi = document.getElementById(fieldName + '_hidden');
-        var di = document.getElementById(fieldName + '_display');
+        var hi = document.getElementById(inputPrefix + '_hidden');
+        var di = document.getElementById(inputPrefix + '_display');
         if (hi) {
           hi.value = '';
           hi.dispatchEvent(new Event('change', { bubbles: true }));

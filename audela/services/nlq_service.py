@@ -757,7 +757,8 @@ def generate_sql_from_nl(
         except Exception as e:  # noqa: BLE001
             sql, warnings = _heuristic_generate_sql_from_nl(source, text, lang=lang, schema_meta=schema_meta)
             warnings = warnings or []
-            warnings.insert(0, f"{tr('Falha ao usar OpenAI; usando fallback heurístico.', lang)}: {e}")
+            provider_label = str(runtime.get("provider") or "AI").upper()
+            warnings.insert(0, f"{tr('Falha ao usar OpenAI; usando fallback heurístico.', lang).replace('OpenAI', provider_label)}: {e}")
         scoped_sql, scoped_warnings = _enforce_selected_table_scope(
             sql,
             warnings or [],

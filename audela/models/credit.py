@@ -610,4 +610,7 @@ class CreditSpreadingLineValue(db.Model):
     line_id = db.Column(db.Integer, db.ForeignKey("credit_account_lines.id", ondelete="CASCADE"), nullable=False, index=True)
     value = db.Column(db.Numeric(20, 4), nullable=True)
 
-    statement = db.relationship("CreditFinancialStatement", backref=db.backref("line_values", lazy="dynamic"))
+    statement = db.relationship(
+        "CreditFinancialStatement",
+        backref=db.backref("line_values", lazy="dynamic", cascade="all, delete-orphan"),
+    )

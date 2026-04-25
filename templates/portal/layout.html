@@ -4,6 +4,98 @@
 
 {% block content %}
 <style>
+  :root {
+    --portal-ink: #0f172a;
+    --portal-muted: #334155;
+    --portal-link: #1d4ed8;
+    --portal-link-hover: #1e3a8a;
+    --portal-outline-hover-bg: #eff6ff;
+    --portal-outline-hover-border: #93c5fd;
+    --portal-focus-ring: 0 0 0 .12rem rgba(37, 99, 235, .22);
+  }
+  .main-area .container-fluid.pb-4 {
+    padding-top: .35rem;
+  }
+  .main-area .card {
+    border-radius: 12px;
+  }
+  .main-area .card .card-header {
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+  }
+  .main-area a:not(.btn):not(.nav-link):not(.dropdown-item) {
+    color: var(--portal-link);
+    text-decoration-thickness: .08em;
+    text-underline-offset: .14em;
+  }
+  .main-area a:not(.btn):not(.nav-link):not(.dropdown-item):hover,
+  .main-area a:not(.btn):not(.nav-link):not(.dropdown-item):focus {
+    color: var(--portal-link-hover);
+  }
+  .main-area .btn[class*="btn-outline-"] {
+    color: var(--portal-muted);
+    transition: all .16s ease;
+  }
+  .main-area .btn.btn-light {
+    color: var(--portal-muted);
+  }
+  .main-area .btn[class*="btn-outline-"]:hover,
+  .main-area .btn[class*="btn-outline-"]:focus,
+  .main-area .btn.btn-light:hover,
+  .main-area .btn.btn-light:focus {
+    color: var(--portal-ink);
+    border-color: var(--portal-outline-hover-border);
+    background: var(--portal-outline-hover-bg);
+    box-shadow: var(--portal-focus-ring);
+  }
+  .main-area .btn:focus-visible,
+  .topbar .btn:focus-visible,
+  .sidebar .nav-link:focus-visible,
+  .offcanvas .nav-link:focus-visible,
+  .dropdown-item:focus-visible,
+  .form-select:focus-visible,
+  .form-control:focus-visible {
+    box-shadow: var(--portal-focus-ring) !important;
+    outline: none;
+  }
+  .main-area .form-select,
+  .main-area .form-select option,
+  .topbar .form-select,
+  .topbar .form-select option {
+    color: #1f2937;
+  }
+  .topbar .dropdown-item:hover,
+  .topbar .dropdown-item:focus {
+    background: #eff6ff;
+    color: #0f172a;
+  }
+  .portal-collapsible {
+    margin-top: .4rem;
+    border: 1px dashed #d6dfeb;
+    border-radius: 10px;
+    padding: .55rem .65rem;
+    background: #fcfdff;
+  }
+  .portal-collapsible > summary {
+    cursor: pointer;
+    color: #334155;
+    font-weight: 600;
+    list-style: none;
+  }
+  .portal-collapsible > summary::-webkit-details-marker {
+    display: none;
+  }
+  .portal-collapsible > summary::before {
+    content: ">";
+    display: inline-block;
+    margin-right: .4rem;
+    transform: rotate(0deg);
+    transition: transform .15s ease;
+    color: #64748b;
+  }
+  .portal-collapsible[open] > summary::before {
+    transform: rotate(90deg);
+  }
   .bi-shell.menu-right {
     flex-direction: row-reverse;
   }

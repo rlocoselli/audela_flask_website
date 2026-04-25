@@ -5,9 +5,10 @@
   const form = document.getElementById('ws-form');
   if (!form) return;
 
-  const elDbSource = document.getElementById('ws-db-source');
+  const elDbSources = document.getElementById('ws-db-sources');
   const elPickDbTables = document.getElementById('ws-pick-db-tables');
   const elDbTablesHidden = document.getElementById('ws-db-tables');
+  const elDbTablesJsonHidden = document.getElementById('ws-db-tables-json');
   const elDbTableTags = document.getElementById('ws-db-table-tags');
   const elStarterSqlHidden = document.getElementById('ws-starter-sql');
 
@@ -41,8 +42,8 @@
   // -----------------------------
 
   const state = {
-    dbSourceId: null,
-    dbSchema: null, // { tables: {nameLower: {name, columns:[...]}} }
+    dbSourceIds: [],
+    dbSchemas: new Map(), // sourceId -> {sourceId, sourceName, tables:{nameLower:{name, columns:[]}}}
     selectedDbTables: [],
     fileSchemaCache: new Map(),
     joins: [], // {type, right, leftCol, rightCol}
@@ -109,13 +110,52 @@
   }
 
   function getDbTables(){
-    return state.selectedDbTables.slice();
+    return state.selectedDbTables.map((x) => ({ ...x }));
+  }
+
+  function getSelectedDbSourceIds(){
+    if (!elDbSources) return [];
+    return Array.from(elDbSources.selectedOptions || [])
+      .map((opt) => parseInt(opt.value || '0', 10))
+      .filter((id) => Number.isFinite(id) && id > 0);
+  }
+
+  function getSourceName(sourceId){
+    if (!elDbSources || !sourceId) return String(sourceId || '');
+    const opt = Array.from(elDbSources.options || []).find((o) => parseInt(o.value || '0', 10) === Number(sourceId));
+    return String(opt?.textContent || sourceId).trim();
   }
 
   function setDbTables(tables){
-    const clean = (tables || []).map(x => String(x||'').trim()).filter(Boolean);
-    state.selectedDbTables = Array.from(new Set(clean)).slice(0, 200);
-    elDbTablesHidden.value = state.selectedDbTables.join(',');
+    const normalized = [];
+    const seen = new Set();
+    (tables || []).forEach((x) => {
+      if (x == null) return;
+      if (typeof x === 'string') {
+        const t = String(x || '').trim();
+        if (!t) return;
+        const sid = Number(state.dbSourceIds[0] || 0);
+        if (!sid) return;
+        const key = `${sid}::${t.toLowerCase()}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        normalized.push({ source_id: sid, source_name: getSourceName(sid), table: t });
+        return;
+      }
+      const sid = parseInt(String((x || {}).source_id || '0'), 10);
+      const t = String((x || {}).table || '').trim();
+      if (!sid || !t) return;
+      const key = `${sid}::${t.toLowerCase()}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      normalized.push({ source_id: sid, source_name: String((x || {}).source_name || getSourceName(sid)), table: t });
+    });
+    state.selectedDbTables = normalized.slice(0, 300);
+    // Legacy fallback field (flat tables) remains for compatibility.
+    elDbTablesHidden.value = state.selectedDbTables.map((x) => x.table).join(',');
+    if (elDbTablesJsonHidden) {
+      elDbTablesJsonHidden.value = JSON.stringify(state.selectedDbTables);
+    }
     renderDbTableTags();
     refreshCatalog();
   }
@@ -123,15 +163,18 @@
   function renderDbTableTags(){
     if (!elDbTableTags) return;
     elDbTableTags.innerHTML = '';
-    state.selectedDbTables.forEach((tname) => {
+    state.selectedDbTables.forEach((entry) => {
+      const tname = String(entry.table || '');
+      const sid = Number(entry.source_id || 0);
+      if (!sid || !tname) return;
       const span = document.createElement('span');
       span.className = 'ws-tag';
-      span.innerHTML = `<span class="ws-mono">db.${escapeHtml(sanitizeTableName(tname))}</span>`;
+      span.innerHTML = `<span class="ws-mono">db${escapeHtml(String(sid))}.${escapeHtml(sanitizeTableName(tname))}</span>`;
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.innerHTML = '<i class="bi bi-x"></i>';
       btn.title = window.t('Remove');
-      btn.onclick = () => setDbTables(state.selectedDbTables.filter(x => x !== tname));
+      btn.onclick = () => setDbTables(state.selectedDbTables.filter(x => !(Number(x.source_id) === sid && String(x.table || '').toLowerCase() === tname.toLowerCase())));
       span.appendChild(btn);
       elDbTableTags.appendChild(span);
     });
@@ -149,37 +192,47 @@ function toast(msg, variant){
   // DB schema loading + modal
   // -----------------------------
 
-  async function ensureDbSchema(){
-    const id = (elDbSource && elDbSource.value) ? parseInt(elDbSource.value, 10) : 0;
-    state.dbSourceId = id || null;
-    state.dbSchema = null;
-    if (!id) return null;
-    try {
-      const meta = await fetchJSON(apiUrl(`/api/sources/${id}/schema`));
-      if (meta && meta.error) {
-        toast(meta.error, 'danger');
-      }
-      const tables = {};
-      (meta.schemas || []).forEach(sc => {
-        (sc.tables || []).forEach(t => {
-          const name = String(t.name || '');
-          const k = name.toLowerCase();
-          const cols = (t.columns || []).map(c => String(c.name || '')).filter(Boolean);
-          tables[k] = { name, columns: cols };
+  async function ensureDbSchemas(){
+    const sourceIds = getSelectedDbSourceIds();
+    state.dbSourceIds = sourceIds;
+    const keep = new Set(sourceIds);
+    Array.from(state.dbSchemas.keys()).forEach((id) => {
+      if (!keep.has(Number(id))) state.dbSchemas.delete(id);
+    });
+    if (!sourceIds.length) return state.dbSchemas;
+
+    for (const id of sourceIds) {
+      if (state.dbSchemas.has(id)) continue;
+      try {
+        const meta = await fetchJSON(apiUrl(`/api/sources/${id}/schema`));
+        if (meta && meta.error) {
+          toast(meta.error, 'danger');
+        }
+        const tables = {};
+        (meta.schemas || []).forEach(sc => {
+          (sc.tables || []).forEach(t => {
+            const name = String(t.name || '');
+            const k = name.toLowerCase();
+            const cols = (t.columns || []).map(c => String(c.name || '')).filter(Boolean);
+            tables[k] = { name, columns: cols };
+          });
         });
-      });
-      state.dbSchema = { tables };
-      return state.dbSchema;
-    } catch (e) {
-      toast(window.t('Unable to load.'), 'danger');
-      return null;
+        state.dbSchemas.set(id, {
+          sourceId: id,
+          sourceName: getSourceName(id),
+          tables,
+        });
+      } catch (e) {
+        toast(window.t('Unable to load.'), 'danger');
+      }
     }
+    return state.dbSchemas;
   }
 
   function openDbTablesModal(){
-    const id = (elDbSource && elDbSource.value) ? elDbSource.value : '';
-    if (!id) {
-      toast(window.t('Select a database source to list tables.'), 'info');
+    const ids = getSelectedDbSourceIds();
+    if (!ids.length) {
+      toast(window.t('Select at least one database source to list tables.'), 'info');
       return;
     }
     dbModal?.show();
@@ -189,32 +242,48 @@ function toast(msg, variant){
   async function renderDbTablesList(){
     if (!elDbTableList) return;
     elDbTableList.innerHTML = `<div class="text-secondary small">${escapeHtml(window.t('Loading...'))}</div>`;
-    const schema = state.dbSchema || await ensureDbSchema();
-    if (!schema) {
+    const schemas = await ensureDbSchemas();
+    if (!schemas || !schemas.size) {
       elDbTableList.innerHTML = `<div class="text-secondary small">${escapeHtml(window.t('Unable to load.'))}</div>`;
       return;
     }
     const term = String(elDbTableSearch?.value || '').trim().toLowerCase();
-    const all = Object.values(schema.tables)
-      .map(x => x.name)
-      .sort((a,b) => a.localeCompare(b));
-    const filtered = term ? all.filter(n => n.toLowerCase().includes(term)) : all;
+    const all = [];
+    Array.from(schemas.values()).forEach((schema) => {
+      Object.values(schema.tables || {}).forEach((tbl) => {
+        all.push({
+          source_id: Number(schema.sourceId),
+          source_name: String(schema.sourceName || schema.sourceId),
+          table: String(tbl.name || ''),
+          columns: Array.isArray(tbl.columns) ? tbl.columns : [],
+        });
+      });
+    });
+    const filtered = term ? all.filter((x) => (`${x.source_name} ${x.table}`).toLowerCase().includes(term)) : all;
     if (!filtered.length) {
       elDbTableList.innerHTML = `<div class="text-secondary small">${escapeHtml(window.t('No tables found.'))}</div>`;
       return;
     }
 
     elDbTableList.innerHTML = '';
-    filtered.slice(0, 400).forEach(name => {
-      const id = 'tbl_' + name.replace(/[^A-Za-z0-9_]/g,'_');
+    filtered.sort((a, b) => {
+      if (a.source_id !== b.source_id) return a.source_id - b.source_id;
+      return a.table.localeCompare(b.table);
+    });
+    filtered.slice(0, 700).forEach((row) => {
+      const name = String(row.table || '');
+      const sid = Number(row.source_id || 0);
+      const sourceName = String(row.source_name || sid);
+      const id = `tbl_${sid}_` + name.replace(/[^A-Za-z0-9_]/g,'_');
       const item = document.createElement('label');
       item.className = 'list-group-item d-flex align-items-start gap-2';
-      const checked = state.selectedDbTables.includes(name);
+      const checked = state.selectedDbTables.some((x) => Number(x.source_id) === sid && String(x.table || '').toLowerCase() === name.toLowerCase());
       item.innerHTML = `
-        <input class="form-check-input mt-1" type="checkbox" id="${escapeHtml(id)}" ${checked ? 'checked' : ''} data-db-table="${escapeHtml(name)}">
+        <input class="form-check-input mt-1" type="checkbox" id="${escapeHtml(id)}" ${checked ? 'checked' : ''} data-db-source-id="${escapeHtml(String(sid))}" data-db-source-name="${escapeHtml(sourceName)}" data-db-table="${escapeHtml(name)}">
         <div class="flex-grow-1">
-          <div class="fw-semibold ws-mono">db.${escapeHtml(sanitizeTableName(name))}</div>
-          <div class="text-secondary small">${escapeHtml((state.dbSchema.tables[name.toLowerCase()]?.columns || []).slice(0, 8).join(', '))}${(state.dbSchema.tables[name.toLowerCase()]?.columns || []).length > 8 ? '…' : ''}</div>
+          <div class="fw-semibold ws-mono">db${escapeHtml(String(sid))}.${escapeHtml(sanitizeTableName(name))}</div>
+          <div class="text-secondary small">${escapeHtml(sourceName)}</div>
+          <div class="text-secondary small">${escapeHtml((row.columns || []).slice(0, 8).join(', '))}${(row.columns || []).length > 8 ? '…' : ''}</div>
         </div>
       `;
       elDbTableList.appendChild(item);
@@ -225,7 +294,12 @@ function toast(msg, variant){
     const checks = elDbTableList?.querySelectorAll('input[data-db-table]') || [];
     const selected = [];
     checks.forEach(chk => {
-      if (chk.checked) selected.push(chk.getAttribute('data-db-table'));
+      if (!chk.checked) return;
+      selected.push({
+        source_id: parseInt(chk.getAttribute('data-db-source-id') || '0', 10),
+        source_name: String(chk.getAttribute('data-db-source-name') || ''),
+        table: String(chk.getAttribute('data-db-table') || ''),
+      });
     });
     setDbTables(selected);
     dbModal?.hide();
@@ -282,11 +356,15 @@ function toast(msg, variant){
 
     // db tables
     if (dbTables.length) {
-      const schema = state.dbSchema || await ensureDbSchema();
-      dbTables.forEach(tn => {
-        const safe = sanitizeTableName(tn);
-        const cols = (schema?.tables?.[tn.toLowerCase()]?.columns || []);
-        out.tables.push({ ref: 'db.' + safe, kind: 'db', name: safe, cols });
+      await ensureDbSchemas();
+      dbTables.forEach((entry) => {
+        const sid = Number(entry.source_id || 0);
+        const tname = String(entry.table || '').trim();
+        if (!sid || !tname) return;
+        const safe = sanitizeTableName(tname);
+        const schema = state.dbSchemas.get(sid);
+        const cols = (schema?.tables?.[tname.toLowerCase()]?.columns || []);
+        out.tables.push({ ref: `db${sid}.${safe}`, kind: 'db', name: safe, cols, source_id: sid });
       });
     }
 
@@ -555,19 +633,20 @@ function toast(msg, variant){
   // -----------------------------
 
   if (elPickDbTables) elPickDbTables.addEventListener('click', async () => {
-    await ensureDbSchema();
+    await ensureDbSchemas();
     openDbTablesModal();
   });
 
   if (elDbTableSearch) elDbTableSearch.addEventListener('input', renderDbTablesList);
   if (elDbTableApply) elDbTableApply.addEventListener('click', applyDbTablesFromModal);
 
-  if (elDbSource) elDbSource.addEventListener('change', async () => {
+  if (elDbSources) elDbSources.addEventListener('change', async () => {
     // reset tables when changing source
     state.selectedDbTables = [];
     elDbTablesHidden.value = '';
+    if (elDbTablesJsonHidden) elDbTablesJsonHidden.value = '[]';
     renderDbTableTags();
-    await ensureDbSchema();
+    await ensureDbSchemas();
     refreshCatalog();
   });
 
@@ -628,12 +707,13 @@ function toast(msg, variant){
       return;
     }
     const files = getSelectedFiles();
-    const dbSourceId = (elDbSource && elDbSource.value) ? parseInt(elDbSource.value, 10) : 0;
+    const dbSourceIds = getSelectedDbSourceIds();
     const dbTables = getDbTables();
 
     const payload = {
       prompt,
-      db_source_id: dbSourceId || null,
+      db_source_ids: dbSourceIds,
+      db_source_id: dbSourceIds.length ? dbSourceIds[0] : null,
       db_tables: dbTables,
       files: files.map(x => ({ file_id: x.file_id, table: x.table })),
       max_rows: getMaxRows(),
@@ -656,14 +736,18 @@ function toast(msg, variant){
   // Persist starter_sql on submit
   form.addEventListener('submit', () => {
     // Keep hidden db_tables synchronized
-    elDbTablesHidden.value = getDbTables().join(',');
+    const dbTables = getDbTables();
+    elDbTablesHidden.value = dbTables.map((x) => x.table).join(',');
+    if (elDbTablesJsonHidden) {
+      elDbTablesJsonHidden.value = JSON.stringify(dbTables);
+    }
     elStarterSqlHidden.value = (elSqlPreview.value || '').trim();
   });
 
   // Initialize
   (async function init(){
     renderDbTableTags();
-    await ensureDbSchema();
+    await ensureDbSchemas();
     await refreshCatalog();
   })();
 })();

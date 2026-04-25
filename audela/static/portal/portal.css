@@ -137,6 +137,7 @@ html, body { height: 100%; }
 .btn-outline-secondary:hover {
   background-color: var(--btn-secondary-hover);
   border-color: var(--btn-secondary-hover);
+  color: var(--text-primary);
 }
 
 /* Gridstack cards */

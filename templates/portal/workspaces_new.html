@@ -15,6 +15,7 @@
   <form method="post" action="{{ url_for('portal.workspaces_new') }}" id="ws-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     <input type="hidden" name="db_tables" id="ws-db-tables" value="" />
+    <input type="hidden" name="db_tables_json" id="ws-db-tables-json" value="" />
     <input type="hidden" name="starter_sql" id="ws-starter-sql" value="" />
 
     <div class="row g-3">
@@ -30,14 +31,13 @@
             </div>
 
             <div class="mb-3">
-              <label class="form-label">{{ _('Database source (optional)') }}</label>
-              <select class="form-select" name="db_source_id" id="ws-db-source">
-                <option value="">{{ _('(no database)') }}</option>
+              <label class="form-label">{{ _('Database sources (optional, multi-select)') }}</label>
+              <select class="form-select" name="db_source_ids" id="ws-db-sources" multiple size="6">
                 {% for s in db_sources %}
                   <option value="{{ s.id }}">{{ s.name }} ({{ s.type }})</option>
                 {% endfor %}
               </select>
-              <div class="form-text">{{ _('To JOIN with database, pick tables. They are available as db.<table>.') }}</div>
+              <div class="form-text">{{ _('Select one or more sources for cross-database joins. Use Ctrl/Cmd-click for multiple selection.') }}</div>
             </div>
 
             <div class="mb-3">
@@ -48,7 +48,7 @@
                 </button>
                 <div id="ws-db-table-tags" class="d-flex gap-2 flex-wrap"></div>
               </div>
-              <div class="form-text">{{ _('Tip: use the quick JOIN builder to generate starter SQL.') }}</div>
+              <div class="form-text">{{ _('Tip: selected DB tables are exposed as db<source_id>.<table> (example: db12.customers).') }}</div>
             </div>
 
             <div class="mb-0">
@@ -203,6 +203,7 @@
             <span class="input-group-text"><i class="bi bi-search"></i></span>
             <input class="form-control" id="ws-db-table-search" placeholder="{{ _('Filter tables...') }}" />
           </div>
+          <div class="small text-secondary mb-2">{{ _('Tables are grouped by selected database source.') }}</div>
           <div id="ws-db-table-list" class="list-group"></div>
         </div>
         <div class="modal-footer">

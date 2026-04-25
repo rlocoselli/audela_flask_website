@@ -1,4 +1,5 @@
 {% extends "credit/page_base.html" %}
+{% from 'credit/_borrower_picker.html' import borrower_picker, borrower_picker_modal with context %}
 {% set title = _('Audela Credit Collateral') %}
 {% set active_page = 'collateral' %}
 {% set credit_mode = request.args.get('mode', 'search') %}
@@ -15,7 +16,7 @@
   <div class="card-body">
     <form method="post" class="row g-2">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div class="col-md-3"><select class="form-select" name="borrower_id" required><option value="">{{ _('Borrower') }}</option>{% for b in borrowers %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}</select></div>
+      <div class="col-md-3">{{ borrower_picker('borrower_id', required=True, modal_id='modalBorrowerPickerCollateralAdd', input_id_prefix='collateral_add_borrower') }}</div>
       <div class="col-md-2"><select class="form-select" name="deal_id"><option value="">{{ _('Deal (optional)') }}</option>{% for d in deals %}<option value="{{ d.id }}">{{ d.code }}</option>{% endfor %}</select></div>
       <div class="col-md-2"><select class="form-select" name="collateral_type_id" required><option value="">{{ _('Type') }}</option>{% for t in collateral_types %}<option value="{{ t.id }}">{{ t.display_label(current_lang) }}</option>{% endfor %}</select></div>
       <div class="col-md-2"><input class="form-control" name="market_value" placeholder="{{ _('Market value') }}"></div>
@@ -34,12 +35,8 @@
       <input type="hidden" name="mode" value="search">
       <div class="col-12 col-lg-3">
         <label class="form-label mb-1">{{ _('Borrower') }}</label>
-        <select class="form-select" name="borrower_id">
-          <option value="">{{ _('All') }}</option>
-          {% for b in borrowers %}
-          <option value="{{ b.id }}" {% if selected_borrower_id == b.id %}selected{% endif %}>{{ b.name }}</option>
-          {% endfor %}
-        </select>
+        {% set _sel_b = borrowers | selectattr('id', 'equalto', selected_borrower_id) | list %}
+        {{ borrower_picker('borrower_id', selected_id=selected_borrower_id or '', selected_name=(_sel_b[0].name if _sel_b else ''), modal_id='modalBorrowerPickerCollateral', input_id_prefix='collateral_filter_borrower') }}
       </div>
       <div class="col-12 col-lg-3">
         <label class="form-label mb-1">{{ _('Deal') }}</label>
@@ -80,4 +77,6 @@
   </div>
 </div>
 {% endif %}
+{{ borrower_picker_modal(modal_id='modalBorrowerPickerCollateral') }}
+{{ borrower_picker_modal(modal_id='modalBorrowerPickerCollateralAdd') }}
 {% endblock %}

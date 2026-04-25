@@ -147,19 +147,19 @@
 
 <div id="creditQuickActions" class="position-fixed end-0 p-3" style="bottom:72px; z-index:1081;">
   <div id="creditQuickActionsMenu" class="d-none mb-2 d-flex flex-column align-items-end gap-2">
-    {% if credit_menu_access.get('borrowers', True) %}<a class="btn btn-light border shadow-sm btn-sm rounded-pill" href="{{ url_for('credit.borrowers') }}" title="{{ _('Borrowers') }}">
+    {% if credit_menu_access.get('borrowers', true) %}<a class="btn btn-light border shadow-sm btn-sm rounded-pill" href="{{ url_for('credit.borrowers') }}" title="{{ _('Borrowers') }}">
       <i class="bi bi-people me-1"></i>{{ _('Borrowers') }}
     </a>{% endif %}
-    {% if credit_menu_access.get('deals', True) %}<a class="btn btn-light border shadow-sm btn-sm rounded-pill" href="{{ url_for('credit.deals', mode='add') }}" title="{{ _('Deals') }}">
+    {% if credit_menu_access.get('deals', true) %}<a class="btn btn-light border shadow-sm btn-sm rounded-pill" href="{{ url_for('credit.deals', mode='add') }}" title="{{ _('Deals') }}">
       <i class="bi bi-briefcase me-1"></i>{{ _('New deal') }}
     </a>{% endif %}
-    {% if credit_menu_access.get('facilities', True) %}<a class="btn btn-light border shadow-sm btn-sm rounded-pill" href="{{ url_for('credit.facilities', mode='add') }}" title="{{ _('Facilities') }}">
+    {% if credit_menu_access.get('facilities', true) %}<a class="btn btn-light border shadow-sm btn-sm rounded-pill" href="{{ url_for('credit.facilities', mode='add') }}" title="{{ _('Facilities') }}">
       <i class="bi bi-diagram-3 me-1"></i>{{ _('New facility') }}
     </a>{% endif %}
-    {% if credit_menu_access.get('memos', True) %}<a class="btn btn-light border shadow-sm btn-sm rounded-pill" href="{{ url_for('credit.memos', mode='add') }}" title="{{ _('Credit Memo') }}">
+    {% if credit_menu_access.get('memos', true) %}<a class="btn btn-light border shadow-sm btn-sm rounded-pill" href="{{ url_for('credit.memos', mode='add') }}" title="{{ _('Credit Memo') }}">
       <i class="bi bi-journal-richtext me-1"></i>{{ _('New memo') }}
     </a>{% endif %}
-    {% if credit_menu_access.get('approvals', True) %}<a class="btn btn-light border shadow-sm btn-sm rounded-pill" href="{{ url_for('credit.approvals') }}" title="{{ _('Approvals') }}">
+    {% if credit_menu_access.get('approvals', true) %}<a class="btn btn-light border shadow-sm btn-sm rounded-pill" href="{{ url_for('credit.approvals') }}" title="{{ _('Approvals') }}">
       <i class="bi bi-check2-square me-1"></i>{{ _('Approvals') }}
     </a>{% endif %}
   </div>

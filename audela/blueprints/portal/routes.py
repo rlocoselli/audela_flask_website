@@ -49,10 +49,11 @@ from ...services.nlq_service import generate_sql_from_nl
 from ...services.pdf_export import table_to_pdf_bytes
 from ...services.xlsx_export import table_to_xlsx_bytes
 from ...services.ai_service import analyze_with_ai
+from ...services.ai_runtime_config import resolve_ai_runtime_config
 from ...services.statistics_service import run_statistics_analysis, stats_report_to_pdf_bytes
 from ...services.report_render_service import report_to_pdf_bytes
 from ...services.report_ai_service import generate_report_layout_from_prompt, compact_schema_meta as compact_report_schema_meta
-from ...services.web_extract_service import extract_structured_table_from_web
+from ...services.web_extract_service import extract_structured_table_from_web, suggest_web_extract_config_from_text
 from ...services.alerting_dispatch import dispatch_alerting_for_result
 from ...services.file_storage_service import (
     delete_folder_tree,
@@ -2801,7 +2802,17 @@ def _delete_source_with_relations(src: DataSource, tenant: Tenant) -> dict[str, 
         except Exception:
             ws_cfg = {}
         db_source_id = ws_cfg.get("db_source_id")
-        if str(db_source_id).strip().isdigit() and int(db_source_id) == int(src.id):
+        db_source_ids = ws_cfg.get("db_source_ids") or []
+        uses_deleted_source = str(db_source_id).strip().isdigit() and int(db_source_id) == int(src.id)
+        if not uses_deleted_source and isinstance(db_source_ids, list):
+            for sid in db_source_ids:
+                try:
+                    if int(sid or 0) == int(src.id):
+                        uses_deleted_source = True
+                        break
+                except Exception:
+                    continue
+        if uses_deleted_source:
             db.session.delete(ws)
             workspaces_deleted += 1
 
@@ -3508,16 +3519,45 @@ def api_workspaces_draft_sql():
     if not prompt:
         return jsonify({"error": tr("Descreva sua análise.", getattr(g, "lang", None))}), 400
 
-    try:
-        base_db_source_id = int(payload.get("db_source_id") or 0) or None
-    except Exception:
-        base_db_source_id = None
+    raw_source_ids = payload.get("db_source_ids") or []
+    db_source_ids: list[int] = []
+    if isinstance(raw_source_ids, list):
+        for x in raw_source_ids:
+            try:
+                sid = int(x or 0)
+            except Exception:
+                sid = 0
+            if sid > 0 and sid not in db_source_ids:
+                db_source_ids.append(sid)
 
-    db_tables = payload.get("db_tables") or []
-    if isinstance(db_tables, str):
-        db_tables = [x.strip() for x in db_tables.split(",") if x.strip()]
-    if not isinstance(db_tables, list):
-        db_tables = []
+    # Backward compatibility with legacy single-source payload.
+    if not db_source_ids:
+        try:
+            single_sid = int(payload.get("db_source_id") or 0) or 0
+        except Exception:
+            single_sid = 0
+        if single_sid > 0:
+            db_source_ids = [single_sid]
+
+    raw_db_tables = payload.get("db_tables") or []
+    db_tables_cfg: list[dict[str, Any]] = []
+    if isinstance(raw_db_tables, str):
+        raw_db_tables = [x.strip() for x in raw_db_tables.split(",") if x.strip()]
+
+    if isinstance(raw_db_tables, list):
+        for item in raw_db_tables:
+            if isinstance(item, dict):
+                try:
+                    sid = int(item.get("source_id") or 0)
+                except Exception:
+                    sid = 0
+                tname = str(item.get("table") or "").strip()
+                if sid > 0 and tname:
+                    db_tables_cfg.append({"source_id": sid, "table": tname})
+            else:
+                tname = str(item or "").strip()
+                if tname and db_source_ids:
+                    db_tables_cfg.append({"source_id": int(db_source_ids[0]), "table": tname})
 
     files_cfg_in = payload.get("files") or []
     if not isinstance(files_cfg_in, list):
@@ -3547,12 +3587,23 @@ def api_workspaces_draft_sql():
             alias = (x or {}).get("table") or f"file_{fid}"
             files_cfg.append({"file_id": fid, "table": str(alias).strip()})
 
-    # Validate DB source id belongs to tenant
-    if base_db_source_id:
-        base = DataSource.query.filter_by(id=int(base_db_source_id), tenant_id=g.tenant.id).first()
-        if not base:
-            base_db_source_id = None
-            db_tables = []
+    # Validate selected DB sources belong to tenant and normalize table mappings.
+    valid_db_sources = {
+        int(src.id)
+        for src in DataSource.query.filter(
+            DataSource.tenant_id == g.tenant.id,
+            DataSource.id.in_(db_source_ids),
+        ).all()
+    } if db_source_ids else set()
+    db_source_ids = [sid for sid in db_source_ids if sid in valid_db_sources]
+    if not db_source_ids:
+        db_tables_cfg = []
+    else:
+        db_tables_cfg = [
+            {"source_id": int(x.get("source_id")), "table": str(x.get("table") or "").strip()}
+            for x in db_tables_cfg
+            if int(x.get("source_id") or 0) in valid_db_sources and str(x.get("table") or "").strip()
+        ]
 
     try:
         max_rows = int(payload.get("max_rows") or 5000)
@@ -3561,8 +3612,10 @@ def api_workspaces_draft_sql():
     max_rows = max(100, min(max_rows, 50000))
 
     cfg = {
-        "db_source_id": base_db_source_id,
-        "db_tables": [str(x).strip() for x in db_tables if str(x).strip()][:200],
+        # db_source_id remains for backward compatibility with existing workspace readers.
+        "db_source_id": int(db_source_ids[0]) if db_source_ids else None,
+        "db_source_ids": db_source_ids[:50],
+        "db_tables": db_tables_cfg[:400],
         "db_views": [],
         "files": files_cfg,
         "max_rows": max_rows,
@@ -4371,8 +4424,27 @@ def workspaces_new():
 
     if request.method == "POST":
         name = (request.form.get("name") or "").strip()
-        base_db_source_id = int(request.form.get("db_source_id") or 0) or None
+        raw_source_ids = request.form.getlist("db_source_ids") or []
+        db_source_ids: list[int] = []
+        for x in raw_source_ids:
+            try:
+                sid = int(x or 0)
+            except Exception:
+                sid = 0
+            if sid > 0 and sid not in db_source_ids:
+                db_source_ids.append(sid)
+
+        # Backward compatibility for old form posts.
+        if not db_source_ids:
+            try:
+                single_sid = int(request.form.get("db_source_id") or 0) or 0
+            except Exception:
+                single_sid = 0
+            if single_sid > 0:
+                db_source_ids = [single_sid]
+
         db_tables_raw = (request.form.get("db_tables") or "").strip()
+        db_tables_json_raw = (request.form.get("db_tables_json") or "").strip()
         max_rows = int(request.form.get("max_rows") or 5000)
         starter_sql = (request.form.get("starter_sql") or "").strip()
 
@@ -4390,11 +4462,43 @@ def workspaces_new():
             alias = (request.form.get(f"alias_{fid}") or f"file_{fid}").strip()
             files_cfg.append({"file_id": fid, "table": alias})
 
-        db_tables_list = [t.strip() for t in db_tables_raw.split(",") if t.strip()] if db_tables_raw else []
+        valid_db_sources = {
+            int(src.id)
+            for src in DataSource.query.filter(
+                DataSource.tenant_id == g.tenant.id,
+                DataSource.id.in_(db_source_ids),
+            ).all()
+        } if db_source_ids else set()
+        db_source_ids = [sid for sid in db_source_ids if sid in valid_db_sources]
+
+        db_tables_cfg: list[dict[str, Any]] = []
+        if db_tables_json_raw:
+            try:
+                parsed = json.loads(db_tables_json_raw)
+            except Exception:
+                parsed = []
+            if isinstance(parsed, list):
+                for item in parsed:
+                    if not isinstance(item, dict):
+                        continue
+                    try:
+                        sid = int(item.get("source_id") or 0)
+                    except Exception:
+                        sid = 0
+                    tname = str(item.get("table") or "").strip()
+                    if sid in valid_db_sources and tname:
+                        db_tables_cfg.append({"source_id": sid, "table": tname})
+
+        # Legacy fallback: table names without source mapping -> map to first source.
+        if not db_tables_cfg and db_tables_raw:
+            legacy_tables = [t.strip() for t in db_tables_raw.split(",") if t.strip()]
+            if legacy_tables and db_source_ids:
+                db_tables_cfg = [{"source_id": int(db_source_ids[0]), "table": t} for t in legacy_tables]
 
         cfg = {
-            "db_source_id": base_db_source_id,
-            "db_tables": db_tables_list,
+            "db_source_id": int(db_source_ids[0]) if db_source_ids else None,
+            "db_source_ids": db_source_ids,
+            "db_tables": db_tables_cfg,
             "db_views": [],
             "files": files_cfg,
             "max_rows": max(100, min(max_rows, 50000)),
@@ -4413,7 +4517,16 @@ def workspaces_new():
         )
         db.session.add(ws)
         db.session.commit()
-        _audit("bi.workspaces.created", {"id": ws.id, "name": ws.name, "db_source_id": base_db_source_id, "files": [x.get("file_id") for x in files_cfg]})
+        _audit(
+            "bi.workspaces.created",
+            {
+                "id": ws.id,
+                "name": ws.name,
+                "db_source_id": int(db_source_ids[0]) if db_source_ids else None,
+                "db_source_ids": db_source_ids,
+                "files": [x.get("file_id") for x in files_cfg],
+            },
+        )
         flash(tr("Workspace criado.", getattr(g, "lang", None)), "success")
         return redirect(url_for("portal.sources_view", source_id=ws.id))
 
@@ -5707,6 +5820,93 @@ def web_extract():
         web_extract_configs=web_extract_configs,
         selected_config_id=selected_config_id,
     )
+
+
+@bp.route("/web-extract/assistant-config", methods=["POST"])
+@login_required
+@require_roles("tenant_admin", "creator")
+def web_extract_assistant_config():
+    _require_tenant()
+
+    selected_config_id = (request.form.get("config_id") or "").strip()
+    url_input = (request.form.get("url") or "").strip()
+    schema_input = (request.form.get("schema") or "").strip()
+    table_selector = (request.form.get("table_selector") or "").strip()
+    assistant_prompt = (request.form.get("assistant_prompt") or "").strip()
+    verify_ssl = (request.form.get("verify_ssl") or "0").strip().lower() in {"1", "true", "on", "yes"}
+    try:
+        max_rows = max(10, min(1000, int((request.form.get("max_rows") or "200").strip() or 200)))
+    except Exception:
+        max_rows = 200
+
+    if not assistant_prompt:
+        flash("Décrivez la cible et les colonnes attendues.", "error")
+        return redirect(
+            url_for(
+                "portal.web_extract",
+                config_id=selected_config_id,
+                url=url_input,
+                schema=schema_input,
+                max_rows=max_rows,
+                table_selector=table_selector,
+                verify_ssl="1" if verify_ssl else "0",
+            )
+        )
+
+    try:
+        suggestion = suggest_web_extract_config_from_text(
+            prompt_text=assistant_prompt,
+            current_url=url_input,
+            current_schema=schema_input,
+            current_selector=table_selector,
+            current_max_rows=max_rows,
+            current_verify_ssl=verify_ssl,
+            lang=getattr(g, "lang", None),
+        )
+        suggested_url = str(suggestion.get("url") or "").strip()
+        if suggested_url and not re.match(r"^https?://", suggested_url, flags=re.I):
+            suggested_url = url_input
+
+        suggested_schema = str(suggestion.get("schema") or "").strip() or schema_input
+        suggested_selector = str(suggestion.get("table_selector") or "").strip() or table_selector
+        try:
+            suggested_max_rows = max(10, min(1000, int(suggestion.get("max_rows") or max_rows)))
+        except Exception:
+            suggested_max_rows = max_rows
+        suggested_verify_ssl = bool(suggestion.get("verify_ssl"))
+
+        provider = str(suggestion.get("provider") or "").strip()
+        model = str(suggestion.get("model") or "").strip()
+        if suggestion.get("used_ai"):
+            src = f"IA ({provider}/{model})" if provider and model else "IA"
+            flash(f"Configuration proposée par {src}.", "success")
+        else:
+            flash("Configuration proposée en mode heuristique (sans appel IA).", "warning")
+
+        return redirect(
+            url_for(
+                "portal.web_extract",
+                config_id=selected_config_id,
+                url=suggested_url,
+                schema=suggested_schema,
+                max_rows=suggested_max_rows,
+                table_selector=suggested_selector,
+                verify_ssl="1" if suggested_verify_ssl else "0",
+            )
+        )
+    except Exception as e:  # noqa: BLE001
+        flash(f"Assistant indisponible: {str(e)}", "error")
+        return redirect(
+            url_for(
+                "portal.web_extract",
+                config_id=selected_config_id,
+                url=url_input,
+                schema=schema_input,
+                max_rows=max_rows,
+                table_selector=table_selector,
+                verify_ssl="1" if verify_ssl else "0",
+            )
+        )
 
 
 @bp.route("/web-extract/configs/save", methods=["POST"])
@@ -8956,6 +9156,53 @@ def _bi_lite_exec_image_urls(prompt: str, executive_guide: str = "", max_items: 
     return out
 
 
+def _bi_lite_fallback_analysis(message: str, columns: list[str], rows: list[list[Any]], total_rows: int) -> str:
+    """Best-effort textual analysis when LLM is unavailable.
+
+    Keeps BI Lite useful even if provider key/timeout fails.
+    """
+    cols = [str(c) for c in (columns or [])]
+    sample = rows[:5] if isinstance(rows, list) else []
+    if not cols:
+        return _("No columns returned by the query. Please refine your request.")
+
+    numeric_idx: list[int] = []
+    for i, _c in enumerate(cols):
+        vals = []
+        for r in sample:
+            if not isinstance(r, list) or i >= len(r):
+                continue
+            v = r[i]
+            if isinstance(v, (int, float, Decimal)):
+                vals.append(float(v))
+        if len(vals) >= max(1, len(sample) // 2):
+            numeric_idx.append(i)
+
+    lines: list[str] = []
+    lines.append(_("Automatic fallback analysis generated (AI unavailable)."))
+    lines.append(_("Request: {msg}", msg=str(message or "").strip()[:180]))
+    lines.append(_("Rows returned: {n}", n=int(total_rows or 0)))
+    lines.append(_("Columns: {n}", n=len(cols)))
+
+    if numeric_idx:
+        idx = numeric_idx[0]
+        metric_name = cols[idx]
+        values: list[float] = []
+        for r in rows[:120]:
+            if not isinstance(r, list) or idx >= len(r):
+                continue
+            v = r[idx]
+            if isinstance(v, (int, float, Decimal)):
+                values.append(float(v))
+        if values:
+            avg = sum(values) / max(1, len(values))
+            lines.append(_("Primary metric inferred: {name}", name=metric_name))
+            lines.append(_("Sample average: {v}", v=f"{avg:,.2f}"))
+            lines.append(_("Sample min/max: {a} / {b}", a=f"{min(values):,.2f}", b=f"{max(values):,.2f}"))
+
+    return "\n".join(lines)
+
+
 def _bi_lite_exec_theme_tokens(executive_guide: str, ai_theme: str = "") -> dict[str, str]:
     text = f"{str(executive_guide or '')} {str(ai_theme or '')}".lower()
     theme = {
@@ -9371,6 +9618,17 @@ def _bi_lite_exec_html(
                         existing.add(key)
                         if len(chart_items) >= 4:
                                 break
+
+                # Never hide data-rich sections when content is available.
+                if chart_items:
+                    sections["charts"] = True
+                if trends:
+                    sections["trends"] = True
+                    sections["timeline"] = True
+                if rows:
+                    sections["data"] = True
+                if sql_text:
+                    sections["sql"] = True
 
         def _fmt_num(v: float) -> str:
                 try:
@@ -9845,6 +10103,48 @@ def _bi_lite_exec_html(
                     return '<div class="ai-chart-card"><div class="ai-chart-title">' + esc(c.title || ((I18N.chart || 'Chart') + ' ' + (idx + 1))) + '</div><div id="execAiChart_' + idx + '" class="ai-chart-box"></div></div>';
                 }}).join('');
 
+                function extractSeriesPoints(option) {{
+                    try {{
+                        var opt = option || {{}};
+                        var x = (opt.xAxis && opt.xAxis.data && Array.isArray(opt.xAxis.data)) ? opt.xAxis.data : [];
+                        var series = Array.isArray(opt.series) ? opt.series : [];
+                        if (!series.length) return [];
+                        var first = series[0] || {{}};
+                        var data = Array.isArray(first.data) ? first.data : [];
+                        var points = [];
+                        for (var i = 0; i < data.length; i++) {{
+                            var raw = data[i];
+                            var y = null;
+                            if (typeof raw === 'number') y = raw;
+                            else if (raw && typeof raw === 'object' && typeof raw.value === 'number') y = raw.value;
+                            if (y === null || !isFinite(y)) continue;
+                            var lbl = x[i] != null ? String(x[i]) : ('#' + (i + 1));
+                            points.push({{ label: lbl, value: Number(y) }});
+                        }}
+                        return points;
+                    }} catch (_e) {{
+                        return [];
+                    }}
+                }}
+
+                function renderSimpleBars(el, option) {{
+                    var pts = extractSeriesPoints(option).slice(0, 16);
+                    if (!pts.length) {{
+                        el.innerHTML = '<div class="muted-note">' + esc(I18N.unable_render_ai_chart || 'Unable to render this AI chart.') + '</div>';
+                        return;
+                    }}
+                    var maxV = 0;
+                    pts.forEach(function (p) {{ if (p.value > maxV) maxV = p.value; }});
+                    el.innerHTML = pts.map(function (p) {{
+                        var w = maxV <= 0 ? 0 : Math.max(4, (p.value / maxV) * 100);
+                        return '<div style="display:grid;grid-template-columns:120px 1fr 90px;gap:8px;align-items:center;margin:6px 0;">'
+                            + '<div style="font-size:12px;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(p.label) + '</div>'
+                            + '<div style="height:10px;background:#eaf0fb;border-radius:999px;overflow:hidden;"><span style="display:block;height:100%;width:' + w.toFixed(2) + '%;background:linear-gradient(90deg,#2563eb,#06b6d4);"></span></div>'
+                            + '<div style="text-align:right;font-size:12px;font-weight:600;color:#24324a;">' + Number(p.value).toLocaleString(undefined, {{maximumFractionDigits:2}}) + '</div>'
+                            + '</div>';
+                    }}).join('');
+                }}
+
                 // srcdoc iframes may not load CDN scripts due CSP/network; reuse parent echarts when available.
                 if (!(window.echarts && typeof window.echarts.init === 'function')) {{
                     try {{
@@ -9855,6 +10155,11 @@ def _bi_lite_exec_html(
                 }}
 
                 if (!(window.echarts && typeof window.echarts.init === 'function')) {{
+                    aiCharts.forEach(function (c, idx) {{
+                        var el = document.getElementById('execAiChart_' + idx);
+                        if (!el) return;
+                        renderSimpleBars(el, c.echarts_option || {{}});
+                    }});
                     aiChartsEl.insertAdjacentHTML('beforeend', '<div class="muted-note">' + esc(I18N.echarts_runtime_unavailable || 'ECharts runtime unavailable (blocked CDN/CSP). Charts cannot be rendered in this preview.') + '</div>');
                     return;
                 }}
@@ -10328,6 +10633,10 @@ def api_ai_lite():
     rows = res.get("rows") or []
     preview_rows = rows[:120]
 
+    runtime = resolve_ai_runtime_config(default_model="gpt-4o-mini")
+    ai_provider = str(runtime.get("provider") or "AI").upper()
+    ai_model = str(runtime.get("model") or "")
+
     ai = analyze_with_ai(
         data_bundle={
             "source": {"id": source.id, "name": source.name, "type": source.type},
@@ -10344,11 +10653,20 @@ def api_ai_lite():
     )
 
     analysis = ""
+    ai_error = ""
     if isinstance(ai, dict):
+        ai_error = str(ai.get("error") or "").strip()
         analysis = str(ai.get("analysis") or ai.get("reply") or ai.get("text") or "").strip()
 
-    if not analysis:
-        analysis = _("Analysis generated. Check the preview table and SQL to validate the result.")
+    if ai_error:
+        warnings = list(warnings or [])
+        warnings.append(ai_error)
+
+    used_fallback_analysis = not bool(analysis)
+    if used_fallback_analysis:
+        analysis = _bi_lite_fallback_analysis(message, cols, preview_rows, len(rows))
+
+    ai_mode = "fallback" if used_fallback_analysis else "llm"
 
     return jsonify(
         {
@@ -10365,6 +10683,11 @@ def api_ai_lite():
             "rows": preview_rows,
             "row_count": len(rows),
             "source": {"id": source.id, "name": source.name},
+            "ai_runtime": {
+                "mode": ai_mode,
+                "provider": ai_provider,
+                "model": ai_model,
+            },
         }
     )
 

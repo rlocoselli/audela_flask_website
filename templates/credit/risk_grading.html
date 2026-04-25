@@ -1,4 +1,5 @@
 {% extends "credit/page_base.html" %}
+{% from 'credit/_borrower_picker.html' import borrower_picker, borrower_picker_modal with context %}
 {% set title = _('Audela Credit Risk Grading') %}
 {% set active_page = 'risk_grading' %}
 
@@ -98,12 +99,8 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="col-12 col-lg-5">
         <label class="form-label">{{ _('Borrower') }}</label>
-        <select class="form-select" name="borrower_id" required>
-          <option value="">{{ _('Select borrower') }}</option>
-          {% for b in borrowers %}
-          <option value="{{ b.id }}" {% if selected_borrower_id == b.id %}selected{% endif %}>{{ b.name }}</option>
-          {% endfor %}
-        </select>
+        {% set _sel_b = borrowers | selectattr('id', 'equalto', selected_borrower_id) | list %}
+        {{ borrower_picker('borrower_id', selected_id=selected_borrower_id or '', selected_name=(_sel_b[0].name if _sel_b else ''), required=True, modal_id='modalBorrowerPickerRisk', input_id_prefix='risk_borrower') }}
         <div class="form-text">{{ _('Quantitative score uses latest spreading statement or latest ratio snapshot.') }}</div>
       </div>
 
@@ -372,4 +369,5 @@
   </div>
 </div>
 {% endif %}
+{{ borrower_picker_modal(modal_id='modalBorrowerPickerRisk') }}
 {% endblock %}
