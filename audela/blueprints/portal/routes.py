@@ -8287,6 +8287,18 @@ def audit_list():
     date_to_raw = (request.args.get("date_to") or "").strip()
     date_from = _to_date(date_from_raw)
     date_to = _to_date(date_to_raw)
+    sort = (request.args.get("sort") or "created_at").strip().lower()
+    sort_dir = (request.args.get("dir") or "desc").strip().lower()
+    if sort_dir not in {"asc", "desc"}:
+        sort_dir = "desc"
+    allowed_sort = {
+        "created_at": AuditEvent.created_at,
+        "event_type": AuditEvent.event_type,
+        "user_id": AuditEvent.user_id,
+    }
+    sort_col = allowed_sort.get(sort, AuditEvent.created_at)
+    if sort not in allowed_sort:
+        sort = "created_at"
 
     page = max(_to_int(request.args.get("page")) or 1, 1)
     per_page = _to_int(request.args.get("per_page")) or 25
@@ -8314,11 +8326,33 @@ def audit_list():
         )
 
     total = query.count()
+
+    export_mode = (request.args.get("export") or "").strip().lower()
+    if export_mode == "csv":
+        export_events = query.order_by(sort_col.asc() if sort_dir == "asc" else sort_col.desc()).limit(5000).all()
+        out = io.StringIO()
+        writer = csv.writer(out)
+        writer.writerow(["id", "created_at", "event_type", "user_id", "payload_json"])
+        for item in export_events:
+            writer.writerow(
+                [
+                    item.id,
+                    item.created_at.isoformat() if item.created_at else "",
+                    item.event_type or "",
+                    item.user_id if item.user_id is not None else "",
+                    json.dumps(item.payload_json or {}, ensure_ascii=False),
+                ]
+            )
+        resp = make_response(out.getvalue())
+        resp.headers["Content-Type"] = "text/csv; charset=utf-8"
+        resp.headers["Content-Disposition"] = "attachment; filename=audit_events.csv"
+        return resp
+
     pages = max((total + per_page - 1) // per_page, 1)
     page = min(page, pages)
 
     events = (
-        query.order_by(AuditEvent.created_at.desc())
+        query.order_by(sort_col.asc() if sort_dir == "asc" else sort_col.desc())
         .offset((page - 1) * per_page)
         .limit(per_page)
         .all()
@@ -8339,7 +8373,24 @@ def audit_list():
         args = request.args.to_dict(flat=True)
         args["page"] = str(target_page)
         args["per_page"] = str(per_page)
+        args.pop("export", None)
         return url_for("portal.audit_list", **args)
+
+    def _sort_url(sort_key: str) -> str:
+        args = request.args.to_dict(flat=True)
+        args.pop("export", None)
+        args.pop("page", None)
+        if sort == sort_key:
+            args["dir"] = "asc" if sort_dir == "desc" else "desc"
+        else:
+            args["dir"] = "asc"
+        args["sort"] = sort_key
+        return url_for("portal.audit_list", **args)
+
+    export_args = request.args.to_dict(flat=True)
+    export_args.pop("page", None)
+    export_args["export"] = "csv"
+    export_url = url_for("portal.audit_list", **export_args)
 
     page_window = [p for p in range(max(1, page - 2), min(pages, page + 2) + 1)]
 
@@ -8365,6 +8416,26 @@ def audit_list():
         "date_to": date_to_raw,
     }
 
+    active_filter_chips: list[dict[str, str]] = []
+    if q:
+        active_filter_chips.append({"label": f"{_('Search')}: {q}", "clear_key": "q"})
+    if event_type:
+        active_filter_chips.append({"label": f"{_('Type')}: {event_type}", "clear_key": "event_type"})
+    if user_id is not None:
+        active_filter_chips.append({"label": f"{_('User ID')}: {user_id}", "clear_key": "user_id"})
+    if date_from_raw:
+        active_filter_chips.append({"label": f"{_('From')}: {date_from_raw}", "clear_key": "date_from"})
+    if date_to_raw:
+        active_filter_chips.append({"label": f"{_('To')}: {date_to_raw}", "clear_key": "date_to"})
+
+    chip_clear_urls = {}
+    for chip in active_filter_chips:
+        args = request.args.to_dict(flat=True)
+        args.pop(chip["clear_key"], None)
+        args.pop("page", None)
+        args.pop("export", None)
+        chip_clear_urls[chip["clear_key"]] = url_for("portal.audit_list", **args)
+
     stats = {
         "total": total,
         "unique_users": unique_users,
@@ -8379,6 +8450,16 @@ def audit_list():
         stats=stats,
         event_types=event_types,
         pagination=pagination,
+        sort=sort,
+        sort_dir=sort_dir,
+        sort_urls={
+            "created_at": _sort_url("created_at"),
+            "event_type": _sort_url("event_type"),
+            "user_id": _sort_url("user_id"),
+        },
+        export_url=export_url,
+        active_filter_chips=active_filter_chips,
+        chip_clear_urls=chip_clear_urls,
     )
 
 
@@ -8412,6 +8493,21 @@ def runs_list():
     date_to_raw = (request.args.get("date_to") or "").strip()
     date_from = _to_date(date_from_raw)
     date_to = _to_date(date_to_raw)
+    sort = (request.args.get("sort") or "started_at").strip().lower()
+    sort_dir = (request.args.get("dir") or "desc").strip().lower()
+    if sort_dir not in {"asc", "desc"}:
+        sort_dir = "desc"
+    allowed_sort = {
+        "started_at": QueryRun.started_at,
+        "status": QueryRun.status,
+        "question_id": QueryRun.question_id,
+        "user_id": QueryRun.user_id,
+        "duration_ms": QueryRun.duration_ms,
+        "rows": QueryRun.rows,
+    }
+    sort_col = allowed_sort.get(sort, QueryRun.started_at)
+    if sort not in allowed_sort:
+        sort = "started_at"
 
     page = max(_to_int(request.args.get("page")) or 1, 1)
     per_page = _to_int(request.args.get("per_page")) or 25
@@ -8446,11 +8542,36 @@ def runs_list():
         )
 
     total = query.count()
+
+    export_mode = (request.args.get("export") or "").strip().lower()
+    if export_mode == "csv":
+        export_runs = query.order_by(sort_col.asc() if sort_dir == "asc" else sort_col.desc()).limit(5000).all()
+        out = io.StringIO()
+        writer = csv.writer(out)
+        writer.writerow(["id", "started_at", "status", "question_id", "user_id", "duration_ms", "rows", "error"])
+        for item in export_runs:
+            writer.writerow(
+                [
+                    item.id,
+                    item.started_at.isoformat() if item.started_at else "",
+                    item.status or "",
+                    item.question_id if item.question_id is not None else "",
+                    item.user_id if item.user_id is not None else "",
+                    item.duration_ms if item.duration_ms is not None else "",
+                    item.rows if item.rows is not None else "",
+                    item.error or "",
+                ]
+            )
+        resp = make_response(out.getvalue())
+        resp.headers["Content-Type"] = "text/csv; charset=utf-8"
+        resp.headers["Content-Disposition"] = "attachment; filename=query_runs.csv"
+        return resp
+
     pages = max((total + per_page - 1) // per_page, 1)
     page = min(page, pages)
 
     runs = (
-        query.order_by(QueryRun.started_at.desc())
+        query.order_by(sort_col.asc() if sort_dir == "asc" else sort_col.desc())
         .offset((page - 1) * per_page)
         .limit(per_page)
         .all()
@@ -8473,7 +8594,24 @@ def runs_list():
         args = request.args.to_dict(flat=True)
         args["page"] = str(target_page)
         args["per_page"] = str(per_page)
+        args.pop("export", None)
         return url_for("portal.runs_list", **args)
+
+    def _sort_url(sort_key: str) -> str:
+        args = request.args.to_dict(flat=True)
+        args.pop("export", None)
+        args.pop("page", None)
+        if sort == sort_key:
+            args["dir"] = "asc" if sort_dir == "desc" else "desc"
+        else:
+            args["dir"] = "asc"
+        args["sort"] = sort_key
+        return url_for("portal.runs_list", **args)
+
+    export_args = request.args.to_dict(flat=True)
+    export_args.pop("page", None)
+    export_args["export"] = "csv"
+    export_url = url_for("portal.runs_list", **export_args)
 
     page_window = [p for p in range(max(1, page - 2), min(pages, page + 2) + 1)]
 
@@ -8501,6 +8639,30 @@ def runs_list():
         "date_to": date_to_raw,
     }
 
+    active_filter_chips: list[dict[str, str]] = []
+    if q:
+        active_filter_chips.append({"label": f"{_('Search')}: {q}", "clear_key": "q"})
+    if status:
+        active_filter_chips.append({"label": f"{_('Status')}: {status}", "clear_key": "status"})
+    if has_error:
+        active_filter_chips.append({"label": f"{_('Has error')}: {has_error}", "clear_key": "has_error"})
+    if question_id is not None:
+        active_filter_chips.append({"label": f"{_('Question ID')}: {question_id}", "clear_key": "question_id"})
+    if user_id is not None:
+        active_filter_chips.append({"label": f"{_('User ID')}: {user_id}", "clear_key": "user_id"})
+    if date_from_raw:
+        active_filter_chips.append({"label": f"{_('From')}: {date_from_raw}", "clear_key": "date_from"})
+    if date_to_raw:
+        active_filter_chips.append({"label": f"{_('To')}: {date_to_raw}", "clear_key": "date_to"})
+
+    chip_clear_urls = {}
+    for chip in active_filter_chips:
+        args = request.args.to_dict(flat=True)
+        args.pop(chip["clear_key"], None)
+        args.pop("page", None)
+        args.pop("export", None)
+        chip_clear_urls[chip["clear_key"]] = url_for("portal.runs_list", **args)
+
     stats = {
         "total": total,
         "success": success_count,
@@ -8516,6 +8678,19 @@ def runs_list():
         statuses=statuses,
         stats=stats,
         pagination=pagination,
+        sort=sort,
+        sort_dir=sort_dir,
+        sort_urls={
+            "started_at": _sort_url("started_at"),
+            "status": _sort_url("status"),
+            "question_id": _sort_url("question_id"),
+            "user_id": _sort_url("user_id"),
+            "duration_ms": _sort_url("duration_ms"),
+            "rows": _sort_url("rows"),
+        },
+        export_url=export_url,
+        active_filter_chips=active_filter_chips,
+        chip_clear_urls=chip_clear_urls,
     )
 
 

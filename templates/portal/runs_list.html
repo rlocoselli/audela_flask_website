@@ -6,7 +6,10 @@
     <div class="card-body">
       <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
         <h3 class="h5 mb-0">{{ _('Query runs') }}</h3>
-        <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.runs_list') }}">{{ _('Reset') }}</a>
+        <div class="d-flex gap-2">
+          <a class="btn btn-outline-success btn-sm" href="{{ export_url }}">{{ _('Export CSV') }}</a>
+          <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.runs_list') }}">{{ _('Reset') }}</a>
+        </div>
       </div>
 
       <form method="get" class="row g-2 align-items-end mb-3">
@@ -60,6 +63,16 @@
         </div>
       </form>
 
+      {% if active_filter_chips %}
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          {% for chip in active_filter_chips %}
+            <a class="badge rounded-pill text-bg-light border text-decoration-none" href="{{ chip_clear_urls.get(chip.clear_key, '#') }}" title="{{ _('Remove filter') }}">
+              {{ chip.label }} ×
+            </a>
+          {% endfor %}
+        </div>
+      {% endif %}
+
       <div class="row g-2 mb-3">
         <div class="col-12 col-md-3">
           <div class="border rounded p-2 bg-light-subtle">
@@ -94,12 +107,12 @@
           <table class="table table-sm align-middle">
             <thead>
               <tr>
-                <th>{{ _('When') }}</th>
-                <th>{{ _('Status') }}</th>
-                <th>{{ _('Question') }}</th>
-                <th>{{ _('User') }}</th>
-                <th>{{ _('Duration (ms)') }}</th>
-                <th>{{ _('Rows') }}</th>
+                <th><a class="text-decoration-none" href="{{ sort_urls.started_at }}">{{ _('When') }}{% if sort == 'started_at' %} {{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}</a></th>
+                <th><a class="text-decoration-none" href="{{ sort_urls.status }}">{{ _('Status') }}{% if sort == 'status' %} {{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}</a></th>
+                <th><a class="text-decoration-none" href="{{ sort_urls.question_id }}">{{ _('Question') }}{% if sort == 'question_id' %} {{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}</a></th>
+                <th><a class="text-decoration-none" href="{{ sort_urls.user_id }}">{{ _('User') }}{% if sort == 'user_id' %} {{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}</a></th>
+                <th><a class="text-decoration-none" href="{{ sort_urls.duration_ms }}">{{ _('Duration (ms)') }}{% if sort == 'duration_ms' %} {{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}</a></th>
+                <th><a class="text-decoration-none" href="{{ sort_urls.rows }}">{{ _('Rows') }}{% if sort == 'rows' %} {{ '↑' if sort_dir == 'asc' else '↓' }}{% endif %}</a></th>
                 <th>{{ _('Error') }}</th>
               </tr>
             </thead>
