@@ -27,3 +27,91 @@
 .ws-mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
+
+.ws-steps {
+  display: flex;
+  align-items: center;
+}
+
+.ws-step {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  padding: .35rem .6rem;
+  border: 1px solid rgba(15, 23, 42, .12);
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #334155;
+}
+
+.ws-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 999px;
+  background: #0d6efd;
+  color: #fff;
+  font-weight: 600;
+  font-size: .72rem;
+}
+
+.ws-steps-card {
+  background: linear-gradient(180deg, rgba(248, 250, 252, .95), rgba(255, 255, 255, .98));
+}
+
+#ws-db-sources,
+#ws-files-table .ws-file-check {
+  accent-color: #0d6efd;
+}
+
+#ws-db-sources {
+  border-color: rgba(37, 99, 235, .25);
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+}
+
+#ws-db-sources:focus {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 .16rem rgba(37, 99, 235, .15);
+}
+
+#ws-source-tags:empty,
+#ws-db-table-tags:empty {
+  display: none;
+}
+
+#ws-source-count,
+#ws-files-count {
+  font-weight: 500;
+}
+
+[data-bs-theme="dark"] #ws-db-sources {
+  background: linear-gradient(180deg, rgba(30, 41, 59, .45), rgba(15, 23, 42, .35));
+  border-color: rgba(96, 165, 250, .35);
+}
+
+#ws-file-format-filter,
+#ws-db-table-source-filter {
+  border-color: rgba(37, 99, 235, .2);
+}
+
+#ws-file-selected-only:checked,
+#ws-db-table-selected-only:checked {
+  background-color: #0d6efd;
+  border-color: #0d6efd;
+}
+
+#ws-db-table-count {
+  font-weight: 500;
+}
+
+[data-bs-theme="dark"] .ws-step {
+  background: rgba(30, 41, 59, .5);
+  border-color: rgba(148, 163, 184, .28);
+  color: #cbd5e1;
+}
+
+[data-bs-theme="dark"] .ws-steps-card {
+  background: linear-gradient(180deg, rgba(15, 23, 42, .65), rgba(2, 6, 23, .85));
+}

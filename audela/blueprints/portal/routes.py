@@ -16,7 +16,7 @@ from urllib.parse import quote_plus
 
 from flask import abort, current_app, flash, g, jsonify, make_response, redirect, render_template, request, url_for, send_file, session
 from flask_login import current_user, login_required
-from sqlalchemy import inspect, text
+from sqlalchemy import String, cast, inspect, or_, text
 from sqlalchemy.orm.attributes import flag_modified
 
 from ...extensions import db, csrf
@@ -8264,13 +8264,122 @@ def api_dashboard_delete_card(dashboard_id: int, card_id: int):
 @require_roles("tenant_admin", "creator")
 def audit_list():
     _require_tenant()
+    def _to_int(raw: str | None) -> int | None:
+        if raw in (None, ""):
+            return None
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            return None
+
+    def _to_date(raw: str | None) -> date | None:
+        if not raw:
+            return None
+        try:
+            return datetime.strptime(raw, "%Y-%m-%d").date()
+        except ValueError:
+            return None
+
+    event_type = (request.args.get("event_type") or "").strip()
+    user_id = _to_int(request.args.get("user_id"))
+    q = (request.args.get("q") or "").strip()
+    date_from_raw = (request.args.get("date_from") or "").strip()
+    date_to_raw = (request.args.get("date_to") or "").strip()
+    date_from = _to_date(date_from_raw)
+    date_to = _to_date(date_to_raw)
+
+    page = max(_to_int(request.args.get("page")) or 1, 1)
+    per_page = _to_int(request.args.get("per_page")) or 25
+    if per_page not in {10, 25, 50, 100}:
+        per_page = 25
+
+    query = AuditEvent.query.filter_by(tenant_id=g.tenant.id)
+
+    if event_type:
+        query = query.filter(AuditEvent.event_type == event_type)
+    if user_id is not None:
+        query = query.filter(AuditEvent.user_id == user_id)
+    if date_from:
+        query = query.filter(AuditEvent.created_at >= datetime.combine(date_from, datetime.min.time()))
+    if date_to:
+        query = query.filter(AuditEvent.created_at < datetime.combine(date_to + timedelta(days=1), datetime.min.time()))
+    if q:
+        like_q = f"%{q}%"
+        query = query.filter(
+            or_(
+                AuditEvent.event_type.ilike(like_q),
+                cast(AuditEvent.user_id, String).ilike(like_q),
+                cast(AuditEvent.payload_json, String).ilike(like_q),
+            )
+        )
+
+    total = query.count()
+    pages = max((total + per_page - 1) // per_page, 1)
+    page = min(page, pages)
+
     events = (
-        AuditEvent.query.filter_by(tenant_id=g.tenant.id)
-        .order_by(AuditEvent.created_at.desc())
-        .limit(200)
+        query.order_by(AuditEvent.created_at.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
         .all()
     )
-    return render_template("portal/audit_list.html", tenant=g.tenant, events=events)
+
+    unique_users = query.filter(AuditEvent.user_id.isnot(None)).with_entities(AuditEvent.user_id).distinct().count()
+
+    event_types = [
+        row[0]
+        for row in db.session.query(AuditEvent.event_type)
+        .filter(AuditEvent.tenant_id == g.tenant.id)
+        .distinct()
+        .order_by(AuditEvent.event_type.asc())
+        .all()
+    ]
+
+    def _page_url(target_page: int) -> str:
+        args = request.args.to_dict(flat=True)
+        args["page"] = str(target_page)
+        args["per_page"] = str(per_page)
+        return url_for("portal.audit_list", **args)
+
+    page_window = [p for p in range(max(1, page - 2), min(pages, page + 2) + 1)]
+
+    pagination = {
+        "page": page,
+        "pages": pages,
+        "per_page": per_page,
+        "total": total,
+        "has_prev": page > 1,
+        "has_next": page < pages,
+        "prev_url": _page_url(page - 1) if page > 1 else None,
+        "next_url": _page_url(page + 1) if page < pages else None,
+        "first_url": _page_url(1),
+        "last_url": _page_url(pages),
+        "page_window": page_window,
+    }
+
+    filters = {
+        "event_type": event_type,
+        "user_id": "" if user_id is None else str(user_id),
+        "q": q,
+        "date_from": date_from_raw,
+        "date_to": date_to_raw,
+    }
+
+    stats = {
+        "total": total,
+        "unique_users": unique_users,
+        "shown": len(events),
+    }
+
+    return render_template(
+        "portal/audit_list.html",
+        tenant=g.tenant,
+        events=events,
+        filters=filters,
+        stats=stats,
+        event_types=event_types,
+        pagination=pagination,
+    )
 
 
 @bp.route("/runs")
@@ -8278,13 +8387,136 @@ def audit_list():
 @require_roles("tenant_admin", "creator")
 def runs_list():
     _require_tenant()
+    def _to_int(raw: str | None) -> int | None:
+        if raw in (None, ""):
+            return None
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            return None
+
+    def _to_date(raw: str | None) -> date | None:
+        if not raw:
+            return None
+        try:
+            return datetime.strptime(raw, "%Y-%m-%d").date()
+        except ValueError:
+            return None
+
+    status = (request.args.get("status") or "").strip()
+    user_id = _to_int(request.args.get("user_id"))
+    question_id = _to_int(request.args.get("question_id"))
+    has_error = (request.args.get("has_error") or "").strip().lower()
+    q = (request.args.get("q") or "").strip()
+    date_from_raw = (request.args.get("date_from") or "").strip()
+    date_to_raw = (request.args.get("date_to") or "").strip()
+    date_from = _to_date(date_from_raw)
+    date_to = _to_date(date_to_raw)
+
+    page = max(_to_int(request.args.get("page")) or 1, 1)
+    per_page = _to_int(request.args.get("per_page")) or 25
+    if per_page not in {10, 25, 50, 100}:
+        per_page = 25
+
+    query = QueryRun.query.filter_by(tenant_id=g.tenant.id)
+
+    if status:
+        query = query.filter(QueryRun.status == status)
+    if user_id is not None:
+        query = query.filter(QueryRun.user_id == user_id)
+    if question_id is not None:
+        query = query.filter(QueryRun.question_id == question_id)
+    if has_error == "yes":
+        query = query.filter(QueryRun.error.isnot(None)).filter(QueryRun.error != "")
+    elif has_error == "no":
+        query = query.filter(or_(QueryRun.error.is_(None), QueryRun.error == ""))
+    if date_from:
+        query = query.filter(QueryRun.started_at >= datetime.combine(date_from, datetime.min.time()))
+    if date_to:
+        query = query.filter(QueryRun.started_at < datetime.combine(date_to + timedelta(days=1), datetime.min.time()))
+    if q:
+        like_q = f"%{q}%"
+        query = query.filter(
+            or_(
+                QueryRun.status.ilike(like_q),
+                cast(QueryRun.user_id, String).ilike(like_q),
+                cast(QueryRun.question_id, String).ilike(like_q),
+                cast(QueryRun.error, String).ilike(like_q),
+            )
+        )
+
+    total = query.count()
+    pages = max((total + per_page - 1) // per_page, 1)
+    page = min(page, pages)
+
     runs = (
-        QueryRun.query.filter_by(tenant_id=g.tenant.id)
-        .order_by(QueryRun.started_at.desc())
-        .limit(200)
+        query.order_by(QueryRun.started_at.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
         .all()
     )
-    return render_template("portal/runs_list.html", tenant=g.tenant, runs=runs)
+
+    success_count = query.filter(QueryRun.status == "success").count()
+    failed_count = query.filter(QueryRun.status == "error").count()
+
+    statuses = [
+        row[0]
+        for row in db.session.query(QueryRun.status)
+        .filter(QueryRun.tenant_id == g.tenant.id)
+        .distinct()
+        .order_by(QueryRun.status.asc())
+        .all()
+        if row[0]
+    ]
+
+    def _page_url(target_page: int) -> str:
+        args = request.args.to_dict(flat=True)
+        args["page"] = str(target_page)
+        args["per_page"] = str(per_page)
+        return url_for("portal.runs_list", **args)
+
+    page_window = [p for p in range(max(1, page - 2), min(pages, page + 2) + 1)]
+
+    pagination = {
+        "page": page,
+        "pages": pages,
+        "per_page": per_page,
+        "total": total,
+        "has_prev": page > 1,
+        "has_next": page < pages,
+        "prev_url": _page_url(page - 1) if page > 1 else None,
+        "next_url": _page_url(page + 1) if page < pages else None,
+        "first_url": _page_url(1),
+        "last_url": _page_url(pages),
+        "page_window": page_window,
+    }
+
+    filters = {
+        "status": status,
+        "user_id": "" if user_id is None else str(user_id),
+        "question_id": "" if question_id is None else str(question_id),
+        "has_error": has_error,
+        "q": q,
+        "date_from": date_from_raw,
+        "date_to": date_to_raw,
+    }
+
+    stats = {
+        "total": total,
+        "success": success_count,
+        "failed": failed_count,
+        "shown": len(runs),
+    }
+
+    return render_template(
+        "portal/runs_list.html",
+        tenant=g.tenant,
+        runs=runs,
+        filters=filters,
+        statuses=statuses,
+        stats=stats,
+        pagination=pagination,
+    )
 
 
 

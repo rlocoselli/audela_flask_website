@@ -2,39 +2,155 @@
 {% set title = _('Executions') %}
 
 {% block portal_content %}
-  <div class="box">
-    <h3>{{ _('Query Runs (last 200)') }}</h3>
-    {% if not runs %}
-      <p>{{ _('No runs yet.') }}</p>
-    {% else %}
-      <div style="overflow-x:auto;">
-        <table class="table">
-          <thead>
-            <tr>
-              <th>{{ _('When') }}</th>
-              <th>{{ _('Status') }}</th>
-              <th>{{ _('Question') }}</th>
-              <th>{{ _('User') }}</th>
-              <th>{{ _('Duration (ms)') }}</th>
-              <th>{{ _('Rows') }}</th>
-              <th>{{ _('Error') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for r in runs %}
-              <tr>
-                <td>{{ r.started_at }}</td>
-                <td>{{ r.status }}</td>
-                <td>{{ r.question_id }}</td>
-                <td>{{ r.user_id }}</td>
-                <td>{{ r.duration_ms }}</td>
-                <td>{{ r.rows }}</td>
-                <td>{% if r.error %}<pre style="white-space: pre-wrap; margin:0;">{{ r.error }}</pre>{% endif %}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+  <div class="card shadow-sm border-0 mb-3">
+    <div class="card-body">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <h3 class="h5 mb-0">{{ _('Query runs') }}</h3>
+        <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.runs_list') }}">{{ _('Reset') }}</a>
       </div>
-    {% endif %}
+
+      <form method="get" class="row g-2 align-items-end mb-3">
+        <div class="col-12 col-md-3">
+          <label class="form-label mb-1">{{ _('Search') }}</label>
+          <input class="form-control" type="text" name="q" value="{{ filters.q }}" placeholder="{{ _('status, question, user, error...') }}">
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label mb-1">{{ _('Status') }}</label>
+          <select class="form-select" name="status">
+            <option value="">{{ _('All') }}</option>
+            {% for item in statuses %}
+              <option value="{{ item }}" {% if filters.status == item %}selected{% endif %}>{{ item }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label mb-1">{{ _('Has error') }}</label>
+          <select class="form-select" name="has_error">
+            <option value="">{{ _('All') }}</option>
+            <option value="yes" {% if filters.has_error == 'yes' %}selected{% endif %}>{{ _('Yes') }}</option>
+            <option value="no" {% if filters.has_error == 'no' %}selected{% endif %}>{{ _('No') }}</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label mb-1">{{ _('Question ID') }}</label>
+          <input class="form-control" type="number" name="question_id" value="{{ filters.question_id }}" min="1">
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label mb-1">{{ _('User ID') }}</label>
+          <input class="form-control" type="number" name="user_id" value="{{ filters.user_id }}" min="1">
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label mb-1">{{ _('From') }}</label>
+          <input class="form-control" type="date" name="date_from" value="{{ filters.date_from }}">
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label mb-1">{{ _('To') }}</label>
+          <input class="form-control" type="date" name="date_to" value="{{ filters.date_to }}">
+        </div>
+        <div class="col-6 col-md-1">
+          <label class="form-label mb-1">{{ _('Rows') }}</label>
+          <select class="form-select" name="per_page">
+            {% for n in [10, 25, 50, 100] %}
+              <option value="{{ n }}" {% if pagination.per_page == n %}selected{% endif %}>{{ n }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-6 col-md-12 d-flex gap-2">
+          <button class="btn btn-primary" type="submit">{{ _('Apply filters') }}</button>
+        </div>
+      </form>
+
+      <div class="row g-2 mb-3">
+        <div class="col-12 col-md-3">
+          <div class="border rounded p-2 bg-light-subtle">
+            <div class="small text-muted">{{ _('Total runs') }}</div>
+            <div class="fw-semibold">{{ stats.total }}</div>
+          </div>
+        </div>
+        <div class="col-12 col-md-3">
+          <div class="border rounded p-2 bg-light-subtle">
+            <div class="small text-muted">{{ _('Success') }}</div>
+            <div class="fw-semibold text-success">{{ stats.success }}</div>
+          </div>
+        </div>
+        <div class="col-12 col-md-3">
+          <div class="border rounded p-2 bg-light-subtle">
+            <div class="small text-muted">{{ _('Failed') }}</div>
+            <div class="fw-semibold text-danger">{{ stats.failed }}</div>
+          </div>
+        </div>
+        <div class="col-12 col-md-3">
+          <div class="border rounded p-2 bg-light-subtle">
+            <div class="small text-muted">{{ _('Shown on this page') }}</div>
+            <div class="fw-semibold">{{ stats.shown }}</div>
+          </div>
+        </div>
+      </div>
+
+      {% if not runs %}
+        <div class="alert alert-light border">{{ _('No runs found for current filters.') }}</div>
+      {% else %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th>{{ _('When') }}</th>
+                <th>{{ _('Status') }}</th>
+                <th>{{ _('Question') }}</th>
+                <th>{{ _('User') }}</th>
+                <th>{{ _('Duration (ms)') }}</th>
+                <th>{{ _('Rows') }}</th>
+                <th>{{ _('Error') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in runs %}
+                <tr>
+                  <td class="text-nowrap">{{ r.started_at }}</td>
+                  <td>
+                    {% if r.status == 'success' %}
+                      <span class="badge text-bg-success">{{ r.status }}</span>
+                    {% elif r.status == 'error' %}
+                      <span class="badge text-bg-danger">{{ r.status }}</span>
+                    {% else %}
+                      <span class="badge text-bg-secondary">{{ r.status }}</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ r.question_id if r.question_id is not none else '-' }}</td>
+                  <td>{{ r.user_id if r.user_id is not none else '-' }}</td>
+                  <td>{{ r.duration_ms if r.duration_ms is not none else '-' }}</td>
+                  <td>{{ r.rows if r.rows is not none else '-' }}</td>
+                  <td>
+                    {% if r.error %}
+                      <pre class="mb-0" style="max-width:520px; white-space:pre-wrap;">{{ r.error }}</pre>
+                    {% else %}
+                      <span class="text-muted">-</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-3">
+          <div class="small text-muted">
+            {{ _('Page') }} {{ pagination.page }} / {{ pagination.pages }}
+            · {{ _('Total') }}: {{ pagination.total }}
+          </div>
+          <nav aria-label="Runs pagination">
+            <ul class="pagination pagination-sm mb-0">
+              <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}"><a class="page-link" href="{{ pagination.first_url }}">{{ _('First') }}</a></li>
+              <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}"><a class="page-link" href="{{ pagination.prev_url or '#' }}">{{ _('Previous') }}</a></li>
+              {% for p in pagination.page_window %}
+                <li class="page-item {% if p == pagination.page %}active{% endif %}"><a class="page-link" href="{{ url_for('portal.runs_list', page=p, per_page=pagination.per_page, q=filters.q, status=filters.status, user_id=filters.user_id, question_id=filters.question_id, has_error=filters.has_error, date_from=filters.date_from, date_to=filters.date_to) }}">{{ p }}</a></li>
+              {% endfor %}
+              <li class="page-item {% if not pagination.has_next %}disabled{% endif %}"><a class="page-link" href="{{ pagination.next_url or '#' }}">{{ _('Next') }}</a></li>
+              <li class="page-item {% if not pagination.has_next %}disabled{% endif %}"><a class="page-link" href="{{ pagination.last_url }}">{{ _('Last') }}</a></li>
+            </ul>
+          </nav>
+        </div>
+      {% endif %}
+    </div>
   </div>
 {% endblock %}

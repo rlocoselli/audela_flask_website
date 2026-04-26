@@ -2,33 +2,117 @@
 {% set title = _('Auditoria') %}
 
 {% block portal_content %}
-  <div class="box">
-    <h3>{{ _('Eventos (últimos 200)') }}</h3>
-    {% if not events %}
-      <p>{{ _('Sem eventos ainda.') }}</p>
-    {% else %}
-      <div style="overflow-x:auto;">
-        <table class="table">
-          <thead>
-            <tr>
-              <th>{{ _('Quando') }}</th>
-              <th>{{ _('Tipo') }}</th>
-              <th>{{ _('User ID') }}</th>
-              <th>{{ _('Payload') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for e in events %}
-              <tr>
-                <td>{{ e.created_at }}</td>
-                <td><code>{{ e.event_type }}</code></td>
-                <td>{{ e.user_id }}</td>
-                <td><pre style="white-space: pre-wrap; margin:0;">{{ e.payload_json | tojson(indent=0) }}</pre></td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+  <div class="card shadow-sm border-0 mb-3">
+    <div class="card-body">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+        <h3 class="h5 mb-0">{{ _('Audit events') }}</h3>
+        <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.audit_list') }}">{{ _('Reset') }}</a>
       </div>
-    {% endif %}
+
+      <form method="get" class="row g-2 align-items-end mb-3">
+        <div class="col-12 col-md-3">
+          <label class="form-label mb-1">{{ _('Search') }}</label>
+          <input class="form-control" type="text" name="q" value="{{ filters.q }}" placeholder="{{ _('Type, payload, user...') }}">
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label mb-1">{{ _('Event type') }}</label>
+          <select class="form-select" name="event_type">
+            <option value="">{{ _('All') }}</option>
+            {% for item in event_types %}
+              <option value="{{ item }}" {% if filters.event_type == item %}selected{% endif %}>{{ item }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label mb-1">{{ _('User ID') }}</label>
+          <input class="form-control" type="number" name="user_id" value="{{ filters.user_id }}" min="1">
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label mb-1">{{ _('From') }}</label>
+          <input class="form-control" type="date" name="date_from" value="{{ filters.date_from }}">
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label mb-1">{{ _('To') }}</label>
+          <input class="form-control" type="date" name="date_to" value="{{ filters.date_to }}">
+        </div>
+        <div class="col-6 col-md-1">
+          <label class="form-label mb-1">{{ _('Rows') }}</label>
+          <select class="form-select" name="per_page">
+            {% for n in [10, 25, 50, 100] %}
+              <option value="{{ n }}" {% if pagination.per_page == n %}selected{% endif %}>{{ n }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-6 col-md-12 d-flex gap-2">
+          <button class="btn btn-primary" type="submit">{{ _('Apply filters') }}</button>
+        </div>
+      </form>
+
+      <div class="row g-2 mb-3">
+        <div class="col-12 col-md-4">
+          <div class="border rounded p-2 bg-light-subtle">
+            <div class="small text-muted">{{ _('Total events') }}</div>
+            <div class="fw-semibold">{{ stats.total }}</div>
+          </div>
+        </div>
+        <div class="col-12 col-md-4">
+          <div class="border rounded p-2 bg-light-subtle">
+            <div class="small text-muted">{{ _('Unique users') }}</div>
+            <div class="fw-semibold">{{ stats.unique_users }}</div>
+          </div>
+        </div>
+        <div class="col-12 col-md-4">
+          <div class="border rounded p-2 bg-light-subtle">
+            <div class="small text-muted">{{ _('Shown on this page') }}</div>
+            <div class="fw-semibold">{{ stats.shown }}</div>
+          </div>
+        </div>
+      </div>
+
+      {% if not events %}
+        <div class="alert alert-light border">{{ _('No audit events found for current filters.') }}</div>
+      {% else %}
+        <div class="table-responsive">
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th>{{ _('When') }}</th>
+                <th>{{ _('Type') }}</th>
+                <th>{{ _('User ID') }}</th>
+                <th>{{ _('Payload') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for e in events %}
+                <tr>
+                  <td class="text-nowrap">{{ e.created_at }}</td>
+                  <td><span class="badge text-bg-light border"><code>{{ e.event_type }}</code></span></td>
+                  <td>{{ e.user_id if e.user_id is not none else '-' }}</td>
+                  <td><pre class="mb-0" style="max-width:560px; white-space:pre-wrap;">{{ e.payload_json | tojson(indent=0) }}</pre></td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-3">
+          <div class="small text-muted">
+            {{ _('Page') }} {{ pagination.page }} / {{ pagination.pages }}
+            · {{ _('Total') }}: {{ pagination.total }}
+          </div>
+          <nav aria-label="Audit pagination">
+            <ul class="pagination pagination-sm mb-0">
+              <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}"><a class="page-link" href="{{ pagination.first_url }}">{{ _('First') }}</a></li>
+              <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}"><a class="page-link" href="{{ pagination.prev_url or '#' }}">{{ _('Previous') }}</a></li>
+              {% for p in pagination.page_window %}
+                <li class="page-item {% if p == pagination.page %}active{% endif %}"><a class="page-link" href="{{ url_for('portal.audit_list', page=p, per_page=pagination.per_page, q=filters.q, event_type=filters.event_type, user_id=filters.user_id, date_from=filters.date_from, date_to=filters.date_to) }}">{{ p }}</a></li>
+              {% endfor %}
+              <li class="page-item {% if not pagination.has_next %}disabled{% endif %}"><a class="page-link" href="{{ pagination.next_url or '#' }}">{{ _('Next') }}</a></li>
+              <li class="page-item {% if not pagination.has_next %}disabled{% endif %}"><a class="page-link" href="{{ pagination.last_url }}">{{ _('Last') }}</a></li>
+            </ul>
+          </nav>
+        </div>
+      {% endif %}
+    </div>
   </div>
 {% endblock %}

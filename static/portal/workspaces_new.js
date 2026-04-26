@@ -6,6 +6,10 @@
   if (!form) return;
 
   const elDbSources = document.getElementById('ws-db-sources');
+  const elSourceTags = document.getElementById('ws-source-tags');
+  const elSourceCount = document.getElementById('ws-source-count');
+  const elSelectAllSources = document.getElementById('ws-select-all-sources');
+  const elClearSources = document.getElementById('ws-clear-sources');
   const elPickDbTables = document.getElementById('ws-pick-db-tables');
   const elDbTablesHidden = document.getElementById('ws-db-tables');
   const elDbTablesJsonHidden = document.getElementById('ws-db-tables-json');
@@ -13,6 +17,11 @@
   const elStarterSqlHidden = document.getElementById('ws-starter-sql');
 
   const elFileFilter = document.getElementById('ws-file-filter');
+  const elFileFormatFilter = document.getElementById('ws-file-format-filter');
+  const elFileSelectedOnly = document.getElementById('ws-file-selected-only');
+  const elFilesCount = document.getElementById('ws-files-count');
+  const elSelectAllFiles = document.getElementById('ws-select-all-files');
+  const elClearFiles = document.getElementById('ws-clear-files');
   const filesTable = document.getElementById('ws-files-table');
 
   const elBaseTable = document.getElementById('ws-base-table');
@@ -29,6 +38,9 @@
   const dbModalEl = document.getElementById('wsDbTablesModal');
   const dbModal = dbModalEl ? bootstrap.Modal.getOrCreateInstance(dbModalEl) : null;
   const elDbTableSearch = document.getElementById('ws-db-table-search');
+  const elDbTableSourceFilter = document.getElementById('ws-db-table-source-filter');
+  const elDbTableSelectedOnly = document.getElementById('ws-db-table-selected-only');
+  const elDbTableCount = document.getElementById('ws-db-table-count');
   const elDbTableList = document.getElementById('ws-db-table-list');
   const elDbTableApply = document.getElementById('ws-db-table-apply');
 
@@ -120,6 +132,114 @@
       .filter((id) => Number.isFinite(id) && id > 0);
   }
 
+  function renderDbSourceSelectionUI(){
+    if (!elDbSources) return;
+    const selectedOpts = Array.from(elDbSources.selectedOptions || []);
+
+    if (elSourceCount) {
+      elSourceCount.textContent = selectedOpts.length
+        ? tformat('{n} source(s) selected', { n: selectedOpts.length })
+        : window.t('No source selected');
+    }
+
+    if (elSourceTags) {
+      elSourceTags.innerHTML = '';
+      selectedOpts.forEach((opt) => {
+        const sid = String(opt.value || '').trim();
+        const lbl = String(opt.textContent || sid).trim();
+        const tag = document.createElement('span');
+        tag.className = 'ws-tag';
+        tag.innerHTML = `<span>${escapeHtml(lbl)}</span>`;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.innerHTML = '<i class="bi bi-x"></i>';
+        btn.title = window.t('Remove');
+        btn.addEventListener('click', () => {
+          Array.from(elDbSources.options || []).forEach((o) => {
+            if (String(o.value || '').trim() === sid) o.selected = false;
+          });
+          elDbSources.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+        tag.appendChild(btn);
+        elSourceTags.appendChild(tag);
+      });
+    }
+  }
+
+  function getVisibleFileRows(){
+    if (!filesTable) return [];
+    return Array.from(filesTable.querySelectorAll('tbody tr[data-file-row="1"]')).filter((tr) => tr.style.display !== 'none');
+  }
+
+  function populateFileFormatFilter(){
+    if (!filesTable || !elFileFormatFilter) return;
+    const rows = Array.from(filesTable.querySelectorAll('tbody tr[data-file-row="1"]'));
+    const formats = Array.from(new Set(rows.map((tr) => String(tr.getAttribute('data-file-format') || '').trim()).filter(Boolean))).sort();
+    const current = String(elFileFormatFilter.value || '');
+    elFileFormatFilter.innerHTML = `<option value="">${escapeHtml(window.t('All formats'))}</option>`;
+    formats.forEach((fmt) => {
+      const opt = document.createElement('option');
+      opt.value = fmt;
+      opt.textContent = fmt.toUpperCase();
+      elFileFormatFilter.appendChild(opt);
+    });
+    if (formats.includes(current)) {
+      elFileFormatFilter.value = current;
+    }
+  }
+
+  function applyFilesFilters(){
+    if (!filesTable) return;
+    const term = String(elFileFilter?.value || '').trim().toLowerCase();
+    const fmt = String(elFileFormatFilter?.value || '').trim().toLowerCase();
+    const selectedOnly = !!(elFileSelectedOnly && elFileSelectedOnly.checked);
+    filesTable.querySelectorAll('tbody tr[data-file-row="1"]').forEach((tr) => {
+      const name = String(tr.getAttribute('data-file-name') || '').toLowerCase();
+      const format = String(tr.getAttribute('data-file-format') || '').toLowerCase();
+      const chk = tr.querySelector('.ws-file-check');
+      const isChecked = !!(chk && chk.checked);
+      const matchesTerm = !term || name.includes(term);
+      const matchesFmt = !fmt || format === fmt;
+      const matchesSelected = !selectedOnly || isChecked;
+      tr.style.display = (matchesTerm && matchesFmt && matchesSelected) ? '' : 'none';
+    });
+    renderFilesSelectionUI();
+  }
+
+  function populateDbSourceFilter(schemas){
+    if (!elDbTableSourceFilter) return;
+    const current = String(elDbTableSourceFilter.value || '');
+    elDbTableSourceFilter.innerHTML = `<option value="">${escapeHtml(window.t('All sources'))}</option>`;
+    const rows = Array.from((schemas || new Map()).values()).map((schema) => ({
+      sourceId: Number(schema.sourceId || 0),
+      sourceName: String(schema.sourceName || schema.sourceId || ''),
+    })).filter((x) => x.sourceId > 0).sort((a, b) => a.sourceName.localeCompare(b.sourceName));
+    rows.forEach((row) => {
+      const opt = document.createElement('option');
+      opt.value = String(row.sourceId);
+      opt.textContent = row.sourceName;
+      elDbTableSourceFilter.appendChild(opt);
+    });
+    if (Array.from(elDbTableSourceFilter.options).some((o) => o.value === current)) {
+      elDbTableSourceFilter.value = current;
+    }
+  }
+
+  function renderFilesSelectionUI(){
+    if (!filesTable || !elFilesCount) return;
+    const rows = getVisibleFileRows();
+    const selected = rows.filter((tr) => {
+      const chk = tr.querySelector('.ws-file-check');
+      return !!(chk && chk.checked);
+    }).length;
+    const total = rows.length;
+    if (!total) {
+      elFilesCount.textContent = window.t('No file selected');
+      return;
+    }
+    elFilesCount.textContent = tformat('{selected}/{total} file(s) selected', { selected, total });
+  }
+
   function getSourceName(sourceId){
     if (!elDbSources || !sourceId) return String(sourceId || '');
     const opt = Array.from(elDbSources.options || []).find((o) => parseInt(o.value || '0', 10) === Number(sourceId));
@@ -188,6 +308,17 @@ function toast(msg, variant){
     else alert(msg);
   }
 
+  function tformat(message, vars){
+    if (typeof window.tf === 'function') {
+      return window.tf(message, vars || {});
+    }
+    let out = String(message || '');
+    Object.entries(vars || {}).forEach(([k, v]) => {
+      out = out.replaceAll(`{${k}}`, String(v));
+    });
+    return out;
+  }
+
   // -----------------------------
   // DB schema loading + modal
   // -----------------------------
@@ -248,6 +379,9 @@ function toast(msg, variant){
       return;
     }
     const term = String(elDbTableSearch?.value || '').trim().toLowerCase();
+    const sourceFilter = String(elDbTableSourceFilter?.value || '').trim();
+    const selectedOnly = !!(elDbTableSelectedOnly && elDbTableSelectedOnly.checked);
+    populateDbSourceFilter(schemas);
     const all = [];
     Array.from(schemas.values()).forEach((schema) => {
       Object.values(schema.tables || {}).forEach((tbl) => {
@@ -259,7 +393,21 @@ function toast(msg, variant){
         });
       });
     });
-    const filtered = term ? all.filter((x) => (`${x.source_name} ${x.table}`).toLowerCase().includes(term)) : all;
+    const filtered = all.filter((x) => {
+      const matchesTerm = !term || (`${x.source_name} ${x.table}`).toLowerCase().includes(term);
+      const matchesSource = !sourceFilter || String(x.source_id) === sourceFilter;
+      const isChecked = state.selectedDbTables.some((t) => Number(t.source_id) === Number(x.source_id) && String(t.table || '').toLowerCase() === String(x.table || '').toLowerCase());
+      const matchesSelected = !selectedOnly || isChecked;
+      return matchesTerm && matchesSource && matchesSelected;
+    });
+
+    if (elDbTableCount) {
+      elDbTableCount.textContent = tformat('Showing {shown}/{total} table(s)', {
+        shown: filtered.length,
+        total: all.length,
+      });
+    }
+
     if (!filtered.length) {
       elDbTableList.innerHTML = `<div class="text-secondary small">${escapeHtml(window.t('No tables found.'))}</div>`;
       return;
@@ -327,7 +475,7 @@ function toast(msg, variant){
       `).join('') || `<div class="text-secondary">${escapeHtml(window.t('No tables found.'))}</div>`;
       const tr = filesTable?.querySelector(`tr[data-file-id="${fileId}"]`);
       const fileName = tr?.getAttribute('data-file-name') || ('#' + fileId);
-      elSchemaTitle.textContent = window.tf('Schema: {name}', { name: fileName });
+      elSchemaTitle.textContent = tformat('Schema: {name}', { name: fileName });
       elSchemaBody.innerHTML = rows;
       schemaModal?.show();
     } catch (e) {
@@ -638,6 +786,8 @@ function toast(msg, variant){
   });
 
   if (elDbTableSearch) elDbTableSearch.addEventListener('input', renderDbTablesList);
+  if (elDbTableSourceFilter) elDbTableSourceFilter.addEventListener('change', renderDbTablesList);
+  if (elDbTableSelectedOnly) elDbTableSelectedOnly.addEventListener('change', renderDbTablesList);
   if (elDbTableApply) elDbTableApply.addEventListener('click', applyDbTablesFromModal);
 
   if (elDbSources) elDbSources.addEventListener('change', async () => {
@@ -646,25 +796,62 @@ function toast(msg, variant){
     elDbTablesHidden.value = '';
     if (elDbTablesJsonHidden) elDbTablesJsonHidden.value = '[]';
     renderDbTableTags();
+    renderDbSourceSelectionUI();
     await ensureDbSchemas();
     refreshCatalog();
   });
 
+  if (elSelectAllSources && elDbSources) {
+    elSelectAllSources.addEventListener('click', () => {
+      Array.from(elDbSources.options || []).forEach((opt) => { opt.selected = true; });
+      elDbSources.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  }
+
+  if (elClearSources && elDbSources) {
+    elClearSources.addEventListener('click', () => {
+      Array.from(elDbSources.options || []).forEach((opt) => { opt.selected = false; });
+      elDbSources.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  }
+
   // File filter
   if (elFileFilter && filesTable) {
-    elFileFilter.addEventListener('input', () => {
-      const term = String(elFileFilter.value || '').trim().toLowerCase();
-      filesTable.querySelectorAll('tbody tr[data-file-row="1"]').forEach(tr => {
-        const name = (tr.getAttribute('data-file-name') || '').toLowerCase();
-        tr.style.display = (!term || name.includes(term)) ? '' : 'none';
+    elFileFilter.addEventListener('input', applyFilesFilters);
+  }
+  if (elFileFormatFilter) elFileFormatFilter.addEventListener('change', applyFilesFilters);
+  if (elFileSelectedOnly) elFileSelectedOnly.addEventListener('change', applyFilesFilters);
+
+  if (elSelectAllFiles) {
+    elSelectAllFiles.addEventListener('click', () => {
+      getVisibleFileRows().forEach((tr) => {
+        const chk = tr.querySelector('.ws-file-check');
+        if (chk) chk.checked = true;
       });
+      renderFilesSelectionUI();
+      refreshCatalog();
+    });
+  }
+
+  if (elClearFiles) {
+    elClearFiles.addEventListener('click', () => {
+      getVisibleFileRows().forEach((tr) => {
+        const chk = tr.querySelector('.ws-file-check');
+        if (chk) chk.checked = false;
+      });
+      renderFilesSelectionUI();
+      refreshCatalog();
     });
   }
 
   // File selection changes
   if (filesTable) {
     filesTable.addEventListener('change', (e) => {
-      if (e.target.classList.contains('ws-file-check')) refreshCatalog();
+      if (e.target.classList.contains('ws-file-check')) {
+        applyFilesFilters();
+        renderFilesSelectionUI();
+        refreshCatalog();
+      }
       if (e.target.classList.contains('ws-alias')) refreshCatalog();
     });
     filesTable.addEventListener('input', (e) => {
@@ -746,7 +933,11 @@ function toast(msg, variant){
 
   // Initialize
   (async function init(){
+    populateFileFormatFilter();
     renderDbTableTags();
+    renderDbSourceSelectionUI();
+    applyFilesFilters();
+    renderFilesSelectionUI();
     await ensureDbSchemas();
     await refreshCatalog();
   })();

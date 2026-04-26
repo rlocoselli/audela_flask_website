@@ -7,9 +7,24 @@
       <h3 class="mb-0">{{ _('New workspace') }}</h3>
       <div class="text-secondary small">{{ _('Workspace lets you JOIN files (CSV/Excel/Parquet) with DB tables using DuckDB.') }}</div>
     </div>
-    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.workspaces_list') }}">
-      <i class="bi bi-arrow-left"></i> {{ _('Back') }}
-    </a>
+    <div class="d-flex align-items-center gap-2">
+      <span class="badge text-bg-light border">{{ _('Guide: 4 steps') }}</span>
+      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.workspaces_list') }}">
+        <i class="bi bi-arrow-left"></i> {{ _('Back') }}
+      </a>
+    </div>
+  </div>
+
+  <div class="card shadow-sm border-0 rounded-4 mb-3 ws-steps-card">
+    <div class="card-body py-3">
+      <div class="d-flex flex-wrap gap-2 ws-steps small">
+        <span class="ws-step"><span class="ws-step-num">1</span>{{ _('Name your workspace') }}</span>
+        <span class="ws-step"><span class="ws-step-num">2</span>{{ _('Pick files and DB tables') }}</span>
+        <span class="ws-step"><span class="ws-step-num">3</span>{{ _('Prepare starter SQL') }}</span>
+        <span class="ws-step"><span class="ws-step-num">4</span>{{ _('Create workspace') }}</span>
+      </div>
+      <div class="small text-secondary mt-2">{{ _('Tip: start simple with one base table, then add JOINs suggested by the builder.') }}</div>
+    </div>
   </div>
 
   <form method="post" action="{{ url_for('portal.workspaces_new') }}" id="ws-form">
@@ -23,7 +38,8 @@
       <div class="col-lg-6">
         <div class="card shadow-sm">
           <div class="card-body">
-            <h5 class="card-title">{{ _('Configuration') }}</h5>
+            <h5 class="card-title mb-1">{{ _('Step 1. Configuration') }}</h5>
+            <div class="text-secondary small mb-3">{{ _('Define the workspace identity and data scope.') }}</div>
 
             <div class="mb-3">
               <label class="form-label">{{ _('Name') }}</label>
@@ -32,12 +48,20 @@
 
             <div class="mb-3">
               <label class="form-label">{{ _('Database sources (optional, multi-select)') }}</label>
-              <select class="form-select" name="db_source_ids" id="ws-db-sources" multiple size="6">
+              <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                <div class="small text-secondary" id="ws-source-count">{{ _('No source selected') }}</div>
+                <div class="d-flex gap-2">
+                  <button class="btn btn-outline-secondary btn-sm" type="button" id="ws-select-all-sources">{{ _('Select all') }}</button>
+                  <button class="btn btn-outline-secondary btn-sm" type="button" id="ws-clear-sources">{{ _('Clear') }}</button>
+                </div>
+              </div>
+              <select class="form-select" name="db_source_ids" id="ws-db-sources" multiple size="6" aria-describedby="ws-source-help">
                 {% for s in db_sources %}
                   <option value="{{ s.id }}">{{ s.name }} ({{ s.type }})</option>
                 {% endfor %}
               </select>
-              <div class="form-text">{{ _('Select one or more sources for cross-database joins. Use Ctrl/Cmd-click for multiple selection.') }}</div>
+              <div id="ws-source-tags" class="d-flex flex-wrap gap-2 mt-2"></div>
+              <div class="form-text" id="ws-source-help">{{ _('Select one or more sources for cross-database joins. Use Ctrl/Cmd-click for multiple selection.') }}</div>
             </div>
 
             <div class="mb-3">
@@ -62,7 +86,10 @@
         <div class="card shadow-sm mt-3">
           <div class="card-body">
             <div class="d-flex align-items-center justify-content-between">
-              <h5 class="card-title mb-0">{{ _('Files') }}</h5>
+              <div>
+                <h5 class="card-title mb-0">{{ _('Step 2. Files') }}</h5>
+                <div class="text-secondary small">{{ _('Select uploaded files and set table aliases.') }}</div>
+              </div>
               <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('portal.files_home') }}">
                 <i class="bi bi-folder2-open"></i> {{ _('Open files explorer') }}
               </a>
@@ -74,6 +101,29 @@
               <div class="input-group mt-3">
                 <span class="input-group-text"><i class="bi bi-search"></i></span>
                 <input class="form-control" id="ws-file-filter" placeholder="{{ _('Filter files...') }}" />
+              </div>
+
+              <div class="row g-2 mt-1">
+                <div class="col-12 col-md-6">
+                  <label class="form-label small mb-1" for="ws-file-format-filter">{{ _('Format filter') }}</label>
+                  <select class="form-select form-select-sm" id="ws-file-format-filter">
+                    <option value="">{{ _('All formats') }}</option>
+                  </select>
+                </div>
+                <div class="col-12 col-md-6 d-flex align-items-end">
+                  <div class="form-check mb-1">
+                    <input class="form-check-input" type="checkbox" id="ws-file-selected-only">
+                    <label class="form-check-label small" for="ws-file-selected-only">{{ _('Only selected files') }}</label>
+                  </div>
+                </div>
+              </div>
+
+              <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-2">
+                <div class="small text-secondary" id="ws-files-count">{{ _('No file selected') }}</div>
+                <div class="d-flex gap-2">
+                  <button class="btn btn-outline-secondary btn-sm" type="button" id="ws-select-all-files">{{ _('Select all') }}</button>
+                  <button class="btn btn-outline-secondary btn-sm" type="button" id="ws-clear-files">{{ _('Clear') }}</button>
+                </div>
               </div>
 
               <div class="table-responsive mt-2" style="max-height: 360px; overflow:auto;">
@@ -125,7 +175,7 @@
       <div class="col-lg-6">
         <div class="card shadow-sm">
           <div class="card-body">
-            <h5 class="card-title">{{ _('Quick JOIN builder') }}</h5>
+            <h5 class="card-title mb-1">{{ _('Step 3. Quick JOIN builder') }}</h5>
             <p class="text-secondary small mb-3">{{ _('Select files/tables and generate starter SQL with JOINs and column autocomplete.') }}</p>
 
             <div class="mb-3">
@@ -165,26 +215,53 @@
               </table>
             </div>
 
-            <div class="mb-2 d-flex gap-2 flex-wrap">
-              <button class="btn btn-success" type="button" id="ws-generate-sql">
-                <i class="bi bi-braces"></i> {{ _('Generate SQL') }}
-              </button>
-              <button class="btn btn-outline-success" type="button" id="ws-ai-sql">
-                <i class="bi bi-stars"></i> {{ _('Generate SQL with AI') }}
-              </button>
-            </div>
+            <div class="accordion" id="wsSqlAccordion">
+              <div class="accordion-item">
+                <h2 class="accordion-header" id="wsSqlHeading">
+                  <button class="accordion-button py-2" type="button" data-bs-toggle="collapse" data-bs-target="#wsSqlPanel" aria-expanded="true" aria-controls="wsSqlPanel">
+                    {{ _('Starter SQL') }}
+                  </button>
+                </h2>
+                <div id="wsSqlPanel" class="accordion-collapse collapse show" aria-labelledby="wsSqlHeading" data-bs-parent="#wsSqlAccordion">
+                  <div class="accordion-body">
+                    <div class="mb-2 d-flex gap-2 flex-wrap">
+                      <button class="btn btn-success" type="button" id="ws-generate-sql">
+                        <i class="bi bi-braces"></i> {{ _('Generate SQL') }}
+                      </button>
+                      <button class="btn btn-outline-success" type="button" id="ws-ai-sql">
+                        <i class="bi bi-stars"></i> {{ _('Generate SQL with AI') }}
+                      </button>
+                    </div>
+                    <textarea class="form-control font-monospace" id="ws-sql-preview" rows="10" placeholder="{{ _('Your SQL will appear here...') }}"></textarea>
+                    <div class="form-text">{{ _('When creating the workspace, this SQL is saved as draft (starter_sql) for reuse in SQL Editor.') }}</div>
+                  </div>
+                </div>
+              </div>
 
-            <div class="mb-2">
-              <label class="form-label">{{ _('Describe your analysis') }}</label>
-              <input class="form-control" id="ws-ai-prompt" placeholder="{{ _('Ex.: total sales by month and segment with average ticket') }}" />
-            </div>
-
-            <div class="mb-0">
-              <label class="form-label">{{ _('Starter SQL') }}</label>
-              <textarea class="form-control font-monospace" id="ws-sql-preview" rows="10" placeholder="{{ _('Your SQL will appear here...') }}"></textarea>
-              <div class="form-text">{{ _('When creating the workspace, this SQL is saved as draft (starter_sql) for reuse in SQL Editor.') }}</div>
+              <div class="accordion-item">
+                <h2 class="accordion-header" id="wsAiPromptHeading">
+                  <button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" data-bs-target="#wsAiPromptPanel" aria-expanded="false" aria-controls="wsAiPromptPanel">
+                    {{ _('AI prompt (optional)') }}
+                  </button>
+                </h2>
+                <div id="wsAiPromptPanel" class="accordion-collapse collapse" aria-labelledby="wsAiPromptHeading" data-bs-parent="#wsSqlAccordion">
+                  <div class="accordion-body">
+                    <label class="form-label">{{ _('Describe your analysis') }}</label>
+                    <input class="form-control" id="ws-ai-prompt" placeholder="{{ _('Ex.: total sales by month and segment with average ticket') }}" />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
+        </div>
+
+        <div class="alert alert-info mt-3 mb-0 d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <div class="small">
+            <strong>{{ _('Step 4.') }}</strong> {{ _('Click "Create workspace" when your sources and starter SQL are ready.') }}
+          </div>
+          <button class="btn btn-primary btn-sm" type="submit" form="ws-form">
+            <i class="bi bi-check2-circle me-1"></i>{{ _('Create workspace') }}
+          </button>
         </div>
       </div>
     </div>
@@ -203,6 +280,21 @@
             <span class="input-group-text"><i class="bi bi-search"></i></span>
             <input class="form-control" id="ws-db-table-search" placeholder="{{ _('Filter tables...') }}" />
           </div>
+          <div class="row g-2 mb-2">
+            <div class="col-12 col-md-7">
+              <label class="form-label small mb-1" for="ws-db-table-source-filter">{{ _('Source filter') }}</label>
+              <select class="form-select form-select-sm" id="ws-db-table-source-filter">
+                <option value="">{{ _('All sources') }}</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-5 d-flex align-items-end">
+              <div class="form-check mb-1">
+                <input class="form-check-input" type="checkbox" id="ws-db-table-selected-only">
+                <label class="form-check-label small" for="ws-db-table-selected-only">{{ _('Only selected tables') }}</label>
+              </div>
+            </div>
+          </div>
+          <div class="small text-secondary mb-2" id="ws-db-table-count"></div>
           <div class="small text-secondary mb-2">{{ _('Tables are grouped by selected database source.') }}</div>
           <div id="ws-db-table-list" class="list-group"></div>
         </div>
