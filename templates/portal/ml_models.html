@@ -1,0 +1,205 @@
+{% extends "portal/layout.html" %}
+{% set title = _('ML Studio') %}
+
+{% block portal_content %}
+<div class="container-fluid px-0" id="mlStudioPage" data-predict-url="{{ url_for('portal.ml_models_predict') }}">
+  <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+    <div>
+      <h1 class="h4 mb-1">{{ _('ML Studio') }}</h1>
+      <div class="text-secondary">{{ _('Build, test and deploy machine learning models from your BI sources.') }}</div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-xl-6">
+      <div class="card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-3">
+          <div class="fw-semibold"><i class="bi bi-plus-circle me-1"></i>{{ _('New model') }}</div>
+        </div>
+        <div class="card-body">
+          <form method="post" action="{{ url_for('portal.ml_models_save') }}" class="row g-3">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="col-12">
+              <label class="form-label">{{ _('Model name') }}</label>
+              <input class="form-control" type="text" name="model_name" required maxlength="120" placeholder="{{ _('Revenue Forecast Q4') }}">
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label">{{ _('Algorithm') }}</label>
+              <select class="form-select" name="algorithm">
+                <option value="linear_regression">{{ _('Linear regression') }}</option>
+                <option value="moving_average">{{ _('Moving average') }}</option>
+                <option value="mean_baseline">{{ _('Mean baseline') }}</option>
+              </select>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label">{{ _('BI source') }}</label>
+              <select class="form-select" name="source_id" required>
+                <option value="">—</option>
+                {% for src in sources %}
+                  <option value="{{ src.id }}">{{ src.name }} ({{ src.type }})</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label">{{ _('Training SQL') }}</label>
+              <textarea class="form-control font-monospace" name="sql_text" rows="5" required placeholder="SELECT month_index AS x, revenue AS y FROM sales_forecast_train"></textarea>
+              <div class="form-text">{{ _('Your query should return numeric columns for X and Y.') }}</div>
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label">{{ _('X column (optional)') }}</label>
+              <input class="form-control" type="text" name="x_column" placeholder="x">
+            </div>
+            <div class="col-12 col-md-6">
+              <label class="form-label">{{ _('Y column (optional)') }}</label>
+              <input class="form-control" type="text" name="y_column" placeholder="y">
+            </div>
+            <div class="col-12 d-flex justify-content-end">
+              <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>{{ _('Store model') }}</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-xl-6">
+      <div class="card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-3">
+          <div class="fw-semibold"><i class="bi bi-box-arrow-in-up-right me-1"></i>{{ _('Embedded MLflow') }}</div>
+        </div>
+        <div class="card-body p-0">
+          <div class="ratio" style="--bs-aspect-ratio: 70%;">
+            <iframe src="{{ mlflow_embed_url }}" title="MLflow" style="border:0; border-radius: 0 0 1rem 1rem; width:100%; height:100%;"></iframe>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card border-0 shadow-sm rounded-4">
+    <div class="card-header bg-body-tertiary border-0 rounded-top-4 py-3 d-flex align-items-center justify-content-between">
+      <div class="fw-semibold"><i class="bi bi-cpu me-1"></i>{{ _('Saved models') }}</div>
+      <span class="small text-secondary">{{ _('Connected to BI sources') }}</span>
+    </div>
+    <div class="card-body">
+      {% if models %}
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <thead>
+            <tr>
+              <th>{{ _('Model') }}</th>
+              <th>{{ _('Algorithm') }}</th>
+              <th>{{ _('Source') }}</th>
+              <th>{{ _('Metrics') }}</th>
+              <th>{{ _('Status') }}</th>
+              <th class="text-end">{{ _('Actions') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for model in models %}
+            <tr>
+              <td>
+                <div class="fw-semibold">{{ model.name }}</div>
+                <div class="small text-secondary">{{ model.x_column }} → {{ model.y_column }}</div>
+              </td>
+              <td>{{ model.algorithm }}</td>
+              <td>{{ model.source_name or ('#' ~ model.source_id) }}</td>
+              <td>
+                {% if model.metrics %}
+                <div class="small">MAE: {{ model.metrics.mae }}</div>
+                <div class="small">RMSE: {{ model.metrics.rmse }}</div>
+                <div class="small">R2: {{ model.metrics.r2 }}</div>
+                {% else %}
+                <span class="text-secondary small">{{ _('Not trained yet') }}</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if model.deployed %}
+                  <span class="badge text-bg-success">{{ _('Deployed') }}</span>
+                {% elif model.model_data %}
+                  <span class="badge text-bg-info">{{ _('Trained') }}</span>
+                {% else %}
+                  <span class="badge text-bg-secondary">{{ _('Draft') }}</span>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                <div class="d-flex flex-wrap gap-1 justify-content-end">
+                  <form method="post" action="{{ url_for('portal.ml_models_train') }}" class="d-flex gap-1 align-items-center">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="model_id" value="{{ model.id }}">
+                    <input type="number" name="train_ratio" class="form-control form-control-sm" min="0.5" max="0.95" step="0.05" value="0.8" style="width:86px;" title="{{ _('Train ratio') }}">
+                    <input type="number" name="window" class="form-control form-control-sm" min="2" max="200" step="1" value="5" style="width:72px;" title="{{ _('Window') }}">
+                    <button type="submit" class="btn btn-outline-primary btn-sm"><i class="bi bi-play-fill"></i> {{ _('Train/Test') }}</button>
+                  </form>
+
+                  <form method="post" action="{{ url_for('portal.ml_models_deploy') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="model_id" value="{{ model.id }}">
+                    <button type="submit" class="btn btn-outline-success btn-sm"><i class="bi bi-send-check"></i> {{ _('Deploy') }}</button>
+                  </form>
+
+                  <button
+                    type="button"
+                    class="btn btn-outline-secondary btn-sm js-ml-predict"
+                    data-model-id="{{ model.id }}"
+                    data-model-name="{{ model.name }}"
+                  >
+                    <i class="bi bi-graph-up-arrow"></i> {{ _('Predict') }}
+                  </button>
+
+                  <form method="post" action="{{ url_for('portal.ml_models_delete') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="model_id" value="{{ model.id }}">
+                    <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-trash"></i></button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="text-secondary">{{ _('No model stored yet.') }}</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+{{ super() }}
+<script>
+  window.onReady(function () {
+    const root = document.getElementById('mlStudioPage');
+    if (!root) return;
+    const predictUrl = root.getAttribute('data-predict-url') || '';
+
+    document.querySelectorAll('.js-ml-predict').forEach(function (btn) {
+      btn.addEventListener('click', async function () {
+        const modelId = btn.getAttribute('data-model-id') || '';
+        const modelName = btn.getAttribute('data-model-name') || 'model';
+        const xRaw = prompt(window.t('Enter X value for prediction') + ' [' + modelName + ']');
+        if (xRaw === null) return;
+        const x = Number(xRaw);
+        if (!Number.isFinite(x)) {
+          window.uiToast(window.t('Please enter a valid numeric value.'), { variant: 'danger' });
+          return;
+        }
+
+        const url = predictUrl + '?model_id=' + encodeURIComponent(modelId) + '&x=' + encodeURIComponent(String(x));
+        try {
+          const resp = await fetch(url, { credentials: 'same-origin' });
+          const data = await resp.json();
+          if (!resp.ok || !data.ok) {
+            throw new Error((data && data.error) ? data.error : 'Prediction failed');
+          }
+          const yTxt = (data.y_column ? data.y_column + ': ' : '') + String(data.y_pred);
+          window.uiToast(window.t('Prediction result') + ' - ' + yTxt, { variant: 'success', title: window.t('Predict') });
+        } catch (err) {
+          window.uiToast(String(err.message || err), { variant: 'danger' });
+        }
+      });
+    });
+  });
+</script>
+{% endblock %}

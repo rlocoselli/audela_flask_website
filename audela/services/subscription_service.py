@@ -42,6 +42,7 @@ class SubscriptionService:
                     "has_credit": True,
                     "has_project": True,
                     "has_ifrs9": True,
+                    "has_ml": True,
                     "bi_tier": "lite",
                 },
                 "display_order": 1,
@@ -144,6 +145,7 @@ class SubscriptionService:
                 "features_json": {
                     "premium_support": False,
                     "has_credit": False,
+                    "has_ml": True,
                     "bi_tier": "lite",
                 },
                 "display_order": 6,
@@ -162,6 +164,7 @@ class SubscriptionService:
                 "features_json": {
                     "premium_support": True,
                     "has_credit": False,
+                    "has_ml": True,
                     "bi_tier": "enterprise",
                 },
                 "display_order": 7,
@@ -216,6 +219,7 @@ class SubscriptionService:
                     "has_project": True,
                     "has_credit": True,
                     "has_ifrs9": True,
+                    "has_ml": True,
                     "bi_tier": "lite",
                 },
                 "display_order": 10,
@@ -236,6 +240,7 @@ class SubscriptionService:
                     "has_project": True,
                     "has_credit": True,
                     "has_ifrs9": True,
+                    "has_ml": True,
                     "bi_tier": "enterprise",
                 },
                 "display_order": 11,
@@ -256,6 +261,7 @@ class SubscriptionService:
                     "has_project": True,
                     "has_credit": True,
                     "has_ifrs9": True,
+                    "has_ml": True,
                     "bi_tier": "enterprise",
                 },
                 "display_order": 12,
@@ -609,6 +615,9 @@ class SubscriptionService:
         elif feature == "project":
             features = plan.features_json if isinstance(plan.features_json, dict) else {}
             return bool(features.get("has_project", plan.code == "free"))
+        elif feature == "ml":
+            features = plan.features_json if isinstance(plan.features_json, dict) else {}
+            return bool(features.get("has_ml", bool(plan.has_bi) or plan.code == "free"))
         elif feature == "premium_support":
             features = plan.features_json if isinstance(plan.features_json, dict) else {}
             return bool(features.get("premium_support", False))

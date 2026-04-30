@@ -117,6 +117,9 @@ jobs:
             echo "⬆️ Apply migrations"
             aud_run flask db upgrade heads
 
+            echo "🌱 Seed default subscription plans (idempotent)"
+            aud_run python -c "from audela import create_app; from audela.services.subscription_service import SubscriptionService; from audela.models import SubscriptionPlan; app=create_app(); ctx=app.app_context(); ctx.push(); SubscriptionService._ensure_default_plans_seeded(); plans={p.code for p in SubscriptionPlan.query.all()}; assert 'free' in plans, 'free plan missing'; assert 'enterprise' in plans, 'enterprise plan missing'; print('subscription plans ready:', len(plans)); ctx.pop()"
+
             echo "🧪 Ensure database is at Alembic head(s)"
             HEAD_REVS="$(aud_run flask db heads | awk '/^[0-9a-f]+/ {print $1}')"
             CURRENT_REVS="$(aud_run flask db current | awk '/^[0-9a-f]+/ {print $1}')"

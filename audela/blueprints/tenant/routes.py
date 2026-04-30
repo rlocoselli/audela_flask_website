@@ -882,11 +882,12 @@ def products():
     # Check access to products
     has_finance = SubscriptionService.check_feature_access(current_user.tenant_id, "finance")
     has_bi = SubscriptionService.check_feature_access(current_user.tenant_id, "bi")
+    has_ml = SubscriptionService.check_feature_access(current_user.tenant_id, "ml")
     has_credit = SubscriptionService.check_feature_access(current_user.tenant_id, "credit")
     has_ifrs9 = SubscriptionService.check_feature_access(current_user.tenant_id, "ifrs9")
     has_project = SubscriptionService.check_feature_access(current_user.tenant_id, "project")
     
-    if not has_finance and not has_bi and not has_credit and not has_ifrs9 and not has_project:
+    if not has_finance and not has_bi and not has_ml and not has_credit and not has_ifrs9 and not has_project:
         flash(tr("No products available. Please upgrade your subscription.", getattr(g, "lang", None)), "warning")
         return redirect(url_for("billing.plans"))
     
@@ -897,6 +898,7 @@ def products():
         product_catalog=get_product_catalog(),
         has_finance=has_finance,
         has_bi=has_bi,
+        has_ml=has_ml,
         has_credit=has_credit,
         has_ifrs9=has_ifrs9,
         has_project=has_project,

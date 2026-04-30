@@ -3,6 +3,7 @@
 {% set product_labels = {
   'finance': _('Finance'),
   'bi': _('BI'),
+  'ml': _('ML Studio'),
   'credit': _('Audela Credit'),
   'project': _('Projet'),
   'ifrs9': _('IFRS9'),
@@ -42,6 +43,7 @@
     <div class="box" style="margin-bottom:1rem;">
       <a href="{{ url_for('public.plans', product='finance') }}" class="button {% if selected_product == 'finance' %}primary{% endif %}">{{ _('Finance') }}</a>
       <a href="{{ url_for('public.plans', product='bi') }}" class="button {% if selected_product == 'bi' %}primary{% endif %}">{{ _('BI') }}</a>
+      <a href="{{ url_for('public.plans', product='ml') }}" class="button {% if selected_product == 'ml' %}primary{% endif %}">{{ _('ML Studio') }}</a>
       <a href="{{ url_for('public.plans', product='credit') }}" class="button {% if selected_product == 'credit' %}primary{% endif %}">{{ _('Audela Credit') }}</a>
       <a href="{{ url_for('public.plans', product='project') }}" class="button {% if selected_product == 'project' %}primary{% endif %}">{{ _('Projet') }}</a>
       <a href="{{ url_for('public.plans', product='ifrs9') }}" class="button {% if selected_product == 'ifrs9' %}primary{% endif %}">{{ _('IFRS9') }}</a>
@@ -53,6 +55,10 @@
     {% elif selected_product == 'bi' %}
       <div class="box" style="margin-bottom:1rem;">
         <strong>{{ _('Filtre actif : BI') }}</strong>
+      </div>
+    {% elif selected_product == 'ml' %}
+      <div class="box" style="margin-bottom:1rem;">
+        <strong>{{ _('Filtre actif : ML Studio') }}</strong>
       </div>
     {% elif selected_product == 'credit' %}
       <div class="box" style="margin-bottom:1rem;">
@@ -87,6 +93,7 @@
               {% set has_project = (plan.features_json and plan.features_json.get('has_project')) or plan.code == 'free' %}
               {% set has_credit = (plan.features_json and plan.features_json.get('has_credit')) or plan.code == 'free' %}
               {% set has_ifrs9 = (plan.features_json and plan.features_json.get('has_ifrs9')) or plan.code == 'free' or plan.code in ['credit_pro', 'all_in_one_pro', 'enterprise'] %}
+              {% set has_ml = (plan.features_json and plan.features_json.get('has_ml')) or has_bi or plan.code == 'free' %}
               {% set monthly_price = (plan.price_monthly or 0)|float %}
               {% set yearly_price = (plan.price_yearly or 0)|float %}
               {% set yearly_reference = monthly_price * 12 %}
@@ -95,6 +102,7 @@
               <p>
                 {% if has_finance %}<span class="badge">{{ _('Finance') }}</span>{% endif %}
                 {% if has_bi %}<span class="badge">{{ _('BI') }}</span>{% endif %}
+                {% if has_ml %}<span class="badge">{{ _('ML Studio') }}</span>{% endif %}
                 {% if has_credit %}<span class="badge">{{ _('Audela Credit') }}</span>{% endif %}
                 {% if has_project %}<span class="badge">{{ _('Projet') }}</span>{% endif %}
                 {% if has_ifrs9 %}<span class="badge">{{ _('IFRS9') }}</span>{% endif %}

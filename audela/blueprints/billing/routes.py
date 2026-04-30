@@ -80,10 +80,16 @@ def plans():
         features = plan.features_json if isinstance(plan.features_json, dict) else {}
         return bool(features.get("has_ifrs9", plan.code == "free" or plan.code in SubscriptionService.IFRS9_INCLUDED_PLAN_CODES))
 
+    def _has_ml(plan: SubscriptionPlan) -> bool:
+        features = plan.features_json if isinstance(plan.features_json, dict) else {}
+        return bool(features.get("has_ml", bool(plan.has_bi) or plan.code == "free"))
+
     if selected_product == "finance":
         plans = [plan for plan in plans if plan.code in FINANCE_PLAN_CODES]
     elif selected_product == "bi":
         plans = [plan for plan in plans if plan.code in BI_PLAN_CODES]
+    elif selected_product == "ml":
+        plans = [plan for plan in plans if _has_ml(plan)]
     elif selected_product == "credit":
         plans = [plan for plan in plans if _has_credit(plan)]
     elif selected_product == "project":

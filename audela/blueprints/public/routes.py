@@ -839,7 +839,7 @@ def plans():
     plans = SubscriptionService.get_available_plans(include_internal=False)
     raw_product = (request.args.get("product") or "").strip()
     selected_product = raw_product.lower() or "finance"
-    valid_products = {"finance", "bi", "credit", "project", "ifrs9", "all"}
+    valid_products = {"finance", "bi", "ml", "credit", "project", "ifrs9", "all"}
 
     if raw_product and selected_product not in valid_products:
         return redirect(url_for("public.plans"), code=301)
@@ -861,10 +861,16 @@ def plans():
         features = plan.features_json if isinstance(plan.features_json, dict) else {}
         return bool(features.get("has_ifrs9", plan.code == "free" or plan.code in SubscriptionService.IFRS9_INCLUDED_PLAN_CODES))
 
+    def _has_ml(plan) -> bool:
+        features = plan.features_json if isinstance(plan.features_json, dict) else {}
+        return bool(features.get("has_ml", bool(plan.has_bi) or plan.code == "free"))
+
     if selected_product == "finance":
         plans = [plan for plan in plans if plan.code in FINANCE_PLAN_CODES]
     elif selected_product == "bi":
         plans = [plan for plan in plans if (plan.has_bi or plan.code == "free")]
+    elif selected_product == "ml":
+        plans = [plan for plan in plans if _has_ml(plan)]
     elif selected_product == "credit":
         plans = [plan for plan in plans if _has_credit(plan)]
     elif selected_product == "project":
@@ -899,6 +905,11 @@ def product_finance():
 @bp.route("/produits/bi")
 def product_bi():
     return render_template("products/bi.html", product=get_product_entry("bi"))
+
+
+@bp.route("/produits/ml")
+def product_ml():
+    return render_template("products/ml.html", product=get_product_entry("ml"))
 
 
 @bp.route("/produits/credit")
@@ -998,12 +1009,14 @@ def sitemap_xml():
         (_abs("public.index"), "weekly", "1.0"),
         (_abs("public.plans"), "weekly", "0.9"),
         (_abs("public.plans") + "?product=bi", "weekly", "0.8"),
+        (_abs("public.plans") + "?product=ml", "weekly", "0.8"),
         (_abs("public.plans") + "?product=credit", "weekly", "0.8"),
         (_abs("public.plans") + "?product=project", "weekly", "0.8"),
         (_abs("public.plans") + "?product=ifrs9", "weekly", "0.8"),
         (_abs("public.plans") + "?product=all", "weekly", "0.7"),
         (_abs("public.product_finance"), "weekly", "0.9"),
         (_abs("public.product_bi"), "weekly", "0.9"),
+        (_abs("public.product_ml"), "weekly", "0.9"),
         (_abs("public.product_credit"), "weekly", "0.9"),
         (_abs("public.product_project"), "weekly", "0.9"),
         (_abs("public.product_ifrs9"), "weekly", "0.9"),

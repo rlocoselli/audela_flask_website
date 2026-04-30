@@ -108,6 +108,11 @@ class Config:
     OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "")
     OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL", "")
 
+    # MLflow integration
+    MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI", "").strip()
+    MLFLOW_EMBED_URL = os.environ.get("MLFLOW_EMBED_URL", "").strip()
+    MLFLOW_ENABLED = os.environ.get("MLFLOW_ENABLED", "").strip()
+
     # SMTP / Email (used by Flask-Mail and ETL notifications)
     MAIL_SERVER = os.environ.get("MAIL_SERVER", "")
     MAIL_PORT = int(os.environ.get("MAIL_PORT", "587"))
@@ -122,6 +127,8 @@ class Config:
 
 class DevConfig(Config):
     DEBUG = True
+    MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI", "http://127.0.0.1:5001").strip()
+    MLFLOW_EMBED_URL = os.environ.get("MLFLOW_EMBED_URL", MLFLOW_TRACKING_URI).strip()
     # Local dev convenience: avoid SMTP dependency and still validate mail flows.
     MAIL_SUPPRESS_SEND = os.environ.get("MAIL_SUPPRESS_SEND", "true").lower() == "true"
     MAIL_DEV_MODE = os.environ.get("MAIL_DEV_MODE", "true").lower() == "true"

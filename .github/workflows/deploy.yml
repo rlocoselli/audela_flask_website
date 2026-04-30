@@ -61,6 +61,9 @@ jobs:
           BRIDGE_CLIENT_SECRET: ${{ secrets.BRIDGE_CLIENT_SECRET || vars.BRIDGE_CLIENT_SECRET || '' }}
           BRIDGE_BASE_URL: ${{ vars.BRIDGE_BASE_URL || 'https://api.bridgeapi.io' }}
           BRIDGE_VERSION: ${{ vars.BRIDGE_VERSION || '2025-01-15' }}
+          MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI || 'http://mlflow:5000' }}
+          MLFLOW_EMBED_URL: ${{ vars.MLFLOW_EMBED_URL || 'http://mlflow:5000' }}
+          MLFLOW_ENABLED: ${{ vars.MLFLOW_ENABLED || '1' }}
           POWENS_CLIENT_ID: ${{ secrets.POWENS_CLIENT_ID || vars.POWENS_CLIENT_ID || '' }}
           POWENS_CLIENT_SECRET: ${{ secrets.POWENS_CLIENT_SECRET || vars.POWENS_CLIENT_SECRET || '' }}
           POWENS_WEBHOOK_SECRET: ${{ secrets.POWENS_WEBHOOK_SECRET || vars.POWENS_WEBHOOK_SECRET || '' }}
@@ -73,7 +76,7 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           timeout: 90s
           command_timeout: 40m
-          envs: SERVER_ENV_FILE,INSTALL_MODE,CELERY_ACTION,APP_RELEASE,GRAFANA_HOSTNAME,GRAFANA_HOSTNAME_ALT,SITE_URL,BRIDGE_CALLBACK_URL,BRIDGE_CLIENT_ID,BRIDGE_CLIENT_SECRET,BRIDGE_BASE_URL,BRIDGE_VERSION,POWENS_CLIENT_ID,POWENS_CLIENT_SECRET,POWENS_WEBHOOK_SECRET,ENCRYPTION_KEY
+          envs: SERVER_ENV_FILE,INSTALL_MODE,CELERY_ACTION,APP_RELEASE,GRAFANA_HOSTNAME,GRAFANA_HOSTNAME_ALT,SITE_URL,BRIDGE_CALLBACK_URL,BRIDGE_CLIENT_ID,BRIDGE_CLIENT_SECRET,BRIDGE_BASE_URL,BRIDGE_VERSION,MLFLOW_TRACKING_URI,MLFLOW_EMBED_URL,MLFLOW_ENABLED,POWENS_CLIENT_ID,POWENS_CLIENT_SECRET,POWENS_WEBHOOK_SECRET,ENCRYPTION_KEY
 
           script: &deploy_script |
             set -e
@@ -139,6 +142,9 @@ jobs:
             upsert_env_var "BRIDGE_CLIENT_SECRET" "${BRIDGE_CLIENT_SECRET}"
             upsert_env_var "BRIDGE_BASE_URL" "${BRIDGE_BASE_URL}"
             upsert_env_var "BRIDGE_VERSION" "${BRIDGE_VERSION}"
+            upsert_env_var "MLFLOW_TRACKING_URI" "${MLFLOW_TRACKING_URI}"
+            upsert_env_var "MLFLOW_EMBED_URL" "${MLFLOW_EMBED_URL}"
+            upsert_env_var "MLFLOW_ENABLED" "${MLFLOW_ENABLED}"
             upsert_env_var "POWENS_CLIENT_ID" "${POWENS_CLIENT_ID}"
             upsert_env_var "POWENS_CLIENT_SECRET" "${POWENS_CLIENT_SECRET}"
             upsert_env_var "POWENS_WEBHOOK_SECRET" "${POWENS_WEBHOOK_SECRET}"
@@ -164,6 +170,25 @@ jobs:
             COMPOSE_CMD="docker compose"
             if ! docker compose version >/dev/null 2>&1; then
               COMPOSE_CMD="docker-compose"
+            fi
+
+            echo "🧪 Ensure internal MLflow tracking service is up"
+            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml up -d --no-deps mlflow
+            set +e
+            MLFLOW_READY=0
+            for i in $(seq 1 30); do
+              if $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml exec -T mlflow python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/', timeout=2).read(1)" >/dev/null 2>&1; then
+                MLFLOW_READY=1
+                break
+              fi
+              echo "ℹ️ Waiting for MLflow readiness ($i/30)"
+              sleep 2
+            done
+            set -e
+            if [ "$MLFLOW_READY" -ne 1 ]; then
+              echo "❌ MLflow service did not become ready"
+              $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml logs --tail=120 mlflow || true
+              exit 1
             fi
 
             if [ "${INSTALL_MODE}" = "full_install" ]; then
@@ -380,6 +405,9 @@ jobs:
 
             echo "🔎 Verify migration objects"
             aud_run python -c "from sqlalchemy import inspect, text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); exists=db.session.execute(text(\"SELECT to_regclass('public.finance_accounting_periods')\")).scalar(); assert exists, 'finance_accounting_periods table not found'; ci=inspect(db.engine); tables=set(ci.get_table_names()); assert 'credit_borrowers' in tables, 'credit_borrowers table not found'; assert 'credit_countries' in tables, 'credit_countries table not found'; assert 'credit_covenants' in tables, 'credit_covenants table not found'; assert 'credit_facility_utilizations' in tables, 'credit_facility_utilizations table not found'; cols={c['name'] for c in ci.get_columns('credit_borrowers')}; assert 'sector_id' in cols and 'country_id' in cols and 'rating_id' in cols, 'credit_borrowers FK columns missing'; assert 'approval_date' in {c['name'] for c in ci.get_columns('credit_deals')}, 'credit_deals.approval_date missing'; assert 'approval_date' in {c['name'] for c in ci.get_columns('credit_facilities')}, 'credit_facilities.approval_date missing'; assert 'approval_date' in {c['name'] for c in ci.get_columns('credit_financial_statements')}, 'credit_financial_statements.approval_date missing'; assert 'approval_date' in {c['name'] for c in ci.get_columns('credit_memos')}, 'credit_memos.approval_date missing'; print('finance_accounting_periods table found:', exists); print('credit schema including covenant/utilization tables verified'); ctx.pop()"
+
+            echo "🌱 Seed default subscription plans (idempotent)"
+            aud_run python -c "from audela import create_app; from audela.services.subscription_service import SubscriptionService; from audela.models import SubscriptionPlan; app=create_app(); ctx=app.app_context(); ctx.push(); SubscriptionService._ensure_default_plans_seeded(); plans={p.code for p in SubscriptionPlan.query.all()}; assert 'free' in plans, 'free plan missing'; assert 'enterprise' in plans, 'enterprise plan missing'; print('subscription plans ready:', len(plans)); ctx.pop()"
 
             echo "🔄 Restart service"
             systemctl restart audeladedonnees

@@ -300,6 +300,9 @@
                     {% if stats.has_bi %}
                       <span class="badge bg-info">{{ _('BI') }}</span>
                     {% endif %}
+                    {% if stats.has_ml %}
+                      <span class="badge bg-primary">{{ _('ML Studio') }}</span>
+                    {% endif %}
                     {% if stats.has_credit %}
                       <span class="badge bg-warning text-dark">{{ _('Credit') }}</span>
                     {% endif %}
@@ -309,7 +312,7 @@
                     {% if stats.has_project %}
                       <span class="badge bg-primary">{{ _('Projet') }}</span>
                     {% endif %}
-                    {% if not stats.has_finance and not stats.has_bi and not stats.has_credit and not stats.has_ifrs9 and not stats.has_project %}
+                    {% if not stats.has_finance and not stats.has_bi and not stats.has_ml and not stats.has_credit and not stats.has_ifrs9 and not stats.has_project %}
                       <span class="text-muted">{{ _('Aucun module actif') }}</span>
                     {% endif %}
                   </div>
@@ -460,6 +463,44 @@
         </div>
         {% endif %}
 
+        {% if stats.has_ml or stats.plan_code == 'free' %}
+        <div class="col-md-6">
+          <div class="card border-0 shadow-sm">
+            <div class="card-body">
+              <h5 class="mb-3">
+                <i class="bi bi-cpu"></i> {{ _('AUDELA ML Studio') }}
+              </h5>
+              <p class="text-muted">{{ _('Machine learning supervisé/non supervisé avec suivi des runs dans MLflow') }}</p>
+              {% if stats.has_ml %}
+              {% if module_access.ml %}
+              <a href="{{ url_for('ml.studio') }}" class="btn btn-primary w-100">
+                <i class="bi bi-box-arrow-up-right"></i> {{ _('Accéder à ML Studio') }}
+              </a>
+              {% else %}
+              <button class="btn btn-outline-secondary w-100" disabled>
+                <i class="bi bi-lock"></i> {{ _('Accès ML Studio désactivé') }}
+              </button>
+              {% endif %}
+              {% elif stats.plan_code == 'free' %}
+              {% if module_access.ml %}
+              <a href="{{ url_for('ml.studio') }}" class="btn btn-primary w-100">
+                <i class="bi bi-box-arrow-up-right"></i> {{ _('Découvrir ML Studio') }}
+              </a>
+              {% else %}
+              <button class="btn btn-outline-secondary w-100" disabled>
+                <i class="bi bi-lock"></i> {{ _('Accès ML Studio désactivé') }}
+              </button>
+              {% endif %}
+              {% else %}
+              <a href="{{ url_for('billing.plans', product='ml') }}" class="btn btn-outline-primary w-100">
+                <i class="bi bi-rocket"></i> {{ _('Activer ML Studio') }}
+              </a>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
         {% if stats.has_credit or stats.plan_code == 'free' %}
         <div class="col-md-6">
           <div class="card border-0 shadow-sm">
@@ -562,7 +603,7 @@
         </div>
         {% endif %}
 
-        {% if not stats.has_finance and not stats.has_bi and not stats.has_credit and not stats.has_ifrs9 and not stats.has_project and stats.plan_code != 'free' %}
+        {% if not stats.has_finance and not stats.has_bi and not stats.has_ml and not stats.has_credit and not stats.has_ifrs9 and not stats.has_project and stats.plan_code != 'free' %}
         <div class="col-12">
           <div class="card border-0 shadow-sm">
             <div class="card-body text-center py-5">

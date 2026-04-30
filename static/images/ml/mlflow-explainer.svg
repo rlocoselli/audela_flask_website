@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 420" role="img" aria-labelledby="title desc">
+  <title id="title">MLflow Explainer</title>
+  <desc id="desc">Pipeline showing data, training, tracking, registry, and deployment in MLflow.</desc>
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f4fbff"/>
+      <stop offset="100%" stop-color="#eefaf6"/>
+    </linearGradient>
+    <linearGradient id="head" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#1d4ed8"/>
+      <stop offset="100%" stop-color="#0f766e"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="900" height="420" fill="url(#bg)" rx="20"/>
+
+  <rect x="28" y="22" width="844" height="54" rx="12" fill="url(#head)"/>
+  <text x="50" y="56" font-family="Verdana, sans-serif" font-size="24" fill="#ffffff">MLflow Lifecycle</text>
+
+  <rect x="40" y="110" width="150" height="94" rx="12" fill="#ffffff" stroke="#93c5fd"/>
+  <text x="58" y="142" font-family="Verdana, sans-serif" font-size="16" fill="#1e3a8a">Data</text>
+  <text x="58" y="166" font-family="Verdana, sans-serif" font-size="13" fill="#334155">Source + SQL</text>
+
+  <rect x="220" y="110" width="150" height="94" rx="12" fill="#ffffff" stroke="#86efac"/>
+  <text x="238" y="142" font-family="Verdana, sans-serif" font-size="16" fill="#166534">Training</text>
+  <text x="238" y="166" font-family="Verdana, sans-serif" font-size="13" fill="#334155">Params + code</text>
+
+  <rect x="400" y="110" width="150" height="94" rx="12" fill="#ffffff" stroke="#fcd34d"/>
+  <text x="418" y="142" font-family="Verdana, sans-serif" font-size="16" fill="#92400e">Tracking</text>
+  <text x="418" y="166" font-family="Verdana, sans-serif" font-size="13" fill="#334155">Metrics + artifacts</text>
+
+  <rect x="580" y="110" width="150" height="94" rx="12" fill="#ffffff" stroke="#f9a8d4"/>
+  <text x="598" y="142" font-family="Verdana, sans-serif" font-size="16" fill="#9d174d">Registry</text>
+  <text x="598" y="166" font-family="Verdana, sans-serif" font-size="13" fill="#334155">Versioning</text>
+
+  <rect x="760" y="110" width="100" height="94" rx="12" fill="#ffffff" stroke="#c4b5fd"/>
+  <text x="772" y="142" font-family="Verdana, sans-serif" font-size="16" fill="#5b21b6">Deploy</text>
+  <text x="772" y="166" font-family="Verdana, sans-serif" font-size="13" fill="#334155">Serving</text>
+
+  <line x1="190" y1="157" x2="220" y2="157" stroke="#64748b" stroke-width="3"/>
+  <line x1="370" y1="157" x2="400" y2="157" stroke="#64748b" stroke-width="3"/>
+  <line x1="550" y1="157" x2="580" y2="157" stroke="#64748b" stroke-width="3"/>
+  <line x1="730" y1="157" x2="760" y2="157" stroke="#64748b" stroke-width="3"/>
+
+  <rect x="44" y="244" width="812" height="140" rx="12" fill="#ffffff" stroke="#dbe4ef"/>
+  <text x="64" y="274" font-family="Verdana, sans-serif" font-size="16" fill="#0f172a">Why teams use MLflow</text>
+  <text x="64" y="302" font-family="Verdana, sans-serif" font-size="14" fill="#334155">1) Compare runs objectively</text>
+  <text x="64" y="326" font-family="Verdana, sans-serif" font-size="14" fill="#334155">2) Reproduce experiments with exact params and artifacts</text>
+  <text x="64" y="350" font-family="Verdana, sans-serif" font-size="14" fill="#334155">3) Keep audit trail from training to production</text>
+</svg>

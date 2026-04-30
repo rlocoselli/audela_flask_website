@@ -18,6 +18,7 @@ jobs:
       CI_POSTGRES_USER: ${{ vars.CI_POSTGRES_USER || 'postgres' }}
       CI_POSTGRES_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD || 'postgres' }}
       CI_DATABASE_URL: postgresql+psycopg2://${{ vars.CI_POSTGRES_USER || 'postgres' }}:${{ secrets.CI_POSTGRES_PASSWORD || 'postgres' }}@localhost:5432/${{ vars.CI_POSTGRES_DB || 'audela_ci' }}
+      CI_MLFLOW_TRACKING_URI: http://127.0.0.1:5001
     services:
       postgres:
         image: postgres:16
@@ -47,6 +48,29 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y unixodbc-dev postgresql-client
+
+      - name: Start MLflow tracking server (container)
+        run: |
+          docker rm -f ci-mlflow >/dev/null 2>&1 || true
+          docker run -d --name ci-mlflow -p 5001:5000 ghcr.io/mlflow/mlflow:v2.17.2 \
+            mlflow server \
+            --host 0.0.0.0 \
+            --port 5000 \
+            --backend-store-uri sqlite:////tmp/mlflow.db \
+            --artifacts-destination /tmp/mlflow-artifacts
+
+      - name: Wait for MLflow
+        run: |
+          for i in {1..30}; do
+            if curl -fsS "$CI_MLFLOW_TRACKING_URI/" >/dev/null; then
+              exit 0
+            fi
+            echo "Waiting for MLflow... ($i/30)"
+            sleep 2
+          done
+          echo "MLflow did not become ready in time"
+          docker logs ci-mlflow || true
+          exit 1
 
       - name: Install Python deps
         run: |
@@ -127,6 +151,25 @@ jobs:
         run: |
           flask --app app db upgrade
 
+      - name: Seed default subscription plans (idempotent)
+        env:
+          DATABASE_URL: ${{ env.CI_DATABASE_URL }}
+          AUTO_CREATE_DB: "false"
+        run: |
+          python - <<'PY'
+          from audela import create_app
+          from audela.services.subscription_service import SubscriptionService
+          from audela.models import SubscriptionPlan
+
+          app = create_app()
+          with app.app_context():
+              SubscriptionService._ensure_default_plans_seeded()
+              plans = {p.code for p in SubscriptionPlan.query.all()}
+              assert "free" in plans, "missing free plan"
+              assert "enterprise" in plans, "missing enterprise plan"
+              print(f"subscription plans ready: {len(plans)}")
+          PY
+
       - name: Validate migration state
         env:
           DATABASE_URL: ${{ env.CI_DATABASE_URL }}
@@ -170,3 +213,39 @@ jobs:
           AUTO_CREATE_DB: "false"
         run: |
           python validate_credit_readiness.py --mode all
+
+      - name: MLflow smoke test
+        env:
+          MLFLOW_TRACKING_URI: ${{ env.CI_MLFLOW_TRACKING_URI }}
+        run: |
+          python - <<'PY'
+          import os
+          import time
+
+          import mlflow
+          from mlflow.tracking import MlflowClient
+
+          uri = str(os.environ.get("MLFLOW_TRACKING_URI") or "").strip()
+          assert uri, "MLFLOW_TRACKING_URI missing"
+          mlflow.set_tracking_uri(uri)
+
+          exp_name = "audela-ci-smoke"
+          exp = mlflow.get_experiment_by_name(exp_name)
+          exp_id = mlflow.create_experiment(exp_name) if exp is None else exp.experiment_id
+
+          run_name = f"ci-{int(time.time())}"
+          with mlflow.start_run(experiment_id=exp_id, run_name=run_name) as run:
+              mlflow.log_param("pipeline", "ci")
+              mlflow.log_metric("ok", 1.0)
+              run_id = run.info.run_id
+
+          client = MlflowClient(tracking_uri=uri)
+          fetched = client.get_run(run_id)
+          assert fetched.info.run_id == run_id
+          print(f"mlflow smoke test ok: {run_id}")
+          PY
+
+      - name: Cleanup MLflow container
+        if: always()
+        run: |
+          docker rm -f ci-mlflow >/dev/null 2>&1 || true

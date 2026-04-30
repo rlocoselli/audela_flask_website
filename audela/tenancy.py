@@ -160,7 +160,8 @@ def get_user_module_access(tenant, user_id: int | None) -> dict:
                             "bi": true/false,
                             "bi_lite": true/false,
                             "project": true/false,
-                            "credit": true/false
+                            "credit": true/false,
+                            "ml": true/false
                         }
                     }
                 }
@@ -169,10 +170,10 @@ def get_user_module_access(tenant, user_id: int | None) -> dict:
         Defaults to full access when missing.
         """
         if not tenant or user_id is None:
-            return {"finance": True, "bi": True, "bi_lite": True, "project": True, "credit": True, "ifrs9": True}
+            return {"finance": True, "bi": True, "bi_lite": True, "project": True, "credit": True, "ifrs9": True, "ml": True}
 
         if _is_test_user(tenant, user_id):
-            return {"finance": True, "bi": True, "bi_lite": True, "project": True, "credit": True, "ifrs9": True}
+            return {"finance": True, "bi": True, "bi_lite": True, "project": True, "credit": True, "ifrs9": True, "ml": True}
 
         settings = tenant.settings_json if isinstance(getattr(tenant, "settings_json", None), dict) else {}
         uam = settings.get("uam") if isinstance(settings.get("uam"), dict) else {}
@@ -189,6 +190,7 @@ def get_user_module_access(tenant, user_id: int | None) -> dict:
                 "project": bool(row.get("project", True)),
             "credit": bool(row.get("credit", True)),
             "ifrs9": bool(row.get("ifrs9", True)),
+                "ml": bool(row.get("ml", bi_enabled)),
         }
 
 

@@ -1,0 +1,208 @@
+{% extends "portal/base_portal.html" %}
+
+{% block title %}{% if title %}{{ title }} - {% endif %}{{ _('ML Studio') }}{% endblock %}
+
+{% block content %}
+<style>
+  :root {
+    --ml-ink: #0f172a;
+    --ml-muted: #475569;
+    --ml-surface: #f8fafc;
+    --ml-line: #dbe4ef;
+    --ml-accent: #0f766e;
+    --ml-accent-soft: #ccfbf1;
+    --ml-focus: 0 0 0 .14rem rgba(15, 118, 110, .22);
+  }
+
+  .ml-shell {
+    background:
+      radial-gradient(1200px 500px at -10% -20%, #e2f5ef 0%, rgba(226, 245, 239, 0) 60%),
+      radial-gradient(900px 420px at 110% -30%, #e6eefc 0%, rgba(230, 238, 252, 0) 58%),
+      var(--ml-surface);
+  }
+
+  .ml-shell.menu-right { flex-direction: row-reverse; }
+  .ml-shell.menu-hidden .sidebar { display: none !important; }
+
+  .ml-shell .sidebar {
+    border-right: 1px solid var(--ml-line) !important;
+    background: rgba(255, 255, 255, 0.86) !important;
+    backdrop-filter: blur(6px);
+  }
+
+  .ml-shell .brand {
+    font-weight: 700;
+    letter-spacing: .02em;
+    color: var(--ml-ink);
+  }
+
+  .ml-shell .nav-link {
+    border: 1px solid transparent;
+    border-radius: .66rem;
+    color: var(--ml-muted);
+    font-weight: 500;
+    padding: .5rem .65rem;
+    transition: all .14s ease;
+  }
+
+  .ml-shell .nav-link:hover {
+    color: var(--ml-ink);
+    border-color: #cae3dd;
+    background: #f0fdfa;
+  }
+
+  .ml-shell .nav-link.active {
+    color: #115e59;
+    border-color: #99f6e4;
+    background: linear-gradient(180deg, #f0fdfa 0%, #ecfeff 100%);
+  }
+
+  .ml-shell .topbar {
+    border-bottom: 1px solid var(--ml-line) !important;
+    background: rgba(255, 255, 255, .88);
+    backdrop-filter: blur(4px);
+  }
+
+  .ml-shell .topbar .btn {
+    border-radius: .6rem;
+  }
+
+  .ml-shell .topbar .btn:focus-visible,
+  .ml-shell .sidebar .nav-link:focus-visible,
+  .ml-shell .form-control:focus-visible,
+  .ml-shell .form-select:focus-visible,
+  .ml-shell .btn:focus-visible {
+    box-shadow: var(--ml-focus) !important;
+    outline: none;
+  }
+
+  .ml-shell .main-area .container-fluid.pb-4 {
+    padding-top: .35rem;
+  }
+</style>
+
+<div id="mlShell" class="portal-shell d-flex ml-shell">
+  <aside id="mlSidebar" class="sidebar border-end bg-body-tertiary p-3 d-none d-lg-flex flex-column">
+    <div class="d-flex align-items-center gap-2 mb-3">
+      <i class="bi bi-cpu"></i>
+      <span class="brand">{{ _('AUDELA ML STUDIO') }}</span>
+    </div>
+
+    <nav class="nav flex-column gap-1">
+      <div class="small-muted text-uppercase mb-1">{{ _('Navigation') }}</div>
+      <a class="nav-link {% if ml_page_key == 'overview' %}active{% endif %}" href="{{ url_for('ml.overview_page') }}"><i class="bi bi-speedometer2 me-2"></i>{{ _('Overview') }}</a>
+      <a class="nav-link {% if ml_page_key == 'supervised' %}active{% endif %}" href="{{ url_for('ml.supervised_page') }}"><i class="bi bi-diagram-3 me-2"></i>{{ _('Supervised') }}</a>
+      <a class="nav-link {% if ml_page_key == 'unsupervised' %}active{% endif %}" href="{{ url_for('ml.unsupervised_page') }}"><i class="bi bi-bezier2 me-2"></i>{{ _('Unsupervised') }}</a>
+      <a class="nav-link {% if ml_page_key == 'mlflow' %}active{% endif %}" href="{{ url_for('ml.mlflow_page') }}"><i class="bi bi-activity me-2"></i>{{ _('MLflow') }}</a>
+    </nav>
+
+    <div class="mt-auto pt-3 small-muted">
+      <div class="fw-semibold">{{ tenant.name if tenant else '' }}</div>
+      <div>{{ _('Usuário') }}: {{ current_user.email }}</div>
+    </div>
+  </aside>
+
+  <div class="main-area d-flex flex-column">
+    <div class="topbar border-bottom">
+      <div class="container-fluid py-2 d-flex align-items-center justify-content-between gap-2 flex-wrap portal-topbar-row">
+        <div class="d-flex align-items-center gap-2 portal-topbar-left">
+          <button class="btn btn-outline-secondary btn-sm d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileMlNav">
+            <i class="bi bi-list"></i>
+          </button>
+          <div class="btn-group btn-group-sm d-none d-lg-inline-flex" role="group" aria-label="ML sidebar controls">
+            <button id="mlSidebarToggleBtn" class="btn btn-outline-secondary" type="button" title="{{ _('Hide menu') }}">
+              <i class="bi bi-layout-sidebar-inset"></i>
+            </button>
+            <button id="mlSidebarMoveBtn" class="btn btn-outline-secondary" type="button" title="{{ _('Move menu') }}">
+              <i class="bi bi-arrow-left-right"></i>
+            </button>
+          </div>
+          <div class="fw-semibold text-nowrap">{{ _('ML Studio') }}</div>
+          <span class="small-muted text-truncate d-none d-sm-inline">. {{ tenant.name if tenant else '' }}</span>
+        </div>
+
+        <div class="d-flex align-items-center gap-2 portal-topbar-right">
+          <a class="btn btn-outline-primary btn-sm" href="{{ url_for('tenant.dashboard') }}">
+            <i class="bi bi-arrow-left-circle me-1"></i>
+            <span class="d-none d-md-inline">{{ _('Retour au dashboard tenant') }}</span>
+          </a>
+          <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('auth.change_password') }}">
+            <i class="bi bi-key"></i>
+            <span class="ms-1 d-none d-md-inline">{{ _('Alterar senha') }}</span>
+          </a>
+          <a class="btn btn-outline-danger btn-sm" href="{{ url_for('auth.logout') }}">
+            <i class="bi bi-box-arrow-right"></i>
+            <span class="ms-1 d-none d-md-inline">{{ _('Sair') }}</span>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <div class="container-fluid pt-3">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ 'danger' if category in ['error', 'danger'] else ('success' if category in ['success'] else 'secondary') }}" role="alert">
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+    </div>
+
+    <div class="container-fluid pb-4">
+      {% block ml_content %}{% endblock %}
+    </div>
+  </div>
+</div>
+
+<div class="offcanvas offcanvas-start" tabindex="-1" id="mobileMlNav">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title">{{ _('AUDELA ML STUDIO') }}</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body">
+    <div class="nav flex-column gap-1">
+      <a class="nav-link {% if ml_page_key == 'overview' %}active{% endif %}" href="{{ url_for('ml.overview_page') }}">{{ _('Overview') }}</a>
+      <a class="nav-link {% if ml_page_key == 'supervised' %}active{% endif %}" href="{{ url_for('ml.supervised_page') }}">{{ _('Supervised') }}</a>
+      <a class="nav-link {% if ml_page_key == 'unsupervised' %}active{% endif %}" href="{{ url_for('ml.unsupervised_page') }}">{{ _('Unsupervised') }}</a>
+      <a class="nav-link {% if ml_page_key == 'mlflow' %}active{% endif %}" href="{{ url_for('ml.mlflow_page') }}">{{ _('MLflow') }}</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+  {{ super() }}
+  <script>
+    (function () {
+      const shell = document.getElementById('mlShell');
+      const sidebar = document.getElementById('mlSidebar');
+      const toggleBtn = document.getElementById('mlSidebarToggleBtn');
+      const moveBtn = document.getElementById('mlSidebarMoveBtn');
+      if (!shell || !sidebar || !toggleBtn || !moveBtn) return;
+
+      const KEY_VISIBLE = 'audela_ml_sidebar_visible';
+      const KEY_SIDE = 'audela_ml_sidebar_side';
+      const readVisible = () => localStorage.getItem(KEY_VISIBLE) !== '0';
+      const readSide = () => (localStorage.getItem(KEY_SIDE) === 'right' ? 'right' : 'left');
+
+      const applyState = () => {
+        const visible = readVisible();
+        const side = readSide();
+        shell.classList.toggle('menu-hidden', !visible);
+        shell.classList.toggle('menu-right', side === 'right');
+      };
+
+      toggleBtn.addEventListener('click', () => {
+        localStorage.setItem(KEY_VISIBLE, readVisible() ? '0' : '1');
+        applyState();
+      });
+      moveBtn.addEventListener('click', () => {
+        localStorage.setItem(KEY_SIDE, readSide() === 'left' ? 'right' : 'left');
+        applyState();
+      });
+      applyState();
+    })();
+  </script>
+{% endblock %}

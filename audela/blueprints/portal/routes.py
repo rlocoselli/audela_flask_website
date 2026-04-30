@@ -8,6 +8,7 @@ import re
 import csv
 import io
 import html
+import math
 
 import json
 import copy
@@ -558,6 +559,130 @@ def _to_number(value: Any) -> float | None:
         return out if out == out else None
     except Exception:
         return None
+
+
+def _ml_models_state_for_tenant(tenant: Tenant) -> dict[str, Any]:
+    settings = tenant.settings_json if isinstance(tenant.settings_json, dict) else {}
+    ml_cfg = settings.get("ml_models") if isinstance(settings.get("ml_models"), dict) else {}
+    models_raw = ml_cfg.get("models") if isinstance(ml_cfg.get("models"), list) else []
+
+    models: list[dict[str, Any]] = []
+    for item in models_raw[:200]:
+        if not isinstance(item, dict):
+            continue
+        model_id = str(item.get("id") or "").strip()
+        name = str(item.get("name") or "").strip()
+        if not model_id or not name:
+            continue
+        models.append(
+            {
+                "id": model_id,
+                "name": name,
+                "algorithm": str(item.get("algorithm") or "linear_regression").strip(),
+                "source_id": _to_int(item.get("source_id"), 0, 0, 2_000_000_000),
+                "source_name": str(item.get("source_name") or "").strip(),
+                "x_column": str(item.get("x_column") or "").strip(),
+                "y_column": str(item.get("y_column") or "").strip(),
+                "sql_text": str(item.get("sql_text") or "").strip(),
+                "trained_at": str(item.get("trained_at") or ""),
+                "metrics": item.get("metrics") if isinstance(item.get("metrics"), dict) else {},
+                "params": item.get("params") if isinstance(item.get("params"), dict) else {},
+                "model_data": item.get("model_data") if isinstance(item.get("model_data"), dict) else {},
+                "deployed": bool(item.get("deployed", False)),
+            }
+        )
+
+    return {"settings": settings, "ml_cfg": ml_cfg, "models": models}
+
+
+def _persist_ml_models_state(tenant: Tenant, state: dict[str, Any]) -> None:
+    settings = state.get("settings") if isinstance(state.get("settings"), dict) else {}
+    ml_cfg = state.get("ml_cfg") if isinstance(state.get("ml_cfg"), dict) else {}
+    models = state.get("models") if isinstance(state.get("models"), list) else []
+    ml_cfg["models"] = models[:200]
+    settings["ml_models"] = ml_cfg
+    tenant.settings_json = copy.deepcopy(settings)
+    flag_modified(tenant, "settings_json")
+
+
+def _ml_split_train_test(pairs: list[tuple[float, float]], train_ratio: float) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
+    safe_ratio = min(0.95, max(0.5, float(train_ratio)))
+    idx = max(1, min(len(pairs) - 1, int(round(len(pairs) * safe_ratio))))
+    return pairs[:idx], pairs[idx:]
+
+
+def _ml_fit_model(pairs: list[tuple[float, float]], algorithm: str, params: dict[str, Any]) -> dict[str, Any]:
+    algo = str(algorithm or "linear_regression").strip().lower()
+    if algo == "moving_average":
+        window = _to_int(params.get("window"), 5, 2, 200)
+        mean_y = sum(y for _, y in pairs) / len(pairs)
+        return {
+            "algorithm": algo,
+            "window": window,
+            "mean_y": mean_y,
+            "tail_y": [y for _, y in pairs[-window:]],
+        }
+
+    if algo == "mean_baseline":
+        mean_y = sum(y for _, y in pairs) / len(pairs)
+        return {"algorithm": algo, "mean_y": mean_y}
+
+    # Default: simple linear regression y = a*x + b
+    n = float(len(pairs))
+    sx = sum(x for x, _ in pairs)
+    sy = sum(y for _, y in pairs)
+    sxx = sum(x * x for x, _ in pairs)
+    sxy = sum(x * y for x, y in pairs)
+    denom = (n * sxx) - (sx * sx)
+    if abs(denom) < 1e-12:
+        slope = 0.0
+        intercept = sy / n if n else 0.0
+    else:
+        slope = ((n * sxy) - (sx * sy)) / denom
+        intercept = (sy - (slope * sx)) / n
+    return {"algorithm": "linear_regression", "slope": slope, "intercept": intercept}
+
+
+def _ml_predict(model_data: dict[str, Any], x_value: float) -> float:
+    algo = str(model_data.get("algorithm") or "linear_regression").strip().lower()
+    if algo == "moving_average":
+        tail = model_data.get("tail_y") if isinstance(model_data.get("tail_y"), list) else []
+        vals = [float(v) for v in tail if _to_number(v) is not None]
+        if vals:
+            return float(sum(vals) / len(vals))
+        return float(_to_number(model_data.get("mean_y")) or 0.0)
+    if algo == "mean_baseline":
+        return float(_to_number(model_data.get("mean_y")) or 0.0)
+    slope = float(_to_number(model_data.get("slope")) or 0.0)
+    intercept = float(_to_number(model_data.get("intercept")) or 0.0)
+    return (slope * float(x_value)) + intercept
+
+
+def _ml_metrics(model_data: dict[str, Any], test_pairs: list[tuple[float, float]]) -> dict[str, Any]:
+    if not test_pairs:
+        return {"mae": None, "rmse": None, "r2": None, "test_rows": 0}
+
+    y_true = [y for _, y in test_pairs]
+    y_pred = [_ml_predict(model_data, x) for x, _ in test_pairs]
+    abs_err = [abs(a - b) for a, b in zip(y_true, y_pred)]
+    sq_err = [(a - b) ** 2 for a, b in zip(y_true, y_pred)]
+    mae = sum(abs_err) / len(abs_err)
+    rmse = math.sqrt(sum(sq_err) / len(sq_err))
+
+    mean_true = sum(y_true) / len(y_true)
+    ss_tot = sum((y - mean_true) ** 2 for y in y_true)
+    ss_res = sum((a - b) ** 2 for a, b in zip(y_true, y_pred))
+    if ss_tot <= 1e-12:
+        r2 = None
+    else:
+        r2 = 1.0 - (ss_res / ss_tot)
+
+    return {
+        "mae": round(mae, 6),
+        "rmse": round(rmse, 6),
+        "r2": (round(r2, 6) if r2 is not None else None),
+        "test_rows": len(test_pairs),
+    }
 
 
 def _to_date_value(value: Any) -> date | None:
@@ -1173,6 +1298,43 @@ def bi_lite():
         sources=sources,
         dashboards=dashboards,
     )
+
+
+@bp.route("/ml-models")
+@login_required
+def ml_models():
+    """Legacy endpoint: redirect to standalone ML product."""
+    return redirect(url_for("ml.studio"), code=302)
+
+
+@bp.post("/ml-models/save")
+@login_required
+def ml_models_save():
+    return redirect(url_for("ml.save_model"), code=307)
+
+
+@bp.post("/ml-models/train")
+@login_required
+def ml_models_train():
+    return redirect(url_for("ml.train_model"), code=307)
+
+
+@bp.post("/ml-models/deploy")
+@login_required
+def ml_models_deploy():
+    return redirect(url_for("ml.deploy_model"), code=307)
+
+
+@bp.post("/ml-models/delete")
+@login_required
+def ml_models_delete():
+    return redirect(url_for("ml.delete_model"), code=307)
+
+
+@bp.get("/ml-models/predict")
+@login_required
+def ml_models_predict():
+    return redirect(url_for("ml.predict_model", **request.args), code=302)
 
 
 @bp.route("/credit-origination")

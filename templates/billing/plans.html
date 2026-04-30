@@ -31,6 +31,7 @@
     <div class="btn-group" role="group" aria-label="Product filters">
       <a class="btn btn-sm {% if selected_product == 'finance' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('billing.plans', product='finance') }}">{{ _('Finance') }}</a>
       <a class="btn btn-sm {% if selected_product == 'bi' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('billing.plans', product='bi') }}">{{ _('BI') }}</a>
+      <a class="btn btn-sm {% if selected_product == 'ml' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('billing.plans', product='ml') }}">{{ _('ML Studio') }}</a>
       <a class="btn btn-sm {% if selected_product == 'credit' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('billing.plans', product='credit') }}">{{ _('Audela Credit') }}</a>
       <a class="btn btn-sm {% if selected_product == 'project' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('billing.plans', product='project') }}">{{ _('Projet') }}</a>
       <a class="btn btn-sm {% if selected_product == 'ifrs9' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{{ url_for('billing.plans', product='ifrs9') }}">{{ _('IFRS9') }}</a>
@@ -45,6 +46,10 @@
   {% elif selected_product == 'bi' %}
   <div class="alert alert-info">
     <i class="bi bi-graph-up"></i> {{ _('Plans BI disponibles: BI Lite et BI Enterprise.') }}
+  </div>
+  {% elif selected_product == 'ml' %}
+  <div class="alert alert-info">
+    <i class="bi bi-cpu"></i> {{ _('Plans ML Studio disponibles') }}
   </div>
   {% elif selected_product == 'credit' %}
   <div class="alert alert-info">
@@ -86,10 +91,12 @@
           {% set has_project = (plan.features_json and plan.features_json.get('has_project')) or plan.code == 'free' %}
           {% set has_credit = (plan.features_json and plan.features_json.get('has_credit')) or plan.code == 'free' %}
           {% set has_ifrs9 = (plan.features_json and plan.features_json.get('has_ifrs9')) or plan.code == 'free' or plan.code in ['credit_pro', 'all_in_one_pro', 'enterprise'] %}
+          {% set has_ml = (plan.features_json and plan.features_json.get('has_ml')) or has_bi or plan.code == 'free' %}
           {% set bi_tier = (plan.features_json.get('bi_tier') if plan.features_json else '') %}
           <div class="mb-3 d-flex flex-wrap gap-1">
             {% if has_finance %}<span class="badge text-bg-success">{{ _('Finance') }}</span>{% endif %}
             {% if has_bi %}<span class="badge text-bg-info">{{ _('BI') }}</span>{% endif %}
+            {% if has_ml %}<span class="badge text-bg-primary">{{ _('ML Studio') }}</span>{% endif %}
             {% if bi_tier == 'lite' %}<span class="badge text-bg-primary">{{ _('BI Lite') }}</span>{% endif %}
             {% if bi_tier == 'enterprise' %}<span class="badge text-bg-dark">{{ _('BI Enterprise') }}</span>{% endif %}
             {% if has_credit %}<span class="badge text-bg-warning">{{ _('Audela Credit') }}</span>{% endif %}

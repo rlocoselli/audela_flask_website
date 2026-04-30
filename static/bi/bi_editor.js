@@ -585,6 +585,12 @@ if (schemaEl) {
     if (form) {
       form.addEventListener('submit', (e) => {
         cm.save();
+        const formAction = String(form.getAttribute('action') || '').toLowerCase();
+        const isMlSave = formAction.includes('/ml/save');
+        if (isMlSave) {
+          showLoading(t('Carregando...'));
+          return;
+        }
         const parsed = getParamsObject();
         if (parsed === null) {
           e.preventDefault();

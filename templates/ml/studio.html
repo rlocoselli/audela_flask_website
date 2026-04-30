@@ -1,0 +1,2925 @@
+{% extends "ml/layout.html" %}
+
+{% block head_extra %}
+  {{ super() }}
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css">
+  <style>
+    .ml-studio-flow {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .ml-models-block {
+      order: 1;
+    }
+
+    .ml-add-cta {
+      order: 2;
+    }
+
+    .ml-add-panel {
+      order: 3;
+    }
+
+    .ml-hero {
+      border: 1px solid #dbe4ef;
+      border-radius: 1rem;
+      background: linear-gradient(120deg, #ffffff 0%, #f4fdfb 55%, #f8fbff 100%);
+      box-shadow: 0 12px 30px rgba(15, 23, 42, .06);
+      padding: 1rem 1.1rem;
+    }
+
+    .ml-hero .ml-kicker {
+      display: inline-block;
+      font-size: .75rem;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: #0f766e;
+      font-weight: 700;
+      margin-bottom: .35rem;
+    }
+
+    .ml-surface {
+      border: 1px solid #dde6f1;
+      border-radius: .95rem;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, .06);
+      background: #fff;
+    }
+
+    .ml-surface .card-body {
+      padding: 1.1rem;
+    }
+
+    .concept-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: .55rem;
+    }
+
+    .concept-box {
+      border: 1px solid #dbe4ef;
+      background: #fff;
+      border-radius: .6rem;
+      padding: .55rem .65rem;
+      text-align: left;
+      font-size: .86rem;
+      font-weight: 600;
+      color: #1f2937;
+      transition: all .14s ease;
+      cursor: pointer;
+    }
+
+    .concept-box:hover {
+      border-color: #93c5fd;
+      background: #eff6ff;
+      transform: translateY(-1px);
+    }
+
+    .ml-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: .35rem;
+      border: 1px solid #d7e2ef;
+      background: #f8fafc;
+      border-radius: 999px;
+      padding: .26rem .6rem;
+      font-size: .78rem;
+      color: #334155;
+    }
+
+    .table thead th {
+      color: #475569;
+      font-size: .78rem;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      font-weight: 700;
+      border-bottom-color: #dbe4ef;
+      white-space: nowrap;
+    }
+
+    .table tbody td {
+      border-bottom-color: #ecf2f8;
+    }
+
+    .table tbody tr:hover {
+      background: #f8fafc;
+    }
+
+    .CodeMirror {
+      height: 230px;
+      border: 1px solid var(--bs-border-color);
+      border-radius: .75rem;
+    }
+    .bi-schema {
+      max-height: 260px;
+      overflow: auto;
+      font-size: .9rem;
+    }
+    .bi-schema .tbl { margin-bottom: .25rem; }
+    .bi-schema .cols { margin-left: 1rem; color: #555; }
+
+    .ml-loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+    }
+
+    .ml-loading-overlay.show {
+      display: flex;
+    }
+
+    .ml-loading-card {
+      background: #fff;
+      border-radius: .85rem;
+      border: 1px solid #dbe4ef;
+      box-shadow: 0 14px 36px rgba(15, 23, 42, .2);
+      padding: 1rem 1.2rem;
+      min-width: 260px;
+      text-align: center;
+    }
+
+    .ml-algo-badge {
+      font-size: .72rem;
+      border: 1px solid #dbe4ef;
+      color: #334155;
+      background: #f8fafc;
+      border-radius: 999px;
+      padding: .2rem .45rem;
+    }
+
+    .cluster-dot {
+      display: inline-block;
+      width: .7rem;
+      height: .7rem;
+      border-radius: 50%;
+      margin-right: .35rem;
+      vertical-align: middle;
+    }
+
+    .ml-query-workspace {
+      border: 1px solid #dbe4ef;
+      border-radius: .85rem;
+      background: linear-gradient(180deg, #fbfdff 0%, #f8fafc 100%);
+      padding: .8rem;
+    }
+
+    .ml-query-workspace .table {
+      margin-bottom: 0;
+      table-layout: auto !important;
+      width: max-content;
+      min-width: 100%;
+    }
+
+    .ml-query-workspace .table-responsive {
+      max-height: 42vh;
+      overflow: auto;
+      border: 1px solid #e2e8f0;
+      border-radius: .6rem;
+      background: #fff;
+    }
+
+    .ml-query-workspace .table th,
+    .ml-query-workspace .table td {
+      white-space: nowrap !important;
+      max-width: none !important;
+      overflow: visible !important;
+      text-overflow: clip !important;
+      vertical-align: top;
+    }
+
+    #queryPreviewTable {
+      table-layout: auto !important;
+      width: max-content;
+      min-width: 100%;
+    }
+
+    #queryPreviewTableWrap {
+      max-height: 56vh;
+      overflow: auto;
+      border: 1px solid #e2e8f0;
+      border-radius: .6rem;
+      background: #fff;
+    }
+
+    #queryPreviewTable th,
+    #queryPreviewTable td {
+      white-space: nowrap !important;
+      max-width: none !important;
+      overflow: visible !important;
+      text-overflow: clip !important;
+      vertical-align: top;
+    }
+
+    .ml-query-meta {
+      font-size: .82rem;
+      color: #64748b;
+    }
+
+    .ml-illustration {
+      border: 1px solid #dbe4ef;
+      border-radius: .7rem;
+      background: #fff;
+      padding: .35rem;
+    }
+
+      #mlflow-tutorial {
+        scroll-margin-top: 92px;
+      }
+  </style>
+{% endblock %}
+
+{% block ml_content %}
+<div class="container-fluid py-2 ml-studio-flow">
+  <div id="mlLoadingOverlay" class="ml-loading-overlay" aria-hidden="true">
+    <div class="ml-loading-card">
+      <div class="spinner-border text-primary mb-2" role="status" aria-hidden="true"></div>
+      <div id="mlLoadingText" class="fw-semibold">{{ _('Processing...') }}</div>
+    </div>
+  </div>
+
+  <div class="ml-hero d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+    <div>
+      <span class="ml-kicker">{{ _('Machine Learning Platform') }}</span>
+      <h1 class="h3 mb-1">{{ _('ML Studio') }}</h1>
+      <p class="text-muted mb-0">{{ _('Produit ML autonome avec modules supervisés et non supervisés.') }}</p>
+      <div class="mt-2 d-flex gap-2 flex-wrap">
+        <span class="ml-chip"><i class="bi bi-shield-check"></i>{{ _('Gouvernance') }}</span>
+        <span class="ml-chip"><i class="bi bi-lightning-charge"></i>{{ _('Rapide') }}</span>
+        <span class="ml-chip"><i class="bi bi-diagram-3"></i>{{ _('MLOps') }}</span>
+      </div>
+    </div>
+    {% if mlflow_embed_url %}
+    <a class="btn btn-outline-primary" href="{{ mlflow_embed_url }}" target="_blank" rel="noopener">
+      <i class="fas fa-external-link-alt me-2"></i>{{ _('Ouvrir MLflow') }}
+    </a>
+    {% endif %}
+  </div>
+
+  {% if ml_page_key == 'overview' %}
+  {% set ns = namespace(total=0, trained=0, deployed=0, acc_sum=0.0, acc_n=0, r2_sum=0.0, r2_n=0) %}
+  {% for model in models %}
+    {% set ns.total = ns.total + 1 %}
+    {% if model.model_data %}{% set ns.trained = ns.trained + 1 %}{% endif %}
+    {% if model.deployed %}{% set ns.deployed = ns.deployed + 1 %}{% endif %}
+    {% if model.metrics and model.metrics.get('accuracy') is not none %}
+      {% set ns.acc_sum = ns.acc_sum + (model.metrics.get('accuracy')|float) %}
+      {% set ns.acc_n = ns.acc_n + 1 %}
+    {% endif %}
+    {% if model.metrics and model.metrics.get('r2') is not none %}
+      {% set ns.r2_sum = ns.r2_sum + (model.metrics.get('r2')|float) %}
+      {% set ns.r2_n = ns.r2_n + 1 %}
+    {% endif %}
+  {% endfor %}
+  {% set avg_acc = (ns.acc_sum / ns.acc_n) if ns.acc_n > 0 else none %}
+  {% set avg_r2 = (ns.r2_sum / ns.r2_n) if ns.r2_n > 0 else none %}
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-6 col-xl-2">
+      <div class="card ml-surface h-100">
+        <div class="card-body">
+          <div class="text-muted small">{{ _('Modèles total') }}</div>
+          <div class="h3 mb-0">{{ ns.total }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6 col-xl-2">
+      <div class="card ml-surface h-100">
+        <div class="card-body">
+          <div class="text-muted small">{{ _('Modèles entraînés') }}</div>
+          <div class="h3 mb-0">{{ ns.trained }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6 col-xl-2">
+      <div class="card ml-surface h-100">
+        <div class="card-body">
+          <div class="text-muted small">{{ _('Modèles déployés') }}</div>
+          <div class="h3 mb-0">{{ ns.deployed }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+      <div class="card ml-surface h-100">
+        <div class="card-body">
+          <div class="text-muted small">{{ _('Accuracy moyenne') }}</div>
+          <div class="h3 mb-0">{% if avg_acc is not none %}{{ '%.2f'|format(avg_acc) }}%{% else %}-{% endif %}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+      <div class="card ml-surface h-100">
+        <div class="card-body">
+          <div class="text-muted small">{{ _('R² moyen') }}</div>
+          <div class="h3 mb-0">{% if avg_r2 is not none %}{{ '%.3f'|format(avg_r2) }}{% else %}-{% endif %}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-lg-4">
+      <div class="card ml-surface h-100">
+        <div class="card-body">
+          <h5 class="mb-2">{{ _('Actions rapides BI') }}</h5>
+          <p class="text-muted small mb-3">{{ _('Créer et connecter vos données BI avant entraînement des modèles.') }}</p>
+          <div class="d-grid gap-2">
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('portal.sources_new') }}">{{ _('Créer une source') }}</a>
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('portal.workspaces_new') }}">{{ _('Créer un workspace') }}</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('portal.sources_list') }}">{{ _('Voir les sources') }}</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('portal.workspaces_list') }}">{{ _('Voir les workspaces') }}</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-8">
+      <div class="card ml-surface h-100">
+        <div class="card-body">
+          <h5 class="mb-2">{{ _('Évolution des runs testés') }}</h5>
+          <p class="text-muted small mb-2">{{ _('Vue de performance des modèles testés.') }}</p>
+          <canvas id="mlOverviewTrendChart" height="120"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-lg-6">
+      <div class="card ml-surface h-100">
+        <div class="card-body">
+          <h5 class="mb-2">{{ _('Distribution des algorithmes') }}</h5>
+          <canvas id="mlOverviewAlgoChart" height="150"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card ml-surface h-100">
+        <div class="card-body">
+          <h5 class="mb-2">{{ _('Répartition Fit Status') }}</h5>
+          <canvas id="mlOverviewFitChart" height="150"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script id="mlOverviewData" type="application/json">{{ (models or [])|tojson }}</script>
+  {% endif %}
+
+  {% if ml_page_key == 'sentiment' %}
+  <div class="row g-3 mb-4">
+    <div class="col-12">
+      <div class="card ml-surface">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap mb-2">
+            <h5 class="mb-0">{{ _('Évaluateur de sentiment (commentaires)') }}</h5>
+            <span class="ml-chip">{{ _('Détecte les mots qui influencent le score') }}</span>
+          </div>
+          <p class="text-muted small mb-2">{{ _('Analyse des commentaires depuis une requête SQL et identification des mots déterminants (positifs/négatifs).') }}</p>
+          <p class="text-muted small mb-3">{{ _('L’analyse de sentiment classe un discours en positif, neutre ou négatif pour mesurer la tonalité émotionnelle.') }}</p>
+
+          <div class="accordion mb-3" id="sentimentHowAccordion">
+            <div class="accordion-item">
+              <h2 class="accordion-header" id="sentimentHowHeading">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#sentimentHowCollapse" aria-expanded="false" aria-controls="sentimentHowCollapse">
+                  {{ _('Comment ça marche ?') }}
+                </button>
+              </h2>
+              <div id="sentimentHowCollapse" class="accordion-collapse collapse" aria-labelledby="sentimentHowHeading" data-bs-parent="#sentimentHowAccordion">
+                <div class="accordion-body small">
+                  <p class="mb-2"><strong>{{ _('Pourquoi c\'est utile ?') }}</strong><br>{{ _('Suivre la perception d’un candidat, d’une marque ou d’un produit à partir de volumes élevés de messages.') }}</p>
+                  <p class="mb-2"><strong>{{ _('Pipeline texte (cas le plus courant)') }}</strong><br>{{ _('1) Nettoyage du texte 2) Tokenisation 3) Vectorisation 4) Modèle (RNN/Transformers) 5) Score et classe.') }}</p>
+                  <p class="mb-2"><strong>{{ _('Important sur le contexte linguistique') }}</strong><br>{{ _('Le sens dépend de la séquence des mots (ex: "Tu es poli"), et des nuances (ironie, intensité, ambiguïté).') }}</p>
+                  <p class="mb-0"><strong>{{ _('Et l’oral / EEG ?') }}</strong><br>{{ _('L’analyse EEG existe surtout en recherche (IA + neurosciences); en production, on traite majoritairement du texte.') }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <ul class="nav nav-tabs mb-3" id="mlSentimentTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active" id="mlSentimentConfigTab" data-bs-toggle="tab" data-bs-target="#mlSentimentConfigPane" type="button" role="tab" aria-controls="mlSentimentConfigPane" aria-selected="true"><i class="bi bi-sliders2 me-1"></i>{{ _('Configuration') }}</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="mlSentimentResultsTab" data-bs-toggle="tab" data-bs-target="#mlSentimentResultsPane" type="button" role="tab" aria-controls="mlSentimentResultsPane" aria-selected="false"><i class="bi bi-bar-chart-line me-1"></i>{{ _('Résultats') }}</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link" id="mlSentimentSnapshotsTab" data-bs-toggle="tab" data-bs-target="#mlSentimentSnapshotsPane" type="button" role="tab" aria-controls="mlSentimentSnapshotsPane" aria-selected="false"><i class="bi bi-clock-history me-1"></i>{{ _('Snapshots') }}</button>
+            </li>
+          </ul>
+
+          <div class="tab-content" id="mlSentimentTabsContent">
+            <div class="tab-pane fade show active" id="mlSentimentConfigPane" role="tabpanel" aria-labelledby="mlSentimentConfigTab" tabindex="0">
+
+          <form id="mlSentimentForm" class="row g-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="col-md-3">
+              <label class="form-label">{{ _('Source BI') }}</label>
+              <select class="form-select" name="source_id" required>
+                <option value="">{{ _('Sélectionner...') }}</option>
+                {% for source in sources %}
+                <option value="{{ source.id }}" data-dbtype="{{ source.type }}">{{ source.name }} ({{ source.type }})</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">{{ _('Colonne commentaire (optionnel)') }}</label>
+              <input type="text" class="form-control" name="text_column" placeholder="comment_text">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">{{ _('Limite lignes') }}</label>
+              <input type="number" class="form-control" name="limit_rows" min="20" max="5000" value="500">
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+              <div class="d-grid gap-2 w-100">
+                <button type="button" id="mlSentimentSampleBtn" class="btn btn-outline-secondary">{{ _('Générer exemple sentiment') }}</button>
+                <button type="submit" class="btn btn-primary">{{ _('Lancer évaluation sentiment') }}</button>
+              </div>
+            </div>
+            <div class="col-12">
+              <label class="form-label">{{ _('AI Query Builder') }}</label>
+              <div class="d-flex gap-2 flex-wrap">
+                <input type="text" id="mlSentNlqText" class="form-control" placeholder="{{ _('Ex: commentaires clients sur le support') }}">
+                <button type="button" class="btn btn-outline-primary" id="mlSentNlqGenerate">{{ _('Générer SQL') }}</button>
+              </div>
+              <div id="mlSentNlqWarnings" class="form-text mt-1"></div>
+            </div>
+            <div class="col-12">
+              <details>
+                <summary class="fw-semibold cursor-pointer">{{ _('Query Builder') }}</summary>
+                <div class="mt-2 border rounded p-3">
+                  <div class="row g-3">
+                    <div class="col-md-6">
+                      <label class="form-label">{{ _('Table') }}</label>
+                      <select id="mlSentQbTable" class="form-select"><option value="">--</option></select>
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label">{{ _('Limit') }}</label>
+                      <input id="mlSentQbLimit" type="number" class="form-control" value="500" min="1" max="5000">
+                    </div>
+                    <div class="col-12">
+                      <label class="form-label">{{ _('Columns') }}</label>
+                      <div id="mlSentQbColumns" class="d-flex flex-wrap gap-2"></div>
+                    </div>
+                    <div class="col-12">
+                      <label class="form-label">{{ _('Filters') }}</label>
+                      <div class="d-flex gap-2 flex-wrap">
+                        <select id="mlSentQbFilterField" class="form-select" style="min-width:180px;"></select>
+                        <select id="mlSentQbFilterOp" class="form-select" style="min-width:120px;">
+                          <option value="=">=</option>
+                          <option value="!=">!=</option>
+                          <option value=">">&gt;</option>
+                          <option value="<">&lt;</option>
+                          <option value="LIKE">LIKE</option>
+                        </select>
+                        <input id="mlSentQbFilterValue" class="form-control" style="min-width:180px;" placeholder="{{ _('Valeur') }}">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="mlSentQbAddFilter">{{ _('Ajouter filtre') }}</button>
+                      </div>
+                      <div id="mlSentQbFilterList" class="mt-2"></div>
+                    </div>
+                    <div class="col-12">
+                      <button type="button" class="btn btn-primary" id="mlSentQbGenerate">{{ _('Générer SQL dans éditeur') }}</button>
+                    </div>
+                  </div>
+                </div>
+              </details>
+            </div>
+            <div class="col-12">
+              <label class="form-label">{{ _('Requête SQL commentaires') }}</label>
+              <textarea id="mlSentSqlText" class="form-control" name="sql_text" rows="4" placeholder="SELECT comment_text FROM customer_feedback WHERE tenant_id = :tenant_id" required></textarea>
+              <small class="text-muted">{{ _('Autocomplete activé (Ctrl+Space).') }}</small>
+            </div>
+            <div class="col-12">
+              <label class="form-label">{{ _('Structure source') }}</label>
+              <div id="mlSentSchema" class="bi-schema"></div>
+            </div>
+          </form>
+
+            </div>
+
+            <div class="tab-pane fade" id="mlSentimentResultsPane" role="tabpanel" aria-labelledby="mlSentimentResultsTab" tabindex="0">
+
+          <div id="mlSentimentLoading" class="alert alert-secondary mt-3 d-none">{{ _('Processing...') }}</div>
+          <div id="mlSentimentError" class="alert alert-danger mt-3 d-none"></div>
+
+          <div id="mlSentimentResults" class="mt-3 d-none">
+            <div class="row g-2 mb-2">
+              <div class="col-md-3"><div class="border rounded p-2"><div class="small text-muted">{{ _('Lignes analysées') }}</div><div class="fw-semibold" id="mlSentRows">-</div></div></div>
+              <div class="col-md-3"><div class="border rounded p-2"><div class="small text-muted">{{ _('Score moyen') }}</div><div class="fw-semibold" id="mlSentAvg">-</div></div></div>
+              <div class="col-md-2"><div class="border rounded p-2"><div class="small text-muted">{{ _('Positive') }}</div><div class="fw-semibold text-success" id="mlSentPos">-</div></div></div>
+              <div class="col-md-2"><div class="border rounded p-2"><div class="small text-muted">{{ _('Neutral') }}</div><div class="fw-semibold text-secondary" id="mlSentNeu">-</div></div></div>
+              <div class="col-md-2"><div class="border rounded p-2"><div class="small text-muted">{{ _('Negative') }}</div><div class="fw-semibold text-danger" id="mlSentNeg">-</div></div></div>
+            </div>
+            <div class="row g-3">
+              <div class="col-lg-4">
+                <h6 class="mb-2">{{ _('Mots positifs déterminants') }}</h6>
+                <div id="mlTopPosWords" class="small"></div>
+              </div>
+              <div class="col-lg-4">
+                <h6 class="mb-2">{{ _('Mots négatifs déterminants') }}</h6>
+                <div id="mlTopNegWords" class="small"></div>
+              </div>
+              <div class="col-lg-4">
+                <h6 class="mb-2">{{ _('Exemples commentés') }}</h6>
+                <div id="mlSentSamples" class="small"></div>
+              </div>
+            </div>
+
+            <div class="row g-3 mt-1">
+              <div class="col-12">
+                <h6 class="mb-2">{{ _('Bubble mots positifs/négatifs') }}</h6>
+                <div class="small text-muted mb-1">{{ _('Taille des bulles proportionnelle au nombre d\'occurrences.') }}</div>
+                <canvas id="mlSentimentWordBubble" height="120"></canvas>
+              </div>
+            </div>
+
+            <div class="d-flex justify-content-end mt-3">
+              <div class="d-flex gap-2">
+                <button type="button" class="btn btn-outline-secondary" id="mlSentimentLogMlflow">{{ _('Envoyer snapshot vers MLflow') }}</button>
+                <button type="button" class="btn btn-outline-primary" id="mlSentimentSaveSnapshot">{{ _('Sauvegarder snapshot') }}</button>
+              </div>
+            </div>
+          </div>
+
+            </div>
+
+            <div class="tab-pane fade" id="mlSentimentSnapshotsPane" role="tabpanel" aria-labelledby="mlSentimentSnapshotsTab" tabindex="0">
+
+          <hr class="my-4">
+          <div>
+            <div class="d-flex align-items-center justify-content-between gap-2 mb-2 flex-wrap">
+              <h6 class="mb-0">{{ _('Snapshots d\'analyse') }}</h6>
+              <button type="button" class="btn btn-sm btn-outline-secondary" id="mlSentimentRefreshSnapshots">{{ _('Charger snapshots') }}</button>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-sm align-middle">
+                <thead>
+                  <tr>
+                    <th>{{ _('Date') }}</th>
+                    <th>{{ _('Source') }}</th>
+                    <th>{{ _('Colonne') }}</th>
+                    <th>{{ _('Lignes analysées') }}</th>
+                    <th>{{ _('Résultat') }}</th>
+                    <th class="text-end">{{ _('Actions') }}</th>
+                  </tr>
+                </thead>
+                <tbody id="mlSentimentSnapshotsBody">
+                  <tr><td colspan="6" class="text-muted">{{ _('Aucun snapshot pour le moment.') }}</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if ml_page_key in ['supervised', 'unsupervised', 'models'] %}
+  <div class="d-flex justify-content-end">
+    <form method="post" action="{{ url_for('ml.generate_sample_data') }}" class="d-inline-flex js-loading-form" data-loading-text="{{ _('Generating sample data...') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-outline-success" type="submit">
+        <i class="bi bi-database-fill-gear me-2"></i>{{ _('Sample Data and Training') }}
+      </button>
+    </form>
+  </div>
+
+  <div class="card ml-surface ml-models-block">
+    <div class="card-body">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+        <h2 class="h5 mb-0">{{ _('Modèles enregistrés') }}</h2>
+        <span class="ml-chip">{{ _('Affichés') }}: {{ visible_models_count or 0 }} / {{ total_models_count or 0 }}</span>
+      </div>
+      {% if ml_page_key != 'unsupervised' %}
+      <div class="alert alert-info py-2 mb-3">
+        <div class="fw-semibold mb-1">{{ _('Comment sont définis les statuts de fit ?') }}</div>
+        <div class="small mb-1">{{ _('Classification: overfit si train_acc >= 90 et gap >= 8; underfit si train_acc < 65 et test_acc < 65; good fit si train_acc >= 80, test_acc >= 75 et gap < 8; sinon balanced.') }}</div>
+        <div class="small">{{ _('Régression: overfit si train_r2 >= 0.8 et gap >= 0.2; underfit si r2 < 0.35 (ou train_r2 et test_r2 < 0.45); good fit si train_r2 >= 0.65 et test_r2 >= 0.65 avec gap < 0.2; sinon balanced.') }}</div>
+      </div>
+      {% endif %}
+      {% if models %}
+      <div class="table-responsive">
+        <table class="table align-middle">
+          <thead>
+            <tr>
+              <th>{{ _('Nom') }}</th>
+              <th>{{ _('Algorithme') }}</th>
+              <th>{{ _('Source') }}</th>
+              <th>{{ _('Train') }}</th>
+              <th>{{ _('Test') }}</th>
+              {% if ml_page_key != 'unsupervised' %}
+              <th>{{ _('MAE') }}</th>
+              <th>{{ _('RMSE') }}</th>
+              <th>{{ _('R²') }}</th>
+              <th>{{ _('Accuracy') }}</th>
+              <th>{{ _('Fit') }}</th>
+              {% endif %}
+              {% if ml_page_key != 'supervised' %}
+              <th>{{ _('Clusters') }}</th>
+              <th>{{ _('Inertia') }}</th>
+              {% endif %}
+              <th>{{ _('MLflow') }}</th>
+              <th class="text-end">{{ _('Actions') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for model in models %}
+            {% set metrics = model.metrics or {} %}
+            <tr>
+              <td>
+                <div class="fw-semibold">{{ model.name }}</div>
+                {% if model.deployed %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle">{{ _('Déployé') }}</span>
+                {% endif %}
+              </td>
+              <td><span class="ml-algo-badge">{{ model.algorithm }}</span></td>
+              <td>{{ model.source_name }}</td>
+              {% set train_rows = metrics.get('train_rows') %}
+              {% set test_rows = metrics.get('test_rows') %}
+              {% set mae = metrics.get('mae') %}
+              {% set rmse = metrics.get('rmse') %}
+              <td>{{ train_rows if train_rows is not none else '-' }}</td>
+              <td>{{ test_rows if test_rows is not none else '-' }}</td>
+              {% if ml_page_key != 'unsupervised' %}
+              <td>{{ mae if mae is not none else '-' }}</td>
+              <td>{{ rmse if rmse is not none else '-' }}</td>
+              {% set te2 = metrics.get('r2') %}
+              <td>{{ te2 if te2 is not none else '-' }}</td>
+              {% set acc = metrics.get('accuracy') %}
+              <td>{% if acc is not none %}{{ acc }}%{% else %}-{% endif %}</td>
+              <td>
+                {% set fit = metrics.get('fit_indicator') %}
+                {% set acc_type = metrics.get('accuracy_type') %}
+                {% set train_acc = metrics.get('train_accuracy') %}
+                {% if acc_type == 'classification' and acc is not none %}
+                  {% if train_acc is not none %}
+                    {% set acc_gap = (train_acc - acc) %}
+                    {% if train_acc >= 90 and acc_gap >= 8 %}
+                      {% set fit = 'overfit' %}
+                    {% elif train_acc < 65 and acc < 65 %}
+                      {% set fit = 'underfit' %}
+                    {% elif train_acc >= 80 and acc >= 75 and acc_gap < 8 %}
+                      {% set fit = 'good_fit' %}
+                    {% else %}
+                      {% set fit = 'balanced' %}
+                    {% endif %}
+                  {% else %}
+                    {% if acc >= 80 %}
+                      {% set fit = 'good_fit' %}
+                    {% elif acc < 60 %}
+                      {% set fit = 'underfit' %}
+                    {% else %}
+                      {% set fit = 'balanced' %}
+                    {% endif %}
+                  {% endif %}
+                {% endif %}
+                {% set tr2 = metrics.get('train_r2') %}
+                {% if tr2 is not none and te2 is not none %}
+                  {% set gap = (tr2 - te2) %}
+                  {% set fit_tip = 'train_r2=' ~ tr2 ~ ' | test_r2=' ~ te2 ~ ' | gap=' ~ (gap | round(4)) %}
+                {% elif train_acc is not none and acc is not none %}
+                  {% set fit_tip = 'train_acc=' ~ train_acc ~ '% | test_acc=' ~ acc ~ '% | gap=' ~ ((train_acc - acc) | round(2)) ~ '%' %}
+                {% elif acc is not none %}
+                  {% set fit_tip = 'test_acc=' ~ acc ~ '%' %}
+                {% elif te2 is not none %}
+                  {% set fit_tip = 'test_r2=' ~ te2 %}
+                {% else %}
+                  {% set fit_tip = 'No R2 available yet' %}
+                {% endif %}
+                {% if fit == 'overfit' %}
+                  <span class="badge bg-warning text-dark" title="{{ fit_tip }}">{{ _('Overfit') }}</span>
+                {% elif fit == 'underfit' %}
+                  <span class="badge bg-danger" title="{{ fit_tip }}">{{ _('Underfit') }}</span>
+                {% elif fit == 'good_fit' %}
+                  <span class="badge bg-success" title="{{ fit_tip }}">{{ _('Good fit') }}</span>
+                {% elif fit == 'balanced' %}
+                  <span class="badge bg-info text-dark" title="{{ fit_tip }}">{{ _('Balanced') }}</span>
+                {% else %}
+                  <span class="text-muted">-</span>
+                {% endif %}
+              </td>
+              {% endif %}
+              {% if ml_page_key != 'supervised' %}
+              {% set clusters = metrics.get('clusters') %}
+              {% set inertia = metrics.get('inertia') %}
+              <td>{{ clusters if clusters is not none else '-' }}</td>
+              <td>{{ inertia if inertia is not none else '-' }}</td>
+              {% endif %}
+              <td>
+                {% set mlflow = model.mlflow or {} %}
+                {% if mlflow.run_url %}
+                <a class="btn btn-sm btn-outline-secondary" href="{{ mlflow.run_url }}" target="_blank" rel="noopener">{{ _('Run') }}</a>
+                {% elif mlflow.run_id %}
+                <code class="small">{{ mlflow.run_id }}</code>
+                {% else %}
+                -
+                {% endif %}
+              </td>
+              <td class="text-end">
+                <div class="d-inline-flex flex-wrap gap-2 justify-content-end">
+                  {% set train_params = model.params or {} %}
+                  {% set param_train_ratio = train_params.get('train_ratio') %}
+                  {% set param_n_estimators = train_params.get('n_estimators') %}
+                  {% set param_k_clusters = train_params.get('k_clusters') %}
+                  <form method="post" action="{{ url_for('ml.train_model') }}" class="d-inline-flex gap-2 align-items-center js-loading-form" data-loading-text="{{ _('Training model...') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="model_id" value="{{ model.id }}">
+                    <input type="hidden" name="return_page" value="{{ ml_page_key }}">
+                    <input type="number" step="0.01" min="0.50" max="0.95" name="train_ratio" value="{{ '%.2f'|format((param_train_ratio if param_train_ratio is not none else 0.80)|float) }}" class="form-control form-control-sm" style="max-width:88px" title="{{ _('Train ratio') }}">
+                    <input type="number" min="5" max="200" name="n_estimators" value="{{ (param_n_estimators if param_n_estimators is not none else 15)|int }}" class="form-control form-control-sm" style="max-width:88px" title="{{ _('Forest trees') }}">
+                    <input type="number" min="2" max="20" name="k_clusters" value="{{ (param_k_clusters if param_k_clusters is not none else 3)|int }}" class="form-control form-control-sm" style="max-width:80px" title="{{ _('Clusters') }}">
+                    <button class="btn btn-sm btn-outline-primary" type="submit">{{ _('Train') }}</button>
+                  </form>
+
+                  <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#editModelModal-{{ model.id }}">{{ _('Edit') }}</button>
+
+                  <button
+                    class="btn btn-sm btn-outline-dark js-show-query-data"
+                    type="button"
+                    data-model-name="{{ model.name }}"
+                    data-url="{{ url_for('ml.query_data_preview', model_id=model.id) }}"
+                  >{{ _('View Data') }}</button>
+
+                  {% if model.algorithm == 'kmeans_clustering' and model.model_data and model.model_data.centroids %}
+                  <button
+                    class="btn btn-sm btn-outline-info js-show-clusters"
+                    type="button"
+                    data-model-name="{{ model.name }}"
+                    data-url="{{ url_for('ml.cluster_preview', model_id=model.id) }}"
+                  >{{ _('View Clusters') }}</button>
+                  {% endif %}
+
+                  <form method="post" action="{{ url_for('ml.deploy_model') }}" class="js-loading-form" data-loading-text="{{ _('Deploying model...') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="model_id" value="{{ model.id }}">
+                    <button class="btn btn-sm btn-outline-success" type="submit">{{ _('Deploy') }}</button>
+                  </form>
+
+                  <form method="post" action="{{ url_for('ml.delete_model') }}" class="js-loading-form" data-loading-text="{{ _('Deleting model...') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="model_id" value="{{ model.id }}">
+                    <button class="btn btn-sm btn-outline-danger" type="submit">{{ _('Delete') }}</button>
+                  </form>
+                </div>
+
+                <div class="modal fade" id="editModelModal-{{ model.id }}" tabindex="-1" aria-hidden="true">
+                  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                    <div class="modal-content">
+                      <form method="post" action="{{ url_for('ml.edit_model') }}" class="js-loading-form" data-loading-text="{{ _('Saving model changes...') }}">
+                        <div class="modal-header">
+                          <h5 class="modal-title">{{ _('Modifier le modèle') }}: {{ model.name }}</h5>
+                          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Fermer') }}"></button>
+                        </div>
+                        <div class="modal-body vstack gap-3">
+                          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                          <input type="hidden" name="model_id" value="{{ model.id }}">
+
+                          <div class="row g-2">
+                            <div class="col-md-6">
+                              <label class="form-label">{{ _('Nom du modèle') }}</label>
+                              <input type="text" name="model_name" class="form-control" maxlength="120" value="{{ model.name }}" required>
+                            </div>
+                            <div class="col-md-6">
+                              <label class="form-label">{{ _('Algorithme') }}</label>
+                              <select class="form-select" name="algorithm">
+                                <option value="linear_regression" {% if model.algorithm == 'linear_regression' %}selected{% endif %}>{{ _('Régression linéaire') }}</option>
+                                <option value="moving_average" {% if model.algorithm == 'moving_average' %}selected{% endif %}>{{ _('Moyenne mobile') }}</option>
+                                <option value="mean_baseline" {% if model.algorithm == 'mean_baseline' %}selected{% endif %}>{{ _('Baseline moyenne') }}</option>
+                                <option value="decision_tree" {% if model.algorithm == 'decision_tree' %}selected{% endif %}>{{ _('Decision Tree') }}</option>
+                                <option value="random_forest" {% if model.algorithm == 'random_forest' %}selected{% endif %}>{{ _('Random Forest') }}</option>
+                                <option value="kmeans_clustering" {% if model.algorithm == 'kmeans_clustering' %}selected{% endif %}>{{ _('Clustering K-Means') }}</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label class="form-label">{{ _('Source BI') }}</label>
+                            <select class="form-select" name="source_id" required>
+                              <option value="">{{ _('Sélectionner...') }}</option>
+                              {% for source in sources %}
+                              <option value="{{ source.id }}" {% if (model.source_id | int) == source.id %}selected{% endif %}>{{ source.name }} ({{ source.type }})</option>
+                              {% endfor %}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label class="form-label">{{ _('Requête SQL entraînement') }}</label>
+                            <textarea name="sql_text" class="form-control" rows="5" maxlength="12000">{{ model.sql_text or '' }}</textarea>
+                          </div>
+
+                          <div class="ml-query-workspace js-query-workspace" data-preview-url="{{ url_for('ml.query_preview_from_form') }}">
+                            <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap mb-2">
+                              <div>
+                                <div class="fw-semibold">{{ _('Data Preview') }}</div>
+                                <div class="ml-query-meta">{{ _('Preview and validate your SQL output before saving.') }}</div>
+                              </div>
+                              <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-sm btn-outline-secondary js-inline-query-toggle" data-show-label="{{ _('Show preview') }}" data-hide-label="{{ _('Hide preview') }}">{{ _('Hide preview') }}</button>
+                                <button type="button" class="btn btn-sm btn-outline-primary js-inline-query-preview">{{ _('Preview query data') }}</button>
+                              </div>
+                            </div>
+                            <div class="js-inline-preview-body">
+                              <div class="alert alert-secondary py-2 mb-2 d-none js-inline-loading">{{ _('Loading data preview...') }}</div>
+                              <div class="alert alert-danger py-2 mb-2 d-none js-inline-error"></div>
+                              <div class="table-responsive d-none js-inline-table-wrap">
+                                <table class="table table-sm table-striped align-middle">
+                                  <thead class="js-inline-head"></thead>
+                                  <tbody class="js-inline-body"></tbody>
+                                </table>
+                              </div>
+                              <div class="d-flex align-items-center justify-content-between mt-2 d-none js-inline-footer">
+                                <small class="ml-query-meta js-inline-meta">-</small>
+                                <button type="button" class="btn btn-sm btn-outline-secondary d-none js-inline-load-more">{{ _('Load more') }}</button>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="row g-2">
+                            <div class="col-md-6">
+                              <label class="form-label">{{ _('Colonne X (optionnel)') }}</label>
+                              <input type="text" name="x_column" class="form-control" maxlength="120" value="{{ model.x_column or '' }}">
+                            </div>
+                            <div class="col-md-6">
+                              <label class="form-label">{{ _('Colonne Y (optionnel)') }}</label>
+                              <input type="text" name="y_column" class="form-control" maxlength="120" value="{{ model.y_column or '' }}">
+                            </div>
+                          </div>
+                        </div>
+                        <div class="modal-footer">
+                          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ _('Annuler') }}</button>
+                          <button type="submit" class="btn btn-primary">{{ _('Enregistrer les modifications') }}</button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <hr class="my-4">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label">{{ _('Prédire avec modèle') }}</label>
+          <select id="predict-model-id" class="form-select">
+            {% for model in models %}
+            <option value="{{ model.id }}">{{ model.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">{{ _('Valeur X') }}</label>
+          <input id="predict-x" type="number" step="any" class="form-control" placeholder="10">
+        </div>
+        <div class="col-md-2">
+          <button
+            id="predict-btn"
+            class="btn btn-primary w-100"
+            type="button"
+            data-predict-url="{{ url_for('ml.predict_model') }}"
+            data-msg-select="{{ _('Sélectionnez un modèle et entrez X.') }}"
+            data-msg-error="{{ _('Erreur de prédiction') }}"
+          >{{ _('Predict') }}</button>
+        </div>
+        <div class="col-md-3">
+          <div id="predict-result" class="alert alert-secondary mb-0 py-2">-</div>
+        </div>
+      </div>
+
+      <div class="modal fade" id="clustersPreviewModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="clustersPreviewTitle">{{ _('Clusters Preview') }}</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Fermer') }}"></button>
+            </div>
+            <div class="modal-body">
+              <div id="clustersPreviewLoading" class="alert alert-secondary">{{ _('Loading cluster preview...') }}</div>
+              <div class="row g-3" id="clustersPreviewBody" style="display:none;">
+                <div class="col-lg-8">
+                  <canvas id="clustersChart" height="130"></canvas>
+                </div>
+                <div class="col-lg-4">
+                  <h6 class="mb-2">{{ _('Suggested Groups') }}</h6>
+                  <div id="clustersSummaryList" class="vstack gap-2"></div>
+                </div>
+              </div>
+              <div id="clustersPreviewError" class="alert alert-danger" style="display:none;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal fade" id="queryPreviewModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title" id="queryPreviewTitle">{{ _('Data Preview') }}</h5>
+              <button type="button" class="btn btn-sm btn-outline-secondary me-2" id="queryPreviewToggleBtn" data-show-label="{{ _('Show preview') }}" data-hide-label="{{ _('Hide preview') }}">{{ _('Hide preview') }}</button>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Fermer') }}"></button>
+            </div>
+            <div class="modal-body">
+              <div id="queryPreviewContent">
+                <div id="queryPreviewLoading" class="alert alert-secondary">{{ _('Loading data preview...') }}</div>
+                <div id="queryPreviewError" class="alert alert-danger" style="display:none;"></div>
+
+                <div id="queryPreviewTableWrap" class="table-responsive" style="display:none;">
+                  <table class="table table-sm table-striped align-middle" id="queryPreviewTable">
+                    <thead id="queryPreviewHead"></thead>
+                    <tbody id="queryPreviewBody"></tbody>
+                  </table>
+                </div>
+
+                <div class="d-flex align-items-center justify-content-between mt-2" id="queryPreviewFooter" style="display:none;">
+                  <small class="text-muted" id="queryPreviewMeta">-</small>
+                  <button type="button" class="btn btn-outline-primary btn-sm" id="queryPreviewLoadMore">{{ _('Load more') }}</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="text-muted">{{ _('Aucun modèle enregistré pour le moment.') }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="d-flex justify-content-end ml-add-cta">
+    <button class="btn btn-primary btn-lg px-4" type="button" data-bs-toggle="collapse" data-bs-target="#addModelPanel" aria-expanded="false" aria-controls="addModelPanel">
+      <i class="bi bi-plus-circle me-2"></i>{{ _('Ajouter un modèle') }}
+    </button>
+  </div>
+
+  <div id="addModelPanel" class="collapse ml-add-panel">
+  <div class="row g-4 mb-4">
+    <div class="col-xl-8">
+      <div class="card ml-surface h-100">
+        <div class="card-body">
+          <h2 class="h5 mb-3">{{ _('Nouveau modèle') }}</h2>
+          <form method="post" id="sql-form" action="{{ url_for('ml.save_model') }}" class="vstack gap-3 js-loading-form" data-loading-text="{{ _('Saving model...') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div class="row g-2">
+              <div class="col-md-6">
+                <label class="form-label">{{ _('Nom du modèle') }}</label>
+                <input type="text" name="model_name" class="form-control" maxlength="120" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">{{ _('Algorithme') }}</label>
+                <select class="form-select" name="algorithm">
+                  {% if ml_page_key != 'unsupervised' %}
+                    <option value="linear_regression">{{ _('Régression linéaire') }}</option>
+                    <option value="moving_average">{{ _('Moyenne mobile') }}</option>
+                    <option value="mean_baseline">{{ _('Baseline moyenne') }}</option>
+                    <option value="decision_tree">{{ _('Decision Tree') }}</option>
+                    <option value="random_forest">{{ _('Random Forest') }}</option>
+                  {% endif %}
+                  {% if ml_page_key != 'supervised' %}
+                    <option value="kmeans_clustering">{{ _('Clustering K-Means') }}</option>
+                  {% endif %}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label class="form-label">{{ _('Source BI') }}</label>
+              <select class="form-select" id="source_id" name="source_id" required>
+                <option value="">{{ _('Sélectionner...') }}</option>
+                {% for source in sources %}
+                  <option value="{{ source.id }}" data-dbtype="{{ source.type }}">{{ source.name }} ({{ source.type }})</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div>
+              <label class="form-label">{{ _('AI Query Builder') }}</label>
+              <div class="d-flex gap-2 flex-wrap">
+                <input type="text" id="nlq-text" class="form-control" placeholder="{{ _('Ex: prévisions mensuelles de revenus') }}">
+                <button type="button" class="btn btn-outline-primary" id="nlq-generate">{{ _('Générer SQL') }}</button>
+              </div>
+              <div id="nlq-warnings" class="form-text mt-1"></div>
+            </div>
+
+            <details>
+              <summary class="fw-semibold cursor-pointer">{{ _('Query Builder') }}</summary>
+              <div class="mt-2 border rounded p-3">
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <label class="form-label">{{ _('Table') }}</label>
+                    <select id="qb-table" class="form-select"><option value="">--</option></select>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label">{{ _('Limit') }}</label>
+                    <input id="qb-limit" type="number" class="form-control" value="500" min="1" max="5000">
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label">{{ _('Columns') }}</label>
+                    <div id="qb-columns" class="d-flex flex-wrap gap-2"></div>
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label">{{ _('Filters') }}</label>
+                    <div class="d-flex gap-2 flex-wrap">
+                      <select id="qb-filter-field" class="form-select" style="min-width:180px;"></select>
+                      <select id="qb-filter-op" class="form-select" style="min-width:120px;">
+                        <option value="=">=</option>
+                        <option value="!=">!=</option>
+                        <option value=">">&gt;</option>
+                        <option value="<">&lt;</option>
+                        <option value="LIKE">LIKE</option>
+                      </select>
+                      <input id="qb-filter-value" class="form-control" style="min-width:180px;" placeholder="{{ _('Valeur') }}">
+                      <button type="button" class="btn btn-sm btn-outline-secondary" id="qb-add-filter">{{ _('Ajouter filtre') }}</button>
+                    </div>
+                    <div id="qb-filter-list" class="mt-2"></div>
+                  </div>
+                  <div class="col-12">
+                    <button type="button" class="btn btn-primary" id="qb-generate">{{ _('Générer SQL dans éditeur') }}</button>
+                  </div>
+                </div>
+              </div>
+            </details>
+
+            <div>
+              <label class="form-label">{{ _('Requête SQL entraînement') }}</label>
+              <textarea name="sql_text" id="sql_text" class="form-control" rows="7" maxlength="12000" placeholder="SELECT x, y FROM dataset"></textarea>
+              <small class="text-muted">{{ _('Autocomplete activé (Ctrl+Space). SQL optionnel à la création, requis pour entraîner.') }}</small>
+            </div>
+
+            <div class="ml-query-workspace js-query-workspace" data-preview-url="{{ url_for('ml.query_preview_from_form') }}">
+              <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap mb-2">
+                <div>
+                  <div class="fw-semibold">{{ _('Data Preview') }}</div>
+                  <div class="ml-query-meta">{{ _('Preview and validate your SQL output before saving.') }}</div>
+                </div>
+                <div class="d-flex gap-2">
+                  <button type="button" class="btn btn-sm btn-outline-secondary js-inline-query-toggle" data-show-label="{{ _('Show preview') }}" data-hide-label="{{ _('Hide preview') }}">{{ _('Hide preview') }}</button>
+                  <button type="button" class="btn btn-outline-primary btn-sm js-inline-query-preview">{{ _('Preview query data') }}</button>
+                </div>
+              </div>
+              <div class="js-inline-preview-body">
+                <div class="alert alert-secondary py-2 mb-2 d-none js-inline-loading">{{ _('Loading data preview...') }}</div>
+                <div class="alert alert-danger py-2 mb-2 d-none js-inline-error"></div>
+                <div class="table-responsive d-none js-inline-table-wrap">
+                  <table class="table table-sm table-striped align-middle">
+                    <thead class="js-inline-head"></thead>
+                    <tbody class="js-inline-body"></tbody>
+                  </table>
+                </div>
+                <div class="d-flex align-items-center justify-content-between mt-2 d-none js-inline-footer">
+                  <small class="ml-query-meta js-inline-meta">-</small>
+                  <button type="button" class="btn btn-sm btn-outline-secondary d-none js-inline-load-more">{{ _('Load more') }}</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="row g-2">
+              <div class="col-md-6">
+                <label class="form-label">{{ _('Colonne X (optionnel)') }}</label>
+                <input type="text" name="x_column" class="form-control" maxlength="120">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">{{ _('Colonne Y (optionnel)') }}</label>
+                <input type="text" name="y_column" class="form-control" maxlength="120">
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary">{{ _('Enregistrer le modèle') }}</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-xl-4">
+      <div class="card ml-surface mb-3">
+        <div class="card-body">
+          <h2 class="h6 mb-2">{{ _('Structure source') }}</h2>
+          <p class="text-muted small">{{ _('Tables/colonnes pour autocomplete et Query Builder.') }}</p>
+          <div class="bi-schema" id="schema"></div>
+        </div>
+      </div>
+
+      <div class="card ml-surface">
+        <div class="card-body">
+          <h2 class="h6 mb-2">{{ _('MLflow') }}</h2>
+          <p class="text-muted mb-2">{{ _('MLflow s\'ouvre uniquement dans un onglet dédié pour une expérience complète.') }}</p>
+          {% if mlflow_embed_url %}
+          <a class="btn btn-sm btn-outline-primary" href="{{ mlflow_embed_url }}" target="_blank" rel="noopener">{{ _('Ouvrir MLflow') }}</a>
+          {% else %}
+          <small class="text-muted">{{ _('Configurez MLFLOW_TRACKING_URI pour activer l\'ouverture de MLflow.') }}</small>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  </div>
+  {% endif %}
+
+  {% if ml_page_key == 'concepts' %}
+  <div class="row g-3">
+    <div class="col-xl-9 col-lg-8">
+      <div class="card ml-surface">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap mb-2">
+            <h2 class="h5 mb-0">{{ _('Concepts de Machine Learning') }}</h2>
+            <div class="btn-group btn-group-sm" role="group" aria-label="mindmap controls">
+              <button id="mlMindZoomIn" type="button" class="btn btn-outline-secondary">+</button>
+              <button id="mlMindZoomOut" type="button" class="btn btn-outline-secondary">-</button>
+              <button id="mlMindReset" type="button" class="btn btn-outline-secondary">{{ _('Reset view') }}</button>
+            </div>
+          </div>
+          <p class="text-muted mb-3">{{ _('Carte interactive des catégories, du cycle de vie, des métriques et de la mise en production.') }}</p>
+          <div id="mlMindmapWrap" class="border rounded p-2" style="min-height:1200px; background:#fff; overflow:auto;">
+            <pre id="mlMindmap" class="mermaid mb-0"></pre>
+          </div>
+          <div class="small text-muted mt-2">{{ _('Cliquez sur une box du diagramme ou ci-dessous pour ouvrir le détail du concept.') }}</div>
+          <div class="concept-grid mt-2" id="conceptBoxGrid">
+            <button type="button" class="concept-box js-concept-box" data-concept="bi_source">{{ _('BI Data Source') }}</button>
+            <button type="button" class="concept-box js-concept-box" data-concept="sql_dataset">{{ _('SQL Dataset') }}</button>
+            <button type="button" class="concept-box js-concept-box" data-concept="feature_selection">{{ _('Feature Selection') }}</button>
+            <button type="button" class="concept-box js-concept-box" data-concept="train_test_split">{{ _('Train/Test Split') }}</button>
+            <button type="button" class="concept-box js-concept-box" data-concept="supervised_models">{{ _('Supervised Models') }}</button>
+            <button type="button" class="concept-box js-concept-box" data-concept="unsupervised_models">{{ _('Unsupervised Models') }}</button>
+            <button type="button" class="concept-box js-concept-box" data-concept="kmeans">{{ _('K-Means Clustering') }}</button>
+            <button type="button" class="concept-box js-concept-box" data-concept="evaluation">{{ _('Evaluation') }}</button>
+            <button type="button" class="concept-box js-concept-box" data-concept="fit_status">{{ _('Fit Status') }}</button>
+            <button type="button" class="concept-box js-concept-box" data-concept="deployment">{{ _('Deployment') }}</button>
+            <button type="button" class="concept-box js-concept-box" data-concept="monitoring">{{ _('Monitoring') }}</button>
+            <button type="button" class="concept-box js-concept-box" data-concept="retraining">{{ _('Retraining') }}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-xl-3 col-lg-4">
+      <div class="card ml-surface mb-3">
+        <div class="card-body">
+          <h3 class="h6">{{ _('Catégories ML') }}</h3>
+          <ul class="small mb-0">
+            <li>{{ _('Supervisé: la colonne Y est connue (régression/classification).') }}</li>
+            <li>{{ _('Non supervisé: pas de Y cible, on cherche des structures (clusters).') }}</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card ml-surface">
+        <div class="card-body">
+          <h3 class="h6">{{ _('Interprétation des fits') }}</h3>
+          <ul class="small mb-0">
+            <li>{{ _('Overfit: très bon train, dégradation nette sur test (écart élevé).') }}</li>
+            <li>{{ _('Underfit: performances faibles sur train et test (modèle trop simple).') }}</li>
+            <li>{{ _('Good fit: bonnes performances et faible écart train/test.') }}</li>
+            <li>{{ _('Balanced: zone intermédiaire acceptable à surveiller.') }}</li>
+          </ul>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="modal fade" id="conceptDetailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="conceptDetailTitle">{{ _('Détail du concept') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{{ _('Fermer') }}"></button>
+        </div>
+        <div class="modal-body">
+          <p class="mb-0" id="conceptDetailBody"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if ml_page_key == 'mlflow' %}
+  <div class="row g-3">
+    <div class="col-lg-8">
+      <div class="card ml-surface h-100">
+        <div class="card-body">
+          <h2 class="h5 mb-2">{{ _('MLflow') }}</h2>
+          <p class="text-muted mb-3">{{ _('MLflow est la couche de suivi MLOps de ML Studio: il centralise les expériences, les métriques, les paramètres, les artefacts et le statut de déploiement.') }}</p>
+          <div class="mb-3 ml-illustration">
+            <img src="{{ url_for('static', filename='images/ml/mlflow-explainer.svg') }}" alt="{{ _('Cycle de vie MLflow') }}" class="img-fluid" loading="lazy">
+          </div>
+          <div class="row g-2">
+            <div class="col-md-6">
+              <div class="border rounded p-2 h-100">
+                <div class="fw-semibold">{{ _('Ce que fait MLflow') }}</div>
+                <ul class="small mb-0 mt-1">
+                  <li>{{ _('Suit chaque run avec ses paramètres et métriques exacts.') }}</li>
+                  <li>{{ _('Stocke les artefacts (données modèle, specs d\'entraînement, sorties).') }}</li>
+                  <li>{{ _('Relie les runs d\'entraînement aux événements de déploiement.') }}</li>
+                </ul>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="border rounded p-2 h-100">
+                <div class="fw-semibold">{{ _('Pourquoi c\'est important') }}</div>
+                <ul class="small mb-0 mt-1">
+                  <li>{{ _('Reproductibilité et auditabilité pour la gouvernance.') }}</li>
+                  <li>{{ _('Comparaison objective avant la mise en production.') }}</li>
+                  <li>{{ _('Diagnostic plus rapide en cas de dérive de performance.') }}</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4" id="mlflow-tutorial">
+      <div class="card ml-surface mb-3">
+        <div class="card-body">
+          <h3 class="h6 mb-2">{{ _('Tutoriel MLflow') }}</h3>
+          <ol class="small mb-2">
+            <li>{{ _('Créez ou modifiez un modèle avec une source et une requête SQL valides.') }}</li>
+            <li>{{ _('Lancez Train pour enregistrer un run (métriques + paramètres).') }}</li>
+            <li>{{ _('Ouvrez le run MLflow depuis la colonne Run pour analyser les détails.') }}</li>
+            <li>{{ _('Déployez le meilleur modèle et suivez son statut dans la liste.') }}</li>
+          </ol>
+          {% if mlflow_embed_url %}
+          <a class="btn btn-sm btn-outline-primary" href="{{ mlflow_embed_url }}" target="_blank" rel="noopener">{{ _('Ouvrir MLflow') }}</a>
+          {% else %}
+          <small class="text-muted">{{ _('Configurez MLFLOW_TRACKING_URI pour ouvrir MLflow.') }}</small>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block body_scripts %}
+{{ super() }}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/sql/sql.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/sql-hint.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/svg-pan-zoom@3.6.1/dist/svg-pan-zoom.min.js"></script>
+<script src="{{ url_for('static', filename='bi/bi_editor.js') }}"></script>
+<script>
+(function () {
+  const i18n = {
+    processing: {{ _('Processing...')|tojson }},
+    clustersPreview: {{ _('Clusters Preview')|tojson }},
+    unableLoadClusters: {{ _('Unable to load clusters')|tojson }},
+    dataPreview: {{ _('Data Preview')|tojson }},
+    loadingDataPreview: {{ _('Loading data preview...')|tojson }},
+    unableLoadDataPreview: {{ _('Unable to load data preview')|tojson }},
+    noRowsReturned: {{ _('No rows returned.')|tojson }},
+    rowsLoaded: {{ _('Rows loaded')|tojson }},
+    clusterGroups: {{ _('Cluster groups')|tojson }},
+    previewQueryData: {{ _('Preview query data')|tojson }},
+    previewNeedsSourceAndSql: {{ _('Please select a source and provide SQL.')|tojson }},
+    predictSelectModelX: {{ _('Sélectionnez un modèle et la valeur x')|tojson }},
+    predictionError: {{ _('Erreur de prédiction')|tojson }},
+    clusterLabel: {{ _('cluster')|tojson }},
+    centroidLabel: {{ _('centroïde')|tojson }},
+    shareLabel: {{ _('part')|tojson }},
+    rowsLabel: {{ _('lignes')|tojson }},
+    showPreview: {{ _('Show preview')|tojson }},
+    hidePreview: {{ _('Hide preview')|tojson }},
+    modelsLabel: {{ _('Modèles')|tojson }},
+    fitUnknown: {{ _('Inconnu')|tojson }},
+    fitOverfit: {{ _('Overfit')|tojson }},
+    fitUnderfit: {{ _('Underfit')|tojson }},
+    fitGood: {{ _('Good fit')|tojson }},
+    fitBalanced: {{ _('Balanced')|tojson }},
+    invalidServerJson: {{ _('La réponse serveur n\'est pas un JSON valide. Vérifiez la session/CSRF et la route API.')|tojson }},
+    sampleSentimentInserted: {{ _('Exemple sentiment injecté. Sélectionnez une source puis lancez l\'évaluation.')|tojson }},
+    sampleCommentColumn: {{ _('comment_text')|tojson }},
+    saveSnapshot: {{ _('Sauvegarder snapshot')|tojson }},
+    snapshotSaved: {{ _('Snapshot sauvegardé.')|tojson }},
+    unableSaveSnapshot: {{ _('Impossible de sauvegarder le snapshot.')|tojson }},
+    noSnapshotYet: {{ _('Aucun snapshot pour le moment.')|tojson }},
+    loadSnapshots: {{ _('Charger snapshots')|tojson }},
+    mlflowUnavailable: {{ _('MLflow indisponible pour ce snapshot.')|tojson }},
+    snapshotSentMlflow: {{ _('Snapshot envoyé vers MLflow.')|tojson }},
+    reloadSnapshot: {{ _('Recharger')|tojson }}
+  };
+
+  const overlay = document.getElementById('mlLoadingOverlay');
+  const overlayText = document.getElementById('mlLoadingText');
+  const showOverlay = function (message) {
+    if (!overlay) return;
+    if (overlayText) {
+      overlayText.textContent = message || i18n.processing;
+    }
+    overlay.classList.add('show');
+  };
+
+  const hideOverlay = function () {
+    if (!overlay) return;
+    overlay.classList.remove('show');
+  };
+
+  document.querySelectorAll('.js-loading-form').forEach(function (form) {
+    form.addEventListener('submit', function () {
+      const msg = form.dataset.loadingText || i18n.processing;
+      showOverlay(msg);
+    });
+  });
+
+  const overviewDataEl = document.getElementById('mlOverviewData');
+  const trendCanvas = document.getElementById('mlOverviewTrendChart');
+  const algoCanvas = document.getElementById('mlOverviewAlgoChart');
+  const fitCanvas = document.getElementById('mlOverviewFitChart');
+  if (overviewDataEl && (trendCanvas || algoCanvas || fitCanvas) && window.Chart) {
+    try {
+      const models = JSON.parse(overviewDataEl.textContent || '[]');
+      const trained = (models || []).filter(function (m) {
+        return m && m.model_data;
+      });
+
+      if (algoCanvas) {
+        const algoCounts = {};
+        (models || []).forEach(function (m) {
+          const key = String((m && m.algorithm) || 'unknown');
+          algoCounts[key] = (algoCounts[key] || 0) + 1;
+        });
+        new Chart(algoCanvas, {
+          type: 'bar',
+          data: {
+            labels: Object.keys(algoCounts),
+            datasets: [{
+              label: i18n.modelsLabel,
+              data: Object.keys(algoCounts).map(function (k) { return algoCounts[k]; }),
+              backgroundColor: '#2563eb'
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+          }
+        });
+      }
+
+      if (fitCanvas) {
+        const fitCounts = { overfit: 0, underfit: 0, good_fit: 0, balanced: 0, unknown: 0 };
+        trained.forEach(function (m) {
+          const fit = String((((m || {}).metrics || {}).fit_indicator) || 'unknown');
+          if (typeof fitCounts[fit] === 'undefined') fitCounts.unknown += 1;
+          else fitCounts[fit] += 1;
+        });
+        new Chart(fitCanvas, {
+          type: 'doughnut',
+          data: {
+            labels: [i18n.fitOverfit, i18n.fitUnderfit, i18n.fitGood, i18n.fitBalanced, i18n.fitUnknown],
+            datasets: [{
+              data: [fitCounts.overfit, fitCounts.underfit, fitCounts.good_fit, fitCounts.balanced, fitCounts.unknown],
+              backgroundColor: ['#f59e0b', '#dc2626', '#16a34a', '#0ea5e9', '#94a3b8']
+            }]
+          },
+          options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+        });
+      }
+
+      if (trendCanvas) {
+        const trendRows = trained
+          .filter(function (m) { return m && m.trained_at; })
+          .map(function (m) {
+            const mt = (m || {}).metrics || {};
+            return {
+              label: String(m.name || '').slice(0, 24),
+              ts: String(m.trained_at || ''),
+              acc: (mt.accuracy === null || typeof mt.accuracy === 'undefined') ? null : Number(mt.accuracy),
+              r2: (mt.r2 === null || typeof mt.r2 === 'undefined') ? null : Number(mt.r2)
+            };
+          })
+          .sort(function (a, b) {
+            return new Date(a.ts).getTime() - new Date(b.ts).getTime();
+          })
+          .slice(-12);
+
+        new Chart(trendCanvas, {
+          type: 'line',
+          data: {
+            labels: trendRows.map(function (r) { return r.label; }),
+            datasets: [
+              {
+                label: 'Accuracy %',
+                data: trendRows.map(function (r) { return r.acc; }),
+                borderColor: '#2563eb',
+                backgroundColor: 'rgba(37, 99, 235, 0.12)',
+                spanGaps: true,
+                yAxisID: 'yAcc'
+              },
+              {
+                label: 'R2',
+                data: trendRows.map(function (r) { return r.r2; }),
+                borderColor: '#16a34a',
+                backgroundColor: 'rgba(22, 163, 74, 0.12)',
+                spanGaps: true,
+                yAxisID: 'yR2'
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { position: 'bottom' } },
+            scales: {
+              yAcc: {
+                type: 'linear',
+                position: 'left',
+                beginAtZero: true,
+                suggestedMax: 100
+              },
+              yR2: {
+                type: 'linear',
+                position: 'right',
+                grid: { drawOnChartArea: false }
+              }
+            }
+          }
+        });
+      }
+    } catch (e) {
+      // Keep overview usable even if chart parsing fails.
+    }
+  }
+
+  const sentimentForm = document.getElementById('mlSentimentForm');
+  const sentimentSampleBtn = document.getElementById('mlSentimentSampleBtn');
+  const sentimentSaveSnapshotBtn = document.getElementById('mlSentimentSaveSnapshot');
+  const sentimentLogMlflowBtn = document.getElementById('mlSentimentLogMlflow');
+  const sentimentRefreshSnapshotsBtn = document.getElementById('mlSentimentRefreshSnapshots');
+  const sentimentSnapshotsBody = document.getElementById('mlSentimentSnapshotsBody');
+  const sentimentLoading = document.getElementById('mlSentimentLoading');
+  const sentimentError = document.getElementById('mlSentimentError');
+  const sentimentResults = document.getElementById('mlSentimentResults');
+  const sentimentResultsTab = document.getElementById('mlSentimentResultsTab');
+  const sentimentSnapshotsTab = document.getElementById('mlSentimentSnapshotsTab');
+  const sentimentSqlTextarea = document.getElementById('mlSentSqlText');
+  const sentimentWordBubbleCanvas = document.getElementById('mlSentimentWordBubble');
+  const sentNlqText = document.getElementById('mlSentNlqText');
+  const sentNlqGenerate = document.getElementById('mlSentNlqGenerate');
+  const sentNlqWarnings = document.getElementById('mlSentNlqWarnings');
+  const sentSchema = document.getElementById('mlSentSchema');
+  const sentQbTable = document.getElementById('mlSentQbTable');
+  const sentQbLimit = document.getElementById('mlSentQbLimit');
+  const sentQbColumns = document.getElementById('mlSentQbColumns');
+  const sentQbFilterField = document.getElementById('mlSentQbFilterField');
+  const sentQbFilterOp = document.getElementById('mlSentQbFilterOp');
+  const sentQbFilterValue = document.getElementById('mlSentQbFilterValue');
+  const sentQbAddFilter = document.getElementById('mlSentQbAddFilter');
+  const sentQbFilterList = document.getElementById('mlSentQbFilterList');
+  const sentQbGenerate = document.getElementById('mlSentQbGenerate');
+  let sentimentBubbleChart = null;
+  let sentimentSqlEditor = null;
+  let lastSentimentResult = null;
+  let lastSentimentSnapshots = [];
+
+  const setSentimentSqlText = function (txt) {
+    const value = String(txt || '');
+    if (sentimentSqlEditor) {
+      sentimentSqlEditor.setValue(value);
+      return;
+    }
+    if (sentimentSqlTextarea) {
+      sentimentSqlTextarea.value = value;
+    }
+  };
+
+  const getSentimentSqlText = function () {
+    if (sentimentSqlEditor) {
+      return String(sentimentSqlEditor.getValue() || '').trim();
+    }
+    return String((sentimentForm && (sentimentForm.querySelector('[name="sql_text"]') || {}).value) || '').trim();
+  };
+
+  const syncSentimentSqlTextarea = function () {
+    if (sentimentSqlEditor && sentimentSqlTextarea) {
+      sentimentSqlEditor.save();
+    }
+  };
+
+  const switchToSentimentTab = function (tabBtn) {
+    if (!tabBtn || !window.bootstrap) return;
+    try {
+      new bootstrap.Tab(tabBtn).show();
+    } catch (_e) {}
+  };
+
+  const sentQbState = {
+    schemaMeta: null,
+    tablesMap: {},
+    table: '',
+    columns: new Set(),
+    filters: []
+  };
+
+  const sentSqlLimitClause = function (dbType, limit) {
+    const n = Number(limit || 0);
+    if (!n || n <= 0) return { selectPrefix: '', suffix: '' };
+    const t = String(dbType || '').toLowerCase();
+    if (t.includes('sqlserver') || t.includes('mssql')) {
+      return { selectPrefix: 'TOP ' + String(n) + ' ', suffix: '' };
+    }
+    if (t.includes('oracle')) {
+      return { selectPrefix: '', suffix: ' FETCH FIRST ' + String(n) + ' ROWS ONLY' };
+    }
+    return { selectPrefix: '', suffix: ' LIMIT ' + String(n) };
+  };
+
+  const sentCurrentDbType = function () {
+    if (!sentimentForm) return '';
+    const sourceInput = sentimentForm.querySelector('[name="source_id"]');
+    if (!sourceInput || !sourceInput.options) return '';
+    const opt = sourceInput.options[sourceInput.selectedIndex];
+    return (opt && opt.dataset && opt.dataset.dbtype) ? String(opt.dataset.dbtype) : '';
+  };
+
+  const sentCurrentTableCols = function () {
+    if (!sentQbState.table) return [];
+    return sentQbState.tablesMap[sentQbState.table] || [];
+  };
+
+  const sentRenderSchema = function () {
+    if (!sentSchema) return;
+    const meta = sentQbState.schemaMeta;
+    if (!meta || !Array.isArray(meta.schemas)) {
+      sentSchema.innerHTML = '<em>-</em>';
+      return;
+    }
+    let html = '';
+    meta.schemas.forEach(function (sc) {
+      html += '<details open><summary><i class="bi bi-diagram-3 me-1"></i><strong>' + String(sc.name || 'schema') + '</strong></summary>';
+      (sc.tables || []).forEach(function (tbl) {
+        html += '<div class="tbl"><i class="bi bi-table me-1"></i><strong>' + String(tbl.name || '') + '</strong></div>';
+        const cols = (tbl.columns || []).map(function (c) {
+          return '<i class="bi bi-columns-gap me-1"></i>' + String(c.name || '') + ' <span style="color:#777;">(' + String(c.type || '') + ')</span>';
+        });
+        html += '<div class="cols">' + (cols.length ? cols.join('<br/>') : '-') + '</div>';
+      });
+      html += '</details>';
+    });
+    sentSchema.innerHTML = html;
+  };
+
+  const sentRenderQb = function () {
+    const cols = sentCurrentTableCols();
+    if (sentQbColumns) {
+      if (!cols.length) {
+        sentQbColumns.innerHTML = '<em>-</em>';
+      } else {
+        sentQbColumns.innerHTML = cols.map(function (c) {
+          const checked = sentQbState.columns.has(c) ? 'checked' : '';
+          return '<label style="display:inline-flex;align-items:center;gap:.35em;"><input type="checkbox" data-col="' + String(c) + '" ' + checked + '> ' + String(c) + '</label>';
+        }).join('');
+        sentQbColumns.querySelectorAll('input[type="checkbox"]').forEach(function (el) {
+          el.addEventListener('change', function () {
+            const c = String(el.getAttribute('data-col') || '');
+            if (!c) return;
+            if (el.checked) sentQbState.columns.add(c);
+            else sentQbState.columns.delete(c);
+          });
+        });
+      }
+    }
+
+    if (sentQbFilterField) {
+      sentQbFilterField.innerHTML = '<option value="">--</option>' + cols.map(function (c) {
+        return '<option value="' + String(c) + '">' + String(c) + '</option>';
+      }).join('');
+    }
+
+    if (sentQbFilterList) {
+      if (!sentQbState.filters.length) {
+        sentQbFilterList.innerHTML = '<em>-</em>';
+      } else {
+        sentQbFilterList.innerHTML = sentQbState.filters.map(function (f, i) {
+          return '<div style="margin:.2em 0; padding:.35em .5em; border:1px solid #eee; border-radius:8px;"><code>' + String(f.field) + ' ' + String(f.op) + ' :' + String(f.param) + '</code><a href="#" data-rm="' + String(i) + '" style="float:right;">x</a></div>';
+        }).join('');
+        sentQbFilterList.querySelectorAll('a[data-rm]').forEach(function (a) {
+          a.addEventListener('click', function (e) {
+            e.preventDefault();
+            const idx = Number(a.getAttribute('data-rm'));
+            if (Number.isInteger(idx) && idx >= 0) {
+              sentQbState.filters.splice(idx, 1);
+              sentRenderQb();
+            }
+          });
+        });
+      }
+    }
+  };
+
+  const sentLoadSchema = async function () {
+    if (!sentimentForm) return;
+    const sourceInput = sentimentForm.querySelector('[name="source_id"]');
+    const sourceId = sourceInput ? String(sourceInput.value || '').trim() : '';
+    if (!sourceId) {
+      sentQbState.schemaMeta = null;
+      sentQbState.tablesMap = {};
+      sentQbState.table = '';
+      sentQbState.columns = new Set();
+      sentQbState.filters = [];
+      if (sentQbTable) sentQbTable.innerHTML = '<option value="">--</option>';
+      sentRenderSchema();
+      sentRenderQb();
+      sentRefreshAutocomplete();
+      return;
+    }
+    try {
+      const resp = await fetch('/app/api/sources/' + String(sourceId) + '/schema', { credentials: 'same-origin' });
+      if (!resp.ok) throw new Error('schema');
+      const meta = await resp.json();
+      sentQbState.schemaMeta = meta;
+      const tablesMap = {};
+      const tableNames = [];
+      (meta.schemas || []).forEach(function (sc) {
+        (sc.tables || []).forEach(function (tbl) {
+          const tname = String(tbl.name || '');
+          const cols = (tbl.columns || []).map(function (c) { return String(c.name || ''); }).filter(Boolean);
+          if (tname) {
+            tablesMap[tname] = cols;
+            tableNames.push(tname);
+            if (sc.name) {
+              tablesMap[String(sc.name) + '.' + tname] = cols;
+              tableNames.push(String(sc.name) + '.' + tname);
+            }
+          }
+        });
+      });
+      sentQbState.tablesMap = tablesMap;
+      sentQbState.table = '';
+      sentQbState.columns = new Set();
+      sentQbState.filters = [];
+      if (sentQbTable) {
+        sentQbTable.innerHTML = '<option value="">--</option>' + tableNames.map(function (t) {
+          return '<option value="' + String(t) + '">' + String(t) + '</option>';
+        }).join('');
+      }
+      sentRenderSchema();
+      sentRenderQb();
+      sentRefreshAutocomplete();
+    } catch (_e) {
+      sentQbState.schemaMeta = null;
+      sentRenderSchema();
+      sentRefreshAutocomplete();
+    }
+  };
+
+  const sentRefreshAutocomplete = function () {
+    if (!sentimentSqlEditor || typeof CodeMirror === 'undefined') return;
+    sentimentSqlEditor.setOption('hintOptions', {
+      tables: sentQbState.tablesMap
+    });
+  };
+
+  function renderSentimentBubble(data) {
+    if (!sentimentWordBubbleCanvas || !window.Chart) return;
+    const positives = Array.isArray(data.top_positive_words) ? data.top_positive_words : [];
+    const negatives = Array.isArray(data.top_negative_words) ? data.top_negative_words : [];
+
+    const posData = positives.slice(0, 12).map(function (item, idx) {
+      const count = Number(item.count || 0);
+      return {
+        x: idx + 1,
+        y: count,
+        r: Math.max(5, Math.min(36, Math.round(Math.sqrt(Math.max(1, count)) * 8))),
+        word: String(item.word || '')
+      };
+    });
+    const negData = negatives.slice(0, 12).map(function (item, idx) {
+      const count = Number(item.count || 0);
+      return {
+        x: -(idx + 1),
+        y: count,
+        r: Math.max(5, Math.min(36, Math.round(Math.sqrt(Math.max(1, count)) * 8))),
+        word: String(item.word || '')
+      };
+    });
+
+    if (sentimentBubbleChart) {
+      sentimentBubbleChart.destroy();
+    }
+
+    sentimentBubbleChart = new Chart(sentimentWordBubbleCanvas, {
+      type: 'bubble',
+      data: {
+        datasets: [
+          {
+            label: 'Positive',
+            data: posData,
+            backgroundColor: 'rgba(22, 163, 74, 0.45)',
+            borderColor: '#16a34a',
+            borderWidth: 1
+          },
+          {
+            label: 'Negative',
+            data: negData,
+            backgroundColor: 'rgba(220, 38, 38, 0.45)',
+            borderColor: '#dc2626',
+            borderWidth: 1
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'bottom' },
+          tooltip: {
+            callbacks: {
+              label: function (ctx) {
+                const raw = ctx.raw || {};
+                return String(raw.word || '') + ' (' + String(raw.y || 0) + ')';
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            title: { display: true, text: 'Negative <-> Positive' },
+            min: -13,
+            max: 13
+          },
+          y: {
+            beginAtZero: true,
+            title: { display: true, text: i18n.rowsLabel }
+          }
+        }
+      }
+    });
+  }
+
+  function renderSnapshots(items) {
+    if (!sentimentSnapshotsBody) return;
+    sentimentSnapshotsBody.innerHTML = '';
+    const rows = Array.isArray(items) ? items : [];
+    lastSentimentSnapshots = rows;
+    if (!rows.length) {
+      sentimentSnapshotsBody.innerHTML = '<tr><td colspan="6" class="text-muted">' + i18n.noSnapshotYet + '</td></tr>';
+      return;
+    }
+    rows.forEach(function (snap, idx) {
+      const tr = document.createElement('tr');
+      const summary = snap.summary || {};
+      tr.innerHTML =
+        '<td>' + String(snap.created_at || '-') + '</td>' +
+        '<td>' + String(snap.source_name || snap.source_id || '-') + '</td>' +
+        '<td>' + String(snap.text_column || '-') + '</td>' +
+        '<td>' + String(snap.rows_analyzed || 0) + '</td>' +
+        '<td>' +
+          'P:' + String(summary.positive || 0) +
+          ' N:' + String(summary.neutral || 0) +
+          ' Neg:' + String(summary.negative || 0) +
+          ' Avg:' + String(summary.avg_score || 0) +
+        '</td>' +
+        '<td class="text-end"><button type="button" class="btn btn-sm btn-outline-primary js-reload-sentiment-snapshot" data-index="' + String(idx) + '">' + i18n.reloadSnapshot + '</button></td>';
+      sentimentSnapshotsBody.appendChild(tr);
+    });
+  }
+
+  async function loadSentimentSnapshots() {
+    if (!sentimentSnapshotsBody) return;
+    try {
+      const resp = await fetch('{{ url_for('ml.sentiment_snapshots_list') }}', {
+        method: 'GET',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      });
+      const raw = await resp.text();
+      const data = raw ? JSON.parse(raw) : {};
+      if (!resp.ok || !data.ok) throw new Error(i18n.unableLoadDataPreview);
+      renderSnapshots(data.snapshots || []);
+    } catch (_e) {
+      renderSnapshots([]);
+    }
+  }
+
+  if (sentimentSampleBtn && sentimentForm) {
+    sentimentSampleBtn.addEventListener('click', function () {
+      const textColumnInput = sentimentForm.querySelector('[name="text_column"]');
+      if (textColumnInput) {
+        textColumnInput.value = i18n.sampleCommentColumn;
+      }
+      setSentimentSqlText([
+        "SELECT 'Produit excellent, livraison rapide et support au top' AS comment_text",
+        "UNION ALL SELECT 'Service lent et qualite mediocre, je suis decu'",
+        "UNION ALL SELECT 'Correct sans plus, experience neutre'",
+        "UNION ALL SELECT 'Interface claire, equipe reactive, tres satisfait'",
+        "UNION ALL SELECT 'Application instable, nombreux bugs, frustrant'"
+      ].join('\n'));
+      if (sentimentError) {
+        sentimentError.classList.remove('d-none');
+        sentimentError.classList.remove('alert-danger');
+        sentimentError.classList.add('alert-secondary');
+        sentimentError.textContent = i18n.sampleSentimentInserted;
+      }
+    });
+  }
+
+  if (sentimentForm) {
+    // CodeMirror keeps a hidden textarea in sync only when explicitly saved.
+    // Disable native form validation so JS validation always executes.
+    sentimentForm.setAttribute('novalidate', 'novalidate');
+
+    if (sentimentSqlTextarea && typeof CodeMirror !== 'undefined') {
+      sentimentSqlEditor = CodeMirror.fromTextArea(sentimentSqlTextarea, {
+        mode: 'text/x-sql',
+        lineNumbers: true,
+        lineWrapping: true,
+        autofocus: false,
+        extraKeys: {
+          'Ctrl-Space': 'autocomplete',
+          'Cmd-Space': 'autocomplete'
+        }
+      });
+      sentimentSqlEditor.on('inputRead', function (instance, change) {
+        const ch = change && change.text ? change.text[0] : '';
+        if (ch === '.' || ch === '_' || /[A-Za-z]/.test(ch || '')) {
+          CodeMirror.commands.autocomplete(instance, null, { completeSingle: false });
+        }
+      });
+      sentimentSqlEditor.on('change', function (instance) {
+        instance.save();
+      });
+      sentRefreshAutocomplete();
+    }
+
+    const sourceInput = sentimentForm.querySelector('[name="source_id"]');
+    if (sourceInput) {
+      sourceInput.addEventListener('change', sentLoadSchema);
+    }
+
+    if (sentQbTable) {
+      sentQbTable.addEventListener('change', function () {
+        sentQbState.table = String(sentQbTable.value || '');
+        sentQbState.columns = new Set();
+        sentQbState.filters = [];
+        sentRenderQb();
+      });
+    }
+
+    if (sentQbAddFilter) {
+      sentQbAddFilter.addEventListener('click', function (e) {
+        e.preventDefault();
+        const field = sentQbFilterField ? String(sentQbFilterField.value || '') : '';
+        const op = sentQbFilterOp ? String(sentQbFilterOp.value || '=') : '=';
+        const raw = sentQbFilterValue ? String(sentQbFilterValue.value || '') : '';
+        if (!field) return;
+        const base = String(field).toLowerCase().replace(/[^a-z0-9_]+/g, '_') || 'p';
+        const idx = sentQbState.filters.filter(function (f) { return String(f.param || '').indexOf(base) === 0; }).length + 1;
+        const param = base + '_' + String(idx);
+        const suggested = (String(op).toUpperCase() === 'LIKE' && raw && raw.indexOf('%') === -1) ? ('%' + raw + '%') : raw;
+        sentQbState.filters.push({ field: field, op: op, param: param, suggestedValue: suggested });
+        if (sentQbFilterValue) sentQbFilterValue.value = '';
+        sentRenderQb();
+      });
+    }
+
+    if (sentQbGenerate) {
+      sentQbGenerate.addEventListener('click', function (e) {
+        e.preventDefault();
+        if (!sentQbState.table) return;
+        const cols = Array.from(sentQbState.columns);
+        const limitSpec = sentSqlLimitClause(sentCurrentDbType(), sentQbLimit ? sentQbLimit.value : 500);
+        const selectedCols = cols.length ? cols.join(', ') : '*';
+        let sql = 'SELECT ' + String(limitSpec.selectPrefix || '') + selectedCols + ' FROM ' + String(sentQbState.table);
+
+        const tableCols = sentCurrentTableCols().map(function (c) { return String(c).toLowerCase(); });
+        const filters = sentQbState.filters.slice();
+        if (tableCols.indexOf('tenant_id') !== -1) {
+          filters.unshift({ field: 'tenant_id', op: '=', param: 'tenant_id' });
+        }
+        if (filters.length) {
+          sql += ' WHERE ' + filters.map(function (f) {
+            return String(f.field) + ' ' + String(f.op).toUpperCase() + ' :' + String(f.param);
+          }).join(' AND ');
+        }
+        sql += String(limitSpec.suffix || '');
+
+        setSentimentSqlText(sql);
+      });
+    }
+
+    if (sentNlqGenerate) {
+      sentNlqGenerate.addEventListener('click', async function (e) {
+        e.preventDefault();
+        const sourceId = String((sentimentForm.querySelector('[name="source_id"]') || {}).value || '').trim();
+        const text = sentNlqText ? String(sentNlqText.value || '') : '';
+        const csrfToken = String((sentimentForm.querySelector('[name="csrf_token"]') || {}).value || '').trim();
+        if (!sourceId) return;
+        if (sentNlqWarnings) sentNlqWarnings.innerHTML = '';
+        try {
+          const resp = await fetch('/app/api/nlq', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({ source_id: Number(sourceId), text: text })
+          });
+          const payload = await resp.json().catch(function () { return {}; });
+          if (!resp.ok) {
+            if (sentNlqWarnings) sentNlqWarnings.innerHTML = '<span style="color:#b00;">' + String(payload.error || 'Error') + '</span>';
+            return;
+          }
+          setSentimentSqlText(String(payload.sql || ''));
+          if (sentNlqWarnings && Array.isArray(payload.warnings) && payload.warnings.length) {
+            sentNlqWarnings.innerHTML = payload.warnings.map(function (w) { return '<div style="color:#a60;">- ' + String(w) + '</div>'; }).join('');
+          }
+        } catch (_err) {
+          if (sentNlqWarnings) sentNlqWarnings.innerHTML = '<span style="color:#b00;">Error</span>';
+        }
+      });
+    }
+
+    sentLoadSchema();
+
+    sentimentForm.addEventListener('submit', async function (event) {
+      event.preventDefault();
+      syncSentimentSqlTextarea();
+      const submitBtn = sentimentForm.querySelector('button[type="submit"]');
+      const originalSubmitHtml = submitBtn ? submitBtn.innerHTML : '';
+      switchToSentimentTab(sentimentResultsTab);
+      showOverlay(i18n.processing);
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>' + i18n.processing;
+      }
+      if (sentimentLoading) sentimentLoading.classList.remove('d-none');
+      if (sentimentError) {
+        sentimentError.classList.remove('alert-secondary');
+        sentimentError.classList.add('alert-danger');
+        sentimentError.classList.add('d-none');
+        sentimentError.textContent = '';
+      }
+      if (sentimentResults) sentimentResults.classList.add('d-none');
+
+      try {
+        const payload = new URLSearchParams();
+        const sourceId = String((sentimentForm.querySelector('[name="source_id"]') || {}).value || '').trim();
+        const textColumn = String((sentimentForm.querySelector('[name="text_column"]') || {}).value || '').trim();
+        const limitRows = String((sentimentForm.querySelector('[name="limit_rows"]') || {}).value || '500').trim();
+        const sqlText = getSentimentSqlText();
+        const csrfToken = String((sentimentForm.querySelector('[name="csrf_token"]') || {}).value || '').trim();
+        if (!sourceId || !sqlText) {
+          throw new Error(i18n.previewNeedsSourceAndSql);
+        }
+        payload.set('source_id', sourceId);
+        payload.set('text_column', textColumn);
+        payload.set('limit_rows', limitRows);
+        payload.set('sql_text', sqlText);
+        if (csrfToken) payload.set('csrf_token', csrfToken);
+
+        const resp = await fetch('{{ url_for('ml.sentiment_evaluate') }}', {
+          method: 'POST',
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+            'X-CSRFToken': csrfToken
+          },
+          body: payload.toString()
+        });
+        const rawBody = await resp.text();
+        let data;
+        try {
+          data = rawBody ? JSON.parse(rawBody) : {};
+        } catch (parseError) {
+          throw new Error(i18n.invalidServerJson);
+        }
+        if (!resp.ok || !data.ok) {
+          throw new Error((data && data.error) ? data.error : i18n.unableLoadDataPreview);
+        }
+
+        const summary = data.summary || {};
+        const setText = function (id, value) {
+          const el = document.getElementById(id);
+          if (el) el.textContent = String(value);
+        };
+        setText('mlSentRows', data.rows_analyzed || 0);
+        setText('mlSentAvg', summary.avg_score);
+        setText('mlSentPos', summary.positive || 0);
+        setText('mlSentNeu', summary.neutral || 0);
+        setText('mlSentNeg', summary.negative || 0);
+
+        const renderWordList = function (containerId, rows) {
+          const container = document.getElementById(containerId);
+          if (!container) return;
+          container.innerHTML = '';
+          const entries = Array.isArray(rows) ? rows : [];
+          if (!entries.length) {
+            container.innerHTML = '<span class="text-muted">-</span>';
+            return;
+          }
+          entries.forEach(function (item) {
+            const chip = document.createElement('span');
+            chip.className = 'badge text-bg-light border me-1 mb-1';
+            chip.textContent = String(item.word || '') + ' (' + String(item.count || 0) + ')';
+            container.appendChild(chip);
+          });
+        };
+        renderWordList('mlTopPosWords', data.top_positive_words || []);
+        renderWordList('mlTopNegWords', data.top_negative_words || []);
+        renderSentimentBubble(data);
+        lastSentimentResult = {
+          rows_analyzed: data.rows_analyzed || 0,
+          summary: data.summary || {},
+          top_positive_words: data.top_positive_words || [],
+          top_negative_words: data.top_negative_words || []
+        };
+
+        const samplesWrap = document.getElementById('mlSentSamples');
+        if (samplesWrap) {
+          samplesWrap.innerHTML = '';
+          const samples = Array.isArray(data.samples) ? data.samples : [];
+          if (!samples.length) {
+            samplesWrap.innerHTML = '<span class="text-muted">-</span>';
+          } else {
+            samples.forEach(function (row) {
+              const item = document.createElement('div');
+              item.className = 'border rounded p-2 mb-1';
+              item.innerHTML =
+                '<div class="fw-semibold">' + String(row.label || 'neutral') + ' | ' + String(row.score || 0) + '</div>' +
+                '<div class="text-muted">' + String(row.text || '') + '</div>';
+              samplesWrap.appendChild(item);
+            });
+          }
+        }
+
+        if (sentimentResults) sentimentResults.classList.remove('d-none');
+        switchToSentimentTab(sentimentResultsTab);
+      } catch (err) {
+        if (sentimentError) {
+          sentimentError.classList.remove('d-none');
+          sentimentError.textContent = err.message || i18n.unableLoadDataPreview;
+        }
+        switchToSentimentTab(sentimentResultsTab);
+      } finally {
+        if (sentimentLoading) sentimentLoading.classList.add('d-none');
+        hideOverlay();
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = originalSubmitHtml;
+        }
+      }
+    });
+
+    if (sentimentRefreshSnapshotsBtn) {
+      sentimentRefreshSnapshotsBtn.addEventListener('click', function () {
+        loadSentimentSnapshots();
+        switchToSentimentTab(sentimentSnapshotsTab);
+      });
+    }
+
+    if (sentimentSnapshotsBody) {
+      sentimentSnapshotsBody.addEventListener('click', async function (event) {
+        const btn = event.target.closest('.js-reload-sentiment-snapshot');
+        if (!btn || !sentimentForm) return;
+        const idx = Number(btn.getAttribute('data-index'));
+        const snap = (Number.isInteger(idx) && idx >= 0) ? lastSentimentSnapshots[idx] : null;
+        if (!snap) return;
+
+        const sourceInput = sentimentForm.querySelector('[name="source_id"]');
+        const textColInput = sentimentForm.querySelector('[name="text_column"]');
+        if (sourceInput) {
+          const snapshotSourceId = String(snap.source_id || '');
+          sourceInput.value = snapshotSourceId;
+          if (snapshotSourceId && sourceInput.value !== snapshotSourceId) {
+            const dynamicOpt = document.createElement('option');
+            dynamicOpt.value = snapshotSourceId;
+            dynamicOpt.textContent = String(snap.source_name || snapshotSourceId);
+            sourceInput.appendChild(dynamicOpt);
+            sourceInput.value = snapshotSourceId;
+          }
+        }
+        if (textColInput) textColInput.value = String(snap.text_column || '');
+        setSentimentSqlText(String(snap.sql_text || ''));
+
+        await sentLoadSchema();
+        switchToSentimentTab(sentimentResultsTab);
+        sentimentForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      });
+    }
+
+    if (sentimentSaveSnapshotBtn) {
+      sentimentSaveSnapshotBtn.addEventListener('click', async function () {
+        try {
+          const sourceId = String((sentimentForm.querySelector('[name="source_id"]') || {}).value || '').trim();
+          const textColumn = String((sentimentForm.querySelector('[name="text_column"]') || {}).value || '').trim();
+          const sqlText = getSentimentSqlText();
+          const csrfToken = String((sentimentForm.querySelector('[name="csrf_token"]') || {}).value || '').trim();
+          if (!sourceId || !lastSentimentResult) {
+            throw new Error(i18n.previewNeedsSourceAndSql);
+          }
+          const payload = new URLSearchParams();
+          payload.set('source_id', sourceId);
+          payload.set('text_column', textColumn);
+          payload.set('sql_text', sqlText);
+          payload.set('analysis_json', JSON.stringify(lastSentimentResult));
+          if (csrfToken) payload.set('csrf_token', csrfToken);
+
+          const resp = await fetch('{{ url_for('ml.sentiment_snapshots_save') }}', {
+            method: 'POST',
+            headers: {
+              'X-Requested-With': 'XMLHttpRequest',
+              'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+              'X-CSRFToken': csrfToken
+            },
+            body: payload.toString()
+          });
+          const raw = await resp.text();
+          const data = raw ? JSON.parse(raw) : {};
+          if (!resp.ok || !data.ok) {
+            throw new Error((data && data.error) ? data.error : i18n.unableSaveSnapshot);
+          }
+
+          if (sentimentError) {
+            sentimentError.classList.remove('d-none');
+            sentimentError.classList.remove('alert-danger');
+            sentimentError.classList.add('alert-secondary');
+            sentimentError.textContent = data.message || i18n.snapshotSaved;
+          }
+          loadSentimentSnapshots();
+        } catch (err) {
+          if (sentimentError) {
+            sentimentError.classList.remove('d-none');
+            sentimentError.classList.remove('alert-secondary');
+            sentimentError.classList.add('alert-danger');
+            sentimentError.textContent = err.message || i18n.unableSaveSnapshot;
+          }
+        }
+      });
+    }
+
+    if (sentimentLogMlflowBtn) {
+      sentimentLogMlflowBtn.addEventListener('click', async function () {
+        try {
+          const sourceId = String((sentimentForm.querySelector('[name="source_id"]') || {}).value || '').trim();
+          const textColumn = String((sentimentForm.querySelector('[name="text_column"]') || {}).value || '').trim();
+          const sqlText = getSentimentSqlText();
+          const csrfToken = String((sentimentForm.querySelector('[name="csrf_token"]') || {}).value || '').trim();
+          if (!sourceId || !lastSentimentResult) {
+            throw new Error(i18n.previewNeedsSourceAndSql);
+          }
+
+          const payload = new URLSearchParams();
+          payload.set('source_id', sourceId);
+          payload.set('text_column', textColumn);
+          payload.set('sql_text', sqlText);
+          payload.set('analysis_json', JSON.stringify(lastSentimentResult));
+          if (csrfToken) payload.set('csrf_token', csrfToken);
+
+          const resp = await fetch('{{ url_for('ml.sentiment_snapshots_log_mlflow') }}', {
+            method: 'POST',
+            headers: {
+              'X-Requested-With': 'XMLHttpRequest',
+              'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+              'X-CSRFToken': csrfToken
+            },
+            body: payload.toString()
+          });
+          const raw = await resp.text();
+          const data = raw ? JSON.parse(raw) : {};
+          if (!resp.ok || !data.ok) {
+            throw new Error((data && data.error) ? data.error : i18n.mlflowUnavailable);
+          }
+
+          if (sentimentError) {
+            sentimentError.classList.remove('d-none');
+            sentimentError.classList.remove('alert-danger');
+            sentimentError.classList.add('alert-secondary');
+            const runUrl = (((data || {}).mlflow || {}).run_url || '').trim();
+            if (runUrl) {
+              sentimentError.innerHTML = '<a href="' + runUrl + '" target="_blank" rel="noopener">' + i18n.snapshotSentMlflow + '</a>';
+            } else {
+              sentimentError.textContent = i18n.snapshotSentMlflow;
+            }
+          }
+        } catch (err) {
+          if (sentimentError) {
+            sentimentError.classList.remove('d-none');
+            sentimentError.classList.remove('alert-secondary');
+            sentimentError.classList.add('alert-danger');
+            sentimentError.textContent = err.message || i18n.mlflowUnavailable;
+          }
+        }
+      });
+    }
+
+    loadSentimentSnapshots();
+  }
+
+  const mindEl = document.getElementById('mlMindmap');
+  const conceptModalEl = document.getElementById('conceptDetailModal');
+  const conceptModal = conceptModalEl && window.bootstrap ? new bootstrap.Modal(conceptModalEl) : null;
+  const conceptTitleEl = document.getElementById('conceptDetailTitle');
+  const conceptBodyEl = document.getElementById('conceptDetailBody');
+
+  const conceptCatalog = {
+    bi_source: {
+      title: {{ _('BI Data Source')|tojson }},
+      body: {{ _('Source de données BI: point d’entrée des données SQL/API/fichiers utilisées pour entraîner ou scorer les modèles.')|tojson }}
+    },
+    sql_dataset: {
+      title: {{ _('SQL Dataset')|tojson }},
+      body: {{ _('SQL Dataset: résultat de la requête SQL qui construit le dataset d’apprentissage depuis la source BI.')|tojson }}
+    },
+    feature_selection: {
+      title: {{ _('Feature Selection')|tojson }},
+      body: {{ _('Feature Selection: choix des colonnes explicatives pertinentes pour améliorer la qualité du modèle.')|tojson }}
+    },
+    train_test_split: {
+      title: {{ _('Train/Test Split')|tojson }},
+      body: {{ _('Train/Test Split: séparation des données en deux jeux pour entraîner puis évaluer sans biais.')|tojson }}
+    },
+    supervised_models: {
+      title: {{ _('Supervised Models')|tojson }},
+      body: {{ _('Supervised Models: modèles entraînés avec une cible Y connue (régression ou classification).')|tojson }}
+    },
+    unsupervised_models: {
+      title: {{ _('Unsupervised Models')|tojson }},
+      body: {{ _('Unsupervised Models: modèles sans cible Y, utilisés pour découvrir des structures (ex: clusters).')|tojson }}
+    },
+    kmeans: {
+      title: {{ _('K-Means Clustering')|tojson }},
+      body: {{ _('K-Means Clustering: algorithme qui regroupe les observations en K clusters autour de centroïdes.')|tojson }}
+    },
+    evaluation: {
+      title: {{ _('Evaluation')|tojson }},
+      body: {{ _('Evaluation: mesure objective de la performance du modèle via métriques (MAE, RMSE, R2, Accuracy).')|tojson }}
+    },
+    fit_status: {
+      title: {{ _('Fit Status')|tojson }},
+      body: {{ _('Fit Status: diagnostic du comportement du modèle (Overfit, Underfit, Good fit, Balanced).')|tojson }}
+    },
+    deployment: {
+      title: {{ _('Deployment')|tojson }},
+      body: {{ _('Deployment: mise en production du modèle retenu pour servir des prédictions métier.')|tojson }}
+    },
+    monitoring: {
+      title: {{ _('Monitoring')|tojson }},
+      body: {{ _('Monitoring: suivi continu des performances et détection de dérive après déploiement.')|tojson }}
+    },
+    retraining: {
+      title: {{ _('Retraining')|tojson }},
+      body: {{ _('Retraining: réentraînement périodique du modèle avec de nouvelles données pour maintenir la qualité.')|tojson }}
+    }
+  };
+
+  const conceptAliases = {
+    'BI Data Source': 'bi_source',
+    'SQL Dataset': 'sql_dataset',
+    'Feature Selection': 'feature_selection',
+    'Train/Test Split': 'train_test_split',
+    'Supervised Models': 'supervised_models',
+    'Unsupervised Models': 'unsupervised_models',
+    'K-Means Clustering': 'kmeans',
+    'Evaluation': 'evaluation',
+    'Fit Status': 'fit_status',
+    'Deployment': 'deployment',
+    'Monitoring': 'monitoring',
+    'Retraining': 'retraining'
+  };
+
+  Object.keys(conceptCatalog).forEach(function (key) {
+    const title = String((conceptCatalog[key] || {}).title || '').trim();
+    if (title) {
+      conceptAliases[title] = key;
+    }
+  });
+
+  const openConceptModal = function (conceptKey) {
+    const payload = conceptCatalog[conceptKey];
+    if (!payload || !conceptModal || !conceptTitleEl || !conceptBodyEl) return;
+    conceptTitleEl.textContent = payload.title;
+    conceptBodyEl.textContent = payload.body;
+    conceptModal.show();
+  };
+
+  document.querySelectorAll('.js-concept-box').forEach(function (box) {
+    box.addEventListener('click', function () {
+      openConceptModal(box.dataset.concept || '');
+    });
+  });
+  if (mindEl && window.mermaid) {
+    try {
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'default',
+        securityLevel: 'loose',
+        flowchart: { useMaxWidth: true, htmlLabels: true },
+        themeVariables: { fontSize: '20px' }
+      });
+      const graphLabels = {
+        bi_source: {{ _('BI Data Source')|tojson }},
+        sql_dataset: {{ _('SQL Dataset')|tojson }},
+        feature_selection: {{ _('Feature Selection')|tojson }},
+        train_test_split: {{ _('Train/Test Split')|tojson }},
+        supervised_models: {{ _('Supervised Models')|tojson }},
+        unsupervised_models: {{ _('Unsupervised Models')|tojson }},
+        kmeans: {{ _('K-Means Clustering')|tojson }},
+        linear_regression: {{ _('Linear Regression')|tojson }},
+        decision_tree: {{ _('Decision Tree')|tojson }},
+        random_forest: {{ _('Random Forest')|tojson }},
+        centroids: {{ _('Centroids')|tojson }},
+        inertia: {{ _('Inertia')|tojson }},
+        evaluation: {{ _('Evaluation')|tojson }},
+        accuracy: {{ _('Accuracy')|tojson }},
+        fit_status: {{ _('Fit Status')|tojson }},
+        overfit: {{ _('Overfit')|tojson }},
+        underfit: {{ _('Underfit')|tojson }},
+        good_fit: {{ _('Good fit')|tojson }},
+        balanced: {{ _('Balanced')|tojson }},
+        deployment: {{ _('Deployment')|tojson }},
+        monitoring: {{ _('Monitoring')|tojson }},
+        retraining: {{ _('Retraining')|tojson }}
+      };
+      const graphDef = [
+        'flowchart TB',
+        '    A[' + graphLabels.bi_source + '] --> B[' + graphLabels.sql_dataset + ']',
+        '    B --> C[' + graphLabels.feature_selection + ']',
+        '    C --> D[' + graphLabels.train_test_split + ']',
+        '    D --> E[' + graphLabels.supervised_models + ']',
+        '    D --> F[' + graphLabels.unsupervised_models + ']',
+        '    E --> E1[' + graphLabels.linear_regression + ']',
+        '    E --> E2[' + graphLabels.decision_tree + ']',
+        '    E --> E3[' + graphLabels.random_forest + ']',
+        '    F --> F1[' + graphLabels.kmeans + ']',
+        '    F1 --> F2[' + graphLabels.centroids + ']',
+        '    F1 --> F3[' + graphLabels.inertia + ']',
+        '    E --> G[' + graphLabels.evaluation + ']',
+        '    F --> G',
+        '    G --> G1[MAE / RMSE / R2]',
+        '    G --> G2[' + graphLabels.accuracy + ']',
+        '    G --> G3[' + graphLabels.fit_status + ']',
+        '    G3 --> H1[' + graphLabels.overfit + ']',
+        '    G3 --> H2[' + graphLabels.underfit + ']',
+        '    G3 --> H3[' + graphLabels.good_fit + ']',
+        '    G3 --> H4[' + graphLabels.balanced + ']',
+        '    G --> I[' + graphLabels.deployment + ']',
+        '    I --> J[' + graphLabels.monitoring + ']',
+        '    J --> K[' + graphLabels.retraining + ']',
+        '    K --> D'
+      ].join('\n');
+      mermaid.render('mlMindSvg', graphDef).then(function (res) {
+        const wrap = document.getElementById('mlMindmapWrap');
+        if (!wrap) return;
+        wrap.innerHTML = res.svg;
+        const svg = wrap.querySelector('svg');
+        if (!svg || !window.svgPanZoom) return;
+
+        // Force a large natural SVG size to avoid tiny auto-fit rendering.
+        try {
+          const box = svg.getBBox();
+          if (box && Number.isFinite(box.height) && Number.isFinite(box.width)) {
+            const naturalWidth = Math.max(1600, Math.ceil(box.width + 180));
+            const naturalHeight = Math.max(1200, Math.ceil(box.height + 180));
+            svg.style.width = naturalWidth + 'px';
+            svg.style.height = naturalHeight + 'px';
+            svg.setAttribute('width', String(naturalWidth));
+            svg.setAttribute('height', String(naturalHeight));
+            wrap.style.height = naturalHeight + 'px';
+          }
+        } catch (e) {
+          // Keep default min-height when bbox is not available.
+        }
+
+        const pz = window.svgPanZoom(svg, {
+          zoomEnabled: true,
+          controlIconsEnabled: false,
+          fit: false,
+          center: false,
+          minZoom: 0.25,
+          maxZoom: 8,
+        });
+        const inBtn = document.getElementById('mlMindZoomIn');
+        const outBtn = document.getElementById('mlMindZoomOut');
+        const resetBtn = document.getElementById('mlMindReset');
+        if (inBtn) inBtn.addEventListener('click', function () { pz.zoomIn(); });
+        if (outBtn) outBtn.addEventListener('click', function () { pz.zoomOut(); });
+        if (resetBtn) {
+          resetBtn.addEventListener('click', function () {
+            pz.resetZoom();
+            pz.pan({ x: 0, y: 0 });
+          });
+        }
+
+        // Enable click on Mermaid boxes to open concept details.
+        svg.querySelectorAll('.node').forEach(function (node) {
+          const text = String(node.textContent || '').replace(/\s+/g, ' ').trim();
+          const conceptKey = conceptAliases[text];
+          if (!conceptKey) return;
+          node.style.cursor = 'pointer';
+          node.addEventListener('click', function () {
+            openConceptModal(conceptKey);
+          });
+        });
+
+        if ((window.location.hash || '') === '#mlflow-tutorial') {
+          const target = document.getElementById('mlflow-tutorial');
+          if (target) {
+            setTimeout(function () {
+              target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 60);
+          }
+        }
+      }).catch(function () {
+        // Leave plain text as fallback if Mermaid render fails.
+      });
+    } catch (e) {
+      // Keep fallback content.
+    }
+  }
+
+  const btn = document.getElementById('predict-btn');
+  if (btn) {
+    btn.addEventListener('click', async function () {
+      const modelSel = document.getElementById('predict-model-id');
+      const xInput = document.getElementById('predict-x');
+      const result = document.getElementById('predict-result');
+      const predictUrl = btn.dataset.predictUrl || '';
+      const msgSelect = btn.dataset.msgSelect || i18n.predictSelectModelX;
+      const msgError = btn.dataset.msgError || i18n.predictionError;
+      const modelId = modelSel ? modelSel.value : '';
+      const xVal = xInput ? xInput.value : '';
+
+      if (!modelId || xVal === '') {
+        result.className = 'alert alert-warning mb-0 py-2';
+        result.textContent = msgSelect;
+        return;
+      }
+
+      try {
+        const qs = new URLSearchParams({ model_id: modelId, x: xVal });
+        const resp = await fetch(predictUrl + '?' + qs.toString(), {
+          method: 'GET',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.ok) {
+          throw new Error(data.error || i18n.predictionError);
+        }
+        result.className = 'alert alert-success mb-0 py-2';
+        if (data.algorithm === 'kmeans_clustering' && typeof data.cluster_id !== 'undefined') {
+          result.textContent = i18n.clusterLabel + ': ' + data.cluster_id + ' ' + i18n.centroidLabel + ': ' + data.y_pred;
+        } else {
+          const yCol = data.y_column ? (' ' + data.y_column + ':') : '';
+          result.textContent = yCol + ' ' + data.y_pred;
+        }
+      } catch (err) {
+        result.className = 'alert alert-danger mb-0 py-2';
+        result.textContent = err.message || msgError;
+      }
+    });
+  }
+
+  const colors = ['#2563eb', '#16a34a', '#f97316', '#a855f7', '#dc2626', '#0891b2'];
+  const clusterModalEl = document.getElementById('clustersPreviewModal');
+  const clusterModal = clusterModalEl && window.bootstrap ? new bootstrap.Modal(clusterModalEl) : null;
+  const clusterTitle = document.getElementById('clustersPreviewTitle');
+  const clusterLoading = document.getElementById('clustersPreviewLoading');
+  const clusterBody = document.getElementById('clustersPreviewBody');
+  const clusterError = document.getElementById('clustersPreviewError');
+  const clusterSummaryList = document.getElementById('clustersSummaryList');
+  const clusterCanvas = document.getElementById('clustersChart');
+  let chart = null;
+
+  const resetClustersUI = function () {
+    if (clusterLoading) clusterLoading.style.display = 'block';
+    if (clusterBody) clusterBody.style.display = 'none';
+    if (clusterError) {
+      clusterError.style.display = 'none';
+      clusterError.textContent = '';
+    }
+    if (clusterSummaryList) clusterSummaryList.innerHTML = '';
+    if (chart) {
+      chart.destroy();
+      chart = null;
+    }
+  };
+
+  document.querySelectorAll('.js-show-clusters').forEach(function (button) {
+    button.addEventListener('click', async function () {
+      if (!clusterModal) return;
+      resetClustersUI();
+      clusterTitle.textContent = (button.dataset.modelName || i18n.clustersPreview) + ' - ' + i18n.clustersPreview;
+      clusterModal.show();
+
+      try {
+        const resp = await fetch(button.dataset.url, {
+          method: 'GET',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.ok) {
+          throw new Error(data.error || i18n.unableLoadClusters);
+        }
+
+        const datasets = (data.clusters || []).map(function (cluster, idx) {
+          const cid = Number(cluster.id);
+          return {
+            label: cluster.name + ' (' + cluster.count + ')',
+            data: (data.points || []).filter(function (p) { return Number(p.cluster) === cid; }).map(function (p) {
+              return { x: Number(p.x), y: Number(p.y) };
+            }),
+            pointRadius: 4,
+            borderWidth: 0,
+            backgroundColor: colors[idx % colors.length]
+          };
+        });
+
+        if (clusterCanvas) {
+          chart = new Chart(clusterCanvas, {
+            type: 'scatter',
+            data: { datasets: datasets },
+            options: {
+              responsive: true,
+              plugins: { legend: { position: 'bottom' } },
+              scales: {
+                x: { title: { display: true, text: data.x_label || 'X' } },
+                y: {
+                  title: { display: true, text: i18n.clusterGroups },
+                  ticks: { display: false }
+                }
+              }
+            }
+          });
+        }
+
+        (data.clusters || []).forEach(function (cluster, idx) {
+          const row = document.createElement('div');
+          row.className = 'border rounded p-2';
+          row.innerHTML =
+            '<div class="fw-semibold"><span class="cluster-dot" style="background:' + colors[idx % colors.length] + '"></span>' +
+            cluster.name + '</div>' +
+            '<div class="small text-muted">' + i18n.centroidLabel + ': ' + cluster.centroid + ' . ' + i18n.shareLabel + ': ' + cluster.share_pct + '% . ' + i18n.rowsLabel + ': ' + cluster.count + '</div>';
+          if (clusterSummaryList) clusterSummaryList.appendChild(row);
+        });
+
+        if (clusterLoading) clusterLoading.style.display = 'none';
+        if (clusterBody) clusterBody.style.display = 'flex';
+      } catch (err) {
+        if (clusterLoading) clusterLoading.style.display = 'none';
+        if (clusterError) {
+          clusterError.style.display = 'block';
+          clusterError.textContent = err.message || i18n.unableLoadClusters;
+        }
+      }
+    });
+  });
+
+  const queryModalEl = document.getElementById('queryPreviewModal');
+  const queryModal = queryModalEl && window.bootstrap ? new bootstrap.Modal(queryModalEl) : null;
+  const queryTitle = document.getElementById('queryPreviewTitle');
+  const queryContent = document.getElementById('queryPreviewContent');
+  const queryToggleBtn = document.getElementById('queryPreviewToggleBtn');
+  const queryLoading = document.getElementById('queryPreviewLoading');
+  const queryError = document.getElementById('queryPreviewError');
+  const queryTableWrap = document.getElementById('queryPreviewTableWrap');
+  const queryHead = document.getElementById('queryPreviewHead');
+  const queryBody = document.getElementById('queryPreviewBody');
+  const queryFooter = document.getElementById('queryPreviewFooter');
+  const queryMeta = document.getElementById('queryPreviewMeta');
+  const queryLoadMore = document.getElementById('queryPreviewLoadMore');
+
+  const queryState = {
+    url: '',
+    page: 1,
+    pageSize: 25,
+    hasMore: false,
+    rowsLoaded: 0,
+    colsRendered: false,
+    hidden: false
+  };
+
+  const resetQueryPreview = function () {
+    queryState.page = 1;
+    queryState.hasMore = false;
+    queryState.rowsLoaded = 0;
+    queryState.colsRendered = false;
+    if (queryLoading) {
+      queryLoading.style.display = 'block';
+      queryLoading.textContent = i18n.loadingDataPreview;
+    }
+    if (queryError) {
+      queryError.style.display = 'none';
+      queryError.textContent = '';
+    }
+    if (queryTableWrap) queryTableWrap.style.display = 'none';
+    if (queryFooter) queryFooter.style.display = 'none';
+    if (queryHead) queryHead.innerHTML = '';
+    if (queryBody) queryBody.innerHTML = '';
+    if (queryMeta) queryMeta.textContent = '-';
+    queryState.hidden = false;
+    if (queryContent) queryContent.style.display = 'block';
+    if (queryToggleBtn) {
+      queryToggleBtn.textContent = queryToggleBtn.dataset.hideLabel || i18n.hidePreview;
+    }
+  };
+
+  if (queryToggleBtn) {
+    queryToggleBtn.addEventListener('click', function () {
+      queryState.hidden = !queryState.hidden;
+      const showLabel = queryToggleBtn.dataset.showLabel || i18n.showPreview;
+      const hideLabel = queryToggleBtn.dataset.hideLabel || i18n.hidePreview;
+      queryToggleBtn.textContent = queryState.hidden ? showLabel : hideLabel;
+      if (queryContent) {
+        queryContent.style.display = queryState.hidden ? 'none' : 'block';
+      }
+    });
+  }
+
+  const renderHeader = function (columns) {
+    if (!queryHead || queryState.colsRendered) return;
+    const tr = document.createElement('tr');
+    (columns || []).forEach(function (col) {
+      const th = document.createElement('th');
+      th.textContent = String(col);
+      tr.appendChild(th);
+    });
+    queryHead.appendChild(tr);
+    queryState.colsRendered = true;
+  };
+
+  const appendRows = function (rows) {
+    if (!queryBody) return;
+    (rows || []).forEach(function (row) {
+      const tr = document.createElement('tr');
+      (row || []).forEach(function (cell) {
+        const td = document.createElement('td');
+        td.textContent = (cell === null || typeof cell === 'undefined') ? '' : String(cell);
+        tr.appendChild(td);
+      });
+      queryBody.appendChild(tr);
+    });
+  };
+
+  const fetchQueryPage = async function (page) {
+    if (!queryState.url) return;
+    if (queryLoadMore) queryLoadMore.disabled = true;
+
+    try {
+      const qs = new URLSearchParams({ page: String(page), page_size: String(queryState.pageSize) });
+      const resp = await fetch(queryState.url + '?' + qs.toString(), {
+        method: 'GET',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        throw new Error(data.error || i18n.unableLoadDataPreview);
+      }
+
+      renderHeader(data.columns || []);
+      appendRows(data.rows || []);
+      queryState.rowsLoaded += (data.rows || []).length;
+      queryState.hasMore = !!data.has_more;
+      queryState.page = Number(data.page || page);
+
+      if (queryLoading) queryLoading.style.display = 'none';
+      if (queryTableWrap) queryTableWrap.style.display = 'block';
+      if (queryFooter) queryFooter.style.display = 'flex';
+      if (queryMeta) {
+        queryMeta.textContent = i18n.rowsLoaded + ': ' + String(queryState.rowsLoaded);
+      }
+      if (queryLoadMore) {
+        queryLoadMore.disabled = !queryState.hasMore;
+        queryLoadMore.style.display = queryState.hasMore ? 'inline-block' : 'none';
+      }
+
+      if (queryState.rowsLoaded === 0 && queryBody) {
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = Math.max(1, (data.columns || []).length);
+        td.className = 'text-muted';
+        td.textContent = i18n.noRowsReturned;
+        tr.appendChild(td);
+        queryBody.appendChild(tr);
+      }
+    } catch (err) {
+      if (queryLoading) queryLoading.style.display = 'none';
+      if (queryError) {
+        queryError.style.display = 'block';
+        queryError.textContent = err.message || i18n.unableLoadDataPreview;
+      }
+      if (queryLoadMore) queryLoadMore.disabled = false;
+    }
+  };
+
+  if (queryLoadMore) {
+    queryLoadMore.addEventListener('click', function () {
+      if (!queryState.hasMore) return;
+      fetchQueryPage(queryState.page + 1);
+    });
+  }
+
+  document.querySelectorAll('.js-show-query-data').forEach(function (button) {
+    button.addEventListener('click', function () {
+      if (!queryModal) return;
+      resetQueryPreview();
+      queryState.url = button.dataset.url || '';
+      queryTitle.textContent = (button.dataset.modelName || '') + ' - ' + i18n.dataPreview;
+      queryModal.show();
+      fetchQueryPage(1);
+    });
+  });
+
+  const initInlineQueryWorkspace = function (workspace) {
+    const form = workspace.closest('form');
+    if (!form) return;
+
+    const previewBtn = workspace.querySelector('.js-inline-query-preview');
+    const toggleBtn = workspace.querySelector('.js-inline-query-toggle');
+    const previewBodyWrap = workspace.querySelector('.js-inline-preview-body');
+    const loadMoreBtn = workspace.querySelector('.js-inline-load-more');
+    const loadingEl = workspace.querySelector('.js-inline-loading');
+    const errorEl = workspace.querySelector('.js-inline-error');
+    const tableWrap = workspace.querySelector('.js-inline-table-wrap');
+    const head = workspace.querySelector('.js-inline-head');
+    const body = workspace.querySelector('.js-inline-body');
+    const footer = workspace.querySelector('.js-inline-footer');
+    const meta = workspace.querySelector('.js-inline-meta');
+
+    const state = {
+      page: 1,
+      pageSize: 25,
+      hasMore: false,
+      rowsLoaded: 0,
+      colsRendered: false,
+      loading: false,
+      hidden: false
+    };
+
+    const clearTable = function () {
+      state.page = 1;
+      state.hasMore = false;
+      state.rowsLoaded = 0;
+      state.colsRendered = false;
+      if (head) head.innerHTML = '';
+      if (body) body.innerHTML = '';
+      if (meta) meta.textContent = '-';
+      if (errorEl) {
+        errorEl.classList.add('d-none');
+        errorEl.textContent = '';
+      }
+      if (tableWrap) tableWrap.classList.add('d-none');
+      if (footer) footer.classList.add('d-none');
+      if (loadMoreBtn) {
+        loadMoreBtn.classList.add('d-none');
+        loadMoreBtn.disabled = true;
+      }
+    };
+
+    const setLoading = function (loading) {
+      state.loading = loading;
+      if (previewBtn) previewBtn.disabled = loading;
+      if (loadingEl) {
+        loadingEl.classList.toggle('d-none', !loading);
+      }
+      if (loadMoreBtn) {
+        loadMoreBtn.disabled = loading || !state.hasMore;
+      }
+    };
+
+    const renderHeader = function (columns) {
+      if (!head || state.colsRendered) return;
+      const tr = document.createElement('tr');
+      (columns || []).forEach(function (col) {
+        const th = document.createElement('th');
+        const txt = String(col);
+        th.textContent = txt;
+        th.title = txt;
+        tr.appendChild(th);
+      });
+      head.appendChild(tr);
+      state.colsRendered = true;
+    };
+
+    const appendRows = function (rows) {
+      if (!body) return;
+      (rows || []).forEach(function (row) {
+        const tr = document.createElement('tr');
+        (row || []).forEach(function (cell) {
+          const td = document.createElement('td');
+          const txt = (cell === null || typeof cell === 'undefined') ? '' : String(cell);
+          td.textContent = txt;
+          td.title = txt;
+          tr.appendChild(td);
+        });
+        body.appendChild(tr);
+      });
+    };
+
+    const fetchPage = async function (page) {
+      if (state.loading) return;
+      const sourceInput = form.querySelector('[name="source_id"]');
+      const sqlInput = form.querySelector('[name="sql_text"]');
+      const csrfInput = form.querySelector('[name="csrf_token"]');
+      const sourceId = sourceInput ? String(sourceInput.value || '').trim() : '';
+      const sqlText = sqlInput ? String(sqlInput.value || '').trim() : '';
+
+      if (!sourceId || !sqlText) {
+        if (errorEl) {
+          errorEl.classList.remove('d-none');
+          errorEl.textContent = i18n.previewNeedsSourceAndSql;
+        }
+        return;
+      }
+
+      setLoading(true);
+      if (errorEl) {
+        errorEl.classList.add('d-none');
+        errorEl.textContent = '';
+      }
+
+      try {
+        const payload = new URLSearchParams();
+        payload.set('source_id', sourceId);
+        payload.set('sql_text', sqlText);
+        payload.set('page', String(page));
+        payload.set('page_size', String(state.pageSize));
+        if (csrfInput && csrfInput.value) {
+          payload.set('csrf_token', csrfInput.value);
+        }
+
+        const resp = await fetch(workspace.dataset.previewUrl || '', {
+          method: 'POST',
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+          },
+          body: payload.toString()
+        });
+        const data = await resp.json();
+        if (!resp.ok || !data.ok) {
+          throw new Error(data.error || i18n.unableLoadDataPreview);
+        }
+
+        renderHeader(data.columns || []);
+        appendRows(data.rows || []);
+        state.rowsLoaded += (data.rows || []).length;
+        state.page = Number(data.page || page);
+        state.hasMore = !!data.has_more;
+
+        if (tableWrap) tableWrap.classList.remove('d-none');
+        if (footer) footer.classList.remove('d-none');
+        if (meta) meta.textContent = i18n.rowsLoaded + ': ' + String(state.rowsLoaded);
+        if (loadMoreBtn) {
+          loadMoreBtn.classList.toggle('d-none', !state.hasMore);
+          loadMoreBtn.disabled = !state.hasMore;
+        }
+
+        if (state.rowsLoaded === 0 && body) {
+          const tr = document.createElement('tr');
+          const td = document.createElement('td');
+          td.colSpan = Math.max(1, (data.columns || []).length);
+          td.className = 'text-muted';
+          td.textContent = i18n.noRowsReturned;
+          tr.appendChild(td);
+          body.appendChild(tr);
+        }
+      } catch (err) {
+        if (errorEl) {
+          errorEl.classList.remove('d-none');
+          errorEl.textContent = err.message || i18n.unableLoadDataPreview;
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (previewBtn) {
+      previewBtn.addEventListener('click', function () {
+        clearTable();
+        fetchPage(1);
+      });
+    }
+
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', function () {
+        state.hidden = !state.hidden;
+        const showLabel = toggleBtn.dataset.showLabel || i18n.showPreview;
+        const hideLabel = toggleBtn.dataset.hideLabel || i18n.hidePreview;
+        toggleBtn.textContent = state.hidden ? showLabel : hideLabel;
+        if (previewBodyWrap) {
+          previewBodyWrap.classList.toggle('d-none', state.hidden);
+        }
+      });
+    }
+
+    if (loadMoreBtn) {
+      loadMoreBtn.addEventListener('click', function () {
+        if (!state.hasMore) return;
+        fetchPage(state.page + 1);
+      });
+    }
+  };
+
+  document.querySelectorAll('.js-query-workspace').forEach(initInlineQueryWorkspace);
+})();
+</script>
+{% endblock %}

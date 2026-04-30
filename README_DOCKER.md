@@ -10,6 +10,11 @@ It also adds **environment monitoring**:
 - **Prometheus** scrapes host + container + DB + Redis + Traefik metrics
 - **Grafana** (pre-provisioned Prometheus datasource + basic dashboard)
 
+ML/MLOps included:
+- **MLflow** server runs in Compose and is reachable:
+	- from containers at `http://mlflow:5000`
+	- from host Python processes at `http://127.0.0.1:5001`
+
 Background jobs included:
 - **Celery Worker** (`celery-worker`) for async tasks
 - **Celery Beat** (`celery-beat`) for periodic schedules (ex: project notifications scan)
@@ -109,6 +114,36 @@ MAIL_SUPPRESS_SEND=true
 In this mode, emails are rendered and logged, but not sent to an SMTP server.
 
 Ports exposed on the host: **80** and **443** (Traefik). Everything else stays private.
+
+Exception for MLflow interoperability:
+- `5001` is exposed on host and mapped to MLflow container `5000`.
+- This is intentional so local runs like `python3 app2.py` can use MLflow without joining Docker networks.
+
+## MLflow with Python app
+
+Recommended env values:
+
+```env
+# Inside Docker services (audela/celery)
+MLFLOW_TRACKING_URI=http://mlflow:5000
+MLFLOW_EMBED_URL=http://mlflow:5000
+
+# For local Python (already default in DevConfig)
+# MLFLOW_TRACKING_URI=http://127.0.0.1:5001
+```
+
+Start only app dependencies + MLflow:
+
+```bash
+docker compose up -d --build db redis mlflow audela celery-worker celery-beat
+```
+
+Quick health checks:
+
+```bash
+docker compose ps
+curl -fsS http://127.0.0.1:5001/ >/dev/null && echo "MLflow OK"
+```
 
 ## Alternative: Let's Encrypt certificates
 

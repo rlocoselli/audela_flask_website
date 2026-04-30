@@ -341,6 +341,7 @@ def create_app() -> Flask:
     from .blueprints.project import bp as project_bp
     from .blueprints.credit import bp as credit_bp
     from .blueprints.ifrs9 import bp as ifrs9_bp
+    from .blueprints.ml import bp as ml_bp
     from .blueprints.finance.finance_master_data import finance_master_bp
     from .blueprints.tenant import bp as tenant_bp
     from .blueprints.billing import bp as billing_bp
@@ -354,6 +355,7 @@ def create_app() -> Flask:
     app.register_blueprint(project_bp)
     app.register_blueprint(credit_bp)
     app.register_blueprint(ifrs9_bp)
+    app.register_blueprint(ml_bp)
     app.register_blueprint(finance_master_bp)
     app.register_blueprint(tenant_bp)
     app.register_blueprint(billing_bp)

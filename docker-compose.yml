@@ -48,14 +48,20 @@ services:
     environment:
       FLASK_ENV: production
       REDIS_URL: redis://redis:6379/0
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow:5000}
+      MLFLOW_EMBED_URL: ${MLFLOW_EMBED_URL:-http://mlflow:5000}
       SESSION_COOKIE_SECURE: "true"
       COOKIE_SECURE: "1"
       TENANT_FILE_ROOT: /app/instance/tenant_files
       AUTO_CREATE_DB: "true"
       RUN_MIGRATIONS: "1"
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mlflow:
+        condition: service_healthy
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -85,6 +91,33 @@ services:
       timeout: 5s
       retries: 10
 
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.17.2
+    restart: unless-stopped
+    command:
+      - mlflow
+      - server
+      - --host
+      - 0.0.0.0
+      - --port
+      - "5000"
+      - --backend-store-uri
+      - sqlite:////mlflow/mlflow.db
+      - --artifacts-destination
+      - /mlflow/artifacts
+      - --serve-artifacts
+    ports:
+      - "5001:5000"
+    volumes:
+      - mlflow_data:/mlflow
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/', timeout=2).read(1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+
   celery-worker:
     build:
       context: .
@@ -99,8 +132,12 @@ services:
       AUTO_CREATE_DB: "false"
       RUN_MIGRATIONS: "0"
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mlflow:
+        condition: service_healthy
     volumes:
       - audela_instance:/app/instance
     networks:
@@ -120,9 +157,14 @@ services:
       AUTO_CREATE_DB: "false"
       RUN_MIGRATIONS: "0"
     depends_on:
-      - db
-      - redis
-      - celery-worker
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mlflow:
+        condition: service_healthy
+      celery-worker:
+        condition: service_started
     volumes:
       - audela_instance:/app/instance
     networks:
@@ -296,6 +338,7 @@ volumes:
   prometheus_data:
   grafana_data:
   audela_instance:
+  mlflow_data:
   letsencrypt:
   loki_data:
 

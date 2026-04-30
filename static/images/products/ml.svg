@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" role="img" aria-labelledby="title desc">
+  <title id="title">ML Studio</title>
+  <desc id="desc">Illustration of a machine learning workspace connected to data sources.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#f4fbf6"/>
+      <stop offset="100%" stop-color="#e7eefb"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0%" stop-color="#0d6efd"/>
+      <stop offset="100%" stop-color="#20c997"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="800" height="500" fill="url(#bg)" rx="24"/>
+
+  <rect x="70" y="80" width="220" height="340" rx="16" fill="#ffffff" stroke="#d6e0f5"/>
+  <text x="95" y="120" font-family="Verdana, sans-serif" font-size="20" fill="#0f172a">BI Sources</text>
+  <rect x="95" y="145" width="170" height="36" rx="8" fill="#ecfdf5" stroke="#86efac"/>
+  <text x="108" y="168" font-family="Verdana, sans-serif" font-size="14" fill="#166534">sales_dw</text>
+  <rect x="95" y="195" width="170" height="36" rx="8" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="108" y="218" font-family="Verdana, sans-serif" font-size="14" fill="#1e3a8a">finance_api</text>
+  <rect x="95" y="245" width="170" height="36" rx="8" fill="#fff7ed" stroke="#fdba74"/>
+  <text x="108" y="268" font-family="Verdana, sans-serif" font-size="14" fill="#9a3412">workspace_files</text>
+
+  <rect x="320" y="60" width="410" height="380" rx="20" fill="#ffffff" stroke="#d6e0f5"/>
+  <rect x="320" y="60" width="410" height="58" rx="20" fill="url(#card)"/>
+  <text x="345" y="97" font-family="Verdana, sans-serif" font-size="22" fill="#ffffff">AUDELA ML Studio</text>
+
+  <rect x="350" y="145" width="160" height="96" rx="12" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="366" y="173" font-family="Verdana, sans-serif" font-size="14" fill="#334155">Algorithm</text>
+  <text x="366" y="198" font-family="Verdana, sans-serif" font-size="13" fill="#0f766e">Linear Regression</text>
+  <text x="366" y="220" font-family="Verdana, sans-serif" font-size="13" fill="#0f766e">Moving Average</text>
+
+  <rect x="530" y="145" width="170" height="96" rx="12" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="545" y="173" font-family="Verdana, sans-serif" font-size="14" fill="#334155">Model Metrics</text>
+  <text x="545" y="198" font-family="Verdana, sans-serif" font-size="13" fill="#1d4ed8">MAE: 12.7</text>
+  <text x="545" y="220" font-family="Verdana, sans-serif" font-size="13" fill="#1d4ed8">R2: 0.81</text>
+
+  <rect x="350" y="265" width="350" height="145" rx="12" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="366" y="292" font-family="Verdana, sans-serif" font-size="14" fill="#334155">Embedded MLflow</text>
+  <polyline points="365,368 410,330 455,348 500,310 545,320 590,285 635,300 680,270" fill="none" stroke="#2563eb" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <line x1="290" y1="195" x2="320" y2="195" stroke="#64748b" stroke-width="3"/>
+  <line x1="290" y1="245" x2="320" y2="245" stroke="#64748b" stroke-width="3"/>
+  <line x1="290" y1="295" x2="320" y2="295" stroke="#64748b" stroke-width="3"/>
+</svg>
