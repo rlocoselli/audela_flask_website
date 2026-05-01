@@ -14,7 +14,8 @@ from flask import Response, current_app, flash, g, redirect, render_template, re
 from flask_login import current_user, login_user, logout_user
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, LineChart, Reference
-from sqlalchemy import func
+from sqlalchemy import func, inspect
+from sqlalchemy.exc import SQLAlchemyError
 
 from ...extensions import db
 from ...i18n import tr
@@ -194,21 +195,43 @@ def _build_public_traffic(selected_months_raw: str | None) -> dict:
     period_start_month = _add_months(period_end_month, -(selected_months_int - 1))
     period_end_exclusive = _add_months(period_end_month, 1)
 
-    base_query = PublicPageVisit.query.filter(
-        PublicPageVisit.created_at >= period_start_month,
-        PublicPageVisit.created_at < period_end_exclusive,
-    )
+    empty_payload = {
+        "selected_months": selected_months_int,
+        "period_start": period_start_month,
+        "period_end": _add_months(period_end_exclusive, -1),
+        "total_visits": 0,
+        "unique_visitors": 0,
+        "home_visits": 0,
+        "plans_visits": 0,
+        "top_pages": [],
+        "top_countries": [],
+        "top_languages": [],
+        "daily_trend": [],
+    }
 
-    total_visits = base_query.count()
-    unique_visitors = db.session.query(func.count(func.distinct(PublicPageVisit.visitor_id))).filter(
-        PublicPageVisit.created_at >= period_start_month,
-        PublicPageVisit.created_at < period_end_exclusive,
-    ).scalar() or 0
+    try:
+        inspector = inspect(db.engine)
+        if "public_page_visits" not in inspector.get_table_names():
+            return empty_payload
+    except Exception:
+        return empty_payload
 
-    home_visits = base_query.filter(PublicPageVisit.path == "/").count()
-    plans_visits = base_query.filter(PublicPageVisit.path.like("/plans%")).count()
+    try:
+        base_query = PublicPageVisit.query.filter(
+            PublicPageVisit.created_at >= period_start_month,
+            PublicPageVisit.created_at < period_end_exclusive,
+        )
 
-    page_rows = (
+        total_visits = base_query.count()
+        unique_visitors = db.session.query(func.count(func.distinct(PublicPageVisit.visitor_id))).filter(
+            PublicPageVisit.created_at >= period_start_month,
+            PublicPageVisit.created_at < period_end_exclusive,
+        ).scalar() or 0
+
+        home_visits = base_query.filter(PublicPageVisit.path == "/").count()
+        plans_visits = base_query.filter(PublicPageVisit.path.like("/plans%")).count()
+
+        page_rows = (
         db.session.query(PublicPageVisit.path, func.count(PublicPageVisit.id).label("visits"))
         .filter(
             PublicPageVisit.created_at >= period_start_month,
@@ -218,17 +241,17 @@ def _build_public_traffic(selected_months_raw: str | None) -> dict:
         .order_by(func.count(PublicPageVisit.id).desc(), PublicPageVisit.path.asc())
         .limit(20)
         .all()
-    )
+        )
 
-    top_pages = [
+        top_pages = [
         {
             "path": row.path,
             "visits": int(row.visits or 0),
         }
         for row in page_rows
-    ]
+        ]
 
-    unique_by_page_rows = (
+        unique_by_page_rows = (
         db.session.query(
             PublicPageVisit.path,
             func.count(func.distinct(PublicPageVisit.visitor_id)).label("unique_visitors"),
@@ -241,12 +264,12 @@ def _build_public_traffic(selected_months_raw: str | None) -> dict:
         .order_by(func.count(func.distinct(PublicPageVisit.visitor_id)).desc(), PublicPageVisit.path.asc())
         .limit(20)
         .all()
-    )
-    unique_by_page_map = {str(row.path): int(row.unique_visitors or 0) for row in unique_by_page_rows}
-    for row in top_pages:
-        row["unique_visitors"] = unique_by_page_map.get(row["path"], 0)
+        )
+        unique_by_page_map = {str(row.path): int(row.unique_visitors or 0) for row in unique_by_page_rows}
+        for row in top_pages:
+            row["unique_visitors"] = unique_by_page_map.get(row["path"], 0)
 
-    country_rows = (
+        country_rows = (
         db.session.query(
             PublicPageVisit.country_code,
             func.count(PublicPageVisit.id).label("visits"),
@@ -260,17 +283,17 @@ def _build_public_traffic(selected_months_raw: str | None) -> dict:
         .order_by(func.count(PublicPageVisit.id).desc())
         .limit(15)
         .all()
-    )
-    top_countries = [
+        )
+        top_countries = [
         {
             "country_code": (str(row.country_code).upper() if row.country_code else "UNK"),
             "visits": int(row.visits or 0),
             "unique_visitors": int(row.unique_visitors or 0),
         }
         for row in country_rows
-    ]
+        ]
 
-    language_rows = (
+        language_rows = (
         db.session.query(
             PublicPageVisit.language_code,
             func.count(PublicPageVisit.id).label("visits"),
@@ -284,26 +307,26 @@ def _build_public_traffic(selected_months_raw: str | None) -> dict:
         .order_by(func.count(PublicPageVisit.id).desc())
         .limit(15)
         .all()
-    )
-    top_languages = [
+        )
+        top_languages = [
         {
             "language_code": (str(row.language_code).lower() if row.language_code else "unknown"),
             "visits": int(row.visits or 0),
             "unique_visitors": int(row.unique_visitors or 0),
         }
         for row in language_rows
-    ]
+        ]
 
-    # Daily trend for the selected period.
-    day_cursor = period_start_month.date()
-    day_end = (period_end_exclusive - timedelta(days=1)).date()
-    day_map = {}
-    while day_cursor <= day_end:
-        day_key = day_cursor.strftime("%Y-%m-%d")
-        day_map[day_key] = {"day": day_key, "visits": 0, "unique_visitors": 0}
-        day_cursor += timedelta(days=1)
+        # Daily trend for the selected period.
+        day_cursor = period_start_month.date()
+        day_end = (period_end_exclusive - timedelta(days=1)).date()
+        day_map = {}
+        while day_cursor <= day_end:
+            day_key = day_cursor.strftime("%Y-%m-%d")
+            day_map[day_key] = {"day": day_key, "visits": 0, "unique_visitors": 0}
+            day_cursor += timedelta(days=1)
 
-    daily_rows = (
+        daily_rows = (
         db.session.query(
             func.date(PublicPageVisit.created_at).label("day"),
             func.count(PublicPageVisit.id).label("visits"),
@@ -316,15 +339,23 @@ def _build_public_traffic(selected_months_raw: str | None) -> dict:
         .group_by(func.date(PublicPageVisit.created_at))
         .order_by(func.date(PublicPageVisit.created_at).asc())
         .all()
-    )
-    for row in daily_rows:
-        day_key = str(row.day)
-        if day_key in day_map:
-            day_map[day_key] = {
-                "day": day_key,
-                "visits": int(row.visits or 0),
-                "unique_visitors": int(row.unique_visitors or 0),
-            }
+        )
+        for row in daily_rows:
+            day_key = str(row.day)
+            if day_key in day_map:
+                day_map[day_key] = {
+                    "day": day_key,
+                    "visits": int(row.visits or 0),
+                    "unique_visitors": int(row.unique_visitors or 0),
+                }
+
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception("Admin web traffic metrics unavailable due to DB schema/state")
+        return empty_payload
+    except Exception:
+        current_app.logger.exception("Admin web traffic metrics failed unexpectedly")
+        return empty_payload
 
     return {
         "selected_months": selected_months_int,
