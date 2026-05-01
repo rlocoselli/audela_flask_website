@@ -1011,6 +1011,7 @@
           <textarea id="predict-x" class="form-control" rows="2" placeholder="10, 12.5, 18"></textarea>
           <div id="predict-x-help" class="form-text">-</div>
           <div class="form-text">{{ _('Entrez une ou plusieurs valeurs X (séparées par virgule, espace ou ligne).') }}</div>
+          <div class="form-text">{{ _('Probabilité affichée = P(classe 1). La classe prédite dépend du seuil de décision.') }}</div>
         </div>
         <div class="col-lg-2">
           <button
@@ -1419,6 +1420,10 @@
     predictOutputLabel: {{ _('Valeur prédite')|tojson }},
     predictBatchTitle: {{ _('Prévisions')|tojson }},
     predictXLabel: {{ _('X')|tojson }},
+    predictClassLabel: {{ _('Classe prédite')|tojson }},
+    predictProbaLabel: {{ _('Probabilité')|tojson }},
+    predictProbaMeaning: {{ _('Probabilité affichée = P(classe 1)')|tojson }},
+    predictDecisionThreshold: {{ _('Seuil de décision')|tojson }},
     noTrainedModelsYet: {{ _('Aucun modèle entraîné pour le moment.')|tojson }},
     clusterLabel: {{ _('cluster')|tojson }},
     centroidLabel: {{ _('centroïde')|tojson }},
@@ -2680,6 +2685,16 @@
           const row = rows[0] || {};
           if (data.algorithm === 'kmeans_clustering' && typeof row.cluster_id !== 'undefined') {
             result.textContent = i18n.clusterLabel + ': ' + row.cluster_id + ' ' + i18n.centroidLabel + ': ' + row.y_pred;
+          } else if (data.accuracy_type === 'classification') {
+            const yCol = data.y_column ? String(data.y_column) : i18n.predictClassLabel;
+            const cls = (typeof row.predicted_class !== 'undefined') ? String(row.predicted_class) : String(row.y_pred);
+            const proba = (typeof row.predicted_proba !== 'undefined') ? (' (' + i18n.predictProbaLabel + ' ' + String(row.predicted_proba) + '%)') : '';
+            const threshold = (typeof data.classification_threshold !== 'undefined' && data.classification_threshold !== null)
+              ? (Math.round(Number(data.classification_threshold) * 10000) / 100) + '%'
+              : '50%';
+            result.innerHTML =
+              '<div>' + yCol + ': ' + cls + proba + '</div>' +
+              '<div class="small text-muted mt-1">' + i18n.predictProbaMeaning + '. ' + i18n.predictDecisionThreshold + ': ' + threshold + '</div>';
           } else {
             const yCol = data.y_column ? (' ' + data.y_column + ':') : (' ' + i18n.predictOutputLabel + ':');
             result.textContent = yCol + ' ' + row.y_pred;
@@ -2687,19 +2702,34 @@
         } else {
           const headerY = data.algorithm === 'kmeans_clustering' ? i18n.centroidLabel : (data.y_column || i18n.predictOutputLabel);
           const bodyRows = rows.map(function (row) {
+            const yValue = (data.accuracy_type === 'classification' && typeof row.predicted_class !== 'undefined')
+              ? String(row.predicted_class)
+              : String(row.y_pred);
             const clusterPart = (data.algorithm === 'kmeans_clustering' && typeof row.cluster_id !== 'undefined')
               ? '<td class="text-nowrap">' + i18n.clusterLabel + ' #' + String(row.cluster_id) + '</td>'
-              : '<td></td>';
+              : ((data.accuracy_type === 'classification' && typeof row.predicted_proba !== 'undefined')
+                ? '<td class="text-nowrap">' + String(row.predicted_proba) + '%</td>'
+                : '<td></td>');
             return '<tr>' +
               '<td class="text-nowrap">' + String(row.x) + '</td>' +
-              '<td class="text-nowrap">' + String(row.y_pred) + '</td>' +
+              '<td class="text-nowrap">' + yValue + '</td>' +
               clusterPart +
               '</tr>';
           }).join('');
+          const thirdHeader = (data.algorithm === 'kmeans_clustering')
+            ? ''
+            : (data.accuracy_type === 'classification' ? i18n.predictProbaLabel : '');
+          const threshold = (data.accuracy_type === 'classification' && typeof data.classification_threshold !== 'undefined' && data.classification_threshold !== null)
+            ? (Math.round(Number(data.classification_threshold) * 10000) / 100) + '%'
+            : null;
+          const classificationHint = (data.accuracy_type === 'classification')
+            ? '<div class="small text-muted mb-2">' + i18n.predictProbaMeaning + '. ' + i18n.predictDecisionThreshold + ': ' + (threshold || '50%') + '</div>'
+            : '';
           result.innerHTML =
             '<div class="fw-semibold mb-2">' + i18n.predictBatchTitle + ' (' + String(rows.length) + ')</div>' +
+            classificationHint +
             '<div class="table-responsive"><table class="table table-sm table-striped mb-0 align-middle">' +
-              '<thead><tr><th>' + i18n.predictXLabel + '</th><th>' + headerY + '</th><th></th></tr></thead>' +
+              '<thead><tr><th>' + i18n.predictXLabel + '</th><th>' + headerY + '</th><th>' + thirdHeader + '</th></tr></thead>' +
               '<tbody>' + bodyRows + '</tbody>' +
             '</table></div>';
         }

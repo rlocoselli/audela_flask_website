@@ -406,6 +406,45 @@ def _ml_predict(model_data: dict[str, Any], x_value: float) -> float:
     return (slope * float(x_value)) + intercept
 
 
+def _binary_best_threshold(y_true: list[float], y_pred: list[float]) -> float:
+    """Pick a stable class threshold for binary tasks using train predictions."""
+    if not y_true or not y_pred or len(y_true) != len(y_pred):
+        return 0.5
+
+    truth = [int(round(float(v))) for v in y_true]
+    probs = [max(0.0, min(1.0, float(v))) for v in y_pred]
+    candidates = sorted({0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, *probs})
+
+    best_thr = 0.5
+    best_score = -1.0
+    for thr in candidates:
+        tp = fp = tn = fn = 0
+        for t, p in zip(truth, probs):
+            cls = 1 if p >= thr else 0
+            if cls == 1 and t == 1:
+                tp += 1
+            elif cls == 1 and t == 0:
+                fp += 1
+            elif cls == 0 and t == 0:
+                tn += 1
+            else:
+                fn += 1
+
+        tpr = (tp / (tp + fn)) if (tp + fn) else 0.0
+        tnr = (tn / (tn + fp)) if (tn + fp) else 0.0
+        balanced_acc = 0.5 * (tpr + tnr)
+        pred_pos = tp + fp
+        precision = (tp / pred_pos) if pred_pos else 0.0
+        # Tie-break with F1 to avoid trivial all-zero/all-one solutions.
+        f1 = (2.0 * precision * tpr / (precision + tpr)) if (precision + tpr) else 0.0
+        score = balanced_acc + (0.05 * f1)
+        if score > best_score:
+            best_score = score
+            best_thr = float(thr)
+
+    return round(min(0.95, max(0.05, best_thr)), 4)
+
+
 def _is_unsupervised_algorithm(algorithm: Any) -> bool:
     return str(algorithm or "").strip().lower() == "kmeans_clustering"
 
@@ -488,9 +527,10 @@ def _ml_metrics(
     def _binary_accuracy(vals_true: list[float], vals_pred: list[float]) -> float | None:
         if not vals_true or not vals_pred or len(vals_true) != len(vals_pred):
             return None
+        threshold = float(_to_number(model_data.get("classification_threshold")) or 0.5)
         correct = 0
         for truth, pred in zip(vals_true, vals_pred):
-            pred_cls = 1 if float(pred) >= 0.5 else 0
+            pred_cls = 1 if float(pred) >= threshold else 0
             truth_cls = int(round(float(truth)))
             if pred_cls == truth_cls:
                 correct += 1
@@ -802,13 +842,17 @@ def generate_sample_data():
     cities = ["Paris", "Lyon", "Marseille", "Toulouse", "Bordeaux"]
     for idx in range(1, 241):
         age = rng.randint(22, 62)
-        is_manager = 1 if rng.random() < 0.22 else 0
-        tenure_years = round(max(0.4, rng.gauss(6.2, 3.4)), 2)
-        performance_score = round(min(5.0, max(1.8, rng.gauss(3.6, 0.7))), 2)
-        # Keep a strong linear age->salary trend so demo regression reaches a high R2.
-        base = 12000 + (age * 2100)
-        manager_bonus = 9000 if is_manager else 0
-        salary = int(max(23000, min(180000, base + (tenure_years * 450) + (performance_score * 900) + manager_bonus + rng.gauss(0, 1400))))
+        tenure_years = round(min(35.0, max(0.4, (age - 22) * 0.45 + rng.gauss(0, 1.4))), 2)
+        performance_score = round(min(5.0, max(1.8, 3.0 + ((age - 22) * 0.02) + rng.gauss(0, 0.45))), 2)
+
+        # Manager flag follows a latent score so classification has clearer structure.
+        manager_score = (0.05 * age) + (0.16 * tenure_years) + (0.9 * (performance_score - 3.0)) + rng.gauss(0, 0.55)
+        is_manager = 1 if manager_score >= 3.6 else 0
+
+        # Preserve a dominant linear trend for age->salary regression quality.
+        base = 18000 + (age * 1750)
+        manager_bonus = 17000 if is_manager else 0
+        salary = int(max(23000, min(180000, base + (tenure_years * 850) + (performance_score * 1900) + manager_bonus + rng.gauss(0, 900))))
         writer.writerow(
             [
                 idx,
@@ -880,7 +924,11 @@ def generate_sample_data():
 
     state = _ml_models_state_for_tenant(g.tenant)
     models = state.get("models") or []
-    existing_names = {str(m.get("name") or "").strip().lower() for m in models if isinstance(m, dict)}
+    existing_by_name = {
+        str(m.get("name") or "").strip().lower(): m
+        for m in models
+        if isinstance(m, dict)
+    }
 
     sample_models: list[dict[str, Any]] = [
         {
@@ -902,7 +950,7 @@ def generate_sample_data():
         {
             "id": f"ml_{secrets.token_hex(6)}",
             "name": "Sample Manager Flag",
-            "algorithm": "decision_tree",
+            "algorithm": "random_forest",
             "source_id": int(ws.id),
             "source_name": workspace_name,
             "x_column": "salary",
@@ -933,17 +981,50 @@ def generate_sample_data():
         },
     ]
 
+    prepared_ids: list[str] = []
     added = 0
+    refreshed = 0
     for model in sample_models:
-        if str(model.get("name") or "").strip().lower() in existing_names:
+        model_key = str(model.get("name") or "").strip().lower()
+        existing = existing_by_name.get(model_key)
+        if existing is not None:
+            existing.update(
+                {
+                    "algorithm": model.get("algorithm"),
+                    "source_id": model.get("source_id"),
+                    "source_name": model.get("source_name"),
+                    "x_column": model.get("x_column"),
+                    "y_column": model.get("y_column"),
+                    "sql_text": model.get("sql_text"),
+                    "trained_at": "",
+                    "metrics": {},
+                    "params": {},
+                    "model_data": {},
+                    "mlflow": {},
+                    "deployed": False,
+                }
+            )
+            prepared_ids.append(str(existing.get("id") or ""))
+            refreshed += 1
             continue
+
         models.insert(0, model)
-        existing_names.add(str(model.get("name") or "").strip().lower())
+        existing_by_name[model_key] = model
+        prepared_ids.append(str(model.get("id") or ""))
         added += 1
 
     state["models"] = models[:200]
     _persist_ml_models_state(g.tenant, state)
     db.session.commit()
+
+    trained_ok = 0
+    trained_ko = 0
+    for model_id in [mid for mid in prepared_ids if mid]:
+        ok, _msg = _train_model_internal(model_id, 0.85, 5, 45, 3)
+        if ok:
+            trained_ok += 1
+        else:
+            trained_ko += 1
 
     flash(
         _(
@@ -959,6 +1040,22 @@ def generate_sample_data():
             "Try these queries: SELECT age, salary, is_manager FROM employees_sample and SELECT salary, age, tenure_years, performance_score FROM employees_sample.",
         ),
         "info",
+    )
+    if refreshed > 0:
+        flash(
+            _(
+                "Sample models refreshed: {count}.",
+                count=refreshed,
+            ),
+            "info",
+        )
+    flash(
+        _(
+            "Sample training completed: {ok} successful, {ko} failed.",
+            ok=trained_ok,
+            ko=trained_ko,
+        ),
+        "info" if trained_ko == 0 else "warning",
     )
     return redirect(url_for("ml.studio"))
 
@@ -1115,6 +1212,10 @@ def _train_model_internal(
             "k_clusters": k_clusters,
         }
         model_data = _ml_fit_model(train_pairs, algo, params)
+        train_true_vals = [y for _, y in train_pairs]
+        if train_true_vals and all(int(round(float(v))) in {0, 1} for v in train_true_vals):
+            train_pred_vals = [_ml_predict(model_data, x) for x, _ in train_pairs]
+            model_data["classification_threshold"] = _binary_best_threshold(train_true_vals, train_pred_vals)
         metrics = _ml_metrics(model_data, test_pairs, train_pairs)
         metrics["train_rows"] = len(train_pairs)
         metrics["total_rows"] = len(pairs)
@@ -1271,12 +1372,19 @@ def predict_model():
 
     predictions: list[dict[str, Any]] = []
     algorithm = str(model.get("algorithm") or "").strip().lower()
+    metrics = model.get("metrics") if isinstance(model.get("metrics"), dict) else {}
+    accuracy_type = str(metrics.get("accuracy_type") or "").strip().lower()
+    class_threshold = float(_to_number(model_data.get("classification_threshold")) or 0.5)
     for x_val in x_values:
         y_pred = _ml_predict(model_data, float(x_val))
         row: dict[str, Any] = {
             "x": float(x_val),
             "y_pred": round(float(y_pred), 8),
         }
+        if accuracy_type == "classification":
+            proba = max(0.0, min(1.0, float(y_pred)))
+            row["predicted_proba"] = round(proba * 100.0, 2)
+            row["predicted_class"] = int(1 if proba >= class_threshold else 0)
         if algorithm == "kmeans_clustering":
             centroids = [float(_to_number(c) or 0.0) for c in (model_data.get("centroids") or [])]
             if centroids:
@@ -1295,6 +1403,8 @@ def predict_model():
         "predictions": predictions,
         "y_column": model.get("y_column"),
         "x_column": model.get("x_column"),
+        "accuracy_type": accuracy_type,
+        "classification_threshold": class_threshold if accuracy_type == "classification" else None,
     }
     if algorithm == "kmeans_clustering" and predictions:
         first = predictions[0]
