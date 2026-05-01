@@ -39,6 +39,8 @@ def upgrade():
             sa.Column("visitor_id", sa.String(length=64), nullable=False),
             sa.Column("user_id", sa.Integer(), nullable=True),
             sa.Column("ip_hash", sa.String(length=64), nullable=True),
+            sa.Column("country_code", sa.String(length=8), nullable=True),
+            sa.Column("language_code", sa.String(length=12), nullable=True),
             sa.Column("referrer", sa.String(length=255), nullable=True),
             sa.Column("user_agent", sa.String(length=255), nullable=True),
             sa.Column("utm_source", sa.String(length=120), nullable=True),
@@ -55,6 +57,8 @@ def upgrade():
     _create_index_if_missing("ix_public_page_visits_visitor_id", "public_page_visits", ["visitor_id"])
     _create_index_if_missing("ix_public_page_visits_user_id", "public_page_visits", ["user_id"])
     _create_index_if_missing("ix_public_page_visits_ip_hash", "public_page_visits", ["ip_hash"])
+    _create_index_if_missing("ix_public_page_visits_country_code", "public_page_visits", ["country_code"])
+    _create_index_if_missing("ix_public_page_visits_language_code", "public_page_visits", ["language_code"])
     _create_index_if_missing("ix_public_page_visits_is_home", "public_page_visits", ["is_home"])
     _create_index_if_missing("ix_public_page_visits_created_at", "public_page_visits", ["created_at"])
 

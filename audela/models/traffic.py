@@ -16,6 +16,8 @@ class PublicPageVisit(db.Model):
     visitor_id = db.Column(db.String(64), nullable=False, index=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     ip_hash = db.Column(db.String(64), nullable=True, index=True)
+    country_code = db.Column(db.String(8), nullable=True, index=True)
+    language_code = db.Column(db.String(12), nullable=True, index=True)
     referrer = db.Column(db.String(255), nullable=True)
     user_agent = db.Column(db.String(255), nullable=True)
     utm_source = db.Column(db.String(120), nullable=True)

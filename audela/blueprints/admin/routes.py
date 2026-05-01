@@ -246,6 +246,54 @@ def _build_public_traffic(selected_months_raw: str | None) -> dict:
     for row in top_pages:
         row["unique_visitors"] = unique_by_page_map.get(row["path"], 0)
 
+    country_rows = (
+        db.session.query(
+            PublicPageVisit.country_code,
+            func.count(PublicPageVisit.id).label("visits"),
+            func.count(func.distinct(PublicPageVisit.visitor_id)).label("unique_visitors"),
+        )
+        .filter(
+            PublicPageVisit.created_at >= period_start_month,
+            PublicPageVisit.created_at < period_end_exclusive,
+        )
+        .group_by(PublicPageVisit.country_code)
+        .order_by(func.count(PublicPageVisit.id).desc())
+        .limit(15)
+        .all()
+    )
+    top_countries = [
+        {
+            "country_code": (str(row.country_code).upper() if row.country_code else "UNK"),
+            "visits": int(row.visits or 0),
+            "unique_visitors": int(row.unique_visitors or 0),
+        }
+        for row in country_rows
+    ]
+
+    language_rows = (
+        db.session.query(
+            PublicPageVisit.language_code,
+            func.count(PublicPageVisit.id).label("visits"),
+            func.count(func.distinct(PublicPageVisit.visitor_id)).label("unique_visitors"),
+        )
+        .filter(
+            PublicPageVisit.created_at >= period_start_month,
+            PublicPageVisit.created_at < period_end_exclusive,
+        )
+        .group_by(PublicPageVisit.language_code)
+        .order_by(func.count(PublicPageVisit.id).desc())
+        .limit(15)
+        .all()
+    )
+    top_languages = [
+        {
+            "language_code": (str(row.language_code).lower() if row.language_code else "unknown"),
+            "visits": int(row.visits or 0),
+            "unique_visitors": int(row.unique_visitors or 0),
+        }
+        for row in language_rows
+    ]
+
     # Daily trend for the selected period.
     day_cursor = period_start_month.date()
     day_end = (period_end_exclusive - timedelta(days=1)).date()
@@ -287,6 +335,8 @@ def _build_public_traffic(selected_months_raw: str | None) -> dict:
         "home_visits": home_visits,
         "plans_visits": plans_visits,
         "top_pages": top_pages,
+        "top_countries": top_countries,
+        "top_languages": top_languages,
         "daily_trend": list(day_map.values()),
     }
 

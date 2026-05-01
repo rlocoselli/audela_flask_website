@@ -172,6 +172,8 @@
             <div class="col-12 col-md-3"><div class="border rounded p-3 h-100"><div class="text-secondary small">{{ _('Unique visitors') }}</div><div class="h5 mb-0">{{ web_traffic.unique_visitors }}</div></div></div>
             <div class="col-12 col-md-3"><div class="border rounded p-3 h-100"><div class="text-secondary small">{{ _('Home page visits') }}</div><div class="h5 mb-0">{{ web_traffic.home_visits }}</div></div></div>
             <div class="col-12 col-md-3"><div class="border rounded p-3 h-100"><div class="text-secondary small">{{ _('Plans page visits') }}</div><div class="h5 mb-0">{{ web_traffic.plans_visits }}</div></div></div>
+            <div class="col-12 col-md-6"><div class="border rounded p-3 h-100"><div class="text-secondary small">{{ _('Top country') }}</div><div class="h5 mb-0">{{ web_traffic.top_countries[0].country_code if web_traffic.top_countries else 'UNK' }}</div></div></div>
+            <div class="col-12 col-md-6"><div class="border rounded p-3 h-100"><div class="text-secondary small">{{ _('Top language') }}</div><div class="h5 mb-0">{{ web_traffic.top_languages[0].language_code if web_traffic.top_languages else 'unknown' }}</div></div></div>
           </div>
 
           <div class="row g-3">
@@ -185,6 +187,76 @@
               <div class="border rounded p-2 p-md-3 mb-3">
                 <div class="small text-secondary mb-2">{{ _('Top public pages') }}</div>
                 <div id="adminTopPagesChart" style="height: 320px;"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="row g-3 mb-3">
+            <div class="col-12 col-xl-6">
+              <div class="border rounded p-2 p-md-3">
+                <div class="small text-secondary mb-2">{{ _('Top countries') }}</div>
+                <div id="adminTopCountriesChart" style="height: 280px;"></div>
+              </div>
+            </div>
+            <div class="col-12 col-xl-6">
+              <div class="border rounded p-2 p-md-3">
+                <div class="small text-secondary mb-2">{{ _('Top languages') }}</div>
+                <div id="adminTopLanguagesChart" style="height: 280px;"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-12 col-xl-6">
+              <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th>{{ _('Country') }}</th>
+                      <th class="text-end">{{ _('Visits') }}</th>
+                      <th class="text-end">{{ _('Unique visitors') }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for row in web_traffic.top_countries %}
+                      <tr>
+                        <td><code>{{ row.country_code }}</code></td>
+                        <td class="text-end">{{ row.visits }}</td>
+                        <td class="text-end">{{ row.unique_visitors }}</td>
+                      </tr>
+                    {% else %}
+                      <tr>
+                        <td colspan="3" class="text-center text-secondary">{{ _('No data') }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="col-12 col-xl-6">
+              <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th>{{ _('Language') }}</th>
+                      <th class="text-end">{{ _('Visits') }}</th>
+                      <th class="text-end">{{ _('Unique visitors') }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for row in web_traffic.top_languages %}
+                      <tr>
+                        <td><code>{{ row.language_code }}</code></td>
+                        <td class="text-end">{{ row.visits }}</td>
+                        <td class="text-end">{{ row.unique_visitors }}</td>
+                      </tr>
+                    {% else %}
+                      <tr>
+                        <td colspan="3" class="text-center text-secondary">{{ _('No data') }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
@@ -376,6 +448,8 @@
     const pieEl = document.getElementById('adminPlanMixChart');
     const trafficTrendEl = document.getElementById('adminTrafficTrendChart');
     const topPagesEl = document.getElementById('adminTopPagesChart');
+    const topCountriesEl = document.getElementById('adminTopCountriesChart');
+    const topLanguagesEl = document.getElementById('adminTopLanguagesChart');
     if (typeof echarts === 'undefined') return;
 
     const labels = [{% for row in admin_finance.monthly_report %}'{{ row.month_label }}'{% if not loop.last %}, {% endif %}{% endfor %}];
@@ -414,6 +488,10 @@
       const trafficUnique = [{% for row in web_traffic.daily_trend %}{{ row.unique_visitors }}{% if not loop.last %}, {% endif %}{% endfor %}];
       const topPageLabels = [{% for row in web_traffic.top_pages[:10] %}{{ row.path|tojson }}{% if not loop.last %}, {% endif %}{% endfor %}];
       const topPageVisits = [{% for row in web_traffic.top_pages[:10] %}{{ row.visits }}{% if not loop.last %}, {% endif %}{% endfor %}];
+      const countryLabels = [{% for row in web_traffic.top_countries[:10] %}{{ row.country_code|tojson }}{% if not loop.last %}, {% endif %}{% endfor %}];
+      const countryVisits = [{% for row in web_traffic.top_countries[:10] %}{{ row.visits }}{% if not loop.last %}, {% endif %}{% endfor %}];
+      const languageLabels = [{% for row in web_traffic.top_languages[:10] %}{{ row.language_code|tojson }}{% if not loop.last %}, {% endif %}{% endfor %}];
+      const languageVisits = [{% for row in web_traffic.top_languages[:10] %}{{ row.visits }}{% if not loop.last %}, {% endif %}{% endfor %}];
 
       const trafficTrendChart = echarts.init(trafficTrendEl);
       trafficTrendChart.setOption({
@@ -437,6 +515,30 @@
         series: [{ type: 'bar', data: topPageVisits }]
       });
       resizeTargets.push(trafficTrendChart, topPagesChart);
+
+      if (topCountriesEl) {
+        const topCountriesChart = echarts.init(topCountriesEl);
+        topCountriesChart.setOption({
+          tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+          grid: { left: 60, right: 20, top: 20, bottom: 40 },
+          xAxis: { type: 'category', data: countryLabels },
+          yAxis: { type: 'value' },
+          series: [{ type: 'bar', data: countryVisits }]
+        });
+        resizeTargets.push(topCountriesChart);
+      }
+
+      if (topLanguagesEl) {
+        const topLanguagesChart = echarts.init(topLanguagesEl);
+        topLanguagesChart.setOption({
+          tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+          grid: { left: 60, right: 20, top: 20, bottom: 40 },
+          xAxis: { type: 'category', data: languageLabels },
+          yAxis: { type: 'value' },
+          series: [{ type: 'bar', data: languageVisits }]
+        });
+        resizeTargets.push(topLanguagesChart);
+      }
     }
 
     const tabButtons = document.querySelectorAll('[data-bs-toggle="tab"]');

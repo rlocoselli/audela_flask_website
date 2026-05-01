@@ -48,6 +48,28 @@ def _client_ip_hash() -> str | None:
     return hashlib.sha256(raw_ip.encode("utf-8")).hexdigest()[:32]
 
 
+def _client_country_code() -> str | None:
+    # Prefer proxy-provided country headers when available.
+    candidates = (
+        request.headers.get("CF-IPCountry"),
+        request.headers.get("X-Country-Code"),
+        request.headers.get("X-AppEngine-Country"),
+    )
+    for value in candidates:
+        code = str(value or "").strip().upper()
+        if code and code not in {"XX", "ZZ", "UNKNOWN"}:
+            return code[:8]
+    return None
+
+
+def _request_language_code() -> str | None:
+    lang = normalize_lang(getattr(g, "lang", session.get("lang")))
+    if lang:
+        return str(lang)[:12]
+    best = normalize_lang(request.accept_languages.best or "")
+    return str(best)[:12] if best else None
+
+
 @bp.before_request
 def _track_public_page_view():
     if request.method != "GET":
@@ -74,6 +96,8 @@ def _track_public_page_view():
         visitor_id=_public_visitor_id()[:64],
         user_id=current_user.id if current_user.is_authenticated else None,
         ip_hash=_client_ip_hash(),
+        country_code=_client_country_code(),
+        language_code=_request_language_code(),
         referrer=referrer,
         user_agent=user_agent,
         utm_source=(request.args.get("utm_source") or "").strip()[:120] or None,
