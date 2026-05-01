@@ -62,7 +62,7 @@ jobs:
           BRIDGE_BASE_URL: ${{ vars.BRIDGE_BASE_URL || 'https://api.bridgeapi.io' }}
           BRIDGE_VERSION: ${{ vars.BRIDGE_VERSION || '2025-01-15' }}
           MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI || 'http://mlflow:5000' }}
-          MLFLOW_EMBED_URL: ${{ vars.MLFLOW_EMBED_URL || 'http://mlflow:5000' }}
+          MLFLOW_EMBED_URL: ${{ vars.MLFLOW_EMBED_URL || '' }}
           MLFLOW_ENABLED: ${{ vars.MLFLOW_ENABLED || '1' }}
           POWENS_CLIENT_ID: ${{ secrets.POWENS_CLIENT_ID || vars.POWENS_CLIENT_ID || '' }}
           POWENS_CLIENT_SECRET: ${{ secrets.POWENS_CLIENT_SECRET || vars.POWENS_CLIENT_SECRET || '' }}
@@ -132,6 +132,11 @@ jobs:
                 printf "\n%s=%s\n" "$key" "$val" >> .env
               fi
             }
+
+            # Keep MLflow tracking internal for containers, but always expose UI on a public URL.
+            if [ -z "${MLFLOW_EMBED_URL}" ] || [ "${MLFLOW_EMBED_URL}" = "http://mlflow:5000" ] || [ "${MLFLOW_EMBED_URL}" = "http://mlflow:5000/" ]; then
+              MLFLOW_EMBED_URL="${SITE_URL%/}/mlflow"
+            fi
 
             upsert_env_var "GRAFANA_HOSTNAME" "${GRAFANA_HOSTNAME}"
             upsert_env_var "GRAFANA_HOSTNAME_ALT" "${GRAFANA_HOSTNAME_ALT}"

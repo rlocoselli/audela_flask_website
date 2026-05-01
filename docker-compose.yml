@@ -49,7 +49,7 @@ services:
       FLASK_ENV: production
       REDIS_URL: redis://redis:6379/0
       MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow:5000}
-      MLFLOW_EMBED_URL: ${MLFLOW_EMBED_URL:-http://mlflow:5000}
+      MLFLOW_EMBED_URL: ${MLFLOW_EMBED_URL:-https://${APP_HOSTNAME}/mlflow}
       SESSION_COOKIE_SECURE: "true"
       COOKIE_SECURE: "1"
       TENANT_FILE_ROOT: /app/instance/tenant_files
@@ -110,7 +110,26 @@ services:
       - "5001:5000"
     volumes:
       - mlflow_data:/mlflow
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=audela_web
+
+      # HTTP -> HTTPS for MLflow public path
+      - traefik.http.routers.mlflow-http.rule=(Host(`${APP_HOSTNAME}`) || Host(`${APP_HOSTNAME_WWW}`)) && PathPrefix(`/mlflow`)
+      - traefik.http.routers.mlflow-http.entrypoints=web
+      - traefik.http.routers.mlflow-http.middlewares=mlflow-redirect-to-https
+      - traefik.http.middlewares.mlflow-redirect-to-https.redirectscheme.scheme=https
+
+      # HTTPS MLflow router (same domain, /mlflow)
+      - traefik.http.routers.mlflow.rule=(Host(`${APP_HOSTNAME}`) || Host(`${APP_HOSTNAME_WWW}`)) && PathPrefix(`/mlflow`)
+      - traefik.http.routers.mlflow.entrypoints=websecure
+      - traefik.http.routers.mlflow.tls=true
+      - traefik.http.routers.mlflow.tls.certresolver=letsencrypt
+      - traefik.http.routers.mlflow.middlewares=mlflow-strip-prefix
+      - traefik.http.middlewares.mlflow-strip-prefix.stripprefix.prefixes=/mlflow
+      - traefik.http.services.mlflow.loadbalancer.server.port=5000
     networks:
+      - web
       - backend
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/', timeout=2).read(1)"]

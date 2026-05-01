@@ -419,7 +419,7 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="col-md-3">
               <label class="form-label">{{ _('Source BI') }}</label>
-              <select class="form-select" name="source_id" required>
+              <select class="form-select" name="source_id">
                 <option value="">{{ _('Sélectionner...') }}</option>
                 {% for source in sources %}
                 <option value="{{ source.id }}" data-dbtype="{{ source.type }}">{{ source.name }} ({{ source.type }})</option>
@@ -490,7 +490,7 @@
             </div>
             <div class="col-12">
               <label class="form-label">{{ _('Requête SQL commentaires') }}</label>
-              <textarea id="mlSentSqlText" class="form-control" name="sql_text" rows="4" placeholder="SELECT comment_text FROM customer_feedback WHERE tenant_id = :tenant_id" required></textarea>
+              <textarea id="mlSentSqlText" class="form-control" name="sql_text" rows="4" placeholder="SELECT comment_text FROM customer_feedback WHERE tenant_id = :tenant_id"></textarea>
               <small class="text-muted">{{ _('Autocomplete activé (Ctrl+Space).') }}</small>
             </div>
             <div class="col-12">
