@@ -49,7 +49,7 @@ services:
       FLASK_ENV: production
       REDIS_URL: redis://redis:6379/0
       MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow:5000}
-      MLFLOW_EMBED_URL: ${MLFLOW_EMBED_URL:-https://${APP_HOSTNAME}/mlflow}
+      MLFLOW_EMBED_URL: ${MLFLOW_EMBED_URL:-https://${APP_HOSTNAME}/mlflow/}
       SESSION_COOKIE_SECURE: "true"
       COOKIE_SECURE: "1"
       TENANT_FILE_ROOT: /app/instance/tenant_files
@@ -114,14 +114,29 @@ services:
       - traefik.enable=true
       - traefik.docker.network=audela_web
 
+      # Canonicalize /mlflow -> /mlflow/ to keep MLflow UI assets relative paths valid.
+      - traefik.http.routers.mlflow-root-http.rule=(Host(`${APP_HOSTNAME}`) || Host(`${APP_HOSTNAME_WWW}`)) && Path(`/mlflow`)
+      - traefik.http.routers.mlflow-root-http.entrypoints=web
+      - traefik.http.routers.mlflow-root-http.middlewares=mlflow-root-redirect
+
+      - traefik.http.routers.mlflow-root.rule=(Host(`${APP_HOSTNAME}`) || Host(`${APP_HOSTNAME_WWW}`)) && Path(`/mlflow`)
+      - traefik.http.routers.mlflow-root.entrypoints=websecure
+      - traefik.http.routers.mlflow-root.tls=true
+      - traefik.http.routers.mlflow-root.tls.certresolver=letsencrypt
+      - traefik.http.routers.mlflow-root.middlewares=mlflow-root-redirect
+
+      - traefik.http.middlewares.mlflow-root-redirect.redirectregex.regex=^https?://([^/]+)/mlflow$
+      - traefik.http.middlewares.mlflow-root-redirect.redirectregex.replacement=https://$${1}/mlflow/
+      - traefik.http.middlewares.mlflow-root-redirect.redirectregex.permanent=true
+
       # HTTP -> HTTPS for MLflow public path
-      - traefik.http.routers.mlflow-http.rule=(Host(`${APP_HOSTNAME}`) || Host(`${APP_HOSTNAME_WWW}`)) && PathPrefix(`/mlflow`)
+      - traefik.http.routers.mlflow-http.rule=(Host(`${APP_HOSTNAME}`) || Host(`${APP_HOSTNAME_WWW}`)) && PathPrefix(`/mlflow/`)
       - traefik.http.routers.mlflow-http.entrypoints=web
       - traefik.http.routers.mlflow-http.middlewares=mlflow-redirect-to-https
       - traefik.http.middlewares.mlflow-redirect-to-https.redirectscheme.scheme=https
 
       # HTTPS MLflow router (same domain, /mlflow)
-      - traefik.http.routers.mlflow.rule=(Host(`${APP_HOSTNAME}`) || Host(`${APP_HOSTNAME_WWW}`)) && PathPrefix(`/mlflow`)
+      - traefik.http.routers.mlflow.rule=(Host(`${APP_HOSTNAME}`) || Host(`${APP_HOSTNAME_WWW}`)) && PathPrefix(`/mlflow/`)
       - traefik.http.routers.mlflow.entrypoints=websecure
       - traefik.http.routers.mlflow.tls=true
       - traefik.http.routers.mlflow.tls.certresolver=letsencrypt

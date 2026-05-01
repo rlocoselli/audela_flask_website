@@ -14,7 +14,7 @@ ML/MLOps included:
 - **MLflow** server runs in Compose and is reachable:
 	- from containers at `http://mlflow:5000`
 	- from host Python processes at `http://127.0.0.1:5001`
-	- from browser users (via Traefik) at `https://$APP_HOSTNAME/mlflow`
+	- from browser users (via Traefik) at `https://$APP_HOSTNAME/mlflow/`
 
 Background jobs included:
 - **Celery Worker** (`celery-worker`) for async tasks
@@ -127,7 +127,7 @@ Recommended env values:
 ```env
 # Inside Docker services (audela/celery)
 MLFLOW_TRACKING_URI=http://mlflow:5000
-MLFLOW_EMBED_URL=https://$APP_HOSTNAME/mlflow
+MLFLOW_EMBED_URL=https://$APP_HOSTNAME/mlflow/
 
 # For local Python (already default in DevConfig)
 # MLFLOW_TRACKING_URI=http://127.0.0.1:5001

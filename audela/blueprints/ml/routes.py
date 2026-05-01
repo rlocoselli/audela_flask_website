@@ -82,6 +82,20 @@ def _to_number(value: Any) -> float | None:
         return None
 
 
+def _parse_predict_values(raw_value: Any) -> list[float]:
+    raw = str(raw_value or "").strip()
+    if not raw:
+        return []
+    # Accept comma/semicolon/newline/space separated values for batch predictions.
+    chunks = [c for c in re.split(r"[\s,;]+", raw) if c]
+    values: list[float] = []
+    for chunk in chunks:
+        num = _to_number(chunk)
+        if num is not None:
+            values.append(float(num))
+    return values
+
+
 def _numeric_metric_fields(columns: list[Any], rows: list[Any]) -> list[str]:
     metric_fields: list[str] = []
     for idx, col in enumerate(columns):
@@ -791,9 +805,10 @@ def generate_sample_data():
         is_manager = 1 if rng.random() < 0.22 else 0
         tenure_years = round(max(0.4, rng.gauss(6.2, 3.4)), 2)
         performance_score = round(min(5.0, max(1.8, rng.gauss(3.6, 0.7))), 2)
-        base = 22000 + (age * 950) + (tenure_years * 1600) + (performance_score * 3800)
-        manager_bonus = 18500 if is_manager else 0
-        salary = int(max(23000, min(180000, base + manager_bonus + rng.gauss(0, 5200))))
+        # Keep a strong linear age->salary trend so demo regression reaches a high R2.
+        base = 12000 + (age * 2100)
+        manager_bonus = 9000 if is_manager else 0
+        salary = int(max(23000, min(180000, base + (tenure_years * 450) + (performance_score * 900) + manager_bonus + rng.gauss(0, 1400))))
         writer.writerow(
             [
                 idx,
@@ -1239,8 +1254,10 @@ def predict_model():
     _require_tenant()
     model_id = str(request.args.get("model_id") or "").strip()
     x_raw = request.args.get("x")
-    x_val = _to_number(x_raw)
-    if not model_id or x_val is None:
+    x_values = _parse_predict_values(x_raw)
+    if not model_id or not x_values:
+        return jsonify({"ok": False, "error": _("Model and numeric x are required.")}), 400
+    if len(x_values) > 200:
         return jsonify({"ok": False, "error": _("Model and numeric x are required.")}), 400
 
     state = _ml_models_state_for_tenant(g.tenant)
@@ -1252,23 +1269,38 @@ def predict_model():
     if not model_data:
         return jsonify({"ok": False, "error": _("Model is not trained yet.")}), 400
 
-    y_pred = _ml_predict(model_data, float(x_val))
+    predictions: list[dict[str, Any]] = []
     algorithm = str(model.get("algorithm") or "").strip().lower()
+    for x_val in x_values:
+        y_pred = _ml_predict(model_data, float(x_val))
+        row: dict[str, Any] = {
+            "x": float(x_val),
+            "y_pred": round(float(y_pred), 8),
+        }
+        if algorithm == "kmeans_clustering":
+            centroids = [float(_to_number(c) or 0.0) for c in (model_data.get("centroids") or [])]
+            if centroids:
+                cluster_id = min(range(len(centroids)), key=lambda idx: abs(float(x_val) - centroids[idx]))
+                row["cluster_id"] = int(cluster_id)
+                row["centroid"] = centroids[cluster_id]
+        predictions.append(row)
+
     payload: dict[str, Any] = {
         "ok": True,
         "model_id": model_id,
         "model_name": model.get("name"),
         "algorithm": model.get("algorithm"),
-        "x": float(x_val),
-        "y_pred": round(float(y_pred), 8),
+        "x": predictions[0]["x"],
+        "y_pred": predictions[0]["y_pred"],
+        "predictions": predictions,
         "y_column": model.get("y_column"),
+        "x_column": model.get("x_column"),
     }
-    if algorithm == "kmeans_clustering":
-        centroids = [float(_to_number(c) or 0.0) for c in (model_data.get("centroids") or [])]
-        if centroids:
-            cluster_id = min(range(len(centroids)), key=lambda idx: abs(float(x_val) - centroids[idx]))
-            payload["cluster_id"] = int(cluster_id)
-            payload["centroid"] = centroids[cluster_id]
+    if algorithm == "kmeans_clustering" and predictions:
+        first = predictions[0]
+        if "cluster_id" in first:
+            payload["cluster_id"] = first["cluster_id"]
+            payload["centroid"] = first["centroid"]
     return jsonify(
         payload
     )

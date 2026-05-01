@@ -135,7 +135,7 @@ jobs:
 
             # Keep MLflow tracking internal for containers, but always expose UI on a public URL.
             if [ -z "${MLFLOW_EMBED_URL}" ] || [ "${MLFLOW_EMBED_URL}" = "http://mlflow:5000" ] || [ "${MLFLOW_EMBED_URL}" = "http://mlflow:5000/" ]; then
-              MLFLOW_EMBED_URL="${SITE_URL%/}/mlflow"
+              MLFLOW_EMBED_URL="${SITE_URL%/}/mlflow/"
             fi
 
             upsert_env_var "GRAFANA_HOSTNAME" "${GRAFANA_HOSTNAME}"

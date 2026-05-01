@@ -228,6 +228,46 @@
       padding: .35rem;
     }
 
+    .ml-kpi-card {
+      border: 1px solid #dbe4ef;
+      border-radius: .9rem;
+      background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+      box-shadow: 0 10px 24px rgba(15, 23, 42, .05);
+    }
+
+    .ml-kpi-icon {
+      width: 2rem;
+      height: 2rem;
+      border-radius: .6rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: #eef6ff;
+      color: #1d4ed8;
+      font-size: .95rem;
+    }
+
+    .ml-kpi-value {
+      font-size: 1.35rem;
+      font-weight: 700;
+      line-height: 1.15;
+      color: #0f172a;
+    }
+
+    .ml-health-row .progress {
+      height: .55rem;
+      background: #e2e8f0;
+    }
+
+    .ml-health-row .progress-bar {
+      background: linear-gradient(90deg, #0ea5e9 0%, #22c55e 100%);
+    }
+
+    #mlOverviewRecentTable td,
+    #mlOverviewRecentTable th {
+      white-space: nowrap;
+    }
+
       #mlflow-tutorial {
         scroll-margin-top: 92px;
       }
@@ -279,44 +319,62 @@
   {% set avg_acc = (ns.acc_sum / ns.acc_n) if ns.acc_n > 0 else none %}
   {% set avg_r2 = (ns.r2_sum / ns.r2_n) if ns.r2_n > 0 else none %}
 
+  {% set trained_pct = ((ns.trained * 100.0 / ns.total) if ns.total > 0 else 0.0) %}
+  {% set deployed_pct = ((ns.deployed * 100.0 / ns.total) if ns.total > 0 else 0.0) %}
+
   <div class="row g-3 mb-3">
     <div class="col-md-6 col-xl-2">
-      <div class="card ml-surface h-100">
-        <div class="card-body">
-          <div class="text-muted small">{{ _('Modèles total') }}</div>
-          <div class="h3 mb-0">{{ ns.total }}</div>
+      <div class="card ml-kpi-card h-100">
+        <div class="card-body d-flex flex-column gap-1">
+          <div class="d-flex align-items-center justify-content-between">
+            <div class="text-muted small">{{ _('Modèles total') }}</div>
+            <span class="ml-kpi-icon"><i class="bi bi-boxes"></i></span>
+          </div>
+          <div class="ml-kpi-value">{{ ns.total }}</div>
         </div>
       </div>
     </div>
     <div class="col-md-6 col-xl-2">
-      <div class="card ml-surface h-100">
-        <div class="card-body">
-          <div class="text-muted small">{{ _('Modèles entraînés') }}</div>
-          <div class="h3 mb-0">{{ ns.trained }}</div>
+      <div class="card ml-kpi-card h-100">
+        <div class="card-body d-flex flex-column gap-1">
+          <div class="d-flex align-items-center justify-content-between">
+            <div class="text-muted small">{{ _('Modèles entraînés') }}</div>
+            <span class="ml-kpi-icon"><i class="bi bi-cpu"></i></span>
+          </div>
+          <div class="ml-kpi-value">{{ ns.trained }}</div>
         </div>
       </div>
     </div>
     <div class="col-md-6 col-xl-2">
-      <div class="card ml-surface h-100">
-        <div class="card-body">
-          <div class="text-muted small">{{ _('Modèles déployés') }}</div>
-          <div class="h3 mb-0">{{ ns.deployed }}</div>
+      <div class="card ml-kpi-card h-100">
+        <div class="card-body d-flex flex-column gap-1">
+          <div class="d-flex align-items-center justify-content-between">
+            <div class="text-muted small">{{ _('Modèles déployés') }}</div>
+            <span class="ml-kpi-icon"><i class="bi bi-rocket-takeoff"></i></span>
+          </div>
+          <div class="ml-kpi-value">{{ ns.deployed }}</div>
         </div>
       </div>
     </div>
     <div class="col-md-6 col-xl-3">
-      <div class="card ml-surface h-100">
-        <div class="card-body">
-          <div class="text-muted small">{{ _('Accuracy moyenne') }}</div>
-          <div class="h3 mb-0">{% if avg_acc is not none %}{{ '%.2f'|format(avg_acc) }}%{% else %}-{% endif %}</div>
+      <div class="card ml-kpi-card h-100">
+        <div class="card-body d-flex flex-column gap-1">
+          <div class="d-flex align-items-center justify-content-between">
+            <div class="text-muted small">{{ _('Accuracy moyenne') }}</div>
+            <span class="ml-kpi-icon"><i class="bi bi-bullseye"></i></span>
+          </div>
+          <div class="ml-kpi-value">{% if avg_acc is not none %}{{ '%.2f'|format(avg_acc) }}%{% else %}-{% endif %}</div>
         </div>
       </div>
     </div>
     <div class="col-md-6 col-xl-3">
-      <div class="card ml-surface h-100">
-        <div class="card-body">
-          <div class="text-muted small">{{ _('R² moyen') }}</div>
-          <div class="h3 mb-0">{% if avg_r2 is not none %}{{ '%.3f'|format(avg_r2) }}{% else %}-{% endif %}</div>
+      <div class="card ml-kpi-card h-100">
+        <div class="card-body d-flex flex-column gap-1">
+          <div class="d-flex align-items-center justify-content-between">
+            <div class="text-muted small">{{ _('R² moyen') }}</div>
+            <span class="ml-kpi-icon"><i class="bi bi-graph-up-arrow"></i></span>
+          </div>
+          <div class="ml-kpi-value">{% if avg_r2 is not none %}{{ '%.3f'|format(avg_r2) }}{% else %}-{% endif %}</div>
         </div>
       </div>
     </div>
@@ -326,7 +384,36 @@
     <div class="col-lg-4">
       <div class="card ml-surface h-100">
         <div class="card-body">
-          <h5 class="mb-2">{{ _('Actions rapides BI') }}</h5>
+          <h5 class="mb-2">{{ _('Readiness ML') }}</h5>
+          <div class="ml-health-row mb-3">
+            <div class="d-flex justify-content-between small mb-1">
+              <span>{{ _('Couverture entraînement') }}</span>
+              <strong>{{ '%.0f'|format(trained_pct) }}%</strong>
+            </div>
+            <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ '%.0f'|format(trained_pct) }}">
+              <div class="progress-bar" style="width: {{ trained_pct }}%"></div>
+            </div>
+          </div>
+          <div class="ml-health-row mb-3">
+            <div class="d-flex justify-content-between small mb-1">
+              <span>{{ _('Couverture déploiement') }}</span>
+              <strong>{{ '%.0f'|format(deployed_pct) }}%</strong>
+            </div>
+            <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ '%.0f'|format(deployed_pct) }}">
+              <div class="progress-bar" style="width: {{ deployed_pct }}%"></div>
+            </div>
+          </div>
+
+          <h6 class="mb-2">{{ _('Signal qualité') }}</h6>
+          {% if avg_r2 is not none and avg_r2 >= 0.65 %}
+            <div class="alert alert-success py-2 small mb-3">{{ _('Les performances régression sont globalement robustes sur les runs testés.') }}</div>
+          {% elif avg_r2 is not none and avg_r2 < 0 %}
+            <div class="alert alert-warning py-2 small mb-3">{{ _('R² moyen négatif: revoyez la qualité des features ou le choix du modèle pour certaines sources.') }}</div>
+          {% else %}
+            <div class="alert alert-secondary py-2 small mb-3">{{ _('Performance intermédiaire: continuez le tuning (features, split, algorithme).') }}</div>
+          {% endif %}
+
+          <h6 class="mb-2">{{ _('Actions rapides BI') }}</h6>
           <p class="text-muted small mb-3">{{ _('Créer et connecter vos données BI avant entraînement des modèles.') }}</p>
           <div class="d-grid gap-2">
             <a class="btn btn-sm btn-outline-primary" href="{{ url_for('portal.sources_new') }}">{{ _('Créer une source') }}</a>
@@ -362,6 +449,36 @@
         <div class="card-body">
           <h5 class="mb-2">{{ _('Répartition Fit Status') }}</h5>
           <canvas id="mlOverviewFitChart" height="150"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-12">
+      <div class="card ml-surface">
+        <div class="card-body">
+          <div class="d-flex align-items-center justify-content-between gap-2 mb-2 flex-wrap">
+            <h5 class="mb-0">{{ _('Runs récents') }}</h5>
+            <small class="text-muted">{{ _('Derniers modèles entraînés avec leur signal de fit.') }}</small>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0" id="mlOverviewRecentTable">
+              <thead>
+                <tr>
+                  <th>{{ _('Nom') }}</th>
+                  <th>{{ _('Algorithme') }}</th>
+                  <th>{{ _('Train') }}</th>
+                  <th>{{ _('R²') }}</th>
+                  <th>{{ _('Accuracy') }}</th>
+                  <th>{{ _('Fit') }}</th>
+                </tr>
+              </thead>
+              <tbody id="mlOverviewRecentBody">
+                <tr><td colspan="6" class="text-muted">{{ _('Aucun modèle entraîné pour le moment.') }}</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -603,6 +720,7 @@
         <div class="fw-semibold mb-1">{{ _('Comment sont définis les statuts de fit ?') }}</div>
         <div class="small mb-1">{{ _('Classification: overfit si train_acc >= 90 et gap >= 8; underfit si train_acc < 65 et test_acc < 65; good fit si train_acc >= 80, test_acc >= 75 et gap < 8; sinon balanced.') }}</div>
         <div class="small">{{ _('Régression: overfit si train_r2 >= 0.8 et gap >= 0.2; underfit si r2 < 0.35 (ou train_r2 et test_r2 < 0.45); good fit si train_r2 >= 0.65 et test_r2 >= 0.65 avec gap < 0.2; sinon balanced.') }}</div>
+        <div class="small mt-1 text-muted">{{ _('Un R2 négatif est possible: le calcul est correct et cela signifie simplement que le modèle prédit moins bien qu\'une baseline moyenne sur l\'échantillon test.') }}</div>
       </div>
       {% endif %}
       {% if models %}
@@ -652,7 +770,17 @@
               <td>{{ mae if mae is not none else '-' }}</td>
               <td>{{ rmse if rmse is not none else '-' }}</td>
               {% set te2 = metrics.get('r2') %}
-              <td>{{ te2 if te2 is not none else '-' }}</td>
+              <td>
+                {% if te2 is not none %}
+                  {% if te2 < 0 %}
+                    <span class="text-warning" title="{{ _('R2 négatif: score inférieur à la baseline moyenne sur le test.') }}">{{ te2 }}</span>
+                  {% else %}
+                    {{ te2 }}
+                  {% endif %}
+                {% else %}
+                  -
+                {% endif %}
+              </td>
               {% set acc = metrics.get('accuracy') %}
               <td>{% if acc is not none %}{{ acc }}%{% else %}-{% endif %}</td>
               <td>
@@ -870,31 +998,33 @@
 
       <hr class="my-4">
       <div class="row g-3 align-items-end">
-        <div class="col-md-4">
+        <div class="col-lg-3">
           <label class="form-label">{{ _('Prédire avec modèle') }}</label>
           <select id="predict-model-id" class="form-select">
             {% for model in models %}
-            <option value="{{ model.id }}">{{ model.name }}</option>
+            <option value="{{ model.id }}" data-algorithm="{{ model.algorithm }}" data-x-column="{{ model.x_column or '' }}" data-y-column="{{ model.y_column or '' }}">{{ model.name }}</option>
             {% endfor %}
           </select>
         </div>
-        <div class="col-md-3">
-          <label class="form-label">{{ _('Valeur X') }}</label>
-          <input id="predict-x" type="number" step="any" class="form-control" placeholder="10">
+        <div class="col-lg-5">
+          <label class="form-label">{{ _('Valeurs X') }}</label>
+          <textarea id="predict-x" class="form-control" rows="2" placeholder="10, 12.5, 18"></textarea>
+          <div id="predict-x-help" class="form-text">-</div>
+          <div class="form-text">{{ _('Entrez une ou plusieurs valeurs X (séparées par virgule, espace ou ligne).') }}</div>
         </div>
-        <div class="col-md-2">
+        <div class="col-lg-2">
           <button
             id="predict-btn"
             class="btn btn-primary w-100"
             type="button"
             data-predict-url="{{ url_for('ml.predict_model') }}"
-            data-msg-select="{{ _('Sélectionnez un modèle et entrez X.') }}"
+            data-msg-select="{{ _('Sélectionnez un modèle et entrez au moins une valeur X.') }}"
             data-msg-error="{{ _('Erreur de prédiction') }}"
           >{{ _('Predict') }}</button>
         </div>
-        <div class="col-md-3">
-          <div id="predict-result" class="alert alert-secondary mb-0 py-2">-</div>
-        </div>
+      </div>
+      <div class="mt-2">
+        <div id="predict-result" class="alert alert-secondary mb-0 py-2">-</div>
       </div>
 
       <div class="modal fade" id="clustersPreviewModal" tabindex="-1" aria-hidden="true">
@@ -1284,6 +1414,12 @@
     previewNeedsSourceAndSql: {{ _('Please select a source and provide SQL.')|tojson }},
     predictSelectModelX: {{ _('Sélectionnez un modèle et la valeur x')|tojson }},
     predictionError: {{ _('Erreur de prédiction')|tojson }},
+    predictXMeaning: {{ _('Interprétation de X')|tojson }},
+    predictXFallback: {{ _('Valeur numérique utilisée comme entrée du modèle.')|tojson }},
+    predictOutputLabel: {{ _('Valeur prédite')|tojson }},
+    predictBatchTitle: {{ _('Prévisions')|tojson }},
+    predictXLabel: {{ _('X')|tojson }},
+    noTrainedModelsYet: {{ _('Aucun modèle entraîné pour le moment.')|tojson }},
     clusterLabel: {{ _('cluster')|tojson }},
     centroidLabel: {{ _('centroïde')|tojson }},
     shareLabel: {{ _('part')|tojson }},
@@ -1335,12 +1471,57 @@
   const trendCanvas = document.getElementById('mlOverviewTrendChart');
   const algoCanvas = document.getElementById('mlOverviewAlgoChart');
   const fitCanvas = document.getElementById('mlOverviewFitChart');
+  const recentBody = document.getElementById('mlOverviewRecentBody');
   if (overviewDataEl && (trendCanvas || algoCanvas || fitCanvas) && window.Chart) {
     try {
       const models = JSON.parse(overviewDataEl.textContent || '[]');
       const trained = (models || []).filter(function (m) {
         return m && m.model_data;
       });
+
+      if (recentBody) {
+        const recentRows = trained
+          .filter(function (m) { return m && m.trained_at; })
+          .sort(function (a, b) {
+            return new Date(String(b.trained_at || '')).getTime() - new Date(String(a.trained_at || '')).getTime();
+          })
+          .slice(0, 8);
+
+        if (!recentRows.length) {
+          recentBody.innerHTML = '<tr><td colspan="6" class="text-muted">' + i18n.noTrainedModelsYet + '</td></tr>';
+        } else {
+          recentBody.innerHTML = recentRows.map(function (m) {
+            const mt = (m && m.metrics) || {};
+            const acc = (mt.accuracy === null || typeof mt.accuracy === 'undefined') ? '-' : (String(mt.accuracy) + '%');
+            const r2 = (mt.r2 === null || typeof mt.r2 === 'undefined') ? '-' : String(mt.r2);
+            const fit = String(mt.fit_indicator || 'unknown');
+            let fitLabel = i18n.fitUnknown;
+            let fitClass = 'secondary';
+            if (fit === 'overfit') {
+              fitLabel = i18n.fitOverfit;
+              fitClass = 'warning text-dark';
+            } else if (fit === 'underfit') {
+              fitLabel = i18n.fitUnderfit;
+              fitClass = 'danger';
+            } else if (fit === 'good_fit') {
+              fitLabel = i18n.fitGood;
+              fitClass = 'success';
+            } else if (fit === 'balanced') {
+              fitLabel = i18n.fitBalanced;
+              fitClass = 'info text-dark';
+            }
+
+            return '<tr>' +
+              '<td class="fw-semibold">' + String(m.name || '-') + '</td>' +
+              '<td><span class="ml-algo-badge">' + String(m.algorithm || '-') + '</span></td>' +
+              '<td class="text-muted small">' + String((m.trained_at || '').replace('T', ' ').slice(0, 16) || '-') + '</td>' +
+              '<td>' + r2 + '</td>' +
+              '<td>' + acc + '</td>' +
+              '<td><span class="badge bg-' + fitClass + '">' + fitLabel + '</span></td>' +
+            '</tr>';
+          }).join('');
+        }
+      }
 
       if (algoCanvas) {
         const algoCounts = {};
@@ -2438,8 +2619,35 @@
 
   const btn = document.getElementById('predict-btn');
   if (btn) {
+    const modelSel = document.getElementById('predict-model-id');
+    const xHelp = document.getElementById('predict-x-help');
+
+    const updatePredictXHelp = function () {
+      if (!xHelp || !modelSel) return;
+      const opt = modelSel.options[modelSel.selectedIndex];
+      if (!opt) {
+        xHelp.textContent = i18n.predictXFallback;
+        return;
+      }
+      const xCol = String((opt.dataset && opt.dataset.xColumn) || '').trim();
+      const yCol = String((opt.dataset && opt.dataset.yColumn) || '').trim();
+      const algo = String((opt.dataset && opt.dataset.algorithm) || '').trim();
+      if (xCol) {
+        let txt = i18n.predictXMeaning + ': ' + xCol;
+        if (yCol) txt += ' -> ' + yCol;
+        if (algo) txt += ' (' + algo + ')';
+        xHelp.textContent = txt;
+      } else {
+        xHelp.textContent = i18n.predictXFallback;
+      }
+    };
+
+    if (modelSel) {
+      modelSel.addEventListener('change', updatePredictXHelp);
+      updatePredictXHelp();
+    }
+
     btn.addEventListener('click', async function () {
-      const modelSel = document.getElementById('predict-model-id');
       const xInput = document.getElementById('predict-x');
       const result = document.getElementById('predict-result');
       const predictUrl = btn.dataset.predictUrl || '';
@@ -2465,11 +2673,35 @@
           throw new Error(data.error || i18n.predictionError);
         }
         result.className = 'alert alert-success mb-0 py-2';
-        if (data.algorithm === 'kmeans_clustering' && typeof data.cluster_id !== 'undefined') {
-          result.textContent = i18n.clusterLabel + ': ' + data.cluster_id + ' ' + i18n.centroidLabel + ': ' + data.y_pred;
+        const rows = Array.isArray(data.predictions) && data.predictions.length
+          ? data.predictions
+          : [{ x: data.x, y_pred: data.y_pred, cluster_id: data.cluster_id, centroid: data.centroid }];
+        if (rows.length === 1) {
+          const row = rows[0] || {};
+          if (data.algorithm === 'kmeans_clustering' && typeof row.cluster_id !== 'undefined') {
+            result.textContent = i18n.clusterLabel + ': ' + row.cluster_id + ' ' + i18n.centroidLabel + ': ' + row.y_pred;
+          } else {
+            const yCol = data.y_column ? (' ' + data.y_column + ':') : (' ' + i18n.predictOutputLabel + ':');
+            result.textContent = yCol + ' ' + row.y_pred;
+          }
         } else {
-          const yCol = data.y_column ? (' ' + data.y_column + ':') : '';
-          result.textContent = yCol + ' ' + data.y_pred;
+          const headerY = data.algorithm === 'kmeans_clustering' ? i18n.centroidLabel : (data.y_column || i18n.predictOutputLabel);
+          const bodyRows = rows.map(function (row) {
+            const clusterPart = (data.algorithm === 'kmeans_clustering' && typeof row.cluster_id !== 'undefined')
+              ? '<td class="text-nowrap">' + i18n.clusterLabel + ' #' + String(row.cluster_id) + '</td>'
+              : '<td></td>';
+            return '<tr>' +
+              '<td class="text-nowrap">' + String(row.x) + '</td>' +
+              '<td class="text-nowrap">' + String(row.y_pred) + '</td>' +
+              clusterPart +
+              '</tr>';
+          }).join('');
+          result.innerHTML =
+            '<div class="fw-semibold mb-2">' + i18n.predictBatchTitle + ' (' + String(rows.length) + ')</div>' +
+            '<div class="table-responsive"><table class="table table-sm table-striped mb-0 align-middle">' +
+              '<thead><tr><th>' + i18n.predictXLabel + '</th><th>' + headerY + '</th><th></th></tr></thead>' +
+              '<tbody>' + bodyRows + '</tbody>' +
+            '</table></div>';
         }
       } catch (err) {
         result.className = 'alert alert-danger mb-0 py-2';
