@@ -30,9 +30,13 @@
 				"name": "AUDELA",
 				"url": site_root_url,
 				"logo": url_for('static', filename='images/audela-logo.svg', _external=True),
+				"address": {
+					"@type": "PostalAddress",
+					"addressLocality": "Grenoble",
+					"addressCountry": "FR"
+				},
 				"contactPoint": [{
 					"@type": "ContactPoint",
-					"telephone": "+33 07 64 14 20 31",
 					"contactType": "customer support",
 					"email": "admin@audeladedonees.fr"
 				}]
@@ -120,9 +124,10 @@
 				<p style="margin-top:10px; font-size:0.95em;">
 					<strong>{{ _('Email') }}:</strong>
 					<a href="mailto:admin@audeladedonees.fr">admin@audeladedonees.fr</a>
-					&nbsp;&nbsp;|&nbsp;&nbsp;
-					<strong>{{ _('Téléphone') }}:</strong>
-					<a href="tel:+33764142031">+33 07 64 14 20 31</a>
+				</p>
+
+				<p style="margin-top:6px; font-size:0.95em;">
+					{{ _('Entreprise localisée à Grenoble, France.') }}
 				</p>
 
 				<p class="legal-links">
