@@ -1,8 +1,10 @@
 import ast
+import hashlib
 from contextlib import redirect_stdout
 from datetime import date, datetime
 from io import StringIO
 import traceback
+from uuid import uuid4
 from urllib.parse import urljoin
 
 from flask import Response, current_app, redirect, render_template, request, session, url_for, flash, jsonify, g, make_response
@@ -11,6 +13,7 @@ from flask_login import current_user
 from ...extensions import db
 from ...models import Prospect
 from ...models import Tenant
+from ...models import PublicPageVisit
 from ...services.subscription_service import SubscriptionService
 from ...product_catalog import get_product_entry
 
@@ -22,6 +25,70 @@ from . import bp
 FINANCE_PLAN_CODES = {"free", "finance_starter", "finance_pro", "finance_banking", "all_in_one_pro"}
 CUSTOM_CODE_MAX_CHARS = 4000
 ALLOWED_PYTHON_MODULES = {"torch", "tensorflow", "math"}
+PUBLIC_TRAFFIC_EXCLUDED_ENDPOINTS = {
+    "public.e_learning_run_example",
+    "public.e_learning_run_custom",
+    "public.request_demo",
+    "public.set_language",
+}
+
+
+def _public_visitor_id() -> str:
+    visitor_id = str(session.get("public_visitor_id") or "").strip()
+    if not visitor_id:
+        visitor_id = uuid4().hex
+        session["public_visitor_id"] = visitor_id
+    return visitor_id
+
+
+def _client_ip_hash() -> str | None:
+    raw_ip = (request.headers.get("X-Forwarded-For") or request.remote_addr or "").split(",", 1)[0].strip()
+    if not raw_ip:
+        return None
+    return hashlib.sha256(raw_ip.encode("utf-8")).hexdigest()[:32]
+
+
+@bp.before_request
+def _track_public_page_view():
+    if request.method != "GET":
+        return None
+
+    endpoint = request.endpoint or ""
+    if not endpoint.startswith("public.") or endpoint in PUBLIC_TRAFFIC_EXCLUDED_ENDPOINTS:
+        return None
+
+    # Track only public HTML pages and ignore static or asset-like paths.
+    if endpoint.endswith(".static") or request.path.startswith("/static/"):
+        return None
+
+    path = (request.path or "/").strip() or "/"
+    if path.startswith("/api/"):
+        return None
+
+    referrer = (request.referrer or "").strip()[:255] or None
+    user_agent = (request.user_agent.string or "").strip()[:255] or None
+
+    visit = PublicPageVisit(
+        endpoint=endpoint[:120],
+        path=path[:255],
+        visitor_id=_public_visitor_id()[:64],
+        user_id=current_user.id if current_user.is_authenticated else None,
+        ip_hash=_client_ip_hash(),
+        referrer=referrer,
+        user_agent=user_agent,
+        utm_source=(request.args.get("utm_source") or "").strip()[:120] or None,
+        utm_medium=(request.args.get("utm_medium") or "").strip()[:120] or None,
+        utm_campaign=(request.args.get("utm_campaign") or "").strip()[:120] or None,
+        is_home=(path == "/"),
+    )
+    try:
+        db.session.add(visit)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("Failed to persist public page view for %s", path)
+    return None
+
 
 
 ELEARNING_COPY: dict[str, dict[str, str]] = {

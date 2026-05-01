@@ -7,17 +7,18 @@ import subprocess
 from io import BytesIO
 from io import StringIO
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from flask import Response, current_app, flash, g, redirect, render_template, request, url_for
 from flask_login import current_user, login_user, logout_user
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, LineChart, Reference
+from sqlalchemy import func
 
 from ...extensions import db
 from ...i18n import tr
-from ...models import BillingEvent, Role, SubscriptionPlan, Tenant, TenantSubscription, User
+from ...models import BillingEvent, PublicPageVisit, Role, SubscriptionPlan, Tenant, TenantSubscription, User
 from ...tenancy import clear_current_tenant
 from . import bp
 
@@ -175,6 +176,118 @@ def _build_admin_finance(subscriptions: list[TenantSubscription], selected_month
         "cancelled_total": status_totals.get("cancelled", 0),
         "monthly_report": monthly_subscription_report,
         "plan_mix": plan_mix,
+    }
+
+
+def _build_public_traffic(selected_months_raw: str | None) -> dict:
+    try:
+        selected_months_int = int(selected_months_raw or "12")
+    except (TypeError, ValueError):
+        selected_months_int = 12
+    if selected_months_int < 1:
+        selected_months_int = 1
+    if selected_months_int > 36:
+        selected_months_int = 36
+
+    now = datetime.utcnow()
+    period_end_month = _month_start(now)
+    period_start_month = _add_months(period_end_month, -(selected_months_int - 1))
+    period_end_exclusive = _add_months(period_end_month, 1)
+
+    base_query = PublicPageVisit.query.filter(
+        PublicPageVisit.created_at >= period_start_month,
+        PublicPageVisit.created_at < period_end_exclusive,
+    )
+
+    total_visits = base_query.count()
+    unique_visitors = db.session.query(func.count(func.distinct(PublicPageVisit.visitor_id))).filter(
+        PublicPageVisit.created_at >= period_start_month,
+        PublicPageVisit.created_at < period_end_exclusive,
+    ).scalar() or 0
+
+    home_visits = base_query.filter(PublicPageVisit.path == "/").count()
+    plans_visits = base_query.filter(PublicPageVisit.path.like("/plans%")).count()
+
+    page_rows = (
+        db.session.query(PublicPageVisit.path, func.count(PublicPageVisit.id).label("visits"))
+        .filter(
+            PublicPageVisit.created_at >= period_start_month,
+            PublicPageVisit.created_at < period_end_exclusive,
+        )
+        .group_by(PublicPageVisit.path)
+        .order_by(func.count(PublicPageVisit.id).desc(), PublicPageVisit.path.asc())
+        .limit(20)
+        .all()
+    )
+
+    top_pages = [
+        {
+            "path": row.path,
+            "visits": int(row.visits or 0),
+        }
+        for row in page_rows
+    ]
+
+    unique_by_page_rows = (
+        db.session.query(
+            PublicPageVisit.path,
+            func.count(func.distinct(PublicPageVisit.visitor_id)).label("unique_visitors"),
+        )
+        .filter(
+            PublicPageVisit.created_at >= period_start_month,
+            PublicPageVisit.created_at < period_end_exclusive,
+        )
+        .group_by(PublicPageVisit.path)
+        .order_by(func.count(func.distinct(PublicPageVisit.visitor_id)).desc(), PublicPageVisit.path.asc())
+        .limit(20)
+        .all()
+    )
+    unique_by_page_map = {str(row.path): int(row.unique_visitors or 0) for row in unique_by_page_rows}
+    for row in top_pages:
+        row["unique_visitors"] = unique_by_page_map.get(row["path"], 0)
+
+    # Daily trend for the selected period.
+    day_cursor = period_start_month.date()
+    day_end = (period_end_exclusive - timedelta(days=1)).date()
+    day_map = {}
+    while day_cursor <= day_end:
+        day_key = day_cursor.strftime("%Y-%m-%d")
+        day_map[day_key] = {"day": day_key, "visits": 0, "unique_visitors": 0}
+        day_cursor += timedelta(days=1)
+
+    daily_rows = (
+        db.session.query(
+            func.date(PublicPageVisit.created_at).label("day"),
+            func.count(PublicPageVisit.id).label("visits"),
+            func.count(func.distinct(PublicPageVisit.visitor_id)).label("unique_visitors"),
+        )
+        .filter(
+            PublicPageVisit.created_at >= period_start_month,
+            PublicPageVisit.created_at < period_end_exclusive,
+        )
+        .group_by(func.date(PublicPageVisit.created_at))
+        .order_by(func.date(PublicPageVisit.created_at).asc())
+        .all()
+    )
+    for row in daily_rows:
+        day_key = str(row.day)
+        if day_key in day_map:
+            day_map[day_key] = {
+                "day": day_key,
+                "visits": int(row.visits or 0),
+                "unique_visitors": int(row.unique_visitors or 0),
+            }
+
+    return {
+        "selected_months": selected_months_int,
+        "period_start": period_start_month,
+        "period_end": _add_months(period_end_exclusive, -1),
+        "total_visits": total_visits,
+        "unique_visitors": int(unique_visitors),
+        "home_visits": home_visits,
+        "plans_visits": plans_visits,
+        "top_pages": top_pages,
+        "daily_trend": list(day_map.values()),
     }
 
 
@@ -576,6 +689,7 @@ def dashboard():
             }
         )
     admin_finance = _build_admin_finance(subscriptions, request.args.get("months", "12"))
+    web_traffic = _build_public_traffic(request.args.get("months", "12"))
     celery_overview = _build_celery_screen_context()
 
     return render_template(
@@ -585,6 +699,7 @@ def dashboard():
         users_view=users_view,
         subscriptions=subscriptions,
         admin_finance=admin_finance,
+        web_traffic=web_traffic,
         celery_overview=celery_overview,
     )
 

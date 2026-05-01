@@ -45,6 +45,7 @@ from .subscription import (
 )
 from .prospect import Prospect
 from .project_management import ProjectWorkspace
+from .traffic import PublicPageVisit
 from .credit import (
     CreditCountry,
     CreditSector,
@@ -126,6 +127,7 @@ __all__ = [
     "BillingEvent",
     "Prospect",
     "ProjectWorkspace",
+    "PublicPageVisit",
     "CreditCountry",
     "CreditSector",
     "CreditRating",

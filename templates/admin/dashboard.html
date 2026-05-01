@@ -34,214 +34,180 @@
     <div class="col-12 col-md-4">
       <div class="card border-0 shadow-sm"><div class="card-body"><div class="text-secondary small">{{ _('Subscriptions') }}</div><div class="h4 mb-0">{{ subscriptions|length }}</div></div></div>
     </div>
-  </div>
-
-  <div class="card border-0 shadow-sm mb-4">
-    <div class="card-header bg-body d-flex flex-wrap align-items-center justify-content-between gap-2">
-      <strong>{{ _('Celery quick control') }}</strong>
-      <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('admin.celery_console') }}">{{ _('Open full console') }}</a>
+    <div class="col-12 col-md-4">
+      <div class="card border-0 shadow-sm"><div class="card-body"><div class="text-secondary small">{{ _('Public visits') }}</div><div class="h4 mb-0">{{ web_traffic.total_visits }}</div></div></div>
     </div>
-    <div class="card-body">
-      <div class="row g-3 align-items-center">
-        <div class="col-12 col-lg-5">
-          <div class="small mb-1">
-            <span class="text-secondary">Compose:</span>
-            {% if celery_overview.compose_available %}
-              <span class="badge text-bg-success">{{ _('available') }}</span>
-            {% else %}
-              <span class="badge text-bg-secondary">{{ _('external control') }}</span>
-            {% endif %}
-          </div>
-          <div class="small mb-1">
-            <span class="text-secondary">Workers:</span>
-            {% if celery_overview.worker_ping %}
-              <span class="badge text-bg-success">{{ _('responding') }}</span>
-            {% else %}
-              <span class="badge text-bg-warning">{{ _('no response') }}</span>
-            {% endif %}
-          </div>
-          {% if celery_overview.worker_ping_error %}
-            <div class="small text-secondary mb-1">{{ celery_overview.worker_ping_error }}</div>
-          {% endif %}
-          <div class="small text-secondary"><code>{{ celery_overview.default_queue }}</code> / {{ celery_overview.broker_url }}</div>
-        </div>
-        <div class="col-12 col-lg-7">
-          {% if not celery_overview.compose_available and celery_overview.compose_unavailable_reason %}
-            <div class="small text-secondary mb-2">{{ celery_overview.compose_unavailable_reason }}</div>
-          {% endif %}
-          <div class="d-flex flex-wrap gap-2">
-            {% if celery_overview.compose_available %}
-              <form method="post" action="{{ url_for('admin.celery_console') }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                <input type="hidden" name="intent" value="service_action" />
-                <input type="hidden" name="return_to" value="dashboard" />
-                <input type="hidden" name="months" value="{{ admin_finance.selected_months }}" />
-                <button class="btn btn-success btn-sm" type="submit" name="action" value="enable">{{ _('Enable') }}</button>
-              </form>
-              <form method="post" action="{{ url_for('admin.celery_console') }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                <input type="hidden" name="intent" value="service_action" />
-                <input type="hidden" name="return_to" value="dashboard" />
-                <input type="hidden" name="months" value="{{ admin_finance.selected_months }}" />
-                <button class="btn btn-outline-primary btn-sm" type="submit" name="action" value="restart">{{ _('Restart') }}</button>
-              </form>
-              <form method="post" action="{{ url_for('admin.celery_console') }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                <input type="hidden" name="intent" value="service_action" />
-                <input type="hidden" name="return_to" value="dashboard" />
-                <input type="hidden" name="months" value="{{ admin_finance.selected_months }}" />
-                <button class="btn btn-outline-secondary btn-sm" type="submit" name="action" value="status">{{ _('Status') }}</button>
-              </form>
-              <form method="post" action="{{ url_for('admin.celery_console') }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                <input type="hidden" name="intent" value="service_action" />
-                <input type="hidden" name="return_to" value="dashboard" />
-                <input type="hidden" name="months" value="{{ admin_finance.selected_months }}" />
-                <button class="btn btn-outline-danger btn-sm" type="submit" name="action" value="disable">{{ _('Disable') }}</button>
-              </form>
-            {% endif %}
-            <form method="post" action="{{ url_for('admin.celery_console') }}" class="d-flex align-items-center gap-2">
-              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-              <input type="hidden" name="intent" value="test_task" />
-              <input type="hidden" name="return_to" value="dashboard" />
-              <input type="hidden" name="months" value="{{ admin_finance.selected_months }}" />
-              <input type="hidden" name="wait_seconds" value="6" />
-              <button class="btn btn-primary btn-sm" type="submit">{{ _('Run test task') }}</button>
-            </form>
-          </div>
-        </div>
-      </div>
+    <div class="col-12 col-md-4">
+      <div class="card border-0 shadow-sm"><div class="card-body"><div class="text-secondary small">{{ _('Unique visitors') }}</div><div class="h4 mb-0">{{ web_traffic.unique_visitors }}</div></div></div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="card border-0 shadow-sm"><div class="card-body"><div class="text-secondary small">{{ _('Home / Plans visits') }}</div><div class="h4 mb-0">{{ web_traffic.home_visits }} / {{ web_traffic.plans_visits }}</div></div></div>
     </div>
   </div>
 
-  <div class="card border-0 shadow-sm mb-4">
-    <div class="card-header bg-body d-flex flex-wrap align-items-center justify-content-between gap-2">
-      <strong>{{ _('Subscription financial control') }}</strong>
-      <div class="d-flex flex-wrap align-items-center gap-2">
-        <a
-          class="btn btn-outline-secondary btn-sm"
-          href="{{ url_for('admin.export_subscription_report_csv', months=admin_finance.selected_months) }}"
-        >
-          <i class="bi bi-download me-1"></i>{{ _('Export CSV') }}
-        </a>
-        <a
-          class="btn btn-outline-secondary btn-sm"
-          href="{{ url_for('admin.export_subscription_report_xlsx', months=admin_finance.selected_months) }}"
-        >
-          <i class="bi bi-file-earmark-excel me-1"></i>{{ _('Export XLSX') }}
-        </a>
-        <form method="get" action="{{ url_for('admin.dashboard') }}" class="d-flex align-items-center gap-2">
-        <label class="small text-secondary" for="months">{{ _('Period') }}</label>
-        <select class="form-select form-select-sm" id="months" name="months" style="max-width: 180px;">
-          <option value="3" {% if admin_finance.selected_months == 3 %}selected{% endif %}>{{ _('Last 3 months') }}</option>
-          <option value="6" {% if admin_finance.selected_months == 6 %}selected{% endif %}>{{ _('Last 6 months') }}</option>
-          <option value="12" {% if admin_finance.selected_months == 12 %}selected{% endif %}>{{ _('Last 12 months') }}</option>
-          <option value="24" {% if admin_finance.selected_months == 24 %}selected{% endif %}>{{ _('Last 24 months') }}</option>
-          <option value="36" {% if admin_finance.selected_months == 36 %}selected{% endif %}>{{ _('Last 36 months') }}</option>
-        </select>
-        <button class="btn btn-outline-primary btn-sm" type="submit">{{ _('Refresh') }}</button>
-        </form>
+  <ul class="nav nav-tabs mb-3" id="adminDashboardTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview-pane" type="button" role="tab" aria-controls="overview-pane" aria-selected="true">{{ _('Overview') }}</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="traffic-tab" data-bs-toggle="tab" data-bs-target="#traffic-pane" type="button" role="tab" aria-controls="traffic-pane" aria-selected="false">{{ _('Web traffic') }}</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="finance-tab" data-bs-toggle="tab" data-bs-target="#finance-pane" type="button" role="tab" aria-controls="finance-pane" aria-selected="false">{{ _('Finance') }}</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="users-tab" data-bs-toggle="tab" data-bs-target="#users-pane" type="button" role="tab" aria-controls="users-pane" aria-selected="false">{{ _('Users and plans') }}</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="security-tab" data-bs-toggle="tab" data-bs-target="#security-pane" type="button" role="tab" aria-controls="security-pane" aria-selected="false">{{ _('Security') }}</button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="tenants-tab" data-bs-toggle="tab" data-bs-target="#tenants-pane" type="button" role="tab" aria-controls="tenants-pane" aria-selected="false">{{ _('Tenants') }}</button>
+    </li>
+  </ul>
+
+  <div class="tab-content" id="adminDashboardTabContent">
+    <div class="tab-pane fade show active" id="overview-pane" role="tabpanel" aria-labelledby="overview-tab" tabindex="0">
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-body d-flex flex-wrap align-items-center justify-content-between gap-2">
+          <strong>{{ _('Celery quick control') }}</strong>
+          <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('admin.celery_console') }}">{{ _('Open full console') }}</a>
+        </div>
+        <div class="card-body">
+          <div class="row g-3 align-items-center">
+            <div class="col-12 col-lg-5">
+              <div class="small mb-1">
+                <span class="text-secondary">Compose:</span>
+                {% if celery_overview.compose_available %}
+                  <span class="badge text-bg-success">{{ _('available') }}</span>
+                {% else %}
+                  <span class="badge text-bg-secondary">{{ _('external control') }}</span>
+                {% endif %}
+              </div>
+              <div class="small mb-1">
+                <span class="text-secondary">Workers:</span>
+                {% if celery_overview.worker_ping %}
+                  <span class="badge text-bg-success">{{ _('responding') }}</span>
+                {% else %}
+                  <span class="badge text-bg-warning">{{ _('no response') }}</span>
+                {% endif %}
+              </div>
+              {% if celery_overview.worker_ping_error %}
+                <div class="small text-secondary mb-1">{{ celery_overview.worker_ping_error }}</div>
+              {% endif %}
+              <div class="small text-secondary"><code>{{ celery_overview.default_queue }}</code> / {{ celery_overview.broker_url }}</div>
+            </div>
+            <div class="col-12 col-lg-7">
+              {% if not celery_overview.compose_available and celery_overview.compose_unavailable_reason %}
+                <div class="small text-secondary mb-2">{{ celery_overview.compose_unavailable_reason }}</div>
+              {% endif %}
+              <div class="d-flex flex-wrap gap-2">
+                {% if celery_overview.compose_available %}
+                  <form method="post" action="{{ url_for('admin.celery_console') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                    <input type="hidden" name="intent" value="service_action" />
+                    <input type="hidden" name="return_to" value="dashboard" />
+                    <input type="hidden" name="months" value="{{ admin_finance.selected_months }}" />
+                    <button class="btn btn-success btn-sm" type="submit" name="action" value="enable">{{ _('Enable') }}</button>
+                  </form>
+                  <form method="post" action="{{ url_for('admin.celery_console') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                    <input type="hidden" name="intent" value="service_action" />
+                    <input type="hidden" name="return_to" value="dashboard" />
+                    <input type="hidden" name="months" value="{{ admin_finance.selected_months }}" />
+                    <button class="btn btn-outline-primary btn-sm" type="submit" name="action" value="restart">{{ _('Restart') }}</button>
+                  </form>
+                  <form method="post" action="{{ url_for('admin.celery_console') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                    <input type="hidden" name="intent" value="service_action" />
+                    <input type="hidden" name="return_to" value="dashboard" />
+                    <input type="hidden" name="months" value="{{ admin_finance.selected_months }}" />
+                    <button class="btn btn-outline-secondary btn-sm" type="submit" name="action" value="status">{{ _('Status') }}</button>
+                  </form>
+                  <form method="post" action="{{ url_for('admin.celery_console') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                    <input type="hidden" name="intent" value="service_action" />
+                    <input type="hidden" name="return_to" value="dashboard" />
+                    <input type="hidden" name="months" value="{{ admin_finance.selected_months }}" />
+                    <button class="btn btn-outline-danger btn-sm" type="submit" name="action" value="disable">{{ _('Disable') }}</button>
+                  </form>
+                {% endif %}
+                <form method="post" action="{{ url_for('admin.celery_console') }}" class="d-flex align-items-center gap-2">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                  <input type="hidden" name="intent" value="test_task" />
+                  <input type="hidden" name="return_to" value="dashboard" />
+                  <input type="hidden" name="months" value="{{ admin_finance.selected_months }}" />
+                  <input type="hidden" name="wait_seconds" value="6" />
+                  <button class="btn btn-primary btn-sm" type="submit">{{ _('Run test task') }}</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
-    <div class="card-body">
-      <div class="small text-secondary mb-3">
-        {{ _('Analyzed period') }} : {{ admin_finance.period_start.strftime('%Y-%m') }} → {{ admin_finance.period_end.strftime('%Y-%m') }}
-      </div>
-      <div class="row g-3 mb-3">
-        <div class="col-12 col-md-6 col-lg-3">
-          <div class="border rounded p-3 h-100">
-            <div class="text-secondary small">MRR actuel</div>
-            <div class="h5 mb-0">{{ admin_finance.currency }} {{ '%.2f'|format(admin_finance.current_mrr) }}</div>
-          </div>
-        </div>
-        <div class="col-12 col-md-6 col-lg-3">
-          <div class="border rounded p-3 h-100">
-            <div class="text-secondary small">ARR estimé</div>
-            <div class="h5 mb-0">{{ admin_finance.currency }} {{ '%.2f'|format(admin_finance.arr_proxy) }}</div>
-          </div>
-        </div>
-        <div class="col-12 col-md-6 col-lg-3">
-          <div class="border rounded p-3 h-100">
-            <div class="text-secondary small">Revenu réalisé (période)</div>
-            <div class="h5 mb-0">{{ admin_finance.currency }} {{ '%.2f'|format(admin_finance.realized_revenue_period) }}</div>
-          </div>
-        </div>
-        <div class="col-12 col-md-6 col-lg-3">
-          <div class="border rounded p-3 h-100">
-            <div class="text-secondary small">Actifs / Trial / Suspendus</div>
-            <div class="h5 mb-0">{{ admin_finance.active_subscriptions }} / {{ admin_finance.trial_subscriptions }} / {{ admin_finance.suspended_subscriptions }}</div>
-          </div>
-        </div>
-      </div>
 
-      <div class="row g-3">
-        <div class="col-12 col-xl-8">
-          <div class="border rounded p-2 p-md-3 mb-3">
-            <div class="small text-secondary mb-2">Évolution mensuelle</div>
-            <div id="adminSubscriptionChart" style="height: 320px;"></div>
+    <div class="tab-pane fade" id="traffic-pane" role="tabpanel" aria-labelledby="traffic-tab" tabindex="0">
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-body d-flex flex-wrap align-items-center justify-content-between gap-2">
+          <strong>{{ _('Public web traffic') }}</strong>
+          <form method="get" action="{{ url_for('admin.dashboard') }}" class="d-flex align-items-center gap-2">
+            <label class="small text-secondary" for="monthsTraffic">{{ _('Period') }}</label>
+            <select class="form-select form-select-sm" id="monthsTraffic" name="months" style="max-width: 180px;">
+              <option value="3" {% if admin_finance.selected_months == 3 %}selected{% endif %}>{{ _('Last 3 months') }}</option>
+              <option value="6" {% if admin_finance.selected_months == 6 %}selected{% endif %}>{{ _('Last 6 months') }}</option>
+              <option value="12" {% if admin_finance.selected_months == 12 %}selected{% endif %}>{{ _('Last 12 months') }}</option>
+              <option value="24" {% if admin_finance.selected_months == 24 %}selected{% endif %}>{{ _('Last 24 months') }}</option>
+              <option value="36" {% if admin_finance.selected_months == 36 %}selected{% endif %}>{{ _('Last 36 months') }}</option>
+            </select>
+            <button class="btn btn-outline-primary btn-sm" type="submit">{{ _('Refresh') }}</button>
+          </form>
+        </div>
+        <div class="card-body">
+          <div class="small text-secondary mb-3">
+            {{ _('Analyzed period') }} : {{ web_traffic.period_start.strftime('%Y-%m') }} -> {{ web_traffic.period_end.strftime('%Y-%m') }}
           </div>
+          <div class="row g-3 mb-3">
+            <div class="col-12 col-md-3"><div class="border rounded p-3 h-100"><div class="text-secondary small">{{ _('Total visits') }}</div><div class="h5 mb-0">{{ web_traffic.total_visits }}</div></div></div>
+            <div class="col-12 col-md-3"><div class="border rounded p-3 h-100"><div class="text-secondary small">{{ _('Unique visitors') }}</div><div class="h5 mb-0">{{ web_traffic.unique_visitors }}</div></div></div>
+            <div class="col-12 col-md-3"><div class="border rounded p-3 h-100"><div class="text-secondary small">{{ _('Home page visits') }}</div><div class="h5 mb-0">{{ web_traffic.home_visits }}</div></div></div>
+            <div class="col-12 col-md-3"><div class="border rounded p-3 h-100"><div class="text-secondary small">{{ _('Plans page visits') }}</div><div class="h5 mb-0">{{ web_traffic.plans_visits }}</div></div></div>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-12 col-xl-8">
+              <div class="border rounded p-2 p-md-3 mb-3">
+                <div class="small text-secondary mb-2">{{ _('Daily trend') }}</div>
+                <div id="adminTrafficTrendChart" style="height: 320px;"></div>
+              </div>
+            </div>
+            <div class="col-12 col-xl-4">
+              <div class="border rounded p-2 p-md-3 mb-3">
+                <div class="small text-secondary mb-2">{{ _('Top public pages') }}</div>
+                <div id="adminTopPagesChart" style="height: 320px;"></div>
+              </div>
+            </div>
+          </div>
+
           <div class="table-responsive">
             <table class="table table-sm align-middle mb-0">
               <thead>
                 <tr>
-                  <th>Mois</th>
-                  <th class="text-end">Nouveaux</th>
-                  <th class="text-end">Annulations</th>
-                  <th class="text-end">Net</th>
-                  <th class="text-end">Nouveau MRR</th>
-                  <th class="text-end">Réalisé</th>
+                  <th>{{ _('Page path') }}</th>
+                  <th class="text-end">{{ _('Visits') }}</th>
+                  <th class="text-end">{{ _('Unique visitors') }}</th>
                 </tr>
               </thead>
               <tbody>
-                {% for row in admin_finance.monthly_report %}
+                {% for row in web_traffic.top_pages %}
                   <tr>
-                    <td>{{ row.month_label }}</td>
-                    <td class="text-end">{{ row.new_subscriptions }}</td>
-                    <td class="text-end">{{ row.cancelled_subscriptions }}</td>
-                    <td class="text-end">{{ row.net_subscriptions }}</td>
-                    <td class="text-end">{{ admin_finance.currency }} {{ '%.2f'|format(row.new_mrr) }}</td>
-                    <td class="text-end">{{ admin_finance.currency }} {{ '%.2f'|format(row.realized_revenue) }}</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-              <tfoot>
-                <tr>
-                  <th>Total période</th>
-                  <th class="text-end">{{ admin_finance.period_new_subscriptions }}</th>
-                  <th class="text-end">{{ admin_finance.period_cancelled_subscriptions }}</th>
-                  <th class="text-end">{{ admin_finance.period_new_subscriptions - admin_finance.period_cancelled_subscriptions }}</th>
-                  <th class="text-end">-</th>
-                  <th class="text-end">{{ admin_finance.currency }} {{ '%.2f'|format(admin_finance.realized_revenue_period) }}</th>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </div>
-
-        <div class="col-12 col-xl-4">
-          <div class="border rounded p-2 p-md-3 mb-3">
-            <div class="small text-secondary mb-2">Mix MRR par plan</div>
-            <div id="adminPlanMixChart" style="height: 320px;"></div>
-          </div>
-          <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0">
-              <thead>
-                <tr>
-                  <th>Plan</th>
-                  <th class="text-end">Subs</th>
-                  <th class="text-end">MRR</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for row in admin_finance.plan_mix %}
-                  <tr>
-                    <td>{{ row.plan_name }}</td>
-                    <td class="text-end">{{ row.subscriptions }}</td>
-                    <td class="text-end">{{ admin_finance.currency }} {{ '%.2f'|format(row.mrr) }}</td>
+                    <td><code>{{ row.path }}</code></td>
+                    <td class="text-end">{{ row.visits }}</td>
+                    <td class="text-end">{{ row.unique_visitors }}</td>
                   </tr>
                 {% else %}
                   <tr>
-                    <td colspan="3" class="text-center text-secondary">Aucune donnée</td>
+                    <td colspan="3" class="text-center text-secondary">{{ _('No data') }}</td>
                   </tr>
                 {% endfor %}
               </tbody>
@@ -250,89 +216,153 @@
         </div>
       </div>
     </div>
-  </div>
 
-  <div class="card border-0 shadow-sm mb-4">
-    <div class="card-header bg-body"><strong>{{ _('Update admin password') }}</strong></div>
-    <div class="card-body">
-      <form method="post" action="{{ url_for('admin.change_admin_password') }}" class="row g-2">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-        <div class="col-12 col-md-4"><input class="form-control" type="password" name="current_password" placeholder="{{ _('Current password') }}" required /></div>
-        <div class="col-12 col-md-4"><input class="form-control" type="password" name="new_password" placeholder="{{ _('New password') }}" required /></div>
-        <div class="col-12 col-md-4"><input class="form-control" type="password" name="confirm_password" placeholder="{{ _('Confirm') }}" required /></div>
-        <div class="col-12"><button class="btn btn-primary btn-sm" type="submit">{{ _('Update') }}</button></div>
-      </form>
-    </div>
-  </div>
+    <div class="tab-pane fade" id="finance-pane" role="tabpanel" aria-labelledby="finance-tab" tabindex="0">
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-body d-flex flex-wrap align-items-center justify-content-between gap-2">
+          <strong>{{ _('Subscription financial control') }}</strong>
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('admin.export_subscription_report_csv', months=admin_finance.selected_months) }}"><i class="bi bi-download me-1"></i>{{ _('Export CSV') }}</a>
+            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('admin.export_subscription_report_xlsx', months=admin_finance.selected_months) }}"><i class="bi bi-file-earmark-excel me-1"></i>{{ _('Export XLSX') }}</a>
+            <form method="get" action="{{ url_for('admin.dashboard') }}" class="d-flex align-items-center gap-2">
+              <label class="small text-secondary" for="months">{{ _('Period') }}</label>
+              <select class="form-select form-select-sm" id="months" name="months" style="max-width: 180px;">
+                <option value="3" {% if admin_finance.selected_months == 3 %}selected{% endif %}>{{ _('Last 3 months') }}</option>
+                <option value="6" {% if admin_finance.selected_months == 6 %}selected{% endif %}>{{ _('Last 6 months') }}</option>
+                <option value="12" {% if admin_finance.selected_months == 12 %}selected{% endif %}>{{ _('Last 12 months') }}</option>
+                <option value="24" {% if admin_finance.selected_months == 24 %}selected{% endif %}>{{ _('Last 24 months') }}</option>
+                <option value="36" {% if admin_finance.selected_months == 36 %}selected{% endif %}>{{ _('Last 36 months') }}</option>
+              </select>
+              <button class="btn btn-outline-primary btn-sm" type="submit">{{ _('Refresh') }}</button>
+            </form>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="small text-secondary mb-3">{{ _('Analyzed period') }} : {{ admin_finance.period_start.strftime('%Y-%m') }} -> {{ admin_finance.period_end.strftime('%Y-%m') }}</div>
+          <div class="row g-3 mb-3">
+            <div class="col-12 col-md-6 col-lg-3"><div class="border rounded p-3 h-100"><div class="text-secondary small">MRR actuel</div><div class="h5 mb-0">{{ admin_finance.currency }} {{ '%.2f'|format(admin_finance.current_mrr) }}</div></div></div>
+            <div class="col-12 col-md-6 col-lg-3"><div class="border rounded p-3 h-100"><div class="text-secondary small">ARR estime</div><div class="h5 mb-0">{{ admin_finance.currency }} {{ '%.2f'|format(admin_finance.arr_proxy) }}</div></div></div>
+            <div class="col-12 col-md-6 col-lg-3"><div class="border rounded p-3 h-100"><div class="text-secondary small">Revenu realise (periode)</div><div class="h5 mb-0">{{ admin_finance.currency }} {{ '%.2f'|format(admin_finance.realized_revenue_period) }}</div></div></div>
+            <div class="col-12 col-md-6 col-lg-3"><div class="border rounded p-3 h-100"><div class="text-secondary small">Actifs / Trial / Suspendus</div><div class="h5 mb-0">{{ admin_finance.active_subscriptions }} / {{ admin_finance.trial_subscriptions }} / {{ admin_finance.suspended_subscriptions }}</div></div></div>
+          </div>
 
-  <div class="card border-0 shadow-sm mb-4">
-    <div class="card-header bg-body"><strong>{{ _('Users and subscription upgrade') }}</strong></div>
-    <div class="table-responsive">
-      <table class="table table-sm align-middle mb-0">
-        <thead>
-          <tr>
-            <th>Email</th>
-            <th>Tenant</th>
-            <th>Plan actuel</th>
-            <th>Status</th>
-            <th style="min-width: 360px;">Upgrade</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in users_view %}
-            <tr>
-              <td>{{ row.user.email }}</td>
-              <td>{{ row.tenant.name if row.tenant else '-' }}</td>
-              <td><span class="badge text-bg-light border">{{ row.plan_name }}</span></td>
-              <td>{{ row.subscription.status if row.subscription else 'none' }}</td>
-              <td>
-                <form method="post" action="{{ url_for('admin.set_user_plan') }}" class="d-flex flex-wrap gap-2">
-                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                  <input type="hidden" name="user_id" value="{{ row.user.id }}" />
-                  <select class="form-select form-select-sm" name="plan_code" required style="max-width: 180px;">
-                    {% for plan in plans %}
-                      <option value="{{ plan.code }}" {% if plan.code == row.plan_code %}selected{% endif %}>{{ plan.name }} ({{ plan.code }})</option>
+          <div class="row g-3">
+            <div class="col-12 col-xl-8">
+              <div class="border rounded p-2 p-md-3 mb-3">
+                <div class="small text-secondary mb-2">Evolution mensuelle</div>
+                <div id="adminSubscriptionChart" style="height: 320px;"></div>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                  <thead><tr><th>Mois</th><th class="text-end">Nouveaux</th><th class="text-end">Annulations</th><th class="text-end">Net</th><th class="text-end">Nouveau MRR</th><th class="text-end">Realise</th></tr></thead>
+                  <tbody>
+                    {% for row in admin_finance.monthly_report %}
+                      <tr>
+                        <td>{{ row.month_label }}</td>
+                        <td class="text-end">{{ row.new_subscriptions }}</td>
+                        <td class="text-end">{{ row.cancelled_subscriptions }}</td>
+                        <td class="text-end">{{ row.net_subscriptions }}</td>
+                        <td class="text-end">{{ admin_finance.currency }} {{ '%.2f'|format(row.new_mrr) }}</td>
+                        <td class="text-end">{{ admin_finance.currency }} {{ '%.2f'|format(row.realized_revenue) }}</td>
+                      </tr>
                     {% endfor %}
-                  </select>
-                  <select class="form-select form-select-sm" name="billing_cycle" style="max-width: 130px;">
-                    <option value="monthly">monthly</option>
-                    <option value="yearly">yearly</option>
-                  </select>
-                  <button class="btn btn-primary btn-sm" type="submit">{{ _('Apply') }}</button>
-                </form>
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
+                  </tbody>
+                </table>
+              </div>
+            </div>
 
-  <div class="card border-0 shadow-sm">
-    <div class="card-header bg-body"><strong>{{ _('Tenants') }}</strong></div>
-    <div class="table-responsive">
-      <table class="table table-sm mb-0">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Slug</th>
-            <th>Nom</th>
-            <th>Plan</th>
-            <th>Créé le</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for tenant in tenants %}
-            <tr>
-              <td>{{ tenant.id }}</td>
-              <td>{{ tenant.slug }}</td>
-              <td>{{ tenant.name }}</td>
-              <td>{{ tenant.plan }}</td>
-              <td>{{ tenant.created_at.strftime('%Y-%m-%d %H:%M') if tenant.created_at else '-' }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+            <div class="col-12 col-xl-4">
+              <div class="border rounded p-2 p-md-3 mb-3">
+                <div class="small text-secondary mb-2">Mix MRR par plan</div>
+                <div id="adminPlanMixChart" style="height: 320px;"></div>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                  <thead><tr><th>Plan</th><th class="text-end">Subs</th><th class="text-end">MRR</th></tr></thead>
+                  <tbody>
+                    {% for row in admin_finance.plan_mix %}
+                      <tr><td>{{ row.plan_name }}</td><td class="text-end">{{ row.subscriptions }}</td><td class="text-end">{{ admin_finance.currency }} {{ '%.2f'|format(row.mrr) }}</td></tr>
+                    {% else %}
+                      <tr><td colspan="3" class="text-center text-secondary">Aucune donnee</td></tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-pane fade" id="users-pane" role="tabpanel" aria-labelledby="users-tab" tabindex="0">
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-body"><strong>{{ _('Users and subscription upgrade') }}</strong></div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead><tr><th>Email</th><th>Tenant</th><th>Plan actuel</th><th>Status</th><th style="min-width: 360px;">Upgrade</th></tr></thead>
+            <tbody>
+              {% for row in users_view %}
+                <tr>
+                  <td>{{ row.user.email }}</td>
+                  <td>{{ row.tenant.name if row.tenant else '-' }}</td>
+                  <td><span class="badge text-bg-light border">{{ row.plan_name }}</span></td>
+                  <td>{{ row.subscription.status if row.subscription else 'none' }}</td>
+                  <td>
+                    <form method="post" action="{{ url_for('admin.set_user_plan') }}" class="d-flex flex-wrap gap-2">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                      <input type="hidden" name="user_id" value="{{ row.user.id }}" />
+                      <select class="form-select form-select-sm" name="plan_code" required style="max-width: 180px;">
+                        {% for plan in plans %}
+                          <option value="{{ plan.code }}" {% if plan.code == row.plan_code %}selected{% endif %}>{{ plan.name }} ({{ plan.code }})</option>
+                        {% endfor %}
+                      </select>
+                      <select class="form-select form-select-sm" name="billing_cycle" style="max-width: 130px;"><option value="monthly">monthly</option><option value="yearly">yearly</option></select>
+                      <button class="btn btn-primary btn-sm" type="submit">{{ _('Apply') }}</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-pane fade" id="security-pane" role="tabpanel" aria-labelledby="security-tab" tabindex="0">
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-body"><strong>{{ _('Update admin password') }}</strong></div>
+        <div class="card-body">
+          <form method="post" action="{{ url_for('admin.change_admin_password') }}" class="row g-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <div class="col-12 col-md-4"><input class="form-control" type="password" name="current_password" placeholder="{{ _('Current password') }}" required /></div>
+            <div class="col-12 col-md-4"><input class="form-control" type="password" name="new_password" placeholder="{{ _('New password') }}" required /></div>
+            <div class="col-12 col-md-4"><input class="form-control" type="password" name="confirm_password" placeholder="{{ _('Confirm') }}" required /></div>
+            <div class="col-12"><button class="btn btn-primary btn-sm" type="submit">{{ _('Update') }}</button></div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-pane fade" id="tenants-pane" role="tabpanel" aria-labelledby="tenants-tab" tabindex="0">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-body"><strong>{{ _('Tenants') }}</strong></div>
+        <div class="table-responsive">
+          <table class="table table-sm mb-0">
+            <thead><tr><th>ID</th><th>Slug</th><th>Nom</th><th>Plan</th><th>Cree le</th></tr></thead>
+            <tbody>
+              {% for tenant in tenants %}
+                <tr>
+                  <td>{{ tenant.id }}</td>
+                  <td>{{ tenant.slug }}</td>
+                  <td>{{ tenant.name }}</td>
+                  <td>{{ tenant.plan }}</td>
+                  <td>{{ tenant.created_at.strftime('%Y-%m-%d %H:%M') if tenant.created_at else '-' }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -344,80 +374,80 @@
   onReady(function(){
     const el = document.getElementById('adminSubscriptionChart');
     const pieEl = document.getElementById('adminPlanMixChart');
-    if (!el || !pieEl || typeof echarts === 'undefined') return;
+    const trafficTrendEl = document.getElementById('adminTrafficTrendChart');
+    const topPagesEl = document.getElementById('adminTopPagesChart');
+    if (typeof echarts === 'undefined') return;
 
     const labels = [{% for row in admin_finance.monthly_report %}'{{ row.month_label }}'{% if not loop.last %}, {% endif %}{% endfor %}];
     const newMrr = [{% for row in admin_finance.monthly_report %}{{ '%.2f'|format(row.new_mrr) }}{% if not loop.last %}, {% endif %}{% endfor %}];
     const realizedRevenue = [{% for row in admin_finance.monthly_report %}{{ '%.2f'|format(row.realized_revenue) }}{% if not loop.last %}, {% endif %}{% endfor %}];
     const netSubscriptions = [{% for row in admin_finance.monthly_report %}{{ row.net_subscriptions }}{% if not loop.last %}, {% endif %}{% endfor %}];
 
-    const chart = echarts.init(el);
-    chart.setOption({
-      tooltip: { trigger: 'axis' },
-      legend: {
-        data: ['Nouveau MRR', 'Revenu réalisé', 'Net abonnements'],
-        top: 0,
-      },
-      grid: { left: 40, right: 40, top: 40, bottom: 40 },
-      xAxis: {
-        type: 'category',
-        data: labels,
-      },
-      yAxis: [
-        {
-          type: 'value',
-          name: '{{ admin_finance.currency }}',
-        },
-        {
-          type: 'value',
-          name: 'Subs',
-        }
-      ],
-      series: [
-        {
-          name: 'Nouveau MRR',
-          type: 'line',
-          smooth: true,
-          data: newMrr,
-          yAxisIndex: 0,
-        },
-        {
-          name: 'Revenu réalisé',
-          type: 'line',
-          smooth: true,
-          data: realizedRevenue,
-          yAxisIndex: 0,
-        },
-        {
-          name: 'Net abonnements',
-          type: 'bar',
-          data: netSubscriptions,
-          yAxisIndex: 1,
-        }
-      ]
-    });
+    const resizeTargets = [];
 
-    const pieChart = echarts.init(pieEl);
-    pieChart.setOption({
-      tooltip: { trigger: 'item' },
-      legend: { bottom: 0 },
-      series: [
-        {
-          type: 'pie',
-          radius: ['45%', '72%'],
-          avoidLabelOverlap: true,
-          data: [
-            {% for row in admin_finance.plan_mix %}
-              { value: {{ '%.2f'|format(row.mrr) }}, name: {{ row.plan_name|tojson }} }{% if not loop.last %}, {% endif %}
-            {% endfor %}
-          ]
-        }
-      ]
+    if (el && pieEl) {
+      const chart = echarts.init(el);
+      chart.setOption({
+        tooltip: { trigger: 'axis' },
+        legend: { data: ['Nouveau MRR', 'Revenu realise', 'Net abonnements'], top: 0 },
+        grid: { left: 40, right: 40, top: 40, bottom: 40 },
+        xAxis: { type: 'category', data: labels },
+        yAxis: [{ type: 'value', name: '{{ admin_finance.currency }}' }, { type: 'value', name: 'Subs' }],
+        series: [
+          { name: 'Nouveau MRR', type: 'line', smooth: true, data: newMrr, yAxisIndex: 0 },
+          { name: 'Revenu realise', type: 'line', smooth: true, data: realizedRevenue, yAxisIndex: 0 },
+          { name: 'Net abonnements', type: 'bar', data: netSubscriptions, yAxisIndex: 1 }
+        ]
+      });
+      const pieChart = echarts.init(pieEl);
+      pieChart.setOption({
+        tooltip: { trigger: 'item' },
+        legend: { bottom: 0 },
+        series: [{ type: 'pie', radius: ['45%', '72%'], avoidLabelOverlap: true, data: [{% for row in admin_finance.plan_mix %}{ value: {{ '%.2f'|format(row.mrr) }}, name: {{ row.plan_name|tojson }} }{% if not loop.last %}, {% endif %}{% endfor %}] }]
+      });
+      resizeTargets.push(chart, pieChart);
+    }
+
+    if (trafficTrendEl && topPagesEl) {
+      const trafficLabels = [{% for row in web_traffic.daily_trend %}{{ row.day|tojson }}{% if not loop.last %}, {% endif %}{% endfor %}];
+      const trafficVisits = [{% for row in web_traffic.daily_trend %}{{ row.visits }}{% if not loop.last %}, {% endif %}{% endfor %}];
+      const trafficUnique = [{% for row in web_traffic.daily_trend %}{{ row.unique_visitors }}{% if not loop.last %}, {% endif %}{% endfor %}];
+      const topPageLabels = [{% for row in web_traffic.top_pages[:10] %}{{ row.path|tojson }}{% if not loop.last %}, {% endif %}{% endfor %}];
+      const topPageVisits = [{% for row in web_traffic.top_pages[:10] %}{{ row.visits }}{% if not loop.last %}, {% endif %}{% endfor %}];
+
+      const trafficTrendChart = echarts.init(trafficTrendEl);
+      trafficTrendChart.setOption({
+        tooltip: { trigger: 'axis' },
+        legend: { data: ['Visits', 'Unique visitors'], top: 0 },
+        grid: { left: 40, right: 20, top: 40, bottom: 40 },
+        xAxis: { type: 'category', data: trafficLabels },
+        yAxis: { type: 'value' },
+        series: [
+          { name: 'Visits', type: 'line', smooth: true, data: trafficVisits },
+          { name: 'Unique visitors', type: 'line', smooth: true, data: trafficUnique }
+        ]
+      });
+
+      const topPagesChart = echarts.init(topPagesEl);
+      topPagesChart.setOption({
+        tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+        grid: { left: 120, right: 20, top: 20, bottom: 20 },
+        xAxis: { type: 'value' },
+        yAxis: { type: 'category', data: topPageLabels, inverse: true },
+        series: [{ type: 'bar', data: topPageVisits }]
+      });
+      resizeTargets.push(trafficTrendChart, topPagesChart);
+    }
+
+    const tabButtons = document.querySelectorAll('[data-bs-toggle="tab"]');
+    tabButtons.forEach(function(button){
+      button.addEventListener('shown.bs.tab', function(){
+        resizeTargets.forEach(function(chart){ chart.resize(); });
+      });
     });
 
     window.addEventListener('resize', function(){
-      chart.resize();
-      pieChart.resize();
+      resizeTargets.forEach(function(chart){ chart.resize(); });
     });
   });
 </script>
