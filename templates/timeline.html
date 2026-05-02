@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t.title }}{% endblock %}
+{% block meta_description %}{{ t.subtitle }}{% endblock %}
+
+{% block body_class %}is-preload{% endblock %}
+
+{% block head_extra %}
+  {{ super() }}
+  <style>
+    .timeline-hero {
+      padding: 7rem 1.25rem 3rem;
+      background: linear-gradient(135deg, #0f2b4b 0%, #1a5f7a 55%, #2aa198 100%);
+      color: #fff;
+      text-align: center;
+    }
+    .timeline-hero h1 {
+      margin-bottom: .5rem;
+      font-size: clamp(1.9rem, 4vw, 3rem);
+    }
+    .timeline-wrap {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 2rem 1rem 4rem;
+    }
+    .timeline-video {
+      margin: 0 auto 2rem;
+      max-width: 760px;
+      border-radius: 14px;
+      padding: .9rem;
+      background: #ffffff;
+      box-shadow: 0 14px 35px rgba(12, 35, 64, 0.14);
+    }
+    .timeline-video p {
+      margin: 0 0 .55rem;
+      font-weight: 700;
+      color: #0f2b4b;
+    }
+    .timeline-video__frame {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #0b1320;
+    }
+    .timeline-video__frame iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+    }
+    .timeline {
+      position: relative;
+      margin-top: .5rem;
+      padding-left: 1.25rem;
+    }
+    .timeline::before {
+      content: "";
+      position: absolute;
+      left: .45rem;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      border-radius: 10px;
+      background: linear-gradient(180deg, #1a5f7a 0%, #2aa198 100%);
+    }
+    .timeline-item {
+      position: relative;
+      margin: 0 0 1.15rem;
+      padding: .9rem 1rem .9rem 1.15rem;
+      background: #ffffff;
+      border-radius: 10px;
+      border: 1px solid rgba(15, 43, 75, 0.08);
+      box-shadow: 0 6px 20px rgba(12, 35, 64, 0.08);
+    }
+    .timeline-item::before {
+      content: "";
+      position: absolute;
+      left: -1.03rem;
+      top: 1.15rem;
+      width: 11px;
+      height: 11px;
+      border-radius: 999px;
+      background: #1a5f7a;
+      box-shadow: 0 0 0 3px #e8f6f5;
+    }
+    .timeline-item h3 {
+      margin: 0 0 .35rem;
+      font-size: 1.1rem;
+      color: #0f2b4b;
+    }
+    .timeline-item p {
+      margin: 0;
+      color: #20344f;
+    }
+    .timeline-item .year {
+      display: inline-block;
+      margin-bottom: .35rem;
+      font-weight: 700;
+      color: #1a5f7a;
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <section class="timeline-hero">
+    <h1>{{ t.title }}</h1>
+    <p>{{ t.subtitle }}</p>
+  </section>
+
+  <main class="timeline-wrap">
+    <section class="timeline-video">
+      <p>{{ t.video_title }}</p>
+      <div class="timeline-video__frame">
+        <iframe src="https://www.youtube.com/embed/yz7_TYYRptY" title="{{ t.video_title }}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+      </div>
+    </section>
+
+    <section class="timeline" aria-label="{{ t.aria }}">
+      {% for item in t['items'] %}
+      <article class="timeline-item">
+        <span class="year">{{ item.year }}</span>
+        <h3>{{ item.title }}</h3>
+        <p>{{ item.text }}</p>
+      </article>
+      {% endfor %}
+    </section>
+  </main>
+{% endblock %}

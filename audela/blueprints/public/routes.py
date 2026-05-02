@@ -710,10 +710,98 @@ AI_SERVERS_COPY: dict[str, dict[str, object]] = {
     },
 }
 
+TIMELINE_COPY: dict[str, dict[str, object]] = {
+    "fr": {
+        "title": "Timeline AUDELA",
+        "subtitle": "Un parcours oriente resultats, produit apres produit.",
+        "video_title": "Video de presentation AUDELA",
+        "aria": "Timeline de AUDELA",
+        "items": [
+            {"year": "2022", "title": "Fondation & vision", "text": "Lancement de AUDELA avec un positionnement clair: transformer les donnees en decisions operationnelles."},
+            {"year": "2023", "title": "Premieres plateformes BI", "text": "Mise en production des premiers cas d'usage BI et automatisation des flux de reporting metiers."},
+            {"year": "2024", "title": "Expansion ERP & LegalTech", "text": "Deploiement des modules Finance/ERP et de la solution BeLegal pour la performance des cabinets."},
+            {"year": "2025", "title": "Industrialisation & IA appliquee", "text": "Structuration des workflows de production, monitoring renforce et integration d'IA explicable."},
+            {"year": "2026", "title": "Scale multi-produits", "text": "Consolidation d'une suite Data, BI, ERP, Credit, IFRS9 et AI Servers dedies autour de la meme base technologique."},
+        ],
+    },
+    "en": {
+        "title": "AUDELA Timeline",
+        "subtitle": "A results-oriented journey, product after product.",
+        "video_title": "AUDELA presentation video",
+        "aria": "AUDELA timeline",
+        "items": [
+            {"year": "2022", "title": "Foundation & vision", "text": "AUDELA launched with a clear mission: turn data into operational decisions."},
+            {"year": "2023", "title": "First BI platforms", "text": "First BI use cases shipped to production with automated business reporting flows."},
+            {"year": "2024", "title": "ERP & LegalTech expansion", "text": "Finance/ERP modules and BeLegal were expanded to improve law-firm performance."},
+            {"year": "2025", "title": "Industrialization & applied AI", "text": "Production workflows were hardened with stronger monitoring and explainable AI integration."},
+            {"year": "2026", "title": "Multi-product scale", "text": "A unified stack across Data, BI, ERP, Credit, IFRS9 and dedicated AI servers."},
+        ],
+    },
+    "pt": {
+        "title": "Linha do tempo AUDELA",
+        "subtitle": "Uma jornada orientada a resultados, produto apos produto.",
+        "video_title": "Video de apresentacao AUDELA",
+        "aria": "Linha do tempo da AUDELA",
+        "items": [
+            {"year": "2022", "title": "Fundacao e visao", "text": "A AUDELA foi lancada com um objetivo claro: transformar dados em decisoes operacionais."},
+            {"year": "2023", "title": "Primeiras plataformas BI", "text": "Primeiros casos de uso de BI em producao com automacao dos fluxos de reporting."},
+            {"year": "2024", "title": "Expansao ERP e LegalTech", "text": "Evolucao dos modulos Finance/ERP e da solucao BeLegal para performance juridica."},
+            {"year": "2025", "title": "Industrializacao e IA aplicada", "text": "Fluxos de producao estruturados, monitoramento reforcado e IA explicavel integrada."},
+            {"year": "2026", "title": "Escala multi-produto", "text": "Consolidacao de uma suite Data, BI, ERP, Credit, IFRS9 e AI Servers dedicados."},
+        ],
+    },
+    "es": {
+        "title": "Linea de tiempo AUDELA",
+        "subtitle": "Un recorrido orientado a resultados, producto tras producto.",
+        "video_title": "Video de presentacion de AUDELA",
+        "aria": "Linea de tiempo de AUDELA",
+        "items": [
+            {"year": "2022", "title": "Fundacion y vision", "text": "AUDELA se lanzo con una mision clara: convertir datos en decisiones operativas."},
+            {"year": "2023", "title": "Primeras plataformas BI", "text": "Primeros casos de BI en produccion con automatizacion de reportes de negocio."},
+            {"year": "2024", "title": "Expansion ERP y LegalTech", "text": "Despliegue de modulos Finance/ERP y de BeLegal para mejorar el rendimiento legal."},
+            {"year": "2025", "title": "Industrializacion e IA aplicada", "text": "Flujos de produccion reforzados, mejor monitoreo e integracion de IA explicable."},
+            {"year": "2026", "title": "Escala multiproducto", "text": "Consolidacion de una suite unificada de Data, BI, ERP, Credit, IFRS9 y AI Servers dedicados."},
+        ],
+    },
+    "it": {
+        "title": "Timeline AUDELA",
+        "subtitle": "Un percorso orientato ai risultati, prodotto dopo prodotto.",
+        "video_title": "Video di presentazione AUDELA",
+        "aria": "Timeline di AUDELA",
+        "items": [
+            {"year": "2022", "title": "Fondazione e visione", "text": "AUDELA nasce con una missione chiara: trasformare i dati in decisioni operative."},
+            {"year": "2023", "title": "Prime piattaforme BI", "text": "Primi use case BI in produzione con automazione dei flussi di reporting."},
+            {"year": "2024", "title": "Espansione ERP e LegalTech", "text": "Estensione dei moduli Finance/ERP e della soluzione BeLegal per studi legali."},
+            {"year": "2025", "title": "Industrializzazione e IA applicata", "text": "Workflow di produzione consolidati, monitoraggio avanzato e IA spiegabile."},
+            {"year": "2026", "title": "Scala multi-prodotto", "text": "Suite integrata Data, BI, ERP, Credit, IFRS9 e AI Servers dedicati."},
+        ],
+    },
+    "de": {
+        "title": "AUDELA Zeitachse",
+        "subtitle": "Ein ergebnisorientierter Weg, Produkt fur Produkt.",
+        "video_title": "AUDELA Vorstellungsvideo",
+        "aria": "AUDELA Zeitachse",
+        "items": [
+            {"year": "2022", "title": "Grundung und Vision", "text": "AUDELA startet mit einer klaren Mission: Daten in operative Entscheidungen umsetzen."},
+            {"year": "2023", "title": "Erste BI-Plattformen", "text": "Erste BI-Anwendungen in Produktion mit automatisierten Reporting-Flussen."},
+            {"year": "2024", "title": "ERP- und LegalTech-Ausbau", "text": "Ausbau der Finance/ERP-Module und BeLegal fur leistungsstarke Kanzleiablaufe."},
+            {"year": "2025", "title": "Industrialisierung und angewandte KI", "text": "Produktions-Workflows verfestigt, Monitoring ausgebaut und erklarbare KI integriert."},
+            {"year": "2026", "title": "Skalierung uber mehrere Produkte", "text": "Vereinheitlichte Suite fur Data, BI, ERP, Credit, IFRS9 und dedizierte AI-Server."},
+        ],
+    },
+}
+
 
 @bp.route("/")
 def index():
     return render_template("index.html")
+
+
+@bp.route("/timeline")
+def timeline():
+    lang = normalize_lang(getattr(g, "lang", session.get("lang")))
+    copy = TIMELINE_COPY.get(lang, TIMELINE_COPY.get(DEFAULT_LANG, TIMELINE_COPY["fr"]))
+    return render_template("timeline.html", t=copy)
 
 
 @bp.route("/e-learning")

@@ -114,8 +114,33 @@ jobs:
               finance_quotes \
               finance_quote_lines
 
+            ensure_public_page_visits_geo_columns () {
+              echo "🩹 Ensure public_page_visits geo/language columns exist (idempotent)"
+              aud_run python -c "from sqlalchemy import text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); exists=db.session.execute(text(\"SELECT to_regclass('public.public_page_visits')\")).scalar(); print('public_page_visits exists:', bool(exists));\
+if exists: db.session.execute(text(\"ALTER TABLE public.public_page_visits ADD COLUMN IF NOT EXISTS country_code VARCHAR(8)\")); db.session.execute(text(\"ALTER TABLE public.public_page_visits ADD COLUMN IF NOT EXISTS language_code VARCHAR(12)\")); db.session.execute(text(\"CREATE INDEX IF NOT EXISTS ix_public_page_visits_country_code ON public.public_page_visits (country_code)\")); db.session.execute(text(\"CREATE INDEX IF NOT EXISTS ix_public_page_visits_language_code ON public.public_page_visits (language_code)\")); db.session.commit(); print('public_page_visits geo/language columns ready');\
+ctx.pop()"
+            }
+
+            ensure_public_page_visits_geo_columns
+
             echo "⬆️ Apply migrations"
-            aud_run flask db upgrade heads
+            set +e
+            MIG_OUT="$(aud_run flask db upgrade heads 2>&1)"
+            MIG_RC=$?
+            set -e
+
+            if [ "$MIG_RC" -ne 0 ]; then
+              echo "$MIG_OUT"
+              if echo "$MIG_OUT" | grep -Eqi "UndefinedColumn" && echo "$MIG_OUT" | grep -Eqi "country_code"; then
+                echo "⚠️ Missing country_code detected during migration -> repairing schema and retrying once"
+                ensure_public_page_visits_geo_columns
+                aud_run flask db upgrade heads
+              else
+                exit "$MIG_RC"
+              fi
+            else
+              echo "$MIG_OUT"
+            fi
 
             echo "🌱 Seed default subscription plans (idempotent)"
             aud_run python -c "from audela import create_app; from audela.services.subscription_service import SubscriptionService; from audela.models import SubscriptionPlan; app=create_app(); ctx=app.app_context(); ctx.push(); SubscriptionService._ensure_default_plans_seeded(); plans={p.code for p in SubscriptionPlan.query.all()}; assert 'free' in plans, 'free plan missing'; assert 'enterprise' in plans, 'enterprise plan missing'; print('subscription plans ready:', len(plans)); ctx.pop()"

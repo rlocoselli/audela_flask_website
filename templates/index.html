@@ -14,6 +14,38 @@
 {% block head_extra %}
 	{{ super() }}
 	<style>
+		.video-highlight {
+			margin-top: 1rem;
+			padding: .75rem;
+			border-radius: 12px;
+			background: rgba(0, 0, 0, 0.28);
+			border: 1px solid rgba(255, 255, 255, 0.25);
+			max-width: 520px;
+		}
+		.video-highlight__title {
+			display: inline-flex;
+			align-items: center;
+			gap: .5rem;
+			font-weight: 700;
+			margin-bottom: .55rem;
+		}
+		.video-highlight__title .icon {
+			color: #ff3b30;
+		}
+		.video-highlight__frame {
+			position: relative;
+			width: 100%;
+			aspect-ratio: 16 / 9;
+			border-radius: 8px;
+			overflow: hidden;
+		}
+		.video-highlight__frame iframe {
+			position: absolute;
+			inset: 0;
+			width: 100%;
+			height: 100%;
+			border: 0;
+		}
 		.discover-modal {
 			position: fixed;
 			inset: 0;
@@ -100,6 +132,15 @@
 				<ul class="actions">
 					<li><a href="{{ url_for('tenant.login') }}" id="discover-free-btn" class="button primary">{{ _('Découvrir gratuitement') }}</a></li>
 				</ul>
+				<div class="video-highlight">
+					<div class="video-highlight__title">
+						<span class="icon brands fa-youtube" aria-hidden="true"></span>
+						<span>{{ _('Vidéo de présentation') }}</span>
+					</div>
+					<div class="video-highlight__frame">
+						<iframe src="https://www.youtube.com/embed/yz7_TYYRptY" title="{{ _('Vidéo de présentation AUDELA') }}" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+					</div>
+				</div>
 			</header>
 			<span class="image"><img src="{{ url_for('static', filename='images/audela-hero.svg') }}" alt="{{ _('Illustration AUDELA') }}" /></span>
 		</div>
