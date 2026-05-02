@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import importlib
+from datetime import datetime, timezone
 from typing import Any
+
+from .security_sanitizer import safe_error_message
 
 
 def _to_float(value: Any) -> float | None:
@@ -31,6 +34,85 @@ def _run_url(tracking_uri: str, experiment_id: str, run_id: str) -> str:
     if not (base.startswith("http://") or base.startswith("https://")):
         return ""
     return f"{base.rstrip('/')}/#/experiments/{experiment_id}/runs/{run_id}"
+
+
+def _iso_from_ms(value: Any) -> str:
+    try:
+        millis = int(value)
+        if millis <= 0:
+            return ""
+        return datetime.fromtimestamp(millis / 1000.0, tz=timezone.utc).isoformat()
+    except Exception:
+        return ""
+
+
+def list_tenant_runs(*, config: Any, tenant_id: int, max_results: int = 50) -> dict[str, Any]:
+    tracking_uri = _tracking_uri(config)
+    if not tracking_uri:
+        return {"ok": False, "reason": "tracking_uri_missing", "runs": []}
+
+    try:
+        mlflow = importlib.import_module("mlflow")
+        mlflow_tracking = importlib.import_module("mlflow.tracking")
+        MlflowClient = getattr(mlflow_tracking, "MlflowClient")
+    except Exception:
+        return {"ok": False, "reason": "mlflow_package_missing", "runs": []}
+
+    try:
+        mlflow.set_tracking_uri(tracking_uri)
+        client = MlflowClient(tracking_uri=tracking_uri)
+
+        exp_name = f"tenant-{int(tenant_id)}-ml-studio"
+        exp = mlflow.get_experiment_by_name(exp_name)
+        if exp is None:
+            return {"ok": True, "runs": []}
+
+        runs = client.search_runs(
+            experiment_ids=[str(exp.experiment_id)],
+            filter_string=f'tags.tenant_id = "{int(tenant_id)}"',
+            max_results=max(1, min(int(max_results), 200)),
+            order_by=["attributes.start_time DESC"],
+        )
+
+        items: list[dict[str, Any]] = []
+        for run in runs:
+            info = getattr(run, "info", None)
+            data = getattr(run, "data", None)
+            run_id = str(getattr(info, "run_id", "") or "")
+            experiment_id = str(getattr(info, "experiment_id", "") or "")
+            tags = getattr(data, "tags", {}) if data else {}
+            metrics = getattr(data, "metrics", {}) if data else {}
+            params = getattr(data, "params", {}) if data else {}
+            items.append(
+                {
+                    "run_id": run_id,
+                    "experiment_id": experiment_id,
+                    "status": str(getattr(info, "status", "") or ""),
+                    "lifecycle_stage": str(getattr(info, "lifecycle_stage", "") or ""),
+                    "start_time": _iso_from_ms(getattr(info, "start_time", 0)),
+                    "end_time": _iso_from_ms(getattr(info, "end_time", 0)),
+                    "run_url": _run_url(tracking_uri, experiment_id, run_id),
+                    "event": str(tags.get("event") or "training"),
+                    "model_id": str(tags.get("model_id") or ""),
+                    "algorithm": str(tags.get("algorithm") or params.get("algorithm") or ""),
+                    "source_name": str(tags.get("source_name") or ""),
+                    "metrics": {
+                        "r2": metrics.get("r2"),
+                        "mae": metrics.get("mae"),
+                        "rmse": metrics.get("rmse"),
+                        "silhouette": metrics.get("silhouette"),
+                    },
+                }
+            )
+
+        return {"ok": True, "runs": items}
+    except Exception as exc:
+        return {
+            "ok": False,
+            "reason": "mlflow_search_runs_failed",
+            "error": safe_error_message(exc, fallback="mlflow run listing failed"),
+            "runs": [],
+        }
 
 
 def _training_spec(model: dict[str, Any], source: Any, extra: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -108,7 +190,7 @@ def log_model_created_event(
                 "run_url": _run_url(tracking_uri, str(experiment_id), str(run_id)),
             }
     except Exception as exc:
-        return {"ok": False, "reason": "mlflow_create_log_failed", "error": str(exc)}
+        return {"ok": False, "reason": "mlflow_create_log_failed", "error": safe_error_message(exc, fallback="mlflow create failed")}
 
 
 def log_training_run(
@@ -200,7 +282,7 @@ def log_training_run(
                 "run_url": run_url,
             }
     except Exception as exc:
-        return {"ok": False, "reason": "mlflow_logging_failed", "error": str(exc)}
+        return {"ok": False, "reason": "mlflow_logging_failed", "error": safe_error_message(exc, fallback="mlflow logging failed")}
 
 
 def log_deployment_event(
@@ -247,7 +329,7 @@ def log_deployment_event(
             )
             return {"ok": True, "run_id": run.info.run_id}
     except Exception as exc:
-        return {"ok": False, "reason": "mlflow_deploy_log_failed", "error": str(exc)}
+        return {"ok": False, "reason": "mlflow_deploy_log_failed", "error": safe_error_message(exc, fallback="mlflow deployment logging failed")}
 
 
 def log_sentiment_snapshot_event(
@@ -316,4 +398,4 @@ def log_sentiment_snapshot_event(
                 "run_url": _run_url(tracking_uri, str(experiment_id), str(run_id)),
             }
     except Exception as exc:
-        return {"ok": False, "reason": "mlflow_sentiment_log_failed", "error": str(exc)}
+        return {"ok": False, "reason": "mlflow_sentiment_log_failed", "error": safe_error_message(exc, fallback="mlflow sentiment logging failed")}

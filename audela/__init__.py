@@ -174,6 +174,25 @@ def _seed_subscription_plans_on_startup(app: Flask) -> None:
         SubscriptionService._ensure_default_plans_seeded()
 
 
+def _assert_production_secrets(app: Flask) -> None:
+    if str(os.environ.get("FLASK_ENV", "development")).lower() != "production":
+        return
+
+    secret_key = str(app.config.get("SECRET_KEY") or "").strip()
+    data_key = str(os.environ.get("DATA_KEY") or "").strip()
+    default_secret = "dev-secret-change-me"
+
+    if not secret_key or secret_key == default_secret:
+        raise RuntimeError(
+            "Insecure SECRET_KEY in production. Configure a strong SECRET_KEY environment variable."
+        )
+
+    if not data_key:
+        raise RuntimeError(
+            "Missing DATA_KEY in production. Configure DATA_KEY for encrypted datasource payloads."
+        )
+
+
 def create_app() -> Flask:
     _configure_logging()
 
@@ -216,6 +235,7 @@ def create_app() -> Flask:
 
     env = os.environ.get("FLASK_ENV", "development").lower()
     app.config.from_object(DevConfig if env != "production" else ProdConfig)
+    _assert_production_secrets(app)
 
     # Extensions
     db.init_app(app)

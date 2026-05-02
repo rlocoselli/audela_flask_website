@@ -1,161 +1,126 @@
 #!/usr/bin/env python3
-"""
-Tests pour la configuration IBAN et l'intégration bancaire.
+"""Tests pour la configuration IBAN et l'integration bancaire.
 
 Usage:
     python3 test_bank_configuration.py
+    pytest test_bank_configuration.py
 """
 
-import sys
-sys.path.insert(0, '/home/testuser/audela_flask_website')
+from __future__ import annotations
 
-from audela.services.bank_configuration_service import (
-    IBANValidator,
-    BankConfigurationService,
+import sys
+from pathlib import Path
+
+# Ensure local package imports also work when executed as a standalone script.
+ROOT = Path(__file__).resolve().parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from audela.services.bank_configuration_service import (  # noqa: E402
     BalanceUpdateService,
+    BankConfigurationService,
+    IBANValidator,
+    initialize_balance_updates,
+    setup_balance_update_listeners,
 )
 
-print("\n" + "="*70)
-print("BANK CONFIGURATION & IBAN VALIDATION - TESTS")
-print("="*70 + "\n")
 
-# Test 1: Validation IBAN
-print("1. Testing IBAN Validation...")
-print("-" * 70)
+def _run_checks(verbose: bool = False) -> tuple[bool, list[str]]:
+    messages: list[str] = []
+    all_passed = True
 
-test_ibans = [
-    ("DE89370400440532013000", True, "Valid German IBAN"),
-    ("GB82WEST12345698765432", True, "Valid UK IBAN"),
-    ("IT60X0542811101000000123456", True, "Valid Italian IBAN"),
-    ("NL91ABNA0417164300", True, "Valid Dutch IBAN"),
-    ("FR1420041010050500013M02606", True, "Valid French IBAN"),
-    ("ES7100211401840502000513", True, "Valid Spanish IBAN"),
-    ("INVALID123", False, "Too short"),
-    ("FR76INVALID1234567890ABC", False, "Bad checksum"),
-]
-
-all_passed = True
-for iban, should_be_valid, description in test_ibans:
-    is_valid, message = IBANValidator.is_valid(iban)
-    status = "✓" if is_valid == should_be_valid else "✗"
-    
-    if is_valid == should_be_valid:
-        print(f"{status} {description}: {iban}")
-    else:
-        print(f"{status} {description}: {iban} (Expected {should_be_valid}, got {is_valid})")
-        all_passed = False
-
-print()
-
-# Test 2: IBAN Formatting
-print("2. Testing IBAN Formatting...")
-print("-" * 70)
-
-iban = "FR7620041010050500013M02606"
-formatted = IBANValidator.format_iban(iban)
-print(f"Original:  {iban}")
-print(f"Formatted: {formatted}")
-print(f"✓ Formatting works\n")
-
-# Test 3: Service Methods
-print("3. Testing Bank Configuration Service...")
-print("-" * 70)
-
-# Check if methods exist
-methods_to_check = [
-    ('configure_account_iban', BankConfigurationService),
-    ('configure_company_iban', BankConfigurationService),
-    ('setup_gocardless_connection', BankConfigurationService),
-    ('get_account_configuration', BankConfigurationService),
-]
-
-for method_name, service_class in methods_to_check:
-    if hasattr(service_class, method_name):
-        print(f"✓ {service_class.__name__}.{method_name}")
-    else:
-        print(f"✗ {service_class.__name__}.{method_name} NOT FOUND")
-        all_passed = False
-
-print()
-
-# Test 4: Balance Update Service
-print("4. Testing Balance Update Service...")
-print("-" * 70)
-
-methods_to_check = [
-    ('update_account_balance', BalanceUpdateService),
-    ('recalculate_account_balance', BalanceUpdateService),
-]
-
-for method_name, service_class in methods_to_check:
-    if hasattr(service_class, method_name):
-        print(f"✓ {service_class.__name__}.{method_name}")
-    else:
-        print(f"✗ {service_class.__name__}.{method_name} NOT FOUND")
-        all_passed = False
-
-print()
-
-# Test 5: CLI Commands
-print("5. Testing Finance CLI Commands...")
-print("-" * 70)
-
-try:
-    from audela.commands.finance_cli import (
-        configure_iban,
-        validate_iban,
-        setup_gocardless,
-        get_config,
-        list_accounts,
-        recalculate_balance,
-    )
-    
-    commands = [
-        'configure_iban',
-        'validate_iban',
-        'setup_gocardless',
-        'get_config',
-        'list_accounts',
-        'recalculate_balance',
+    test_ibans = [
+        ("DE89370400440532013000", True, "Valid German IBAN"),
+        ("GB82WEST12345698765432", True, "Valid UK IBAN"),
+        ("IT60X0542811101000000123456", True, "Valid Italian IBAN"),
+        ("NL91ABNA0417164300", True, "Valid Dutch IBAN"),
+        ("FR1420041010050500013M02606", True, "Valid French IBAN"),
+        ("ES7100211401840502000513", True, "Valid Spanish IBAN"),
+        ("INVALID123", False, "Too short"),
+        ("FR76INVALID1234567890ABC", False, "Bad checksum"),
     ]
-    
-    for cmd in commands:
-        print(f"✓ Command: flask finance {cmd}")
-    
-    print()
-except Exception as e:
-    print(f"✗ Error importing CLI commands: {e}\n")
-    all_passed = False
 
-# Test 6: Event Listeners
-print("6. Testing Balance Update Event Listeners...")
-print("-" * 70)
+    for iban, should_be_valid, description in test_ibans:
+        is_valid, _ = IBANValidator.is_valid(iban)
+        ok = is_valid == should_be_valid
+        all_passed = all_passed and ok
+        if verbose:
+            status = "OK" if ok else "FAIL"
+            messages.append(f"[{status}] {description}: {iban}")
 
-try:
-    from audela.services.bank_configuration_service import (
-        setup_balance_update_listeners,
-        initialize_balance_updates,
-    )
-    print(f"✓ setup_balance_update_listeners function exists")
-    print(f"✓ initialize_balance_updates function exists")
-    print()
-except Exception as e:
-    print(f"✗ Error: {e}\n")
-    all_passed = False
+    formatted = IBANValidator.format_iban("FR7620041010050500013M02606")
+    format_ok = formatted == "FR76 2004 1010 0505 0001 3M02 606"
+    all_passed = all_passed and format_ok
+    if verbose:
+        messages.append(f"[{'OK' if format_ok else 'FAIL'}] IBAN formatting")
 
-# Final Summary
-print("="*70)
-if all_passed:
-    print("✅ ALL TESTS PASSED!")
-    print("="*70)
-    print("\n🚀 Next Steps:")
-    print("   1. Run: flask finance list-accounts")
-    print("   2. Run: flask finance validate-iban --iban 'YOUR_IBAN'")
-    print("   3. Run: flask finance configure-iban --account-id 1 --iban 'YOUR_IBAN'")
-    print("   4. Run: flask finance setup-gocardless --account-id 1 --company-id 1 ...")
-    print("   5. See BANK_CONFIGURATION_GUIDE.md for more details\n")
-    sys.exit(0)
-else:
-    print("❌ SOME TESTS FAILED!")
-    print("="*70 + "\n")
-    sys.exit(1)
+    service_methods = [
+        "configure_account_iban",
+        "configure_company_iban",
+        "setup_gocardless_connection",
+        "get_account_configuration",
+    ]
+    for method in service_methods:
+        ok = hasattr(BankConfigurationService, method)
+        all_passed = all_passed and ok
+        if verbose:
+            messages.append(f"[{'OK' if ok else 'FAIL'}] BankConfigurationService.{method}")
+
+    balance_methods = ["update_account_balance", "recalculate_account_balance"]
+    for method in balance_methods:
+        ok = hasattr(BalanceUpdateService, method)
+        all_passed = all_passed and ok
+        if verbose:
+            messages.append(f"[{'OK' if ok else 'FAIL'}] BalanceUpdateService.{method}")
+
+    cli_ok = True
+    try:
+        from audela.commands.finance_cli import (  # noqa: F401
+            configure_iban,
+            get_config,
+            list_accounts,
+            recalculate_balance,
+            setup_gocardless,
+            validate_iban,
+        )
+    except Exception:
+        cli_ok = False
+    all_passed = all_passed and cli_ok
+    if verbose:
+        messages.append(f"[{'OK' if cli_ok else 'FAIL'}] Finance CLI imports")
+
+    listener_ok = callable(setup_balance_update_listeners) and callable(initialize_balance_updates)
+    all_passed = all_passed and listener_ok
+    if verbose:
+        messages.append(f"[{'OK' if listener_ok else 'FAIL'}] Balance update listeners")
+
+    return all_passed, messages
+
+
+def test_bank_configuration_smoke() -> None:
+    ok, details = _run_checks(verbose=False)
+    assert ok, "Bank configuration smoke checks failed: " + "; ".join(details)
+
+
+def main() -> int:
+    print("\n" + "=" * 70)
+    print("BANK CONFIGURATION & IBAN VALIDATION - TESTS")
+    print("=" * 70 + "\n")
+
+    ok, messages = _run_checks(verbose=True)
+    for line in messages:
+        print(line)
+
+    print("\n" + "=" * 70)
+    if ok:
+        print("ALL TESTS PASSED")
+        print("=" * 70)
+        return 0
+
+    print("SOME TESTS FAILED")
+    print("=" * 70)
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

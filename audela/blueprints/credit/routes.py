@@ -11102,7 +11102,7 @@ def _credit_docs_safe_next_url() -> str | None:
     if not nxt:
         return None
     nxt = str(nxt)
-    if nxt.startswith("/") and "://" not in nxt and "\\" not in nxt:
+    if nxt.startswith("/") and not nxt.startswith("//") and "://" not in nxt and "\\" not in nxt:
         return nxt
     return None
 
@@ -12403,6 +12403,59 @@ def _normalize_financial_key(raw: object) -> str:
     return token.strip("_")
 
 
+def _safe_eval_financial_formula(expr: str, variables: dict[str, float]) -> float | None:
+    src = str(expr or "").strip()
+    if not src:
+        return None
+
+    def _to_number(value: object) -> float:
+        if value is None:
+            return 0.0
+        if isinstance(value, bool):
+            return float(int(value))
+        return float(value)
+
+    def _eval(node: ast.AST) -> float:
+        if isinstance(node, ast.Constant):
+            return _to_number(node.value)
+
+        if isinstance(node, ast.Name):
+            return _to_number(variables.get(node.id, 0.0))
+
+        if isinstance(node, ast.UnaryOp):
+            val = _eval(node.operand)
+            if isinstance(node.op, ast.USub):
+                return -val
+            if isinstance(node.op, ast.UAdd):
+                return +val
+            raise ValueError("unsupported unary op")
+
+        if isinstance(node, ast.BinOp):
+            left = _eval(node.left)
+            right = _eval(node.right)
+            if isinstance(node.op, ast.Add):
+                return left + right
+            if isinstance(node.op, ast.Sub):
+                return left - right
+            if isinstance(node.op, ast.Mult):
+                return left * right
+            if isinstance(node.op, ast.Div):
+                return left / right
+            if isinstance(node.op, ast.FloorDiv):
+                return left // right
+            if isinstance(node.op, ast.Mod):
+                return left % right
+            raise ValueError("unsupported binary op")
+
+        raise ValueError("unsupported expression")
+
+    try:
+        parsed = ast.parse(src, mode="eval")
+        return _eval(parsed.body)
+    except Exception:
+        return None
+
+
 def _build_statement_grid_values(
     lines: list[CreditAccountLine],
     val_lookup: dict[tuple[int, int], Decimal | None],
@@ -12417,8 +12470,8 @@ def _build_statement_grid_values(
             value = val_lookup.get((statement_id, line.id))
         elif line.line_type in ("formula", "total") and line.formula_expr:
             try:
-                result = eval(line.formula_expr, {"__builtins__": {}}, code_vals)  # noqa: S307
-                value = Decimal(str(result))
+                result = _safe_eval_financial_formula(line.formula_expr, code_vals)
+                value = Decimal(str(result)) if result is not None else None
             except Exception:
                 value = None
 

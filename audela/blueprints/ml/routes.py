@@ -11,6 +11,7 @@ import re
 import secrets
 from collections import Counter
 from typing import Any
+from urllib.parse import urlsplit
 
 from flask import abort, current_app, flash, g, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
@@ -23,7 +24,13 @@ from ...models.bi import FileAsset
 from ...models.core import Tenant
 from ...services.crypto import encrypt_json
 from ...services.file_storage_service import store_bytes
-from ...services.mlflow_service import log_deployment_event, log_model_created_event, log_sentiment_snapshot_event, log_training_run
+from ...services.mlflow_service import (
+    list_tenant_runs,
+    log_deployment_event,
+    log_model_created_event,
+    log_sentiment_snapshot_event,
+    log_training_run,
+)
 from ...services.query_service import QueryExecutionError, execute_sql
 from ...services.subscription_service import SubscriptionService
 from ...tenancy import enforce_subscription_access_or_redirect, get_current_tenant_id, get_user_module_access
@@ -94,6 +101,24 @@ def _parse_predict_values(raw_value: Any) -> list[float]:
         if num is not None:
             values.append(float(num))
     return values
+
+
+def _is_allowed_mlflow_return_url(return_to: str, tracking_uri: str) -> bool:
+    target = str(return_to or "").strip()
+    base = str(tracking_uri or "").strip()
+    if not target or not base:
+        return False
+    try:
+        target_parts = urlsplit(target)
+        base_parts = urlsplit(base)
+    except Exception:
+        return False
+    if not target_parts.scheme or not target_parts.netloc:
+        return False
+    return (
+        target_parts.scheme.lower() == base_parts.scheme.lower()
+        and target_parts.netloc.lower() == base_parts.netloc.lower()
+    )
 
 
 def _numeric_metric_fields(columns: list[Any], rows: list[Any]) -> list[str]:
@@ -662,6 +687,14 @@ def _render_ml_page(page_key: str = "supervised"):
         str(current_app.config.get("MLFLOW_EMBED_URL") or "").strip()
         or str(current_app.config.get("MLFLOW_TRACKING_URI") or "").strip()
     )
+    tenant_mlflow_runs: list[dict[str, Any]] = []
+    mlflow_runs_error = ""
+    if page_key == "mlflow":
+        mlflow_result = list_tenant_runs(config=current_app.config, tenant_id=int(g.tenant.id), max_results=40)
+        tenant_mlflow_runs = mlflow_result.get("runs") if isinstance(mlflow_result.get("runs"), list) else []
+        if not bool(mlflow_result.get("ok")):
+            mlflow_runs_error = str(mlflow_result.get("error") or mlflow_result.get("reason") or "")
+
     return render_template(
         "ml/studio.html",
         tenant=g.tenant,
@@ -670,6 +703,8 @@ def _render_ml_page(page_key: str = "supervised"):
         total_models_count=len(all_models),
         visible_models_count=len(models),
         mlflow_embed_url=mlflow_embed_url,
+        tenant_mlflow_runs=tenant_mlflow_runs,
+        mlflow_runs_error=mlflow_runs_error,
         ml_page_key=page_key,
     )
 
@@ -1283,7 +1318,7 @@ def retrain_model(model_id: str):
 
     return_to = str(request.args.get("return_to") or "").strip()
     tracking_uri = str(current_app.config.get("MLFLOW_TRACKING_URI") or "").strip()
-    if return_to and tracking_uri and return_to.startswith(tracking_uri):
+    if _is_allowed_mlflow_return_url(return_to, tracking_uri):
         return redirect(return_to)
     return redirect(url_for("ml.studio"))
 

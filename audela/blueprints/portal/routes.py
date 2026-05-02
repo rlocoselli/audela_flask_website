@@ -81,6 +81,7 @@ from ...services.finance_ratio_service import (
     validate_scalar_sql,
 )
 from ...services.subscription_service import SubscriptionService
+from ...services.security_sanitizer import redact_sensitive_mapping, safe_error_message
 from ...tenancy import enforce_subscription_access_or_redirect, get_current_tenant_id, get_user_module_access, get_user_menu_access
 
 from ...i18n import tr, DEFAULT_LANG
@@ -2390,9 +2391,9 @@ def api_sources_preview_call(source_id: int):
             "request": {
                 "method": method,
                 "url": url,
-                "headers": req_headers,
+                "headers": redact_sensitive_mapping(req_headers),
                 "params": req_params,
-                "body": req_body,
+                "body": redact_sensitive_mapping(req_body),
                 "timeout": timeout_s,
             },
             "auth": auth_debug,
@@ -2404,11 +2405,11 @@ def api_sources_preview_call(source_id: int):
             },
         })
     except ValueError as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return jsonify({"ok": False, "error": safe_error_message(e, fallback="invalid request")}), 400
     except requests.RequestException as e:
-        return jsonify({"ok": False, "error": tr("Erro de rede/API: {error}", getattr(g, "lang", None), error=str(e))}), 502
+        return jsonify({"ok": False, "error": tr("Erro de rede/API: {error}", getattr(g, "lang", None), error=safe_error_message(e, fallback="network error"))}), 502
     except Exception as e:
-        return jsonify({"ok": False, "error": tr("Erro ao executar preview: {error}", getattr(g, "lang", None), error=str(e))}), 500
+        return jsonify({"ok": False, "error": tr("Erro ao executar preview: {error}", getattr(g, "lang", None), error=safe_error_message(e, fallback="unexpected error"))}), 500
 
 
 @bp.post("/api/sources/api/<int:source_id>/preview_save")
@@ -3477,7 +3478,7 @@ def api_sources_test_connection():
             pass
         return jsonify({"ok": True, "message": tr("Conexão OK.", getattr(g, "lang", None))})
     except Exception as e:  # noqa: BLE001
-        return jsonify({"ok": False, "error": tr("Falha na conexão: {error}", getattr(g, "lang", None), error=str(e))}), 400
+        return jsonify({"ok": False, "error": tr("Falha na conexão: {error}", getattr(g, "lang", None), error=safe_error_message(e, fallback="connection failed"))}), 400
 
 
 
@@ -4082,7 +4083,7 @@ def _safe_next_url() -> str | None:
         return None
     nxt = str(nxt)
     # Basic open-redirect protection: only allow local relative URLs
-    if nxt.startswith("/") and "://" not in nxt and "\\" not in nxt:
+    if nxt.startswith("/") and not nxt.startswith("//") and "://" not in nxt and "\\" not in nxt:
         return nxt
     return None
 

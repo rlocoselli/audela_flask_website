@@ -177,7 +177,6 @@ def upgrade(plan_code):
 @bp.route("/checkout", methods=["POST"])
 @login_required
 @require_tenant
-@csrf.exempt
 def checkout():
     """Create PayPal checkout redirect for paid plans, or auto-activate free plans."""
     plan_code = request.form.get("plan_code")

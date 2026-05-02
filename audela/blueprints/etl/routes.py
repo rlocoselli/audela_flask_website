@@ -10,6 +10,7 @@ from sqlalchemy import create_engine, text
 import requests
 
 from flask import Blueprint, current_app, jsonify, render_template, request, g, Response, stream_with_context
+from flask_login import current_user
 
 from audela.etl.engine import ETLEngine, ETLContext
 from audela.etl.registry import REGISTRY
@@ -19,8 +20,24 @@ from audela.services.subscription_service import SubscriptionService
 from audela.services.etl_jobs_service import load_jobs, upsert_job, delete_job, run_job
 from audela.services.datasource_service import introspect_source
 from audela.services.etl_ai_service import compact_schema_meta, generate_etl_workflow_from_prompt
+from audela.services.security_sanitizer import safe_error_message
 
 bp = Blueprint("etl", __name__, url_prefix="/etl")
+
+
+@bp.before_request
+def _guard_etl_access():
+    if not current_user.is_authenticated:
+        return jsonify({"ok": False, "error": "authentication required"}), 401
+
+    # Keep ETL operations limited to privileged tenant users.
+    if not (current_user.has_role("tenant_admin") or current_user.has_role("creator")):
+        return jsonify({"ok": False, "error": "forbidden"}), 403
+
+    if getattr(g, "tenant", None) is None:
+        return jsonify({"ok": False, "error": "tenant required"}), 400
+
+    return None
 
 
 def _etl_quota_check(required: int = 1) -> tuple[bool, str | None]:
@@ -94,7 +111,7 @@ def _ai_source_context(db_source_ids: list[int], api_source_ids: list[int]) -> d
                 try:
                     item["schema"] = compact_schema_meta(introspect_source(src))
                 except Exception as exc:
-                    item["schema_error"] = str(exc)
+                    item["schema_error"] = safe_error_message(exc, fallback="schema introspection failed")
             context["db_sources"].append(item)
 
         try:
@@ -159,7 +176,7 @@ def save_job():
     try:
         item = upsert_job(current_app.instance_path, tenant_slug, payload)
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return jsonify({"ok": False, "error": safe_error_message(exc, fallback="invalid job payload")}), 400
     return jsonify({"ok": True, "job": item})
 
 
@@ -183,7 +200,7 @@ def run_saved_job(job_id: str):
     except KeyError:
         return jsonify({"ok": False, "error": "job not found"}), 404
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return jsonify({"ok": False, "error": safe_error_message(exc, fallback="job execution failed")}), 400
 
 @bp.get("/builder")
 def builder():
@@ -209,7 +226,7 @@ def ai_generate_workflow():
             lang=getattr(g, "lang", None),
         )
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return jsonify({"ok": False, "error": safe_error_message(exc, fallback="assistant generation failed")}), 400
 
     return jsonify({"ok": True, **result})
 
@@ -256,7 +273,7 @@ def save_workflow():
     try:
         wf = normalize_workflow(payload)
     except Exception as e:
-        error = str(e)
+        error = safe_error_message(e, fallback="workflow normalization failed")
 
     json_path = os.path.join(d, f"{safe}.json")
     yaml_path = os.path.join(d, f"{safe}.yaml")
@@ -375,7 +392,7 @@ def get_workflow(name: str):
                 with open(yp, "r", encoding="utf-8") as f:
                     return jsonify({"ok": True, "kind": "workflow", "name": safe, "data": yaml.safe_load(f)})
             except Exception as e:
-                return jsonify({"ok": False, "error": str(e)}), 500
+                return jsonify({"ok": False, "error": safe_error_message(e, fallback="workflow parse failed")}), 500
 
     return jsonify({"ok": False, "error": "not found"}), 404
 
@@ -401,7 +418,7 @@ def test_http():
             preview = (resp.text or "")[:1000]
         return jsonify({"ok": True, "status": resp.status_code, "content_type": content_type, "preview": preview})
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return jsonify({"ok": False, "error": safe_error_message(e, fallback="HTTP test failed")}), 400
 
 
 @bp.post("/api/connections/<int:conn_id>/test")
@@ -450,7 +467,7 @@ def test_connection(conn_id: int):
                 c.execute(text("SELECT 1"))
             return jsonify({"ok": True, "type": ctype, "message": "connection ok"})
     except Exception as e:
-        return jsonify({"ok": False, "type": ctype, "error": str(e)}), 400
+        return jsonify({"ok": False, "type": ctype, "error": safe_error_message(e, fallback="connection test failed")}), 400
 
 from audela.models.bi import DataSource
 from audela.services.datasource_service import get_engine
@@ -480,7 +497,7 @@ def test_db_source(source_id: int):
             c.execute(_text("SELECT 1"))
         return jsonify({"ok": True, "message": "connection ok"})
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return jsonify({"ok": False, "error": safe_error_message(e, fallback="database source test failed")}), 400
 
 
 @bp.get("/api/sources/api")
@@ -512,7 +529,7 @@ def test_api_source(source_id: int):
         resp = requests.request(method=method, url=url, headers=headers, params=params, timeout=15)
         return jsonify({"ok": True, "status": resp.status_code})
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return jsonify({"ok": False, "error": safe_error_message(e, fallback="API source test failed")}), 400
 
 
 @bp.post("/api/run_stream")
@@ -542,7 +559,7 @@ def run_workflow_stream():
                 done["result"] = res
             except Exception as e:
                 done["ok"] = False
-                done["error"] = str(e)
+                done["error"] = safe_error_message(e, fallback="workflow execution failed")
 
         t = threading.Thread(target=runner, daemon=True)
         t.start()
@@ -587,4 +604,4 @@ def test_notify_integration():
         latest = notifications[-1] if notifications else {"ok": True, "message": "sent"}
         return jsonify({"ok": bool(latest.get("ok", True)), "result": latest, "notifications": notifications})
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 400
+        return jsonify({"ok": False, "error": safe_error_message(e, fallback="notification test failed")}), 400

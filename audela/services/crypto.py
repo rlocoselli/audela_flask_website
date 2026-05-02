@@ -20,7 +20,12 @@ def _derive_fernet_key(secret: str) -> bytes:
 
 def _get_fernet() -> Fernet:
     # Prefer a dedicated key; fallback to Flask SECRET_KEY.
-    secret = os.environ.get("DATA_KEY") or os.environ.get("SECRET_KEY") or "dev-secret-change-me"
+    env = str(os.environ.get("FLASK_ENV", "development")).lower()
+    secret = os.environ.get("DATA_KEY") or os.environ.get("SECRET_KEY") or ""
+    if env == "production" and not secret:
+        raise RuntimeError("Missing DATA_KEY/SECRET_KEY in production for encryption.")
+    if not secret:
+        secret = "dev-secret-change-me"
     return Fernet(_derive_fernet_key(secret))
 
 

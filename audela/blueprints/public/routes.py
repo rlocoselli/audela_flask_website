@@ -5,7 +5,7 @@ from datetime import date, datetime
 from io import StringIO
 import traceback
 from uuid import uuid4
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 from flask import Response, current_app, redirect, render_template, request, session, url_for, flash, jsonify, g, make_response
 from flask_login import current_user
@@ -68,6 +68,29 @@ def _request_language_code() -> str | None:
         return str(lang)[:12]
     best = normalize_lang(request.accept_languages.best or "")
     return str(best)[:12] if best else None
+
+
+def _safe_redirect_target(target: str | None) -> str | None:
+    value = str(target or "").strip()
+    if not value:
+        return None
+    if value.startswith("/") and not value.startswith("//"):
+        return value
+
+    parts = urlsplit(value)
+    if not parts.scheme or not parts.netloc:
+        return None
+
+    current = urlsplit(request.host_url)
+    if parts.scheme.lower() == current.scheme.lower() and parts.netloc.lower() == current.netloc.lower():
+        # Keep path + query + fragment while forcing local host only.
+        path = parts.path or "/"
+        if parts.query:
+            path = f"{path}?{parts.query}"
+        if parts.fragment:
+            path = f"{path}#{parts.fragment}"
+        return path
+    return None
 
 
 @bp.before_request
@@ -918,6 +941,9 @@ def e_learning_run_example():
 
 @bp.route("/e-learning/run-custom", methods=["POST"])
 def e_learning_run_custom():
+    if str(current_app.config.get("FLASK_ENV") or "").lower() == "production":
+        return jsonify({"ok": False, "error": "Custom code execution is disabled in production."}), 403
+
     payload = request.get_json(silent=True) or {}
     code = str(payload.get("code") or "")
     validation_error = _validate_custom_python(code)
@@ -984,7 +1010,11 @@ def set_language(lang_code: str):
         lang = DEFAULT_LANG
     session["lang"] = lang
 
-    nxt = request.args.get("next") or request.referrer or url_for("public.index")
+    nxt = (
+        _safe_redirect_target(request.args.get("next"))
+        or _safe_redirect_target(request.referrer)
+        or url_for("public.index")
+    )
     return redirect(nxt)
 
 

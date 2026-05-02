@@ -1383,6 +1383,46 @@
           {% endif %}
         </div>
       </div>
+      <div class="card ml-surface">
+        <div class="card-body">
+          <h3 class="h6 mb-2">{{ _('Runs du tenant connecté') }}</h3>
+          {% if mlflow_runs_error %}
+          <div class="alert alert-warning py-2 small mb-2">{{ mlflow_runs_error }}</div>
+          {% endif %}
+          {% if tenant_mlflow_runs %}
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>{{ _('Début') }}</th>
+                  <th>{{ _('Événement') }}</th>
+                  <th>{{ _('Modèle') }}</th>
+                  <th>{{ _('Run') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for run in tenant_mlflow_runs %}
+                <tr>
+                  <td><small class="text-muted">{{ run.start_time or '-' }}</small></td>
+                  <td><span class="ml-chip">{{ run.event or 'training' }}</span></td>
+                  <td><small>{{ run.algorithm or '-' }}</small></td>
+                  <td>
+                    {% if run.run_url %}
+                    <a class="btn btn-sm btn-outline-secondary" href="{{ run.run_url }}" target="_blank" rel="noopener">{{ _('Run') }}</a>
+                    {% else %}
+                    <code class="small">{{ run.run_id }}</code>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <small class="text-muted">{{ _('Aucun run MLflow trouvé pour ce tenant.') }}</small>
+          {% endif %}
+        </div>
+      </div>
     </div>
   </div>
   {% endif %}
