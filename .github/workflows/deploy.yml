@@ -330,9 +330,27 @@ jobs:
 
             ensure_public_page_visits_geo_columns () {
               echo "🩹 Ensure public_page_visits geo/language columns exist (idempotent)"
-              aud_run python -c "from sqlalchemy import text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); exists=db.session.execute(text(\"SELECT to_regclass('public.public_page_visits')\")).scalar(); print('public_page_visits exists:', bool(exists));\
-if exists: db.session.execute(text(\"ALTER TABLE public.public_page_visits ADD COLUMN IF NOT EXISTS country_code VARCHAR(8)\")); db.session.execute(text(\"ALTER TABLE public.public_page_visits ADD COLUMN IF NOT EXISTS language_code VARCHAR(12)\")); db.session.execute(text(\"CREATE INDEX IF NOT EXISTS ix_public_page_visits_country_code ON public.public_page_visits (country_code)\")); db.session.execute(text(\"CREATE INDEX IF NOT EXISTS ix_public_page_visits_language_code ON public.public_page_visits (language_code)\")); db.session.commit(); print('public_page_visits geo/language columns ready');\
-ctx.pop()"
+              aud_run python - <<'PY'
+      from sqlalchemy import text
+      from audela import create_app
+      from audela.extensions import db
+
+      app = create_app()
+      ctx = app.app_context()
+      ctx.push()
+      try:
+        exists = db.session.execute(text("SELECT to_regclass('public.public_page_visits')")).scalar()
+        print("public_page_visits exists:", bool(exists))
+        if exists:
+          db.session.execute(text("ALTER TABLE public.public_page_visits ADD COLUMN IF NOT EXISTS country_code VARCHAR(8)"))
+          db.session.execute(text("ALTER TABLE public.public_page_visits ADD COLUMN IF NOT EXISTS language_code VARCHAR(12)"))
+          db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_public_page_visits_country_code ON public.public_page_visits (country_code)"))
+          db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_public_page_visits_language_code ON public.public_page_visits (language_code)"))
+          db.session.commit()
+          print("public_page_visits geo/language columns ready")
+      finally:
+        ctx.pop()
+      PY
             }
 
             # Retry migrations to handle transient startup race conditions
