@@ -54,6 +54,8 @@ from ...services.ai_runtime_config import resolve_ai_runtime_config
 from ...services.statistics_service import run_statistics_analysis, stats_report_to_pdf_bytes
 from ...services.report_render_service import report_to_pdf_bytes
 from ...services.report_ai_service import generate_report_layout_from_prompt, compact_schema_meta as compact_report_schema_meta
+from ...services.pptx_export import table_to_pptx_bytes
+from ...services.export_branding import resolve_brand_tokens
 from ...services.web_extract_service import extract_structured_table_from_web, suggest_web_extract_config_from_text
 from ...services.alerting_dispatch import dispatch_alerting_for_result
 from ...services.file_storage_service import (
@@ -654,6 +656,23 @@ def _ml_predict(model_data: dict[str, Any], x_value: float) -> float:
         return float(_to_number(model_data.get("mean_y")) or 0.0)
     if algo == "mean_baseline":
         return float(_to_number(model_data.get("mean_y")) or 0.0)
+    if algo == "decision_tree":
+        threshold = float(_to_number(model_data.get("threshold")) or 0.0)
+        left_mean = float(_to_number(model_data.get("left_mean")) or 0.0)
+        right_mean = float(_to_number(model_data.get("right_mean")) or 0.0)
+        return left_mean if float(x_value) <= threshold else right_mean
+    if algo == "random_forest":
+        trees = model_data.get("trees") if isinstance(model_data.get("trees"), list) else []
+        preds = [_ml_predict(tree, x_value) for tree in trees if isinstance(tree, dict)]
+        if preds:
+            return float(sum(preds) / len(preds))
+        return 0.0
+    if algo == "kmeans_clustering":
+        centroids = [float(_to_number(c) or 0.0) for c in (model_data.get("centroids") or [])]
+        if not centroids:
+            return 0.0
+        nearest = min(centroids, key=lambda c: abs(float(x_value) - c))
+        return float(nearest)
     slope = float(_to_number(model_data.get("slope")) or 0.0)
     intercept = float(_to_number(model_data.get("intercept")) or 0.0)
     return (slope * float(x_value)) + intercept
@@ -683,6 +702,72 @@ def _ml_metrics(model_data: dict[str, Any], test_pairs: list[tuple[float, float]
         "rmse": round(rmse, 6),
         "r2": (round(r2, 6) if r2 is not None else None),
         "test_rows": len(test_pairs),
+    }
+
+
+def _ml_dashboard_quality(metrics: dict[str, Any]) -> tuple[str, str]:
+    r2 = _to_number(metrics.get("r2"))
+    rmse = _to_number(metrics.get("rmse"))
+    if r2 is not None:
+        if r2 >= 0.75:
+            return tr("Good fit", getattr(g, "lang", None)), "success"
+        if r2 < 0.35:
+            return tr("Underfit risk", getattr(g, "lang", None)), "danger"
+    if rmse is not None:
+        return tr("Model uncertainty", getattr(g, "lang", None)), "warning"
+    return tr("Balanced", getattr(g, "lang", None)), "secondary"
+
+
+def _ml_dashboard_story(
+    model: dict[str, Any],
+    hist: list[tuple[float, float]],
+    forecast_rows: list[list[Any]],
+    forecast_points: int,
+    step: float,
+) -> dict[str, Any]:
+    metrics = model.get("metrics") if isinstance(model.get("metrics"), dict) else {}
+    quality_label, quality_tone = _ml_dashboard_quality(metrics)
+
+    predicted_only = [row for row in forecast_rows if len(row) >= 3 and row[1] is None and _to_number(row[2]) is not None]
+    predicted_vals = [float(_to_number(row[2]) or 0.0) for row in predicted_only]
+    hist_actual = [float(y) for _, y in hist]
+    hist_pred = [float(_ml_predict(model.get("model_data") or {}, x)) for x, _ in hist]
+
+    insights: list[str] = []
+    actions: list[str] = []
+    if len(predicted_vals) >= 2:
+        delta = predicted_vals[-1] - predicted_vals[0]
+        direction = tr("up", getattr(g, "lang", None)) if delta > 0 else (tr("down", getattr(g, "lang", None)) if delta < 0 else tr("flat", getattr(g, "lang", None)))
+        insights.append(tr("Forecast direction is {direction} over the configured horizon.", getattr(g, "lang", None), direction=direction))
+        insights.append(tr("Projected range runs from {low} to {high}.", getattr(g, "lang", None), low=round(min(predicted_vals), 4), high=round(max(predicted_vals), 4)))
+    if hist_actual:
+        actual_avg = sum(hist_actual) / len(hist_actual)
+        fitted_avg = sum(hist_pred) / len(hist_pred) if hist_pred else None
+        if fitted_avg is not None:
+            gap = fitted_avg - actual_avg
+            if abs(gap) > 1e-9:
+                gap_direction = tr("above", getattr(g, "lang", None)) if gap > 0 else tr("below", getattr(g, "lang", None))
+                insights.append(tr("Fitted history sits {direction} actuals by {gap} on average.", getattr(g, "lang", None), direction=gap_direction, gap=round(abs(gap), 4)))
+    rmse = _to_number(metrics.get("rmse"))
+    if rmse is not None:
+        insights.append(tr("Typical uncertainty is about ±{value} per point.", getattr(g, "lang", None), value=round(float(rmse), 4)))
+
+    actions.append(tr("Use horizon and step controls to compare conservative and stretched scenarios.", getattr(g, "lang", None)))
+    actions.append(tr("Review the fitted historical line before sharing the forecast externally.", getattr(g, "lang", None)))
+
+    return {
+        "summary": {
+            "headline": tr("Forecast scenario", getattr(g, "lang", None)),
+            "quality_label": quality_label,
+            "quality_tone": quality_tone,
+            "train_rows": len(hist),
+            "forecast_points": int(forecast_points),
+            "step": round(float(step), 6),
+            "r2": metrics.get("r2"),
+            "rmse": metrics.get("rmse"),
+        },
+        "insights": insights[:4],
+        "actions": actions[:3],
     }
 
 
@@ -1271,7 +1356,14 @@ def home():
 @bp.route("/lite")
 @login_required
 def bi_lite():
-    """Minimal AI-first BI page for non-technical users."""
+    """BI Lite entrypoint: redirect to the guided Studio experience."""
+    return redirect(url_for("portal.bi_lite_studio"))
+
+
+@bp.route("/lite/classic")
+@login_required
+def bi_lite_classic():
+    """Legacy BI Lite page (kept for compatibility)."""
     _require_tenant()
 
     access = get_user_module_access(g.tenant, current_user.id)
@@ -1298,6 +1390,32 @@ def bi_lite():
         tenant=g.tenant,
         sources=sources,
         dashboards=dashboards,
+    )
+
+
+@bp.route("/lite/studio")
+@login_required
+def bi_lite_studio():
+    """Guided, chat-first BI Lite studio for non-technical users."""
+    _require_tenant()
+
+    access = get_user_module_access(g.tenant, current_user.id)
+    if bool(access.get("bi_lite", access.get("bi", True))):
+        session["bi_ui_mode"] = "lite"
+
+    if session.get("app_mode") == "finance":
+        session["app_mode"] = "bi"
+
+    sources = (
+        DataSource.query.filter_by(tenant_id=g.tenant.id)
+        .order_by(DataSource.name.asc(), DataSource.id.asc())
+        .all()
+    )
+
+    return render_template(
+        "portal/bi_lite_studio.html",
+        tenant=g.tenant,
+        sources=sources,
     )
 
 
@@ -3804,6 +3922,7 @@ def api_export_pdf():
     _require_tenant()
     payload = request.get_json(silent=True) or {}
     title = (payload.get("title") or "Export").strip()
+    style_guide = str(payload.get("style_guide") or "").strip()
     columns = payload.get("columns") or []
     rows = payload.get("rows") or []
 
@@ -3815,7 +3934,7 @@ def api_export_pdf():
     if len(rows) > 5000:
         rows = rows[:5000]
 
-    pdf_bytes = table_to_pdf_bytes(title, [str(c) for c in columns], rows)
+    pdf_bytes = table_to_pdf_bytes(title, [str(c) for c in columns], rows, style_guide=style_guide)
     resp = make_response(pdf_bytes)
     resp.headers["Content-Type"] = "application/pdf"
     resp.headers["Content-Disposition"] = f'attachment; filename="{title[:80].replace(" ", "_")}.pdf"'
@@ -3839,6 +3958,7 @@ def api_export_xlsx():
     pivot_config = payload.get("pivot_config") if isinstance(payload.get("pivot_config"), dict) else None
     template_name = str(payload.get("template") or "clean").strip().lower() or "clean"
     color_theme = str(payload.get("color_theme") or "").strip()
+    style_guide = str(payload.get("style_guide") or "").strip()
 
     if not isinstance(columns, list) or not isinstance(rows, list):
         return jsonify({"error": "Payload inválido."}), 400
@@ -3855,6 +3975,7 @@ def api_export_xlsx():
         add_pivot=add_pivot,
         template=template_name,
         color_theme=color_theme,
+        style_guide=style_guide,
         pivot_config=pivot_config,
     )
     resp = make_response(xlsx_bytes)
@@ -3904,6 +4025,7 @@ def api_excel_generate():
     folder_id = payload.get("folder_id")
     template_name = str(payload.get("template") or "clean").strip().lower() or "clean"
     color_theme = str(payload.get("color_theme") or "").strip()
+    style_guide = str(payload.get("style_guide") or "").strip()
 
     try:
         max_rows = int(payload.get("max_rows") or 5000)
@@ -3932,6 +4054,7 @@ def api_excel_generate():
         add_pivot=add_pivot,
         template=template_name,
         color_theme=color_theme,
+        style_guide=style_guide,
         pivot_config=pivot_config,
     )
 
@@ -7978,6 +8101,13 @@ def dashboard_view(dashboard_id: int):
         .all()
     )
     all_ratios = _finance_ratio_options_for_dashboard(g.tenant.id)
+    ml_state = _ml_models_state_for_tenant(g.tenant)
+    all_ml_models = [
+        m
+        for m in (ml_state.get("models") or [])
+        if isinstance(m, dict) and isinstance(m.get("model_data"), dict) and bool(m.get("model_data"))
+    ]
+    ml_models_by_id = {str(m.get("id") or ""): m for m in all_ml_models}
 
     today = date.today()
     try:
@@ -8136,6 +8266,136 @@ def dashboard_view(dashboard_id: int):
             )
             continue
 
+        if source_kind in {"ml_model", "ml"}:
+            model_id = str(card_cfg.get("model_id") or "").strip()
+            card_title = tr("Prévision ML", getattr(g, "lang", None))
+            ml_result: dict[str, Any] = {"columns": ["x", "actual", "predicted", "lower", "upper"], "rows": []}
+
+            model = ml_models_by_id.get(model_id)
+            if not model:
+                ml_result["error"] = tr("Modèle introuvable.", getattr(g, "lang", None))
+            else:
+                card_title = f"{str(model.get('name') or card_title)} · {tr('Forecast', getattr(g, 'lang', None))}"
+                model_data = model.get("model_data") if isinstance(model.get("model_data"), dict) else {}
+                if not model_data:
+                    ml_result["error"] = tr("Model is not trained yet.", getattr(g, "lang", None))
+                else:
+                    src = DataSource.query.filter_by(id=int(model.get("source_id") or 0), tenant_id=g.tenant.id).first()
+                    if not src:
+                        ml_result["error"] = tr("Selecione uma fonte válida.", getattr(g, "lang", None))
+                    else:
+                        sql_text = str(model.get("sql_text") or "").strip()
+                        if not sql_text:
+                            ml_result["error"] = tr("SQL model query is required.", getattr(g, "lang", None))
+                        else:
+                            try:
+                                res = execute_sql(src, sql_text, params={"tenant_id": g.tenant.id}, row_limit=1200)
+                                cols = [str(c) for c in (res.get("columns") or [])]
+                                rows = res.get("rows") or []
+
+                                x_col = str(model.get("x_column") or "").strip()
+                                y_col = str(model.get("y_column") or "").strip()
+                                if x_col not in cols:
+                                    x_col = cols[0] if cols else ""
+                                x_idx = cols.index(x_col) if x_col in cols else -1
+                                y_idx = cols.index(y_col) if y_col in cols else -1
+
+                                pairs: list[tuple[float, float]] = []
+                                for row in rows:
+                                    if not isinstance(row, (list, tuple)) or x_idx < 0 or x_idx >= len(row) or y_idx < 0 or y_idx >= len(row):
+                                        continue
+                                    xv = _to_number(row[x_idx])
+                                    yv = _to_number(row[y_idx])
+                                    if xv is None or yv is None:
+                                        continue
+                                    pairs.append((float(xv), float(yv)))
+
+                                if not pairs:
+                                    ml_result["error"] = tr("Pas assez de lignes numériques pour entraîner le modèle (minimum 8).", getattr(g, "lang", None))
+                                else:
+                                    pairs = sorted(pairs, key=lambda item: item[0])
+                                    hist = pairs[-120:]
+
+                                    forecast_points = _to_int(card_cfg.get("forecast_points"), 12, 1, 72)
+                                    custom_step = _to_number(card_cfg.get("step"))
+                                    step = float(custom_step) if custom_step and custom_step > 0 else 0.0
+                                    if step <= 0.0:
+                                        deltas: list[float] = []
+                                        prev_x = None
+                                        for x_val, _ in hist:
+                                            if prev_x is not None and x_val > prev_x:
+                                                deltas.append(float(x_val - prev_x))
+                                            prev_x = x_val
+                                        if deltas:
+                                            deltas = sorted(deltas)
+                                            step = float(deltas[len(deltas) // 2])
+                                        if step <= 0.0:
+                                            step = 1.0
+
+                                    rmse = _to_number((model.get("metrics") or {}).get("rmse"))
+                                    error_band = float(rmse) if rmse is not None and rmse >= 0 else None
+
+                                    out_rows: list[list[Any]] = []
+                                    for x_val, y_val in hist:
+                                        pred = _ml_predict(model_data, x_val)
+                                        lower = (pred - error_band) if error_band is not None else None
+                                        upper = (pred + error_band) if error_band is not None else None
+                                        out_rows.append([
+                                            round(float(x_val), 6),
+                                            round(float(y_val), 6),
+                                            round(float(pred), 6),
+                                            (round(float(lower), 6) if lower is not None else None),
+                                            (round(float(upper), 6) if upper is not None else None),
+                                        ])
+
+                                    last_x = float(hist[-1][0])
+                                    for i in range(1, int(forecast_points) + 1):
+                                        fx = last_x + (float(step) * i)
+                                        pred = _ml_predict(model_data, fx)
+                                        lower = (pred - error_band) if error_band is not None else None
+                                        upper = (pred + error_band) if error_band is not None else None
+                                        out_rows.append([
+                                            round(float(fx), 6),
+                                            None,
+                                            round(float(pred), 6),
+                                            (round(float(lower), 6) if lower is not None else None),
+                                            (round(float(upper), 6) if upper is not None else None),
+                                        ])
+
+                                    story = _ml_dashboard_story(model, hist, out_rows, forecast_points, step)
+
+                                    ml_result = {
+                                        "columns": ["x", "actual", "predicted", "lower", "upper"],
+                                        "rows": out_rows,
+                                        "summary": story.get("summary") or {},
+                                        "insights": story.get("insights") or [],
+                                        "actions": story.get("actions") or [],
+                                    }
+                            except QueryExecutionError as exc:
+                                ml_result["error"] = str(exc)
+
+            viz_cfg = {
+                "type": "ml_forecast",
+                "source_kind": "ml_model",
+                "model_id": model_id,
+                "x": "x",
+                "actual": "actual",
+                "predicted": "predicted",
+                "lower": "lower",
+                "upper": "upper",
+            }
+            viz_cfg.update(card_cfg)
+            rendered_cards.append(
+                {
+                    "card": c,
+                    "question": None,
+                    "card_title": card_title,
+                    "result": ml_result,
+                    "viz_config": viz_cfg,
+                }
+            )
+            continue
+
         q = Question.query.filter_by(id=c.question_id, tenant_id=g.tenant.id).first()
         if not q:
             continue
@@ -8169,6 +8429,7 @@ def dashboard_view(dashboard_id: int):
         cards=rendered_cards,
         all_questions=all_questions,
         all_ratios=all_ratios,
+        all_ml_models=all_ml_models,
         embed_mode=embed_mode,
     )
 
@@ -8319,7 +8580,7 @@ def api_dashboard_add_card(dashboard_id: int):
     dash = Dashboard.query.filter_by(id=dashboard_id, tenant_id=g.tenant.id).first_or_404()
     payload = request.get_json(silent=True) or {}
     source_kind = str(payload.get("source_kind") or "question").strip().lower()
-    if source_kind not in {"question", "ratio", "finance_ratio"}:
+    if source_kind not in {"question", "ratio", "finance_ratio", "ml_model", "ml"}:
         source_kind = "question"
 
     try:
@@ -8329,6 +8590,7 @@ def api_dashboard_add_card(dashboard_id: int):
 
     q = None
     ratio_ref = ""
+    model_id = ""
     if source_kind in {"ratio", "finance_ratio"}:
         ratio_ref = str(payload.get("ratio_ref") or "").strip()
         if not ratio_ref:
@@ -8354,6 +8616,21 @@ def api_dashboard_add_card(dashboard_id: int):
         q = Question.query.filter_by(tenant_id=g.tenant.id).order_by(Question.id.asc()).first()
         if not q:
             return jsonify({"error": tr("Créez d'abord une question BI pour initialiser le dashboard.", getattr(g, "lang", None))}), 400
+    elif source_kind in {"ml_model", "ml"}:
+        model_id = str(payload.get("model_id") or "").strip()
+        if not model_id:
+            return jsonify({"error": tr("Modèle introuvable.", getattr(g, "lang", None))}), 400
+
+        ml_state = _ml_models_state_for_tenant(g.tenant)
+        model = next((m for m in (ml_state.get("models") or []) if str(m.get("id") or "") == model_id), None)
+        if not model:
+            return jsonify({"error": tr("Modèle introuvable.", getattr(g, "lang", None))}), 400
+        if not (isinstance(model.get("model_data"), dict) and model.get("model_data")):
+            return jsonify({"error": tr("Model is not trained yet.", getattr(g, "lang", None))}), 400
+
+        q = Question.query.filter_by(tenant_id=g.tenant.id).order_by(Question.id.asc()).first()
+        if not q:
+            return jsonify({"error": tr("Créez d'abord une question BI pour initialiser le dashboard.", getattr(g, "lang", None))}), 400
     else:
         if not qid:
             return jsonify({"error": tr("Pergunta inválida.", getattr(g, "lang", None))}), 400
@@ -8370,6 +8647,21 @@ def api_dashboard_add_card(dashboard_id: int):
             cfg["type"] = "gauge"
         if not str(cfg.get("metric") or "").strip():
             cfg["metric"] = "value"
+    elif source_kind in {"ml_model", "ml"}:
+        cfg = cfg.copy()
+        cfg["source_kind"] = "ml_model"
+        cfg["model_id"] = model_id
+        cfg["forecast_points"] = _to_int(payload.get("forecast_points"), _to_int(cfg.get("forecast_points"), 12, 1, 72), 1, 72)
+        step_val = _to_number(payload.get("step"))
+        if step_val is not None and step_val > 0:
+            cfg["step"] = float(step_val)
+        if str(cfg.get("type") or "").strip().lower() != "ml_forecast":
+            cfg["type"] = "ml_forecast"
+        cfg.setdefault("x", "x")
+        cfg.setdefault("actual", "actual")
+        cfg.setdefault("predicted", "predicted")
+        cfg.setdefault("lower", "lower")
+        cfg.setdefault("upper", "upper")
 
     # place at bottom (roughly)
     cards = DashboardCard.query.filter_by(dashboard_id=dash.id, tenant_id=g.tenant.id).all()
@@ -8397,8 +8689,12 @@ def api_dashboard_add_card(dashboard_id: int):
             "dashboard_id": dash.id,
             "card_id": None,
             "question_id": q.id,
-            "source_kind": "ratio" if source_kind in {"ratio", "finance_ratio"} else "question",
+            "source_kind": (
+                "ratio" if source_kind in {"ratio", "finance_ratio"}
+                else ("ml_model" if source_kind in {"ml_model", "ml"} else "question")
+            ),
             "ratio_ref": ratio_ref if source_kind in {"ratio", "finance_ratio"} else "",
+            "model_id": model_id if source_kind in {"ml_model", "ml"} else "",
         },
     )
     db.session.commit()
@@ -8914,6 +9210,438 @@ def api_dashboard_layout(dashboard_id: int):
 # -----------------------------
 # AI Assistant (Chat + analysis)
 # -----------------------------
+
+
+_BI_STUDIO_SESSION_KEY = "bi_lite_studio"
+
+
+def _bi_studio_state() -> dict[str, Any]:
+    raw = session.get(_BI_STUDIO_SESSION_KEY)
+    if not isinstance(raw, dict):
+        return {
+            "pinned_context": "",
+            "style_guide": "",
+            "memory": [],
+        }
+
+    memory = raw.get("memory") if isinstance(raw.get("memory"), list) else []
+    return {
+        "pinned_context": str(raw.get("pinned_context") or "")[:4000],
+        "style_guide": str(raw.get("style_guide") or "")[:4000],
+        "memory": [m for m in memory if isinstance(m, dict)][-30:],
+    }
+
+
+def _bi_studio_save_state(state: dict[str, Any]) -> None:
+    session[_BI_STUDIO_SESSION_KEY] = {
+        "pinned_context": str(state.get("pinned_context") or "")[:4000],
+        "style_guide": str(state.get("style_guide") or "")[:4000],
+        "memory": [m for m in (state.get("memory") or []) if isinstance(m, dict)][-30:],
+    }
+    session.modified = True
+
+
+def _bi_studio_file_context(file_ids: list[int], max_files: int = 5) -> tuple[list[dict[str, Any]], str]:
+    if not file_ids:
+        return [], ""
+
+    ids = [int(x) for x in file_ids[: max(1, int(max_files or 5))] if int(x) > 0]
+    if not ids:
+        return [], ""
+
+    assets = (
+        FileAsset.query.filter(FileAsset.tenant_id == g.tenant.id, FileAsset.id.in_(ids))
+        .order_by(FileAsset.updated_at.desc(), FileAsset.id.desc())
+        .all()
+    )
+
+    items: list[dict[str, Any]] = []
+    lines: list[str] = []
+    for asset in assets:
+        schema = asset.schema_json if isinstance(asset.schema_json, dict) else {}
+        cols_raw = schema.get("columns") if isinstance(schema.get("columns"), list) else []
+        cols: list[str] = []
+        for col in cols_raw[:20]:
+            if isinstance(col, dict):
+                nm = str(col.get("name") or "").strip()
+                tp = str(col.get("type") or "").strip()
+                if nm:
+                    cols.append(f"{nm}:{tp}" if tp else nm)
+            else:
+                nm = str(col or "").strip()
+                if nm:
+                    cols.append(nm)
+
+        item = {
+            "id": int(asset.id),
+            "name": str(asset.name or asset.original_filename or f"file_{asset.id}"),
+            "format": str(asset.file_format or ""),
+            "columns": cols,
+        }
+        items.append(item)
+        col_preview = ", ".join(cols[:8]) if cols else "(no columns detected)"
+        lines.append(f"- {item['name']} ({item['format']}): {col_preview}")
+
+    if not lines:
+        return items, ""
+
+    context_text = "Attached files schema context:\n" + "\n".join(lines)
+    return items, context_text
+
+
+@bp.route("/api/ai/studio/context", methods=["GET", "POST", "DELETE"])
+@login_required
+def api_ai_studio_context():
+    _require_tenant()
+    state = _bi_studio_state()
+
+    if request.method == "GET":
+        return jsonify(
+            {
+                "ok": True,
+                "pinned_context": state.get("pinned_context") or "",
+                "style_guide": state.get("style_guide") or "",
+                "memory_count": len(state.get("memory") or []),
+            }
+        )
+
+    if request.method == "DELETE":
+        _bi_studio_save_state({"pinned_context": "", "style_guide": "", "memory": []})
+        return jsonify({"ok": True})
+
+    payload = request.get_json(silent=True) or {}
+    state["pinned_context"] = str(payload.get("pinned_context") or state.get("pinned_context") or "")[:4000]
+    state["style_guide"] = str(payload.get("style_guide") or state.get("style_guide") or "")[:4000]
+    if _bi_ai_bool(payload.get("clear_memory")):
+        state["memory"] = []
+    _bi_studio_save_state(state)
+    return jsonify(
+        {
+            "ok": True,
+            "pinned_context": state.get("pinned_context") or "",
+            "style_guide": state.get("style_guide") or "",
+            "memory_count": len(state.get("memory") or []),
+        }
+    )
+
+
+@bp.route("/api/ai/studio/files", methods=["GET"])
+@login_required
+def api_ai_studio_files():
+    _require_tenant()
+
+    assets = (
+        FileAsset.query.filter(FileAsset.tenant_id == g.tenant.id)
+        .order_by(FileAsset.updated_at.desc(), FileAsset.id.desc())
+        .limit(80)
+        .all()
+    )
+
+    files: list[dict[str, Any]] = []
+    for a in assets:
+        schema = a.schema_json if isinstance(a.schema_json, dict) else {}
+        cols_raw = schema.get("columns") if isinstance(schema.get("columns"), list) else []
+        col_names: list[str] = []
+        for c in cols_raw[:12]:
+            if isinstance(c, dict):
+                nm = str(c.get("name") or "").strip()
+                if nm:
+                    col_names.append(nm)
+            else:
+                nm = str(c or "").strip()
+                if nm:
+                    col_names.append(nm)
+
+        files.append(
+            {
+                "id": int(a.id),
+                "name": str(a.name or a.original_filename or f"file_{a.id}"),
+                "file_format": str(a.file_format or ""),
+                "original_filename": str(a.original_filename or ""),
+                "columns": col_names,
+                "updated_at": a.updated_at.isoformat() if a.updated_at else "",
+            }
+        )
+
+    return jsonify({"ok": True, "files": files})
+
+
+@bp.route("/api/ai/studio/upload", methods=["POST"])
+@login_required
+def api_ai_studio_upload():
+    _require_tenant()
+    upload = request.files.get("file")
+    display_name = str(request.form.get("display_name") or "").strip()
+    if not upload:
+        return jsonify({"ok": False, "error": _("No file uploaded.")}), 400
+
+    from ...services.file_storage_service import store_upload
+    from ...services.file_introspect_service import infer_schema_for_asset
+
+    try:
+        stored = store_upload(g.tenant.id, upload, folder_rel="")
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"ok": False, "error": str(e)}), 400
+
+    asset = FileAsset(
+        tenant_id=g.tenant.id,
+        folder_id=None,
+        name=display_name or str(stored.get("original_filename") or "file"),
+        storage_path=str(stored.get("storage_path") or ""),
+        file_format=str(stored.get("file_format") or ""),
+        original_filename=str(stored.get("original_filename") or ""),
+    )
+    asset.schema_json = infer_schema_for_asset(asset)
+    db.session.add(asset)
+    db.session.commit()
+
+    schema = asset.schema_json if isinstance(asset.schema_json, dict) else {}
+    cols_raw = schema.get("columns") if isinstance(schema.get("columns"), list) else []
+    columns: list[str] = []
+    for c in cols_raw[:20]:
+        if isinstance(c, dict):
+            nm = str(c.get("name") or "").strip()
+            if nm:
+                columns.append(nm)
+        else:
+            nm = str(c or "").strip()
+            if nm:
+                columns.append(nm)
+
+    return jsonify(
+        {
+            "ok": True,
+            "file": {
+                "id": int(asset.id),
+                "name": str(asset.name or ""),
+                "file_format": str(asset.file_format or ""),
+                "original_filename": str(asset.original_filename or ""),
+                "columns": columns,
+            },
+        }
+    )
+
+
+@bp.route("/api/ai/studio/run", methods=["POST"])
+@login_required
+def api_ai_studio_run():
+    """Guided studio endpoint: memory + attached-file context + charts + table."""
+    _require_tenant()
+    payload = request.get_json(silent=True) or {}
+
+    try:
+        source_id = int(payload.get("source_id") or 0)
+    except Exception:
+        source_id = 0
+
+    message = str(payload.get("message") or "").strip()
+    if not source_id:
+        return jsonify({"ok": False, "error": _("Please select a data source.")}), 400
+    if not message:
+        return jsonify({"ok": False, "error": _("Please enter an analysis request.")}), 400
+
+    source = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first()
+    if not source:
+        return jsonify({"ok": False, "error": _("Invalid data source.")}), 404
+
+    selected_tables, selected_question_ids, scope_error = _bi_ai_effective_table_scope(source, payload)
+    if scope_error:
+        return jsonify({"ok": False, "error": scope_error}), 400
+
+    full_table_selection = bool(selected_tables) and not bool(selected_question_ids) and _bi_ai_is_full_table_selection(source, selected_tables)
+    generation_tables = [] if full_table_selection else selected_tables
+
+    state = _bi_studio_state()
+    pinned_context = str(state.get("pinned_context") or "").strip()
+    style_guide = str(payload.get("style_guide") or state.get("style_guide") or "").strip()
+    use_memory = _bi_ai_bool(payload.get("use_memory", True))
+
+    file_ids_raw = payload.get("attached_file_ids") if isinstance(payload.get("attached_file_ids"), list) else []
+    file_ids: list[int] = []
+    for fid in file_ids_raw[:10]:
+        try:
+            val = int(fid)
+        except Exception:
+            continue
+        if val > 0:
+            file_ids.append(val)
+
+    attached_files, files_context = _bi_studio_file_context(file_ids, max_files=6)
+
+    memory_context = ""
+    if use_memory:
+        mem = state.get("memory") if isinstance(state.get("memory"), list) else []
+        compact = []
+        for item in mem[-5:]:
+            if not isinstance(item, dict):
+                continue
+            um = str(item.get("message") or "").strip()
+            am = str(item.get("analysis") or "").strip()
+            if um or am:
+                compact.append(f"- User: {um[:180]} | Assistant: {am[:180]}")
+        if compact:
+            memory_context = "Recent session memory:\n" + "\n".join(compact)
+
+    extra_blocks = [x for x in [pinned_context, style_guide, files_context, memory_context] if str(x or "").strip()]
+    enriched_message = message
+    if extra_blocks:
+        enriched_message = (
+            f"{message}\n\n"
+            "Additional context and preferences:\n"
+            + "\n\n".join(extra_blocks)
+        )
+
+    sql_text, warnings = generate_sql_from_nl(
+        source,
+        enriched_message,
+        lang=getattr(g, "lang", None),
+        allowed_tables=generation_tables,
+        require_all_allowed_tables=bool(generation_tables) and not bool(selected_question_ids),
+    )
+    sql_text, sql_kw = _bi_ai_normalize_sql(str(sql_text or "").strip())
+    if not sql_text:
+        return jsonify({"ok": False, "error": str((warnings or [_("Could not generate SQL from this request.")])[0]), "warnings": warnings or []}), 400
+
+    if sql_kw not in {"select", "with"}:
+        return jsonify({"ok": False, "error": _("Only SELECT queries are allowed in BI Lite."), "sql": sql_text}), 400
+
+    try:
+        res, effective_sql, exec_warnings = _bi_ai_execute_sql_resilient(
+            source,
+            sql_text,
+            params={"tenant_id": g.tenant.id},
+            row_limit=500,
+        )
+        sql_text = effective_sql
+        if exec_warnings:
+            warnings = list(warnings or []) + list(exec_warnings)
+    except QueryExecutionError as e:
+        return jsonify({"ok": False, "error": str(e), "sql": sql_text, "warnings": warnings or []}), 400
+
+    cols = [str(c) for c in (res.get("columns") or [])]
+    rows = res.get("rows") or []
+    preview_rows = rows[:120]
+
+    ai = analyze_with_ai(
+        data_bundle={
+            "source": {"id": source.id, "name": source.name, "type": source.type},
+            "sql": sql_text,
+            "result": {
+                "columns": cols,
+                "rows_sample": preview_rows[:80],
+                "row_count": len(rows),
+            },
+            "attached_files": attached_files,
+        },
+        user_message=enriched_message,
+        history=[],
+        lang=getattr(g, "lang", None),
+    )
+
+    analysis = ""
+    ai_error = ""
+    charts: list[dict[str, Any]] = []
+    if isinstance(ai, dict):
+        ai_error = str(ai.get("error") or "").strip()
+        analysis = str(ai.get("analysis") or ai.get("reply") or ai.get("text") or "").strip()
+        charts_raw = ai.get("charts")
+        if isinstance(charts_raw, list):
+            charts = [c for c in charts_raw if isinstance(c, dict)]
+
+    if ai_error:
+        warnings = list(warnings or [])
+        warnings.append(ai_error)
+
+    if not analysis:
+        analysis = _bi_lite_fallback_analysis(message, cols, preview_rows, len(rows))
+
+    if len(charts) < 2:
+        fallback = _bi_lite_exec_auto_charts(cols, preview_rows, max_items=4)
+        seen = {str(ch.get("title") or "").strip().lower() for ch in charts}
+        for ch in fallback:
+            key = str(ch.get("title") or "").strip().lower()
+            if key and key in seen:
+                continue
+            charts.append(ch)
+            seen.add(key)
+            if len(charts) >= 5:
+                break
+
+    # Persist short session memory for guided continuity.
+    memory = state.get("memory") if isinstance(state.get("memory"), list) else []
+    memory.append(
+        {
+            "ts": datetime.utcnow().isoformat(),
+            "source_id": int(source.id),
+            "message": message[:1000],
+            "analysis": analysis[:2000],
+            "sql": sql_text[:1200],
+        }
+    )
+    state["memory"] = memory[-30:]
+    if style_guide:
+        state["style_guide"] = style_guide[:4000]
+    _bi_studio_save_state(state)
+
+    return jsonify(
+        {
+            "ok": True,
+            "analysis": analysis,
+            "sql": sql_text,
+            "warnings": warnings or [],
+            "columns": cols,
+            "rows": preview_rows,
+            "row_count": len(rows),
+            "charts": charts[:5],
+            "attached_files": attached_files,
+            "memory_count": len(state.get("memory") or []),
+            "scope": {
+                "selected_questions": selected_question_ids,
+                "selected_tables": selected_tables,
+                "mode": "questions" if selected_question_ids else ("all" if full_table_selection or not selected_tables else "tables"),
+            },
+            "source": {"id": source.id, "name": source.name},
+        }
+    )
+
+
+@bp.route("/api/ai/studio/ppt", methods=["POST"])
+@login_required
+def api_ai_studio_ppt():
+    """Generate a styled PowerPoint deck from current BI Lite result."""
+    _require_tenant()
+    payload = request.get_json(silent=True) or {}
+
+    title = str(payload.get("title") or _("Executive Deck")).strip() or str(_("Executive Deck"))
+    analysis = str(payload.get("analysis") or "").strip()
+    source_name = str(payload.get("source_name") or "").strip()
+    columns = payload.get("columns") if isinstance(payload.get("columns"), list) else []
+    rows = payload.get("rows") if isinstance(payload.get("rows"), list) else []
+    style_guide = str(payload.get("style_guide") or "").strip()
+
+    if not columns or not rows:
+        return jsonify({"ok": False, "error": _("Please run an analysis first to generate slides.")}), 400
+
+    if len(rows) > 300:
+        rows = rows[:300]
+
+    try:
+        pptx_bytes = table_to_pptx_bytes(
+            title=title,
+            source_name=source_name,
+            analysis=analysis,
+            columns=[str(c) for c in columns],
+            rows=rows,
+            style_guide=style_guide,
+        )
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"ok": False, "error": str(e)}), 400
+
+    safe_name = re.sub(r"[^a-zA-Z0-9_-]+", "_", title.strip())[:60].strip("_") or "executive_deck"
+    resp = make_response(pptx_bytes)
+    resp.headers["Content-Type"] = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    resp.headers["Content-Disposition"] = f'attachment; filename="{safe_name}.pptx"'
+    return resp
 
 
 @bp.route("/ai")
@@ -9774,48 +10502,24 @@ def _bi_lite_fallback_analysis(message: str, columns: list[str], rows: list[list
 
 
 def _bi_lite_exec_theme_tokens(executive_guide: str, ai_theme: str = "") -> dict[str, str]:
-    text = f"{str(executive_guide or '')} {str(ai_theme or '')}".lower()
-    theme = {
-        "bg": "#f6f8fb",
-        "card": "#ffffff",
-        "ink": "#142033",
-        "muted": "#5a6b85",
-        "line": "#dbe3ef",
-        "accent": "#0b65d8",
-        "accent2": "#14a3a3",
-        "hero": "linear-gradient(120deg, #0b65d8, #14a3a3)",
+    b = resolve_brand_tokens(f"{str(executive_guide or '')} {str(ai_theme or '')}")
+    return {
+        "bg": str(b.get("bg") or "#f6f8fb"),
+        "card": str(b.get("card") or "#ffffff"),
+        "ink": str(b.get("ink") or "#142033"),
+        "muted": str(b.get("muted") or "#5a6b85"),
+        "line": str(b.get("line") or "#dbe3ef"),
+        "accent": str(b.get("accent") or "#0b65d8"),
+        "accent2": str(b.get("accent2") or "#14a3a3"),
+        "hero": str(b.get("hero") or "linear-gradient(120deg, #0b65d8, #14a3a3)"),
     }
-
-    palettes = [
-        (["ocean", "marine", "bleu", "blue"], {
-            "bg": "#f3f8ff", "card": "#ffffff", "ink": "#10223d", "muted": "#4f6485", "line": "#cfe0f5",
-            "accent": "#0c63e7", "accent2": "#1a8ec8", "hero": "linear-gradient(120deg, #0c63e7, #1a8ec8)",
-        }),
-        (["forest", "green", "vert", "nature"], {
-            "bg": "#f2faf5", "card": "#ffffff", "ink": "#153525", "muted": "#4c6f5c", "line": "#d3e8dc",
-            "accent": "#1f8f57", "accent2": "#4aa83a", "hero": "linear-gradient(120deg, #1f8f57, #4aa83a)",
-        }),
-        (["sunset", "orange", "amber", "warm", "chaud"], {
-            "bg": "#fff7f1", "card": "#ffffff", "ink": "#3a2214", "muted": "#7a5a49", "line": "#f0d9ca",
-            "accent": "#d4631d", "accent2": "#ed9a2c", "hero": "linear-gradient(120deg, #d4631d, #ed9a2c)",
-        }),
-        (["graphite", "gray", "grey", "minimal", "sobre"], {
-            "bg": "#f6f7f9", "card": "#ffffff", "ink": "#1d2430", "muted": "#5f6673", "line": "#d8dde6",
-            "accent": "#3a4a63", "accent2": "#6a7485", "hero": "linear-gradient(120deg, #3a4a63, #6a7485)",
-        }),
-    ]
-    for keywords, palette in palettes:
-        if any(tok in text for tok in keywords):
-            theme.update(palette)
-            break
-
-    return theme
 
 
 def _bi_lite_exec_style_tokens(executive_guide: str, ai_style: str = "") -> dict[str, str]:
     text = f"{str(executive_guide or '')} {str(ai_style or '')}".lower()
+    b = resolve_brand_tokens(text)
     style = {
-        "font": "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+        "font": str(b.get("font_exec_web") or "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"),
         "radius": "14px",
         "shadow": "0 8px 24px rgba(15, 23, 42, 0.06)",
     }
@@ -10313,23 +11017,24 @@ def _bi_lite_exec_html(
     <style>
         :root {{ --bg:{theme_tokens['bg']}; --card:{theme_tokens['card']}; --ink:{theme_tokens['ink']}; --muted:{theme_tokens['muted']}; --line:{theme_tokens['line']}; --accent:{theme_tokens['accent']}; --accent2:{theme_tokens['accent2']}; }}
         * {{ box-sizing:border-box; }}
-        body {{ margin:0; font-family: {style_tokens['font']}; color:var(--ink); background:var(--bg); }}
-        .hero {{ padding:24px 28px; background: {theme_tokens['hero']}; color:#fff; }}
-        .hero h1 {{ margin:0 0 8px 0; font-size:28px; }}
-        .hero .meta {{ opacity:.92; font-size:14px; }}
-        .wrap {{ padding:18px 22px 28px; }}
+        body {{ margin:0; font-family: {style_tokens['font']}; color:var(--ink); background:radial-gradient(130% 130% at 0% 0%, #ffffff 0%, var(--bg) 42%, #edf3fb 100%); }}
+        .hero {{ padding:30px 34px; background: {theme_tokens['hero']}; color:#fff; position:relative; overflow:hidden; }}
+        .hero::after {{ content:''; position:absolute; inset:-30% -10% auto auto; width:340px; height:340px; background:rgba(255,255,255,.14); border-radius:50%; filter: blur(2px); }}
+        .hero h1 {{ margin:0 0 8px 0; font-size:31px; letter-spacing:.2px; }}
+        .hero .meta {{ opacity:.95; font-size:14px; }}
+        .wrap {{ padding:20px 22px 32px; max-width:1400px; margin:0 auto; }}
         .tabs {{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }}
-        .tab-btn {{ border:1px solid var(--line); background:#fff; color:var(--ink); border-radius:10px; padding:8px 12px; cursor:pointer; font-weight:600; }}
-        .tab-btn.active {{ background:var(--accent); color:#fff; border-color:var(--accent); }}
+        .tab-btn {{ border:1px solid var(--line); background:#fff; color:var(--ink); border-radius:999px; padding:8px 14px; cursor:pointer; font-weight:600; box-shadow:0 4px 10px rgba(15, 23, 42, 0.04); }}
+        .tab-btn.active {{ background:var(--accent); color:#fff; border-color:var(--accent); box-shadow:0 8px 18px rgba(11,101,216,.24); }}
         .panel {{ display:none; }}
         .panel.active {{ display:block; }}
         .grid {{ display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:12px; }}
-        .card {{ background:var(--card); border:1px solid var(--line); border-radius:{style_tokens['radius']}; padding:14px; box-shadow:{style_tokens['shadow']}; }}
+        .card {{ background:var(--card); border:1px solid var(--line); border-radius:{style_tokens['radius']}; padding:15px; box-shadow:{style_tokens['shadow']}; }}
         .span-12 {{ grid-column: span 12; }}
         .kpi-list {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; }}
-        .kpi-card {{ border:1px solid var(--line); border-radius:{style_tokens['radius']}; padding:10px; background:#fff; }}
+        .kpi-card {{ border:1px solid var(--line); border-radius:{style_tokens['radius']}; padding:11px; background:#fff; box-shadow:0 6px 14px rgba(15,23,42,.05); }}
         .kpi-label {{ color:var(--muted); font-size:12px; }}
-        .kpi-value {{ font-size:24px; font-weight:700; margin-top:4px; }}
+        .kpi-value {{ font-size:25px; font-weight:700; margin-top:4px; }}
         .kpi-sub {{ color:var(--muted); font-size:12px; margin-top:4px; }}
         .trend-row {{ display:grid; grid-template-columns:100px 1fr 130px; gap:8px; align-items:center; margin:7px 0; }}
         .trend-label {{ color:var(--muted); font-size:12px; }}
@@ -10340,10 +11045,10 @@ def _bi_lite_exec_html(
         .timeline-dot {{ position:absolute; left:6px; top:4px; width:10px; height:10px; border-radius:50%; background:var(--accent); }}
         .timeline-content {{ font-size:13px; color:var(--ink); }}
         .filters {{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px; }}
-        .filters input, .filters select {{ border:1px solid var(--line); border-radius:10px; padding:7px 10px; background:#fff; }}
+        .filters input, .filters select {{ border:1px solid var(--line); border-radius:10px; padding:7px 10px; background:#fff; box-shadow:inset 0 1px 2px rgba(15, 23, 42, 0.03); }}
         .filters button {{ border:1px solid var(--line); border-radius:10px; padding:7px 10px; background:#fff; cursor:pointer; }}
         .ai-chart-grid {{ display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:12px; }}
-        .ai-chart-card {{ grid-column: span 6; background:#fff; border:1px solid var(--line); border-radius:12px; padding:10px; }}
+        .ai-chart-card {{ grid-column: span 6; background:#fff; border:1px solid var(--line); border-radius:14px; padding:10px; box-shadow:0 8px 18px rgba(15,23,42,.06); }}
         .ai-chart-title {{ font-weight:700; font-size:13px; margin-bottom:8px; color:#24324a; }}
         .ai-chart-box {{ height:320px; }}
         .muted-note {{ color:var(--muted); font-size:12px; }}
@@ -10354,7 +11059,7 @@ def _bi_lite_exec_html(
         .exec-image-card figcaption {{ padding:8px 10px; font-size:12px; color:var(--muted); }}
         .data-table {{ width:100%; border-collapse:collapse; font-size:12px; }}
         .data-table th, .data-table td {{ border:1px solid var(--line); padding:6px 8px; text-align:left; }}
-        .data-table th {{ background:#eef3fb; }}
+        .data-table th {{ background:#eef3fb; position:sticky; top:0; z-index:2; }}
         pre {{ background:#0f172a; color:#e2e8f0; border-radius:10px; padding:12px; overflow:auto; font-size:12px; }}
         @media (max-width: 960px) {{ .trend-row {{ grid-template-columns:80px 1fr 100px; }} .ai-chart-card {{ grid-column: span 12; }} }}
     </style>

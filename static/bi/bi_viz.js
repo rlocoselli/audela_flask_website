@@ -876,7 +876,96 @@ window.BI = window.BI || {};
     }
 
     let option = {};
-    if (type === 'bar' || type === 'line' || type === 'area') {
+    if (type === 'ml_forecast') {
+      const xCol = cfg.x || 'x';
+      const actualCol = cfg.actual || 'actual';
+      const predCol = cfg.predicted || 'predicted';
+      const lowerCol = cfg.lower || 'lower';
+      const upperCol = cfg.upper || 'upper';
+
+      const xIdx = indexOfCol(cols, xCol);
+      const actualIdx = indexOfCol(cols, actualCol);
+      const predIdx = indexOfCol(cols, predCol);
+      const lowerIdx = indexOfCol(cols, lowerCol);
+      const upperIdx = indexOfCol(cols, upperCol);
+
+      const xAxisData = [];
+      const actualSeries = [];
+      const predSeries = [];
+      const lowerSeries = [];
+      const upperSeries = [];
+
+      for (const r of rows) {
+        if (!Array.isArray(r)) continue;
+        xAxisData.push(xIdx >= 0 && xIdx < r.length ? r[xIdx] : xAxisData.length + 1);
+
+        const aVal = (actualIdx >= 0 && actualIdx < r.length) ? Number(r[actualIdx]) : null;
+        const pVal = (predIdx >= 0 && predIdx < r.length) ? Number(r[predIdx]) : null;
+        const lVal = (lowerIdx >= 0 && lowerIdx < r.length) ? Number(r[lowerIdx]) : null;
+        const uVal = (upperIdx >= 0 && upperIdx < r.length) ? Number(r[upperIdx]) : null;
+
+        actualSeries.push(Number.isFinite(aVal) ? aVal : null);
+        predSeries.push(Number.isFinite(pVal) ? pVal : null);
+        lowerSeries.push(Number.isFinite(lVal) ? lVal : null);
+        upperSeries.push(Number.isFinite(uVal) ? uVal : null);
+      }
+
+      const hasBand = lowerSeries.some(v => v !== null) && upperSeries.some(v => v !== null);
+      const series = [
+        {
+          name: t('Actual'),
+          type: 'line',
+          smooth: true,
+          symbol: 'circle',
+          data: actualSeries,
+          lineStyle: { width: 2, color: '#1d4ed8' },
+          itemStyle: { color: '#1d4ed8' }
+        },
+        {
+          name: t('Predicted'),
+          type: 'line',
+          smooth: true,
+          symbol: 'none',
+          data: predSeries,
+          lineStyle: { width: 2, type: 'dashed', color: '#f59e0b' },
+          itemStyle: { color: '#f59e0b' }
+        }
+      ];
+
+      if (hasBand) {
+        series.push(
+          {
+            name: t('Lower'),
+            type: 'line',
+            stack: 'band',
+            symbol: 'none',
+            lineStyle: { opacity: 0 },
+            data: lowerSeries
+          },
+          {
+            name: t('Confidence range'),
+            type: 'line',
+            stack: 'band',
+            symbol: 'none',
+            lineStyle: { opacity: 0 },
+            areaStyle: { color: 'rgba(245, 158, 11, 0.18)' },
+            data: upperSeries.map((v, i) => {
+              if (v === null || lowerSeries[i] === null) return null;
+              return Number(v) - Number(lowerSeries[i]);
+            })
+          }
+        );
+      }
+
+      option = {
+        tooltip: { trigger: 'axis' },
+        legend: { top: 4 },
+        grid: { left: 48, right: 22, top: 42, bottom: 28 },
+        xAxis: { type: 'category', data: xAxisData },
+        yAxis: { type: 'value' },
+        series: series
+      };
+    } else if (type === 'bar' || type === 'line' || type === 'area') {
       option = {
         tooltip: { trigger: 'axis' },
         xAxis: { type: 'category', data: x },

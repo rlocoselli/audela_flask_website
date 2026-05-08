@@ -255,7 +255,14 @@ def create_app() -> Flask:
     # -----------------
     @app.before_request
     def _set_language() -> None:  # noqa: ANN001
-        # Order: explicit session -> browser header -> default
+        # Order: explicit query arg -> explicit session -> browser header -> default
+        req_lang_raw = request.args.get("lang")
+        req_lang = normalize_lang(req_lang_raw) if req_lang_raw else None
+        if req_lang and req_lang in SUPPORTED_LANGS:
+            session["lang"] = req_lang
+            g.lang = req_lang
+            return
+
         sess_lang = normalize_lang(session.get("lang")) if session.get("lang") else None
         g.lang = sess_lang or best_lang_from_accept_language(request.headers.get("Accept-Language"))
 
@@ -314,6 +321,22 @@ def create_app() -> Flask:
         def canonical_url(include_query_params: list[str] | tuple[str, ...] | None = None) -> str:
             return _canonical_request_url(app, include_query_params=include_query_params)
 
+        def lang_switch_url(code: str) -> str:
+            lang_code = normalize_lang(code)
+            if lang_code not in SUPPORTED_LANGS:
+                lang_code = DEFAULT_LANG
+
+            query_items: list[tuple[str, str]] = []
+            for key in sorted(request.args.keys()):
+                if key == "lang":
+                    continue
+                for value in request.args.getlist(key):
+                    query_items.append((key, value))
+            query_items.append(("lang", lang_code))
+
+            query = urlencode(query_items, doseq=True)
+            return f"{request.path}?{query}" if query else (request.path or "/")
+
         site_root_url = urlunsplit(
             (
                 site_parts.scheme,
@@ -335,6 +358,7 @@ def create_app() -> Flask:
             "app_release": app_release,
             "static_asset_url": static_asset_url,
             "canonical_url": canonical_url,
+            "lang_switch_url": lang_switch_url,
             "site_root_url": site_root_url,
 
         }

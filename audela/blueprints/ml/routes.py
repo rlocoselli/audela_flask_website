@@ -24,6 +24,8 @@ from ...models.bi import FileAsset
 from ...models.core import Tenant
 from ...services.crypto import encrypt_json
 from ...services.file_storage_service import store_bytes
+from ...services.pdf_export import table_to_pdf_bytes
+from ...services.pptx_export import table_to_pptx_bytes
 from ...services.mlflow_service import (
     list_tenant_runs,
     log_deployment_event,
@@ -429,6 +431,330 @@ def _ml_predict(model_data: dict[str, Any], x_value: float) -> float:
     slope = float(_to_number(model_data.get("slope")) or 0.0)
     intercept = float(_to_number(model_data.get("intercept")) or 0.0)
     return (slope * float(x_value)) + intercept
+
+
+def _load_model_prediction_context(model: dict[str, Any], row_limit: int = 320) -> dict[str, Any]:
+    src = DataSource.query.filter_by(id=int(model.get("source_id") or 0), tenant_id=g.tenant.id).first()
+    if not src:
+        return {"ok": False, "error": _("Selecione uma fonte válida.")}
+
+    sql_text = str(model.get("sql_text") or "").strip()
+    if not sql_text:
+        return {"ok": False, "error": _("SQL model query is required.")}
+
+    try:
+        result = execute_sql(src, sql_text, params={"tenant_id": int(g.tenant.id)}, row_limit=max(50, int(row_limit or 320)))
+    except QueryExecutionError as exc:
+        return {"ok": False, "error": _("Erro ao executar query do modelo: {error}", error=str(exc))}
+
+    columns = [str(c) for c in (result.get("columns") or [])]
+    rows = result.get("rows") or []
+    if not columns or not rows:
+        return {"ok": False, "error": _("La requête doit retourner au moins 1 colonne et des lignes.")}
+
+    algorithm = str(model.get("algorithm") or "linear_regression").strip().lower()
+    x_col = str(model.get("x_column") or "").strip()
+    y_col = str(model.get("y_column") or "").strip()
+    metric_cols = _numeric_metric_fields(columns, rows)
+
+    if not x_col or x_col not in columns:
+        x_col = metric_cols[0] if len(metric_cols) >= 1 else columns[0]
+    if algorithm != "kmeans_clustering" and (not y_col or y_col not in columns):
+        if len(metric_cols) >= 2:
+            y_col = metric_cols[1] if metric_cols[0] == x_col else metric_cols[0] if metric_cols[0] != x_col else metric_cols[1]
+        elif len(columns) >= 2:
+            y_col = columns[1 if columns[0] == x_col else 0]
+
+    x_idx = columns.index(x_col)
+    y_idx = columns.index(y_col) if (algorithm != "kmeans_clustering" and y_col in columns) else -1
+
+    pairs: list[tuple[float, float]] = []
+    x_values: list[float] = []
+    for row in rows:
+        if not isinstance(row, (list, tuple)) or x_idx >= len(row):
+            continue
+        x_val = _to_number(row[x_idx])
+        if x_val is None:
+            continue
+        x_num = float(x_val)
+        x_values.append(x_num)
+        if y_idx >= 0 and y_idx < len(row):
+            y_val = _to_number(row[y_idx])
+            if y_val is not None:
+                pairs.append((x_num, float(y_val)))
+
+    pairs = sorted(pairs, key=lambda item: item[0])
+    x_values = sorted(x_values)
+    return {
+        "ok": True,
+        "source_name": str(src.name or ""),
+        "columns": columns,
+        "rows": rows,
+        "x_column": x_col,
+        "y_column": y_col,
+        "pairs": pairs,
+        "x_values": x_values,
+        "domain": {
+            "x_min": x_values[0] if x_values else None,
+            "x_max": x_values[-1] if x_values else None,
+            "train_rows": len(pairs) if pairs else len(x_values),
+        },
+    }
+
+
+def _prediction_quality_label(metrics: dict[str, Any]) -> tuple[str, str]:
+    fit_indicator = str(metrics.get("fit_indicator") or "balanced").strip().lower()
+    if fit_indicator == "good_fit":
+        return _("Good fit"), "success"
+    if fit_indicator == "overfit":
+        return _("Overfit risk"), "warning"
+    if fit_indicator == "underfit":
+        return _("Underfit risk"), "danger"
+    if fit_indicator == "insufficient_data":
+        return _("Insufficient data"), "secondary"
+    return _("Balanced"), "info"
+
+
+def _build_prediction_story(
+    model: dict[str, Any],
+    predictions: list[dict[str, Any]],
+    metrics: dict[str, Any],
+    context: dict[str, Any],
+    algorithm: str,
+    accuracy_type: str,
+) -> dict[str, Any]:
+    quality_label, quality_tone = _prediction_quality_label(metrics)
+    insights: list[str] = []
+    recommended_actions: list[str] = []
+    chart_payloads: list[dict[str, Any]] = []
+
+    domain = context.get("domain") if isinstance(context.get("domain"), dict) else {}
+    x_min = _to_number(domain.get("x_min"))
+    x_max = _to_number(domain.get("x_max"))
+    prediction_values = [float(_to_number(p.get("y_pred")) or 0.0) for p in predictions]
+    x_values = [float(_to_number(p.get("x")) or 0.0) for p in predictions]
+
+    requested_outside_domain = False
+    if x_values and x_min is not None and x_max is not None:
+        requested_outside_domain = any(float(x) < float(x_min) or float(x) > float(x_max) for x in x_values)
+
+    if algorithm == "kmeans_clustering":
+        cluster_ids = [int(p.get("cluster_id")) for p in predictions if p.get("cluster_id") is not None]
+        if cluster_ids:
+            counts = Counter(cluster_ids)
+            dominant_cluster, dominant_count = counts.most_common(1)[0]
+            insights.append(
+                _("Most requested points fall into cluster #{cluster} ({count} point(s)).", cluster=dominant_cluster, count=dominant_count)
+            )
+            recommended_actions.append(_("Review cluster preview to compare centroid distance and group spread before acting on the segment."))
+        chart_payloads.append(
+            {
+                "kind": "bar",
+                "title": _("Cluster assignments"),
+                "labels": [str(p.get("x")) for p in predictions],
+                "series": [{"name": _("Cluster"), "data": cluster_ids}],
+            }
+        )
+    elif accuracy_type == "classification":
+        probas = [float(_to_number(p.get("predicted_proba")) or 0.0) for p in predictions]
+        positives = [int(p.get("predicted_class") or 0) for p in predictions]
+        avg_proba = (sum(probas) / len(probas)) if probas else 0.0
+        pos_rate = (sum(positives) * 100.0 / len(positives)) if positives else 0.0
+        insights.append(_("Average probability of the positive class is {value}%.", value=round(avg_proba, 2)))
+        insights.append(_("{value}% of requested cases are classified as positive.", value=round(pos_rate, 2)))
+        if requested_outside_domain:
+            insights.append(_("Some requested X values are outside the training range, so classification confidence should be reviewed manually."))
+        recommended_actions.append(_("Focus on cases near the decision threshold to review overrides or business rules."))
+        chart_payloads.append(
+            {
+                "kind": "bar",
+                "title": _("Predicted probabilities"),
+                "labels": [str(p.get("x")) for p in predictions],
+                "series": [{"name": _("Probability %"), "data": probas}],
+            }
+        )
+    else:
+        pred_min = min(prediction_values) if prediction_values else 0.0
+        pred_max = max(prediction_values) if prediction_values else 0.0
+        pred_avg = (sum(prediction_values) / len(prediction_values)) if prediction_values else 0.0
+        rmse = _to_number(metrics.get("rmse"))
+        history_pairs = context.get("pairs") if isinstance(context.get("pairs"), list) else []
+        recent_history = history_pairs[-24:] if history_pairs else []
+        recent_actual_avg = (sum(y for _, y in recent_history) / len(recent_history)) if recent_history else None
+
+        if len(prediction_values) >= 2:
+            delta = float(prediction_values[-1]) - float(prediction_values[0])
+            direction = _("up") if delta > 0 else (_("down") if delta < 0 else _("flat"))
+            insights.append(_("Predicted path is trending {direction} across the requested horizon.", direction=direction))
+        insights.append(_("Predicted range spans from {low} to {high}.", low=round(pred_min, 4), high=round(pred_max, 4)))
+        if recent_actual_avg is not None:
+            gap = pred_avg - float(recent_actual_avg)
+            if abs(gap) > 1e-9:
+                gap_direction = _("above") if gap > 0 else _("below")
+                insights.append(
+                    _("Average forecast is {direction} the recent actual average by {gap}.", direction=gap_direction, gap=round(abs(gap), 4))
+                )
+        if rmse is not None:
+            confidence_pct = max(0.0, 100.0 - ((float(rmse) / max(abs(pred_avg), 1e-9)) * 100.0)) if abs(pred_avg) > 1e-9 else None
+            if confidence_pct is not None:
+                insights.append(_("Model uncertainty is roughly ±{rmse} around each point.", rmse=round(float(rmse), 4)))
+        if requested_outside_domain:
+            insights.append(_("Some requested X values are outside the observed training range. Treat those points as extrapolation."))
+
+        recommended_actions.append(_("Compare forecast points with the fitted historical curve before using them in reporting or planning."))
+        recommended_actions.append(_("If the model is used for budgeting, validate out-of-range points with a business assumption note."))
+
+        if recent_history:
+            history_x = [round(float(x), 6) for x, _ in recent_history]
+            history_actual = [round(float(y), 6) for _, y in recent_history]
+            history_fitted = [round(float(_ml_predict(model.get("model_data") or {}, x)), 6) for x, _ in recent_history]
+            chart_payloads.append(
+                {
+                    "kind": "line",
+                    "title": _("Historical actual vs fitted"),
+                    "labels": history_x,
+                    "series": [
+                        {"name": _("Actual"), "data": history_actual},
+                        {"name": _("Fitted"), "data": history_fitted},
+                    ],
+                }
+            )
+        chart_payloads.append(
+            {
+                "kind": "line",
+                "title": _("Requested forecast"),
+                "labels": [round(float(x), 6) for x in x_values],
+                "series": [{"name": _("Predicted"), "data": [round(float(v), 6) for v in prediction_values]}],
+            }
+        )
+
+    headline = _("Prediction Lab")
+    if accuracy_type == "classification":
+        headline = _("Classification prediction")
+    elif algorithm == "kmeans_clustering":
+        headline = _("Cluster assignment")
+    elif len(predictions) > 1:
+        headline = _("Forecast scenario")
+
+    summary = {
+        "headline": headline,
+        "quality_label": quality_label,
+        "quality_tone": quality_tone,
+        "source_name": context.get("source_name") or model.get("source_name") or "",
+        "requested_points": len(predictions),
+        "train_rows": int(domain.get("train_rows") or 0),
+        "x_min": x_min,
+        "x_max": x_max,
+    }
+    return {
+        "summary": summary,
+        "insights": insights[:5],
+        "recommended_actions": recommended_actions[:4],
+        "chart_payloads": chart_payloads[:3],
+    }
+
+
+def _build_prediction_payload(model: dict[str, Any], x_values: list[float]) -> dict[str, Any]:
+    model_id = str(model.get("id") or "").strip()
+    model_data = model.get("model_data") if isinstance(model.get("model_data"), dict) else {}
+    if not model_data:
+        return {"ok": False, "error": _("Model is not trained yet.")}
+
+    context = _load_model_prediction_context(model, row_limit=320)
+    if not bool(context.get("ok")):
+        return {"ok": False, "error": str(context.get("error") or _("Prediction context unavailable."))}
+
+    predictions: list[dict[str, Any]] = []
+    algorithm = str(model.get("algorithm") or "").strip().lower()
+    metrics = model.get("metrics") if isinstance(model.get("metrics"), dict) else {}
+    accuracy_type = str(metrics.get("accuracy_type") or "").strip().lower()
+    class_threshold = float(_to_number(model_data.get("classification_threshold")) or 0.5)
+    for x_val in x_values:
+        y_pred = _ml_predict(model_data, float(x_val))
+        row: dict[str, Any] = {
+            "x": float(x_val),
+            "y_pred": round(float(y_pred), 8),
+        }
+        if accuracy_type == "classification":
+            proba = max(0.0, min(1.0, float(y_pred)))
+            row["predicted_proba"] = round(proba * 100.0, 2)
+            row["predicted_class"] = int(1 if proba >= class_threshold else 0)
+        if algorithm == "kmeans_clustering":
+            centroids = [float(_to_number(c) or 0.0) for c in (model_data.get("centroids") or [])]
+            if centroids:
+                cluster_id = min(range(len(centroids)), key=lambda idx: abs(float(x_val) - centroids[idx]))
+                row["cluster_id"] = int(cluster_id)
+                row["centroid"] = centroids[cluster_id]
+        predictions.append(row)
+
+    story = _build_prediction_story(model, predictions, metrics, context, algorithm, accuracy_type)
+    history_pairs = context.get("pairs") if isinstance(context.get("pairs"), list) else []
+    history_preview = [
+        {
+            "x": round(float(x), 6),
+            "actual": round(float(y), 6),
+            "predicted": round(float(_ml_predict(model_data, x)), 6),
+        }
+        for x, y in history_pairs[-32:]
+    ]
+
+    payload: dict[str, Any] = {
+        "ok": True,
+        "model_id": model_id,
+        "model_name": model.get("name"),
+        "algorithm": model.get("algorithm"),
+        "x": predictions[0]["x"],
+        "y_pred": predictions[0]["y_pred"],
+        "predictions": predictions,
+        "y_column": model.get("y_column"),
+        "x_column": model.get("x_column"),
+        "accuracy_type": accuracy_type,
+        "classification_threshold": class_threshold if accuracy_type == "classification" else None,
+        "metrics": metrics,
+        "summary": story.get("summary") or {},
+        "insights": story.get("insights") or [],
+        "recommended_actions": story.get("recommended_actions") or [],
+        "chart_payloads": story.get("chart_payloads") or [],
+        "history_preview": history_preview,
+    }
+    if algorithm == "kmeans_clustering" and predictions:
+        first = predictions[0]
+        if "cluster_id" in first:
+            payload["cluster_id"] = first["cluster_id"]
+            payload["centroid"] = first["centroid"]
+    return payload
+
+
+def _prediction_export_table(payload: dict[str, Any]) -> tuple[list[str], list[list[Any]]]:
+    rows = payload.get("predictions") if isinstance(payload.get("predictions"), list) else []
+    accuracy_type = str(payload.get("accuracy_type") or "").strip().lower()
+    algorithm = str(payload.get("algorithm") or "").strip().lower()
+    if algorithm == "kmeans_clustering":
+        columns = ["x", "centroid", "cluster"]
+        values = [[r.get("x"), r.get("y_pred"), r.get("cluster_id")] for r in rows]
+        return columns, values
+    if accuracy_type == "classification":
+        columns = ["x", "predicted_class", "predicted_probability"]
+        values = [[r.get("x"), r.get("predicted_class"), r.get("predicted_proba")] for r in rows]
+        return columns, values
+    columns = ["x", str(payload.get("y_column") or "predicted")]
+    values = [[r.get("x"), r.get("y_pred")] for r in rows]
+    return columns, values
+
+
+def _prediction_export_analysis(payload: dict[str, Any]) -> str:
+    lines: list[str] = []
+    summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
+    if summary.get("headline"):
+        lines.append(str(summary.get("headline")))
+    for item in (payload.get("insights") or [])[:5]:
+        lines.append(f"- {item}")
+    if payload.get("recommended_actions"):
+        lines.append("")
+        lines.append("Actions")
+        for item in (payload.get("recommended_actions") or [])[:4]:
+            lines.append(f"- {item}")
+    return "\n".join(str(x) for x in lines if str(x or "").strip())
 
 
 def _binary_best_threshold(y_true: list[float], y_pred: list[float]) -> float:
@@ -1401,54 +1727,89 @@ def predict_model():
     if not model:
         return jsonify({"ok": False, "error": _("Modèle introuvable.")}), 404
 
-    model_data = model.get("model_data") if isinstance(model.get("model_data"), dict) else {}
-    if not model_data:
-        return jsonify({"ok": False, "error": _("Model is not trained yet.")}), 400
+    payload = _build_prediction_payload(model, x_values)
+    if not bool(payload.get("ok")):
+        return jsonify(payload), 400
+    return jsonify(payload)
 
-    predictions: list[dict[str, Any]] = []
-    algorithm = str(model.get("algorithm") or "").strip().lower()
-    metrics = model.get("metrics") if isinstance(model.get("metrics"), dict) else {}
-    accuracy_type = str(metrics.get("accuracy_type") or "").strip().lower()
-    class_threshold = float(_to_number(model_data.get("classification_threshold")) or 0.5)
-    for x_val in x_values:
-        y_pred = _ml_predict(model_data, float(x_val))
-        row: dict[str, Any] = {
-            "x": float(x_val),
-            "y_pred": round(float(y_pred), 8),
-        }
-        if accuracy_type == "classification":
-            proba = max(0.0, min(1.0, float(y_pred)))
-            row["predicted_proba"] = round(proba * 100.0, 2)
-            row["predicted_class"] = int(1 if proba >= class_threshold else 0)
-        if algorithm == "kmeans_clustering":
-            centroids = [float(_to_number(c) or 0.0) for c in (model_data.get("centroids") or [])]
-            if centroids:
-                cluster_id = min(range(len(centroids)), key=lambda idx: abs(float(x_val) - centroids[idx]))
-                row["cluster_id"] = int(cluster_id)
-                row["centroid"] = centroids[cluster_id]
-        predictions.append(row)
 
-    payload: dict[str, Any] = {
-        "ok": True,
-        "model_id": model_id,
-        "model_name": model.get("name"),
-        "algorithm": model.get("algorithm"),
-        "x": predictions[0]["x"],
-        "y_pred": predictions[0]["y_pred"],
-        "predictions": predictions,
-        "y_column": model.get("y_column"),
-        "x_column": model.get("x_column"),
-        "accuracy_type": accuracy_type,
-        "classification_threshold": class_threshold if accuracy_type == "classification" else None,
-    }
-    if algorithm == "kmeans_clustering" and predictions:
-        first = predictions[0]
-        if "cluster_id" in first:
-            payload["cluster_id"] = first["cluster_id"]
-            payload["centroid"] = first["centroid"]
-    return jsonify(
-        payload
+@bp.post("/predict/export/pdf")
+@login_required
+def predict_export_pdf():
+    _require_tenant()
+    payload = request.get_json(silent=True) or {}
+    model_id = str(payload.get("model_id") or "").strip()
+    x_values = _parse_predict_values(payload.get("x"))
+    if not model_id or not x_values:
+        return jsonify({"ok": False, "error": _("Model and numeric x are required.")}), 400
+
+    state = _ml_models_state_for_tenant(g.tenant)
+    model = next((m for m in (state.get("models") or []) if str(m.get("id")) == model_id), None)
+    if not model:
+        return jsonify({"ok": False, "error": _("Modèle introuvable.")}), 404
+
+    prediction_payload = _build_prediction_payload(model, x_values)
+    if not bool(prediction_payload.get("ok")):
+        return jsonify(prediction_payload), 400
+
+    title = str(payload.get("title") or prediction_payload.get("model_name") or _("Forecast report")).strip() or str(_("Forecast report"))
+    style_guide = str(payload.get("style_guide") or "").strip()
+    columns, rows = _prediction_export_table(prediction_payload)
+    pdf_bytes = table_to_pdf_bytes(
+        title,
+        columns,
+        rows,
+        style_guide=style_guide,
+        insight_lines=[str(x) for x in (prediction_payload.get("insights") or []) + (prediction_payload.get("recommended_actions") or [])],
+        context_lines=[
+            f"Model: {prediction_payload.get('model_name') or ''}",
+            f"Algorithm: {prediction_payload.get('algorithm') or ''}",
+            f"Source: {((prediction_payload.get('summary') or {}).get('source_name') or '')}",
+        ],
     )
+    resp = current_app.response_class(pdf_bytes, mimetype="application/pdf")
+    safe_name = re.sub(r"[^a-zA-Z0-9_-]+", "_", title)[:60].strip("_") or "forecast_report"
+    resp.headers["Content-Disposition"] = f'attachment; filename="{safe_name}.pdf"'
+    return resp
+
+
+@bp.post("/predict/export/ppt")
+@login_required
+def predict_export_ppt():
+    _require_tenant()
+    payload = request.get_json(silent=True) or {}
+    model_id = str(payload.get("model_id") or "").strip()
+    x_values = _parse_predict_values(payload.get("x"))
+    if not model_id or not x_values:
+        return jsonify({"ok": False, "error": _("Model and numeric x are required.")}), 400
+
+    state = _ml_models_state_for_tenant(g.tenant)
+    model = next((m for m in (state.get("models") or []) if str(m.get("id")) == model_id), None)
+    if not model:
+        return jsonify({"ok": False, "error": _("Modèle introuvable.")}), 404
+
+    prediction_payload = _build_prediction_payload(model, x_values)
+    if not bool(prediction_payload.get("ok")):
+        return jsonify(prediction_payload), 400
+
+    title = str(payload.get("title") or prediction_payload.get("model_name") or _("Forecast deck")).strip() or str(_("Forecast deck"))
+    style_guide = str(payload.get("style_guide") or "").strip()
+    columns, rows = _prediction_export_table(prediction_payload)
+    pptx_bytes = table_to_pptx_bytes(
+        title=title,
+        source_name=str(((prediction_payload.get("summary") or {}).get("source_name") or model.get("source_name") or "")),
+        analysis=_prediction_export_analysis(prediction_payload),
+        columns=columns,
+        rows=rows,
+        style_guide=style_guide,
+    )
+    resp = current_app.response_class(
+        pptx_bytes,
+        mimetype="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    )
+    safe_name = re.sub(r"[^a-zA-Z0-9_-]+", "_", title)[:60].strip("_") or "forecast_deck"
+    resp.headers["Content-Disposition"] = f'attachment; filename="{safe_name}.pptx"'
+    return resp
 
 
 @bp.get("/clusters/<model_id>")

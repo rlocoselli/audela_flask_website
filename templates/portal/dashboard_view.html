@@ -50,6 +50,55 @@
       padding: .7rem;
     }
     .bi-floating-filters.is-collapsed .bi-floating-body { display: none; }
+    .ml-card-summary {
+      border: 1px solid var(--bs-border-color);
+      border-radius: .8rem;
+      background: linear-gradient(180deg, #fbfdff 0%, #f8fbff 100%);
+      padding: .75rem .85rem;
+      margin-top: .8rem;
+    }
+    .ml-card-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: .6rem;
+      margin-bottom: .75rem;
+    }
+    .ml-card-kpi {
+      border: 1px solid #e7edf5;
+      border-radius: .7rem;
+      background: #fff;
+      padding: .55rem .65rem;
+    }
+    .ml-card-kpi .label {
+      font-size: .72rem;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      color: #64748b;
+      font-weight: 700;
+    }
+    .ml-card-kpi .value {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin-top: .1rem;
+    }
+    .ml-card-notes {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: .8rem;
+    }
+    .ml-card-note-title {
+      font-size: .82rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: .35rem;
+    }
+    .ml-card-note-list {
+      margin: 0;
+      padding-left: 1rem;
+      color: #334155;
+      font-size: .88rem;
+    }
     @media (max-width: 991.98px) {
       .bi-floating-filters {
         right: 8px;
@@ -60,6 +109,10 @@
         max-height: 60vh;
       }
       .bi-floating-filters .bi-floating-head { cursor: default; }
+      .ml-card-summary-grid,
+      .ml-card-notes {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 {% endblock %}
@@ -164,6 +217,7 @@
       <select class="form-select" id="addcard-source">
         <option value="question">{{ _('Pergunta BI') }}</option>
         <option value="ratio">{{ _('Ratio BI') }}</option>
+        <option value="ml_model">{{ _('Modèle ML') }}</option>
       </select>
     </div>
     <div class="mb-2" id="addcard-search-wrap">
@@ -193,6 +247,27 @@
       </select>
       <div class="form-text">{{ _('Les ratios se visualisent en KPI ou Gauge.') }}</div>
     </div>
+    <div class="mb-2" id="addcard-ml-wrap" style="display:none;">
+      <label class="form-label">{{ _('Modèle ML') }}</label>
+      <select class="form-select" id="addcard-ml-model">
+        <option value="">--</option>
+        {% for m in all_ml_models %}
+          <option value="{{ m.id }}">{{ m.name }}{% if m.algorithm %} ({{ m.algorithm }}){% endif %}</option>
+        {% endfor %}
+      </select>
+      <div class="form-text">{{ _('Le card affiche historique + prévision à partir du modèle sélectionné.') }}</div>
+      <div class="row g-2 mt-1">
+        <div class="col-6">
+          <label class="form-label small mb-1">{{ _('Forecast points') }}</label>
+          <input class="form-control form-control-sm" id="addcard-ml-forecast-points" type="number" min="1" max="72" step="1" value="12" />
+        </div>
+        <div class="col-6">
+          <label class="form-label small mb-1">{{ _('Step') }}</label>
+          <input class="form-control form-control-sm" id="addcard-ml-step" type="number" min="0" step="any" value="0" />
+        </div>
+      </div>
+      <div class="form-text">{{ _('Use step 0 to infer spacing automatically from historical X values.') }}</div>
+    </div>
     <div class="mb-2">
       <label class="form-label">{{ _('Visualização') }}</label>
       <select class="form-select" id="addcard-type">
@@ -205,6 +280,7 @@
         <option value="gauge">{{ _('Gauge') }}</option>
         <option value="kpi">{{ _('KPI') }}</option>
         <option value="pivot">{{ _('Pivot') }}</option>
+        <option value="ml_forecast">{{ _('ML Forecast') }}</option>
       </select>
       <div class="form-text">{{ _('Você pode refinar depois em Configurar visualização.') }}</div>
     </div>
@@ -278,6 +354,64 @@
             <div class="alert alert-danger py-2">{{ _('Erro') }}: {{ item.result.error }}</div>
           {% endif %}
           <div class="bi-viz viz" id="viz-{{ item.card.id }}"></div>
+          {% if item.viz_config.get('source_kind') == 'ml_model' and item.result.summary %}
+            <div class="ml-card-summary">
+              <div class="d-flex align-items-start justify-content-between gap-2 flex-wrap mb-2">
+                <div>
+                  <div class="fw-semibold">{{ item.result.summary.get('headline') or _('Forecast scenario') }}</div>
+                </div>
+                <span class="badge text-bg-{{ item.result.summary.get('quality_tone', 'secondary') }}">{{ item.result.summary.get('quality_label', _('Balanced')) }}</span>
+              </div>
+              <div class="ml-card-summary-grid">
+                <div class="ml-card-kpi">
+                  <div class="label">{{ _('Training rows') }}</div>
+                  <div class="value">{{ item.result.summary.get('train_rows', '—') }}</div>
+                </div>
+                <div class="ml-card-kpi">
+                  <div class="label">{{ _('Forecast points') }}</div>
+                  <div class="value">{{ item.result.summary.get('forecast_points', '—') }}</div>
+                </div>
+                <div class="ml-card-kpi">
+                  <div class="label">{{ _('Step') }}</div>
+                  <div class="value">{{ item.result.summary.get('step', '—') }}</div>
+                </div>
+                <div class="ml-card-kpi">
+                  <div class="label">{{ _('Model health') }}</div>
+                  <div class="value">
+                    {% if item.result.summary.get('r2') is not none %}
+                      R2 {{ item.result.summary.get('r2') }}
+                    {% elif item.result.summary.get('rmse') is not none %}
+                      RMSE {{ item.result.summary.get('rmse') }}
+                    {% else %}
+                      —
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+              <div class="ml-card-notes">
+                <div>
+                  <div class="ml-card-note-title">{{ _('Insights') }}</div>
+                  <ul class="ml-card-note-list">
+                    {% for note in item.result.get('insights', []) %}
+                      <li>{{ note }}</li>
+                    {% else %}
+                      <li>{{ _('No insight available yet.') }}</li>
+                    {% endfor %}
+                  </ul>
+                </div>
+                <div>
+                  <div class="ml-card-note-title">{{ _('Recommended actions') }}</div>
+                  <ul class="ml-card-note-list">
+                    {% for note in item.result.get('actions', []) %}
+                      <li>{{ note }}</li>
+                    {% else %}
+                      <li>{{ _('No recommendation available yet.') }}</li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          {% endif %}
           <script type="application/json" id="data-{{ item.card.id }}">{{ item.result|tojson }}</script>
           <script type="application/json" id="cfg-{{ item.card.id }}">{{ item.viz_config|tojson }}</script>
         </div>

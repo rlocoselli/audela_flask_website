@@ -221,6 +221,83 @@
       color: #64748b;
     }
 
+    .prediction-lab-shell {
+      border: 1px solid #dbe4ef;
+      border-radius: 1rem;
+      background: linear-gradient(180deg, #fbfdff 0%, #f8fbff 100%);
+      padding: 1rem;
+    }
+
+    .prediction-lab-card {
+      border: 1px solid #dde6f1;
+      border-radius: .9rem;
+      background: #fff;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, .05);
+      padding: .9rem 1rem;
+      height: 100%;
+    }
+
+    .prediction-lab-kpi {
+      display: flex;
+      flex-direction: column;
+      gap: .2rem;
+    }
+
+    .prediction-lab-kpi .label {
+      font-size: .74rem;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: #64748b;
+      font-weight: 700;
+    }
+
+    .prediction-lab-kpi .value {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .prediction-lab-list {
+      display: flex;
+      flex-direction: column;
+      gap: .5rem;
+      margin: 0;
+      padding-left: 1rem;
+    }
+
+    .prediction-lab-list li {
+      color: #334155;
+      line-height: 1.45;
+    }
+
+    .prediction-chart-host {
+      min-height: 260px;
+    }
+
+    .prediction-chart-empty {
+      min-height: 220px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #64748b;
+      font-size: .9rem;
+      border: 1px dashed #dbe4ef;
+      border-radius: .8rem;
+      background: #f8fafc;
+    }
+
+    .prediction-section-title {
+      font-size: .9rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: .6rem;
+    }
+
+    .prediction-history-table th,
+    .prediction-history-table td {
+      white-space: nowrap;
+    }
+
     .ml-illustration {
       border: 1px solid #dbe4ef;
       border-radius: .7rem;
@@ -1019,13 +1096,119 @@
             class="btn btn-primary w-100"
             type="button"
             data-predict-url="{{ url_for('ml.predict_model') }}"
+            data-export-pdf-url="{{ url_for('ml.predict_export_pdf') }}"
+            data-export-ppt-url="{{ url_for('ml.predict_export_ppt') }}"
+            data-csrf-token="{{ csrf_token() }}"
             data-msg-select="{{ _('Sélectionnez un modèle et entrez au moins une valeur X.') }}"
             data-msg-error="{{ _('Erreur de prédiction') }}"
           >{{ _('Predict') }}</button>
         </div>
       </div>
+      <div class="row g-2 mt-2 align-items-end">
+        <div class="col-md-3 col-lg-2">
+          <label class="form-label">{{ _('Scenario start X') }}</label>
+          <input id="predict-scenario-start" class="form-control" type="number" step="any" placeholder="10">
+        </div>
+        <div class="col-md-3 col-lg-2">
+          <label class="form-label">{{ _('Points') }}</label>
+          <input id="predict-scenario-points" class="form-control" type="number" min="1" max="72" step="1" value="12">
+        </div>
+        <div class="col-md-3 col-lg-2">
+          <label class="form-label">{{ _('Step') }}</label>
+          <input id="predict-scenario-step" class="form-control" type="number" min="0.000001" step="any" value="1">
+        </div>
+        <div class="col-md-3 col-lg-3">
+          <button id="predict-build-scenario" class="btn btn-outline-secondary w-100" type="button">{{ _('Build what-if scenario') }}</button>
+        </div>
+      </div>
+      <div class="form-text mt-1">{{ _('This builds a sequence of X values in the input box so you can compare short and long forecast scenarios quickly.') }}</div>
       <div class="mt-2">
         <div id="predict-result" class="alert alert-secondary mb-0 py-2">-</div>
+      </div>
+      <div id="predict-dashboard" class="prediction-lab-shell mt-3 d-none">
+        <div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
+          <div>
+            <div id="predict-headline" class="h5 mb-1">{{ _('Prediction Lab') }}</div>
+            <div id="predict-subheadline" class="text-secondary small">-</div>
+          </div>
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span id="predict-quality-badge" class="badge text-bg-secondary">-</span>
+            <button id="predict-export-pdf" class="btn btn-outline-danger btn-sm" type="button">{{ _('Export PDF') }}</button>
+            <button id="predict-export-ppt" class="btn btn-outline-primary btn-sm" type="button">{{ _('Export PowerPoint') }}</button>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-md-6 col-xl-3">
+            <div class="prediction-lab-card prediction-lab-kpi">
+              <div class="label">{{ _('Source') }}</div>
+              <div id="predict-source-name" class="value">-</div>
+            </div>
+          </div>
+          <div class="col-md-6 col-xl-3">
+            <div class="prediction-lab-card prediction-lab-kpi">
+              <div class="label">{{ _('Training rows') }}</div>
+              <div id="predict-train-rows" class="value">-</div>
+            </div>
+          </div>
+          <div class="col-md-6 col-xl-3">
+            <div class="prediction-lab-card prediction-lab-kpi">
+              <div class="label">{{ _('Requested points') }}</div>
+              <div id="predict-requested-points" class="value">-</div>
+            </div>
+          </div>
+          <div class="col-md-6 col-xl-3">
+            <div class="prediction-lab-card prediction-lab-kpi">
+              <div class="label">{{ _('Model health') }}</div>
+              <div id="predict-health-metric" class="value">-</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-lg-7">
+            <div class="prediction-lab-card">
+              <div class="prediction-section-title">{{ _('Insights') }}</div>
+              <ul id="predict-insights" class="prediction-lab-list"></ul>
+            </div>
+          </div>
+          <div class="col-lg-5">
+            <div class="prediction-lab-card">
+              <div class="prediction-section-title">{{ _('Recommended actions') }}</div>
+              <ul id="predict-actions" class="prediction-lab-list"></ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-xl-8">
+            <div class="prediction-lab-card">
+              <div class="prediction-section-title" id="predict-chart-1-title">{{ _('Primary chart') }}</div>
+              <div id="predict-chart-1" class="prediction-chart-host"></div>
+            </div>
+          </div>
+          <div class="col-xl-4">
+            <div class="prediction-lab-card">
+              <div class="prediction-section-title" id="predict-chart-2-title">{{ _('Secondary chart') }}</div>
+              <div id="predict-chart-2" class="prediction-chart-host"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-lg-6">
+            <div class="prediction-lab-card">
+              <div class="prediction-section-title">{{ _('Historical preview') }}</div>
+              <div id="predict-history-preview"></div>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="prediction-lab-card">
+              <div class="prediction-section-title">{{ _('Prediction table') }}</div>
+              <div id="predict-batch-table"></div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="modal fade" id="clustersPreviewModal" tabindex="-1" aria-hidden="true">
@@ -1464,6 +1647,28 @@
     predictProbaLabel: {{ _('Probabilité')|tojson }},
     predictProbaMeaning: {{ _('Probabilité affichée = P(classe 1)')|tojson }},
     predictDecisionThreshold: {{ _('Seuil de décision')|tojson }},
+    predictionLab: {{ _('Prediction Lab')|tojson }},
+    forecastScenario: {{ _('Forecast scenario')|tojson }},
+    sourceLabel: {{ _('Source')|tojson }},
+    trainingRowsLabel: {{ _('Training rows')|tojson }},
+    requestedPointsLabel: {{ _('Requested points')|tojson }},
+    modelHealthLabel: {{ _('Model health')|tojson }},
+    historicalPreviewLabel: {{ _('Historical preview')|tojson }},
+    predictionTableLabel: {{ _('Prediction table')|tojson }},
+    insightsLabel: {{ _('Insights')|tojson }},
+    recommendedActionsLabel: {{ _('Recommended actions')|tojson }},
+    scenarioNeedsValues: {{ _('Enter a start value, points and step to build a scenario.')|tojson }},
+    scenarioBuilt: {{ _('Scenario values generated in the X input box.')|tojson }},
+    exportPdfLabel: {{ _('Export PDF')|tojson }},
+    exportPptLabel: {{ _('Export PowerPoint')|tojson }},
+    exportNeedsPrediction: {{ _('Run a prediction first before exporting.')|tojson }},
+    exportFailed: {{ _('Export failed.')|tojson }},
+    exportPreparing: {{ _('Preparing export...')|tojson }},
+    noChartData: {{ _('No chart data available yet.')|tojson }},
+    actualLabel: {{ _('Actual')|tojson }},
+    fittedLabel: {{ _('Fitted')|tojson }},
+    predictedLabel: {{ _('Predicted')|tojson }},
+    noHistoryPreview: {{ _('No historical preview available for this model.')|tojson }},
     noTrainedModelsYet: {{ _('Aucun modèle entraîné pour le moment.')|tojson }},
     clusterLabel: {{ _('cluster')|tojson }},
     centroidLabel: {{ _('centroïde')|tojson }},
@@ -2662,10 +2867,271 @@
     }
   }
 
+  const predictionCharts = [];
+  let latestPredictionState = null;
+
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function resetPredictionCharts() {
+    while (predictionCharts.length) {
+      const chart = predictionCharts.pop();
+      try { chart.destroy(); } catch (e) {}
+    }
+  }
+
+  function parseNumericValues(raw) {
+    return String(raw || '')
+      .split(/[\s,;]+/)
+      .map(function (x) { return Number(x); })
+      .filter(function (x) { return Number.isFinite(x); });
+  }
+
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename || 'download.bin';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1200);
+  }
+
+  function filenameFromResponse(resp, fallbackName) {
+    const contentDisposition = resp.headers.get('Content-Disposition') || '';
+    const match = contentDisposition.match(/filename="?([^";]+)"?/i);
+    return (match && match[1]) ? match[1] : fallbackName;
+  }
+
+  function renderPredictionChart(hostId, payload) {
+    const host = document.getElementById(hostId);
+    if (!host) return;
+    host.innerHTML = '';
+    if (!payload || !Array.isArray(payload.series) || !payload.series.length) {
+      host.innerHTML = '<div class="prediction-chart-empty">' + escapeHtml(i18n.noChartData) + '</div>';
+      return;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.height = 220;
+    host.appendChild(canvas);
+
+    const palette = ['#2563eb', '#16a34a', '#f97316', '#a855f7', '#dc2626', '#0891b2'];
+    const type = payload.kind === 'bar' ? 'bar' : 'line';
+    const datasets = payload.series.map(function (series, idx) {
+      const color = palette[idx % palette.length];
+      return {
+        label: series.name || ('Series ' + (idx + 1)),
+        data: Array.isArray(series.data) ? series.data : [],
+        borderColor: color,
+        backgroundColor: type === 'bar' ? color : color + '22',
+        fill: false,
+        tension: 0.24,
+        borderWidth: 2,
+        pointRadius: type === 'line' ? 2 : 0,
+      };
+    });
+
+    const chart = new Chart(canvas.getContext('2d'), {
+      type: type,
+      data: {
+        labels: Array.isArray(payload.labels) ? payload.labels : [],
+        datasets: datasets,
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: true, position: 'bottom' },
+        },
+        scales: {
+          x: { ticks: { color: '#475569', maxRotation: 0, autoSkip: true } },
+          y: { ticks: { color: '#475569' }, beginAtZero: false },
+        },
+      },
+    });
+    predictionCharts.push(chart);
+  }
+
+  function renderSimpleList(el, items) {
+    if (!el) return;
+    const safeItems = Array.isArray(items) ? items : [];
+    if (!safeItems.length) {
+      el.innerHTML = '<li>' + escapeHtml(i18n.noChartData) + '</li>';
+      return;
+    }
+    el.innerHTML = safeItems.map(function (item) {
+      return '<li>' + escapeHtml(item) + '</li>';
+    }).join('');
+  }
+
+  function renderPredictionTables(data, rows) {
+    const historyWrap = document.getElementById('predict-history-preview');
+    const batchWrap = document.getElementById('predict-batch-table');
+    const history = Array.isArray(data.history_preview) ? data.history_preview : [];
+
+    if (historyWrap) {
+      if (!history.length) {
+        historyWrap.innerHTML = '<div class="text-secondary small">' + escapeHtml(i18n.noHistoryPreview) + '</div>';
+      } else {
+        const historyRows = history.map(function (row) {
+          return '<tr>' +
+            '<td>' + escapeHtml(row.x) + '</td>' +
+            '<td>' + escapeHtml(row.actual) + '</td>' +
+            '<td>' + escapeHtml(row.predicted) + '</td>' +
+          '</tr>';
+        }).join('');
+        historyWrap.innerHTML =
+          '<div class="table-responsive prediction-history-table"><table class="table table-sm table-striped mb-0 align-middle">' +
+            '<thead><tr><th>' + escapeHtml(i18n.predictXLabel) + '</th><th>' + escapeHtml(i18n.actualLabel) + '</th><th>' + escapeHtml(i18n.fittedLabel) + '</th></tr></thead>' +
+            '<tbody>' + historyRows + '</tbody>' +
+          '</table></div>';
+      }
+    }
+
+    if (batchWrap) {
+      const headerY = data.algorithm === 'kmeans_clustering' ? i18n.centroidLabel : (data.y_column || i18n.predictOutputLabel);
+      const thirdHeader = (data.algorithm === 'kmeans_clustering')
+        ? i18n.clusterLabel
+        : (data.accuracy_type === 'classification' ? i18n.predictProbaLabel : '');
+      const batchRows = rows.map(function (row) {
+        const yValue = (data.accuracy_type === 'classification' && typeof row.predicted_class !== 'undefined')
+          ? String(row.predicted_class)
+          : String(row.y_pred);
+        let thirdValue = '';
+        if (data.algorithm === 'kmeans_clustering' && typeof row.cluster_id !== 'undefined') {
+          thirdValue = i18n.clusterLabel + ' #' + String(row.cluster_id);
+        } else if (data.accuracy_type === 'classification' && typeof row.predicted_proba !== 'undefined') {
+          thirdValue = String(row.predicted_proba) + '%';
+        }
+        return '<tr>' +
+          '<td>' + escapeHtml(row.x) + '</td>' +
+          '<td>' + escapeHtml(yValue) + '</td>' +
+          '<td>' + escapeHtml(thirdValue) + '</td>' +
+        '</tr>';
+      }).join('');
+      batchWrap.innerHTML =
+        '<div class="table-responsive prediction-history-table"><table class="table table-sm table-striped mb-0 align-middle">' +
+          '<thead><tr><th>' + escapeHtml(i18n.predictXLabel) + '</th><th>' + escapeHtml(headerY) + '</th><th>' + escapeHtml(thirdHeader) + '</th></tr></thead>' +
+          '<tbody>' + batchRows + '</tbody>' +
+        '</table></div>';
+    }
+  }
+
+  function renderPredictionDashboard(data, rows) {
+    const dashboard = document.getElementById('predict-dashboard');
+    if (!dashboard) return;
+
+    const summary = (data && typeof data.summary === 'object' && data.summary) ? data.summary : {};
+    const metrics = (data && typeof data.metrics === 'object' && data.metrics) ? data.metrics : {};
+    const healthValue = (metrics.accuracy != null)
+      ? (Math.round(Number(metrics.accuracy) * 100) / 100) + '%'
+      : ((metrics.r2 != null) ? ('R2 ' + String(metrics.r2)) : ((metrics.rmse != null) ? ('RMSE ' + String(metrics.rmse)) : '—'));
+
+    dashboard.classList.remove('d-none');
+    document.getElementById('predict-headline').textContent = summary.headline || i18n.predictionLab;
+    document.getElementById('predict-subheadline').textContent = [data.model_name || '', summary.source_name || '', data.algorithm || ''].filter(Boolean).join(' · ');
+    document.getElementById('predict-source-name').textContent = summary.source_name || '—';
+    document.getElementById('predict-train-rows').textContent = String(summary.train_rows != null ? summary.train_rows : '—');
+    document.getElementById('predict-requested-points').textContent = String(summary.requested_points != null ? summary.requested_points : rows.length);
+    document.getElementById('predict-health-metric').textContent = healthValue;
+
+    const qualityBadge = document.getElementById('predict-quality-badge');
+    if (qualityBadge) {
+      qualityBadge.className = 'badge text-bg-' + String(summary.quality_tone || 'secondary');
+      qualityBadge.textContent = String(summary.quality_label || '—');
+    }
+
+    renderSimpleList(document.getElementById('predict-insights'), data.insights || []);
+    renderSimpleList(document.getElementById('predict-actions'), data.recommended_actions || []);
+
+    const charts = Array.isArray(data.chart_payloads) ? data.chart_payloads : [];
+    document.getElementById('predict-chart-1-title').textContent = charts[0] && charts[0].title ? charts[0].title : i18n.forecastScenario;
+    document.getElementById('predict-chart-2-title').textContent = charts[1] && charts[1].title ? charts[1].title : i18n.predictionTableLabel;
+    resetPredictionCharts();
+    renderPredictionChart('predict-chart-1', charts[0]);
+    renderPredictionChart('predict-chart-2', charts[1]);
+    renderPredictionTables(data, rows);
+  }
+
   const btn = document.getElementById('predict-btn');
   if (btn) {
     const modelSel = document.getElementById('predict-model-id');
     const xHelp = document.getElementById('predict-x-help');
+    const scenarioStart = document.getElementById('predict-scenario-start');
+    const scenarioPoints = document.getElementById('predict-scenario-points');
+    const scenarioStep = document.getElementById('predict-scenario-step');
+    const buildScenarioBtn = document.getElementById('predict-build-scenario');
+    const exportPdfBtn = document.getElementById('predict-export-pdf');
+    const exportPptBtn = document.getElementById('predict-export-ppt');
+
+    const getCsrfToken = function () {
+      return String(btn.dataset.csrfToken || '').trim();
+    };
+
+    const setResultMessage = function (variant, text) {
+      const result = document.getElementById('predict-result');
+      if (!result) return;
+      result.className = 'alert alert-' + variant + ' mb-0 py-2';
+      result.textContent = text;
+    };
+
+    const resolveScenarioStart = function () {
+      const explicit = Number(scenarioStart ? scenarioStart.value : '');
+      if (Number.isFinite(explicit)) return explicit;
+      if (latestPredictionState && latestPredictionState.data && latestPredictionState.data.summary) {
+        const max = Number(latestPredictionState.data.summary.x_max);
+        if (Number.isFinite(max)) return max;
+      }
+      const xInput = document.getElementById('predict-x');
+      const current = parseNumericValues(xInput ? xInput.value : '');
+      return current.length ? current[current.length - 1] : null;
+    };
+
+    const exportPredictionArtifact = async function (kind) {
+      if (!latestPredictionState || !latestPredictionState.modelId || !latestPredictionState.xRaw) {
+        setResultMessage('warning', i18n.exportNeedsPrediction);
+        return;
+      }
+      const url = kind === 'pdf' ? String(btn.dataset.exportPdfUrl || '') : String(btn.dataset.exportPptUrl || '');
+      if (!url) {
+        setResultMessage('danger', i18n.exportFailed);
+        return;
+      }
+      try {
+        setResultMessage('secondary', i18n.exportPreparing);
+        const resp = await fetch(url, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(getCsrfToken() ? { 'X-CSRFToken': getCsrfToken() } : {})
+          },
+          body: JSON.stringify({
+            model_id: latestPredictionState.modelId,
+            x: latestPredictionState.xRaw,
+            title: [latestPredictionState.data.model_name || 'forecast', kind.toUpperCase()].join(' - ')
+          })
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.error || i18n.exportFailed);
+        }
+        const blob = await resp.blob();
+        const fallbackName = kind === 'pdf' ? 'forecast_report.pdf' : 'forecast_deck.pptx';
+        downloadBlob(blob, filenameFromResponse(resp, fallbackName));
+        setResultMessage('success', kind === 'pdf' ? i18n.exportPdfLabel : i18n.exportPptLabel);
+      } catch (err) {
+        setResultMessage('danger', String(err.message || err || i18n.exportFailed));
+      }
+    };
 
     const updatePredictXHelp = function () {
       if (!xHelp || !modelSel) return;
@@ -2692,9 +3158,33 @@
       updatePredictXHelp();
     }
 
+    if (buildScenarioBtn) {
+      buildScenarioBtn.addEventListener('click', function () {
+        const xInput = document.getElementById('predict-x');
+        const start = resolveScenarioStart();
+        const points = Math.max(1, Math.min(72, Number(scenarioPoints ? scenarioPoints.value : 12) || 12));
+        const step = Number(scenarioStep ? scenarioStep.value : 0);
+        if (!Number.isFinite(start) || !Number.isFinite(step) || step <= 0) {
+          setResultMessage('warning', i18n.scenarioNeedsValues);
+          return;
+        }
+        const values = [];
+        for (let i = 0; i < points; i += 1) {
+          values.push((start + (step * i)).toFixed(6).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1'));
+        }
+        if (xInput) xInput.value = values.join(', ');
+        if (scenarioStart && !scenarioStart.value) scenarioStart.value = String(start);
+        setResultMessage('success', i18n.scenarioBuilt);
+      });
+    }
+
+    if (exportPdfBtn) exportPdfBtn.addEventListener('click', function () { exportPredictionArtifact('pdf'); });
+    if (exportPptBtn) exportPptBtn.addEventListener('click', function () { exportPredictionArtifact('ppt'); });
+
     btn.addEventListener('click', async function () {
       const xInput = document.getElementById('predict-x');
       const result = document.getElementById('predict-result');
+      const dashboard = document.getElementById('predict-dashboard');
       const predictUrl = btn.dataset.predictUrl || '';
       const msgSelect = btn.dataset.msgSelect || i18n.predictSelectModelX;
       const msgError = btn.dataset.msgError || i18n.predictionError;
@@ -2704,6 +3194,8 @@
       if (!modelId || xVal === '') {
         result.className = 'alert alert-warning mb-0 py-2';
         result.textContent = msgSelect;
+        if (dashboard) dashboard.classList.add('d-none');
+        latestPredictionState = null;
         return;
       }
 
@@ -2740,25 +3232,6 @@
             result.textContent = yCol + ' ' + row.y_pred;
           }
         } else {
-          const headerY = data.algorithm === 'kmeans_clustering' ? i18n.centroidLabel : (data.y_column || i18n.predictOutputLabel);
-          const bodyRows = rows.map(function (row) {
-            const yValue = (data.accuracy_type === 'classification' && typeof row.predicted_class !== 'undefined')
-              ? String(row.predicted_class)
-              : String(row.y_pred);
-            const clusterPart = (data.algorithm === 'kmeans_clustering' && typeof row.cluster_id !== 'undefined')
-              ? '<td class="text-nowrap">' + i18n.clusterLabel + ' #' + String(row.cluster_id) + '</td>'
-              : ((data.accuracy_type === 'classification' && typeof row.predicted_proba !== 'undefined')
-                ? '<td class="text-nowrap">' + String(row.predicted_proba) + '%</td>'
-                : '<td></td>');
-            return '<tr>' +
-              '<td class="text-nowrap">' + String(row.x) + '</td>' +
-              '<td class="text-nowrap">' + yValue + '</td>' +
-              clusterPart +
-              '</tr>';
-          }).join('');
-          const thirdHeader = (data.algorithm === 'kmeans_clustering')
-            ? ''
-            : (data.accuracy_type === 'classification' ? i18n.predictProbaLabel : '');
           const threshold = (data.accuracy_type === 'classification' && typeof data.classification_threshold !== 'undefined' && data.classification_threshold !== null)
             ? (Math.round(Number(data.classification_threshold) * 10000) / 100) + '%'
             : null;
@@ -2767,15 +3240,15 @@
             : '';
           result.innerHTML =
             '<div class="fw-semibold mb-2">' + i18n.predictBatchTitle + ' (' + String(rows.length) + ')</div>' +
-            classificationHint +
-            '<div class="table-responsive"><table class="table table-sm table-striped mb-0 align-middle">' +
-              '<thead><tr><th>' + i18n.predictXLabel + '</th><th>' + headerY + '</th><th>' + thirdHeader + '</th></tr></thead>' +
-              '<tbody>' + bodyRows + '</tbody>' +
-            '</table></div>';
+            classificationHint;
         }
+        renderPredictionDashboard(data, rows);
+        latestPredictionState = { modelId: modelId, xRaw: xVal, data: data };
       } catch (err) {
         result.className = 'alert alert-danger mb-0 py-2';
         result.textContent = err.message || msgError;
+        if (dashboard) dashboard.classList.add('d-none');
+        latestPredictionState = null;
       }
     });
   }

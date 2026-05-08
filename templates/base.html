@@ -104,7 +104,7 @@
 								<ul>
 									{% for code, info in supported_langs.items() %}
 										<li>
-											<a href="{{ url_for('public.set_language', lang_code=code, next=request.full_path) }}">{{ lang_flags.get(code, '🌐') }} {{ info.label }}</a>
+											<a href="{{ lang_switch_url(code) }}">{{ lang_flags.get(code, '🌐') }} {{ info.label }}</a>
 										</li>
 									{% endfor %}
 								</ul>

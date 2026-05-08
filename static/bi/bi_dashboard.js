@@ -112,10 +112,11 @@
     });
   }
 
-  async function apiAddCard (dashboardId, questionId, params, vizType, vizOptions, sourceKind, ratioRef) {
+  async function apiAddCard (dashboardId, questionId, params, vizType, vizOptions, sourceKind, ratioRef, mlModelId, forecastPoints, forecastStep) {
   const statusEl = document.getElementById('addcard-status');
   if (statusEl) statusEl.textContent = window.t('Criando card...');
-  const mode = String(sourceKind || 'question').toLowerCase() === 'ratio' ? 'ratio' : 'question';
+  const sourceMode = String(sourceKind || 'question').toLowerCase();
+  const mode = sourceMode === 'ratio' ? 'ratio' : (sourceMode === 'ml_model' ? 'ml_model' : 'question');
 
   if (mode === 'ratio') {
     const type = ['kpi', 'gauge'].includes(String(vizType || '').toLowerCase()) ? String(vizType || '').toLowerCase() : 'gauge';
@@ -133,6 +134,43 @@
         ...(getCsrfToken() ? { 'X-CSRFToken': getCsrfToken() } : {})
       },
       body: JSON.stringify({ source_kind: 'ratio', ratio_ref: ratioRef, question_id: 0, viz_config: vizConfig })
+    });
+    const out = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(out.error || t('Falha na requisição.'));
+    if (statusEl) statusEl.textContent = window.t('Card criado. Recarregando...');
+    window.location.reload();
+    return;
+  }
+
+  if (mode === 'ml_model') {
+    const vizConfig = {
+      type: 'ml_forecast',
+      source_kind: 'ml_model',
+      model_id: String(mlModelId || '').trim(),
+      forecast_points: Number(forecastPoints || 12),
+      x: 'x',
+      actual: 'actual',
+      predicted: 'predicted',
+      lower: 'lower',
+      upper: 'upper'
+    };
+    if (Number(forecastStep) > 0) vizConfig.step = Number(forecastStep);
+
+    const resp = await fetch(`/app/api/dashboards/${dashboardId}/cards`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(getCsrfToken() ? { 'X-CSRFToken': getCsrfToken() } : {})
+      },
+      body: JSON.stringify({
+        source_kind: 'ml_model',
+        model_id: String(mlModelId || '').trim(),
+        question_id: 0,
+        forecast_points: Number(forecastPoints || 12),
+        step: Number(forecastStep || 0),
+        viz_config: vizConfig
+      })
     });
     const out = await resp.json().catch(() => ({}));
     if (!resp.ok) throw new Error(out.error || t('Falha na requisição.'));
@@ -415,6 +453,10 @@ const ratioSel = document.getElementById('addcard-ratio');
 const ratioSearch = document.getElementById('addcard-ratio-search');
 const ratioSearchWrap = document.getElementById('addcard-ratio-search-wrap');
 const ratioWrap = document.getElementById('addcard-ratio-wrap');
+const mlWrap = document.getElementById('addcard-ml-wrap');
+const mlModelSel = document.getElementById('addcard-ml-model');
+const mlForecastPointsEl = document.getElementById('addcard-ml-forecast-points');
+const mlStepEl = document.getElementById('addcard-ml-step');
 const typeSel = document.getElementById('addcard-type');
 const dimSel = document.getElementById('addcard-dim');
 const metSel = document.getElementById('addcard-met');
@@ -427,7 +469,10 @@ const paramsWrap = document.getElementById('addcard-params-wrap');
 const createBtn = document.getElementById('addcard-create');
 
 function currentSourceKind () {
-  return String(sourceSel?.value || 'question').toLowerCase() === 'ratio' ? 'ratio' : 'question';
+  const raw = String(sourceSel?.value || 'question').toLowerCase();
+  if (raw === 'ratio') return 'ratio';
+  if (raw === 'ml_model') return 'ml_model';
+  return 'question';
 }
 
 function parseParamsInput () {
@@ -455,18 +500,23 @@ function updateFieldVisibility () {
   const sourceKind = currentSourceKind();
   const isQuestion = sourceKind === 'question';
   const isRatio = sourceKind === 'ratio';
+  const isMlModel = sourceKind === 'ml_model';
   const type = typeSel ? typeSel.value : 'table';
   if (qSearchWrap) qSearchWrap.style.display = isQuestion ? '' : 'none';
   if (qWrap) qWrap.style.display = isQuestion ? '' : 'none';
   if (ratioSearchWrap) ratioSearchWrap.style.display = isRatio ? '' : 'none';
   if (ratioWrap) ratioWrap.style.display = isRatio ? '' : 'none';
+  if (mlWrap) mlWrap.style.display = isMlModel ? '' : 'none';
 
   if (isRatio && typeSel && !['kpi', 'gauge'].includes(type)) {
     typeSel.value = 'gauge';
   }
+  if (isMlModel && typeSel && type !== 'ml_forecast') {
+    typeSel.value = 'ml_forecast';
+  }
 
-  const showDim = isQuestion && type !== 'table' && type !== 'pivot' && type !== 'gauge' && type !== 'kpi';
-  const showMet = isQuestion && type !== 'table' && type !== 'pivot';
+  const showDim = isQuestion && type !== 'table' && type !== 'pivot' && type !== 'gauge' && type !== 'kpi' && type !== 'ml_forecast';
+  const showMet = isQuestion && type !== 'table' && type !== 'pivot' && type !== 'ml_forecast';
   const showAgg = isQuestion && ['bar', 'line', 'area', 'pie', 'scatter', 'gauge', 'kpi'].includes(type);
   if (dimWrap) dimWrap.style.display = showDim ? '' : 'none';
   if (metWrap) metWrap.style.display = showMet ? '' : 'none';
@@ -555,6 +605,9 @@ if (createBtn) {
     let qid = 0;
     let params = {};
     let ratioRef = '';
+    let mlModelId = '';
+    let mlForecastPoints = 12;
+    let mlStep = 0;
 
     if (sourceKind === 'question') {
       qid = Number(qSel?.value || 0);
@@ -569,10 +622,20 @@ if (createBtn) {
         return;
       }
     } else {
-      ratioRef = String(ratioSel?.value || '').trim();
-      if (!ratioRef) {
-        if (window.uiToast) window.uiToast(t('Selecione um ratio BI.'), { variant: 'danger' }); else uiAlert(t('Selecione um ratio BI.'), t('Validação'));
-        return;
+      if (sourceKind === 'ratio') {
+        ratioRef = String(ratioSel?.value || '').trim();
+        if (!ratioRef) {
+          if (window.uiToast) window.uiToast(t('Selecione um ratio BI.'), { variant: 'danger' }); else uiAlert(t('Selecione um ratio BI.'), t('Validação'));
+          return;
+        }
+      } else if (sourceKind === 'ml_model') {
+        mlModelId = String(mlModelSel?.value || '').trim();
+        if (!mlModelId) {
+          if (window.uiToast) window.uiToast(t('Selecione um modelo ML.'), { variant: 'danger' }); else uiAlert(t('Selecione um modelo ML.'), t('Validação'));
+          return;
+        }
+        mlForecastPoints = Math.max(1, Math.min(72, Number(mlForecastPointsEl?.value || 12) || 12));
+        mlStep = Math.max(0, Number(mlStepEl?.value || 0) || 0);
       }
     }
 
@@ -587,7 +650,7 @@ if (createBtn) {
       aggFunc: aggSel?.value || ''
     };
     try {
-      await apiAddCard(dashboardId, qid, params, vizType, vizOptions, sourceKind, ratioRef);
+      await apiAddCard(dashboardId, qid, params, vizType, vizOptions, sourceKind, ratioRef, mlModelId, mlForecastPoints, mlStep);
     } catch (e) {
       if (window.uiToast) window.uiToast(String(e.message || e), { variant: 'danger' }); else uiAlert(String(e.message || e), t('Erro'));
     }

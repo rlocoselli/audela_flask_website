@@ -17,9 +17,11 @@ from collections import defaultdict
 
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, Reference
-from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.formatting.rule import ColorScaleRule, DataBarRule
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
+from .export_branding import resolve_brand_tokens
 
 
 _TEMPLATE_STYLES: dict[str, dict[str, Any]] = {
@@ -64,6 +66,13 @@ _COLOR_THEME_MAP = {
     "slate": "374151",
     "rose": "9F1239",
 }
+
+
+def _theme_from_style_guide(style_guide: str | None) -> tuple[str | None, str | None]:
+    b = resolve_brand_tokens(style_guide)
+    template = str(b.get("xlsx_template") or "").strip().lower() or None
+    theme = str(b.get("xlsx_color_theme") or "").strip().lower() or None
+    return template, theme
 
 
 def _normalize_hex_color(value: str | None) -> str | None:
@@ -475,6 +484,7 @@ def table_to_xlsx_bytes(
     top_n: int = 15,
     template: str = "clean",
     color_theme: str | None = None,
+    style_guide: str | None = None,
     add_pivot: bool = False,
     pivot_config: dict[str, Any] | None = None,
 ) -> bytes:
@@ -485,6 +495,11 @@ def table_to_xlsx_bytes(
       create a bar chart using col1 as category and col2 as value.
     """
     template_key = (template or "clean").strip().lower()
+    guide_template, guide_theme = _theme_from_style_guide(style_guide)
+    if template_key == "clean" and guide_template:
+        template_key = guide_template
+    if not color_theme and guide_theme:
+        color_theme = guide_theme
     style = _TEMPLATE_STYLES.get(template_key, _TEMPLATE_STYLES["clean"])
 
     header_fill_color = _resolve_theme_color(color_theme) or style["header_fill"]
@@ -506,6 +521,7 @@ def table_to_xlsx_bytes(
         ws["A1"].fill = PatternFill(fill_type="solid", fgColor=title_fill_color)
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=max(1, len(columns)))
     ws["A1"].alignment = Alignment(horizontal="left", vertical="center")
+    ws.row_dimensions[1].height = 26
 
     # Header
     header_row = 3
@@ -515,19 +531,33 @@ def table_to_xlsx_bytes(
         cell.font = Font(bold=True, color=header_font_color)
         cell.fill = PatternFill(fill_type="solid", fgColor=header_fill_color)
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    ws.row_dimensions[header_row].height = 24
 
     # Data
     max_rows = 200000  # practical safety
     rows = rows[:max_rows]
     apply_stripe = bool(stripe_fill_color and len(rows) <= 15000 and len(columns) <= 50)
     stripe_fill = PatternFill(fill_type="solid", fgColor=stripe_fill_color) if apply_stripe else None
+    thin_border = Border(
+        left=Side(style="thin", color="D5DEE9"),
+        right=Side(style="thin", color="D5DEE9"),
+        top=Side(style="thin", color="D5DEE9"),
+        bottom=Side(style="thin", color="D5DEE9"),
+    )
     for r_idx, r in enumerate(rows, start=header_row + 1):
         is_striped = apply_stripe and ((r_idx - (header_row + 1)) % 2 == 1)
         for c_idx, v in enumerate(r[: len(columns)], start=1):
             cell = ws.cell(row=r_idx, column=c_idx)
             cell.value = _safe_cell(v)
+            if isinstance(cell.value, (int, float)):
+                cell.number_format = "#,##0.00"
+                cell.alignment = Alignment(horizontal="right", vertical="top")
+            else:
+                cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
             if is_striped and stripe_fill is not None:
                 cell.fill = stripe_fill
+            if len(rows) <= 20000 and len(columns) <= 80:
+                cell.border = thin_border
 
     # Freeze + filter
     ws.freeze_panes = ws.cell(row=header_row + 1, column=1)
@@ -536,8 +566,118 @@ def table_to_xlsx_bytes(
 
     # Column widths (best effort)
     for i, col in enumerate(columns, start=1):
-        width = min(45, max(10, len(str(col)) + 2))
+        width = min(40, max(11, len(str(col)) + 3))
         ws.column_dimensions[get_column_letter(i)].width = width
+
+    # Apply light conditional formatting on first numeric columns in Data sheet.
+    if columns and rows:
+        numeric_candidates: list[int] = []
+        for idx in range(len(columns)):
+            if _is_numeric_column(rows[:1500], idx):
+                numeric_candidates.append(idx)
+            if len(numeric_candidates) >= 6:
+                break
+        data_start = header_row + 1
+        data_end = header_row + len(rows)
+        for idx in numeric_candidates:
+            col_letter = get_column_letter(idx + 1)
+            rng = f"{col_letter}{data_start}:{col_letter}{data_end}"
+            ws.conditional_formatting.add(
+                rng,
+                DataBarRule(start_type="min", start_value=0, end_type="max", end_value=0, color="9CCCF5", showValue=True),
+            )
+
+    # Lightweight summary sheet for executive readability.
+    if columns and rows:
+        ws_summary = wb.create_sheet(title="Summary", index=1)
+        ws_summary["A1"].value = "Executive Summary"
+        ws_summary["A1"].font = Font(size=16, bold=True, color=header_fill_color)
+        ws_summary["A3"].value = "Title"
+        ws_summary["B3"].value = title
+        ws_summary["A4"].value = "Rows"
+        ws_summary["B4"].value = len(rows)
+        ws_summary["A5"].value = "Columns"
+        ws_summary["B5"].value = len(columns)
+
+        for c in ("A3", "A4", "A5"):
+            ws_summary[c].font = Font(bold=True, color="334155")
+        ws_summary.column_dimensions["A"].width = 22
+        ws_summary.column_dimensions["B"].width = 52
+
+        numeric_stats: list[tuple[str, float, float, float]] = []
+        for idx, name in enumerate(columns[:24]):
+            vals = []
+            for row in rows[:2000]:
+                if idx >= len(row):
+                    continue
+                n = _to_float(row[idx])
+                if n is not None:
+                    vals.append(float(n))
+            if len(vals) >= 3:
+                total = float(sum(vals))
+                avg = float(total / max(1, len(vals)))
+                mx = float(max(vals))
+                numeric_stats.append((str(name), total, avg, mx))
+            if len(numeric_stats) >= 6:
+                break
+
+        if numeric_stats:
+            ws_summary["A7"].value = "Key metrics"
+            ws_summary["A7"].font = Font(bold=True, color=header_fill_color)
+            ws_summary["A8"].value = "Metric"
+            ws_summary["B8"].value = "Total"
+            ws_summary["C8"].value = "Average"
+            ws_summary["D8"].value = "Max"
+            ws_summary["E8"].value = "Status"
+            for col_letter in ("A", "B", "C", "D", "E"):
+                c = ws_summary[f"{col_letter}8"]
+                c.font = Font(bold=True, color=header_font_color)
+                c.fill = PatternFill(fill_type="solid", fgColor=header_fill_color)
+                c.alignment = Alignment(horizontal="center", vertical="center")
+            ws_summary.column_dimensions["C"].width = 16
+            ws_summary.column_dimensions["D"].width = 16
+            ws_summary.column_dimensions["E"].width = 14
+
+            rr = 9
+            for metric_name, total, avg, mx in numeric_stats:
+                ws_summary[f"A{rr}"].value = metric_name
+                ws_summary[f"B{rr}"].value = total
+                ws_summary[f"C{rr}"].value = avg
+                ws_summary[f"D{rr}"].value = mx
+                ratio = (avg / mx) if mx not in (0.0, None) else 0.0
+                status = "Watch"
+                status_fill = "FEF3C7"
+                if ratio >= 0.7:
+                    status = "Strong"
+                    status_fill = "DCFCE7"
+                elif ratio < 0.4:
+                    status = "Low"
+                    status_fill = "FEE2E2"
+                ws_summary[f"E{rr}"].value = status
+                ws_summary[f"E{rr}"].font = Font(bold=True, color="334155")
+                ws_summary[f"E{rr}"].alignment = Alignment(horizontal="center", vertical="center")
+                ws_summary[f"E{rr}"].fill = PatternFill(fill_type="solid", fgColor=status_fill)
+                ws_summary[f"B{rr}"].number_format = "#,##0.00"
+                ws_summary[f"C{rr}"].number_format = "#,##0.00"
+                ws_summary[f"D{rr}"].number_format = "#,##0.00"
+                if stripe_fill is not None and ((rr - 9) % 2 == 1):
+                    for col_letter in ("A", "B", "C", "D"):
+                        ws_summary[f"{col_letter}{rr}"].fill = stripe_fill
+                rr += 1
+
+            end_row = rr - 1
+            ws_summary.conditional_formatting.add(
+                f"B9:D{end_row}",
+                ColorScaleRule(
+                    start_type="min",
+                    start_color="FEE2E2",
+                    mid_type="percentile",
+                    mid_value=50,
+                    mid_color="FEF3C7",
+                    end_type="max",
+                    end_color="DCFCE7",
+                ),
+            )
 
     # Optional chart
     if add_chart and len(columns) >= 2 and rows:

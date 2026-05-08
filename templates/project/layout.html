@@ -33,7 +33,7 @@
           <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown">{{ lang_label(current_lang) }}</button>
           <ul class="dropdown-menu dropdown-menu-end">
             {% for code, info in supported_langs.items() %}
-              <li><a class="dropdown-item" href="{{ url_for('public.set_language', lang_code=code, next=request.full_path) }}">{{ info.label }}</a></li>
+              <li><a class="dropdown-item" href="{{ lang_switch_url(code) }}">{{ info.label }}</a></li>
             {% endfor %}
           </ul>
         </div>
