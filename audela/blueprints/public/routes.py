@@ -1,5 +1,6 @@
 import ast
 import hashlib
+import re
 from contextlib import redirect_stdout
 from datetime import date, datetime
 from io import StringIO
@@ -1075,70 +1076,80 @@ def e_learning_run_custom():
     return jsonify({"ok": True, "output": output})
 
 
-@bp.route("/demo/request", methods=["POST"])
+@bp.route("/demo/request", methods=["GET", "POST"])
 def request_demo():
-    quick_mode = (request.form.get("quick_demo") or "").strip() == "1"
-    full_name = (request.form.get("full_name") or "").strip()
-    email = (request.form.get("email") or "").strip().lower()
-    phone = (request.form.get("phone") or "").strip()
-    company = (request.form.get("company") or "").strip()
-    solution_interest = (request.form.get("solution_interest") or "").strip()
-    message = (request.form.get("message") or "").strip()
-    rdv_date_raw = (request.form.get("rdv_date") or "").strip()
-    rdv_time_raw = (request.form.get("rdv_time") or "").strip()
-    timezone = (request.form.get("timezone") or "Europe/Paris").strip() or "Europe/Paris"
+    if request.method == "GET":
+        return redirect(url_for("public.demo_request_page"))
+
     session_lang = session.get("lang")
 
-    if not email or not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
-        flash(tr("Veuillez renseigner une adresse e-mail valide.", session_lang), "error")
-        return redirect(_demo_request_redirect_target(url_for("public.demo_request_page")))
+    try:
+        quick_mode = (request.form.get("quick_demo") or "").strip() == "1"
+        full_name = (request.form.get("full_name") or "").strip()
+        email = (request.form.get("email") or "").strip().lower()
+        phone = (request.form.get("phone") or "").strip()
+        company = (request.form.get("company") or "").strip()
+        solution_interest = (request.form.get("solution_interest") or "").strip()
+        message = (request.form.get("message") or "").strip()
+        rdv_date_raw = (request.form.get("rdv_date") or "").strip()
+        rdv_time_raw = (request.form.get("rdv_time") or "").strip()
+        timezone = (request.form.get("timezone") or "Europe/Paris").strip() or "Europe/Paris"
 
-    if not quick_mode and (not full_name or not rdv_date_raw or not rdv_time_raw):
-        flash(tr("Veuillez renseigner nom, email, date et horaire du RDV.", session.get("lang")), "error")
-        return redirect(_demo_request_redirect_target(url_for("public.index") + "#five"))
+        if not email or not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
+            flash(tr("Veuillez renseigner une adresse e-mail valide.", session_lang), "error")
+            return redirect(_demo_request_redirect_target(url_for("public.demo_request_page")))
 
-    if quick_mode:
-        now = datetime.utcnow().replace(second=0, microsecond=0)
-        rdv_date = now.date()
-        rdv_time = now.time()
-        if not full_name:
-            full_name = email.split("@", 1)[0][:120] or email
-        if not solution_interest:
-            solution_interest = "demo"
-    else:
-        try:
-            rdv_date = datetime.strptime(rdv_date_raw, "%Y-%m-%d").date()
-            rdv_time = datetime.strptime(rdv_time_raw, "%H:%M").time()
-        except ValueError:
-            flash(tr("Format de date/heure invalide.", session_lang), "error")
+        if not quick_mode and (not full_name or not rdv_date_raw or not rdv_time_raw):
+            flash(tr("Veuillez renseigner nom, email, date et horaire du RDV.", session.get("lang")), "error")
             return redirect(_demo_request_redirect_target(url_for("public.index") + "#five"))
 
-    if not quick_mode and rdv_date < date.today():
-        flash(tr("La date de RDV doit être aujourd'hui ou future.", session.get("lang")), "error")
+        if quick_mode:
+            now = datetime.utcnow().replace(second=0, microsecond=0)
+            rdv_date = now.date()
+            rdv_time = now.time()
+            if not full_name:
+                full_name = email.split("@", 1)[0][:120] or email
+            if not solution_interest:
+                solution_interest = "demo"
+        else:
+            try:
+                rdv_date = datetime.strptime(rdv_date_raw, "%Y-%m-%d").date()
+                rdv_time = datetime.strptime(rdv_time_raw, "%H:%M").time()
+            except ValueError:
+                flash(tr("Format de date/heure invalide.", session_lang), "error")
+                return redirect(_demo_request_redirect_target(url_for("public.index") + "#five"))
+
+        if not quick_mode and rdv_date < date.today():
+            flash(tr("La date de RDV doit être aujourd'hui ou future.", session.get("lang")), "error")
+            return redirect(_demo_request_redirect_target(url_for("public.index") + "#five"))
+
+        if quick_mode and not message:
+            message = "Quick demo request"
+
+        prospect = Prospect(
+            full_name=full_name,
+            email=email,
+            phone=phone,
+            company=company,
+            solution_interest=solution_interest,
+            message=message,
+            rdv_date=rdv_date,
+            rdv_time=rdv_time,
+            timezone=timezone,
+            status="new",
+        )
+        db.session.add(prospect)
+        db.session.commit()
+
+        _notify_demo_request_admin(prospect, quick_mode=quick_mode)
+
+        flash(tr("Merci. Votre demande de démonstration a bien été enregistrée.", session_lang), "success")
         return redirect(_demo_request_redirect_target(url_for("public.index") + "#five"))
-
-    if quick_mode and not message:
-        message = "Quick demo request"
-
-    prospect = Prospect(
-        full_name=full_name,
-        email=email,
-        phone=phone,
-        company=company,
-        solution_interest=solution_interest,
-        message=message,
-        rdv_date=rdv_date,
-        rdv_time=rdv_time,
-        timezone=timezone,
-        status="new",
-    )
-    db.session.add(prospect)
-    db.session.commit()
-
-    _notify_demo_request_admin(prospect, quick_mode=quick_mode)
-
-    flash(tr("Merci. Votre demande de démonstration a bien été enregistrée.", session_lang), "success")
-    return redirect(_demo_request_redirect_target(url_for("public.index") + "#five"))
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("Demo request failed unexpectedly")
+        flash(tr("Une erreur est survenue. Merci de réessayer.", session_lang), "error")
+        return redirect(_demo_request_redirect_target(url_for("public.demo_request_page")))
 
 
 @bp.route("/demo")
