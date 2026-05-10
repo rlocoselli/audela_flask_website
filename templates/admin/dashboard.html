@@ -43,6 +43,12 @@
     <div class="col-12 col-md-4">
       <div class="card border-0 shadow-sm"><div class="card-body"><div class="text-secondary small">{{ _('Home / Plans visits') }}</div><div class="h4 mb-0">{{ web_traffic.home_visits }} / {{ web_traffic.plans_visits }}</div></div></div>
     </div>
+    <div class="col-12 col-md-4">
+      <div class="card border-0 shadow-sm"><div class="card-body"><div class="text-secondary small">{{ _('Login visits') }}</div><div class="h4 mb-0">{{ web_traffic.login_visits }}</div></div></div>
+    </div>
+    <div class="col-12 col-md-4">
+      <div class="card border-0 shadow-sm"><div class="card-body"><div class="text-secondary small">{{ _('Register visits') }}</div><div class="h4 mb-0">{{ web_traffic.register_visits }}</div></div></div>
+    </div>
   </div>
 
   <ul class="nav nav-tabs mb-3" id="adminDashboardTabs" role="tablist">
@@ -150,7 +156,7 @@
     <div class="tab-pane fade" id="traffic-pane" role="tabpanel" aria-labelledby="traffic-tab" tabindex="0">
       <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-body d-flex flex-wrap align-items-center justify-content-between gap-2">
-          <strong>{{ _('Public web traffic') }}</strong>
+          <strong>{{ _('Web traffic') }}</strong>
           <form method="get" action="{{ url_for('admin.dashboard') }}" class="d-flex align-items-center gap-2">
             <label class="small text-secondary" for="monthsTraffic">{{ _('Period') }}</label>
             <select class="form-select form-select-sm" id="monthsTraffic" name="months" style="max-width: 180px;">
@@ -170,8 +176,16 @@
           <div class="row g-3 mb-3">
             <div class="col-12 col-md-3"><div class="border rounded p-3 h-100"><div class="text-secondary small">{{ _('Total visits') }}</div><div class="h5 mb-0">{{ web_traffic.total_visits }}</div></div></div>
             <div class="col-12 col-md-3"><div class="border rounded p-3 h-100"><div class="text-secondary small">{{ _('Unique visitors') }}</div><div class="h5 mb-0">{{ web_traffic.unique_visitors }}</div></div></div>
+            <div class="col-12 col-md-3"><div class="border rounded p-3 h-100"><div class="text-secondary small">{{ _('Public visits') }}</div><div class="h5 mb-0">{{ web_traffic.public_visits }}</div></div></div>
+            <div class="col-12 col-md-3"><div class="border rounded p-3 h-100"><div class="text-secondary small">{{ _('Internal page visits') }}</div><div class="h5 mb-0">{{ web_traffic.internal_visits }}</div></div></div>
             <div class="col-12 col-md-3"><div class="border rounded p-3 h-100"><div class="text-secondary small">{{ _('Home page visits') }}</div><div class="h5 mb-0">{{ web_traffic.home_visits }}</div></div></div>
             <div class="col-12 col-md-3"><div class="border rounded p-3 h-100"><div class="text-secondary small">{{ _('Plans page visits') }}</div><div class="h5 mb-0">{{ web_traffic.plans_visits }}</div></div></div>
+            <div class="col-12 col-md-3"><div class="border rounded p-3 h-100"><div class="text-secondary small">{{ _('Login page visits') }}</div><div class="h5 mb-0">{{ web_traffic.login_visits }}</div></div></div>
+            <div class="col-12 col-md-3"><div class="border rounded p-3 h-100"><div class="text-secondary small">{{ _('Register page visits') }}</div><div class="h5 mb-0">{{ web_traffic.register_visits }}</div></div></div>
+            <div class="col-12 col-md-3"><div class="border rounded p-3 h-100"><div class="text-secondary small">{{ _('Unique login visitors') }}</div><div class="h5 mb-0">{{ web_traffic.login_unique_visitors }}</div></div></div>
+            <div class="col-12 col-md-3"><div class="border rounded p-3 h-100"><div class="text-secondary small">{{ _('Unique register visitors') }}</div><div class="h5 mb-0">{{ web_traffic.register_unique_visitors }}</div></div></div>
+            <div class="col-12 col-md-6"><div class="border rounded p-3 h-100"><div class="text-secondary small">{{ _('Internal unique visitors') }}</div><div class="h5 mb-0">{{ web_traffic.internal_unique_visitors }}</div></div></div>
+            <div class="col-12 col-md-6"><div class="border rounded p-3 h-100"><div class="text-secondary small">{{ _('Most used feature') }}</div><div class="h5 mb-0">{{ web_traffic.top_features[0].feature if web_traffic.top_features else _('No data') }}</div></div></div>
             <div class="col-12 col-md-6"><div class="border rounded p-3 h-100"><div class="text-secondary small">{{ _('Top country') }}</div><div class="h5 mb-0">{{ web_traffic.top_countries[0].country_code if web_traffic.top_countries else 'UNK' }}</div></div></div>
             <div class="col-12 col-md-6"><div class="border rounded p-3 h-100"><div class="text-secondary small">{{ _('Top language') }}</div><div class="h5 mb-0">{{ web_traffic.top_languages[0].language_code if web_traffic.top_languages else 'unknown' }}</div></div></div>
           </div>
@@ -185,7 +199,7 @@
             </div>
             <div class="col-12 col-xl-4">
               <div class="border rounded p-2 p-md-3 mb-3">
-                <div class="small text-secondary mb-2">{{ _('Top public pages') }}</div>
+                <div class="small text-secondary mb-2">{{ _('Top pages') }}</div>
                 <div id="adminTopPagesChart" style="height: 320px;"></div>
               </div>
             </div>
@@ -221,6 +235,61 @@
                     {% for row in web_traffic.top_countries %}
                       <tr>
                         <td><code>{{ row.country_code }}</code></td>
+                        <td class="text-end">{{ row.visits }}</td>
+                        <td class="text-end">{{ row.unique_visitors }}</td>
+                      </tr>
+                    {% else %}
+                      <tr>
+                        <td colspan="3" class="text-center text-secondary">{{ _('No data') }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="col-12 col-xl-6">
+              <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th>{{ _('Feature') }}</th>
+                      <th class="text-end">{{ _('Visits') }}</th>
+                      <th class="text-end">{{ _('Share') }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for row in web_traffic.top_features %}
+                      <tr>
+                        <td>{{ row.feature }}</td>
+                        <td class="text-end">{{ row.visits }}</td>
+                        <td class="text-end">{{ '%.1f'|format(row.share_pct) }}%</td>
+                      </tr>
+                    {% else %}
+                      <tr>
+                        <td colspan="3" class="text-center text-secondary">{{ _('No data') }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="row g-3 mt-1">
+            <div class="col-12 col-xl-6">
+              <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th>{{ _('Internal page') }}</th>
+                      <th class="text-end">{{ _('Visits') }}</th>
+                      <th class="text-end">{{ _('Unique visitors') }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for row in web_traffic.top_internal_pages %}
+                      <tr>
+                        <td><code>{{ row.path }}</code></td>
                         <td class="text-end">{{ row.visits }}</td>
                         <td class="text-end">{{ row.unique_visitors }}</td>
                       </tr>

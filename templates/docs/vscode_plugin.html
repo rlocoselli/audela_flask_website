@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}VS Code Plugin Documentation - AUDELA{% endblock %}
+{% block meta_description %}Documentation du plugin VS Code AUDELA ML SDK Tools et guide de publication Marketplace.{% endblock %}
+{% block canonical_url %}{{ site_public_url.rstrip('/') }}/docs/vscode-plugin{% endblock %}
+{% block og_url %}{{ site_public_url.rstrip('/') }}/docs/vscode-plugin{% endblock %}
+
+{% block content %}
+<section id="main" class="wrapper style1">
+  <div class="container">
+    <header class="major">
+      <h2>VS Code Plugin - AUDELA ML SDK Tools</h2>
+      <p>Guide officiel pour construire, packager et publier le plugin VS Code AUDELA sur Marketplace.</p>
+    </header>
+
+    <section class="box">
+      <h3>1. Repository location</h3>
+      <p>The extension source is in:</p>
+      <pre><code>vscode/audela-ml-sdk-extension</code></pre>
+    </section>
+
+    <section class="box">
+      <h3>2. Commands provided</h3>
+      <ul>
+        <li><code>AUDELA: Open ML SDK Docs</code></li>
+        <li><code>AUDELA: Insert Notebook SDK Bootstrap</code></li>
+        <li><code>AUDELA: Insert train_and_register Example</code></li>
+      </ul>
+    </section>
+
+    <section class="box">
+      <h3>3. Build and package</h3>
+      <pre><code>cd vscode/audela-ml-sdk-extension
+npm install
+npm run compile
+npx @vscode/vsce package</code></pre>
+      <p>The generated <code>.vsix</code> can be installed locally in VS Code.</p>
+    </section>
+
+    <section class="box">
+      <h3>4. Publish on Marketplace</h3>
+      <ol>
+        <li>Create a publisher in Visual Studio Marketplace (if not already created).</li>
+        <li>Set your publisher id in <code>package.json</code>.</li>
+        <li>Login and publish:</li>
+      </ol>
+      <pre><code>npx @vscode/vsce login audela
+npx @vscode/vsce publish</code></pre>
+      <p>For your public docs integration, use: <code>{{ site_public_url }}/docs/ml-sdk</code>.</p>
+    </section>
+
+    <section class="box">
+      <h3>5. Quality checklist</h3>
+      <ul>
+        <li>Update extension icon and README screenshots</li>
+        <li>Ensure semantic version bump before each publish</li>
+        <li>Keep changelog updated</li>
+        <li>Run <code>npm run compile</code> before packaging</li>
+      </ul>
+    </section>
+  </div>
+</section>
+{% endblock %}

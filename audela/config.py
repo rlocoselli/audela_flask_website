@@ -112,6 +112,14 @@ class Config:
     MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI", "").strip()
     MLFLOW_EMBED_URL = os.environ.get("MLFLOW_EMBED_URL", "").strip()
     MLFLOW_ENABLED = os.environ.get("MLFLOW_ENABLED", "").strip()
+    JUPYTER_EMBED_URL = os.environ.get("JUPYTER_EMBED_URL", "").strip()
+    JUPYTER_EMBED_TOKEN = os.environ.get("JUPYTER_EMBED_TOKEN", "").strip()
+    JUPYTERHUB_BASE_URL = os.environ.get("JUPYTERHUB_BASE_URL", "").strip()
+    JUPYTER_SUPPORTED_KERNELS = os.environ.get("JUPYTER_SUPPORTED_KERNELS", "python,r,sql,scala").strip()
+    JUPYTER_PREBUILT_ENVS = os.environ.get(
+        "JUPYTER_PREBUILT_ENVS",
+        "sklearn,pytorch,tensorflow,xgboost,huggingface",
+    ).strip()
 
     # SMTP / Email (used by Flask-Mail and ETL notifications)
     MAIL_SERVER = os.environ.get("MAIL_SERVER", "")
@@ -129,6 +137,7 @@ class DevConfig(Config):
     DEBUG = True
     MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI", "http://127.0.0.1:5001").strip()
     MLFLOW_EMBED_URL = os.environ.get("MLFLOW_EMBED_URL", MLFLOW_TRACKING_URI).strip()
+    JUPYTER_EMBED_URL = os.environ.get("JUPYTER_EMBED_URL", "http://127.0.0.1:8888/lab").strip()
     # Local dev convenience: avoid SMTP dependency and still validate mail flows.
     MAIL_SUPPRESS_SEND = os.environ.get("MAIL_SUPPRESS_SEND", "true").lower() == "true"
     MAIL_DEV_MODE = os.environ.get("MAIL_DEV_MODE", "true").lower() == "true"

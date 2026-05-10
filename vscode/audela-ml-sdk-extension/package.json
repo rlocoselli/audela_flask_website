@@ -1,0 +1,62 @@
+{
+  "name": "audela-ml-sdk-tools",
+  "displayName": "AUDELA ML SDK Tools",
+  "description": "VS Code helpers for AUDELA ML SDK notebooks",
+  "version": "0.1.0",
+  "publisher": "audela",
+  "icon": "icon.png",
+  "license": "MIT",
+  "homepage": "https://audeladedonnees.fr/docs/vscode-plugin",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/audela-data/audela_flask_website.git"
+  },
+  "bugs": {
+    "url": "https://github.com/audela-data/audela_flask_website/issues"
+  },
+  "engines": {
+    "vscode": "^1.88.0"
+  },
+  "categories": [
+    "Other",
+    "Notebooks",
+    "Data Science"
+  ],
+  "keywords": [
+    "audela",
+    "ml",
+    "sdk",
+    "jupyter",
+    "notebook",
+    "forecast",
+    "bi"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "audelaMlSdk.openDocs",
+        "title": "AUDELA: Open ML SDK Docs"
+      },
+      {
+        "command": "audelaMlSdk.insertNotebookBootstrap",
+        "title": "AUDELA: Insert Notebook SDK Bootstrap"
+      },
+      {
+        "command": "audelaMlSdk.insertTrainAndRegister",
+        "title": "AUDELA: Insert train_and_register Example"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.12",
+    "@types/vscode": "^1.88.0",
+    "@vscode/vsce": "^2.26.0",
+    "typescript": "^5.4.5"
+  }
+}

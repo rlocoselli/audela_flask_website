@@ -101,6 +101,7 @@
       <a class="nav-link {% if ml_page_key == 'models' %}active{% endif %}" href="{{ url_for('ml.models_page') }}"><i class="bi bi-boxes me-2"></i>{{ _('Models') }}</a>
       <a class="nav-link {% if ml_page_key == 'concepts' %}active{% endif %}" href="{{ url_for('ml.concepts_page') }}"><i class="bi bi-diagram-2 me-2"></i>{{ _('Concepts ML') }}</a>
       <a class="nav-link {% if ml_page_key == 'mlflow' %}active{% endif %}" href="{{ url_for('ml.mlflow_page') }}"><i class="bi bi-activity me-2"></i>{{ _('MLflow') }}</a>
+      <a class="nav-link {% if ml_page_key == 'notebooks' %}active{% endif %}" href="{{ url_for('ml.notebooks_page') }}"><i class="bi bi-journal-code me-2"></i>{{ _('Notebooks') }}</a>
       <a class="nav-link {% if ml_page_key == 'sentiment' %}active{% endif %}" href="{{ url_for('ml.sentiment_page') }}"><i class="bi bi-chat-heart me-2"></i>{{ _('Analyse de sentiment') }}</a>
 
       <div class="small-muted text-uppercase mt-3 mb-1">{{ _('Raccourcis BI') }}</div>
@@ -192,6 +193,7 @@
       <a class="nav-link {% if ml_page_key == 'models' %}active{% endif %}" href="{{ url_for('ml.models_page') }}">{{ _('Models') }}</a>
       <a class="nav-link {% if ml_page_key == 'concepts' %}active{% endif %}" href="{{ url_for('ml.concepts_page') }}">{{ _('Concepts ML') }}</a>
       <a class="nav-link {% if ml_page_key == 'mlflow' %}active{% endif %}" href="{{ url_for('ml.mlflow_page') }}">{{ _('MLflow') }}</a>
+      <a class="nav-link {% if ml_page_key == 'notebooks' %}active{% endif %}" href="{{ url_for('ml.notebooks_page') }}">{{ _('Notebooks') }}</a>
       <a class="nav-link {% if ml_page_key == 'sentiment' %}active{% endif %}" href="{{ url_for('ml.sentiment_page') }}">{{ _('Analyse de sentiment') }}</a>
 
       <hr>

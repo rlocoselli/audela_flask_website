@@ -59,6 +59,9 @@
     {% elif selected_product == 'ml' %}
       <div class="box" style="margin-bottom:1rem;">
         <strong>{{ _('Filtre actif : ML Studio') }}</strong>
+        <div style="margin-top:.6rem;">
+          <a href="{{ url_for('public.docs_ml_sdk') }}" class="button small primary">{{ _('Voir la documentation ML SDK') }}</a>
+        </div>
       </div>
     {% elif selected_product == 'credit' %}
       <div class="box" style="margin-bottom:1rem;">

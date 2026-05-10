@@ -15,6 +15,7 @@ ML/MLOps included:
 	- from containers at `http://mlflow:5000`
 	- from host Python processes at `http://127.0.0.1:5001`
 	- from browser users (via Traefik) at `https://$APP_HOSTNAME/mlflow/`
+- **Jupyter Lab (optional)** can run behind Traefik at `https://$APP_HOSTNAME/jupyter/lab`
 
 Background jobs included:
 - **Celery Worker** (`celery-worker`) for async tasks
@@ -144,6 +145,41 @@ Quick health checks:
 ```bash
 docker compose ps
 curl -fsS http://127.0.0.1:5001/ >/dev/null && echo "MLflow OK"
+
+## Jupyter embedding (iframe-ready)
+
+### Local development without Docker
+
+Run Jupyter with Audela embed-safe headers:
+
+```bash
+AUDELA_TENANT_ID=12 ./scripts/start_jupyter_embed.sh
+```
+
+`AUDELA_TENANT_ID` is required to enforce strict tenant folder isolation.
+
+Set:
+
+```env
+JUPYTER_EMBED_URL=http://127.0.0.1:8888/lab
+```
+
+This removes the common iframe refusal caused by strict frame-ancestor defaults.
+
+### Docker profile with same-domain proxy
+
+The compose stack now includes an optional `jupyter` profile routed by Traefik at `/jupyter/`.
+
+```bash
+docker compose --profile jupyter up -d --build
+```
+
+Recommended `.env` values:
+
+```env
+JUPYTER_EMBED_URL=https://$APP_HOSTNAME/jupyter/lab
+JUPYTER_TOKEN=change-me-strong-token
+```
 ```
 
 ## Alternative: Let's Encrypt certificates

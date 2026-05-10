@@ -6,12 +6,13 @@ import csv
 import io
 import json
 import math
+import os
 import random
 import re
 import secrets
 from collections import Counter
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 
 from flask import abort, current_app, flash, g, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
@@ -89,6 +90,48 @@ def _to_number(value: Any) -> float | None:
         return out if out == out else None
     except Exception:
         return None
+
+
+def _json_safe_scalar(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    try:
+        return float(value)
+    except Exception:
+        return str(value)
+
+
+def _json_safe_rows(rows: list[Any], max_rows: int) -> list[list[Any]]:
+    safe_rows: list[list[Any]] = []
+    for row in rows[:max_rows]:
+        if isinstance(row, (list, tuple)):
+            safe_rows.append([_json_safe_scalar(item) for item in row])
+        else:
+            safe_rows.append([_json_safe_scalar(row)])
+    return safe_rows
+
+
+def _infer_column_type(values: list[Any]) -> str:
+    non_null = [v for v in values if v is not None and str(v).strip() != ""]
+    if not non_null:
+        return "unknown"
+    bool_like = 0
+    numeric_like = 0
+    for val in non_null:
+        if isinstance(val, bool):
+            bool_like += 1
+            continue
+        text = str(val).strip().lower()
+        if text in {"true", "false", "0", "1", "yes", "no"}:
+            bool_like += 1
+            continue
+        if _to_number(val) is not None:
+            numeric_like += 1
+    if bool_like == len(non_null):
+        return "boolean"
+    if numeric_like == len(non_null):
+        return "number"
+    return "string"
 
 
 def _parse_predict_values(raw_value: Any) -> list[float]:
@@ -1013,6 +1056,46 @@ def _render_ml_page(page_key: str = "supervised"):
         str(current_app.config.get("MLFLOW_EMBED_URL") or "").strip()
         or str(current_app.config.get("MLFLOW_TRACKING_URI") or "").strip()
     )
+    jupyter_embed_url = str(current_app.config.get("JUPYTER_EMBED_URL") or "").strip()
+    jupyterhub_base_url = str(current_app.config.get("JUPYTERHUB_BASE_URL") or "").strip()
+    jupyter_embed_token = str(current_app.config.get("JUPYTER_EMBED_TOKEN") or "").strip()
+    requested_project = str(request.args.get("project") or "default").strip()
+    project_slug = _safe_project_slug(requested_project)
+    project_workspace = _ensure_tenant_project_workspace(int(g.tenant.id), project_slug)
+    project_tree_rel = project_workspace["jupyter_tree_rel"]
+    if jupyterhub_base_url:
+        jupyter_embed_url = _build_jupyterhub_project_url(
+            jupyterhub_base_url,
+            current_user.email,
+            project_tree_rel,
+        )
+    tenant_notebook_rel_url = project_tree_rel.replace("\\", "/")
+    if jupyter_embed_url:
+        try:
+            parsed = urlsplit(jupyter_embed_url)
+            path = parsed.path or "/lab"
+            normalized = path.rstrip("/")
+            if "/lab/tree/" not in path:
+                if normalized.endswith("/lab"):
+                    path = f"{normalized}/tree/{quote(tenant_notebook_rel_url, safe='/')}"
+                elif normalized.endswith("/tree"):
+                    path = f"{normalized}/{quote(tenant_notebook_rel_url, safe='/')}"
+                else:
+                    path = f"{normalized}/lab/tree/{quote(tenant_notebook_rel_url, safe='/')}"
+            jupyter_embed_url = urlunsplit((parsed.scheme, parsed.netloc, path, parsed.query, parsed.fragment))
+        except Exception:
+            pass
+    if jupyter_embed_url and jupyter_embed_token:
+        try:
+            parsed = urlsplit(jupyter_embed_url)
+            params = dict(parse_qsl(parsed.query, keep_blank_values=True))
+            if "token" not in params:
+                params["token"] = jupyter_embed_token
+                jupyter_embed_url = urlunsplit(
+                    (parsed.scheme, parsed.netloc, parsed.path, urlencode(params), parsed.fragment)
+                )
+        except Exception:
+            pass
     tenant_mlflow_runs: list[dict[str, Any]] = []
     mlflow_runs_error = ""
     if page_key == "mlflow":
@@ -1020,6 +1103,20 @@ def _render_ml_page(page_key: str = "supervised"):
         tenant_mlflow_runs = mlflow_result.get("runs") if isinstance(mlflow_result.get("runs"), list) else []
         if not bool(mlflow_result.get("ok")):
             mlflow_runs_error = str(mlflow_result.get("error") or mlflow_result.get("reason") or "")
+
+    # Build a direct link to START_HERE.ipynb so users land on the guided notebook.
+    start_here_url = ""
+    if jupyter_embed_url:
+        try:
+            parsed = urlsplit(jupyter_embed_url)
+            # Strip any existing /tree/... path so we can construct an exact file link.
+            base_lab = parsed.path
+            if "/tree/" in base_lab:
+                base_lab = base_lab[: base_lab.index("/tree/")]
+            start_here_path = f"{base_lab.rstrip('/')}/tree/{quote(project_tree_rel + '/START_HERE.ipynb', safe='/')}"
+            start_here_url = urlunsplit((parsed.scheme, parsed.netloc, start_here_path, parsed.query, parsed.fragment))
+        except Exception:
+            pass
 
     return render_template(
         "ml/studio.html",
@@ -1029,10 +1126,423 @@ def _render_ml_page(page_key: str = "supervised"):
         total_models_count=len(all_models),
         visible_models_count=len(models),
         mlflow_embed_url=mlflow_embed_url,
+        jupyter_embed_url=jupyter_embed_url,
+        jupyterhub_base_url=jupyterhub_base_url,
+        selected_project=project_slug,
+        workspace_root_rel=project_workspace["workspace_root_rel"],
+        notebook_folder_rel=project_workspace["notebook_folder_rel"],
+        enabled_kernel_list=_configured_enabled_kernels(),
+        enabled_env_list=_configured_prebuilt_envs(),
+        notebook_template_version=_notebook_template_version(),
         tenant_mlflow_runs=tenant_mlflow_runs,
         mlflow_runs_error=mlflow_runs_error,
+        tenant_notebook_rel=tenant_notebook_rel_url,
+        jupyter_start_here_url=start_here_url,
         ml_page_key=page_key,
     )
+
+
+def _nb_src(*lines: str) -> list[str]:
+    """Return a well-formed nbformat source list.
+
+    Each line except the last is terminated with '\\n' so that Jupyter joins
+    them correctly into multi-line cell text. Without this every line merges
+    into one, producing syntax errors at run time.
+    """
+    result = []
+    for i, line in enumerate(lines):
+        result.append(line if i == len(lines) - 1 else line + "\n")
+    return result
+
+
+def _safe_project_slug(value: str) -> str:
+    raw = str(value or "").strip().lower()
+    if not raw:
+        return "default"
+    slug = re.sub(r"[^a-z0-9_-]+", "-", raw)
+    slug = re.sub(r"-+", "-", slug).strip("-")
+    return (slug or "default")[:64]
+
+
+def _tenant_projects_root(tenant_id: int) -> str:
+    project_root = os.path.abspath(os.path.join(current_app.root_path, os.pardir))
+    return os.path.join(project_root, "instance", "tenant_files", str(int(tenant_id)), "projects")
+
+
+def _ensure_tenant_project_workspace(tenant_id: int, project_slug: str) -> dict[str, str]:
+    slug = _safe_project_slug(project_slug)
+    projects_root = _tenant_projects_root(tenant_id)
+    workspace_root = os.path.join(projects_root, slug)
+    scaffold_dirs = [
+        "notebooks",
+        "src",
+        "data",
+        "models",
+        "pipelines",
+    ]
+    for rel_dir in scaffold_dirs:
+        os.makedirs(os.path.join(workspace_root, rel_dir), exist_ok=True)
+
+    starter_files: dict[str, str] = {
+        "requirements.txt": "scikit-learn\npandas\nmlflow\n",
+        "environment.yml": "name: audela-project\ndependencies:\n  - python=3.11\n  - pip\n  - pip:\n      - scikit-learn\n      - pandas\n      - mlflow\n",
+        "Dockerfile": "FROM python:3.11-slim\nWORKDIR /project\nCOPY requirements.txt /project/requirements.txt\nRUN pip install --no-cache-dir -r requirements.txt\n",
+        "mlstudio.yaml": "project:\n  name: " + slug + "\ntracking:\n  provider: mlflow\n",
+        os.path.join("src", "__init__.py"): "",
+        os.path.join("src", "audela_sdk.py"): _internal_notebook_sdk_source(),
+    }
+    for filename, content in starter_files.items():
+        dst = os.path.join(workspace_root, filename)
+        should_refresh = filename in {
+            os.path.join("src", "audela_sdk.py"),
+        }
+        if should_refresh or not os.path.exists(dst):
+            with open(dst, "w", encoding="utf-8") as handle:
+                handle.write(content)
+
+    notebooks_root = os.path.join(workspace_root, "notebooks")
+    example_notebooks: dict[str, dict[str, Any]] = {
+        "START_HERE.ipynb": {
+            "cells": [
+                {
+                    "cell_type": "markdown",
+                    "metadata": {"language": "markdown"},
+                    "source": _nb_src(
+                        "# Start Here",
+                        f"Project: {slug}",
+                        "",
+                        "Run these in order:",
+                        "1. Open `bi_dataset_explorer.ipynb` to discover BI sources and preview SQL via the SDK.",
+                        "2. Open `model_registration_example.ipynb` to see how a model is saved into Audela via the SDK.",
+                        "3. Open `../src/audela_sdk.py` if you want to inspect the internal SDK methods.",
+                        "4. Download the latest template from ML Studio if you want the most recent guided notebook.",
+                    ),
+                }
+            ],
+            "metadata": {"language_info": {"name": "python"}},
+            "nbformat": 4,
+            "nbformat_minor": 5,
+        },
+        "bi_dataset_explorer.ipynb": {
+            "cells": [
+                {
+                    "cell_type": "markdown",
+                    "metadata": {"language": "markdown"},
+                    "source": _nb_src(
+                        "# BI Dataset Explorer",
+                        "Tenant-scoped example notebook for listing BI sources and previewing SQL output.",
+                    ),
+                },
+                {
+                    "cell_type": "code",
+                    "metadata": {"language": "python"},
+                    "source": _nb_src(
+                        "from pathlib import Path",
+                        "import sys, os",
+                        "sys.path.insert(0, str(Path.cwd().parent / 'src'))",
+                        "from audela_sdk import AudelaNotebookSDK",
+                        "",
+                        "# --- Authentication ---",
+                        "# Copy your session cookie: DevTools (F12) > Application > Cookies > 'session' value.",
+                        "# Paste it below, or set the AUDELA_SESSION_COOKIE env var before starting Jupyter.",
+                        "sdk = AudelaNotebookSDK(",
+                        "    base_url='http://127.0.0.1:5000',",
+                        "    session_cookie=os.environ.get('AUDELA_SESSION_COOKIE', ''),  # or paste here",
+                        ")",
+                        "",
+                        "def list_sources():",
+                        "    data = sdk.list_bi_sources()",
+                        "    print(data)",
+                        "",
+                        "def preview(source_id, sql):",
+                        "    data = sdk.preview_bi_dataset(source_id=source_id, sql_text=sql, row_limit=30)",
+                        "    print(data)",
+                        "",
+                        "def schema(source_id, sql):",
+                        "    data = sdk.schema_bi_dataset(source_id=source_id, sql_text=sql, row_limit=120)",
+                        "    print(data)",
+                    ),
+                },
+            ],
+            "metadata": {"language_info": {"name": "python"}},
+            "nbformat": 4,
+            "nbformat_minor": 5,
+        },
+        "model_registration_example.ipynb": {
+            "cells": [
+                {
+                    "cell_type": "markdown",
+                    "metadata": {"language": "markdown"},
+                    "source": _nb_src(
+                        "# Model Registration Example",
+                        "Tenant-scoped example notebook that posts a model payload to Audela.",
+                    ),
+                },
+                {
+                    "cell_type": "code",
+                    "metadata": {"language": "python"},
+                    "source": _nb_src(
+                        "from pathlib import Path",
+                        "import sys, os",
+                        "sys.path.insert(0, str(Path.cwd().parent / 'src'))",
+                        "from audela_sdk import AudelaNotebookSDK, MODEL_BUILDERS",
+                        "",
+                        "# --- Authentication ---",
+                        "# Copy your session cookie: DevTools (F12) > Application > Cookies > 'session' value.",
+                        "# Paste it below, or set the AUDELA_SESSION_COOKIE env var before starting Jupyter.",
+                        "sdk = AudelaNotebookSDK(",
+                        "    base_url='http://127.0.0.1:5000',",
+                        "    session_cookie=os.environ.get('AUDELA_SESSION_COOKIE', ''),  # or paste here",
+                        ")",
+                        "algorithm, model_data = MODEL_BUILDERS['linear_regression'](slope=1.0, intercept=0.0)",
+                        "payload = sdk.make_payload(",
+                        "    model_name='Tenant Example Model',",
+                        "    algorithm=algorithm,",
+                        "    source_id=1,",
+                        "    sql_text='SELECT 1 AS x, 2 AS y',",
+                        "    x_column='x',",
+                        "    y_column='y',",
+                        "    model_data=model_data,",
+                        "    metrics={'r2': 1.0},",
+                        "    params={'origin': 'tenant_example'},",
+                        ")",
+                        "print(sdk.register_model(payload))",
+                    ),
+                },
+            ],
+            "metadata": {"language_info": {"name": "python"}},
+            "nbformat": 4,
+            "nbformat_minor": 5,
+        },
+    }
+    for filename, notebook_json in example_notebooks.items():
+        dst = os.path.join(notebooks_root, filename)
+        with open(dst, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps(notebook_json, ensure_ascii=True, indent=2))
+
+    workspace_root_rel = os.path.join("instance", "tenant_files", str(int(tenant_id)), "projects", slug).replace("\\", "/")
+    notebook_folder_rel = os.path.join(workspace_root_rel, "notebooks").replace("\\", "/")
+    jupyter_tree_rel = os.path.join(slug, "notebooks").replace("\\", "/")
+    return {
+        "workspace_root_rel": workspace_root_rel,
+        "notebook_folder_rel": notebook_folder_rel,
+        "jupyter_tree_rel": jupyter_tree_rel,
+    }
+
+
+def _build_jupyterhub_project_url(base_url: str, user_email: str, project_tree_rel: str) -> str:
+    base = str(base_url or "").strip().rstrip("/")
+    if not base:
+        return ""
+    user_slug = _safe_project_slug(str(user_email or "user").split("@", 1)[0])
+    tree_path = quote(project_tree_rel.replace("\\", "/"), safe="/")
+
+    if "{username}" in base:
+        return base.format(username=user_slug) + f"/lab/tree/{tree_path}"
+    if "/user/" in base or base.endswith("/lab"):
+        return base + f"/tree/{tree_path}" if base.endswith("/lab") else base + f"/lab/tree/{tree_path}"
+    return base + f"/user/{user_slug}/lab/tree/{tree_path}"
+
+
+def _configured_enabled_kernels() -> list[str]:
+    raw = str(current_app.config.get("JUPYTER_SUPPORTED_KERNELS") or "python,r,sql,scala")
+    out = [item.strip() for item in raw.split(",") if item.strip()]
+    return out or ["python"]
+
+
+def _configured_prebuilt_envs() -> list[str]:
+    raw = str(
+        current_app.config.get("JUPYTER_PREBUILT_ENVS")
+        or "sklearn,pytorch,tensorflow,xgboost,huggingface"
+    )
+    out = [item.strip() for item in raw.split(",") if item.strip()]
+    return out or ["sklearn"]
+
+
+def _notebook_template_version() -> str:
+    release = str(current_app.config.get("APP_RELEASE") or "dev").strip() or "dev"
+    return f"nbtpl-2026.05.10-{release}"
+
+
+def _internal_notebook_sdk_source() -> str:
+    return '''from __future__ import annotations
+
+import os
+from typing import Any
+
+import requests
+
+
+def build_linear_regression(*, slope: float, intercept: float) -> tuple[str, dict[str, Any]]:
+    return "linear_regression", {"algorithm": "linear_regression", "slope": float(slope), "intercept": float(intercept)}
+
+
+def build_moving_average(*, tail_y: list[float] | None = None, mean_y: float | None = None) -> tuple[str, dict[str, Any]]:
+    if not tail_y and mean_y is None:
+        raise ValueError("moving_average requires tail_y or mean_y")
+    data: dict[str, Any] = {"algorithm": "moving_average"}
+    if tail_y:
+        data["tail_y"] = [float(v) for v in tail_y]
+    if mean_y is not None:
+        data["mean_y"] = float(mean_y)
+    return "moving_average", data
+
+
+def build_mean_baseline(*, mean_y: float) -> tuple[str, dict[str, Any]]:
+    return "mean_baseline", {"algorithm": "mean_baseline", "mean_y": float(mean_y)}
+
+
+def build_decision_tree(*, threshold: float, left_mean: float, right_mean: float) -> tuple[str, dict[str, Any]]:
+    return "decision_tree", {
+        "algorithm": "decision_tree",
+        "threshold": float(threshold),
+        "left_mean": float(left_mean),
+        "right_mean": float(right_mean),
+    }
+
+
+def build_random_forest(*, trees: list[dict[str, Any]]) -> tuple[str, dict[str, Any]]:
+    if not isinstance(trees, list) or not trees:
+        raise ValueError("random_forest requires a non-empty trees list")
+    return "random_forest", {"algorithm": "random_forest", "trees": trees}
+
+
+def build_kmeans_clustering(*, centroids: list[Any], cluster_sizes: list[int] | None = None, feature_names: list[str] | None = None) -> tuple[str, dict[str, Any]]:
+    if not isinstance(centroids, list) or not centroids:
+        raise ValueError("kmeans_clustering requires centroids")
+    data: dict[str, Any] = {"algorithm": "kmeans_clustering", "centroids": centroids}
+    if cluster_sizes is not None:
+        data["cluster_sizes"] = cluster_sizes
+    if feature_names is not None:
+        data["feature_names"] = feature_names
+    return "kmeans_clustering", data
+
+
+MODEL_BUILDERS = {
+    "linear_regression": build_linear_regression,
+    "moving_average": build_moving_average,
+    "mean_baseline": build_mean_baseline,
+    "decision_tree": build_decision_tree,
+    "random_forest": build_random_forest,
+    "kmeans_clustering": build_kmeans_clustering,
+}
+
+
+class AudelaNotebookSDK:
+    def __init__(self, base_url: str = "http://127.0.0.1:5000", session_cookie: str | None = None, auth_token: str | None = None):
+        self.base_url = str(base_url).rstrip("/")
+        self.session_cookie = session_cookie or os.getenv("AUDELA_SESSION_COOKIE") or ""
+        self.auth_token = auth_token or os.getenv("AUDELA_AUTH_TOKEN") or ""
+
+    def _session(self) -> tuple[requests.Session, dict[str, str]]:
+        session = requests.Session()
+        headers = {"Accept": "application/json"}
+        if self.session_cookie:
+            session.cookies.set("session", self.session_cookie)
+        if self.auth_token:
+            headers["Authorization"] = f"Bearer {self.auth_token}"
+        return session, headers
+
+    def _get(self, path: str, timeout: int = 60) -> dict[str, Any]:
+        session, headers = self._session()
+        response = session.get(f"{self.base_url}{path}", headers=headers, timeout=timeout, allow_redirects=False)
+        return self._parse(response, path)
+
+    def _post(self, path: str, payload: dict[str, Any], timeout: int = 120) -> dict[str, Any]:
+        session, headers = self._session()
+        response = session.post(f"{self.base_url}{path}", json=payload, headers=headers, timeout=timeout, allow_redirects=False)
+        return self._parse(response, path)
+
+    def _parse(self, response: Any, path: str) -> dict[str, Any]:
+        if response.status_code in (301, 302, 303, 307, 308):
+            raise RuntimeError(
+                f"Audela SDK: '{path}' was redirected (HTTP {response.status_code}). "
+                "You are not authenticated. Set AUDELA_SESSION_COOKIE or AUDELA_AUTH_TOKEN "
+                "in your kernel environment variables (or pass session_cookie= when creating the SDK)."
+            )
+        if response.status_code in (401, 403):
+            raise RuntimeError(
+                f"Audela SDK: authentication error (HTTP {response.status_code}) on '{path}'. "
+                "Set AUDELA_SESSION_COOKIE or AUDELA_AUTH_TOKEN."
+            )
+        ct = response.headers.get("content-type", "")
+        if "application/json" not in ct and "ipynb" not in ct:
+            raise RuntimeError(
+                f"Audela SDK: unexpected content-type '{ct}' (HTTP {response.status_code}) on '{path}'. "
+                "Is the Audela server running at the configured BASE_URL?"
+            )
+        return response.json()
+
+    def list_bi_sources(self) -> dict[str, Any]:
+        return self._get("/ml/notebook/bi-sources")
+
+    def preview_bi_dataset(self, *, source_id: int, sql_text: str, row_limit: int = 50) -> dict[str, Any]:
+        return self._post("/ml/notebook/bi-preview", {"source_id": int(source_id), "sql_text": str(sql_text), "row_limit": int(row_limit)})
+
+    def schema_bi_dataset(self, *, source_id: int, sql_text: str, row_limit: int = 120) -> dict[str, Any]:
+        return self._post("/ml/notebook/bi-schema", {"source_id": int(source_id), "sql_text": str(sql_text), "row_limit": int(row_limit)})
+
+    def register_model(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._post("/ml/register-notebook-model", payload)
+
+    def make_payload(self, *, model_name: str, algorithm: str, source_id: int, sql_text: str, x_column: str, y_column: str, model_data: dict[str, Any], metrics: dict[str, Any] | None = None, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        return {
+            "model_name": str(model_name),
+            "algorithm": str(algorithm),
+            "source_id": int(source_id),
+            "sql_text": str(sql_text),
+            "x_column": str(x_column),
+            "y_column": str(y_column),
+            "model_data": model_data,
+            "metrics": metrics or {},
+            "params": params or {},
+        }
+
+    def train_and_register(
+        self,
+        *,
+        model_name: str,
+        algorithm: str,
+        source_id: int,
+        sql_text: str,
+        x_column: str,
+        y_column: str,
+        builder_kwargs: dict[str, Any],
+        metrics: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """One-shot helper: pick an algorithm, build model_data, create payload, register.
+
+        Example::
+
+            result = sdk.train_and_register(
+                model_name="My LR Model",
+                algorithm="linear_regression",
+                source_id=1,
+                sql_text="SELECT month AS x, revenue AS y FROM sales",
+                x_column="x",
+                y_column="y",
+                builder_kwargs={"slope": 1.5, "intercept": 200.0},
+                metrics={"r2": 0.93},
+            )
+            print(result)
+        """
+        if algorithm not in MODEL_BUILDERS:
+            raise ValueError(f"Unsupported algorithm '{algorithm}'. Choose from: {', '.join(sorted(MODEL_BUILDERS))}.")
+        _, model_data = MODEL_BUILDERS[algorithm](**builder_kwargs)
+        payload = self.make_payload(
+            model_name=model_name,
+            algorithm=algorithm,
+            source_id=source_id,
+            sql_text=sql_text,
+            x_column=x_column,
+            y_column=y_column,
+            model_data=model_data,
+            metrics=metrics,
+            params=params,
+        )
+        return self.register_model(payload)
+'''
 
 
 def _redirect_to_ml_page(page_key: str | None):
@@ -1049,6 +1559,8 @@ def _redirect_to_ml_page(page_key: str | None):
         return redirect(url_for("ml.concepts_page"))
     if key == "mlflow":
         return redirect(url_for("ml.mlflow_page"))
+    if key == "notebooks":
+        return redirect(url_for("ml.notebooks_page"))
     if key == "sentiment":
         return redirect(url_for("ml.sentiment_page"))
     return redirect(url_for("ml.studio"))
@@ -1096,10 +1608,581 @@ def mlflow_page():
     return _render_ml_page("mlflow")
 
 
+@bp.route("/notebooks")
+@login_required
+def notebooks_page():
+    return _render_ml_page("notebooks")
+
+
+@bp.get("/notebooks/workspace-init")
+@login_required
+def notebooks_workspace_init():
+    _require_tenant()
+    requested_project = str(request.args.get("project") or "default").strip()
+    project_slug = _safe_project_slug(requested_project)
+    _ensure_tenant_project_workspace(int(g.tenant.id), project_slug)
+    flash(_("Workspace notebook prêt pour le projet: %(name)s", name=project_slug), "success")
+    return redirect(url_for("ml.notebooks_page", project=project_slug))
+
+
 @bp.route("/sentiment")
 @login_required
 def sentiment_page():
     return _render_ml_page("sentiment")
+
+
+def _allowed_notebook_algorithms() -> set[str]:
+    return {
+        "linear_regression",
+        "moving_average",
+        "mean_baseline",
+        "decision_tree",
+        "random_forest",
+        "kmeans_clustering",
+    }
+
+
+def _notebook_builder_specs() -> dict[str, dict[str, Any]]:
+    return {
+        "linear_regression": {
+            "algorithm": "linear_regression",
+            "required": ["slope", "intercept"],
+            "optional": [],
+        },
+        "moving_average": {
+            "algorithm": "moving_average",
+            "required": [],
+            "optional": ["tail_y", "mean_y"],
+        },
+        "mean_baseline": {
+            "algorithm": "mean_baseline",
+            "required": ["mean_y"],
+            "optional": [],
+        },
+        "decision_tree": {
+            "algorithm": "decision_tree",
+            "required": ["threshold", "left_mean", "right_mean"],
+            "optional": [],
+        },
+        "random_forest": {
+            "algorithm": "random_forest",
+            "required": ["trees"],
+            "optional": [],
+        },
+        "kmeans_clustering": {
+            "algorithm": "kmeans_clustering",
+            "required": ["centroids"],
+            "optional": ["cluster_sizes", "feature_names"],
+        },
+    }
+
+
+def _validate_notebook_model_data(algorithm: str, model_data: dict[str, Any]) -> tuple[bool, str]:
+    algo = str(algorithm or "").strip().lower()
+    if algo == "linear_regression":
+        if _to_number(model_data.get("slope")) is None and _to_number(model_data.get("intercept")) is None:
+            return False, _("linear_regression requires slope/intercept.")
+        return True, ""
+    if algo == "moving_average":
+        has_tail = isinstance(model_data.get("tail_y"), list) and bool(model_data.get("tail_y"))
+        has_mean = _to_number(model_data.get("mean_y")) is not None
+        if not (has_tail or has_mean):
+            return False, _("moving_average requires tail_y or mean_y.")
+        return True, ""
+    if algo == "mean_baseline":
+        if _to_number(model_data.get("mean_y")) is None:
+            return False, _("mean_baseline requires mean_y.")
+        return True, ""
+    if algo == "decision_tree":
+        if _to_number(model_data.get("threshold")) is None:
+            return False, _("decision_tree requires threshold.")
+        if _to_number(model_data.get("left_mean")) is None or _to_number(model_data.get("right_mean")) is None:
+            return False, _("decision_tree requires left_mean and right_mean.")
+        return True, ""
+    if algo == "random_forest":
+        trees = model_data.get("trees") if isinstance(model_data.get("trees"), list) else []
+        if not trees:
+            return False, _("random_forest requires a non-empty trees list.")
+        return True, ""
+    if algo == "kmeans_clustering":
+        centroids = model_data.get("centroids") if isinstance(model_data.get("centroids"), list) else []
+        if not centroids:
+            return False, _("kmeans_clustering requires centroids.")
+        return True, ""
+    return False, _("Unsupported algorithm for notebook registration.")
+
+
+@bp.get("/notebook-template")
+@login_required
+def notebook_template():
+    _require_tenant()
+    template_version = _notebook_template_version()
+    template = {
+        "cells": [
+            {
+                "cell_type": "markdown",
+                "metadata": {"language": "markdown"},
+                "source": _nb_src(
+                    "# Audela Notebook Model Registration",
+                    "This notebook is the guided experimentation layer for ML Studio.",
+                    "",
+                    "Use it in this order:",
+                    "1. Run Cell 2 to configure the target project and BI endpoints.",
+                    "2. Run Cell 3 to load helper functions and builders.",
+                    "3. Run Cell 4 to inspect the built-in guidance panel.",
+                    "4. Run Cell 5 or Cell 6 to explore BI datasets and preview SQL.",
+                    "5. Run Cell 7 to build a valid model payload.",
+                    "6. Run Cell 8 to use the guided toolbar and save to Audela.",
+                    "",
+                    f"Template version: {template_version}",
+                ),
+            },
+            {
+                "cell_type": "markdown",
+                "metadata": {"language": "markdown"},
+                "source": _nb_src(
+                    "## What this notebook does",
+                    "- Connects to your tenant BI sources through the internal SDK",
+                    "- Lets you preview SQL before training",
+                    "- Restricts model creation to supported builders only",
+                    "- Saves the resulting model directly into ML Studio",
+                    "",
+                    "You only need to import the SDK from the project `src` folder. The cells below show the standard flow.",
+                ),
+            },
+            {
+                "cell_type": "code",
+                "metadata": {"language": "python"},
+                "source": _nb_src(
+                    "# 1) Configure Audela target + import the project SDK",
+                    "from pathlib import Path",
+                    "import sys, os",
+                    "sys.path.insert(0, str(Path.cwd().parent / 'src'))",
+                    "from audela_sdk import AudelaNotebookSDK, MODEL_BUILDERS",
+                    "",
+                    "BASE_URL = 'http://127.0.0.1:5000'",
+                    "MODEL_NAME = 'Notebook Linear Demo'",
+                    "SOURCE_ID = 1  # replace with your BI source id",
+                    "SQL_TEXT = 'SELECT month_idx AS x, amount AS y FROM your_training_view'",
+                    "X_COLUMN = 'x'",
+                    "Y_COLUMN = 'y'",
+                    "",
+                    "# --- Authentication ---",
+                    "# Copy your session cookie from the browser:",
+                    "# DevTools (F12) > Application > Cookies > your Audela domain > 'session' value.",
+                    "# Paste it below OR set AUDELA_SESSION_COOKIE as an env var before starting Jupyter.",
+                    "sdk = AudelaNotebookSDK(",
+                    "    base_url=BASE_URL,",
+                    "    session_cookie=os.environ.get('AUDELA_SESSION_COOKIE', ''),  # or paste cookie here",
+                    ")",
+                    "metrics = {'r2': 0.81, 'rmse': 3.2, 'accuracy_type': 'regression'}",
+                ),
+            },
+            {
+                "cell_type": "code",
+                "metadata": {"language": "python"},
+                "source": _nb_src(
+                    "# 2) Guided quick-start panel",
+                    "def show_quick_start():",
+                    "    print('AUDela notebook quick start')",
+                    "    print('Step 1: Run datasets = sdk.list_bi_sources()')",
+                    "    print('Step 2: Choose a source and test sdk.preview_bi_dataset(...)')",
+                    "    print('Step 3: Build model_data with MODEL_BUILDERS[...]')",
+                    "    print('Step 4: Create a payload with sdk.make_payload(...)')",
+                    "    print('Step 5: Run sdk.register_model(payload) or use the toolbar')",
+                    "    print('Supported builders:', ', '.join(sorted(MODEL_BUILDERS.keys())))",
+                    "",
+                    "show_quick_start()",
+                ),
+            },
+            {
+                "cell_type": "code",
+                "metadata": {"language": "python"},
+                "source": _nb_src(
+                    "# 3) Dataset integration helpers (examples)",
+                    "# a) List available BI datasets/sources",
+                    "datasets = sdk.list_bi_sources()",
+                    "",
+                    "# b) Preview data (edit source_id/sql_text based on your source)",
+                    "# preview = sdk.preview_bi_dataset(source_id=SOURCE_ID, sql_text=SQL_TEXT, row_limit=30)",
+                    "# c) Profile schema/types",
+                    "# schema = sdk.schema_bi_dataset(source_id=SOURCE_ID, sql_text=SQL_TEXT, row_limit=120)",
+                ),
+            },
+            {
+                "cell_type": "code",
+                "metadata": {"language": "python"},
+                "source": _nb_src(
+                    "# 4) Build payload from predefined function + save",
+                    "algorithm, model_data = MODEL_BUILDERS['linear_regression'](slope=1.25, intercept=12.0)",
+                    "",
+                    "payload = sdk.make_payload(",
+                    "    model_name=MODEL_NAME,",
+                    "    algorithm=algorithm,",
+                    "    source_id=SOURCE_ID,",
+                    "    sql_text=SQL_TEXT,",
+                    "    x_column=X_COLUMN,",
+                    "    y_column=Y_COLUMN,",
+                    "    model_data=model_data,",
+                    "    metrics=metrics,",
+                    "    params={'origin': 'jupyter'},",
+                    ")",
+                    "",
+                    "# Optional if not already authenticated: set env AUDELA_SESSION_COOKIE in the notebook kernel.",
+                    "print(sdk.register_model(payload))",
+                ),
+            },
+            {
+                "cell_type": "code",
+                "metadata": {"language": "python"},
+                "source": _nb_src(
+                    "# 5) Optional guided toolbar in notebook UI",
+                    "try:",
+                    "    import ipywidgets as widgets",
+                    "    from IPython.display import display, clear_output",
+                    "",
+                    "    project_sql = widgets.Textarea(value=SQL_TEXT, description='SQL', layout=widgets.Layout(width='100%', height='90px'))",
+                    "    source_dropdown = widgets.Dropdown(options=[(f'Source #{SOURCE_ID}', SOURCE_ID)], description='Dataset')",
+                    "    model_name_input = widgets.Text(value=MODEL_NAME, description='Model')",
+                    "    schema_btn = widgets.Button(description='Schema profile', button_style='primary', icon='table')",
+                    "    list_btn = widgets.Button(description='List BI datasets', button_style='info', icon='list')",
+                    "    preview_btn = widgets.Button(description='Preview BI query', button_style='warning', icon='search')",
+                    "    save_btn = widgets.Button(description='Save to Audela', button_style='success', icon='save')",
+                    "    save_out = widgets.Output(layout=widgets.Layout(border='1px solid #ddd', padding='6px'))",
+                    "    help_html = widgets.HTML('<b>Guide:</b> 1) List datasets  2) Preview SQL  3) Save to Audela')",
+                    "",
+                    "    def _refresh_sources():",
+                    "        data = sdk.list_bi_sources()",
+                    "        items = data.get('items') if isinstance(data, dict) else []",
+                    "        opts = [(f\"{it.get('name', 'source')} (#{it.get('id', 0)})\", int(it.get('id', 0))) for it in items if int(it.get('id', 0)) > 0]",
+                    "        if opts:",
+                    "            source_dropdown.options = opts",
+                    "            source_dropdown.value = opts[0][1]",
+                    "",
+                    "    def _on_list(_):",
+                    "        with save_out:",
+                    "            clear_output()",
+                    "            _refresh_sources()",
+                    "",
+                    "    def _on_preview(_):",
+                    "        with save_out:",
+                    "            clear_output()",
+                    "            print(sdk.preview_bi_dataset(source_id=source_dropdown.value, sql_text=project_sql.value, row_limit=30))",
+                    "",
+                    "    def _on_schema(_):",
+                    "        with save_out:",
+                    "            clear_output()",
+                    "            print(sdk.schema_bi_dataset(source_id=source_dropdown.value, sql_text=project_sql.value, row_limit=120))",
+                    "",
+                    "    def _on_save(_):",
+                    "        with save_out:",
+                    "            clear_output()",
+                    "            toolbar_payload = dict(payload)",
+                    "            toolbar_payload['source_id'] = int(source_dropdown.value)",
+                    "            toolbar_payload['sql_text'] = str(project_sql.value)",
+                    "            toolbar_payload['model_name'] = str(model_name_input.value or toolbar_payload.get('model_name') or 'Notebook Model')",
+                    "            print(sdk.register_model(toolbar_payload))",
+                    "",
+                    "    schema_btn.on_click(_on_schema)",
+                    "    list_btn.on_click(_on_list)",
+                    "    preview_btn.on_click(_on_preview)",
+                    "    save_btn.on_click(_on_save)",
+                    "    display(help_html, model_name_input, source_dropdown, project_sql, widgets.HBox([list_btn, preview_btn, schema_btn, save_btn]), save_out)",
+                    "    _refresh_sources()",
+                    "except Exception:",
+                    "    print('ipywidgets not available. Install with: pip install ipywidgets')",
+                    "    print('Fallback helpers: sdk.list_bi_sources(), sdk.preview_bi_dataset(...), sdk.schema_bi_dataset(...), sdk.register_model(payload)')",
+                ),
+            },
+        ],
+        "metadata": {
+            "kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"},
+            "language_info": {"name": "python"},
+            "audela_template_version": template_version,
+        },
+        "nbformat": 4,
+        "nbformat_minor": 5,
+    }
+
+    out = current_app.response_class(
+        json.dumps(template, ensure_ascii=True, indent=2),
+        mimetype="application/x-ipynb+json",
+    )
+    out.headers["Content-Disposition"] = 'attachment; filename="audela_model_registration_template.ipynb"'
+    return out
+
+
+@bp.get("/notebook-integration")
+@login_required
+def notebook_integration_info():
+    _require_tenant()
+    host_origin = request.host_url.rstrip("/")
+    return jsonify(
+        {
+            "ok": True,
+            "template_version": _notebook_template_version(),
+            "template_url": url_for("ml.notebook_template"),
+            "tutorial_url": url_for("ml.notebook_tutorial"),
+            "register_url": url_for("ml.register_notebook_model"),
+            "bi_sources_url": url_for("ml.notebook_bi_sources"),
+            "bi_preview_url": url_for("ml.notebook_bi_preview"),
+            "bi_schema_url": url_for("ml.notebook_bi_schema"),
+            "builder_specs": _notebook_builder_specs(),
+            "tenant_notebook_folder": os.path.join("instance", "tenant_files", str(int(g.tenant.id)), "notebooks").replace("\\\\", "/"),
+            "required_fields": [
+                "model_name",
+                "algorithm",
+                "source_id",
+                "sql_text",
+                "model_data",
+            ],
+            "supported_algorithms": sorted(list(_allowed_notebook_algorithms())),
+            "notes": [
+                "Use your authenticated browser session/cookie when posting from Jupyter.",
+                "Prefer JSON model_data compatible with built-in ML Studio algorithms.",
+            ],
+            "embed_troubleshooting": {
+                "symptom": "If iframe says the site refused to connect, Jupyter is blocking frame ancestors.",
+                "local_quick_start": "./scripts/start_jupyter_embed.sh",
+                "expected_origin": host_origin,
+            },
+        }
+    )
+
+
+@bp.get("/notebook-tutorial")
+@login_required
+def notebook_tutorial():
+    _require_tenant()
+    return jsonify(
+        {
+            "ok": True,
+            "title": "Notebook Integration Detailed Tutorial",
+            "template_version": _notebook_template_version(),
+            "steps": [
+                {
+                    "step": 1,
+                    "title": "Prepare tenant project workspace",
+                    "details": [
+                        "Open ML Studio > Notebooks.",
+                        "Type project name and click Prepare workspace.",
+                        "Workspace is created under tenant_files/<tenant>/projects/<project>/.",
+                    ],
+                },
+                {
+                    "step": 2,
+                    "title": "Open template notebook",
+                    "details": [
+                        "Click Download template notebook.",
+                        "Open notebook in Jupyter project notebooks folder.",
+                    ],
+                },
+                {
+                    "step": 3,
+                    "title": "Connect BI datasets from notebook",
+                    "details": [
+                        "Use sdk.list_bi_sources() to discover tenant BI sources.",
+                        "Use sdk.preview_bi_dataset(source_id, sql_text) to validate query output.",
+                        "Use the predefined toolbar buttons (List BI datasets / Preview BI query).",
+                    ],
+                },
+                {
+                    "step": 4,
+                    "title": "Build and save model into ML Studio",
+                    "details": [
+                        "Use MODEL_BUILDERS for supported algorithms.",
+                        "Run sdk.register_model(payload) or click Save to Audela button.",
+                        "Data is posted to /ml/register-notebook-model and validated server-side.",
+                    ],
+                },
+                {
+                    "step": 5,
+                    "title": "Use model lifecycle",
+                    "details": [
+                        "Open Models page and run Predict/Deploy.",
+                        "Track experiments and run history with MLflow integration.",
+                    ],
+                },
+            ],
+        }
+    )
+
+
+@bp.get("/notebook/bi-sources")
+@login_required
+def notebook_bi_sources():
+    _require_tenant()
+    sources = (
+        DataSource.query.filter_by(tenant_id=g.tenant.id)
+        .order_by(DataSource.name.asc(), DataSource.id.asc())
+        .all()
+    )
+    return jsonify(
+        {
+            "ok": True,
+            "count": len(sources),
+            "items": [
+                {
+                    "id": int(src.id),
+                    "name": str(src.name or ""),
+                    "type": str(src.type or ""),
+                }
+                for src in sources
+            ],
+        }
+    )
+
+
+@bp.post("/notebook/bi-preview")
+@login_required
+def notebook_bi_preview():
+    _require_tenant()
+    payload = request.get_json(silent=True) or {}
+    source_id = _to_int(payload.get("source_id"), 0, 0, 2_000_000_000)
+    sql_text = str(payload.get("sql_text") or "").strip()
+    row_limit = _to_int(payload.get("row_limit"), 50, 1, 500)
+
+    if not source_id or not sql_text:
+        return jsonify({"ok": False, "error": _("source_id and sql_text are required.")}), 400
+
+    src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first()
+    if not src:
+        return jsonify({"ok": False, "error": _("Selecione uma fonte válida.")}), 400
+
+    try:
+        result = execute_sql(src, sql_text, params={"tenant_id": int(g.tenant.id)}, row_limit=row_limit)
+    except QueryExecutionError as exc:
+        return jsonify({"ok": False, "error": _("Erro ao executar query: {error}", error=str(exc))}), 400
+
+    columns = [str(c) for c in (result.get("columns") or [])]
+    rows = result.get("rows") or []
+    safe_rows = _json_safe_rows(rows, row_limit)
+    return jsonify(
+        {
+            "ok": True,
+            "source_id": int(src.id),
+            "source_name": str(src.name or ""),
+            "columns": columns,
+            "rows": safe_rows,
+            "row_count": len(safe_rows),
+        }
+    )
+
+
+@bp.post("/notebook/bi-schema")
+@login_required
+def notebook_bi_schema():
+    _require_tenant()
+    payload = request.get_json(silent=True) or {}
+    source_id = _to_int(payload.get("source_id"), 0, 0, 2_000_000_000)
+    sql_text = str(payload.get("sql_text") or "").strip()
+    row_limit = _to_int(payload.get("row_limit"), 120, 5, 500)
+
+    if not source_id or not sql_text:
+        return jsonify({"ok": False, "error": _("source_id and sql_text are required.")}), 400
+
+    src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first()
+    if not src:
+        return jsonify({"ok": False, "error": _("Selecione uma fonte válida.")}), 400
+
+    try:
+        result = execute_sql(src, sql_text, params={"tenant_id": int(g.tenant.id)}, row_limit=row_limit)
+    except QueryExecutionError as exc:
+        return jsonify({"ok": False, "error": _("Erro ao executar query: {error}", error=str(exc))}), 400
+
+    columns = [str(c) for c in (result.get("columns") or [])]
+    rows = result.get("rows") or []
+    safe_rows = _json_safe_rows(rows, row_limit)
+
+    profile: list[dict[str, Any]] = []
+    for idx, col in enumerate(columns):
+        values = [row[idx] for row in safe_rows if isinstance(row, list) and idx < len(row)]
+        inferred = _infer_column_type(values)
+        non_null = sum(1 for v in values if v is not None and str(v).strip() != "")
+        sample = values[:5]
+        profile.append(
+            {
+                "name": col,
+                "inferred_type": inferred,
+                "non_null": non_null,
+                "sample": sample,
+            }
+        )
+
+    return jsonify(
+        {
+            "ok": True,
+            "source_id": int(src.id),
+            "source_name": str(src.name or ""),
+            "row_count": len(safe_rows),
+            "profile": profile,
+        }
+    )
+
+
+@bp.post("/register-notebook-model")
+@login_required
+def register_notebook_model():
+    _require_tenant()
+    payload = request.get_json(silent=True) or {}
+
+    model_name = str(payload.get("model_name") or "").strip()
+    algorithm = str(payload.get("algorithm") or "").strip().lower()
+    source_id = _to_int(payload.get("source_id"), 0, 0, 2_000_000_000)
+    sql_text = str(payload.get("sql_text") or "").strip()
+    x_column = str(payload.get("x_column") or "").strip()
+    y_column = str(payload.get("y_column") or "").strip()
+    model_data = payload.get("model_data") if isinstance(payload.get("model_data"), dict) else {}
+    metrics = payload.get("metrics") if isinstance(payload.get("metrics"), dict) else {}
+    params = payload.get("params") if isinstance(payload.get("params"), dict) else {}
+
+    if not model_name or not source_id or not sql_text:
+        return jsonify({"ok": False, "error": _("model_name, source_id and sql_text are required.")}), 400
+
+    if algorithm not in _allowed_notebook_algorithms():
+        return jsonify({"ok": False, "error": _("Unsupported algorithm for notebook registration.")}), 400
+
+    valid_data, err_msg = _validate_notebook_model_data(algorithm, model_data)
+    if not valid_data:
+        return jsonify({"ok": False, "error": err_msg}), 400
+
+    src = DataSource.query.filter_by(id=source_id, tenant_id=g.tenant.id).first()
+    if not src:
+        return jsonify({"ok": False, "error": _("Selecione uma fonte válida.")}), 400
+
+    state = _ml_models_state_for_tenant(g.tenant)
+    models = state.get("models") or []
+    model_entry = {
+        "id": f"ml_{secrets.token_hex(6)}",
+        "name": model_name[:120],
+        "algorithm": algorithm,
+        "source_id": int(src.id),
+        "source_name": str(src.name or ""),
+        "x_column": x_column[:120],
+        "y_column": y_column[:120],
+        "sql_text": sql_text[:12000],
+        "trained_at": datetime.utcnow().isoformat(),
+        "metrics": metrics,
+        "params": params,
+        "model_data": model_data,
+        "mlflow": {},
+        "deployed": False,
+        "import_origin": "jupyter_notebook",
+    }
+    models.insert(0, model_entry)
+    state["models"] = models[:200]
+
+    _persist_ml_models_state(g.tenant, state)
+    db.session.commit()
+
+    return jsonify(
+        {
+            "ok": True,
+            "model_id": model_entry["id"],
+            "model_name": model_entry["name"],
+            "redirect_url": url_for("ml.models_page"),
+        }
+    )
 
 
 @bp.post("/save")

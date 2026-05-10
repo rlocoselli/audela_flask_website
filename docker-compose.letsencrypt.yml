@@ -1,6 +1,6 @@
 # Usage:
 #   cp .env.example .env
-#   # set APP_HOSTNAME, GRAFANA_HOSTNAME, LETSENCRYPT_EMAIL, secrets...
+#   # set APP_HOSTNAME, GRAFANA_HOSTNAME, LETSENCRYPT_EMAIL, JUPYTER_EMBED_URL, secrets...
 #   docker compose -f docker-compose.yml -f docker-compose.letsencrypt.yml up -d
 #
 # This override switches Traefik TLS to Let's Encrypt (HTTP-01 on port 80).

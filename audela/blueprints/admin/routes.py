@@ -14,7 +14,7 @@ from flask import Response, current_app, flash, g, redirect, render_template, re
 from flask_login import current_user, login_user, logout_user
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, LineChart, Reference
-from sqlalchemy import func, inspect
+from sqlalchemy import and_, func, inspect, not_, or_
 from sqlalchemy.exc import SQLAlchemyError
 
 from ...extensions import db
@@ -26,6 +26,100 @@ from . import bp
 
 ALLOWED_BILLING_CYCLES = {"monthly", "yearly"}
 CELERY_SERVICES = ("celery-worker", "celery-beat")
+TRAFFIC_FEATURES = (
+    {
+        "label": "Authentication",
+        "include_prefixes": ("/app/login", "/app/register", "/tenant/login"),
+        "exclude_prefixes": (),
+    },
+    {
+        "label": "BI / Portal",
+        "include_prefixes": ("/app",),
+        "exclude_prefixes": ("/app/login", "/app/register", "/app/api/"),
+    },
+    {
+        "label": "Tenant workspace",
+        "include_prefixes": ("/tenant",),
+        "exclude_prefixes": ("/tenant/login",),
+    },
+    {
+        "label": "Finance",
+        "include_prefixes": ("/finance",),
+        "exclude_prefixes": (),
+    },
+    {
+        "label": "Projects",
+        "include_prefixes": ("/project",),
+        "exclude_prefixes": ("/project/public/",),
+    },
+    {
+        "label": "Credit",
+        "include_prefixes": ("/credit",),
+        "exclude_prefixes": (),
+    },
+    {
+        "label": "IFRS9",
+        "include_prefixes": ("/ifrs9",),
+        "exclude_prefixes": (),
+    },
+    {
+        "label": "ML Studio",
+        "include_prefixes": ("/ml",),
+        "exclude_prefixes": (),
+    },
+    {
+        "label": "Billing",
+        "include_prefixes": ("/billing",),
+        "exclude_prefixes": (),
+    },
+)
+INTERNAL_TRAFFIC_EXCLUDED_PREFIXES = ("/project/public/",)
+
+
+def _path_matches_prefix(path: str | None, prefix: str) -> bool:
+    normalized_path = (str(path or "").strip() or "/")
+    normalized_prefix = (str(prefix or "").strip() or "/").rstrip("/")
+    if not normalized_prefix:
+        return False
+    if prefix.endswith("/"):
+        return normalized_path == normalized_prefix or normalized_path.startswith(prefix)
+    return normalized_path == normalized_prefix or normalized_path.startswith(normalized_prefix + "/")
+
+
+def _path_matches_any(path: str | None, prefixes: tuple[str, ...]) -> bool:
+    return any(_path_matches_prefix(path, prefix) for prefix in prefixes)
+
+
+def _path_prefix_condition(column, prefix: str):
+    normalized_prefix = (str(prefix or "").strip() or "/").rstrip("/")
+    if prefix.endswith("/"):
+        return or_(column == normalized_prefix, column.like(f"{prefix}%"))
+    return or_(column == normalized_prefix, column.like(f"{normalized_prefix}/%"))
+
+
+def _sql_path_filter(column, include_prefixes: tuple[str, ...], exclude_prefixes: tuple[str, ...] = ()): 
+    include_conditions = [_path_prefix_condition(column, prefix) for prefix in include_prefixes]
+    if not include_conditions:
+        return None
+    condition = or_(*include_conditions)
+    exclude_conditions = [_path_prefix_condition(column, prefix) for prefix in exclude_prefixes]
+    if exclude_conditions:
+        condition = and_(condition, not_(or_(*exclude_conditions)))
+    return condition
+
+
+def _is_internal_traffic(path: str | None) -> bool:
+    for feature in TRAFFIC_FEATURES:
+        if _path_matches_any(path, feature["include_prefixes"]) and not _path_matches_any(path, feature["exclude_prefixes"]):
+            return True
+    return False
+
+
+def _traffic_feature_label(path: str | None) -> str:
+    for feature in TRAFFIC_FEATURES:
+        if _path_matches_any(path, feature["include_prefixes"]) and not _path_matches_any(path, feature["exclude_prefixes"]):
+            return str(feature["label"])
+    return "Other internal"
 
 
 def _month_start(value: datetime) -> datetime:
@@ -200,10 +294,19 @@ def _build_public_traffic(selected_months_raw: str | None) -> dict:
         "period_start": period_start_month,
         "period_end": _add_months(period_end_exclusive, -1),
         "total_visits": 0,
+        "public_visits": 0,
+        "internal_visits": 0,
         "unique_visitors": 0,
+        "internal_unique_visitors": 0,
         "home_visits": 0,
         "plans_visits": 0,
+        "login_visits": 0,
+        "register_visits": 0,
+        "login_unique_visitors": 0,
+        "register_unique_visitors": 0,
         "top_pages": [],
+        "top_internal_pages": [],
+        "top_features": [],
         "top_countries": [],
         "top_languages": [],
         "daily_trend": [],
@@ -217,6 +320,11 @@ def _build_public_traffic(selected_months_raw: str | None) -> dict:
         return empty_payload
 
     try:
+        internal_filter = _sql_path_filter(
+            PublicPageVisit.path,
+            tuple(prefix for feature in TRAFFIC_FEATURES for prefix in feature["include_prefixes"]),
+            INTERNAL_TRAFFIC_EXCLUDED_PREFIXES,
+        )
         base_query = PublicPageVisit.query.filter(
             PublicPageVisit.created_at >= period_start_month,
             PublicPageVisit.created_at < period_end_exclusive,
@@ -227,47 +335,96 @@ def _build_public_traffic(selected_months_raw: str | None) -> dict:
             PublicPageVisit.created_at >= period_start_month,
             PublicPageVisit.created_at < period_end_exclusive,
         ).scalar() or 0
+        internal_visits = base_query.filter(internal_filter).count() if internal_filter is not None else 0
+        public_visits = max(int(total_visits) - int(internal_visits), 0)
+        internal_unique_visitors = db.session.query(
+            func.count(func.distinct(PublicPageVisit.visitor_id))
+        ).filter(
+            PublicPageVisit.created_at >= period_start_month,
+            PublicPageVisit.created_at < period_end_exclusive,
+            internal_filter,
+        ).scalar() or 0
 
         home_visits = base_query.filter(PublicPageVisit.path == "/").count()
         plans_visits = base_query.filter(PublicPageVisit.path.like("/plans%")).count()
+        login_visits = base_query.filter(
+            PublicPageVisit.path.in_(["/app/login", "/tenant/login"])
+        ).count()
+        register_visits = base_query.filter(PublicPageVisit.path == "/app/register").count()
 
-        page_rows = (
-        db.session.query(PublicPageVisit.path, func.count(PublicPageVisit.id).label("visits"))
-        .filter(
+        login_unique_visitors = db.session.query(
+            func.count(func.distinct(PublicPageVisit.visitor_id))
+        ).filter(
             PublicPageVisit.created_at >= period_start_month,
             PublicPageVisit.created_at < period_end_exclusive,
-        )
-        .group_by(PublicPageVisit.path)
-        .order_by(func.count(PublicPageVisit.id).desc(), PublicPageVisit.path.asc())
-        .limit(20)
-        .all()
-        )
+            PublicPageVisit.path.in_(["/app/login", "/tenant/login"]),
+        ).scalar() or 0
+        register_unique_visitors = db.session.query(
+            func.count(func.distinct(PublicPageVisit.visitor_id))
+        ).filter(
+            PublicPageVisit.created_at >= period_start_month,
+            PublicPageVisit.created_at < period_end_exclusive,
+            PublicPageVisit.path == "/app/register",
+        ).scalar() or 0
 
-        top_pages = [
-        {
-            "path": row.path,
-            "visits": int(row.visits or 0),
-        }
-        for row in page_rows
-        ]
-
-        unique_by_page_rows = (
+        page_rows = (
         db.session.query(
             PublicPageVisit.path,
+            PublicPageVisit.endpoint,
+            func.count(PublicPageVisit.id).label("visits"),
             func.count(func.distinct(PublicPageVisit.visitor_id)).label("unique_visitors"),
         )
         .filter(
             PublicPageVisit.created_at >= period_start_month,
             PublicPageVisit.created_at < period_end_exclusive,
         )
-        .group_by(PublicPageVisit.path)
-        .order_by(func.count(func.distinct(PublicPageVisit.visitor_id)).desc(), PublicPageVisit.path.asc())
-        .limit(20)
+        .group_by(PublicPageVisit.path, PublicPageVisit.endpoint)
         .all()
         )
-        unique_by_page_map = {str(row.path): int(row.unique_visitors or 0) for row in unique_by_page_rows}
-        for row in top_pages:
-            row["unique_visitors"] = unique_by_page_map.get(row["path"], 0)
+
+        grouped_pages = sorted(
+            [
+                {
+                    "path": str(row.path or "/"),
+                    "endpoint": str(row.endpoint or ""),
+                    "visits": int(row.visits or 0),
+                    "unique_visitors": int(row.unique_visitors or 0),
+                }
+                for row in page_rows
+            ],
+            key=lambda row: (-row["visits"], row["path"]),
+        )
+        top_pages = [
+            {
+                "path": row["path"],
+                "visits": row["visits"],
+                "unique_visitors": row["unique_visitors"],
+            }
+            for row in grouped_pages[:20]
+        ]
+        top_internal_pages = [
+            {
+                "path": row["path"],
+                "visits": row["visits"],
+                "unique_visitors": row["unique_visitors"],
+            }
+            for row in grouped_pages
+            if _is_internal_traffic(row["path"])
+        ][:15]
+
+        feature_counts: dict[str, int] = defaultdict(int)
+        for row in grouped_pages:
+            if not _is_internal_traffic(row["path"]):
+                continue
+            feature_counts[_traffic_feature_label(row["path"])] += int(row["visits"])
+        top_features = [
+            {
+                "feature": feature,
+                "visits": visits,
+                "share_pct": round((visits / internal_visits) * 100, 1) if internal_visits else 0.0,
+            }
+            for feature, visits in sorted(feature_counts.items(), key=lambda item: (-item[1], item[0]))[:10]
+        ]
 
         country_rows = (
         db.session.query(
@@ -362,10 +519,19 @@ def _build_public_traffic(selected_months_raw: str | None) -> dict:
         "period_start": period_start_month,
         "period_end": _add_months(period_end_exclusive, -1),
         "total_visits": total_visits,
+        "public_visits": public_visits,
+        "internal_visits": internal_visits,
         "unique_visitors": int(unique_visitors),
+        "internal_unique_visitors": int(internal_unique_visitors),
         "home_visits": home_visits,
         "plans_visits": plans_visits,
+        "login_visits": login_visits,
+        "register_visits": register_visits,
+        "login_unique_visitors": int(login_unique_visitors),
+        "register_unique_visitors": int(register_unique_visitors),
         "top_pages": top_pages,
+        "top_internal_pages": top_internal_pages,
+        "top_features": top_features,
         "top_countries": top_countries,
         "top_languages": top_languages,
         "daily_trend": list(day_map.values()),

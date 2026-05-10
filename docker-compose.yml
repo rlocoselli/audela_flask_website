@@ -50,6 +50,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow:5000}
       MLFLOW_EMBED_URL: ${MLFLOW_EMBED_URL:-https://${APP_HOSTNAME}/mlflow/}
+      JUPYTER_EMBED_URL: ${JUPYTER_EMBED_URL:-}
       SESSION_COOKIE_SECURE: "true"
       COOKIE_SECURE: "1"
       TENANT_FILE_ROOT: /app/instance/tenant_files
@@ -148,6 +149,43 @@ services:
       - backend
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/', timeout=2).read(1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+
+  jupyter:
+    image: jupyter/minimal-notebook:python-3.11
+    restart: unless-stopped
+    profiles: ["jupyter"]
+    environment:
+      JUPYTER_PORT: "8888"
+      JUPYTER_TOKEN: ${JUPYTER_TOKEN:-audela-dev-token}
+      JUPYTER_ENABLE_LAB: "yes"
+      RESTARTABLE: "yes"
+    command:
+      - start-notebook.py
+      - --ServerApp.ip=0.0.0.0
+      - --ServerApp.port=8888
+      - --ServerApp.open_browser=False
+      - --ServerApp.allow_origin=https://${APP_HOSTNAME}
+      - --ServerApp.tornado_settings={"headers":{"Content-Security-Policy":"frame-ancestors 'self' https://${APP_HOSTNAME};"}}
+    volumes:
+      - jupyter_data:/home/jovyan/work
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=audela_web
+      - traefik.http.routers.jupyter.rule=(Host(`${APP_HOSTNAME}`) || Host(`${APP_HOSTNAME_WWW}`)) && PathPrefix(`/jupyter/`)
+      - traefik.http.routers.jupyter.entrypoints=websecure
+      - traefik.http.routers.jupyter.tls=true
+      - traefik.http.routers.jupyter.tls.certresolver=letsencrypt
+      - traefik.http.routers.jupyter.middlewares=jupyter-strip-prefix
+      - traefik.http.middlewares.jupyter-strip-prefix.stripprefix.prefixes=/jupyter
+      - traefik.http.services.jupyter.loadbalancer.server.port=8888
+    networks:
+      - web
+      - backend
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8888/lab', timeout=2).read(1)"]
       interval: 30s
       timeout: 5s
       retries: 10
@@ -373,6 +411,7 @@ volumes:
   grafana_data:
   audela_instance:
   mlflow_data:
+  jupyter_data:
   letsencrypt:
   loki_data:
 

@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}ML SDK Documentation - AUDELA{% endblock %}
+{% block meta_description %}Documentation officielle du SDK ML AUDELA pour notebooks Jupyter, intégration BI et enregistrement de modèles.{% endblock %}
+{% block canonical_url %}{{ site_public_url.rstrip('/') }}/docs/ml-sdk{% endblock %}
+{% block og_url %}{{ site_public_url.rstrip('/') }}/docs/ml-sdk{% endblock %}
+
+{% block content %}
+<section id="main" class="wrapper style1">
+  <div class="container">
+    <header class="major">
+      <h2>ML SDK Documentation</h2>
+      <p>Reference guide for using AUDELA ML SDK from Jupyter projects on {{ site_public_url }}.</p>
+    </header>
+
+    <section class="box">
+      <h3>1. Scope</h3>
+      <p>
+        The internal AUDELA ML SDK is generated into each tenant project workspace under
+        <code>instance/tenant_files/&lt;tenant_id&gt;/projects/&lt;project&gt;/src/audela_sdk.py</code>.
+        It is designed to:
+      </p>
+      <ul>
+        <li>List BI sources available to the tenant</li>
+        <li>Preview SQL datasets from notebooks</li>
+        <li>Build model payloads with validated algorithms</li>
+        <li>Register trained models back into ML Studio</li>
+      </ul>
+    </section>
+
+    <section class="box">
+      <h3>2. Quick Start (Notebook)</h3>
+      <pre><code>from pathlib import Path
+import sys, os
+
+sys.path.insert(0, str(Path.cwd().parent / "src"))
+from audela_sdk import AudelaNotebookSDK, MODEL_BUILDERS
+
+sdk = AudelaNotebookSDK(
+    base_url="{{ site_public_url }}",
+    session_cookie=os.environ.get("AUDELA_SESSION_COOKIE", "")
+)
+
+# List BI sources
+sources = sdk.list_bi_sources()
+print(sources)</code></pre>
+    </section>
+
+    <section class="box">
+      <h3>3. Core Methods</h3>
+      <ul>
+        <li><code>list_bi_sources()</code>: Returns tenant BI sources</li>
+        <li><code>preview_bi_dataset(source_id, sql_text, row_limit=50)</code>: SQL preview</li>
+        <li><code>schema_bi_dataset(source_id, sql_text, row_limit=120)</code>: schema profile</li>
+        <li><code>make_payload(...)</code>: Build registration payload</li>
+        <li><code>register_model(payload)</code>: Save model into ML Studio</li>
+        <li><code>train_and_register(...)</code>: one-shot helper for builder + payload + register</li>
+      </ul>
+    </section>
+
+    <section class="box">
+      <h3>4. One-Shot Registration Example</h3>
+      <pre><code>result = sdk.train_and_register(
+    model_name="Revenue Forecast v1",
+    algorithm="linear_regression",
+    source_id=1,
+    sql_text="SELECT month_idx AS x, amount AS y FROM your_training_view",
+    x_column="x",
+    y_column="y",
+    builder_kwargs={"slope": 1.5, "intercept": 200.0},
+    metrics={"r2": 0.92},
+    params={"origin": "jupyter"}
+)
+print(result)</code></pre>
+    </section>
+
+    <section class="box">
+      <h3>5. Authentication</h3>
+      <p>
+        Notebook SDK calls require an authenticated tenant session. If you see redirects or auth errors,
+        provide one of:
+      </p>
+      <ul>
+        <li><code>AUDELA_SESSION_COOKIE</code> environment variable</li>
+        <li><code>AUDELA_AUTH_TOKEN</code> environment variable (Bearer token)</li>
+      </ul>
+      <p>
+        The SDK now raises explicit runtime errors for redirects (302), auth failures (401/403), and non-JSON responses.
+      </p>
+    </section>
+
+    <section class="box">
+      <h3>6. VS Code Extension (Publishable)</h3>
+      <p>
+        A publishable extension scaffold is included in this repository at
+        <code>vscode/audela-ml-sdk-extension</code>.
+      </p>
+      <p>
+        Public guide: <a href="{{ url_for('public.docs_vscode_plugin') }}">VS Code Plugin Documentation</a>
+      </p>
+      <p>It includes commands to open this documentation and insert notebook boilerplate snippets.</p>
+      <pre><code>cd vscode/audela-ml-sdk-extension
+npm install
+npm run compile
+npx @vscode/vsce package
+# optional publish:
+# npx @vscode/vsce publish</code></pre>
+    </section>
+  </div>
+</section>
+{% endblock %}

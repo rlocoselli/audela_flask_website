@@ -30,6 +30,7 @@ from ...services.subscription_service import SubscriptionService
 from ...product_catalog import get_product_catalog
 from ...tenancy import CurrentTenant, set_current_tenant, clear_current_tenant, get_user_module_access, get_user_menu_access
 from ...i18n import tr
+from ..public.routes import track_public_like_page_view
 from . import bp
 
 
@@ -348,6 +349,9 @@ def login():
     """
     if current_user.is_authenticated:
         return redirect(url_for("tenant.dashboard"))
+
+    if request.method == "GET":
+        track_public_like_page_view("/tenant/login", "tenant.login")
     
     if request.method == "POST":
         action = request.form.get("action", "login")

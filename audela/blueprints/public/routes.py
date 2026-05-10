@@ -31,6 +31,27 @@ PUBLIC_TRAFFIC_EXCLUDED_ENDPOINTS = {
     "public.request_demo",
     "public.set_language",
 }
+INTERNAL_TRAFFIC_BLUEPRINTS = {
+    "auth",
+    "billing",
+    "credit",
+    "finance",
+    "ifrs9",
+    "ml",
+    "portal",
+    "project",
+    "tenant",
+}
+INTERNAL_TRAFFIC_EXCLUDED_ENDPOINTS = {
+    "auth.login",
+    "auth.register",
+    "tenant.login",
+}
+INTERNAL_TRAFFIC_EXCLUDED_PATH_PREFIXES = (
+    "/api/",
+    "/app/api/",
+    "/project/public/",
+)
 
 
 def _public_visitor_id() -> str:
@@ -93,6 +114,63 @@ def _safe_redirect_target(target: str | None) -> str | None:
     return None
 
 
+def track_public_like_page_view(path: str, endpoint: str) -> None:
+    """Persist a page view for non-public blueprints (auth/tenant pages).
+
+    Reuses the same analytics table to keep counting centralized.
+    """
+    normalized_path = (str(path or "").strip() or "/")[:255]
+    normalized_endpoint = (str(endpoint or "").strip() or "public.synthetic")[:120]
+    if normalized_path.startswith("/api/"):
+        return
+
+    referrer = (request.referrer or "").strip()[:255] or None
+    user_agent = (request.user_agent.string or "").strip()[:255] or None
+    visit = PublicPageVisit(
+        endpoint=normalized_endpoint,
+        path=normalized_path,
+        visitor_id=_public_visitor_id()[:64],
+        user_id=current_user.id if current_user.is_authenticated else None,
+        ip_hash=_client_ip_hash(),
+        country_code=_client_country_code(),
+        language_code=_request_language_code(),
+        referrer=referrer,
+        user_agent=user_agent,
+        utm_source=(request.args.get("utm_source") or "").strip()[:120] or None,
+        utm_medium=(request.args.get("utm_medium") or "").strip()[:120] or None,
+        utm_campaign=(request.args.get("utm_campaign") or "").strip()[:120] or None,
+        is_home=(normalized_path == "/"),
+    )
+    try:
+        db.session.add(visit)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("Failed to persist auth/tenant page view for %s", normalized_path)
+
+
+def _should_track_internal_page_view(response: Response) -> bool:
+    if request.method != "GET":
+        return False
+
+    endpoint = request.endpoint or ""
+    if not endpoint or endpoint.endswith(".static"):
+        return False
+    if endpoint in INTERNAL_TRAFFIC_EXCLUDED_ENDPOINTS:
+        return False
+    if endpoint.split(".", 1)[0] not in INTERNAL_TRAFFIC_BLUEPRINTS:
+        return False
+
+    path = (request.path or "/").strip() or "/"
+    if any(path.startswith(prefix) for prefix in INTERNAL_TRAFFIC_EXCLUDED_PATH_PREFIXES):
+        return False
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return False
+    if response.status_code != 200:
+        return False
+    return (response.mimetype or "").lower() == "text/html"
+
+
 @bp.before_request
 def _track_public_page_view():
     if request.method != "GET":
@@ -135,6 +213,13 @@ def _track_public_page_view():
         db.session.rollback()
         current_app.logger.exception("Failed to persist public page view for %s", path)
     return None
+
+
+@bp.after_app_request
+def _track_internal_page_view(response: Response):
+    if _should_track_internal_page_view(response):
+        track_public_like_page_view(request.path, request.endpoint or "")
+    return response
 
 
 
@@ -1106,6 +1191,22 @@ def plans():
     )
 
 
+@bp.route("/docs/ml-sdk")
+def docs_ml_sdk():
+    return render_template(
+        "docs/ml_sdk.html",
+        site_public_url="https://audeladedonnees.fr",
+    )
+
+
+@bp.route("/docs/vscode-plugin")
+def docs_vscode_plugin():
+    return render_template(
+        "docs/vscode_plugin.html",
+        site_public_url="https://audeladedonnees.fr",
+    )
+
+
 @bp.route("/produits/finance")
 def product_finance():
     return render_template("products/finance.html", product=get_product_entry("finance"))
@@ -1217,6 +1318,8 @@ def sitemap_xml():
     entries = [
         (_abs("public.index"), "weekly", "1.0"),
         (_abs("public.plans"), "weekly", "0.9"),
+        (_abs("public.docs_ml_sdk"), "weekly", "0.9"),
+        (_abs("public.docs_vscode_plugin"), "weekly", "0.9"),
         (_abs("public.plans") + "?product=bi", "weekly", "0.8"),
         (_abs("public.plans") + "?product=ml", "weekly", "0.8"),
         (_abs("public.plans") + "?product=credit", "weekly", "0.8"),

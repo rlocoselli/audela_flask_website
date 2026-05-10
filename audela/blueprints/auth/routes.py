@@ -13,6 +13,7 @@ from ...services.tenant_service import TenantService
 from ...services.email_service import EmailVerificationService, InvitationService
 from ...tenancy import CurrentTenant, set_current_tenant, clear_current_tenant
 from ...i18n import tr
+from ..public.routes import track_public_like_page_view
 from . import bp
 
 
@@ -27,6 +28,8 @@ def _safe_next_url() -> str | None:
 def login():
     # MVP: tenant selected by slug on login screen
     next_url = _safe_next_url()
+    if request.method == "GET":
+        track_public_like_page_view("/app/login", "auth.login")
     if request.method == "POST":
         tenant_slug = request.form.get("tenant_slug", "").strip().lower()
         email = request.form.get("email", "").strip().lower()
@@ -259,6 +262,8 @@ def register():
     Register new tenant with admin user.
     Sends email verification before allowing login.
     """
+    if request.method == "GET":
+        track_public_like_page_view("/app/register", "auth.register")
     if request.method == "POST":
         tenant_name = request.form.get("tenant_name", "").strip()
         email = request.form.get("email", "").strip().lower()

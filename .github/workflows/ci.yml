@@ -77,6 +77,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pytest
+          pip install jupyterlab ipywidgets
 
       - name: Validate installed packages
         run: |
@@ -91,6 +92,51 @@ jobs:
           python -m py_compile audela/blueprints/credit/routes.py
           python -m py_compile audela/i18n.py
           python -m py_compile audela/tasks/project_notifications.py
+
+      - name: Jupyter integration smoke
+        run: |
+          python -m py_compile scripts/jupyter_embed_config.py
+          bash -n scripts/start_jupyter_embed.sh
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          nb_path = Path("notebooks/audela_model_registration.ipynb")
+          data = json.loads(nb_path.read_text(encoding="utf-8"))
+          cells = data.get("cells") if isinstance(data, dict) else None
+          assert isinstance(cells, list) and len(cells) >= 4, "notebook should contain setup + builder + save cells"
+
+          merged_source = "\n".join(
+              "\n".join(cell.get("source") or [])
+              for cell in cells
+              if isinstance(cell, dict)
+          )
+          required_tokens = [
+              "MODEL_BUILDERS",
+              "build_linear_regression",
+              "save_to_audela",
+              "register-notebook-model",
+          ]
+          for token in required_tokens:
+              assert token in merged_source, f"missing notebook token: {token}"
+
+          print("jupyter integration smoke ok")
+          PY
+
+      - name: JupyterHub integration contract
+        run: |
+          python - <<'PY'
+          from audela import create_app
+
+          app = create_app()
+          with app.app_context():
+              cfg = app.config
+              assert "JUPYTERHUB_BASE_URL" in cfg
+              assert "JUPYTER_SUPPORTED_KERNELS" in cfg
+              assert "JUPYTER_PREBUILT_ENVS" in cfg
+              assert isinstance(str(cfg.get("JUPYTER_SUPPORTED_KERNELS") or ""), str)
+          print("jupyterhub config contract ok")
+          PY
 
       - name: Validate Credit template syntax
         env:

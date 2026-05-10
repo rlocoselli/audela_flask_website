@@ -270,6 +270,14 @@
       line-height: 1.45;
     }
 
+    .notebook-embed-frame {
+      width: 100%;
+      min-height: 72vh;
+      border: 1px solid #dbe4ef;
+      border-radius: .85rem;
+      background: #fff;
+    }
+
     .prediction-chart-host {
       min-height: 260px;
     }
@@ -363,12 +371,38 @@
   <div class="ml-hero d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
     <div>
       <span class="ml-kicker">{{ _('Machine Learning Platform') }}</span>
+      <div class="card ml-surface mb-3">
+        <div class="card-body">
+          <h3 class="h6 mb-2">{{ _('Comment l\'intégration fonctionne') }}</h3>
+          <ol class="small mb-2">
+            <li>{{ _('Préparer un workspace projet dans le périmètre du tenant.') }}</li>
+            <li>{{ _('Ouvrir le notebook template généré par ML Studio.') }}</li>
+            <li>{{ _('Créer model_data via les fonctions prédéfinies.') }}</li>
+            <li>{{ _('Sauvegarder via save_to_audela / bouton Save to Audela.') }}</li>
+            <li>{{ _('Utiliser le modèle dans Models pour Predict / Deploy.') }}</li>
+          </ol>
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('ml.notebook_tutorial') }}" target="_blank" rel="noopener">
+            <i class="bi bi-journal-text me-1"></i>{{ _('Tutorial detailed') }}
+          </a>
+        </div>
+      </div>
       <h1 class="h3 mb-1">{{ _('ML Studio') }}</h1>
       <p class="text-muted mb-0">{{ _('Produit ML autonome avec modules supervisés et non supervisés.') }}</p>
       <div class="mt-2 d-flex gap-2 flex-wrap">
         <span class="ml-chip"><i class="bi bi-shield-check"></i>{{ _('Gouvernance') }}</span>
         <span class="ml-chip"><i class="bi bi-lightning-charge"></i>{{ _('Rapide') }}</span>
         <span class="ml-chip"><i class="bi bi-diagram-3"></i>{{ _('MLOps') }}</span>
+      </div>
+      <div class="mt-3 d-flex gap-2 flex-wrap">
+        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('ml.notebooks_page') }}">
+          <i class="bi bi-journal-code me-1"></i>{{ _('Open embedded notebooks') }}
+        </a>
+        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('ml.notebook_template') }}">
+          <i class="bi bi-journal-code me-1"></i>{{ _('Download Jupyter template') }}
+        </a>
+        <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('ml.notebook_integration_info') }}" target="_blank" rel="noopener">
+          <i class="bi bi-braces me-1"></i>{{ _('Notebook API info') }}
+        </a>
       </div>
     </div>
     {% if mlflow_embed_url %}
@@ -1496,6 +1530,122 @@
         </div>
       </div>
 
+    </div>
+  </div>
+  {% endif %}
+
+  {% if ml_page_key == 'notebooks' %}
+  <div class="row g-3">
+    <div class="col-lg-8">
+      <div class="card ml-surface h-100">
+        <div class="card-body">
+          <h2 class="h5 mb-2">{{ _('Jupyter Notebooks') }}</h2>
+          <p class="text-muted mb-3">{{ _('Créez vos propres modèles, testez des features et entraînez dans Jupyter directement depuis ML Studio.') }}</p>
+          <div class="border rounded p-2 mb-3 bg-light-subtle">
+            <form method="get" action="{{ url_for('ml.notebooks_workspace_init') }}" class="row g-2 align-items-end">
+              <div class="col-md-6">
+                <label class="form-label small">{{ _('Projet') }}</label>
+                <input type="text" class="form-control form-control-sm" name="project" value="{{ selected_project }}" placeholder="default">
+              </div>
+              <div class="col-md-6 d-flex gap-2">
+                <button class="btn btn-sm btn-outline-primary" type="submit">{{ _('Préparer workspace') }}</button>
+                <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('ml.notebooks_page', project=selected_project) }}">{{ _('Recharger projet') }}</a>
+              </div>
+            </form>
+            <div class="small text-muted mt-2">{{ _('Workspace') }}: {{ workspace_root_rel }}</div>
+            <div class="small text-muted">{{ _('Notebooks') }}: {{ notebook_folder_rel }}</div>
+            {% if jupyterhub_base_url %}
+            <div class="small text-muted">{{ _('Mode') }}: JupyterHub</div>
+            {% else %}
+            <div class="small text-muted">{{ _('Mode') }}: JupyterLab Embedded</div>
+            {% endif %}
+          </div>
+          {% if jupyter_embed_url %}
+          <iframe
+            title="Jupyter"
+            src="{{ jupyter_embed_url }}"
+            class="notebook-embed-frame"
+            loading="lazy"
+            referrerpolicy="no-referrer"
+          ></iframe>
+          {% else %}
+          <div class="alert alert-warning mb-0">
+            {{ _('Configuration manquante: définissez JUPYTER_EMBED_URL pour activer l\'intégration notebook.') }}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card ml-surface mb-3">
+        <div class="card-body">
+          <h3 class="h6 mb-2">{{ _('Comment l\'intégration fonctionne') }}</h3>
+          <ol class="small mb-2">
+            <li>{{ _('Choisissez un projet puis cliquez sur Préparer workspace (scaffold tenant).') }}</li>
+            <li>{{ _('Travaillez dans Jupyter sur le dossier notebooks du projet.') }}</li>
+            <li>{{ _('Utilisez les fonctions builders prédéfinies pour créer model_data.') }}</li>
+            <li>{{ _('Exécutez Save to Audela: le modèle est enregistré via l\'API notebook bridge.') }}</li>
+            <li>{{ _('Retrouvez le modèle dans Models pour Predict, Deploy et suivi MLflow.') }}</li>
+          </ol>
+          <div class="small text-muted mb-1">{{ _('Endpoint bridge') }}: {{ url_for('ml.register_notebook_model') }}</div>
+          <div class="small text-muted mb-1">{{ _('Template notebook') }}: {{ url_for('ml.notebook_template') }}</div>
+          <div class="small text-muted">{{ _('API info') }}: {{ url_for('ml.notebook_integration_info') }}</div>
+        </div>
+      </div>
+      <div class="card ml-surface mb-3">
+        <div class="card-body">
+          <h3 class="h6 mb-2">{{ _('Guide rapide') }}</h3>
+          <ol class="small mb-0">
+            <li>{{ _('Ouvrez votre notebook et utilisez la toolbar fonctions prédéfinies.') }}</li>
+            <li>{{ _('Listez vos datasets BI et prévisualisez une requête SQL.') }}</li>
+            <li>{{ _('Préparez un payload JSON avec algorithm, params et model_data.') }}</li>
+            <li>{{ _('Sauvegardez depuis le notebook vers ML Studio registry.') }}</li>
+            <li>{{ _('Retrouvez le modèle dans Models et lancez Predict/Deploy.') }}</li>
+          </ol>
+          <div class="small text-muted mt-2">{{ _('Dossier notebook tenant') }}: {{ tenant_notebook_rel }}</div>
+        </div>
+      </div>
+      <div class="card ml-surface mb-3">
+        <div class="card-body">
+          <h3 class="h6 mb-2">{{ _('Fonctions activées') }}</h3>
+          <div class="small text-muted mb-1">{{ _('Kernels supportés') }}: {{ enabled_kernel_list|join(', ') }}</div>
+          <div class="small text-muted mb-2">{{ _('Environnements prébuild') }}: {{ enabled_env_list|join(', ') }}</div>
+          <ul class="small mb-0">
+            <li>{{ _('Création notebook 1 clic par projet') }}</li>
+            <li>{{ _('Intégration datasets BI (list + preview SQL)') }}</li>
+            <li>{{ _('Toolbar notebook: list datasets, preview, save') }}</li>
+            <li>{{ _('Builders modèles prédéfinis avec validation') }}</li>
+            <li>{{ _('Tracking expériences + registry via API ML Studio') }}</li>
+            <li>{{ _('Workspace limité au projet tenant (pas de fichiers serveur)') }}</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card ml-surface">
+        <div class="card-body d-flex flex-column gap-2">
+          <h3 class="h6 mb-1">{{ _('Actions notebook') }}</h3>
+          <div class="small text-muted">{{ _('Template version') }}: <span class="badge text-bg-light">{{ notebook_template_version }}</span></div>
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('ml.notebook_template') }}">
+            <i class="bi bi-download me-1"></i>{{ _('Download template notebook') }}
+          </a>
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('ml.notebook_integration_info') }}" target="_blank" rel="noopener">
+            <i class="bi bi-braces me-1"></i>{{ _('Notebook API info') }}
+          </a>
+          {% if jupyter_start_here_url %}
+          <a class="btn btn-sm btn-success" href="{{ jupyter_start_here_url }}" target="_blank" rel="noopener">
+            <i class="bi bi-play-circle me-1"></i>{{ _('Open START_HERE notebook') }}
+          </a>
+          {% endif %}
+          {% if jupyter_embed_url %}
+          <a class="btn btn-sm btn-outline-primary" href="{{ jupyter_embed_url }}" target="_blank" rel="noopener">
+            <i class="bi bi-box-arrow-up-right me-1"></i>{{ _('Open Jupyter in new tab') }}
+          </a>
+          {% endif %}
+          <div class="alert alert-light border small mb-0">
+            <div class="fw-semibold mb-1">{{ _('Si vous voyez "n\'autorise pas la connexion"') }}</div>
+            <div class="mb-0">{{ _('Utilisez "Open Jupyter in new tab" ou contactez votre administrateur pour activer l\'intégration iframe.') }}</div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
   {% endif %}
