@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}{{ _('Demander une démo') }} - AUDELA{% endblock %}
+{% block meta_description %}{{ _('Laissez simplement votre adresse e-mail pour demander une démonstration.') }}{% endblock %}
+{% block canonical_url %}{{ site_public_url.rstrip('/') }}/demo{% endblock %}
+{% block og_url %}{{ site_public_url.rstrip('/') }}/demo{% endblock %}
+
+{% block content %}
+<section id="main" class="wrapper style1">
+  <div class="container" style="max-width: 760px;">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mb-3 text-start">
+          {% for category, message in messages %}
+            <div class="alert alert-{{ 'danger' if category in ['error', 'danger'] else ('success' if category == 'success' else 'info') }} mb-2" role="alert">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <header class="major">
+      <h2>{{ _('Parlons de votre projet') }}</h2>
+      <p>{{ _('Laissez simplement votre adresse e-mail pour demander une démonstration.') }}</p>
+    </header>
+
+    <section class="box">
+      <form method="post" action="{{ url_for('public.request_demo') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <input type="hidden" name="quick_demo" value="1" />
+        <input type="hidden" name="next" value="{{ url_for('public.demo_request_page') }}" />
+        <div class="row gtr-uniform gtr-50">
+          <div class="col-12">
+            <input type="email" name="email" placeholder="{{ _('Votre adresse e-mail') }}" required />
+          </div>
+          <div class="col-12">
+            <ul class="actions stacked">
+              <li><button type="submit" class="button primary fit">{{ _('Être rappelé') }}</button></li>
+            </ul>
+          </div>
+        </div>
+      </form>
+      <p class="mb-0">{{ _('Nous vous recontactons rapidement pour organiser la démonstration.') }}</p>
+    </section>
+  </div>
+</section>
+{% endblock %}

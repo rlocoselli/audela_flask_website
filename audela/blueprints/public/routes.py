@@ -15,6 +15,7 @@ from ...models import Prospect
 from ...models import Tenant
 from ...models import PublicPageVisit
 from ...services.subscription_service import SubscriptionService
+from ...services.email_service import EmailService
 from ...product_catalog import get_product_entry
 
 from ...i18n import DEFAULT_LANG, SUPPORTED_LANGS, normalize_lang, tr
@@ -112,6 +113,39 @@ def _safe_redirect_target(target: str | None) -> str | None:
             path = f"{path}#{parts.fragment}"
         return path
     return None
+
+
+def _demo_request_redirect_target(default_target: str) -> str:
+    return _safe_redirect_target(request.form.get("next")) or default_target
+
+
+def _notify_demo_request_admin(prospect: Prospect, *, quick_mode: bool) -> None:
+    body_lines = [
+        "A new AUDELA demo request was received.",
+        "",
+        f"Email: {prospect.email}",
+        f"Name: {prospect.full_name}",
+        f"Company: {prospect.company or '-'}",
+        f"Phone: {prospect.phone or '-'}",
+        f"Solution: {prospect.solution_interest or '-'}",
+        f"Quick request: {'yes' if quick_mode else 'no'}",
+        f"Requested at: {prospect.created_at.isoformat() if prospect.created_at else '-'}",
+        f"Meeting date: {prospect.rdv_date.isoformat() if prospect.rdv_date else '-'}",
+        f"Meeting time: {prospect.rdv_time.isoformat() if prospect.rdv_time else '-'}",
+        f"Timezone: {prospect.timezone or '-'}",
+        f"Origin: {(request.referrer or request.url or '').strip() or '-'}",
+        "",
+        "Message:",
+        prospect.message or "-",
+    ]
+    sent = EmailService.send_email(
+        to="admin@audeladedonnees.fr",
+        subject=f"AUDELA demo request - {prospect.email}",
+        template=None,
+        body_text="\n".join(body_lines),
+    )
+    if not sent:
+        current_app.logger.warning("Failed to send demo request notification for prospect id=%s", prospect.id)
 
 
 def track_public_like_page_view(path: str, endpoint: str) -> None:
@@ -1043,6 +1077,7 @@ def e_learning_run_custom():
 
 @bp.route("/demo/request", methods=["POST"])
 def request_demo():
+    quick_mode = (request.form.get("quick_demo") or "").strip() == "1"
     full_name = (request.form.get("full_name") or "").strip()
     email = (request.form.get("email") or "").strip().lower()
     phone = (request.form.get("phone") or "").strip()
@@ -1052,21 +1087,38 @@ def request_demo():
     rdv_date_raw = (request.form.get("rdv_date") or "").strip()
     rdv_time_raw = (request.form.get("rdv_time") or "").strip()
     timezone = (request.form.get("timezone") or "Europe/Paris").strip() or "Europe/Paris"
+    session_lang = session.get("lang")
 
-    if not full_name or not email or not rdv_date_raw or not rdv_time_raw:
+    if not email or not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
+        flash(tr("Veuillez renseigner une adresse e-mail valide.", session_lang), "error")
+        return redirect(_demo_request_redirect_target(url_for("public.demo_request_page")))
+
+    if not quick_mode and (not full_name or not rdv_date_raw or not rdv_time_raw):
         flash(tr("Veuillez renseigner nom, email, date et horaire du RDV.", session.get("lang")), "error")
-        return redirect(url_for("public.index") + "#five")
+        return redirect(_demo_request_redirect_target(url_for("public.index") + "#five"))
 
-    try:
-        rdv_date = datetime.strptime(rdv_date_raw, "%Y-%m-%d").date()
-        rdv_time = datetime.strptime(rdv_time_raw, "%H:%M").time()
-    except ValueError:
-        flash(tr("Format de date/heure invalide.", session.get("lang")), "error")
-        return redirect(url_for("public.index") + "#five")
+    if quick_mode:
+        now = datetime.utcnow().replace(second=0, microsecond=0)
+        rdv_date = now.date()
+        rdv_time = now.time()
+        if not full_name:
+            full_name = email.split("@", 1)[0][:120] or email
+        if not solution_interest:
+            solution_interest = "demo"
+    else:
+        try:
+            rdv_date = datetime.strptime(rdv_date_raw, "%Y-%m-%d").date()
+            rdv_time = datetime.strptime(rdv_time_raw, "%H:%M").time()
+        except ValueError:
+            flash(tr("Format de date/heure invalide.", session_lang), "error")
+            return redirect(_demo_request_redirect_target(url_for("public.index") + "#five"))
 
-    if rdv_date < date.today():
+    if not quick_mode and rdv_date < date.today():
         flash(tr("La date de RDV doit être aujourd'hui ou future.", session.get("lang")), "error")
-        return redirect(url_for("public.index") + "#five")
+        return redirect(_demo_request_redirect_target(url_for("public.index") + "#five"))
+
+    if quick_mode and not message:
+        message = "Quick demo request"
 
     prospect = Prospect(
         full_name=full_name,
@@ -1083,8 +1135,18 @@ def request_demo():
     db.session.add(prospect)
     db.session.commit()
 
-    flash(tr("Merci. Votre demande de démonstration a bien été enregistrée.", session.get("lang")), "success")
-    return redirect(url_for("public.index") + "#five")
+    _notify_demo_request_admin(prospect, quick_mode=quick_mode)
+
+    flash(tr("Merci. Votre demande de démonstration a bien été enregistrée.", session_lang), "success")
+    return redirect(_demo_request_redirect_target(url_for("public.index") + "#five"))
+
+
+@bp.route("/demo")
+def demo_request_page():
+    return render_template(
+        "demo_request.html",
+        site_public_url="https://audeladedonnees.fr",
+    )
 
 
 @bp.route("/lang/<lang_code>")

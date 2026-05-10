@@ -20267,6 +20267,54 @@ for _lang, _mp in _CREDIT_GLOBAL_LABELS_I18N_20260406.items():
     TRANSLATIONS.setdefault(_lang, {}).update(_mp)
 
 
+_PUBLIC_DEMO_REQUEST_I18N_20260511 = {
+    "en": {
+        "Demander une démo": "Request a demo",
+        "Démo rapide": "Quick demo",
+        "Laissez simplement votre adresse e-mail pour demander une démonstration.": "Leave your email address to request a demo.",
+        "Nous vous recontactons rapidement pour organiser la démonstration.": "We will contact you shortly to arrange the demo.",
+        "Veuillez renseigner une adresse e-mail valide.": "Please provide a valid email address.",
+    },
+    "fr": {
+        "Demander une démo": "Demander une démo",
+        "Démo rapide": "Démo rapide",
+        "Laissez simplement votre adresse e-mail pour demander une démonstration.": "Laissez simplement votre adresse e-mail pour demander une démonstration.",
+        "Nous vous recontactons rapidement pour organiser la démonstration.": "Nous vous recontactons rapidement pour organiser la démonstration.",
+        "Veuillez renseigner une adresse e-mail valide.": "Veuillez renseigner une adresse e-mail valide.",
+    },
+    "pt": {
+        "Demander une démo": "Solicitar uma demo",
+        "Démo rapide": "Demo rápida",
+        "Laissez simplement votre adresse e-mail pour demander une démonstration.": "Deixe apenas seu endereço de e-mail para solicitar uma demonstração.",
+        "Nous vous recontactons rapidement pour organiser la démonstration.": "Entraremos em contato rapidamente para organizar a demonstração.",
+        "Veuillez renseigner une adresse e-mail valide.": "Informe um endereço de e-mail válido.",
+    },
+    "es": {
+        "Demander une démo": "Solicitar una demo",
+        "Démo rapide": "Demo rápida",
+        "Laissez simplement votre adresse e-mail pour demander une démonstration.": "Deja tu dirección de correo electrónico para solicitar una demostración.",
+        "Nous vous recontactons rapidement pour organiser la démonstration.": "Nos pondremos en contacto rápidamente para organizar la demostración.",
+        "Veuillez renseigner une adresse e-mail valide.": "Introduce una dirección de correo electrónico válida.",
+    },
+    "it": {
+        "Demander une démo": "Richiedi una demo",
+        "Démo rapide": "Demo rapida",
+        "Laissez simplement votre adresse e-mail pour demander une démonstration.": "Lascia semplicemente il tuo indirizzo e-mail per richiedere una demo.",
+        "Nous vous recontactons rapidement pour organiser la démonstration.": "Ti ricontatteremo rapidamente per organizzare la demo.",
+        "Veuillez renseigner une adresse e-mail valide.": "Inserisci un indirizzo e-mail valido.",
+    },
+    "de": {
+        "Demander une démo": "Demo anfragen",
+        "Démo rapide": "Schnelle Demo",
+        "Laissez simplement votre adresse e-mail pour demander une démonstration.": "Hinterlassen Sie einfach Ihre E-Mail-Adresse, um eine Demo anzufordern.",
+        "Nous vous recontactons rapidement pour organiser la démonstration.": "Wir melden uns kurzfristig, um die Demo zu organisieren.",
+        "Veuillez renseigner une adresse e-mail valide.": "Bitte geben Sie eine gueltige E-Mail-Adresse an.",
+    },
+}
+for _lang, _mp in _PUBLIC_DEMO_REQUEST_I18N_20260511.items():
+    TRANSLATIONS.setdefault(_lang, {}).update(_mp)
+
+
 def tr(msgid: str, lang: str | None = None, **kwargs: Any) -> str:
     """Translate msgid using the configured dictionary.
 
