@@ -145,6 +145,10 @@ ctx.pop()"
             echo "🌱 Seed default subscription plans (idempotent)"
             aud_run python -c "from audela import create_app; from audela.services.subscription_service import SubscriptionService; from audela.models import SubscriptionPlan; app=create_app(); ctx=app.app_context(); ctx.push(); SubscriptionService._ensure_default_plans_seeded(); plans={p.code for p in SubscriptionPlan.query.all()}; assert 'free' in plans, 'free plan missing'; assert 'enterprise' in plans, 'enterprise plan missing'; print('subscription plans ready:', len(plans)); ctx.pop()"
 
+            echo "🎓 Seed e-learning content (idempotent)"
+            aud_run flask seed-e-learning
+            aud_run python -c "from audela import create_app; from audela.models import ELearningSubject, ELearningModule; app=create_app(); ctx=app.app_context(); ctx.push(); subject=ELearningSubject.query.filter_by(code='sql').first(); assert subject is not None, 'sql subject missing'; modules={m.code for m in ELearningModule.query.filter_by(subject_id=subject.id).all()}; assert 'sql201' in modules, 'sql201 module missing'; assert len(modules) >= 12, f'expected >=12 SQL modules, got {len(modules)}'; print('e-learning modules ready:', len(modules)); ctx.pop()"
+
             echo "🧪 Ensure database is at Alembic head(s)"
             HEAD_REVS="$(aud_run flask db heads | awk '/^[0-9a-f]+/ {print $1}')"
             CURRENT_REVS="$(aud_run flask db current | awk '/^[0-9a-f]+/ {print $1}')"

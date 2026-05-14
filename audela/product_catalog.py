@@ -222,6 +222,37 @@ PRODUCT_CATALOG: dict[str, dict[str, Any]] = {
         "tenant_access_label": "Accéder à Projet",
         "tenant_access_disabled": "Accès Projet désactivé",
     },
+        "e_learning": {
+            "public_title": "AUDELA Academy",
+            "meta_description": "Plateforme e-learning SQL et Data avec exercices interactifs, suivi de progression et certificats.",
+            "subtitle": "Apprenez SQL et Data à votre rythme avec des exercices pratiques et des certifications.",
+            "overview": "AUDELA Academy propose des formations SQL et Data guidées, avec sandbox interactif, évaluation automatique, gamification et certificats téléchargeables.",
+            "image": "images/products/bi.svg",
+            "image_alt": "Image du produit E-Learning",
+            "features": [
+                "Exercices SQL interactifs avec évaluation automatique.",
+                "Suivi de progression par module et par leçon.",
+                "Système de points, niveaux et achievements.",
+                "Certificats de complétion téléchargeables en PDF.",
+            ],
+            "use_cases": [
+                "Formation SQL pour équipes data et analystes.",
+                "Montée en compétence sur les outils Audela BI.",
+                "Auto-formation guidée avec validation des acquis.",
+            ],
+            "outcomes": [
+                "Compétences SQL opérationnelles en quelques heures.",
+                "Certification validée et exportable.",
+                "Progression mesurable et motivante grâce à la gamification.",
+            ],
+            "audience": "Équipes data, analystes, étudiants et professionnels en reconversion.",
+            "plans_cta": "Accéder à l'Academy",
+            "plans_slug": "e_learning",
+            "tenant_title": "AUDELA Academy",
+            "tenant_summary": "Plateforme e-learning incluse gratuitement — exercices SQL interactifs, suivi de progression, achievements et certificats.",
+            "tenant_access_label": "Accéder à l'Academy",
+            "tenant_access_disabled": "Accès Academy désactivé",
+        },
 }
 
 

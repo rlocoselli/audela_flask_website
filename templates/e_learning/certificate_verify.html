@@ -1,0 +1,36 @@
+{% extends 'e_learning/base_e_learning.html' %}
+
+{% block e_learning_content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            {% if is_valid and certificate %}
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">{{ _('Certificate Verified') }}</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-3">{{ _('This certificate is authentic') }}</p>
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item"><strong>{{ _('Issued To') }}:</strong> {{ certificate.user.username if certificate.user else 'User' }}</li>
+                        <li class="list-group-item"><strong>{{ _('Module') }}:</strong> {{ certificate.module.title_i18n.get(current_lang, certificate.module.title_i18n.get('en', certificate.module.code)) if certificate.module else '-' }}</li>
+                        <li class="list-group-item"><strong>{{ _('Final Score') }}:</strong> {{ certificate.final_score }}%</li>
+                        <li class="list-group-item"><strong>{{ _('Issued On') }}:</strong> {{ certificate.issued_at.strftime('%d/%m/%Y') }}</li>
+                        <li class="list-group-item"><strong>{{ _('Verification Code') }}:</strong> {{ certificate.verification_code }}</li>
+                    </ul>
+                </div>
+            </div>
+            {% else %}
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0">{{ _('Certificate not found') }}</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-0">{{ _('The verification code is invalid, expired, or the certificate is private.') }}</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

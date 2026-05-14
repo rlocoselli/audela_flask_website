@@ -1261,3 +1261,37 @@ def change_admin_password():
     db.session.commit()
     flash(tr("Senha alterada com sucesso.", getattr(g, "lang", None)), "success")
     return redirect(url_for("admin.dashboard"))
+
+
+# ---------------------------------------------------------------------------
+# Internal Analytics Dashboard
+# ---------------------------------------------------------------------------
+
+@bp.route("/internal-analytics")
+def internal_analytics():
+    """Internal page-view and feature-usage analytics dashboard."""
+    guard = _require_admin_login()
+    if guard:
+        return guard
+
+    days = request.args.get("days", 30, type=int)
+    if days not in (7, 14, 30, 60, 90):
+        days = 30
+
+    from ...services.analytics_service import (
+        get_page_views_summary,
+        get_feature_usage_summary,
+        get_active_users,
+    )
+
+    page_views = get_page_views_summary(days=days)
+    feature_usage = get_feature_usage_summary(days=days)
+    active_users = get_active_users(days=days)
+
+    return render_template(
+        "admin/internal_analytics.html",
+        days=days,
+        page_views=page_views,
+        feature_usage=feature_usage,
+        active_users=active_users,
+    )

@@ -1,0 +1,171 @@
+{% extends "sql_training/base_sql_training.html" %}
+
+{% block sql_training_content %}
+<div class="container-lg">
+  <!-- Breadcrumb -->
+  <nav aria-label="breadcrumb" class="mt-4">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item">
+        <a href="{{ url_for('sql_training.modules_list') }}">{{ _('SQL Training') }}</a>
+      </li>
+      <li class="breadcrumb-item">
+        <a href="{{ url_for('sql_training.module_detail', module_id=lesson.module.id) }}">
+          {{ translate(lesson.module, 'title_i18n', lang) }}
+        </a>
+      </li>
+      <li class="breadcrumb-item active">{{ translate(lesson, 'title_i18n', lang) }}</li>
+    </ol>
+  </nav>
+
+  <div class="row g-4 mt-4">
+    <!-- Main Content -->
+    <div class="col-lg-8">
+      <!-- Lesson Content -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-light border-bottom">
+          <h3 class="card-title fw-bold mb-0">
+            {{ translate(lesson, 'title_i18n', lang) }}
+          </h3>
+        </div>
+        
+        <div class="card-body">
+          <!-- Lesson Description -->
+          <div class="lead mb-4">
+            {{ translate(lesson, 'description_i18n', lang) }}
+          </div>
+          
+          <!-- HTML Content (theory, examples, images) -->
+          {% if lesson.content_html_i18n and lesson.content_html_i18n.get(lang) %}
+            <div class="lesson-content mb-4">
+              {{ lesson.content_html_i18n.get(lang) | safe }}
+            </div>
+          {% endif %}
+          
+          <!-- Key Concepts -->
+          {% if lesson.key_concepts_i18n and lesson.key_concepts_i18n.get(lang) %}
+            <div class="alert alert-light border-left border-5 mb-4" style="border-left-color: var(--sql-primary);">
+              <h6 class="fw-bold mb-3">📚 {{ _('Key Concepts') }}</h6>
+              <ul class="mb-0">
+                {% for concept in lesson.key_concepts_i18n.get(lang, []) %}
+                  <li>{{ concept }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+          
+          <!-- Examples -->
+          {% if lesson.example_sql_i18n and lesson.example_sql_i18n.get(lang) %}
+            <div class="mb-4">
+              <h6 class="fw-bold mb-2">{{ _('Example SQL') }}</h6>
+              <pre class="bg-dark text-light p-3 rounded"><code>{{ lesson.example_sql_i18n.get(lang) }}</code></pre>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Exercises -->
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-light border-bottom">
+          <h6 class="card-title fw-bold mb-0">
+            <i class="bi bi-pen me-2"></i>{{ _('Exercises') }}
+          </h6>
+        </div>
+        
+        <div class="card-body p-0">
+          <div class="list-group list-group-flush">
+            {% for exercise in exercises %}
+              {% set submission = submissions_by_exercise.get(exercise.id) %}
+              <a href="{{ url_for('sql_training.exercise_view', exercise_id=exercise.id) }}"
+                 class="list-group-item list-group-item-action">
+                <div class="d-flex w-100 justify-content-between align-items-center">
+                  <div>
+                    <h6 class="mb-1 fw-bold">
+                      {{ translate(exercise, 'title_i18n', lang) }}
+                    </h6>
+                    <small class="text-muted">
+                      {{ exercise.type | replace('_', ' ') | title }} • {{ exercise.points }} {{ _('points') }}
+                    </small>
+                  </div>
+                  <div class="text-end">
+                    {% if submission and submission.is_correct %}
+                      <span class="badge bg-success">
+                        <i class="bi bi-check-circle"></i> {{ submission.points_earned }}/{{ exercise.points }}
+                      </span>
+                    {% elif submission %}
+                      <span class="badge bg-warning">
+                        <i class="bi bi-exclamation"></i> {{ _('Attempted') }}
+                      </span>
+                    {% else %}
+                      <span class="badge bg-light text-dark">
+                        <i class="bi bi-circle"></i> {{ _('Start') }}
+                      </span>
+                    {% endif %}
+                  </div>
+                </div>
+              </a>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="col-lg-4">
+      <!-- Quick Stats -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+          <h6 class="fw-bold mb-3">{{ _('Lesson Info') }}</h6>
+          <div class="row g-2">
+            <div class="col-6">
+              <small class="text-muted d-block">{{ _('Exercises') }}</small>
+              <strong>{{ exercises | length }}</strong>
+            </div>
+            <div class="col-6">
+              <small class="text-muted d-block">{{ _('Total Points') }}</small>
+              <strong>{{ exercises | map(attribute='points') | sum }}</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Navigation -->
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-light border-bottom">
+          <h6 class="fw-bold mb-0">{{ _('Navigation') }}</h6>
+        </div>
+        <div class="card-body">
+          <a href="{{ url_for('sql_training.module_detail', module_id=lesson.module.id) }}"
+             class="btn btn-outline-secondary btn-sm w-100 mb-2">
+            <i class="bi bi-arrow-left me-1"></i>{{ _('Module Details') }}
+          </a>
+          <a href="{{ url_for('sql_training.database_diagram', module_id=lesson.module.id) }}"
+             class="btn btn-outline-secondary btn-sm w-100 mb-2">
+            <i class="bi bi-diagram-3 me-1"></i>{{ _('Database Diagram') }}
+          </a>
+          <a href="{{ url_for('sql_training.modules_list') }}"
+             class="btn btn-outline-secondary btn-sm w-100">
+            <i class="bi bi-list me-1"></i>{{ _('All Modules') }}
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .lesson-content {
+    line-height: 1.8;
+  }
+  
+  .lesson-content img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin: 1rem 0;
+  }
+  
+  .lesson-content pre {
+    border-left: 3px solid var(--sql-primary);
+  }
+</style>
+{% endblock %}

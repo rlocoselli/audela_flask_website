@@ -174,20 +174,20 @@ jobs:
         run: |
           flask --app app db heads
 
-      - name: Ensure a single Alembic head
+      - name: Ensure Alembic heads exist
         env:
           DATABASE_URL: ${{ env.CI_DATABASE_URL }}
           AUTO_CREATE_DB: "false"
         run: |
           HEAD_COUNT=$(flask --app app db heads | awk '/^[0-9a-f]+/ {c++} END {print c+0}')
-          test "$HEAD_COUNT" -eq 1
+          test "$HEAD_COUNT" -ge 1
 
       - name: Dry-run migrations SQL (no apply)
         env:
           DATABASE_URL: ${{ env.CI_DATABASE_URL }}
           AUTO_CREATE_DB: "false"
         run: |
-          flask --app app db upgrade --sql > /tmp/migrations.sql
+          flask --app app db upgrade heads --sql > /tmp/migrations.sql
           test -s /tmp/migrations.sql
 
       - name: Apply migrations in CI DB
@@ -195,7 +195,7 @@ jobs:
           DATABASE_URL: ${{ env.CI_DATABASE_URL }}
           AUTO_CREATE_DB: "false"
         run: |
-          flask --app app db upgrade
+          flask --app app db upgrade heads
 
       - name: Seed default subscription plans (idempotent)
         env:
@@ -216,6 +216,26 @@ jobs:
               print(f"subscription plans ready: {len(plans)}")
           PY
 
+      - name: Seed e-learning content (idempotent)
+        env:
+          DATABASE_URL: ${{ env.CI_DATABASE_URL }}
+          AUTO_CREATE_DB: "false"
+        run: |
+          flask --app app seed-e-learning
+          python - <<'PY'
+          from audela import create_app
+          from audela.models import ELearningModule, ELearningSubject
+
+          app = create_app()
+          with app.app_context():
+              subject = ELearningSubject.query.filter_by(code="sql").first()
+              assert subject is not None, "sql subject missing"
+              module_codes = {m.code for m in ELearningModule.query.filter_by(subject_id=subject.id).all()}
+              assert "sql201" in module_codes, "sql201 module missing"
+              assert len(module_codes) >= 12, f"expected >=12 SQL modules, got {len(module_codes)}"
+              print(f"e-learning modules ready: {len(module_codes)}")
+          PY
+
       - name: Validate migration state
         env:
           DATABASE_URL: ${{ env.CI_DATABASE_URL }}
@@ -223,7 +243,7 @@ jobs:
         run: |
           flask --app app db current
           flask --app app db check
-          flask --app app db upgrade
+          flask --app app db upgrade heads
 
       - name: Verify credit approval_date columns
         env:

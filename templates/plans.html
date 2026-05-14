@@ -7,6 +7,7 @@
   'credit': _('Audela Credit'),
   'project': _('Projet'),
   'ifrs9': _('IFRS9'),
+  'e_learning': _('E-Learning'),
   'all': _('All-in-one')
 } %}
 {% set current_product_label = product_labels.get(selected_product, _('Finance')) %}
@@ -47,6 +48,7 @@
       <a href="{{ url_for('public.plans', product='credit') }}" class="button {% if selected_product == 'credit' %}primary{% endif %}">{{ _('Audela Credit') }}</a>
       <a href="{{ url_for('public.plans', product='project') }}" class="button {% if selected_product == 'project' %}primary{% endif %}">{{ _('Projet') }}</a>
       <a href="{{ url_for('public.plans', product='ifrs9') }}" class="button {% if selected_product == 'ifrs9' %}primary{% endif %}">{{ _('IFRS9') }}</a>
+      <a href="{{ url_for('public.plans', product='e_learning') }}" class="button {% if selected_product == 'e_learning' %}primary{% endif %}">{{ _('E-Learning') }}</a>
       <a href="{{ url_for('public.plans', product='all') }}" class="button {% if selected_product == 'all' %}primary{% endif %}">{{ _('All-in-one') }}</a>
     </div>
 
@@ -75,6 +77,11 @@
       <div class="box" style="margin-bottom:1rem;">
         <strong>{{ _('Filtre actif : IFRS9') }}</strong>
       </div>
+    {% elif selected_product == 'e_learning' %}
+      <div class="box" style="margin-bottom:1rem;">
+        <strong>{{ _('Filtre actif : E-Learning') }}</strong>
+        <div style="margin-top:.6rem;">{{ _('E-Learning est inclus dans tous les plans, avec un plan Academy autonome si vous voulez uniquement la formation.') }}</div>
+      </div>
     {% elif selected_product == 'all' %}
       <div class="box" style="margin-bottom:1rem;">
         <strong>{{ _('Filtre actif : Tous les produits') }}</strong>
@@ -97,6 +104,7 @@
               {% set has_credit = (plan.features_json and plan.features_json.get('has_credit')) or plan.code == 'free' %}
               {% set has_ifrs9 = (plan.features_json and plan.features_json.get('has_ifrs9')) or plan.code == 'free' or plan.code in ['credit_pro', 'all_in_one_pro', 'enterprise'] %}
               {% set has_ml = (plan.features_json and plan.features_json.get('has_ml')) or has_bi or plan.code == 'free' %}
+              {% set has_e_learning = (plan.features_json and plan.features_json.get('has_e_learning')) or true %}
               {% set monthly_price = (plan.price_monthly or 0)|float %}
               {% set yearly_price = (plan.price_yearly or 0)|float %}
               {% set yearly_reference = monthly_price * 12 %}
@@ -109,6 +117,7 @@
                 {% if has_credit %}<span class="badge">{{ _('Audela Credit') }}</span>{% endif %}
                 {% if has_project %}<span class="badge">{{ _('Projet') }}</span>{% endif %}
                 {% if has_ifrs9 %}<span class="badge">{{ _('IFRS9') }}</span>{% endif %}
+                {% if has_e_learning %}<span class="badge">{{ _('Academy') }}</span>{% endif %}
               </p>
 
               <p><strong>{{ '%.2f'|format(monthly_price) }} {{ plan.currency or 'EUR' }} / {{ _('mois') }}</strong></p>
@@ -124,6 +133,7 @@
                 <li>{{ _('Entreprises') }}: {{ '∞' if plan.max_companies == -1 else plan.max_companies }}</li>
                 <li>{{ _('Transactions/mois') }}: {{ '∞' if plan.max_transactions_per_month == -1 else plan.max_transactions_per_month }}</li>
                 <li>{{ _('Support premium') }}: {{ _('Oui') if (plan.features_json and plan.features_json.get('premium_support')) else _('Non') }}</li>
+                <li>{{ _('E-Learning') }}: {{ _('Inclus') }}</li>
                 <li>{{ _('Essai') }}: {{ plan.trial_days }} {{ _('jours') }}</li>
               </ul>
 

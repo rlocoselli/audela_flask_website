@@ -1,0 +1,82 @@
+{% extends "portal/base_portal.html" %}
+
+{% block title %}{{ _('SQL Training Modules') }}{% endblock %}
+{% block meta_description %}{{ _('Free SQL training with interactive exercises') }}{% endblock %}
+
+{% block content %}
+<nav class="navbar navbar-expand-lg border-bottom bg-body sticky-top sql-training-navbar">
+  <div class="container-fluid">
+    <a class="navbar-brand fw-semibold" href="{{ url_for('sql_training.modules_list') }}">
+      <i class="bi bi-database me-2"></i>{{ _('SQL Training') }}
+    </a>
+    
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sqlTrainingNav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    
+    <div class="collapse navbar-collapse" id="sqlTrainingNav">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_for('sql_training.modules_list') }}">
+            <i class="bi bi-book me-1"></i>{{ _('Modules') }}
+          </a>
+        </li>
+        {% if current_user.is_authenticated %}
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_for('sql_training.user_dashboard') }}">
+            <i class="bi bi-speedometer2 me-1"></i>{{ _('My Dashboard') }}
+          </a>
+        </li>
+        {% endif %}
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+            <i class="bi bi-globe me-1"></i><span id="lang-display">{{ lang }}</span>
+          </a>
+          <ul class="dropdown-menu dropdown-menu-end">
+            {% for code, info in SUPPORTED_LANGS.items() %}
+            <li>
+              <a class="dropdown-item {% if lang == code %}active{% endif %}" 
+                 href="{{ request.base_url }}?lang={{ code }}">
+                {{ info.label }}
+              </a>
+            </li>
+            {% endfor %}
+          </ul>
+        </li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<div class="sql-training-container">
+  {% block sql_training_content %}{% endblock %}
+</div>
+
+<style>
+  :root {
+    --sql-primary: #0f766e;
+    --sql-secondary: #0ea5e9;
+    --sql-accent: #f59e0b;
+  }
+  
+  .sql-training-navbar {
+    --bs-border-color: #e5e7eb;
+  }
+  
+  .sql-training-navbar .navbar-brand {
+    color: var(--sql-primary) !important;
+    font-size: 1.3rem;
+  }
+  
+  .sql-training-container {
+    min-height: 80vh;
+    padding: 2rem 0;
+  }
+  
+  @media (max-width: 768px) {
+    .sql-training-container {
+      padding: 1rem 0;
+    }
+  }
+</style>
+{% endblock %}

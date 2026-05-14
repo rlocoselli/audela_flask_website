@@ -891,7 +891,9 @@ def products():
     has_ifrs9 = SubscriptionService.check_feature_access(current_user.tenant_id, "ifrs9")
     has_project = SubscriptionService.check_feature_access(current_user.tenant_id, "project")
     
-    if not has_finance and not has_bi and not has_ml and not has_credit and not has_ifrs9 and not has_project:
+    has_e_learning = SubscriptionService.check_feature_access(current_user.tenant_id, "e_learning")
+
+    if not has_finance and not has_bi and not has_ml and not has_credit and not has_ifrs9 and not has_project and not has_e_learning:
         flash(tr("No products available. Please upgrade your subscription.", getattr(g, "lang", None)), "warning")
         return redirect(url_for("billing.plans"))
     
@@ -906,6 +908,7 @@ def products():
         has_credit=has_credit,
         has_ifrs9=has_ifrs9,
         has_project=has_project,
+        has_e_learning=has_e_learning,
         module_access=module_access,
     )
 

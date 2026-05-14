@@ -1,0 +1,411 @@
+{% extends 'e_learning/base_e_learning.html' %}
+
+{% block e_learning_content %}
+<div class="container-fluid py-5">
+    <!-- Welcome Header -->
+    <div class="row mb-5 align-items-center">
+        <div class="col-md-8">
+            <h1 class="display-5 fw-bold">{{ _('Welcome back') }}, {{ current_user.username }}!</h1>
+            <p class="lead text-muted">{{ _('Continue your learning journey') }}</p>
+        </div>
+    </div>
+    
+    <!-- Stats Cards -->
+    <div class="row mb-5">
+        <div class="col-md-3 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <h3 style="color: #667eea; margin: 0;">{{ profile.total_points }}</h3>
+                    <small class="text-muted">{{ _('Total Points') }}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <h3 style="color: #667eea; margin: 0;">{{ profile.current_level }}</h3>
+                    <small class="text-muted">{{ _('Level') }}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <h3 style="color: #ff9800; margin: 0;">{{ profile.modules_completed }}</h3>
+                    <small class="text-muted">{{ _('Modules Finished') }}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center">
+                    <h3 style="color: #ff9800; margin: 0;">
+                        <span class="material-symbols-outlined" style="display: inline;">local_fire_department</span>
+                        {{ profile.current_streak }}
+                    </h3>
+                    <small class="text-muted">{{ _('Current Streak') }}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Tabs for different views -->
+    <ul class="nav nav-tabs mb-4" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="courses-tab" data-bs-toggle="tab" data-bs-target="#courses" type="button" role="tab">
+                <span class="material-symbols-outlined" style="display: inline; margin-right: 8px;">school</span>
+                {{ _('My Courses') }} ({{ enrollments|length }})
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="exercises-tab" data-bs-toggle="tab" data-bs-target="#exercises" type="button" role="tab">
+                <span class="material-symbols-outlined" style="display: inline; margin-right: 8px;">assignment</span>
+                {{ _('Exercises Completed') }}
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="certificates-tab" data-bs-toggle="tab" data-bs-target="#certificates" type="button" role="tab">
+                <span class="material-symbols-outlined" style="display: inline; margin-right: 8px;">card_giftcard</span>
+                {{ _('All Certificates') }} ({{ certificates|length }})
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="progress-tab" data-bs-toggle="tab" data-bs-target="#progress" type="button" role="tab">
+                <span class="material-symbols-outlined" style="display: inline; margin-right: 8px;">trending_up</span>
+                {{ _('Progress Report') }}
+            </button>
+        </li>
+    </ul>
+    
+    <!-- Tab Content -->
+    <div class="tab-content">
+        <!-- Courses Tab -->
+        <div class="tab-pane fade show active" id="courses" role="tabpanel">
+            {% if enrollments %}
+            <div class="row">
+                {% for enrollment in enrollments %}
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
+                            <h5 class="mb-0">{{ enrollment.module.title_i18n.get(current_lang, enrollment.module.title_i18n.get('en', enrollment.module.code)) }}</h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted small">{{ enrollment.module.description_i18n.get(current_lang, enrollment.module.description_i18n.get('en', ''))|truncate(60) }}</p>
+                            
+                            <div class="mb-3">
+                                <small class="d-block text-muted mb-1">{{ _('Progress') }}: {{ enrollment.progress_percentage }}%</small>
+                                <div class="progress" style="height: 6px;">
+                                    <div class="progress-bar" style="width: {{ enrollment.progress_percentage }}%; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);"></div>
+                                </div>
+                            </div>
+                            
+                            <small class="d-block mb-2">
+                                <strong>{{ _('Score') }}: {{ enrollment.overall_score }}%</strong>
+                                <span class="badge" style="background: {% if enrollment.status == 'completed' %}#28a745{% elif enrollment.status == 'in_progress' %}#667eea{% else %}#6c757d{% endif %};">
+                                    {{ enrollment.status|upper }}
+                                </span>
+                            </small>
+                            
+                            <a href="{{ url_for('e_learning.module_detail', module_id=enrollment.module_id) }}" class="btn btn-sm btn-primary">
+                                {{ _('Continue') }}
+                            </a>
+                            {% if enrollment.module.subject and enrollment.module.subject.code == 'sql' %}
+                            <a href="{{ url_for('e_learning.module_detail', module_id=enrollment.module_id, show_schema=1) }}" class="btn btn-sm btn-outline-primary ms-1">
+                                {{ _('View Schema Diagram') }}
+                            </a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                {{ _('No courses enrolled yet') }}
+                <a href="{{ url_for('e_learning.subjects_list') }}" class="btn btn-sm btn-primary ms-2">{{ _('Explore Subjects') }}</a>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Exercises Tab -->
+        <div class="tab-pane fade" id="exercises" role="tabpanel">
+            <div id="exercisesLoading" class="text-center py-5">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">{{ _('Loading') }}...</span>
+                </div>
+            </div>
+            <div id="exercisesContainer" class="table-responsive" style="display: none;">
+                <table class="table table-hover">
+                    <thead style="background: #f8f9fa;">
+                        <tr>
+                            <th>{{ _('Exercise') }}</th>
+                            <th>{{ _('Module') }}</th>
+                            <th style="text-align: center;">{{ _('Attempts') }}</th>
+                            <th style="text-align: center;">{{ _('Best Score') }}</th>
+                            <th style="text-align: center;">{{ _('Status') }}</th>
+                            <th>{{ _('Last Attempt') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody id="exercisesTableBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Certificates Tab -->
+        <div class="tab-pane fade" id="certificates" role="tabpanel">
+            <div class="mb-3">
+                <button class="btn btn-primary" onclick="downloadAllCertificates()">
+                    <span class="material-symbols-outlined" style="display: inline;">download</span>
+                    {{ _('Download All Certificates') }}
+                </button>
+            </div>
+            
+            {% if certificates %}
+            <div class="row">
+                {% for cert in certificates %}
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-header" style="background: linear-gradient(135deg, #ffd89b 0%, #19547b 100%); color: white;">
+                            <h6 class="mb-0">
+                                <span class="material-symbols-outlined" style="display: inline;">card_giftcard</span>
+                                {{ cert.module.title_i18n.get(current_lang, cert.module.title_i18n.get('en', cert.module.code)) }}
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted small">{{ cert.module.subject.name_i18n.get(current_lang, cert.module.subject.name_i18n.get('en', cert.module.subject.code)) }}</p>
+                            <p><strong>{{ _('Score') }}: {{ cert.final_score }}%</strong></p>
+                            <small class="text-muted">{{ cert.issued_at.strftime('%d/%m/%Y') }}</small>
+                        </div>
+                        <div class="card-footer bg-white border-top">
+                            <a href="{{ url_for('e_learning.certificate_view', cert_id=cert.id) }}" class="btn btn-sm btn-outline-primary me-1">
+                                <span class="material-symbols-outlined" style="display: inline;">visibility</span>
+                                {{ _('View') }}
+                            </a>
+                            <a href="{{ url_for('e_learning.download_certificate_pdf', cert_id=cert.id) }}" class="btn btn-sm btn-outline-secondary">
+                                <span class="material-symbols-outlined" style="display: inline;">download</span>
+                                PDF
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="alert alert-info">
+                {{ _('No certificates yet') }}
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Progress Report Tab -->
+        <div class="tab-pane fade" id="progress" role="tabpanel">
+            <div id="progressLoading" class="text-center py-5">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">{{ _('Loading') }}...</span>
+                </div>
+            </div>
+            <div id="progressContainer" style="display: none;">
+                <div class="row mb-4">
+                    <div class="col-md-3 mb-3">
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-body text-center">
+                                <h4 id="completionRate">0%</h4>
+                                <small class="text-muted">{{ _('Completion Rate') }}</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-body text-center">
+                                <h4 id="averageScore">0%</h4>
+                                <small class="text-muted">{{ _('Average Score') }}</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-body text-center">
+                                <h4 id="totalModules">0</h4>
+                                <small class="text-muted">{{ _('Total Modules') }}</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-body text-center">
+                                <h4 id="totalExercises">0</h4>
+                                <small class="text-muted">{{ _('Total Exercises') }}</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <button class="btn btn-primary" onclick="downloadProgressReport()">
+                        <span class="material-symbols-outlined" style="display: inline;">download</span>
+                        {{ _('Download Progress Report') }}
+                    </button>
+                </div>
+                
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white border-bottom">
+                        <h5 class="mb-0">{{ _('Modules Overview') }}</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>{{ _('Module') }}</th>
+                                    <th style="text-align: center;">{{ _('Progress') }}</th>
+                                    <th style="text-align: center;">{{ _('Score') }}</th>
+                                    <th>{{ _('Status') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody id="modulesTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recommended -->
+    <div class="row mt-5">
+        <div class="col-12">
+            <h5 class="mb-3">{{ _('Recommended For You') }}</h5>
+            {% if recommended %}
+            <div class="row">
+                {% for module in recommended %}
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card border-0 shadow-sm h-100 hover-card">
+                        <div class="card-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
+                            <h6 class="mb-0">{{ module.title_i18n.get(current_lang, module.title_i18n.get('en', module.code)) }}</h6>
+                        </div>
+                        <div class="card-body">
+                            <small class="badge bg-info">{{ module.level|upper }}</small>
+                            <p class="mt-2 text-muted small">{{ module.description_i18n.get(current_lang, module.description_i18n.get('en', ''))|truncate(60) }}</p>
+                        </div>
+                        <div class="card-footer bg-white border-top">
+                            <a href="{{ url_for('e_learning.module_detail', module_id=module.id) }}" class="btn btn-sm btn-primary w-100">
+                                {{ _('Start Now') }}
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+    .material-symbols-outlined {
+        font-variation-settings:
+            'FILL' 0,
+            'wght' 400,
+            'GRAD' 0,
+            'opsz' 24;
+    }
+    
+    .hover-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15) !important;
+    }
+</style>
+
+<script>
+// Load exercises on tab click
+document.getElementById('exercises-tab').addEventListener('shown.bs.tab', function() {
+    loadExercises();
+});
+
+// Load progress on tab click
+document.getElementById('progress-tab').addEventListener('shown.bs.tab', function() {
+    loadProgressReport();
+});
+
+async function loadExercises() {
+    try {
+        const response = await fetch('{{ url_for("e_learning.api_exercises_summary") }}');
+        const data = await response.json();
+        
+        const tbody = document.getElementById('exercisesTableBody');
+        tbody.innerHTML = '';
+        
+        data.exercises.forEach(exercise => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><strong>${exercise.exercise_name.en || exercise.exercise_name}</strong></td>
+                <td>${exercise.module_name.en || exercise.module_name}</td>
+                <td style="text-align: center;"><span class="badge bg-info">${exercise.attempts}</span></td>
+                <td style="text-align: center;"><strong style="color: #667eea;">${exercise.best_score}</strong></td>
+                <td style="text-align: center;">
+                    <span class="badge" style="background: ${exercise.correct ? '#28a745' : '#dc3545'};">
+                        ${exercise.correct ? 'CORRECT' : 'PENDING'}
+                    </span>
+                </td>
+                <td><small class="text-muted">${new Date(exercise.last_attempt).toLocaleDateString()}</small></td>
+            `;
+            tbody.appendChild(row);
+        });
+        
+        document.getElementById('exercisesLoading').style.display = 'none';
+        document.getElementById('exercisesContainer').style.display = 'block';
+    } catch (error) {
+        console.error('Error loading exercises:', error);
+    }
+}
+
+async function loadProgressReport() {
+    try {
+        const response = await fetch('{{ url_for("e_learning.api_progress_report") }}');
+        const data = await response.json();
+        
+        // Update stats
+        document.getElementById('completionRate').innerText = 
+            Math.round(data.stats.completion_rate) + '%';
+        document.getElementById('averageScore').innerText = 
+            Math.round(data.stats.accuracy) + '%';
+        document.getElementById('totalModules').innerText = 
+            data.stats.total_modules;
+        document.getElementById('totalExercises').innerText = 
+            data.stats.total_exercises;
+        
+        // Fill modules table
+        const tbody = document.getElementById('modulesTableBody');
+        tbody.innerHTML = '';
+        
+        data.enrollments.forEach(enrollment => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><strong>${enrollment.module_name.en || enrollment.module_name}</strong></td>
+                <td style="text-align: center;">
+                    <div class="progress">
+                        <div class="progress-bar" style="width: ${enrollment.progress}%; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);"></div>
+                    </div>
+                </td>
+                <td style="text-align: center;"><strong>${enrollment.score}%</strong></td>
+                <td><span class="badge" style="background: ${enrollment.status === 'completed' ? '#28a745' : '#667eea'};">${enrollment.status.toUpperCase()}</span></td>
+            `;
+            tbody.appendChild(row);
+        });
+        
+        document.getElementById('progressLoading').style.display = 'none';
+        document.getElementById('progressContainer').style.display = 'block';
+    } catch (error) {
+        console.error('Error loading progress:', error);
+    }
+}
+
+function downloadAllCertificates() {
+    window.location.href = '{{ url_for("e_learning.download_all_certificates_zip") }}';
+}
+
+function downloadProgressReport() {
+    window.location.href = '{{ url_for("e_learning.download_progress_report_csv") }}';
+}
+</script>
+{% endblock %}

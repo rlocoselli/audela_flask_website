@@ -368,6 +368,43 @@ def create_app() -> Flask:
         response.headers.setdefault("X-App-Release", str(app.config.get("APP_RELEASE", "dev")))
         return response
 
+    # -----------------
+    # Internal Analytics: record page views after every non-static GET
+    # -----------------
+    import time as _time
+
+    @app.before_request
+    def _analytics_start():  # noqa: ANN001
+        g._req_start = _time.monotonic()
+
+    @app.after_request
+    def _record_internal_view(response):  # noqa: ANN001
+        try:
+            # Only track GET requests, skip static files and analytics API itself
+            skip_prefixes = ("/static/", "/favicon", "/_")
+            if request.method != "GET":
+                return response
+            if any(request.path.startswith(p) for p in skip_prefixes):
+                return response
+            # Skip non-HTML responses (JS, CSS, JSON, images...)
+            ct = response.content_type or ""
+            if not ("text/html" in ct or not ct):
+                return response
+
+            duration_ms = None
+            start = getattr(g, "_req_start", None)
+            if start is not None:
+                duration_ms = round((_time.monotonic() - start) * 1000, 1)
+
+            from .services.analytics_service import record_page_view
+            record_page_view(
+                status_code=response.status_code,
+                duration_ms=duration_ms,
+            )
+        except Exception:
+            pass
+        return response
+
 
     @login_manager.user_loader
     def load_user(user_id: str):
@@ -390,6 +427,8 @@ def create_app() -> Flask:
     from .blueprints.tenant import bp as tenant_bp
     from .blueprints.billing import bp as billing_bp
     from .blueprints.admin import bp as admin_bp
+    from .blueprints.sql_training import bp as sql_training_bp
+    from .blueprints.e_learning import bp as e_learning_bp
 
     app.register_blueprint(public_bp)
     app.register_blueprint(auth_bp)
@@ -404,6 +443,8 @@ def create_app() -> Flask:
     app.register_blueprint(tenant_bp)
     app.register_blueprint(billing_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(sql_training_bp)
+    app.register_blueprint(e_learning_bp)
 
     # Legacy compatibility: previous links may still use /portal/*.
     @app.route("/portal", methods=["GET"])
@@ -420,9 +461,11 @@ def create_app() -> Flask:
 
     # Finance CLI Commands
     from .commands import init_finance_cli, init_celery_cli, init_admin_cli
+    from .commands.e_learning_seed import init_e_learning_seed_cli
     init_finance_cli(app)
     init_celery_cli(app)
     init_admin_cli(app)
+    init_e_learning_seed_cli(app)
 
     # Finance Auto-balance Updates (SQLAlchemy Event Listeners)
     from .services.bank_configuration_service import initialize_balance_updates

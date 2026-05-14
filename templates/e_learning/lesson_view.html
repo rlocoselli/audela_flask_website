@@ -1,0 +1,103 @@
+{% extends 'e_learning/base_e_learning.html' %}
+
+{% block e_learning_content %}
+<div class="container py-5">
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Lesson Content -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body">
+                    <h1 class="mb-3">{{ lesson.title_i18n.get(current_lang, lesson.title_i18n.get('en', lesson.code)) }}</h1>
+                    <p class="lead text-muted">{{ lesson.description_i18n.get(current_lang, lesson.description_i18n.get('en', '')) }}</p>
+                    {% if module.subject.code == 'sql' %}
+                    <a href="{{ url_for('e_learning.module_detail', module_id=module.id, show_schema=1) }}" class="btn btn-outline-primary btn-sm mb-3">
+                        <span class="material-symbols-outlined" style="font-size: 18px; display: inline;">database</span>
+                        {{ _('View Schema Diagram') }}
+                    </a>
+                    {% endif %}
+                    
+                    <!-- Lesson HTML Content -->
+                    {% if lesson.content_html_i18n %}
+                    <div class="mt-4 lesson-content">
+                        {{ lesson.content_html_i18n.get(current_lang, lesson.content_html_i18n.get('en', ''))|safe }}
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Key Concepts -->
+                    {% if lesson.key_concepts_i18n %}
+                    <div class="mt-4 pt-4 border-top">
+                        <h5>{{ _('Key Concepts') }}</h5>
+                        <ul>
+                            {% for concept in lesson.key_concepts_i18n.get(current_lang, lesson.key_concepts_i18n.get('en', [])) %}
+                            <li>{{ concept }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-4">
+            <!-- Exercises -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-gradient" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
+                    <h5 class="mb-0">{{ _('Exercises') }} ({{ exercises|length }})</h5>
+                </div>
+                <div class="list-group list-group-flush">
+                    {% for exercise in exercises %}
+                    <a href="{{ url_for('e_learning.exercise_view', exercise_id=exercise.id) }}" class="list-group-item list-group-item-action">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">{{ exercise.title_i18n.get(current_lang, exercise.title_i18n.get('en', exercise.code)) }}</h6>
+                                <small class="text-muted">{{ _('Points') }}: {{ exercise.points }}</small>
+                            </div>
+                            <span class="badge bg-primary">{{ exercise.type }}</span>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .lesson-content {
+        font-size: 1.1rem;
+        line-height: 1.8;
+    }
+    
+    .lesson-content img {
+        max-width: 100%;
+        height: auto;
+        border-radius: 0.5rem;
+        margin: 1rem 0;
+    }
+
+    .lesson-image-fallback {
+        border: 1px dashed #cbd5e1;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        text-align: center;
+        color: #64748b;
+        background: #f8fafc;
+        margin: 1rem 0;
+        font-size: 0.95rem;
+    }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const images = document.querySelectorAll('.lesson-content img');
+    images.forEach((img) => {
+        img.addEventListener('error', function () {
+            const placeholder = document.createElement('div');
+            placeholder.className = 'lesson-image-fallback';
+            placeholder.textContent = '{{ _("Image unavailable") }}';
+            img.replaceWith(placeholder);
+        });
+    });
+});
+</script>
+{% endblock %}

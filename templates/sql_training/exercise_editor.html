@@ -1,0 +1,337 @@
+{% extends "sql_training/base_sql_training.html" %}
+
+{% block sql_training_content %}
+<div class="container-lg">
+  <!-- Breadcrumb -->
+  <nav aria-label="breadcrumb" class="mt-4">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item">
+        <a href="{{ url_for('sql_training.modules_list') }}">{{ _('SQL Training') }}</a>
+      </li>
+      <li class="breadcrumb-item">
+        <a href="{{ url_for('sql_training.module_detail', module_id=exercise.lesson.module.id) }}">
+          {{ translate(exercise.lesson.module, 'title_i18n', lang) }}
+        </a>
+      </li>
+      <li class="breadcrumb-item active">{{ translate(exercise, 'title_i18n', lang) }}</li>
+    </ol>
+  </nav>
+
+  <div class="row g-4 mt-4">
+    <!-- Main Editor -->
+    <div class="col-lg-8">
+      <!-- Exercise Instructions -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-light border-bottom">
+          <h5 class="card-title fw-bold mb-0">
+            {{ translate(exercise, 'title_i18n', lang) }}
+          </h5>
+        </div>
+        
+        <div class="card-body">
+          <p class="lead">
+            {{ translate(exercise, 'instruction_i18n', lang) }}
+          </p>
+          
+          {% if exercise.hint_i18n and exercise.hint_i18n.get(lang) %}
+            <div class="alert alert-info alert-dismissible fade show">
+              <strong>💡 {{ _('Hint:') }}</strong> {{ exercise.hint_i18n.get(lang) }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+          {% endif %}
+          
+          <div class="alert alert-light border-left border-5" style="border-left-color: var(--sql-primary);">
+            <strong>{{ _('Exercise Type:') }}</strong> {{ exercise.type | replace('_', ' ') | title }}
+            <br>
+            <strong>{{ _('Points:') }}</strong> {{ exercise.points }}
+          </div>
+        </div>
+      </div>
+
+      <!-- SQL Editor -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+          <h6 class="fw-bold mb-0">
+            <i class="bi bi-code-square me-2" style="color: var(--sql-secondary);"></i>{{ _('SQL Editor') }}
+          </h6>
+          <button type="button" class="btn btn-sm btn-outline-light" onclick="executeSQL()">
+            <i class="bi bi-play-circle me-1"></i>{{ _('Execute') }}
+          </button>
+        </div>
+        
+        <div class="card-body p-0">
+          <textarea id="sql-editor" class="form-control border-0" style="font-family: 'Monaco', 'Courier New', monospace; min-height: 300px;">
+SELECT * FROM (SELECT 'Start typing your SQL here');</textarea>
+        </div>
+      </div>
+
+      <!-- Submit Button -->
+      <div class="d-flex gap-2 mb-4">
+        <button type="button" class="btn btn-primary btn-lg" onclick="submitExercise()">
+          <i class="bi bi-check-circle me-2"></i>{{ _('Submit Solution') }}
+        </button>
+        <button type="button" class="btn btn-outline-secondary btn-lg" onclick="clearEditor()">
+          <i class="bi bi-trash me-2"></i>{{ _('Clear') }}
+        </button>
+      </div>
+
+      <!-- Results -->
+      <div id="results-container" class="mb-4" style="display:none;">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header" id="results-header" class="bg-success text-white border-0">
+            <h6 class="fw-bold mb-0">
+              <i class="bi bi-check-circle me-2"></i>{{ _('Success!') }}
+            </h6>
+          </div>
+          
+          <div class="card-body">
+            <div id="feedback-message" class="mb-3"></div>
+            
+            <!-- Query Results Table -->
+            <div id="results-table-container" style="display:none;">
+              <h6 class="fw-bold mb-2">{{ _('Results') }}</h6>
+              <div class="table-responsive">
+                <table class="table table-sm table-striped" id="results-table">
+                  <thead></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+            </div>
+            
+            <!-- Error Message -->
+            <div id="error-message" class="alert alert-danger mb-0" style="display:none;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Previous Attempts -->
+      {% if submissions %}
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-light border-bottom">
+          <h6 class="fw-bold mb-0">
+            <i class="bi bi-clock-history me-2"></i>{{ _('Previous Attempts') }}
+          </h6>
+        </div>
+        
+        <div class="card-body p-0">
+          <div class="list-group list-group-flush">
+            {% for submission in submissions[:5] %}
+            <div class="list-group-item">
+              <div class="d-flex justify-content-between mb-2">
+                <small class="text-muted">
+                  {{ submission.submitted_at.strftime('%Y-%m-%d %H:%M') }}
+                </small>
+                {% if submission.is_correct %}
+                  <span class="badge bg-success">{{ submission.points_earned }}/{{ exercise.points }}</span>
+                {% else %}
+                  <span class="badge bg-warning">Attempt {{ submission.attempt_number }}</span>
+                {% endif %}
+              </div>
+              <small>
+                <code>{{ submission.submitted_sql[:100] }}...</code>
+              </small>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Sidebar -->
+    <div class="col-lg-4">
+      <!-- Quick Reference -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-light border-bottom">
+          <h6 class="fw-bold mb-0">
+            <i class="bi bi-book me-2"></i>{{ _('Quick Reference') }}
+          </h6>
+        </div>
+        
+        <div class="card-body">
+          <h6 class="small fw-bold text-muted mb-2">SQL KEYWORDS</h6>
+          <div class="btn-group-vertical w-100 mb-3" role="group">
+            <button type="button" class="btn btn-outline-secondary btn-sm text-start" onclick="insertSQL('SELECT * FROM ')">SELECT</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm text-start" onclick="insertSQL('WHERE ')">WHERE</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm text-start" onclick="insertSQL('INSERT INTO ')">INSERT</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm text-start" onclick="insertSQL('UPDATE ')">UPDATE</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm text-start" onclick="insertSQL('DELETE FROM ')">DELETE</button>
+          </div>
+          
+          <h6 class="small fw-bold text-muted mb-2">DATABASE TABLES</h6>
+          <button type="button" class="btn btn-outline-info btn-sm w-100" onclick="viewSchema()">
+            <i class="bi bi-diagram-3 me-1"></i>{{ _('View Schema') }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Exercise Info -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-light border-bottom">
+          <h6 class="fw-bold mb-0">{{ _('Exercise Info') }}</h6>
+        </div>
+        
+        <div class="card-body">
+          <div class="mb-3">
+            <small class="text-muted d-block">{{ _('Type') }}</small>
+            <strong>{{ exercise.type | replace('_', ' ') | title }}</strong>
+          </div>
+          
+          <div class="mb-3">
+            <small class="text-muted d-block">{{ _('Points') }}</small>
+            <strong>{{ exercise.points }}</strong>
+          </div>
+          
+          {% if submissions %}
+          <div class="mb-3">
+            <small class="text-muted d-block">{{ _('Best Score') }}</small>
+            <strong>
+              {% set best_score = submissions | map(attribute='points_earned') | max %}
+              {{ best_score }}/{{ exercise.points }}
+            </strong>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Navigation -->
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <a href="{{ url_for('sql_training.lesson_view', lesson_id=exercise.lesson.id) }}"
+             class="btn btn-outline-secondary btn-sm w-100">
+            <i class="bi bi-arrow-left me-1"></i>{{ _('Back to Lesson') }}
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const moduleId = {{ exercise.lesson.module.id }};
+const exerciseId = {{ exercise.id }};
+const enrollmentId = {{ enrollment.id }};
+
+function executeSQL() {
+  const sql = document.getElementById('sql-editor').value;
+  
+  fetch('/sql-training/api/execute-query', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+    },
+    body: JSON.stringify({
+      query: sql,
+      module_id: moduleId
+    })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.error) {
+      showError(data.error);
+    } else {
+      showResults(data);
+    }
+  })
+  .catch(e => showError(e.message));
+}
+
+function submitExercise() {
+  const sql = document.getElementById('sql-editor').value;
+  
+  fetch('/sql-training/api/submit-exercise', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': document.querySelector('meta[name="csrf-token"]')?.content || ''
+    },
+    body: JSON.stringify({
+      exercise_id: exerciseId,
+      enrollment_id: enrollmentId,
+      sql_code: sql,
+      lang: '{{ lang }}'
+    })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      showSubmissionResult(data);
+    } else {
+      showError(data.error);
+    }
+  })
+  .catch(e => showError(e.message));
+}
+
+function showResults(data) {
+  const container = document.getElementById('results-container');
+  const tableContainer = document.getElementById('results-table-container');
+  const table = document.getElementById('results-table');
+  
+  if (data.result && data.result.length > 0) {
+    // Populate table
+    const headers = data.columns || Object.keys(data.result[0]);
+    const thead = table.querySelector('thead');
+    const tbody = table.querySelector('tbody');
+    
+    thead.innerHTML = '<tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr>';
+    tbody.innerHTML = data.result.map(row => 
+      '<tr>' + headers.map(h => `<td>${row[h]}</td>`).join('') + '</tr>'
+    ).join('');
+    
+    tableContainer.style.display = 'block';
+  }
+  
+  container.style.display = 'block';
+}
+
+function showSubmissionResult(data) {
+  const container = document.getElementById('results-container');
+  const header = document.getElementById('results-header');
+  const feedback = document.getElementById('feedback-message');
+  
+  if (data.is_correct) {
+    header.className = 'card-header bg-success text-white border-0';
+    header.innerHTML = '<h6 class="fw-bold mb-0"><i class="bi bi-check-circle me-2"></i>Correct!</h6>';
+    feedback.innerHTML = `<div class="alert alert-success">${data.feedback[Object.keys(data.feedback)[0]]}</div>`;
+  } else {
+    header.className = 'card-header bg-warning text-white border-0';
+    header.innerHTML = '<h6 class="fw-bold mb-0"><i class="bi bi-exclamation-circle me-2"></i>Not quite right</h6>';
+    feedback.innerHTML = `<div class="alert alert-warning">${data.feedback[Object.keys(data.feedback)[0]]}</div>`;
+  }
+  
+  container.style.display = 'block';
+  container.scrollIntoView({ behavior: 'smooth' });
+}
+
+function showError(message) {
+  const container = document.getElementById('results-container');
+  const header = document.getElementById('results-header');
+  const errorDiv = document.getElementById('error-message');
+  
+  header.className = 'card-header bg-danger text-white border-0';
+  header.innerHTML = '<h6 class="fw-bold mb-0"><i class="bi bi-exclamation-triangle me-2"></i>Error</h6>';
+  errorDiv.textContent = message;
+  errorDiv.style.display = 'block';
+  
+  container.style.display = 'block';
+  container.scrollIntoView({ behavior: 'smooth' });
+}
+
+function clearEditor() {
+  document.getElementById('sql-editor').value = '';
+  document.getElementById('results-container').style.display = 'none';
+}
+
+function insertSQL(text) {
+  const editor = document.getElementById('sql-editor');
+  editor.value += text;
+  editor.focus();
+}
+
+function viewSchema() {
+  window.location.href = '{{ url_for("sql_training.database_diagram", module_id=exercise.lesson.module.id) }}';
+}
+</script>
+{% endblock %}

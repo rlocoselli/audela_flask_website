@@ -164,10 +164,12 @@ class TenantService:
         for code in role_codes:
             role = Role.query.filter_by(code=code).first()
             if role:
-                user_role = UserRole(user_id=user.id, role_id=role.id)
-                db.session.add(user_role)
+                # Avoid duplicate assignment
+                if not UserRole.query.filter_by(user_id=user.id, role_id=role.id).first():
+                    user_role = UserRole(user_id=user.id, role_id=role.id)
+                    db.session.add(user_role)
         
-        db.session.commit()
+        db.session.flush()
         
         return user
     
@@ -372,6 +374,7 @@ class TenantService:
             "has_credit": False,
             "has_ifrs9": False,
             "has_project": False,
+            "has_e_learning": False,
             "usage": {
                 "users": {"current": 0, "max": 0},
                 "companies": {"current": companies_count, "max": 0},
@@ -398,6 +401,7 @@ class TenantService:
                 "has_credit": bool((subscription.plan.features_json or {}).get("has_credit", subscription.plan.code == "free")) if isinstance(subscription.plan.features_json, dict) else bool(subscription.plan.code == "free"),
                 "has_ifrs9": bool((subscription.plan.features_json or {}).get("has_ifrs9", subscription.plan.code == "free" or subscription.plan.code in SubscriptionService.IFRS9_INCLUDED_PLAN_CODES)) if isinstance(subscription.plan.features_json, dict) else bool(subscription.plan.code == "free" or subscription.plan.code in SubscriptionService.IFRS9_INCLUDED_PLAN_CODES),
                 "has_project": bool((subscription.plan.features_json or {}).get("has_project", subscription.plan.code == "free")) if isinstance(subscription.plan.features_json, dict) else bool(subscription.plan.code == "free"),
+                "has_e_learning": bool((subscription.plan.features_json or {}).get("has_e_learning", True)) if isinstance(subscription.plan.features_json, dict) else True,
                 "usage": {
                     "users": {
                         "current": users_count,

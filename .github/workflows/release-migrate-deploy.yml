@@ -32,6 +32,8 @@ concurrency:
 jobs:
   migrate:
     name: Run DB migrations
+    # Reuses migrations-only workflow, which applies Alembic heads,
+    # seeds subscription plans, and seeds/verifies e-learning content.
     uses: ./.github/workflows/migrations-only.yml
     with:
       git_ref: ${{ github.event.inputs.git_ref || 'main' }}

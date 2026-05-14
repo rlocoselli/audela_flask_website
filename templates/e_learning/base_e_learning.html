@@ -1,0 +1,190 @@
+{% extends 'portal/base_portal.html' %}
+
+{% block title %}{% if page_title %}{{ page_title }} – {% endif %}{{ _('AUDELA Academy') }}{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+
+<style>
+    .academy-shell {
+        min-height: 100vh;
+    }
+    .academy-sidebar {
+        width: 280px;
+        min-width: 280px;
+    }
+    .academy-brand-chip {
+        width: 2.4rem;
+        height: 2.4rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: .85rem;
+        background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+        color: #1d4ed8;
+    }
+    .academy-topbar {
+        background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    }
+    .academy-nav-link {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+        padding: .72rem .85rem;
+        border-radius: .9rem;
+        color: #334155;
+        text-decoration: none;
+        transition: all .16s ease;
+    }
+    .academy-nav-link:hover,
+    .academy-nav-link:focus {
+        background: #eff6ff;
+        color: #0f172a;
+    }
+    .academy-nav-link.is-active {
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        color: #fff;
+        box-shadow: 0 10px 24px rgba(37, 99, 235, 0.18);
+    }
+    .academy-nav-link .material-symbols-outlined {
+        font-size: 1.1rem;
+    }
+    .academy-main {
+        min-width: 0;
+        background:
+            radial-gradient(circle at top right, rgba(59, 130, 246, 0.08), transparent 30%),
+            linear-gradient(180deg, #f8fbff 0%, #f4f7fb 100%);
+    }
+    .academy-content {
+        padding: 1rem 1.25rem 1.5rem;
+    }
+    .academy-mobile-link {
+        display: flex;
+        align-items: center;
+        gap: .65rem;
+        padding: .7rem 0;
+        color: #334155;
+        text-decoration: none;
+    }
+    .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+    }
+    @media (max-width: 991.98px) {
+        .academy-content {
+            padding: 1rem .95rem 1.25rem;
+        }
+    }
+</style>
+
+{% set _academy_links = [
+    ('e_learning.dashboard', 'dashboard', _('My Learning Dashboard')),
+    ('e_learning.user_profile', 'military_tech', _('My Achievements')),
+    ('e_learning.leaderboard', 'leaderboard', _('Leaderboard')),
+    ('e_learning.subjects_list', 'menu_book', _('Subjects'))
+] %}
+
+<div class="portal-shell d-flex academy-shell">
+    <aside class="sidebar border-end bg-body-tertiary p-3 d-none d-lg-flex flex-column academy-sidebar">
+        <div class="d-flex align-items-center gap-3 mb-4">
+            <div class="academy-brand-chip">
+                <span class="material-symbols-outlined">school</span>
+            </div>
+            <div>
+                <div class="brand">{{ _('AUDELA Academy') }}</div>
+                <div class="small text-secondary">{{ _('Internal learning module') }}</div>
+            </div>
+        </div>
+
+        <nav class="nav flex-column gap-2">
+            {% for endpoint, icon, label in _academy_links %}
+            <a class="academy-nav-link {% if request.endpoint == endpoint %}is-active{% endif %}" href="{{ url_for(endpoint) }}">
+                <span class="material-symbols-outlined">{{ icon }}</span>
+                <span>{{ label }}</span>
+            </a>
+            {% endfor %}
+        </nav>
+
+        <div class="mt-auto pt-4 small text-secondary">
+            {% if current_user.is_authenticated %}
+            <div class="fw-semibold text-body mb-1">{{ current_user.username or current_user.email }}</div>
+            {% if current_user.tenant %}
+            <div>{{ current_user.tenant.name }}</div>
+            {% endif %}
+            {% else %}
+            <div>{{ _('Explore the Academy') }}</div>
+            {% endif %}
+        </div>
+    </aside>
+
+    <div class="main-area d-flex flex-column academy-main">
+        <div class="topbar border-bottom academy-topbar">
+            <div class="container-fluid py-2 d-flex align-items-center justify-content-between gap-2 flex-wrap">
+                <div class="d-flex align-items-center gap-2">
+                    <button class="btn btn-outline-secondary btn-sm d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#academyMobileNav">
+                        <i class="bi bi-list"></i>
+                    </button>
+                    <div class="fw-semibold">{{ _('AUDELA Academy') }}</div>
+                    <span class="small text-secondary d-none d-sm-inline">· {{ _('Learning, practice and certification') }}</span>
+                </div>
+
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('tenant.dashboard') }}">
+                        <i class="bi bi-arrow-left-circle me-1"></i>{{ _('Back to Tenant Dashboard') }}
+                    </a>
+                    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('tenant.products') }}">
+                        <i class="bi bi-grid me-1"></i>{{ _('My Products') }}
+                    </a>
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                            {{ lang_label(current_lang) }}
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            {% for code, info in supported_langs.items() %}
+                            <li><a class="dropdown-item" href="{{ lang_switch_url(code) }}">{{ info.label }}</a></li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="container-fluid pt-3">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ 'danger' if category in ['error', 'danger'] else ('success' if category == 'success' else 'secondary') }}" role="alert">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
+
+        <div class="academy-content">
+            {% block e_learning_content %}{% endblock %}
+        </div>
+    </div>
+</div>
+
+<div class="offcanvas offcanvas-start" tabindex="-1" id="academyMobileNav">
+    <div class="offcanvas-header">
+        <h5 class="offcanvas-title">{{ _('AUDELA Academy') }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+        <div class="d-flex flex-column gap-1">
+            {% for endpoint, icon, label in _academy_links %}
+            <a class="academy-mobile-link" href="{{ url_for(endpoint) }}">
+                <span class="material-symbols-outlined">{{ icon }}</span>
+                <span>{{ label }}</span>
+            </a>
+            {% endfor %}
+            <hr>
+            <a class="academy-mobile-link" href="{{ url_for('tenant.dashboard') }}">
+                <i class="bi bi-arrow-left-circle"></i>
+                <span>{{ _('Back to Tenant Dashboard') }}</span>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

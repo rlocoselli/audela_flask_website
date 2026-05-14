@@ -155,3 +155,17 @@ __all__ = [
     "CreditBacklogTask",
 ]
 from .etl_catalog import ETLConnection  # noqa: F401
+from .e_learning import (  # noqa: F401
+    ELearningSubject,
+    ELearningModule,
+    ELearningLesson,
+    ELearningExercise,
+    UserELearningProfile,
+    Achievement,
+    UserAchievement,
+    UserELearningEnrollment,
+    UserELearningSubmission,
+    ELearningCertificate,
+    ELearningSampleDatabase,
+)
+from .analytics import InternalPageView, FeatureUsageEvent  # noqa: F401

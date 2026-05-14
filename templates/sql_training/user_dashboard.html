@@ -1,0 +1,150 @@
+{% extends "sql_training/base_sql_training.html" %}
+
+{% block sql_training_content %}
+<div class="container-lg mt-5">
+  <div class="row mb-5">
+    <div class="col-lg-8 mx-auto">
+      <h2 class="display-5 fw-bold mb-3">{{ _('My SQL Training Dashboard') }}</h2>
+      <p class="lead text-muted">{{ _('Track your progress and manage your certificates') }}</p>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <!-- Current & Recent Enrollments -->
+    <div class="col-lg-8">
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-light border-bottom">
+          <h6 class="fw-bold mb-0">
+            <i class="bi bi-book-half me-2"></i>{{ _('My Courses') }}
+          </h6>
+        </div>
+        
+        <div class="card-body p-0">
+          {% if enrollments %}
+            {% for enrollment in enrollments %}
+            <div class="border-bottom p-4" {% if loop.last %}style="border-bottom: none;"{% endif %}>
+              <div class="d-flex justify-content-between align-items-start mb-3">
+                <div>
+                  <h5 class="fw-bold mb-1">{{ translate(enrollment.module, 'title_i18n', lang) }}</h5>
+                  <small class="text-muted">
+                    {{ _('Status') }}: <span class="badge bg-info">{{ enrollment.status }}</span>
+                  </small>
+                </div>
+                <div class="text-end">
+                  <h6 class="fw-bold mb-0">{{ enrollment.overall_score }}%</h6>
+                  <small class="text-muted">{{ _('Score') }}</small>
+                </div>
+              </div>
+              
+              <div class="progress mb-3" style="height: 20px;">
+                <div class="progress-bar" role="progressbar" 
+                     style="width: {{ enrollment.progress_percentage }}%; background-color: var(--sql-primary);"
+                     aria-valuenow="{{ enrollment.progress_percentage }}"
+                     aria-valuemin="0" aria-valuemax="100">
+                  {{ enrollment.progress_percentage }}%
+                </div>
+              </div>
+              
+              <div class="d-flex gap-2">
+                <a href="{{ url_for('sql_training.module_detail', module_id=enrollment.module.id) }}"
+                   class="btn btn-sm btn-outline-primary">
+                  <i class="bi bi-play-circle me-1"></i>{{ _('Continue') }}
+                </a>
+                {% if enrollment.passed %}
+                  <span class="badge bg-success align-self-center">
+                    <i class="bi bi-check-circle me-1"></i>{{ _('Passed') }}
+                  </span>
+                {% endif %}
+              </div>
+            </div>
+            {% endfor %}
+          {% else %}
+            <div class="p-4 text-center text-muted">
+              <i class="bi bi-inbox" style="font-size: 2rem;"></i>
+              <p class="mt-2">{{ _('No courses enrolled yet') }}</p>
+              <a href="{{ url_for('sql_training.modules_list') }}" class="btn btn-primary btn-sm">
+                {{ _('Browse Modules') }}
+              </a>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Statistics -->
+      <div class="row g-3 mb-4">
+        <div class="col-md-6">
+          <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+              <h3 class="fw-bold" style="color: var(--sql-primary);">
+                {{ enrollments | length }}
+              </h3>
+              <small class="text-muted">{{ _('Courses Enrolled') }}</small>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+              <h3 class="fw-bold" style="color: var(--sql-accent);">
+                {{ enrollments | selectattr('passed', 'true') | list | length }}
+              </h3>
+              <small class="text-muted">{{ _('Completed') }}</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Certificates Sidebar -->
+    <div class="col-lg-4">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-light border-bottom">
+          <h6 class="fw-bold mb-0">
+            <i class="bi bi-award-fill me-2"></i>{{ _('My Certificates') }}
+          </h6>
+        </div>
+        
+        <div class="card-body p-0">
+          {% if certificates %}
+            <div class="list-group list-group-flush">
+              {% for cert in certificates %}
+              <a href="{{ url_for('sql_training.certificate_view', certificate_id=cert.id) }}"
+                 class="list-group-item list-group-item-action">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div>
+                    <strong class="d-block">{{ translate(cert.module, 'title_i18n', lang) }}</strong>
+                    <small class="text-muted">
+                      {{ cert.issued_at.strftime('%d %b %Y') }}
+                    </small>
+                  </div>
+                  <span class="badge bg-success">{{ cert.final_score }}%</span>
+                </div>
+              </a>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="p-4 text-center text-muted">
+              <i class="bi bi-files" style="font-size: 2rem;"></i>
+              <p class="mt-2 small">{{ _('Complete a module to earn a certificate') }}</p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+      
+      <!-- Quick Links -->
+      <div class="card border-0 shadow-sm mt-3">
+        <div class="card-body">
+          <a href="{{ url_for('sql_training.modules_list') }}"
+             class="btn btn-outline-primary w-100 mb-2">
+            <i class="bi bi-book me-1"></i>{{ _('Browse More') }}
+          </a>
+          <a href="{{ url_for('tenant.dashboard') }}"
+             class="btn btn-outline-secondary w-100">
+            <i class="bi bi-arrow-left me-1"></i>{{ _('Back to Tenant') }}
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

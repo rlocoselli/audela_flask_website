@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="trophy badge">
+  <rect width="128" height="128" rx="64" fill="#fef3c7"/>
+  <path d="M42 24h44v14c0 15-10 27-22 30-12-3-22-15-22-30z" fill="#f59e0b"/>
+  <path d="M34 30h8v8c0 6-4 10-10 10h-4v-8c0-6 4-10 10-10zm60 0h4c6 0 10 4 10 10v8h-4c-6 0-10-4-10-10z" fill="#fbbf24"/>
+  <rect x="58" y="68" width="12" height="16" fill="#d97706"/>
+  <rect x="46" y="84" width="36" height="10" rx="4" fill="#b45309"/>
+</svg>

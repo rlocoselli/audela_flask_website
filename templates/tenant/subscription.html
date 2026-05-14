@@ -98,6 +98,9 @@
                 {% if stats.has_ifrs9 %}
                   <span class="badge bg-danger"><i class="bi bi-shield-check"></i> {{ _('IFRS9') }}</span>
                 {% endif %}
+                {% if stats.has_e_learning %}
+                  <span class="badge bg-success"><i class="bi bi-mortarboard"></i> {{ _('E-Learning') }}</span>
+                {% endif %}
               </div>
             </div>
             <div class="col-md-4 text-md-end mt-3 mt-md-0">
@@ -229,6 +232,14 @@
                     <i class="bi bi-x-circle text-muted"></i>
                   {% endif %}
                   {{ _('Module IFRS9') }}
+                </li>
+                <li class="mb-2">
+                  {% if stats.has_e_learning %}
+                    <i class="bi bi-check-circle text-success"></i>
+                  {% else %}
+                    <i class="bi bi-x-circle text-muted"></i>
+                  {% endif %}
+                  {{ _('Module E-Learning (gratuit)') }}
                 </li>
               </ul>
             </div>

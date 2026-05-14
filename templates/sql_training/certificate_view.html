@@ -1,0 +1,87 @@
+{% extends "sql_training/base_sql_training.html" %}
+
+{% block sql_training_content %}
+<div class="container-lg mt-5">
+  <!-- Certificate Display -->
+  <div class="row mb-5">
+    <div class="col-lg-8 mx-auto">
+      <iframe srcdoc="{{ certificate_html }}" style="width: 100%; height: 800px; border: none; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);" frameborder="0"></iframe>
+    </div>
+  </div>
+
+  <!-- Share Section -->
+  <div class="row">
+    <div class="col-lg-6 mx-auto">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-light border-bottom">
+          <h6 class="fw-bold mb-0">
+            <i class="bi bi-share-fill me-2"></i>{{ _('Share Your Certificate') }}
+          </h6>
+        </div>
+        
+        <div class="card-body">
+          <p class="text-muted mb-3">{{ _('Share your achievement on social media') }}</p>
+          
+          <div class="input-group mb-3">
+            <input type="text" class="form-control" id="cert-link" 
+                   value="{{ url_for('sql_training.certificate_view', certificate_id=certificate.id, _external=True) }}"
+                   readonly>
+            <button class="btn btn-outline-primary" type="button" onclick="copyCertLink()">
+              <i class="bi bi-clipboard me-1"></i>{{ _('Copy Link') }}
+            </button>
+          </div>
+          
+          <div class="d-flex gap-2">
+            <a href="https://www.linkedin.com/sharing/share-offsite/?url={{ url_for('sql_training.certificate_view', certificate_id=certificate.id, _external=True) }}"
+               target="_blank" class="btn btn-outline-primary flex-fill">
+              <i class="bi bi-linkedin me-1"></i>LinkedIn
+            </a>
+            <a href="https://twitter.com/intent/tweet?text=I%20just%20completed%20{{ certificate.module.title_i18n.get(lang) | urlencode }}&url={{ url_for('sql_training.certificate_view', certificate_id=certificate.id, _external=True) }}"
+               target="_blank" class="btn btn-outline-info flex-fill">
+              <i class="bi bi-twitter me-1"></i>Twitter
+            </a>
+          </div>
+          
+          <hr class="my-4">
+          
+          <h6 class="fw-bold mb-3">{{ _('Verification Code') }}</h6>
+          <p class="text-muted small">{{ _('Share this code to verify your certificate') }}</p>
+          <div class="input-group">
+            <input type="text" class="form-control" value="{{ certificate.verification_code }}" readonly>
+            <button class="btn btn-outline-secondary" type="button" onclick="copyVerificationCode()">
+              <i class="bi bi-clipboard me-1"></i>Copy
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Navigation -->
+  <div class="row mt-4">
+    <div class="col-lg-6 mx-auto text-center">
+      <a href="{{ url_for('sql_training.modules_list') }}" class="btn btn-outline-primary me-2">
+        <i class="bi bi-book me-1"></i>{{ _('All Modules') }}
+      </a>
+      <a href="{{ url_for('sql_training.user_dashboard') }}" class="btn btn-primary">
+        <i class="bi bi-speedometer2 me-1"></i>{{ _('My Dashboard') }}
+      </a>
+    </div>
+  </div>
+</div>
+
+<script>
+function copyCertLink() {
+  const link = document.getElementById('cert-link');
+  link.select();
+  document.execCommand('copy');
+  alert('{{ _("Link copied to clipboard") }}');
+}
+
+function copyVerificationCode() {
+  event.target.closest('.input-group').querySelector('input').select();
+  document.execCommand('copy');
+  alert('{{ _("Code copied to clipboard") }}');
+}
+</script>
+{% endblock %}

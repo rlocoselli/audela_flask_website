@@ -1,0 +1,79 @@
+{% extends 'e_learning/base_e_learning.html' %}
+
+{% block e_learning_content %}
+<div class="container py-5">
+    <!-- Hero Section -->
+    <div class="row mb-5 align-items-center">
+        <div class="col-md-8">
+            <h1 class="display-4 fw-bold mb-3" style="color: #667eea;">{{ _('E-Learning') }}</h1>
+            <p class="lead text-muted">{{ _('Explore Learning') }}</p>
+            <p class="text-muted">{{ _('Choose a subject and start learning today') }}</p>
+        </div>
+        {% if current_user.is_authenticated and user_stats %}
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                <div class="card-body text-center">
+                    <h3 class="card-title">{{ user_stats.total_points|default(0) }}</h3>
+                    <p class="card-text mb-2">{{ _('Total Points') }}</p>
+                    <div class="row">
+                        <div class="col-6">
+                            <small>Level {{ user_stats.current_level|default(1) }}</small>
+                        </div>
+                        <div class="col-6">
+                            <small>{{ user_stats.modules_completed|default(0) }} {{ _('Modules Completed') }}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Subjects Grid -->
+    <div class="row">
+        {% for subject in subjects %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card border-0 shadow-sm h-100 hover-card" style="transition: transform 0.3s, box-shadow 0.3s;">
+                <div class="card-header border-0 pb-0" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 2rem; text-align: center; border-radius: 0.5rem 0.5rem 0 0;">
+                    {% if subject.icon_url %}
+                    <img src="{{ subject.icon_url }}" alt="{{ subject.name_i18n.get(current_lang, subject.code) }}" style="max-width: 64px; height: 64px;" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+                    <span class="material-symbols-outlined" style="font-size: 48px; display: none;">school</span>
+                    {% else %}
+                    <span class="material-symbols-outlined" style="font-size: 48px;">school</span>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title">{{ subject.name_i18n.get(current_lang, subject.name_i18n.get('en', subject.code)) }}</h5>
+                    <p class="card-text text-muted text-sm">
+                        {{ subject.description_i18n.get(current_lang, subject.description_i18n.get('en', '')) | truncate(100) }}
+                    </p>
+                </div>
+                <div class="card-footer bg-white border-top-0">
+                    <a href="{{ url_for('e_learning.subject_detail', subject_id=subject.id) }}" class="btn btn-sm btn-primary w-100">
+                        {{ _('Explore') }}
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    {% if not subjects %}
+    <div class="alert alert-info text-center" style="padding: 3rem;">
+        <span class="material-symbols-outlined" style="font-size: 48px; color: #667eea;">school</span>
+        <p class="mt-3">{{ _('Coming soon! More subjects will be available.') }}</p>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    .hover-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15) !important;
+    }
+    
+    .card {
+        border-radius: 0.75rem;
+    }
+</style>
+{% endblock %}

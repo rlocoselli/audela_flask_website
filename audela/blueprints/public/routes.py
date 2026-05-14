@@ -25,6 +25,7 @@ from . import bp
 
 
 FINANCE_PLAN_CODES = {"free", "finance_starter", "finance_pro", "finance_banking", "all_in_one_pro"}
+E_LEARNING_PLAN_CODES = {"e_learning_starter"}
 CUSTOM_CODE_MAX_CHARS = 4000
 ALLOWED_PYTHON_MODULES = {"torch", "tensorflow", "math"}
 PUBLIC_TRAFFIC_EXCLUDED_ENDPOINTS = {
@@ -1206,7 +1207,7 @@ def plans():
     plans = SubscriptionService.get_available_plans(include_internal=False)
     raw_product = (request.args.get("product") or "").strip()
     selected_product = raw_product.lower() or "finance"
-    valid_products = {"finance", "bi", "ml", "credit", "project", "ifrs9", "all"}
+    valid_products = {"finance", "bi", "ml", "credit", "project", "ifrs9", "e_learning", "all"}
 
     if raw_product and selected_product not in valid_products:
         return redirect(url_for("public.plans"), code=301)
@@ -1232,6 +1233,10 @@ def plans():
         features = plan.features_json if isinstance(plan.features_json, dict) else {}
         return bool(features.get("has_ml", bool(plan.has_bi) or plan.code == "free"))
 
+    def _has_e_learning(plan) -> bool:
+        features = plan.features_json if isinstance(plan.features_json, dict) else {}
+        return bool(features.get("has_e_learning", True))
+
     if selected_product == "finance":
         plans = [plan for plan in plans if plan.code in FINANCE_PLAN_CODES]
     elif selected_product == "bi":
@@ -1244,6 +1249,9 @@ def plans():
         plans = [plan for plan in plans if _has_project(plan)]
     elif selected_product == "ifrs9":
         plans = [plan for plan in plans if _has_ifrs9(plan)]
+    elif selected_product == "e_learning":
+        plans = [plan for plan in plans if _has_e_learning(plan)]
+        plans.sort(key=lambda plan: (0 if plan.code in E_LEARNING_PLAN_CODES else 1, int(plan.display_order or 0), str(plan.name or "")))
     elif selected_product == "all":
         plans = plans
     else:

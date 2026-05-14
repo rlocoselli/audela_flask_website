@@ -1,0 +1,377 @@
+{% extends 'e_learning/base_e_learning.html' %}
+
+{% block e_learning_content %}
+<div class="container py-5">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('e_learning.subjects_list') }}">{{ _('Subjects') }}</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('e_learning.subject_detail', subject_id=subject.id) }}">{{ subject.name_i18n.get(current_lang, subject.name_i18n.get('en', subject.code)) }}</a></li>
+            <li class="breadcrumb-item active">{{ module.title_i18n.get(current_lang, module.title_i18n.get('en', module.code)) }}</li>
+        </ol>
+    </nav>
+    
+    <div class="row">
+        <!-- Main Content -->
+        <div class="col-lg-8">
+            <!-- Module Header -->
+            <div class="card border-0 shadow-sm mb-4" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                <div class="card-body">
+                    <h1 class="card-title mb-2">{{ module.title_i18n.get(current_lang, module.title_i18n.get('en', module.code)) }}</h1>
+                    <p class="card-text">{{ module.description_i18n.get(current_lang, module.description_i18n.get('en', '')) }}</p>
+                    {% if module.subject.code == 'sql' %}
+                    <button type="button" class="btn btn-light btn-sm mt-2" data-bs-toggle="modal" data-bs-target="#schemaDiagramModal" onclick="loadSchemaDiagram()">
+                        <span class="material-symbols-outlined" style="font-size: 18px; display: inline;">database</span>
+                        {{ _('View Schema Diagram') }}
+                    </button>
+                    {% endif %}
+                    
+                    <div class="row mt-4">
+                        <div class="col-4">
+                            <small>{{ _('Lessons') }}</small><br/>
+                            <strong style="font-size: 1.5rem;">{{ module.total_lessons }}</strong>
+                        </div>
+                        <div class="col-4">
+                            <small>{{ _('Exercises') }}</small><br/>
+                            <strong style="font-size: 1.5rem;">{{ module.total_exercises }}</strong>
+                        </div>
+                        <div class="col-4">
+                            <small>{{ _('Study Hours') }}</small><br/>
+                            <strong style="font-size: 1.5rem;">{{ module.estimated_hours }}</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Progress Card -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header border-bottom-0 bg-white">
+                    <h5 class="mb-0">{{ _('Learning Progress') }}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>{{ _('Module Progress') }}</span>
+                            <strong>{{ enrollment.progress_percentage }}%</strong>
+                        </div>
+                        <div class="progress" style="height: 8px; border-radius: 4px;">
+                            <div class="progress-bar" style="width: {{ enrollment.progress_percentage }}%; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <small class="text-muted">{{ _('Score') }}</small><br/>
+                            <strong style="font-size: 1.25rem;">{{ enrollment.overall_score }}%</strong>
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted">{{ _('Status') }}</small><br/>
+                            <strong style="font-size: 1.25rem;">
+                                <span class="badge" style="background: {% if enrollment.status == 'completed' %}#28a745{% elif enrollment.status == 'in_progress' %}#667eea{% else %}#6c757d{% endif %};">
+                                    {{ enrollment.status|upper }}
+                                </span>
+                            </strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Lessons List -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom">
+                    <h5 class="mb-0">{{ _('Course Lessons') }}</h5>
+                </div>
+                <div class="list-group list-group-flush">
+                    {% for lesson in lessons %}
+                    <a href="{{ url_for('e_learning.lesson_view', lesson_id=lesson.id) }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-1">{{ loop.index }}. {{ lesson.title_i18n.get(current_lang, lesson.title_i18n.get('en', lesson.code)) }}</h6>
+                            <small class="text-muted">{{ lesson.description_i18n.get(current_lang, lesson.description_i18n.get('en', '')) | truncate(100) }}</small>
+                        </div>
+                        <span class="material-symbols-outlined">chevron_right</span>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Gamification Stats -->
+            {% if profile %}
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-gradient" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
+                    <h5 class="mb-0">
+                        <span class="material-symbols-outlined" style="display: inline;">star</span>
+                        {{ _('Your Stats') }}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3 text-center pb-3 border-bottom">
+                        <small class="text-muted d-block mb-1">{{ _('Level') }}</small>
+                        <h2 style="color: #667eea;">{{ profile.current_level }}</h2>
+                    </div>
+                    
+                    <div class="row text-center">
+                        <div class="col-6 mb-3">
+                            <small class="text-muted d-block">{{ _('Points') }}</small>
+                            <h4 style="color: #764ba2;">{{ profile.total_points }}</h4>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <small class="text-muted d-block">{{ _('Streak') }}</small>
+                            <h4 style="color: #764ba2;">{{ profile.current_streak }}</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Actions -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-bottom">
+                    <h5 class="mb-0">{{ _('Actions') }}</h5>
+                </div>
+                <div class="card-body">
+                    {% if module.subject.code == 'sql' %}
+                    <button type="button" class="btn btn-outline-primary btn-sm w-100 mb-2" data-bs-toggle="modal" data-bs-target="#schemaDiagramModal" onclick="loadSchemaDiagram()">
+                        <span class="material-symbols-outlined" style="font-size: 18px; display: inline;">database</span>
+                        {{ _('View Schema Diagram') }}
+                    </button>
+                    <a href="#" onclick="resetDatabase()" class="btn btn-outline-secondary btn-sm w-100">
+                        <span class="material-symbols-outlined" style="font-size: 18px; display: inline;">refresh</span>
+                        {{ _('Reset Database') }}
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Certificate Preview -->
+            {% if enrollment.certificate %}
+            <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #ffd89b 0%, #19547b 100%);">
+                <div class="card-body text-center" style="color: white;">
+                    <span class="material-symbols-outlined" style="font-size: 48px; display: block; margin-bottom: 1rem;">card_giftcard</span>
+                    <h5>{{ _('Certificate Earned!') }}</h5>
+                    <p class="text-sm">{{ _('Share your achievement') }}</p>
+                    <a href="{{ url_for('e_learning.certificate_view', cert_id=enrollment.certificate.id) }}" class="btn btn-light btn-sm">
+                        {{ _('View Certificate') }}
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% if module.subject.code == 'sql' %}
+<div class="modal fade" id="schemaDiagramModal" tabindex="-1" aria-labelledby="schemaDiagramModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-light">
+                <h5 class="modal-title" id="schemaDiagramModalLabel">
+                    <i class="bi bi-diagram-3 me-2"></i>{{ _('Database Schema') }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);">
+                <div id="schemaModalLoading" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">{{ _('Loading') }}...</span>
+                    </div>
+                </div>
+                <div id="schemaModalError" class="alert alert-danger d-none" role="alert"></div>
+                <div id="schemaModalContent" class="d-none">
+                    <div class="row g-3 mb-3" id="schemaOverview"></div>
+                    <div class="card border-0 shadow-sm mb-3">
+                        <div class="card-header bg-white border-bottom">
+                            <h6 class="mb-0"><i class="bi bi-link-45deg me-2"></i>{{ _('Entity Relationships') }}</h6>
+                        </div>
+                        <div class="card-body" id="relationshipsList"></div>
+                    </div>
+                    <div id="tablesGrid" class="row g-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<style>
+    .material-symbols-outlined {
+        font-variation-settings:
+            'FILL' 0,
+            'wght' 400,
+            'GRAD' 0,
+            'opsz' 24;
+    }
+</style>
+
+<script>
+let schemaLoaded = false;
+
+function escapeHtml(value) {
+    return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
+
+function renderSchemaModal(data) {
+    const overview = document.getElementById('schemaOverview');
+    const relationshipsList = document.getElementById('relationshipsList');
+    const tablesGrid = document.getElementById('tablesGrid');
+
+    const cards = [
+        { label: '{{ _("Tables") }}', value: data.table_count || 0, icon: 'bi-table' },
+        { label: '{{ _("Relationships") }}', value: data.relationship_count || 0, icon: 'bi-diagram-3' },
+        { label: '{{ _("Rows") }}', value: (data.schema || []).reduce((sum, t) => sum + (t.row_count || 0), 0), icon: 'bi-list-ol' }
+    ];
+
+    overview.innerHTML = cards.map((item) => `
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-primary-subtle text-primary d-flex align-items-center justify-content-center" style="width:42px;height:42px;">
+                        <i class="bi ${item.icon}"></i>
+                    </div>
+                    <div>
+                        <small class="text-muted d-block">${item.label}</small>
+                        <strong style="font-size:1.2rem;">${item.value}</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+
+    const rels = data.relationships || [];
+    relationshipsList.innerHTML = rels.length
+        ? `<div class="list-group list-group-flush">${rels.map((rel) => `
+            <div class="list-group-item border-0 px-0 d-flex align-items-center gap-2">
+                <span class="badge text-bg-light">${escapeHtml(rel.from_table)}.${escapeHtml(rel.from_column)}</span>
+                <i class="bi bi-arrow-right text-primary"></i>
+                <span class="badge text-bg-light">${escapeHtml(rel.to_table)}.${escapeHtml(rel.to_column)}</span>
+            </div>
+        `).join('')}</div>`
+        : `<div class="text-muted">{{ _('No relationships found for this schema.') }}</div>`;
+
+    const tables = data.schema || [];
+    tablesGrid.innerHTML = tables.map((table, idx) => {
+        const pkSet = new Set(table.primary_keys || []);
+        const fkCols = new Set((table.foreign_keys || []).map((fk) => fk.from_column));
+        const rowsHtml = (table.sample_rows || []).length ? `
+            <div class="table-responsive mt-3">
+                <table class="table table-sm align-middle">
+                    <thead>
+                        <tr>${Object.keys(table.sample_rows[0]).map((c) => `<th>${escapeHtml(c)}</th>`).join('')}</tr>
+                    </thead>
+                    <tbody>
+                        ${table.sample_rows.map((r) => `<tr>${Object.values(r).map((v) => `<td>${escapeHtml(v ?? '')}</td>`).join('')}</tr>`).join('')}
+                    </tbody>
+                </table>
+            </div>
+        ` : `<small class="text-muted">{{ _('No sample rows available.') }}</small>`;
+
+        return `
+            <div class="col-lg-6">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-header bg-white border-bottom d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0"><i class="bi bi-table me-1"></i>${escapeHtml(table.name)}</h6>
+                        <span class="badge text-bg-primary">${table.row_count || 0} {{ _('Rows') }}</span>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-group list-group-flush mb-3">
+                            ${(table.columns || []).map((col) => {
+                                const tags = [];
+                                if (pkSet.has(col.name)) tags.push('<span class="badge text-bg-success ms-2">PK</span>');
+                                if (fkCols.has(col.name)) tags.push('<span class="badge text-bg-info ms-2">FK</span>');
+                                return `<li class="list-group-item px-0 d-flex justify-content-between align-items-center"><span><code>${escapeHtml(col.name)}</code>${tags.join('')}</span><small class="text-muted">${escapeHtml(col.type || '')}</small></li>`;
+                            }).join('')}
+                        </ul>
+                        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#sampleRows-${idx}">
+                            {{ _('View sample rows') }}
+                        </button>
+                        <div class="collapse" id="sampleRows-${idx}">${rowsHtml}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function loadSchemaDiagram() {
+    if (schemaLoaded) {
+        return;
+    }
+
+    const loadingEl = document.getElementById('schemaModalLoading');
+    const errorEl = document.getElementById('schemaModalError');
+    const contentEl = document.getElementById('schemaModalContent');
+
+    loadingEl.classList.remove('d-none');
+    errorEl.classList.add('d-none');
+    contentEl.classList.add('d-none');
+
+    fetch('{{ url_for("e_learning.api_get_schema", module_id=module.id) }}', {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || '{{ _("Could not load database schema.") }}');
+        }
+        return data;
+    })
+    .then((data) => {
+        renderSchemaModal(data);
+        schemaLoaded = true;
+        loadingEl.classList.add('d-none');
+        contentEl.classList.remove('d-none');
+    })
+    .catch((error) => {
+        loadingEl.classList.add('d-none');
+        errorEl.classList.remove('d-none');
+        errorEl.textContent = error.message;
+    });
+}
+
+function resetDatabase() {
+    if (confirm('{{ _("Are you sure you want to reset the database?") }}')) {
+        fetch('{{ url_for("e_learning.api_reset_database", module_id=module.id) }}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token() }}',
+                'X-CSRF-Token': '{{ csrf_token() }}',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(async (response) => {
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || '{{ _("Unable to reset database.") }}');
+            }
+            return data;
+        })
+        .then(() => {
+            alert('{{ _("Database reset") }}');
+            location.reload();
+        })
+        .catch((error) => {
+            alert(error.message);
+        });
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('show_schema') === '1') {
+        const modalEl = document.getElementById('schemaDiagramModal');
+        if (modalEl) {
+            loadSchemaDiagram();
+            const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+        }
+    }
+});
+</script>
+{% endblock %}

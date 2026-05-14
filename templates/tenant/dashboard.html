@@ -603,7 +603,31 @@
         </div>
         {% endif %}
 
-        {% if not stats.has_finance and not stats.has_bi and not stats.has_ml and not stats.has_credit and not stats.has_ifrs9 and not stats.has_project and stats.plan_code != 'free' %}
+        {% if stats.has_e_learning or stats.plan_code == 'free' %}
+        <div class="col-md-6">
+          <div class="card border-0 shadow-sm">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-start mb-3">
+                <h5 class="mb-0">
+                  <i class="bi bi-mortarboard"></i> {{ _('AUDELA Academy') }}
+                </h5>
+                <span class="badge bg-success">{{ _('Inclus') if stats.plan_code != 'e_learning_starter' else _('Plan autonome') }}</span>
+              </div>
+              <p class="text-muted">{{ _('Formation SQL et data avec exercices interactifs, suivi de progression, achievements et certificats.') }}</p>
+              <div class="d-grid gap-2">
+                <a href="{{ url_for('e_learning.dashboard') }}" class="btn btn-primary w-100">
+                  <i class="bi bi-box-arrow-up-right"></i> {{ _('Accéder à Academy') }}
+                </a>
+                <a href="{{ url_for('billing.plans', product='e_learning') }}" class="btn btn-outline-secondary w-100">
+                  <i class="bi bi-tag"></i> {{ _('Voir le plan Academy') }}
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
+        {% if not stats.has_finance and not stats.has_bi and not stats.has_ml and not stats.has_credit and not stats.has_ifrs9 and not stats.has_project and not stats.has_e_learning and stats.plan_code != 'free' %}
         <div class="col-12">
           <div class="card border-0 shadow-sm">
             <div class="card-body text-center py-5">

@@ -44,8 +44,26 @@ class SubscriptionService:
                     "has_ifrs9": True,
                     "has_ml": True,
                     "bi_tier": "lite",
+                    "has_e_learning": True,
                 },
                 "display_order": 1,
+            },
+            "e_learning_starter": {
+                "name": "AUDELA Academy",
+                "description": "Plan autonome e-learning avec exercices SQL, suivi de progression et certificats",
+                "price_monthly": "9.00",
+                "price_yearly": "84.00",
+                "trial_days": 30,
+                "has_finance": False,
+                "has_bi": False,
+                "max_users": 5,
+                "max_companies": 1,
+                "max_transactions_per_month": -1,
+                "features_json": {
+                    "premium_support": False,
+                    "has_e_learning": True,
+                },
+                "display_order": 2,
             },
             "finance_starter": {
                 "name": "Finance Personal",
@@ -60,8 +78,9 @@ class SubscriptionService:
                 "max_transactions_per_month": -1,
                 "features_json": {
                     "premium_support": False,
+                    "has_e_learning": True,
                 },
-                "display_order": 2,
+                "display_order": 3,
             },
             "finance_pro": {
                 "name": "Finance PME",
@@ -76,8 +95,9 @@ class SubscriptionService:
                 "max_transactions_per_month": -1,
                 "features_json": {
                     "premium_support": False,
+                    "has_e_learning": True,
                 },
-                "display_order": 3,
+                "display_order": 4,
             },
             "finance_banking": {
                 "name": "Finance Banking",
@@ -93,8 +113,9 @@ class SubscriptionService:
                 "features_json": {
                     "premium_support": True,
                     "has_ifrs9": True,
+                    "has_e_learning": True,
                 },
-                "display_order": 4,
+                "display_order": 5,
             },
             "credit_starter": {
                 "name": "Audela Credit Starter",
@@ -110,8 +131,9 @@ class SubscriptionService:
                 "features_json": {
                     "premium_support": False,
                     "has_credit": True,
+                    "has_e_learning": True,
                 },
-                "display_order": 4,
+                "display_order": 6,
             },
             "credit_pro": {
                 "name": "Audela Credit Pro",
@@ -128,8 +150,9 @@ class SubscriptionService:
                     "premium_support": False,
                     "has_credit": True,
                     "has_ifrs9": True,
+                    "has_e_learning": True,
                 },
-                "display_order": 5,
+                "display_order": 7,
             },
             "bi_starter": {
                 "name": "BI Lite",
@@ -147,8 +170,9 @@ class SubscriptionService:
                     "has_credit": False,
                     "has_ml": True,
                     "bi_tier": "lite",
+                    "has_e_learning": True,
                 },
-                "display_order": 6,
+                "display_order": 8,
             },
             "bi_pro": {
                 "name": "BI Enterprise",
@@ -166,8 +190,9 @@ class SubscriptionService:
                     "has_credit": False,
                     "has_ml": True,
                     "bi_tier": "enterprise",
+                    "has_e_learning": True,
                 },
-                "display_order": 7,
+                "display_order": 9,
             },
             "project_start": {
                 "name": "Project Start",
@@ -183,8 +208,9 @@ class SubscriptionService:
                 "features_json": {
                     "premium_support": False,
                     "has_project": True,
+                    "has_e_learning": True,
                 },
-                "display_order": 8,
+                "display_order": 10,
             },
             "project_team": {
                 "name": "Project Team",
@@ -200,8 +226,9 @@ class SubscriptionService:
                 "features_json": {
                     "premium_support": False,
                     "has_project": True,
+                    "has_e_learning": True,
                 },
-                "display_order": 9,
+                "display_order": 11,
             },
             "all_in_one_starter": {
                 "name": "All-in-One Starter",
@@ -221,8 +248,9 @@ class SubscriptionService:
                     "has_ifrs9": True,
                     "has_ml": True,
                     "bi_tier": "lite",
+                    "has_e_learning": True,
                 },
-                "display_order": 10,
+                "display_order": 12,
             },
             "all_in_one_pro": {
                 "name": "All-in-One Pro",
@@ -242,8 +270,9 @@ class SubscriptionService:
                     "has_ifrs9": True,
                     "has_ml": True,
                     "bi_tier": "enterprise",
+                    "has_e_learning": True,
                 },
-                "display_order": 11,
+                "display_order": 13,
             },
             "enterprise": {
                 "name": "Enterprise",
@@ -263,8 +292,9 @@ class SubscriptionService:
                     "has_ifrs9": True,
                     "has_ml": True,
                     "bi_tier": "enterprise",
+                    "has_e_learning": True,
                 },
-                "display_order": 12,
+                "display_order": 14,
             },
         }
 
@@ -622,6 +652,10 @@ class SubscriptionService:
             features = plan.features_json if isinstance(plan.features_json, dict) else {}
             return bool(features.get("premium_support", False))
         
+        elif feature == "e_learning":
+            features = plan.features_json if isinstance(plan.features_json, dict) else {}
+            return bool(features.get("has_e_learning", True))
+
         return False
     
     @staticmethod

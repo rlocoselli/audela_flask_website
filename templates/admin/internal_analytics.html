@@ -1,0 +1,296 @@
+{% extends "portal/base_portal.html" %}
+
+{% block title %}{{ _('Internal Analytics') }} – AUDELA{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Header -->
+    <div class="d-flex align-items-center mb-4">
+        <div>
+            <h2 class="mb-0 fw-bold">📊 {{ _('Internal Analytics') }}</h2>
+            <p class="text-muted mb-0">{{ _('Page views, feature usage, and active users') }}</p>
+        </div>
+        <div class="ms-auto d-flex gap-2">
+            {% for d in [7, 14, 30, 60, 90] %}
+            <a href="?days={{ d }}" class="btn btn-sm {% if days == d %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+                {{ d }}d
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Top KPIs -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card border-0 shadow-sm text-center py-3">
+                <h2 class="fw-bold text-primary mb-0">{{ page_views.total_views | default(0) }}</h2>
+                <small class="text-muted">{{ _('Page Views') }} ({{ days }}d)</small>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card border-0 shadow-sm text-center py-3">
+                <h2 class="fw-bold text-success mb-0">{{ page_views.unique_users | default(0) }}</h2>
+                <small class="text-muted">{{ _('Unique Users') }}</small>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card border-0 shadow-sm text-center py-3">
+                <h2 class="fw-bold text-warning mb-0">{{ page_views.mobile_pct | default(0) }}%</h2>
+                <small class="text-muted">{{ _('Mobile Traffic') }}</small>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card border-0 shadow-sm text-center py-3">
+                <h2 class="fw-bold text-info mb-0">{{ feature_usage.features | length }}</h2>
+                <small class="text-muted">{{ _('Active Features') }}</small>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <!-- Daily Page Views Chart -->
+        <div class="col-lg-8 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-bottom">
+                    <h5 class="mb-0">📈 {{ _('Daily Page Views') }}</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="dailyViewsChart" height="80"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Blueprint breakdown -->
+        <div class="col-lg-4 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-bottom">
+                    <h5 class="mb-0">🗂 {{ _('Traffic by Section') }}</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="blueprintChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <!-- Top Pages -->
+        <div class="col-lg-7 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-bottom">
+                    <h5 class="mb-0">🔝 {{ _('Top Pages') }}</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>{{ _('Path') }}</th>
+                                    <th>{{ _('Section') }}</th>
+                                    <th class="text-end">{{ _('Views') }}</th>
+                                    <th class="text-end">{{ _('Users') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for page in page_views.top_pages %}
+                                <tr>
+                                    <td>
+                                        <code style="font-size: 0.82em;">{{ page.path }}</code>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ page.blueprint or 'root' }}</span>
+                                    </td>
+                                    <td class="text-end"><strong>{{ page.views }}</strong></td>
+                                    <td class="text-end text-muted">{{ page.unique_users }}</td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-4">{{ _('No data yet') }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Feature Usage -->
+        <div class="col-lg-5 mb-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-bottom">
+                    <h5 class="mb-0">⚡ {{ _('Feature Usage') }}</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>{{ _('Feature') }}</th>
+                                    <th>{{ _('Action') }}</th>
+                                    <th class="text-end">{{ _('Events') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for action in feature_usage.actions %}
+                                <tr>
+                                    <td><span class="badge bg-primary">{{ action.feature }}</span></td>
+                                    <td><code style="font-size: 0.82em;">{{ action.action }}</code></td>
+                                    <td class="text-end"><strong>{{ action.events }}</strong></td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="3" class="text-center text-muted py-4">{{ _('No events yet') }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <!-- E-Learning Top Exercises -->
+        {% if feature_usage.e_learning_top_exercises %}
+        <div class="col-lg-6 mb-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom">
+                    <h5 class="mb-0">🎓 {{ _('Most Attempted E-Learning Exercises') }}</h5>
+                </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>{{ _('Exercise') }}</th>
+                                <th class="text-end">{{ _('Attempts') }}</th>
+                                <th class="text-end">{{ _('Avg Score') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ex in feature_usage.e_learning_top_exercises %}
+                            <tr>
+                                <td><code style="font-size: 0.82em;">{{ ex.label }}</code></td>
+                                <td class="text-end">{{ ex.attempts }}</td>
+                                <td class="text-end">
+                                    <span class="badge {% if ex.avg_score >= 80 %}bg-success{% elif ex.avg_score >= 50 %}bg-warning{% else %}bg-danger{% endif %}">
+                                        {{ ex.avg_score }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Active Users -->
+        <div class="col-lg-{% if feature_usage.e_learning_top_exercises %}6{% else %}12{% endif %} mb-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom">
+                    <h5 class="mb-0">👥 {{ _('Most Active Users') }} ({{ days }}d)</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>{{ _('User') }}</th>
+                                    <th class="text-end">{{ _('Page Views') }}</th>
+                                    <th class="text-end">{{ _('Feature Events') }}</th>
+                                    <th>{{ _('Last Seen') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for u in active_users %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ u.username }}</strong>
+                                        <br><small class="text-muted">{{ u.email }}</small>
+                                    </td>
+                                    <td class="text-end">{{ u.page_views }}</td>
+                                    <td class="text-end">{{ u.feature_events }}</td>
+                                    <td>
+                                        <small class="text-muted">
+                                            {{ u.last_seen[:10] if u.last_seen else '-' }}
+                                        </small>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-4">{{ _('No data yet') }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Back to admin -->
+    <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-secondary">
+        ← {{ _('Back to Admin') }}
+    </a>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// Daily Page Views chart
+(function() {
+    const daily = {{ page_views.daily | tojson }};
+    const labels = daily.map(d => d.day);
+    const data = daily.map(d => d.views);
+    
+    if (labels.length && document.getElementById('dailyViewsChart')) {
+        new Chart(document.getElementById('dailyViewsChart'), {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{
+                    label: '{{ _("Page Views") }}',
+                    data,
+                    borderColor: '#667eea',
+                    backgroundColor: 'rgba(102,126,234,0.12)',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 3,
+                }]
+            },
+            options: {
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+            }
+        });
+    }
+})();
+
+// Blueprint doughnut chart
+(function() {
+    const bps = {{ page_views.blueprints | tojson }};
+    if (bps.length && document.getElementById('blueprintChart')) {
+        const COLORS = ['#667eea','#764ba2','#f093fb','#4facfe','#43e97b','#fa709a','#fee140','#a18cd1','#fda085','#f5576c'];
+        new Chart(document.getElementById('blueprintChart'), {
+            type: 'doughnut',
+            data: {
+                labels: bps.map(b => b.blueprint),
+                datasets: [{
+                    data: bps.map(b => b.views),
+                    backgroundColor: COLORS.slice(0, bps.length),
+                    borderWidth: 2,
+                }]
+            },
+            options: {
+                plugins: {
+                    legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } }
+                },
+            }
+        });
+    }
+})();
+</script>
+{% endblock %}

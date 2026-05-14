@@ -23,6 +23,7 @@
       {% set credit = product_catalog.credit %}
       {% set ifrs9 = product_catalog.ifrs9 %}
       {% set project = product_catalog.project %}
+  {% set e_learning = product_catalog.e_learning %}
 
       <div class="row g-4">
         {% if has_finance %}
@@ -321,7 +322,36 @@
         </div>
         {% endif %}
 
-        {% if not has_finance and not has_bi and not has_ml and not has_credit and not has_ifrs9 and not has_project %}
+        <!-- E-Learning Product (free for all plans) -->
+        <div class="col-md-6">
+          <div class="card border-0 shadow-sm h-100">
+            <div class="card-body p-4">
+              <div class="d-flex align-items-center mb-3">
+                <div class="bg-success bg-opacity-10 rounded-circle p-3 me-3">
+                  <i class="bi bi-mortarboard text-success" style="font-size: 2rem;"></i>
+                </div>
+                <div>
+                  <h4 class="mb-0">{{ _(e_learning.tenant_title) }}</h4>
+                  <span class="badge bg-success">{{ _('Gratuit') }}</span>
+                </div>
+              </div>
+              <p class="text-muted mb-4">{{ _(e_learning.tenant_summary) }}</p>
+              <ul class="list-unstyled mb-4">
+                {% for feature in e_learning.features %}
+                <li class="mb-2 text-muted small"><i class="bi bi-check-circle text-success me-2"></i>{{ _(feature) }}</li>
+                {% endfor %}
+              </ul>
+              <a href="{{ url_for('e_learning.dashboard') }}" class="btn btn-success w-100">
+                <i class="bi bi-mortarboard"></i> {{ _(e_learning.tenant_access_label) }}
+              </a>
+              <a href="{{ url_for('billing.plans', product='e_learning') }}" class="btn btn-outline-secondary w-100 mt-2">
+                <i class="bi bi-tag"></i> {{ _('Voir le plan autonome Academy') }}
+              </a>
+            </div>
+          </div>
+        </div>
+
+        {% if not has_finance and not has_bi and not has_ml and not has_credit and not has_ifrs9 and not has_project and not has_e_learning %}
         <!-- No Products -->
         <div class="col-12">
           <div class="card border-0 shadow-sm">
@@ -340,7 +370,7 @@
         {% endif %}
       </div>
 
-      {% if has_finance or has_bi or has_ml or has_credit or has_ifrs9 or has_project %}
+      {% if has_finance or has_bi or has_ml or has_credit or has_ifrs9 or has_project or has_e_learning %}
       <!-- Upgrade Suggestion -->
       <div class="card border-0 shadow-sm mt-4 bg-light">
         <div class="card-body p-4">
@@ -362,6 +392,8 @@
                   {{ _('Ajoutez Audela Credit pour alimenter IFRS9 avec vos données de portefeuille et accélérer les calculs ECL') }}
                 {% elif has_project and not has_finance and not has_bi %}
                   {{ _('Ajoutez Finance ou BI pour relier vos projets à vos données métier') }}
+                {% elif has_e_learning and not has_finance and not has_bi and not has_credit and not has_project and not has_ifrs9 %}
+                  {{ _('Ajoutez Finance, BI, Credit, IFRS9 ou Projet pour compléter l\'Academy avec des usages métier en production') }}
                 {% else %}
                   {{ _('Passez au plan Enterprise pour des fonctionnalités illimitées') }}
                 {% endif %}
@@ -376,6 +408,20 @@
         </div>
       </div>
       {% endif %}
+
+      <div class="card border-0 shadow-sm mt-4">
+        <div class="card-body p-4 d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+          <div>
+            <h5 class="mb-1"><i class="bi bi-mortarboard"></i> {{ _('Plan autonome Academy') }}</h5>
+            <p class="text-muted mb-0">{{ _('Si vous souhaitez proposer uniquement la formation e-learning sans autres modules AUDELA, un plan Academy dédié est disponible.') }}</p>
+          </div>
+          <div class="d-flex gap-2">
+            <a href="{{ url_for('billing.plans', product='e_learning') }}" class="btn btn-outline-primary">
+              <i class="bi bi-tag"></i> {{ _('Voir le plan Academy') }}
+            </a>
+          </div>
+        </div>
+      </div>
 
     </div>
   </div>

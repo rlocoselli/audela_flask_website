@@ -1,0 +1,75 @@
+{% extends 'e_learning/base_e_learning.html' %}
+
+{% block e_learning_content %}
+{% set share_url = url_for('e_learning.certificate_view', cert_id=certificate.id, _external=True) %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <!-- Certificate -->
+            <div class="card border-0 shadow-lg" style="background: linear-gradient(135deg, #ffd89b 0%, #19547b 100%); color: white; min-height: 500px;">
+                <div class="card-body d-flex flex-column justify-content-center align-items-center text-center px-5 py-5">
+                    <span class="material-symbols-outlined" style="font-size: 96px; margin-bottom: 2rem;">card_giftcard</span>
+                    
+                    <h2 class="mb-4">{{ _('Certificate of Completion') }}</h2>
+                    
+                    <p class="lead mb-1">{{ _('This Certifies That') }}</p>
+                    <h4 class="mb-4" style="border-bottom: 2px solid white; padding-bottom: 1rem;">
+                        {{ certificate.user.username if certificate.user else 'User' }}
+                    </h4>
+                    
+                    <p class="mb-1">{{ _('Has successfully completed the course') }}</p>
+                    <h5 class="mb-4">{{ certificate.module.title_i18n.get(current_lang, certificate.module.title_i18n.get('en', certificate.module.code)) }}</h5>
+                    
+                    <p class="mb-3">
+                        <strong>{{ _('Final Score') }}: {{ certificate.final_score }}%</strong>
+                    </p>
+                    
+                    <div class="mt-4 w-100" style="border-top: 2px solid white; padding-top: 2rem;">
+                        <small>{{ _('Certificate Number') }}: {{ certificate.certificate_number }}</small><br/>
+                        <small>{{ _('Issued On') }}: {{ certificate.issued_at.strftime('%d/%m/%Y') }}</small><br/>
+                        <small>{{ _('Verification Code') }}: {{ certificate.verification_code }}</small>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Actions -->
+            <div class="row mt-4 gap-2">
+                <div class="col-md-6">
+                    <a href="https://www.linkedin.com/sharing/share-offsite/?url={{ share_url }}" target="_blank" class="btn btn-primary w-100">
+                        <span class="material-symbols-outlined" style="display: inline;">share</span>
+                        {{ _('Share on LinkedIn') }}
+                    </a>
+                </div>
+                <div class="col-md-6">
+                    <button class="btn btn-outline-primary w-100" onclick="window.print()">
+                        <span class="material-symbols-outlined" style="display: inline;">print</span>
+                        {{ _('Download PDF') }}
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Verification Info -->
+            <div class="alert alert-info mt-4">
+                <strong>{{ _('Public Verification Link') }}:</strong><br/>
+                <code>{{ url_for('e_learning.verify_certificate', code=certificate.verification_code, _external=True) }}</code>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .material-symbols-outlined {
+        font-variation-settings:
+            'FILL' 0,
+            'wght' 400,
+            'GRAD' 0,
+            'opsz' 24;
+    }
+    
+    @media print {
+        .btn, .alert {
+            display: none;
+        }
+    }
+</style>
+{% endblock %}

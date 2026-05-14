@@ -1,0 +1,168 @@
+{% extends "sql_training/base_sql_training.html" %}
+
+{% block sql_training_content %}
+<div class="container-lg mt-5">
+  <!-- Hero Section -->
+  <div class="row mb-5">
+    <div class="col-lg-8 mx-auto text-center">
+      <h1 class="display-4 fw-bold mb-3" style="color: var(--sql-primary);">
+        <i class="bi bi-database-fill me-2"></i>{{ _('Learn SQL Free') }}
+      </h1>
+      <p class="lead text-muted mb-4">
+        {{ _('Master database querying with interactive exercises and real-time feedback') }}
+      </p>
+      {% if not current_user.is_authenticated %}
+      <a href="{{ url_for('auth.login') }}" class="btn btn-primary btn-lg me-2">
+        <i class="bi bi-key me-2"></i>{{ _('Sign In') }}
+      </a>
+      <a href="{{ url_for('auth.register') }}" class="btn btn-outline-primary btn-lg">
+        <i class="bi bi-person-plus me-2"></i>{{ _('Sign Up Free') }}
+      </a>
+      {% else %}
+      <a href="{{ url_for('sql_training.user_dashboard') }}" class="btn btn-primary btn-lg">
+        <i class="bi bi-speedometer2 me-2"></i>{{ _('Go to My Dashboard') }}
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Modules by Level -->
+  {% set levels = {'beginner': _('Beginner'), 'intermediate': _('Intermediate'), 'advanced': _('Advanced')} %}
+  
+  {% for level_key, level_name in levels.items() %}
+    {% set level_modules = modules | selectattr('level', 'equalto', level_key) | list %}
+    
+    {% if level_modules %}
+    <div class="mb-5">
+      <h2 class="h3 fw-bold mb-4" style="color: var(--sql-primary);">
+        <i class="bi bi-{% if level_key == 'beginner' %}star-fill{% elif level_key == 'intermediate' %}stars{% else %}trophy-fill{% endif %} me-2" style="color: var(--sql-accent);"></i>
+        {{ level_name }}
+      </h2>
+      
+      <div class="row g-4">
+        {% for module in level_modules %}
+        <div class="col-md-6 col-lg-4">
+          <div class="card h-100 shadow-sm border-0 module-card">
+            <div class="card-header bg-light border-0 pt-4 pb-0">
+              <div class="d-flex justify-content-between align-items-start mb-2">
+                <span class="badge bg-primary">
+                  {{ module.total_lessons }} {{ _('Lessons') }}
+                </span>
+                <span class="badge bg-secondary">
+                  {{ module.estimated_hours }}h
+                </span>
+              </div>
+            </div>
+            
+            <div class="card-body">
+              <h5 class="card-title fw-bold">
+                {{ translate(module, 'title_i18n', lang) }}
+              </h5>
+              <p class="card-text text-muted small">
+                {{ translate(module, 'description_i18n', lang) }}
+              </p>
+              
+              <div class="mb-3">
+                <small class="text-muted">
+                  <i class="bi bi-pen me-1"></i>{{ module.total_exercises }} {{ _('Exercises') }}
+                </small>
+              </div>
+              
+              <!-- Progress if enrolled -->
+              {% if user_enrollments.get(module.id) %}
+                {% set enrollment = user_enrollments[module.id] %}
+                <div class="progress mb-3" style="height: 20px;">
+                  <div class="progress-bar" role="progressbar" 
+                       style="width: {{ enrollment.progress_percentage }}%"
+                       aria-valuenow="{{ enrollment.progress_percentage }}" 
+                       aria-valuemin="0" aria-valuemax="100">
+                    {{ enrollment.progress_percentage }}%
+                  </div>
+                </div>
+                <small class="text-muted">{{ enrollment.status }}</small>
+              {% else %}
+                <div class="alert alert-light border-bottom py-2 mb-0">
+                  <small class="text-muted">{{ _('Not enrolled yet') }}</small>
+                </div>
+              {% endif %}
+            </div>
+            
+            <div class="card-footer bg-light border-0">
+              {% if user_enrollments.get(module.id) %}
+                <a href="{{ url_for('sql_training.module_detail', module_id=module.id) }}" 
+                   class="btn btn-outline-primary btn-sm w-100">
+                  <i class="bi bi-play-circle me-1"></i>{{ _('Continue') }}
+                </a>
+              {% else %}
+                <form method="POST" class="d-inline w-100" id="enroll-form-{{ module.id }}">
+                  <button type="submit" class="btn btn-primary btn-sm w-100" 
+                          onclick="enrollModule({{ module.id }})">
+                    <i class="bi bi-plus-circle me-1"></i>{{ _('Start Learning') }}
+                  </button>
+                </form>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  {% endfor %}
+
+  <!-- Features Section -->
+  <div class="row mt-5 mb-5">
+    <div class="col-lg-8 mx-auto">
+      <h2 class="h3 fw-bold text-center mb-4">{{ _('What You\'ll Learn') }}</h2>
+      <div class="row g-3">
+        <div class="col-md-4 text-center">
+          <div class="mb-3">
+            <i class="bi bi-lightning-charge-fill" style="font-size: 2.5rem; color: var(--sql-secondary);"></i>
+          </div>
+          <h6 class="fw-bold">{{ _('Interactive Exercises') }}</h6>
+          <p class="text-muted small">{{ _('Practice with real databases') }}</p>
+        </div>
+        <div class="col-md-4 text-center">
+          <div class="mb-3">
+            <i class="bi bi-diagram-3-fill" style="font-size: 2.5rem; color: var(--sql-accent);"></i>
+          </div>
+          <h6 class="fw-bold">{{ _('Data Diagrams') }}</h6>
+          <p class="text-muted small">{{ _('Visualize database schemas') }}</p>
+        </div>
+        <div class="col-md-4 text-center">
+          <div class="mb-3">
+            <i class="bi bi-award-fill" style="font-size: 2.5rem; color: var(--sql-primary);"></i>
+          </div>
+          <h6 class="fw-bold">{{ _('Certificates') }}</h6>
+          <p class="text-muted small">{{ _('Share on LinkedIn') }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .module-card {
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+  }
+  
+  .module-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
+  }
+  
+  .progress-bar {
+    background-color: var(--sql-primary);
+  }
+</style>
+
+<script>
+function enrollModule(moduleId) {
+  // In a real app, you'd use AJAX
+  // For now, just redirect
+  window.location.href = `/sql-training/module/${moduleId}`;
+  return false;
+}
+</script>
+{% endblock %}

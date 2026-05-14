@@ -1,0 +1,215 @@
+{% extends "sql_training/base_sql_training.html" %}
+
+{% block sql_training_content %}
+<div class="container-lg mt-4">
+  <!-- Breadcrumb -->
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item">
+        <a href="{{ url_for('sql_training.modules_list') }}">{{ _('SQL Training') }}</a>
+      </li>
+      <li class="breadcrumb-item">
+        <a href="{{ url_for('sql_training.module_detail', module_id=module.id) }}">
+          {{ translate(module, 'title_i18n', lang) }}
+        </a>
+      </li>
+      <li class="breadcrumb-item active">{{ _('Database Diagram') }}</li>
+    </ol>
+  </nav>
+
+  <div class="row">
+    <div class="col-lg-10 mx-auto">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-light border-bottom d-flex justify-content-between align-items-center">
+          <h5 class="fw-bold mb-0">
+            <i class="bi bi-diagram-3 me-2"></i>{{ _('Database Schema') }}
+          </h5>
+          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="downloadDiagram()">
+            <i class="bi bi-download me-1"></i>{{ _('Download SVG') }}
+          </button>
+        </div>
+        
+        <div class="card-body" id="diagram-container" style="min-height: 600px;">
+          <svg id="schema-diagram" style="width: 100%; height: auto;"></svg>
+        </div>
+      </div>
+
+      <!-- Schema Details -->
+      <div class="card border-0 shadow-sm mt-4">
+        <div class="card-header bg-light border-bottom">
+          <h6 class="fw-bold mb-0">
+            <i class="bi bi-table me-2"></i>{{ _('Tables & Columns') }}
+          </h6>
+        </div>
+        
+        <div class="card-body" id="schema-details">
+          <div class="spinner-border" role="status">
+            <span class="visually-hidden">{{ _('Loading') }}...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script>
+// Fetch and render database schema diagram
+const moduleId = {{ module.id }};
+
+fetch(`/sql-training/api/get-schema/${moduleId}`)
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      renderSchema(data.schema);
+    }
+  });
+
+function renderSchema(schema) {
+  const details = document.getElementById('schema-details');
+  let html = '<div class="row g-3">';
+  
+  for (const [tableName, tableData] of Object.entries(schema.tables)) {
+    html += `
+      <div class="col-md-6">
+        <div class="card border-0 bg-light">
+          <div class="card-header bg-primary text-white fw-bold">
+            <i class="bi bi-table me-1"></i>${tableName}
+          </div>
+          <div class="card-body">
+            <table class="table table-sm mb-0">
+              <thead>
+                <tr>
+                  <th>Column</th>
+                  <th>Type</th>
+                  <th>Nullable</th>
+                </tr>
+              </thead>
+              <tbody>
+    `;
+    
+    for (const col of tableData.columns) {
+      html += `
+        <tr>
+          <td>
+            <code>${col.name}</code>
+            ${col.primary_key ? '<span class="badge bg-success ms-1">PK</span>' : ''}
+          </td>
+          <td><small>${col.type}</small></td>
+          <td>
+            ${col.nullable ? '<i class="bi bi-check text-success"></i>' : '<i class="bi bi-x text-danger"></i>'}
+          </td>
+        </tr>
+      `;
+    }
+    
+    html += `
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  html += '</div>';
+  details.innerHTML = html;
+  
+  // Render diagram
+  renderDiagram(schema);
+}
+
+function renderDiagram(schema) {
+  const tables = Object.keys(schema.tables);
+  const svg = d3.select('#schema-diagram');
+  
+  // Clear previous
+  svg.selectAll("*").remove();
+  
+  const width = 900;
+  const height = 600;
+  
+  svg.attr('width', width).attr('height', height);
+  
+  const g = svg.append('g')
+    .attr('transform', 'translate(40,40)');
+  
+  // Layout tables in a grid
+  const cellWidth = 250;
+  const cellHeight = 150;
+  const cols = Math.ceil(Math.sqrt(tables.length));
+  
+  tables.forEach((table, i) => {
+    const row = Math.floor(i / cols);
+    const col = i % cols;
+    const x = col * (cellWidth + 20);
+    const y = row * (cellHeight + 40);
+    
+    const tableData = schema.tables[table];
+    const columns = tableData.columns;
+    
+    // Table box
+    const tableGroup = g.append('g')
+      .attr('transform', `translate(${x}, ${y})`);
+    
+    tableGroup.append('rect')
+      .attr('width', cellWidth)
+      .attr('height', cellHeight)
+      .attr('fill', '#f0f9ff')
+      .attr('stroke', '#0f766e')
+      .attr('stroke-width', 2)
+      .attr('rx', 5);
+    
+    // Table name
+    tableGroup.append('text')
+      .attr('x', 10)
+      .attr('y', 25)
+      .attr('font-weight', 'bold')
+      .attr('fill', '#0f766e')
+      .text(table);
+    
+    // Columns
+    let colY = 45;
+    columns.slice(0, 4).forEach(col => {
+      tableGroup.append('text')
+        .attr('x', 10)
+        .attr('y', colY)
+        .attr('font-size', '11px')
+        .attr('fill', '#333')
+        .text(`• ${col.name}`);
+      colY += 18;
+    });
+    
+    if (columns.length > 4) {
+      tableGroup.append('text')
+        .attr('x', 10)
+        .attr('y', colY)
+        .attr('font-size', '11px')
+        .attr('fill', '#999')
+        .text(`+ ${columns.length - 4} more`);
+    }
+  });
+}
+
+function downloadDiagram() {
+  const svg = document.getElementById('schema-diagram');
+  const svgData = new XMLSerializer().serializeToString(svg);
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const img = new Image();
+  
+  img.onload = function() {
+    canvas.width = img.width;
+    canvas.height = img.height;
+    ctx.drawImage(img, 0, 0);
+    
+    const link = document.createElement('a');
+    link.href = canvas.toDataURL('image/png');
+    link.download = 'database-schema.png';
+    link.click();
+  };
+  
+  img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
+}
+</script>
+{% endblock %}

@@ -1,0 +1,226 @@
+{% extends "sql_training/base_sql_training.html" %}
+
+{% block sql_training_content %}
+<div class="container-lg">
+  <!-- Breadcrumb -->
+  <nav aria-label="breadcrumb" class="mt-4">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item">
+        <a href="{{ url_for('sql_training.modules_list') }}">{{ _('SQL Training') }}</a>
+      </li>
+      <li class="breadcrumb-item active">{{ translate(module, 'title_i18n', lang) }}</li>
+    </ol>
+  </nav>
+
+  <!-- Module Header -->
+  <div class="row mb-4">
+    <div class="col-lg-8">
+      <h1 class="display-5 fw-bold mb-3">
+        {{ translate(module, 'title_i18n', lang) }}
+      </h1>
+      <p class="lead text-muted">
+        {{ translate(module, 'description_i18n', lang) }}
+      </p>
+      
+      <div class="d-flex gap-3 flex-wrap mb-4">
+        <span class="badge bg-light text-dark border">
+          <i class="bi bi-book me-1"></i>{{ module.total_lessons }} {{ _('Lessons') }}
+        </span>
+        <span class="badge bg-light text-dark border">
+          <i class="bi bi-pen me-1"></i>{{ module.total_exercises }} {{ _('Exercises') }}
+        </span>
+        <span class="badge bg-light text-dark border">
+          <i class="bi bi-clock me-1"></i>{{ module.estimated_hours }}h {{ _('Estimated Time') }}
+        </span>
+        <span class="badge bg-light text-dark border">
+          <i class="bi bi-target me-1"></i>{{ _('Pass') }}: {{ module.pass_threshold }}%
+        </span>
+      </div>
+    </div>
+    
+    <div class="col-lg-4">
+      <!-- Progress Card -->
+      {% if enrollment %}
+      <div class="card border-0 shadow-sm">
+        <div class="card-body">
+          <h6 class="card-title fw-bold mb-3">{{ _('Your Progress') }}</h6>
+          
+          <div class="progress mb-3" style="height: 25px;">
+            <div class="progress-bar" role="progressbar" 
+                 style="width: {{ enrollment.progress_percentage }}%; background-color: var(--sql-primary);"
+                 aria-valuenow="{{ enrollment.progress_percentage }}" 
+                 aria-valuemin="0" aria-valuemax="100">
+              <small class="fw-bold">{{ enrollment.progress_percentage }}%</small>
+            </div>
+          </div>
+          
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <small class="text-muted d-block">{{ _('Status') }}</small>
+              <strong>{{ enrollment.status }}</strong>
+            </div>
+            <div class="col-6">
+              <small class="text-muted d-block">{{ _('Score') }}</small>
+              <strong>{{ enrollment.overall_score }}%</strong>
+            </div>
+          </div>
+          
+          {% if not enrollment.passed %}
+          <small class="text-muted d-block">
+            {{ _('Need') }} {{ module.pass_threshold }}% {{ _('to pass') }}
+          </small>
+          {% else %}
+          <span class="badge bg-success">{{ _('Passed!') }}</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Main Content Row -->
+  <div class="row g-4">
+    <!-- Left: Lessons -->
+    <div class="col-lg-8">
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-light border-bottom">
+          <h6 class="card-title fw-bold mb-0">
+            <i class="bi bi-list-check me-2"></i>{{ _('Course Lessons') }}
+          </h6>
+        </div>
+        
+        <div class="card-body p-0">
+          <div class="accordion accordion-flush" id="lessonsAccordion">
+            {% for lesson in lessons %}
+            <div class="accordion-item">
+              <h2 class="accordion-header">
+                <button class="accordion-button {% if loop.index0 != 0 %}collapsed{% endif %}" 
+                        type="button" data-bs-toggle="collapse" 
+                        data-bs-target="#lesson{{ lesson.id }}">
+                  <span class="badge bg-secondary me-3">{{ "%02d"|format(loop.index) }}</span>
+                  <strong>{{ translate(lesson, 'title_i18n', lang) }}</strong>
+                  <span class="ms-auto me-2">
+                    {{ lesson.exercises | length }} {{ _('exercises') }}
+                  </span>
+                </button>
+              </h2>
+              
+              <div id="lesson{{ lesson.id }}" class="accordion-collapse collapse {% if loop.index0 == 0 %}show{% endif %}"
+                   data-bs-parent="#lessonsAccordion">
+                <div class="accordion-body">
+                  <p class="text-muted mb-3">
+                    {{ translate(lesson, 'description_i18n', lang) }}
+                  </p>
+                  
+                  <!-- Exercises in Lesson -->
+                  <div class="list-group list-group-flush">
+                    {% for exercise in lesson.exercises %}
+                      {% set submission = submissions_by_exercise.get(exercise.id) %}
+                      <a href="{{ url_for('sql_training.exercise_view', exercise_id=exercise.id) }}"
+                         class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                        <div>
+                          <div class="fw-bold">{{ translate(exercise, 'title_i18n', lang) }}</div>
+                          <small class="text-muted">
+                            {{ exercise.type | replace('_', ' ') | title }} • {{ exercise.points }} {{ _('pts') }}
+                          </small>
+                        </div>
+                        <div>
+                          {% if submission and submission.is_correct %}
+                            <span class="badge bg-success">
+                              <i class="bi bi-check-circle me-1"></i>{{ submission.points_earned }}/{{ exercise.points }}
+                            </span>
+                          {% elif submission %}
+                            <span class="badge bg-warning">
+                              <i class="bi bi-exclamation-circle me-1"></i>Attempted
+                            </span>
+                          {% else %}
+                            <span class="badge bg-light text-dark">
+                              <i class="bi bi-circle me-1"></i>Start
+                            </span>
+                          {% endif %}
+                        </div>
+                      </a>
+                    {% endfor %}
+                  </div>
+                  
+                  <button type="button" class="btn btn-sm btn-outline-primary mt-3"
+                          onclick="startLesson({{ lesson.id }})">
+                    <i class="bi bi-play-circle me-1"></i>{{ _('Start Lesson') }}
+                  </button>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Sidebar -->
+    <div class="col-lg-4">
+      <!-- Database Schema Card -->
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-light border-bottom">
+          <h6 class="card-title fw-bold mb-0">
+            <i class="bi bi-database me-2"></i>{{ _('Database') }}
+          </h6>
+        </div>
+        <div class="card-body">
+          <p class="small text-muted mb-3">{{ _('This module comes with sample data') }}</p>
+          <a href="{{ url_for('sql_training.database_diagram', module_id=module.id) }}"
+             class="btn btn-outline-secondary btn-sm w-100 mb-2">
+            <i class="bi bi-diagram-3 me-1"></i>{{ _('View Schema Diagram') }}
+          </a>
+          <button type="button" class="btn btn-outline-secondary btn-sm w-100"
+                  onclick="resetDatabase()">
+            <i class="bi bi-arrow-clockwise me-1"></i>{{ _('Reset Database') }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Links -->
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-light border-bottom">
+          <h6 class="card-title fw-bold mb-0">
+            <i class="bi bi-lightning-fill me-2"></i>{{ _('Quick Links') }}
+          </h6>
+        </div>
+        <div class="card-body">
+          <div class="list-group list-group-flush">
+            <a href="{{ url_for('sql_training.user_dashboard') }}" class="list-group-item list-group-item-action">
+              <i class="bi bi-speedometer2 me-2"></i>{{ _('My Dashboard') }}
+            </a>
+            <a href="{{ url_for('sql_training.modules_list') }}" class="list-group-item list-group-item-action">
+              <i class="bi bi-book me-2"></i>{{ _('All Modules') }}
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function startLesson(lessonId) {
+  // Navigate to first exercise of lesson
+  window.location.href = `/sql-training/lesson/${lessonId}`;
+}
+
+function resetDatabase() {
+  if (confirm('{{ _("This will reset your sample database. Continue?") }}')) {
+    fetch(`/sql-training/api/reset-database/{{ module.id }}`, {
+      method: 'POST',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+      }
+    })
+    .then(r => r.json())
+    .then(data => {
+      alert('{{ _("Database reset successfully") }}');
+      location.reload();
+    })
+    .catch(e => alert('Error: ' + e));
+  }
+}
+</script>
+{% endblock %}
