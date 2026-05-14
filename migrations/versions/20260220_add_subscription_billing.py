@@ -16,17 +16,42 @@ branch_labels = None
 depends_on = None
 
 
+def _is_offline() -> bool:
+    return context.is_offline_mode()
+
+
 def _table_exists(bind, table_name: str) -> bool:
+    if _is_offline():
+        # In offline --sql mode, Alembic uses a mock connection that cannot be inspected.
+        # Return False so CREATE statements are emitted.
+        return False
     return sa.inspect(bind).has_table(table_name)
 
 
 def _index_exists(bind, table_name: str, index_name: str) -> bool:
+    if _is_offline():
+        # In offline --sql mode, emit CREATE INDEX statements.
+        return False
     if not _table_exists(bind, table_name):
         return False
     return any(i["name"] == index_name for i in sa.inspect(bind).get_indexes(table_name))
 
 
 def _seed_subscription_plans(bind) -> None:
+    if _is_offline():
+        # Keep offline SQL generation deterministic and avoid querying mock connections.
+        op.execute("""
+            INSERT INTO subscription_plans (code, name, description, price_monthly, price_yearly, trial_days, has_finance, has_bi, max_users, max_companies, max_transactions_per_month, display_order)
+            VALUES
+            ('free', 'Gratuit', 'Plan d''essai gratuit de 30 jours', 0, 0, 30, false, false, 1, 1, 100, 1),
+            ('finance_starter', 'Finance Starter', 'Gestion financiere pour petites entreprises', 29, 290, 30, true, false, 3, 3, 1000, 2),
+            ('finance_pro', 'Finance Pro', 'Gestion financiere avancee', 79, 790, 30, true, false, 10, 10, 5000, 3),
+            ('bi_starter', 'BI Starter', 'Business Intelligence basique', 39, 390, 30, false, true, 3, 5, 1000, 4),
+            ('bi_pro', 'BI Pro', 'Business Intelligence avance', 99, 990, 30, false, true, 10, 20, 10000, 5),
+            ('enterprise', 'Enterprise', 'Toutes les fonctionnalites', 199, 1990, 30, true, true, -1, -1, -1, 6)
+        """)
+        return
+
     if not _table_exists(bind, "subscription_plans"):
         return
 
