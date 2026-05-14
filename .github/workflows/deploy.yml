@@ -384,7 +384,22 @@ jobs:
               fi
 
               if echo "$MIG_OUT" | grep -Eqi "DuplicateTable|already exists"; then
-                if echo "$MIG_OUT" | grep -Eqi "project_workspaces"; then
+                # Generic handler: extract target revision + duplicated relation from Alembic/PG error,
+                # verify table exists, then stamp that revision so migration can continue.
+                TARGET_REV="$(echo "$MIG_OUT" | sed -nE 's/.*Running upgrade [^>]+ -> ([^, ]+).*/\1/p' | head -1)"
+                DUP_TABLE="$(echo "$MIG_OUT" | sed -nE 's/.*relation "([^"]+)" already exists.*/\1/p' | head -1)"
+                DUP_EXISTS=""
+                if [ -n "$DUP_TABLE" ]; then
+                  DUP_EXISTS="$(psql_exec "SELECT to_regclass('public.${DUP_TABLE}')" | tr -d ' \n')"
+                fi
+
+                if [ -n "$TARGET_REV" ] && [ -n "$DUP_TABLE" ] && [ -n "$DUP_EXISTS" ] && [ "$DUP_EXISTS" != "NULL" ]; then
+                  echo "⚠️ DuplicateTable detected for ${DUP_TABLE} while upgrading to ${TARGET_REV} -> auto-stamping revision"
+                  aud_run flask db stamp "$TARGET_REV" || true
+                elif echo "$MIG_OUT" | grep -Eqi "subscription_plans|tenant_subscriptions|billing_events|email_verification_tokens|user_invitations"; then
+                  echo "⚠️ subscription billing tables already exist -> stamping migration 20260220_add_subscription_billing"
+                  pre_stamp_if_exists subscription_plans 20260220_add_subscription_billing
+                elif echo "$MIG_OUT" | grep -Eqi "project_workspaces"; then
                   echo "⚠️ project_workspaces already exists -> stamping migration 20260220_add_project_workspaces"
                   aud_run flask db stamp 20260220_add_project_workspaces || true
                 elif echo "$MIG_OUT" | grep -Eqi "finance_investments"; then

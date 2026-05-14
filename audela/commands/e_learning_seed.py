@@ -2066,9 +2066,9 @@ def _seed_achievements(force: bool = False) -> int:
     for ach_data in ACHIEVEMENTS:
         existing = Achievement.query.filter_by(code=ach_data["code"]).first()
         if existing:
-            if force:
-                for k, v in ach_data.items():
-                    setattr(existing, k, v)
+            # Keep seed idempotent: refresh achievement metadata on every run.
+            for k, v in ach_data.items():
+                setattr(existing, k, v)
             continue
 
         ach = Achievement(
@@ -2128,9 +2128,7 @@ def _seed_sql_subject(force: bool = False) -> dict:
 
     # Modules
     for mod_data in MODULES:
-        module = ELearningModule.query.filter_by(code=mod_data["code"]).first()
-        if module and not force:
-            continue
+        module = ELearningModule.query.filter_by(subject_id=subject.id, code=mod_data["code"]).first()
 
         if not module:
             module = ELearningModule(
@@ -2167,9 +2165,7 @@ def _seed_sql_subject(force: bool = False) -> dict:
 
         # Lessons
         for les_data in mod_data.get("lessons", []):
-            lesson = ELearningLesson.query.filter_by(code=les_data["code"]).first()
-            if lesson and not force:
-                continue
+            lesson = ELearningLesson.query.filter_by(module_id=module.id, code=les_data["code"]).first()
 
             if not lesson:
                 lesson = ELearningLesson(module_id=module.id, code=les_data["code"])
@@ -2195,9 +2191,7 @@ def _seed_sql_subject(force: bool = False) -> dict:
 
             # Exercises
             for ex_data in les_data.get("exercises", []):
-                exercise = ELearningExercise.query.filter_by(code=ex_data["code"]).first()
-                if exercise and not force:
-                    continue
+                exercise = ELearningExercise.query.filter_by(lesson_id=lesson.id, code=ex_data["code"]).first()
 
                 if not exercise:
                     exercise = ELearningExercise(lesson_id=lesson.id, code=ex_data["code"])
