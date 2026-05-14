@@ -54,7 +54,7 @@ services:
       SESSION_COOKIE_SECURE: "true"
       COOKIE_SECURE: "1"
       TENANT_FILE_ROOT: /app/instance/tenant_files
-      AUTO_CREATE_DB: "true"
+      AUTO_CREATE_DB: "false"
       RUN_MIGRATIONS: "1"
     depends_on:
       db:

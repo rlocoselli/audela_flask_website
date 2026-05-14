@@ -474,7 +474,17 @@ def create_app() -> Flask:
     # DEV: ensure core tables exist (use Alembic migrations in production)
     if app.config.get("AUTO_CREATE_DB", False):
         with app.app_context():
-            db.create_all()
+            try:
+                db.create_all(checkfirst=True)
+            except Exception as _create_all_err:
+                # On PostgreSQL, orphaned constraints from prior partial migrations can
+                # cause DuplicateTable errors even when checkfirst=True skips the table.
+                # Alembic migrations (run separately) are the authoritative schema path;
+                # silence this error so the app can still start.
+                import logging as _logging
+                _logging.getLogger(__name__).warning(
+                    "db.create_all() skipped due to existing schema objects: %s", _create_all_err
+                )
 
             # SQLite dev convenience: add new columns without requiring a manual DB reset.
             # (In production, use Alembic migrations.)
