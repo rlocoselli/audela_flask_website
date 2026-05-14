@@ -296,12 +296,7 @@ jobs:
               fi
             }
 
-            pre_stamp_if_all_tables_exist 20260220_add_subscription_billing \
-              subscription_plans \
-              tenant_subscriptions \
-              email_verification_tokens \
-              user_invitations \
-              billing_events
+            pre_stamp_if_exists subscription_plans 20260220_add_subscription_billing
             pre_stamp_if_exists project_workspaces 20260220_add_project_workspaces
             pre_stamp_if_exists finance_investments 20260221_add_finance_investments
             pre_stamp_if_exists finance_accounting_periods 20260221_add_finance_accounting_periods

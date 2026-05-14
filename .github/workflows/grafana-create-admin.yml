@@ -16,6 +16,10 @@ on:
         required: false
         default: ""
         type: string
+      password:
+        description: "Password for the new Grafana admin user"
+        required: true
+        type: string
       update_existing:
         description: "Update password if user already exists"
         required: true
@@ -50,7 +54,7 @@ jobs:
             GF_EMAIL="${{ github.event.inputs.email }}"
             GF_NAME="${{ github.event.inputs.name }}"
             UPDATE_EXISTING="${{ github.event.inputs.update_existing }}"
-            GF_PASSWORD="${{ secrets.GRAFANA_NEW_ADMIN_PASSWORD }}"
+            GF_PASSWORD="${{ github.event.inputs.password }}"
             GF_ADMIN_USER="${{ secrets.GRAFANA_ADMIN_USER }}"
             GF_ADMIN_PASSWORD="${{ secrets.GRAFANA_ADMIN_PASSWORD }}"
 
