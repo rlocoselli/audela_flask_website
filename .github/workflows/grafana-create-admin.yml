@@ -1,0 +1,160 @@
+name: Grafana - Create Admin User
+
+on:
+  workflow_dispatch:
+    inputs:
+      username:
+        description: "Grafana username (login)"
+        required: true
+        type: string
+      email:
+        description: "Grafana user email"
+        required: true
+        type: string
+      name:
+        description: "Grafana display name"
+        required: false
+        default: ""
+        type: string
+      update_existing:
+        description: "Update password if user already exists"
+        required: true
+        default: true
+        type: boolean
+
+jobs:
+  create-grafana-admin:
+    runs-on: ubuntu-latest
+    environment: audeladesdonnees
+
+    steps:
+      - name: Create Grafana admin user via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: root
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          command_timeout: 10m
+          script: |
+            set -e
+
+            cd /root/audela_flask_website
+
+            COMPOSE_CMD="docker compose"
+            if ! docker compose version >/dev/null 2>&1; then
+              COMPOSE_CMD="docker-compose"
+            fi
+
+            GF_USERNAME="${{ github.event.inputs.username }}"
+            GF_EMAIL="${{ github.event.inputs.email }}"
+            GF_NAME="${{ github.event.inputs.name }}"
+            UPDATE_EXISTING="${{ github.event.inputs.update_existing }}"
+            GF_PASSWORD="${{ secrets.GRAFANA_NEW_ADMIN_PASSWORD }}"
+            GF_ADMIN_USER="${{ secrets.GRAFANA_ADMIN_USER }}"
+            GF_ADMIN_PASSWORD="${{ secrets.GRAFANA_ADMIN_PASSWORD }}"
+
+            if [ -z "$GF_USERNAME" ] || [ -z "$GF_EMAIL" ]; then
+              echo "❌ username and email are required"
+              exit 1
+            fi
+
+            if [ -z "$GF_PASSWORD" ]; then
+              echo "❌ Missing secret GRAFANA_NEW_ADMIN_PASSWORD"
+              exit 1
+            fi
+
+            if [ -z "$GF_ADMIN_USER" ] || [ -z "$GF_ADMIN_PASSWORD" ]; then
+              echo "❌ Missing secrets GRAFANA_ADMIN_USER or GRAFANA_ADMIN_PASSWORD"
+              exit 1
+            fi
+
+            # Ensure grafana is running
+            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml up -d grafana
+
+            # Wait for Grafana API to be ready (up to 30s)
+            echo "⏳ Waiting for Grafana API..."
+            for i in $(seq 1 15); do
+              STATUS=$($COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml \
+                exec -T grafana wget -qO- --user="$GF_ADMIN_USER" --password="$GF_ADMIN_PASSWORD" \
+                http://localhost:3000/api/health 2>/dev/null || echo "")
+              if echo "$STATUS" | grep -q "ok"; then
+                echo "✅ Grafana API ready"
+                break
+              fi
+              sleep 2
+            done
+
+            DISPLAY_NAME="${GF_NAME:-$GF_USERNAME}"
+
+            # Check if user already exists
+            EXISTING=$($COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml \
+              exec -T grafana wget -qO- \
+              --user="$GF_ADMIN_USER" --password="$GF_ADMIN_PASSWORD" \
+              "http://localhost:3000/api/users/lookup?loginOrEmail=${GF_USERNAME}" 2>/dev/null || echo "")
+
+            if echo "$EXISTING" | grep -q '"id"'; then
+              if [ "$UPDATE_EXISTING" = "true" ]; then
+                USER_ID=$(echo "$EXISTING" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+                echo "🔄 User '${GF_USERNAME}' exists (id=${USER_ID}), updating password and promoting to Admin..."
+
+                # Update password
+                $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml \
+                  exec -T grafana wget -qO- \
+                  --user="$GF_ADMIN_USER" --password="$GF_ADMIN_PASSWORD" \
+                  --header="Content-Type: application/json" \
+                  --post-data="{\"password\":\"${GF_PASSWORD}\"}" \
+                  "http://localhost:3000/api/admin/users/${USER_ID}/password"
+
+                # Ensure Admin role
+                $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml \
+                  exec -T grafana wget -qO- \
+                  --user="$GF_ADMIN_USER" --password="$GF_ADMIN_PASSWORD" \
+                  --header="Content-Type: application/json" \
+                  --method=PATCH \
+                  --body-data="{\"role\":\"Admin\",\"isGrafanaAdmin\":true}" \
+                  "http://localhost:3000/api/org/users/${USER_ID}" || true
+
+                $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml \
+                  exec -T grafana wget -qO- \
+                  --user="$GF_ADMIN_USER" --password="$GF_ADMIN_PASSWORD" \
+                  --header="Content-Type: application/json" \
+                  --method=PUT \
+                  --body-data="{\"isGrafanaAdmin\":true}" \
+                  "http://localhost:3000/api/admin/users/${USER_ID}/permissions"
+
+                echo "✅ User '${GF_USERNAME}' updated and promoted to Admin"
+              else
+                echo "⚠️ User '${GF_USERNAME}' already exists and update_existing=false — skipping"
+              fi
+            else
+              echo "➕ Creating new Grafana Admin user '${GF_USERNAME}'..."
+
+              RESULT=$($COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml \
+                exec -T grafana wget -qO- \
+                --user="$GF_ADMIN_USER" --password="$GF_ADMIN_PASSWORD" \
+                --header="Content-Type: application/json" \
+                --post-data="{\"name\":\"${DISPLAY_NAME}\",\"email\":\"${GF_EMAIL}\",\"login\":\"${GF_USERNAME}\",\"password\":\"${GF_PASSWORD}\",\"role\":\"Admin\"}" \
+                "http://localhost:3000/api/admin/users")
+
+              echo "$RESULT"
+
+              if echo "$RESULT" | grep -q '"id"'; then
+                USER_ID=$(echo "$RESULT" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
+                echo "✅ User '${GF_USERNAME}' created (id=${USER_ID})"
+
+                # Grant Grafana server admin permission
+                $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml \
+                  exec -T grafana wget -qO- \
+                  --user="$GF_ADMIN_USER" --password="$GF_ADMIN_PASSWORD" \
+                  --header="Content-Type: application/json" \
+                  --method=PUT \
+                  --body-data="{\"isGrafanaAdmin\":true}" \
+                  "http://localhost:3000/api/admin/users/${USER_ID}/permissions"
+
+                echo "✅ Grafana server admin permissions granted to '${GF_USERNAME}'"
+              else
+                echo "❌ Failed to create user. Response: $RESULT"
+                exit 1
+              fi
+            fi
