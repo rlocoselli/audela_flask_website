@@ -263,14 +263,30 @@ jobs:
             }
 
             # Pre-fix: if known tables already exist, mark corresponding migrations as applied.
+            # Pre-fix: if known tables already exist, mark corresponding migrations as applied.
+            # Uses psql directly on the db container to avoid calling create_app() (which may
+            # crash if AUTO_CREATE_DB was previously true and left orphaned constraints).
+            psql_exec () {
+              $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml \
+                exec -T db psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -tAc "$1" 2>/dev/null || echo ""
+            }
+
+            # Load POSTGRES_USER / POSTGRES_DB from .env if not already in environment
+            if [ -f .env ]; then
+              POSTGRES_USER="${POSTGRES_USER:-$(grep -E '^POSTGRES_USER=' .env | cut -d= -f2- | tr -d '\"' | tr -d "'")}"
+              POSTGRES_DB="${POSTGRES_DB:-$(grep -E '^POSTGRES_DB=' .env | cut -d= -f2- | tr -d '\"' | tr -d "'")}"
+            fi
+
             pre_stamp_if_exists () {
               local tbl="$1"
               local rev="$2"
               local exists
-              exists="$(aud_run python -c "from sqlalchemy import text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); e=db.session.execute(text(\"SELECT to_regclass('public.${tbl}')\")).scalar(); print('1' if e else '0'); ctx.pop()" 2>/dev/null || echo 0)"
-              if [ "$exists" = "1" ]; then
+              exists="$(psql_exec "SELECT to_regclass('public.${tbl}')" | tr -d ' \n')"
+              if [ -n "$exists" ] && [ "$exists" != "NULL" ] && [ "$exists" != "" ]; then
                 echo "ℹ️ ${tbl} exists -> pre-stamp ${rev}"
                 aud_run flask db stamp "$rev" || true
+              else
+                echo "ℹ️ ${tbl} missing -> not stamping ${rev}"
               fi
             }
 
@@ -282,8 +298,8 @@ jobs:
               local exists
 
               for tbl in "$@"; do
-                exists="$(aud_run python -c "from sqlalchemy import text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); e=db.session.execute(text(\"SELECT to_regclass('public.${tbl}')\")).scalar(); print('1' if e else '0'); ctx.pop()" 2>/dev/null || echo 0)"
-                if [ "$exists" != "1" ]; then
+                exists="$(psql_exec "SELECT to_regclass('public.${tbl}')" | tr -d ' \n')"
+                if [ -z "$exists" ] || [ "$exists" = "NULL" ]; then
                   all_exist="0"
                   echo "ℹ️ ${tbl} missing -> not stamping ${rev}"
                   break

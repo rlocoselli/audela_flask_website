@@ -76,7 +76,7 @@ jobs:
             fi
 
             if [ -z "$GF_PASSWORD" ]; then
-              echo "❌ Missing secret GRAFANA_NEW_ADMIN_PASSWORD"
+              echo "❌ Missing required workflow input: password"
               exit 1
             fi
 
@@ -88,89 +88,115 @@ jobs:
             # Ensure grafana is running
             $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml up -d grafana
 
-            # Wait for Grafana API to be ready (up to 30s)
-            echo "⏳ Waiting for Grafana API..."
-            for i in $(seq 1 15); do
-              STATUS=$($COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml \
-                exec -T grafana wget -qO- --user="$GF_ADMIN_USER" --password="$GF_ADMIN_PASSWORD" \
-                http://localhost:3000/api/health 2>/dev/null || echo "")
-              if echo "$STATUS" | grep -q "ok"; then
-                echo "✅ Grafana API ready"
-                break
-              fi
-              sleep 2
-            done
-
             DISPLAY_NAME="${GF_NAME:-$GF_USERNAME}"
 
-            # Check if user already exists
-            EXISTING=$($COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml \
-              exec -T grafana wget -qO- \
-              --user="$GF_ADMIN_USER" --password="$GF_ADMIN_PASSWORD" \
-              "http://localhost:3000/api/users/lookup?loginOrEmail=${GF_USERNAME}" 2>/dev/null || echo "")
+            # Use Python requests from audela image instead of BusyBox wget in grafana image.
+            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml run --rm --no-deps -T \
+              -e GF_USERNAME="$GF_USERNAME" \
+              -e GF_EMAIL="$GF_EMAIL" \
+              -e GF_NAME="$DISPLAY_NAME" \
+              -e GF_PASSWORD="$GF_PASSWORD" \
+              -e UPDATE_EXISTING="$UPDATE_EXISTING" \
+              -e GF_ADMIN_USER="$GF_ADMIN_USER" \
+              -e GF_ADMIN_PASSWORD="$GF_ADMIN_PASSWORD" \
+              --entrypoint python audela - <<'PY'
+              import os
+              import sys
+              import time
+              import requests
 
-            if echo "$EXISTING" | grep -q '"id"'; then
-              if [ "$UPDATE_EXISTING" = "true" ]; then
-                USER_ID=$(echo "$EXISTING" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
-                echo "🔄 User '${GF_USERNAME}' exists (id=${USER_ID}), updating password and promoting to Admin..."
+              base = os.environ.get("GF_URL", "http://grafana:3000").rstrip("/")
+              admin_user = os.environ["GF_ADMIN_USER"]
+              admin_password = os.environ["GF_ADMIN_PASSWORD"]
+              username = os.environ["GF_USERNAME"]
+              email = os.environ["GF_EMAIL"]
+              display_name = os.environ.get("GF_NAME") or username
+              password = os.environ["GF_PASSWORD"]
+              update_existing = (os.environ.get("UPDATE_EXISTING", "true").lower() == "true")
 
-                # Update password
-                $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml \
-                  exec -T grafana wget -qO- \
-                  --user="$GF_ADMIN_USER" --password="$GF_ADMIN_PASSWORD" \
-                  --header="Content-Type: application/json" \
-                  --post-data="{\"password\":\"${GF_PASSWORD}\"}" \
-                  "http://localhost:3000/api/admin/users/${USER_ID}/password"
+              sess = requests.Session()
+              sess.auth = (admin_user, admin_password)
+              sess.headers.update({"Content-Type": "application/json"})
 
-                # Ensure Admin role
-                $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml \
-                  exec -T grafana wget -qO- \
-                  --user="$GF_ADMIN_USER" --password="$GF_ADMIN_PASSWORD" \
-                  --header="Content-Type: application/json" \
-                  --method=PATCH \
-                  --body-data="{\"role\":\"Admin\",\"isGrafanaAdmin\":true}" \
-                  "http://localhost:3000/api/org/users/${USER_ID}" || true
+              print("⏳ Waiting for Grafana API...")
+              for i in range(15):
+                try:
+                  r = sess.get(f"{base}/api/health", timeout=5)
+                  if r.ok and "ok" in r.text.lower():
+                    print("✅ Grafana API ready")
+                    break
+                except Exception:
+                  pass
+                time.sleep(2)
+              else:
+                print("❌ Grafana API not ready after 30s")
+                sys.exit(1)
 
-                $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml \
-                  exec -T grafana wget -qO- \
-                  --user="$GF_ADMIN_USER" --password="$GF_ADMIN_PASSWORD" \
-                  --header="Content-Type: application/json" \
-                  --method=PUT \
-                  --body-data="{\"isGrafanaAdmin\":true}" \
-                  "http://localhost:3000/api/admin/users/${USER_ID}/permissions"
+              lookup = sess.get(f"{base}/api/users/lookup", params={"loginOrEmail": username}, timeout=10)
 
-                echo "✅ User '${GF_USERNAME}' updated and promoted to Admin"
-              else
-                echo "⚠️ User '${GF_USERNAME}' already exists and update_existing=false — skipping"
-              fi
-            else
-              echo "➕ Creating new Grafana Admin user '${GF_USERNAME}'..."
+              if lookup.status_code == 200:
+                user_id = lookup.json().get("id")
+                if not user_id:
+                  print("❌ Could not parse existing user id")
+                  sys.exit(1)
 
-              RESULT=$($COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml \
-                exec -T grafana wget -qO- \
-                --user="$GF_ADMIN_USER" --password="$GF_ADMIN_PASSWORD" \
-                --header="Content-Type: application/json" \
-                --post-data="{\"name\":\"${DISPLAY_NAME}\",\"email\":\"${GF_EMAIL}\",\"login\":\"${GF_USERNAME}\",\"password\":\"${GF_PASSWORD}\",\"role\":\"Admin\"}" \
-                "http://localhost:3000/api/admin/users")
+                if not update_existing:
+                  print(f"⚠️ User '{username}' already exists and update_existing=false - skipping")
+                  sys.exit(0)
 
-              echo "$RESULT"
+                print(f"🔄 User '{username}' exists (id={user_id}), updating password and promoting to Admin...")
+                pw = sess.put(f"{base}/api/admin/users/{user_id}/password", json={"password": password}, timeout=10)
+                if pw.status_code not in (200, 204):
+                  print(f"❌ Failed to update password: {pw.status_code} {pw.text}")
+                  sys.exit(1)
 
-              if echo "$RESULT" | grep -q '"id"'; then
-                USER_ID=$(echo "$RESULT" | grep -o '"id":[0-9]*' | head -1 | cut -d: -f2)
-                echo "✅ User '${GF_USERNAME}' created (id=${USER_ID})"
+                # Org role update may depend on org context; do best-effort.
+                role = sess.patch(f"{base}/api/org/users/{user_id}", json={"role": "Admin"}, timeout=10)
+                if role.status_code not in (200, 202, 204, 404):
+                  print(f"⚠️ Could not set org Admin role: {role.status_code} {role.text}")
 
-                # Grant Grafana server admin permission
-                $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml \
-                  exec -T grafana wget -qO- \
-                  --user="$GF_ADMIN_USER" --password="$GF_ADMIN_PASSWORD" \
-                  --header="Content-Type: application/json" \
-                  --method=PUT \
-                  --body-data="{\"isGrafanaAdmin\":true}" \
-                  "http://localhost:3000/api/admin/users/${USER_ID}/permissions"
+                perms = sess.put(f"{base}/api/admin/users/{user_id}/permissions", json={"isGrafanaAdmin": True}, timeout=10)
+                if perms.status_code not in (200, 204):
+                  print(f"❌ Failed to grant Grafana admin: {perms.status_code} {perms.text}")
+                  sys.exit(1)
 
-                echo "✅ Grafana server admin permissions granted to '${GF_USERNAME}'"
-              else
-                echo "❌ Failed to create user. Response: $RESULT"
-                exit 1
-              fi
-            fi
+                print(f"✅ User '{username}' updated and promoted to Admin")
+                sys.exit(0)
+
+              if lookup.status_code not in (404,):
+                print(f"❌ User lookup failed: {lookup.status_code} {lookup.text}")
+                sys.exit(1)
+
+              print(f"➕ Creating new Grafana Admin user '{username}'...")
+              create = sess.post(
+                f"{base}/api/admin/users",
+                json={"name": display_name, "email": email, "login": username, "password": password},
+                timeout=10,
+              )
+              if create.status_code not in (200, 201):
+                print(f"❌ Failed to create user: {create.status_code} {create.text}")
+                sys.exit(1)
+
+              data = create.json() if create.text else {}
+              user_id = data.get("id")
+              if not user_id:
+                # Try lookup fallback if API did not return id.
+                lookup2 = sess.get(f"{base}/api/users/lookup", params={"loginOrEmail": username}, timeout=10)
+                if lookup2.status_code == 200:
+                  user_id = lookup2.json().get("id")
+
+              if not user_id:
+                print(f"❌ User created but id not found. Response: {create.text}")
+                sys.exit(1)
+
+              role = sess.patch(f"{base}/api/org/users/{user_id}", json={"role": "Admin"}, timeout=10)
+              if role.status_code not in (200, 202, 204, 404):
+                print(f"⚠️ Could not set org Admin role: {role.status_code} {role.text}")
+
+              perms = sess.put(f"{base}/api/admin/users/{user_id}/permissions", json={"isGrafanaAdmin": True}, timeout=10)
+              if perms.status_code not in (200, 204):
+                print(f"❌ Failed to grant Grafana admin: {perms.status_code} {perms.text}")
+                sys.exit(1)
+
+              print(f"✅ User '{username}' created (id={user_id}) and promoted to Admin")
+              PY
