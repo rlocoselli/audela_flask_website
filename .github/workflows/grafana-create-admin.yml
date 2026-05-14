@@ -55,8 +55,20 @@ jobs:
             GF_NAME="${{ github.event.inputs.name }}"
             UPDATE_EXISTING="${{ github.event.inputs.update_existing }}"
             GF_PASSWORD="${{ github.event.inputs.password }}"
-            GF_ADMIN_USER="${{ secrets.GRAFANA_ADMIN_USER }}"
-            GF_ADMIN_PASSWORD="${{ secrets.GRAFANA_ADMIN_PASSWORD }}"
+
+            # Read bootstrap admin credentials from the server .env (same source as docker-compose)
+            if [ -f /root/audela_flask_website/.env ]; then
+              GF_ADMIN_USER=$(grep -E '^GRAFANA_ADMIN_USER=' /root/audela_flask_website/.env | cut -d= -f2- | tr -d '"' | tr -d "'")
+              GF_ADMIN_PASSWORD=$(grep -E '^GRAFANA_ADMIN_PASSWORD=' /root/audela_flask_website/.env | cut -d= -f2- | tr -d '"' | tr -d "'")
+            fi
+
+            # Fallback to GitHub secrets if set
+            if [ -z "$GF_ADMIN_USER" ]; then
+              GF_ADMIN_USER="${{ secrets.GRAFANA_ADMIN_USER }}"
+            fi
+            if [ -z "$GF_ADMIN_PASSWORD" ]; then
+              GF_ADMIN_PASSWORD="${{ secrets.GRAFANA_ADMIN_PASSWORD }}"
+            fi
 
             if [ -z "$GF_USERNAME" ] || [ -z "$GF_EMAIL" ]; then
               echo "❌ username and email are required"
@@ -69,7 +81,7 @@ jobs:
             fi
 
             if [ -z "$GF_ADMIN_USER" ] || [ -z "$GF_ADMIN_PASSWORD" ]; then
-              echo "❌ Missing secrets GRAFANA_ADMIN_USER or GRAFANA_ADMIN_PASSWORD"
+              echo "❌ GRAFANA_ADMIN_USER / GRAFANA_ADMIN_PASSWORD not found in .env or GitHub secrets"
               exit 1
             fi
 
