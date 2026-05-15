@@ -57,3 +57,12 @@ jobs:
       install_mode: ${{ github.event.inputs.install_mode || 'incremental' }}
       celery_action: ${{ github.event.inputs.celery_action || 'keep' }}
     secrets: inherit
+
+  seed_python:
+    name: Seed Python tracks
+    needs: deploy
+    uses: ./.github/workflows/python-seed-only.yml
+    with:
+      git_ref: ${{ github.event.inputs.git_ref || 'main' }}
+      python_seed_profile: ${{ github.event.inputs.python_seed_profile || 'all' }}
+    secrets: inherit

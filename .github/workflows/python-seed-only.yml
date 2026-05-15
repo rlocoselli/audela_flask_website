@@ -1,0 +1,133 @@
+name: Seed Python Tracks (manual)
+
+on:
+  workflow_call:
+    inputs:
+      git_ref:
+        description: "Git ref to deploy before seeding (branch/tag/sha)"
+        required: false
+        type: string
+        default: "main"
+      python_seed_profile:
+        description: "Python seeding profile: all, data-analysis, fundamentals, ml, django, none"
+        required: false
+        type: string
+        default: "all"
+  workflow_dispatch:
+    inputs:
+      git_ref:
+        description: "Git ref to deploy before seeding (branch/tag/sha)"
+        required: false
+        default: "main"
+      python_seed_profile:
+        description: "Python seeding profile"
+        required: false
+        type: choice
+        options:
+          - all
+          - data-analysis
+          - fundamentals
+          - ml
+          - django
+          - none
+        default: all
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    environment: audeladesdonnees
+
+    steps:
+      - name: Seed Python tracks via SSH (root)
+        id: seed_ssh
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: root
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          timeout: 90s
+          command_timeout: 40m
+          script: |
+            set -e
+            echo "🐍 Python seed-only job started"
+
+            cd /root/audela_flask_website
+
+            TARGET_REF="${{ inputs.git_ref || github.event.inputs.git_ref }}"
+            if [ -z "$TARGET_REF" ]; then TARGET_REF="main"; fi
+
+            PYTHON_SEED_PROFILE="${{ inputs.python_seed_profile || github.event.inputs.python_seed_profile }}"
+            if [ -z "$PYTHON_SEED_PROFILE" ]; then PYTHON_SEED_PROFILE="all"; fi
+
+            echo "📥 Git fetch/reset to $TARGET_REF"
+            git fetch --all --prune
+            git checkout "$TARGET_REF"
+            git reset --hard "origin/$TARGET_REF" || true
+
+            COMPOSE_CMD="docker compose"
+            if ! docker compose version >/dev/null 2>&1; then
+              COMPOSE_CMD="docker-compose"
+            fi
+
+            if [ ! -f .env ]; then
+              echo "⚠️ .env missing on server"
+              if [ -n "${{ secrets.SERVER_ENV_FILE }}" ]; then
+                printf "%s" "${{ secrets.SERVER_ENV_FILE }}" > .env
+                chmod 600 .env || true
+                echo "✅ .env bootstrapped from GitHub secret SERVER_ENV_FILE"
+              else
+                echo "❌ .env missing and secret SERVER_ENV_FILE is not set"
+                exit 1
+              fi
+            fi
+
+            echo "🚀 Ensure app container is up"
+            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml up -d --no-deps audela
+
+            aud_run () {
+              $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml run --rm --no-deps --entrypoint "" audela "$@"
+            }
+
+            echo "🔎 Available seed commands"
+            aud_run flask --help | grep -E "seed-python|seed-machine-learning|seed-python-django" || true
+
+            case "$PYTHON_SEED_PROFILE" in
+              all)
+                echo "🐍 Seeding all Python tracks"
+                if aud_run flask --help | grep -q "seed-python-tracks"; then
+                  aud_run flask seed-python-tracks
+                else
+                  aud_run flask seed-python-data-analysis
+                  aud_run flask seed-python-fundamentals
+                  aud_run flask seed-machine-learning
+                  aud_run flask seed-python-django
+                fi
+                ;;
+              data-analysis)
+                echo "🐍 Seeding Python Data Analysis"
+                aud_run flask seed-python-data-analysis
+                ;;
+              fundamentals)
+                echo "🐍 Seeding Python Fundamentals"
+                aud_run flask seed-python-fundamentals
+                ;;
+              ml)
+                echo "🐍 Seeding Machine Learning"
+                aud_run flask seed-machine-learning
+                ;;
+              django)
+                echo "🐍 Seeding Django"
+                aud_run flask seed-python-django
+                ;;
+              none)
+                echo "⏭️ Skipping Python seeding"
+                ;;
+              *)
+                echo "❌ Invalid python_seed_profile: $PYTHON_SEED_PROFILE"
+                exit 1
+                ;;
+            esac
+
+            echo "✅ Verifying subjects"
+            aud_run python -c "from audela import create_app; from audela.models import ELearningSubject; app=create_app(); ctx=app.app_context(); ctx.push(); required=['python-data-analysis','python-fundamentals','machine-learning-python','django-web-development']; missing=[code for code in required if ELearningSubject.query.filter_by(code=code).first() is None]; assert not missing, f'missing subjects: {missing}'; print('python subjects ready'); ctx.pop()"
