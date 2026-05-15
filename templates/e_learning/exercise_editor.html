@@ -1,6 +1,8 @@
 {% extends 'e_learning/base_e_learning.html' %}
 
 {% block e_learning_content %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css">
 <div class="container py-5">
     <div class="row">
         <div class="col-lg-8">
@@ -94,13 +96,167 @@
 </div>
 
 <script>
+let sqlEditor = null;
+let sqlHintItems = [];
+
+const SQL_KEYWORDS = [
+    'SELECT', 'FROM', 'WHERE', 'GROUP BY', 'ORDER BY', 'HAVING', 'LIMIT',
+    'JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'INNER JOIN', 'FULL OUTER JOIN',
+    'ON', 'AND', 'OR', 'NOT', 'IN', 'BETWEEN', 'LIKE', 'IS NULL', 'IS NOT NULL',
+    'DISTINCT', 'AS', 'CASE WHEN', 'THEN', 'ELSE', 'END',
+    'COUNT()', 'SUM()', 'AVG()', 'MIN()', 'MAX()',
+    'INSERT INTO', 'VALUES', 'UPDATE', 'SET', 'DELETE FROM',
+    'CREATE TABLE', 'ALTER TABLE', 'DROP TABLE'
+];
+
+function getEditorValue() {
+    if (sqlEditor && typeof sqlEditor.getValue === 'function') {
+        return sqlEditor.getValue();
+    }
+    return document.getElementById('sqlEditor').value;
+}
+
+function setEditorValue(value) {
+    if (sqlEditor && typeof sqlEditor.setValue === 'function') {
+        sqlEditor.setValue(value || '');
+        sqlEditor.focus();
+        return;
+    }
+    const textarea = document.getElementById('sqlEditor');
+    textarea.value = value || '';
+    textarea.focus();
+}
+
+function buildBaseHints() {
+    return SQL_KEYWORDS.map((kw) => ({
+        text: kw,
+        displayText: kw,
+        className: 'cm-sql-keyword'
+    }));
+}
+
+function buildSchemaHints(schemaPayload) {
+    if (!schemaPayload || !Array.isArray(schemaPayload.schema)) {
+        return [];
+    }
+
+    const hints = [];
+    schemaPayload.schema.forEach((table) => {
+        if (!table || !table.name) return;
+        hints.push({
+            text: table.name,
+            displayText: table.name + ' (table)',
+            className: 'cm-sql-table'
+        });
+        if (Array.isArray(table.columns)) {
+            table.columns.forEach((col) => {
+                if (!col || !col.name) return;
+                hints.push({
+                    text: col.name,
+                    displayText: col.name + ' (' + table.name + ')',
+                    className: 'cm-sql-column'
+                });
+                hints.push({
+                    text: table.name + '.' + col.name,
+                    displayText: table.name + '.' + col.name,
+                    className: 'cm-sql-column'
+                });
+            });
+        }
+    });
+
+    return hints;
+}
+
+function dedupeHints(items) {
+    const seen = new Set();
+    return items.filter((item) => {
+        const key = String(item.text || '').toUpperCase();
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
+
+function customSqlHint(cm) {
+    const cursor = cm.getCursor();
+    const token = cm.getTokenAt(cursor);
+    const start = token.start;
+    const end = cursor.ch;
+    const raw = token.string || '';
+    const current = raw.trim().toUpperCase();
+
+    const list = sqlHintItems.filter((item) => {
+        if (!current) return true;
+        return String(item.text || '').toUpperCase().includes(current);
+    });
+
+    return {
+        list,
+        from: CodeMirror.Pos(cursor.line, start),
+        to: CodeMirror.Pos(cursor.line, end)
+    };
+}
+
+async function loadSchemaHints() {
+    try {
+        const response = await fetch('{{ url_for("e_learning.api_get_schema", module_id=module.id) }}', {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+        if (!response.ok) {
+            return [];
+        }
+        const payload = await response.json();
+        return buildSchemaHints(payload);
+    } catch (_) {
+        return [];
+    }
+}
+
+async function initSqlEditor() {
+    const textarea = document.getElementById('sqlEditor');
+    if (!textarea || typeof CodeMirror === 'undefined') {
+        return;
+    }
+
+    const baseHints = buildBaseHints();
+    const schemaHints = await loadSchemaHints();
+    sqlHintItems = dedupeHints(baseHints.concat(schemaHints));
+
+    sqlEditor = CodeMirror.fromTextArea(textarea, {
+        mode: 'text/x-sql',
+        lineNumbers: true,
+        indentWithTabs: false,
+        indentUnit: 2,
+        lineWrapping: true,
+        extraKeys: {
+            'Ctrl-Space': 'autocomplete',
+            'Cmd-Space': 'autocomplete'
+        },
+        hintOptions: {
+            completeSingle: false,
+            hint: customSqlHint
+        }
+    });
+
+    sqlEditor.on('inputRead', function(cm, change) {
+        if (!change || !change.text || !change.text.length) return;
+        const typed = change.text[0] || '';
+        if (/^[a-zA-Z_.]$/.test(typed)) {
+            CodeMirror.commands.autocomplete(cm, null, { completeSingle: false });
+        }
+    });
+}
+
 function toggleHint() {
     const hintContent = document.getElementById('hintContent');
     hintContent.style.display = hintContent.style.display === 'none' ? 'block' : 'none';
 }
 
 function resetEditor() {
-    document.getElementById('sqlEditor').value = '';
+    setEditorValue('');
     document.getElementById('runResultContainer').style.display = 'none';
 }
 
@@ -137,7 +293,7 @@ function renderQueryTable(data) {
 }
 
 function runQuery() {
-    const sql = document.getElementById('sqlEditor').value;
+    const sql = getEditorValue();
     const runContainer = document.getElementById('runResultContainer');
     const runContent = document.getElementById('runResultContent');
     const csrfToken = document.querySelector('#exerciseForm input[name="csrf_token"]').value;
@@ -186,7 +342,7 @@ function runQuery() {
 
 document.getElementById('exerciseForm').addEventListener('submit', function(e) {
     e.preventDefault();
-    const sql = document.getElementById('sqlEditor').value;
+    const sql = getEditorValue();
     const csrfToken = document.querySelector('#exerciseForm input[name="csrf_token"]').value;
     const pointsLabel = '{{ _("Points") }}';
     
@@ -227,7 +383,12 @@ document.getElementById('exerciseForm').addEventListener('submit', function(e) {
         document.getElementById('resultContent').innerHTML = '<div class="alert alert-danger">' + err.message + '</div>';
     });
 });
+
+document.addEventListener('DOMContentLoaded', initSqlEditor);
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/sql/sql.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.js"></script>
 
 <style>
     .material-symbols-outlined {
@@ -236,6 +397,14 @@ document.getElementById('exerciseForm').addEventListener('submit', function(e) {
             'wght' 400,
             'GRAD' 0,
             'opsz' 24;
+    }
+
+    .CodeMirror {
+        min-height: 260px;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        font-family: 'Monaco', 'Courier New', monospace;
+        font-size: 14px;
     }
 </style>
 {% endblock %}

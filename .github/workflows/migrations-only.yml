@@ -1,6 +1,15 @@
-name: Run DB Migrations (manual)
+name: Run DB Migrations
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - "audela/commands/e_learning_seed.py"
+      - "audela/services/e_learning_service.py"
+      - "audela/models/e_learning.py"
+      - "migrations/**"
+      - ".github/workflows/migrations-only.yml"
   workflow_call:
     inputs:
       git_ref:
@@ -55,7 +64,13 @@ jobs:
             TARGET_REF="${{ inputs.git_ref || github.event.inputs.git_ref }}"
             if [ -z "$TARGET_REF" ]; then TARGET_REF="main"; fi
             PYTHON_SEED_PROFILE="${{ inputs.python_seed_profile || github.event.inputs.python_seed_profile }}"
-            if [ -z "$PYTHON_SEED_PROFILE" ]; then PYTHON_SEED_PROFILE="all"; fi
+            if [ -z "$PYTHON_SEED_PROFILE" ]; then
+              if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+                PYTHON_SEED_PROFILE="none"
+              else
+                PYTHON_SEED_PROFILE="all"
+              fi
+            fi
             echo "🐍 Python seed profile: $PYTHON_SEED_PROFILE"
 
             echo "📥 Git fetch/reset to $TARGET_REF"

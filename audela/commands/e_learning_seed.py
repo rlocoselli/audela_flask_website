@@ -8,6 +8,7 @@ Run with:
 """
 
 import click
+import sqlite3
 from flask import Flask
 from ..extensions import db
 
@@ -281,12 +282,12 @@ SQL_SUBJECT = {
         "de": "SQL & Datenbanken — Vollständiger Kurs",
     },
     "description_i18n": {
-        "en": "A 12-module journey from zero to SQL hero. Master SELECT, JOINs, aggregations, stored procedures, window functions and database security with real-world exercises.",
-        "pt": "12 módulos do zero ao SQL avançado. Domine SELECT, JOINs, agregações, procedimentos e funções de janela com exercícios do mundo real.",
-        "fr": "12 modules du zéro au SQL avancé. Maîtrisez SELECT, JOIN, agrégations, procédures stockées et fonctions de fenêtre.",
-        "es": "12 módulos desde cero hasta SQL avanzado. Domina SELECT, JOINs, agregaciones, procedimientos y funciones de ventana.",
-        "it": "12 moduli da zero a SQL avanzato. Padroneggia SELECT, JOIN, aggregazioni, procedure e funzioni finestra.",
-        "de": "12 Module vom Anfänger zum SQL-Experten. Meistere SELECT, JOINs, Aggregationen, gespeicherte Prozeduren und Fensterfunktionen.",
+        "en": "A 12-module SQL journey built for the SQLite sandbox used in AUDELA. Master SELECT, joins, aggregations, DML, recursive CTEs, window functions and data-quality auditing with compatible hands-on labs.",
+        "pt": "Uma jornada SQL em 12 modulos desenhada para o sandbox SQLite do AUDELA. Domine SELECT, joins, agregacoes, DML, CTEs recursivas, funcoes de janela e auditoria de dados com laboratorios compativeis.",
+        "fr": "Un parcours SQL en 12 modules concu pour le sandbox SQLite d'AUDELA. Maitrisez SELECT, jointures, agregations, DML, CTE recursives, fonctions fenetre et audit de qualite de donnees avec des labs compatibles.",
+        "es": "Un recorrido SQL de 12 modulos disenado para el sandbox SQLite de AUDELA. Domina SELECT, joins, agregaciones, DML, CTE recursivas, funciones de ventana y auditoria de calidad de datos con laboratorios compatibles.",
+        "it": "Un percorso SQL in 12 moduli progettato per il sandbox SQLite di AUDELA. Padroneggia SELECT, join, aggregazioni, DML, CTE ricorsive, funzioni finestra e audit di qualita dati con laboratori compatibili.",
+        "de": "Ein 12-Module-SQL-Kurs fuer die SQLite-Sandbox von AUDELA. Beherrschen Sie SELECT, Joins, Aggregationen, DML, rekursive CTEs, Window-Funktionen und Datenqualitaets-Audits mit kompatiblen Praxislabs.",
     },
     "icon": "storage",
     "color": "#667eea",
@@ -1633,14 +1634,26 @@ COURSE_BLUEPRINT = [
     },
     {
         "code": "sql107",
-        "title": "Module 7 - Data Modification",
+        "title": "Module 7 - Safe Data Modification",
         "level": "intermediate",
         "minutes": 80,
-        "concepts": ["INSERT", "UPDATE", "DELETE", "MERGE / UPSERT", "Transactions", "COMMIT / ROLLBACK"],
-        "practical": ["Modify customer records", "Simulate transactions", "Restore data after rollback"],
-        "mini_project": "Banking transaction simulation",
+        "concepts": ["INSERT", "UPDATE", "DELETE", "Idempotent updates", "Transactions", "COMMIT / ROLLBACK"],
+        "practical": ["Insert a new customer safely", "Update one target row with explicit WHERE", "Delete a specific row and verify outcome"],
+        "mini_project": "Operational data cleanup playbook",
         "image_url": "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=1200&q=80",
-        "exercise_sql": "SELECT product_id, product_name, stock, CASE WHEN stock < 80 THEN 'REORDER' ELSE 'OK' END AS inventory_status FROM products ORDER BY stock ASC",
+        "examples": [
+            {
+                "title": "Example: idempotent INSERT",
+                "sql": "INSERT INTO customers (customer_id, first_name, last_name, email, country, created_at)\nSELECT 8, 'Nora', 'Costa', 'nora.costa@example.com', 'Portugal', '2024-03-22'\nWHERE NOT EXISTS (SELECT 1 FROM customers WHERE customer_id = 8);",
+                "explanation": "This pattern remains safe if the learner reruns the same statement multiple times.",
+            },
+            {
+                "title": "Example: deterministic UPDATE",
+                "sql": "UPDATE products\nSET stock = 95\nWHERE product_id = 6;",
+                "explanation": "Set a fixed value to avoid cumulative mutations across repeated attempts.",
+            },
+        ],
+        "exercise_sql": "INSERT INTO customers (customer_id, first_name, last_name, email, country, created_at) SELECT 8, 'Nora', 'Costa', 'nora.costa@example.com', 'Portugal', '2024-03-22' WHERE NOT EXISTS (SELECT 1 FROM customers WHERE customer_id = 8)",
     },
     {
         "code": "sql108",
@@ -1666,14 +1679,21 @@ COURSE_BLUEPRINT = [
     },
     {
         "code": "sql110",
-        "title": "Module 10 - Stored Procedures & Functions",
+        "title": "Module 10 - Recursive Queries & Hierarchies",
         "level": "advanced",
         "minutes": 100,
-        "concepts": ["Stored procedures", "Functions", "Parameters", "Variables", "Control structures", "Triggers"],
-        "practical": ["Create procedures", "Automate updates", "Validate business rules"],
-        "mini_project": "Automated payroll system",
+        "concepts": ["Recursive CTE", "Hierarchy traversal", "Self joins", "Levels and paths", "Termination conditions"],
+        "practical": ["Traverse a manager hierarchy", "Report hierarchy levels", "Compute total team sizes"],
+        "mini_project": "Organisation chart explorer",
         "image_url": "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1200&q=80",
-        "exercise_sql": "SELECT customer_id, SUM(amount) AS total_spent FROM orders GROUP BY customer_id ORDER BY total_spent DESC",
+        "examples": [
+            {
+                "title": "Example: hierarchy traversal with WITH RECURSIVE",
+                "sql": "WITH RECURSIVE org_chart AS (\n    SELECT emp_id, first_name || ' ' || last_name AS full_name, manager_id, 0 AS level\n    FROM employees\n    WHERE manager_id IS NULL\n    UNION ALL\n    SELECT e.emp_id, e.first_name || ' ' || e.last_name, e.manager_id, org_chart.level + 1\n    FROM employees e\n    JOIN org_chart ON e.manager_id = org_chart.emp_id\n)\nSELECT full_name, level\nFROM org_chart\nORDER BY level, full_name;",
+                "explanation": "SQLite supports recursive CTEs, so this module stays executable in the AUDELA sandbox.",
+            }
+        ],
+        "exercise_sql": "WITH RECURSIVE org_chart AS (SELECT emp_id, first_name || ' ' || last_name AS full_name, manager_id, 0 AS level FROM employees WHERE manager_id IS NULL UNION ALL SELECT e.emp_id, e.first_name || ' ' || e.last_name, e.manager_id, org_chart.level + 1 FROM employees e JOIN org_chart ON e.manager_id = org_chart.emp_id) SELECT full_name, level FROM org_chart ORDER BY level, full_name",
     },
     {
         "code": "sql111",
@@ -1684,18 +1704,25 @@ COURSE_BLUEPRINT = [
         "practical": ["Sales trend analysis", "Ranking reports", "Time-based comparisons"],
         "mini_project": "Analytical reporting solution",
         "image_url": "https://images.unsplash.com/photo-1488229297570-58520851e868?auto=format&fit=crop&w=1200&q=80",
-        "exercise_sql": "SELECT customer_id, amount, ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date DESC) AS rn FROM orders",
+        "exercise_sql": "SELECT dept_id, first_name, salary, ROW_NUMBER() OVER (PARTITION BY dept_id ORDER BY salary DESC) AS dept_rank FROM employees ORDER BY dept_id, dept_rank",
     },
     {
         "code": "sql112",
-        "title": "Module 12 - Security & Administration",
+        "title": "Module 12 - Views & Data Quality Audits",
         "level": "advanced",
         "minutes": 85,
-        "concepts": ["Users and roles", "Permissions", "Backup and restore", "Database security", "Auditing basics"],
-        "practical": ["Create user roles", "Configure permissions", "Backup and restore database"],
-        "mini_project": "Secure database deployment",
+        "concepts": ["Views", "Reusable reporting", "Audit queries", "Data quality checks", "Anomaly detection"],
+        "practical": ["Create a reusable reporting view", "Inspect tables/views via sqlite_master", "Detect orphan business records"],
+        "mini_project": "Operational reporting and quality audit pack",
         "image_url": "https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&w=1200&q=80",
-        "exercise_sql": "SELECT name FROM sqlite_master WHERE type IN ('table', 'view') ORDER BY name",
+        "examples": [
+            {
+                "title": "Example: reusable view",
+                "sql": "CREATE VIEW IF NOT EXISTS customer_order_totals AS\nSELECT c.customer_id, c.first_name, ROUND(COALESCE(SUM(o.amount), 0), 2) AS total_amount\nFROM customers c\nLEFT JOIN orders o ON o.customer_id = c.customer_id\nGROUP BY c.customer_id, c.first_name;",
+                "explanation": "A view centralizes reporting logic and avoids copy-paste SQL across dashboards.",
+            }
+        ],
+        "exercise_sql": "SELECT type, name FROM sqlite_master WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%' ORDER BY type, name",
     },
 ]
 
@@ -1746,10 +1773,70 @@ def _applied_query(module_code: str, index: int) -> str:
     return "SELECT d.dept_name, ROUND(AVG(e.salary), 2) AS avg_salary, COUNT(e.emp_id) AS employees FROM departments d LEFT JOIN employees e ON e.dept_id = d.dept_id GROUP BY d.dept_name ORDER BY avg_salary DESC"
 
 
+def _build_examples_section(mod: dict, module_code: str, index: int) -> str:
+    examples = mod.get("examples") or []
+    if not examples:
+        examples = [
+            {
+                "title": "Worked Example",
+                "sql": mod.get("exercise_sql", ""),
+                "explanation": "Run this query, inspect the output, then adapt it to the exercise objective.",
+            },
+            {
+                "title": "Alternative Example",
+                "sql": _secondary_query(module_code, index),
+                "explanation": "Use this second query to compare filter logic and output ordering.",
+            },
+        ]
+
+    cards = []
+    for example in examples[:2]:
+        cards.append(
+            "<div class=\"border rounded-3 p-3 mb-3 bg-light\">"
+            f"<div class=\"fw-semibold mb-2\">{example.get('title', 'Worked Example')}</div>"
+            f"<pre class=\"mb-2\"><code>{example.get('sql', '')}</code></pre>"
+            f"<p class=\"mb-0 text-muted\">{example.get('explanation', '')}</p>"
+            "</div>"
+        )
+    return "<h5>Worked Examples</h5>" + "".join(cards)
+
+
+def _materialize_expected_result(schema_sql: str, seed_sql: str, expected_sql: str, validation_query: str | None = None) -> list[dict] | None:
+    if not expected_sql:
+        return None
+
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    try:
+        if schema_sql:
+            conn.executescript(schema_sql)
+        if seed_sql:
+            conn.executescript(seed_sql)
+
+        cursor = conn.cursor()
+        cursor.execute(expected_sql)
+
+        if cursor.description:
+            return [dict(row) for row in cursor.fetchall()]
+
+        conn.commit()
+        if validation_query:
+            cursor.execute(validation_query)
+            if cursor.description:
+                return [dict(row) for row in cursor.fetchall()]
+            return []
+        return None
+    finally:
+        conn.close()
+
+
 def _build_module_content(mod: dict, module_number: int, lang: str = "en") -> str:
     concept_items = "".join([f"<li><code>{_localize_phrase(c, lang)}</code></li>" for c in mod["concepts"]])
     concept_dive = _build_concept_deep_dive(mod, lang)
     references_html = _build_reference_section(mod, lang)
+    module_code = COURSE_CODE_MAP.get(module_number) or mod.get("code") or "sql101"
+    examples_html = _build_examples_section(mod, module_code, module_number)
     practical_rows = "".join(
         [f"<tr><td>{idx}</td><td>{_localize_phrase(task, lang)}</td></tr>" for idx, task in enumerate(mod["practical"], start=1)]
     )
@@ -1784,6 +1871,7 @@ def _build_module_content(mod: dict, module_number: int, lang: str = "en") -> st
         <h5>{_t_content('concept_deep_dive', lang)}</h5>
         <p class="text-muted">{_t_content('concept_deep_dive_desc', lang)}</p>
         {concept_dive}
+        {examples_html}
         {_WARN_BOX('!!', _t_content('warn', lang))}
         <h5>{_t_content('common_pitfalls', lang)}</h5>
         <ul>{pitfalls_html}</ul>
@@ -1820,7 +1908,7 @@ def _build_lesson_content(base_mod: dict, module_number: int, lang: str, title: 
 def _build_modules() -> list[dict]:
     modules = []
     for index, mod in enumerate(COURSE_BLUEPRINT, start=1):
-        module_code = COURSE_CODE_MAP.get(index, mod["code"])
+        module_code = COURSE_CODE_MAP.get(index) or mod["code"]
         module_title_i18n = {
             "en": mod["title"],
             "pt": mod["title"],
@@ -1857,6 +1945,11 @@ def _build_modules() -> list[dict]:
             }
         schema_sql = SAMPLE_SCHEMA_SQL101 if index < 10 else SAMPLE_SCHEMA_EMPLOYEES
         seed_sql = SAMPLE_DATA_SQL101 if index < 10 else SAMPLE_DATA_EMPLOYEES
+
+        # Module 12 relies on customer/order data and sqlite_master/view auditing.
+        if module_code == "sql304":
+            schema_sql = SAMPLE_SCHEMA_SQL101
+            seed_sql = SAMPLE_DATA_SQL101
 
         lesson_code = f"{module_code}-les1"
         exercise_code = f"{module_code}-les1-ex1"
@@ -2177,10 +2270,81 @@ def _build_modules() -> list[dict]:
                 },
             ]
 
+        # Ensure module 7 labs are true DML operations with explicit validation.
+        if module_code == "sql203":
+            lessons[0]["exercises"][0].update(
+                {
+                    "exercise_type": "sql_dml",
+                    "expected_sql": "INSERT INTO customers (customer_id, first_name, last_name, email, country, created_at) SELECT 8, 'Nora', 'Costa', 'nora.costa@example.com', 'Portugal', '2024-03-22' WHERE NOT EXISTS (SELECT 1 FROM customers WHERE customer_id = 8)",
+                    "validation_query": "SELECT customer_id, first_name, country FROM customers WHERE customer_id = 8",
+                    "dml_operation": "INSERT",
+                }
+            )
+            lessons[0]["exercises"][1].update(
+                {
+                    "exercise_type": "sql_dml",
+                    "expected_sql": "UPDATE products SET stock = 95 WHERE product_id = 6",
+                    "validation_query": "SELECT product_id, stock FROM products WHERE product_id = 6",
+                    "dml_operation": "UPDATE",
+                }
+            )
+            lessons[1]["exercises"][0].update(
+                {
+                    "exercise_type": "sql_dml",
+                    "expected_sql": "DELETE FROM order_items WHERE order_item_id = 15",
+                    "validation_query": "SELECT COUNT(*) AS remaining_rows FROM order_items WHERE order_item_id = 15",
+                    "dml_operation": "DELETE",
+                }
+            )
+
+        # Module 10 secondary lab aligned with recursion hierarchy output.
+        if module_code == "sql302":
+            lessons[0]["exercises"][1]["expected_sql"] = (
+                "WITH RECURSIVE team_tree(root_manager, emp_id) AS ("
+                "SELECT emp_id, emp_id FROM employees "
+                "UNION ALL "
+                "SELECT team_tree.root_manager, e.emp_id "
+                "FROM employees e JOIN team_tree ON e.manager_id = team_tree.emp_id"
+                ") SELECT root_manager, COUNT(*) - 1 AS team_size "
+                "FROM team_tree GROUP BY root_manager HAVING COUNT(*) > 1 ORDER BY team_size DESC, root_manager"
+            )
+
+        # Module 12 applied lab aligned with data quality auditing.
+        if module_code == "sql304":
+            lessons[0]["exercises"][0].update(
+                {
+                    "exercise_type": "sql_dml",
+                    "expected_sql": (
+                        "CREATE VIEW IF NOT EXISTS customer_order_totals AS "
+                        "SELECT c.customer_id, c.first_name, ROUND(COALESCE(SUM(o.amount), 0), 2) AS total_amount "
+                        "FROM customers c LEFT JOIN orders o ON o.customer_id = c.customer_id "
+                        "GROUP BY c.customer_id, c.first_name"
+                    ),
+                    "validation_query": "SELECT name, type FROM sqlite_master WHERE type = 'view' AND name = 'customer_order_totals'",
+                    "dml_operation": "CREATE_VIEW",
+                }
+            )
+            lessons[0]["exercises"][1]["expected_sql"] = (
+                "SELECT type, name FROM sqlite_master "
+                "WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%' "
+                "ORDER BY type, name"
+            )
+            lessons[1]["exercises"][0]["expected_sql"] = (
+                "SELECT o.order_id FROM orders o "
+                "LEFT JOIN order_items oi ON oi.order_id = o.order_id "
+                "WHERE oi.order_id IS NULL ORDER BY o.order_id"
+            )
+
         for lesson in lessons:
             for exercise in lesson.get("exercises", []):
                 exercise["description_i18n"] = _professionalize_exercise_description(exercise.get("description_i18n", {}))
                 exercise["hints_i18n"] = _professionalize_exercise_hints(exercise.get("hints_i18n", {}))
+                exercise["expected_result_json"] = _materialize_expected_result(
+                    schema_sql,
+                    seed_sql,
+                    exercise.get("expected_sql", ""),
+                    exercise.get("validation_query"),
+                )
 
         total_exercises = sum(len(lesson.get("exercises", [])) for lesson in lessons)
         modules.append(
@@ -2357,6 +2521,10 @@ def _seed_sql_subject(force: bool = False) -> dict:
                 exercise.type = exercise_type
                 exercise.points = ex_data["points_reward"]
                 exercise.expected_sql = ex_data["expected_sql"]
+                exercise.expected_result_json = ex_data.get("expected_result_json")
+                exercise.dml_operation = ex_data.get("dml_operation")
+                exercise.validation_query = ex_data.get("validation_query")
+                exercise.passing_condition = ex_data.get("passing_condition")
                 exercise.hint_i18n = ex_data.get("hints_i18n", {})
                 exercise.order = ex_data["sort_order"]
                 exercise.is_active = ex_data["is_active"]

@@ -5,7 +5,8 @@
     <!-- Welcome Header -->
     <div class="row mb-5 align-items-center">
         <div class="col-md-8">
-            <h1 class="display-5 fw-bold">{{ _('Welcome back') }}, {{ current_user.username }}!</h1>
+            {% set display_name = current_user.username or (current_user.email.split('@')[0] if current_user.email else '') %}
+            <h1 class="display-5 fw-bold">{{ _('Welcome back') }}, {{ display_name }}!</h1>
             <p class="lead text-muted">{{ _('Continue your learning journey') }}</p>
         </div>
     </div>

@@ -88,6 +88,7 @@ class ELearningService:
         
         try:
             conn = sqlite3.connect(db_file_path)
+            conn.execute("PRAGMA foreign_keys = ON")
             cursor = conn.cursor()
             
             # Create schema
@@ -126,6 +127,7 @@ class ELearningService:
         try:
             conn = sqlite3.connect(sample_db.db_file_path, timeout=timeout)
             conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA foreign_keys = ON")
             cursor = conn.cursor()
             
             query = query.strip()
@@ -133,10 +135,16 @@ class ELearningService:
                 raise ELearningSandboxError("Query cannot be empty")
             
             cursor.execute(query)
-            rows = cursor.fetchall()
+            rows = cursor.fetchall() if cursor.description else []
             columns = [desc[0] for desc in cursor.description] if cursor.description else []
-            
-            result_data = [dict(row) for row in rows]
+            affected_rows = 0
+
+            if cursor.description:
+                result_data = [dict(row) for row in rows]
+            else:
+                conn.commit()
+                result_data = []
+                affected_rows = max(cursor.rowcount, 0)
             execution_time_ms = (time.time() - start_time) * 1000
             
             conn.close()
@@ -145,7 +153,8 @@ class ELearningService:
                 "success": True,
                 "result_data": result_data,
                 "columns": columns,
-                "row_count": len(result_data),
+                "row_count": len(result_data) if columns else affected_rows,
+                "affected_rows": affected_rows,
                 "execution_time_ms": execution_time_ms
             }
         
@@ -224,12 +233,19 @@ class ELearningService:
                     is_correct = self._evaluate_query_result(exec_result["result_data"], exercise)
                 
                 elif exercise.type == "sql_dml":
-                    # For DML, run validation query
-                    validation_result = self.execute_query(module, user_id, exercise.validation_query)
-                    if validation_result["success"]:
-                        is_correct = self._evaluate_dml_result(validation_result["result_data"], exercise)
+                    if not exercise.validation_query:
+                        error_message = "Exercise validation is not configured for this SQL change task."
+                        feedback = self._generate_feedback(False, error_message, DEFAULT_LANG)
+                    else:
+                        validation_result = self.execute_query(module, user_id, exercise.validation_query)
+                        if validation_result["success"]:
+                            is_correct = self._evaluate_dml_result(validation_result["result_data"], exercise)
+                        else:
+                            error_message = validation_result.get("error", "Validation query failed")
+                            feedback = self._generate_feedback(False, error_message, DEFAULT_LANG)
                 
-                feedback = self._generate_feedback(is_correct, None, DEFAULT_LANG)
+                if not feedback:
+                    feedback = self._generate_feedback(is_correct, None, DEFAULT_LANG)
         
         except Exception as e:
             logger.error(f"Error evaluating exercise: {e}", exc_info=True)
@@ -272,7 +288,7 @@ class ELearningService:
     
     def _evaluate_query_result(self, result_data: list, exercise: ELearningExercise) -> bool:
         """Check if query result matches expected result."""
-        if not exercise.expected_result_json:
+        if exercise.expected_result_json is None:
             return len(result_data) > 0  # At least return something
         
         expected = exercise.expected_result_json
@@ -280,7 +296,7 @@ class ELearningService:
     
     def _evaluate_dml_result(self, validation_result: list, exercise: ELearningExercise) -> bool:
         """Check if DML validation query passes."""
-        if not exercise.expected_result_json:
+        if exercise.expected_result_json is None:
             return len(validation_result) > 0
         
         expected = exercise.expected_result_json
