@@ -166,7 +166,27 @@ jobs:
 
             if [ "$PYTHON_SEED_PROFILE" = "all" ]; then
               echo "🐍 Seed Python tracks (idempotent)"
-              aud_run flask seed-python-tracks
+              echo "🔎 Available python seed commands in selected ref:"
+              aud_run flask --help | grep -E "seed-python|seed-machine-learning|seed-python-django" || true
+
+              if aud_run flask --help | grep -q "seed-python-tracks"; then
+                aud_run flask seed-python-tracks
+              else
+                echo "⚠️ seed-python-tracks not found in this git ref, using fallback seed commands"
+                if aud_run flask --help | grep -q "seed-python-data-analysis"; then
+                  aud_run flask seed-python-data-analysis
+                fi
+                if aud_run flask --help | grep -q "seed-python-fundamentals"; then
+                  aud_run flask seed-python-fundamentals
+                fi
+                if aud_run flask --help | grep -q "seed-machine-learning"; then
+                  aud_run flask seed-machine-learning
+                fi
+                if aud_run flask --help | grep -q "seed-python-django"; then
+                  aud_run flask seed-python-django
+                fi
+              fi
+
               aud_run python -c "from audela import create_app; from audela.models import ELearningSubject; app=create_app(); ctx=app.app_context(); ctx.push(); assert ELearningSubject.query.filter_by(code='python-data-analysis').first() is not None, 'python-data-analysis subject missing'; assert ELearningSubject.query.filter_by(code='python-fundamentals').first() is not None, 'python-fundamentals subject missing'; assert ELearningSubject.query.filter_by(code='machine-learning-python').first() is not None, 'machine-learning-python subject missing'; assert ELearningSubject.query.filter_by(code='django-web-development').first() is not None, 'django-web-development subject missing'; print('python subjects ready'); ctx.pop()"
             elif [ "$PYTHON_SEED_PROFILE" = "data-analysis" ]; then
               echo "🐍 Seed Python Data Analysis only (idempotent)"
