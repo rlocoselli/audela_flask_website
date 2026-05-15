@@ -213,34 +213,45 @@ def google_login_start():
             return redirect(url_for("tenant.login"))
         return redirect(url_for("auth.login"))
 
+    google_mode = (request.args.get("mode") or "login").strip().lower()
+    if google_mode not in {"login", "signup"}:
+        google_mode = "login"
+
     tenant_slug = (request.args.get("tenant_slug") or "").strip().lower()
     app_target = (request.args.get("app") or "bi").strip().lower()
     if app_target not in {"bi", "finance", "tenant"}:
         app_target = "bi"
 
-    if not tenant_slug:
-        flash(tr("Tenant is required for Google login.", getattr(g, "lang", None)), "error")
-        if app_target == "finance":
-            return redirect(url_for("auth.login_finance"))
-        if app_target == "tenant":
-            return redirect(url_for("tenant.login"))
-        return redirect(url_for("auth.login"))
+    org_name = (request.args.get("organization_name") or "").strip()
+    if google_mode == "signup":
+        if not org_name:
+            org_name = TenantService.generate_unique_cosmic_tenant_name()
+    else:
+        if not tenant_slug:
+            flash(tr("Tenant is required for Google login.", getattr(g, "lang", None)), "error")
+            if app_target == "finance":
+                return redirect(url_for("auth.login_finance"))
+            if app_target == "tenant":
+                return redirect(url_for("tenant.login"))
+            return redirect(url_for("auth.login"))
 
-    tenant = Tenant.query.filter_by(slug=tenant_slug).first()
-    if not tenant:
-        flash(tr("Tenant not found.", getattr(g, "lang", None)), "error")
-        if app_target == "finance":
-            return redirect(url_for("auth.login_finance"))
-        if app_target == "tenant":
-            return redirect(url_for("tenant.login"))
-        return redirect(url_for("auth.login"))
+        tenant = Tenant.query.filter_by(slug=tenant_slug).first()
+        if not tenant:
+            flash(tr("Tenant not found.", getattr(g, "lang", None)), "error")
+            if app_target == "finance":
+                return redirect(url_for("auth.login_finance"))
+            if app_target == "tenant":
+                return redirect(url_for("tenant.login"))
+            return redirect(url_for("auth.login"))
 
     callback_url = url_for("auth.google_login_callback", _external=True)
     oauth_state = secrets.token_urlsafe(24)
     next_url = _safe_relative_url(request.args.get("next"))
 
     session["google_oauth_state"] = oauth_state
+    session["google_oauth_mode"] = google_mode
     session["google_oauth_tenant_slug"] = tenant_slug
+    session["google_oauth_signup_org_name"] = org_name
     session["google_oauth_app_target"] = app_target
     session["google_oauth_next"] = next_url
 
@@ -265,7 +276,9 @@ def google_login_callback():
         flash(tr("Google login failed (invalid state).", getattr(g, "lang", None)), "error")
         return redirect(url_for("auth.login"))
 
+    google_mode = (session.pop("google_oauth_mode", "login") or "login").strip().lower()
     tenant_slug = (session.pop("google_oauth_tenant_slug", "") or "").strip().lower()
+    signup_org_name = (session.pop("google_oauth_signup_org_name", "") or "").strip()
     app_target = (session.pop("google_oauth_app_target", "bi") or "bi").strip().lower()
     next_url = _safe_relative_url(session.pop("google_oauth_next", None))
 
@@ -278,10 +291,12 @@ def google_login_callback():
             return redirect(url_for("tenant.login"))
         return redirect(url_for("auth.login"))
 
-    tenant = Tenant.query.filter_by(slug=tenant_slug).first()
-    if not tenant:
-        flash(tr("Tenant not found.", getattr(g, "lang", None)), "error")
-        return redirect(url_for("auth.login"))
+    tenant = None
+    if google_mode != "signup":
+        tenant = Tenant.query.filter_by(slug=tenant_slug).first()
+        if not tenant:
+            flash(tr("Tenant not found.", getattr(g, "lang", None)), "error")
+            return redirect(url_for("auth.login"))
 
     callback_url = url_for("auth.google_login_callback", _external=True)
     token_payload = {
@@ -330,14 +345,46 @@ def google_login_callback():
             return redirect(url_for("tenant.login"))
         return redirect(url_for("auth.login"))
 
-    user = User.query.filter_by(tenant_id=tenant.id, email=email).first()
-    if not user:
-        flash(tr("No account found for this Google email in the selected tenant.", getattr(g, "lang", None)), "error")
-        if app_target == "finance":
-            return redirect(url_for("auth.login_finance"))
-        if app_target == "tenant":
+    if google_mode == "signup":
+        if User.query.filter_by(email=email).first():
+            flash(tr("This email is already in use.", getattr(g, "lang", None)), "error")
             return redirect(url_for("tenant.login"))
-        return redirect(url_for("auth.login"))
+
+        if not signup_org_name:
+            signup_org_name = TenantService.generate_unique_cosmic_tenant_name()
+
+        try:
+            tenant, user = TenantService.create_tenant(
+                name=signup_org_name,
+                email=email,
+                password=secrets.token_urlsafe(32),
+                plan_code="free",
+                send_verification=False,
+                email_lang=getattr(g, "lang", None) or session.get("lang"),
+            )
+            db.session.add(
+                AuditEvent(
+                    tenant_id=tenant.id,
+                    user_id=user.id,
+                    event_type="auth.signup.google.success",
+                    payload_json={"email": email, "tenant_slug": tenant.slug, "app": app_target},
+                )
+            )
+            db.session.commit()
+        except Exception as exc:
+            current_app.logger.error(f"Google signup failed: {exc}")
+            db.session.rollback()
+            flash(tr("Google signup failed. Please try again.", getattr(g, "lang", None)), "error")
+            return redirect(url_for("tenant.login"))
+    else:
+        user = User.query.filter_by(tenant_id=tenant.id, email=email).first()
+        if not user:
+            flash(tr("No account found for this Google email in the selected tenant.", getattr(g, "lang", None)), "error")
+            if app_target == "finance":
+                return redirect(url_for("auth.login_finance"))
+            if app_target == "tenant":
+                return redirect(url_for("tenant.login"))
+            return redirect(url_for("auth.login"))
 
     if user.status == "pending_verification":
         user.status = "active"

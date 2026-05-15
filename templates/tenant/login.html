@@ -133,6 +133,20 @@
                     <i class="bi bi-rocket-takeoff"></i> {{ _('Créer mon compte') }}
                   </button>
                 </div>
+
+                {% if google_oauth_enabled %}
+                  <div class="mt-3 d-grid">
+                    <button type="button" class="btn btn-light border" id="tenantGoogleSignupBtn">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 48 48" class="me-2" aria-hidden="true">
+                        <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303C33.655 32.657 29.207 36 24 36c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.959 3.041l5.657-5.657C34.046 6.053 29.27 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/>
+                        <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 16.108 18.961 12 24 12c3.059 0 5.842 1.154 7.959 3.041l5.657-5.657C34.046 6.053 29.27 4 24 4c-7.682 0-14.347 4.337-17.694 10.691z"/>
+                        <path fill="#4CAF50" d="M24 44c5.173 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.146 35.091 26.715 36 24 36c-5.186 0-9.625-3.329-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/>
+                        <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.06 12.06 0 0 1-4.083 5.571l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/>
+                      </svg>
+                      {{ _('S’inscrire avec Google') }}
+                    </button>
+                  </div>
+                {% endif %}
               </form>
             </div>
           </div>
@@ -149,6 +163,31 @@
   </div>
 </div>
 
+{% if google_oauth_enabled %}
+<div class="modal fade" id="googleSignupModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">{{ _('Créer une organisation avec Google') }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label">{{ _('Nom de l\'organisation') }}</label>
+        <div class="input-group">
+          <input type="text" class="form-control" id="googleSignupOrgInput" placeholder="{{ _('ACME Corp') }}" />
+          <button class="btn btn-outline-primary" type="button" id="googleSignupGenerateBtn">{{ _('Générer') }}</button>
+        </div>
+        <div class="form-text mt-2">{{ _('Vous pouvez saisir un nom ou en générer un automatiquement.') }}</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{{ _('Annuler') }}</button>
+        <button type="button" class="btn btn-primary" id="googleSignupContinueBtn">{{ _('Continuer avec Google') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <script>
 // Validate password match on signup
 document.getElementById('signupForm').addEventListener('submit', function(e) {
@@ -164,38 +203,47 @@ document.getElementById('signupForm').addEventListener('submit', function(e) {
 const orgNameBtn = document.getElementById('generateOrgNameBtn');
 const tenantNameInput = document.getElementById('signupTenantName');
 const tenantGoogleBtn = document.getElementById('tenantGoogleLoginBtn');
+const tenantGoogleSignupBtn = document.getElementById('tenantGoogleSignupBtn');
+const googleSignupGenerateBtn = document.getElementById('googleSignupGenerateBtn');
+const googleSignupContinueBtn = document.getElementById('googleSignupContinueBtn');
+const googleSignupOrgInput = document.getElementById('googleSignupOrgInput');
+
+async function fetchGeneratedOrganizationName(buttonRef, targetInput) {
+  const originalHtml = buttonRef.innerHTML;
+  buttonRef.disabled = true;
+  buttonRef.innerHTML = '{{ _("Génération...") }}';
+
+  try {
+    const response = await fetch('{{ url_for("tenant.suggest_organization_name") }}', {
+      method: 'GET',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error('HTTP ' + response.status);
+    }
+
+    const payload = await response.json();
+    if (payload && payload.ok && payload.name) {
+      targetInput.value = payload.name;
+      targetInput.dispatchEvent(new Event('input'));
+      return true;
+    }
+    throw new Error('Invalid payload');
+  } catch (error) {
+    alert('{{ _("Impossible de générer un nom pour le moment.") }}');
+    return false;
+  } finally {
+    buttonRef.disabled = false;
+    buttonRef.innerHTML = originalHtml;
+  }
+}
 
 if (orgNameBtn && tenantNameInput) {
   orgNameBtn.addEventListener('click', async function() {
-    const originalHtml = orgNameBtn.innerHTML;
-    orgNameBtn.disabled = true;
-    orgNameBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> {{ _("Génération...") }}';
-
-    try {
-      const response = await fetch('{{ url_for("tenant.suggest_organization_name") }}', {
-        method: 'GET',
-        headers: {
-          'X-Requested-With': 'XMLHttpRequest'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('HTTP ' + response.status);
-      }
-
-      const payload = await response.json();
-      if (payload && payload.ok && payload.name) {
-        tenantNameInput.value = payload.name;
-        tenantNameInput.dispatchEvent(new Event('input'));
-      } else {
-        throw new Error('Invalid payload');
-      }
-    } catch (error) {
-      alert('{{ _("Impossible de générer un nom pour le moment.") }}');
-    } finally {
-      orgNameBtn.disabled = false;
-      orgNameBtn.innerHTML = originalHtml;
-    }
+    await fetchGeneratedOrganizationName(orgNameBtn, tenantNameInput);
   });
 }
 
@@ -213,6 +261,38 @@ if (tenantGoogleBtn) {
     const params = new URLSearchParams({
       tenant_slug: tenantSlug,
       app: 'tenant'
+    });
+    window.location.href = '{{ url_for("auth.google_login_start") }}?' + params.toString();
+  });
+}
+
+if (tenantGoogleSignupBtn && googleSignupOrgInput && googleSignupContinueBtn) {
+  tenantGoogleSignupBtn.addEventListener('click', function() {
+    if (window.bootstrap && window.bootstrap.Modal) {
+      const modal = window.bootstrap.Modal.getOrCreateInstance(document.getElementById('googleSignupModal'));
+      modal.show();
+    }
+  });
+
+  if (googleSignupGenerateBtn) {
+    googleSignupGenerateBtn.addEventListener('click', async function() {
+      await fetchGeneratedOrganizationName(googleSignupGenerateBtn, googleSignupOrgInput);
+    });
+  }
+
+  googleSignupContinueBtn.addEventListener('click', function() {
+    const orgName = (googleSignupOrgInput.value || '').trim();
+
+    if (!orgName) {
+      alert('{{ _("Veuillez saisir un nom d\'organisation ou en générer un.") }}');
+      googleSignupOrgInput.focus();
+      return;
+    }
+
+    const params = new URLSearchParams({
+      app: 'tenant',
+      mode: 'signup',
+      organization_name: orgName,
     });
     window.location.href = '{{ url_for("auth.google_login_start") }}?' + params.toString();
   });
