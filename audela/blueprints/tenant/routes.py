@@ -54,6 +54,49 @@ def _google_oauth_enabled() -> bool:
     )
 
 
+def _resolve_password_login_user(email: str, password: str, tenant_slug: str | None = None) -> tuple[User | None, Tenant | None, str | None]:
+    """Resolve a tenant login candidate with optional tenant scope.
+
+    Returns: (user, tenant, error_code)
+    error_code in {"tenant_not_found", "invalid_credentials", "ambiguous_tenant"}
+    """
+    scoped_slug = str(tenant_slug or "").strip().lower()
+    scoped_tenant = None
+    if scoped_slug:
+        scoped_tenant = Tenant.query.filter_by(slug=scoped_slug).first()
+        if not scoped_tenant:
+            return None, None, "tenant_not_found"
+
+    if scoped_tenant:
+        candidates = User.query.filter_by(tenant_id=scoped_tenant.id, email=email).all()
+    else:
+        candidates = User.query.filter_by(email=email).all()
+
+    matches = [u for u in candidates if u and u.check_password(password)]
+    if not matches:
+        return None, scoped_tenant, "invalid_credentials"
+    if len(matches) > 1:
+        return None, None, "ambiguous_tenant"
+
+    user = matches[0]
+    tenant = scoped_tenant or Tenant.query.get(user.tenant_id)
+    if not tenant:
+        return None, None, "invalid_credentials"
+    return user, tenant, None
+
+
+def _matching_users_for_password(email: str, password: str, tenant_slug: str | None = None) -> list[User]:
+    scoped_slug = str(tenant_slug or "").strip().lower()
+    scoped_tenant = Tenant.query.filter_by(slug=scoped_slug).first() if scoped_slug else None
+    if scoped_slug and not scoped_tenant:
+        return []
+    if scoped_tenant:
+        candidates = User.query.filter_by(tenant_id=scoped_tenant.id, email=email).all()
+    else:
+        candidates = User.query.filter_by(email=email).all()
+    return [u for u in candidates if u and u.check_password(password)]
+
+
 UAM_MENU_KEYS: dict[str, list[str]] = {
     "finance": [
         "dashboard", "accounts", "transactions", "reports", "stats", "accounting", "pivot", "invoices",
@@ -388,18 +431,38 @@ def _handle_login():
     tenant_slug = request.form.get("tenant_slug", "").strip().lower()
     email = request.form.get("email", "").strip().lower()
     password = request.form.get("password", "")
-    
-    tenant = Tenant.query.filter_by(slug=tenant_slug).first()
-    if not tenant:
+
+    user, tenant, login_error = _resolve_password_login_user(email, password, tenant_slug)
+    if login_error == "tenant_not_found":
         flash(tr("Tenant não encontrado.", getattr(g, "lang", None)), "error")
         return render_template("tenant/login.html", google_oauth_enabled=_google_oauth_enabled())
-    
-    user = User.query.filter_by(tenant_id=tenant.id, email=email).first()
-    if not user or not user.check_password(password):
+    if login_error == "ambiguous_tenant":
+        users = _matching_users_for_password(email, password, tenant_slug=None)
+        if users:
+            ids = []
+            seen = set()
+            for row in users:
+                if not row:
+                    continue
+                uid = int(row.id)
+                if uid in seen:
+                    continue
+                seen.add(uid)
+                ids.append(uid)
+            session["tenant_choice_user_ids"] = ids
+            session["tenant_choice_app_target"] = "tenant"
+            session["tenant_choice_next"] = None
+            session["tenant_choice_source"] = "password"
+            session["tenant_choice_email"] = email
+            return redirect(url_for("auth.choose_tenant_login"))
+
+        flash(tr("Plusieurs organisations sont associées à cet email. Renseignez le tenant pour continuer.", getattr(g, "lang", None)), "warning")
+        return render_template("tenant/login.html", google_oauth_enabled=_google_oauth_enabled())
+    if login_error == "invalid_credentials" or not user or not tenant:
         flash(tr("Credenciais inválidas.", getattr(g, "lang", None)), "error")
         db.session.add(
             AuditEvent(
-                tenant_id=tenant.id,
+                tenant_id=tenant.id if tenant else None,
                 user_id=user.id if user else None,
                 event_type="tenant.login.failed",
                 payload_json={"email": email},

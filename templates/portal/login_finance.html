@@ -38,8 +38,17 @@
             {% endif %}
 
             <div class="mb-3">
-              <label class="form-label">{{ _('Tenant') }}</label>
-              <input type="text" class="form-control" id="financeTenantSlug" name="tenant_slug" placeholder="acme" required />
+              <div class="d-flex align-items-center justify-content-between mb-1 gap-2 flex-wrap">
+                <label class="form-label mb-0">{{ _('Tenant') }}</label>
+                <div class="form-check form-switch m-0">
+                  <input class="form-check-input" type="checkbox" role="switch" id="financeToggleTenantField">
+                  <label class="form-check-label small" for="financeToggleTenantField">{{ _('J’ai plusieurs organisations') }}</label>
+                </div>
+              </div>
+              <div id="financeTenantFieldWrap" class="d-none">
+                <input type="text" class="form-control" id="financeTenantSlug" name="tenant_slug" placeholder="acme" />
+                <div class="form-text">{{ _('Renseignez le tenant seulement si votre email existe dans plusieurs organisations.') }}</div>
+              </div>
             </div>
 
             <div class="mb-3">
@@ -83,19 +92,26 @@
 
 {% if google_oauth_enabled %}
 <script>
+document.getElementById('financeToggleTenantField')?.addEventListener('change', function() {
+  const wrap = document.getElementById('financeTenantFieldWrap');
+  const toggle = document.getElementById('financeToggleTenantField');
+  if (!wrap) return;
+  wrap.classList.toggle('d-none', !toggle?.checked);
+  if (!wrap.classList.contains('d-none')) {
+    document.getElementById('financeTenantSlug')?.focus();
+  }
+});
+
 document.getElementById('financeGoogleLoginBtn')?.addEventListener('click', function() {
   const tenantInput = document.getElementById('financeTenantSlug');
   const tenantSlug = (tenantInput?.value || '').trim();
-  if (!tenantSlug) {
-    alert('{{ _("Veuillez renseigner le tenant avant la connexion Google.") }}');
-    tenantInput?.focus();
-    return;
-  }
 
   const params = new URLSearchParams({
-    tenant_slug: tenantSlug,
     app: 'finance',
   });
+  if (tenantSlug) {
+    params.set('tenant_slug', tenantSlug);
+  }
   {% if next_url %}
   params.set('next', '{{ next_url }}');
   {% endif %}

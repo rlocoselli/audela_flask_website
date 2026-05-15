@@ -43,6 +43,188 @@ def _google_oauth_enabled() -> bool:
     )
 
 
+def _resolve_password_login_user(email: str, password: str, tenant_slug: str | None = None) -> tuple[User | None, Tenant | None, str | None]:
+    """Resolve a login candidate with optional tenant scope.
+
+    Returns: (user, tenant, error_code)
+    error_code in {"tenant_not_found", "invalid_credentials", "ambiguous_tenant"}
+    """
+    scoped_slug = str(tenant_slug or "").strip().lower()
+    scoped_tenant = None
+    if scoped_slug:
+        scoped_tenant = Tenant.query.filter_by(slug=scoped_slug).first()
+        if not scoped_tenant:
+            return None, None, "tenant_not_found"
+
+    if scoped_tenant:
+        candidates = User.query.filter_by(tenant_id=scoped_tenant.id, email=email).all()
+    else:
+        candidates = User.query.filter_by(email=email).all()
+
+    matches = [u for u in candidates if u and u.check_password(password)]
+    if not matches:
+        return None, scoped_tenant, "invalid_credentials"
+    if len(matches) > 1:
+        return None, None, "ambiguous_tenant"
+
+    user = matches[0]
+    tenant = scoped_tenant or Tenant.query.get(user.tenant_id)
+    if not tenant:
+        return None, None, "invalid_credentials"
+    return user, tenant, None
+
+
+def _matching_users_for_password(email: str, password: str, tenant_slug: str | None = None) -> list[User]:
+    scoped_slug = str(tenant_slug or "").strip().lower()
+    scoped_tenant = Tenant.query.filter_by(slug=scoped_slug).first() if scoped_slug else None
+    if scoped_slug and not scoped_tenant:
+        return []
+    if scoped_tenant:
+        candidates = User.query.filter_by(tenant_id=scoped_tenant.id, email=email).all()
+    else:
+        candidates = User.query.filter_by(email=email).all()
+    return [u for u in candidates if u and u.check_password(password)]
+
+
+def _login_redirect_target(app_target: str, next_url: str | None = None) -> str:
+    if next_url:
+        return next_url
+    if app_target == "tenant":
+        return url_for("tenant.dashboard")
+    if app_target == "finance":
+        return url_for("finance.dashboard")
+    return url_for("portal.home")
+
+
+def _start_tenant_choice(users: list[User], app_target: str, next_url: str | None, source: str, email: str) -> str:
+    allowed_ids = []
+    seen = set()
+    for user in users:
+        if not user:
+            continue
+        uid = int(user.id)
+        if uid in seen:
+            continue
+        seen.add(uid)
+        allowed_ids.append(uid)
+
+    session["tenant_choice_user_ids"] = allowed_ids
+    session["tenant_choice_app_target"] = str(app_target or "bi").strip().lower() or "bi"
+    session["tenant_choice_next"] = _safe_relative_url(next_url)
+    session["tenant_choice_source"] = str(source or "password").strip().lower() or "password"
+    session["tenant_choice_email"] = str(email or "").strip().lower()
+    return url_for("auth.choose_tenant_login")
+
+
+def _pop_tenant_choice_state() -> tuple[list[int], str, str | None, str, str]:
+    raw_ids = session.pop("tenant_choice_user_ids", None)
+    app_target = str(session.pop("tenant_choice_app_target", "bi") or "bi").strip().lower()
+    next_url = _safe_relative_url(session.pop("tenant_choice_next", None))
+    source = str(session.pop("tenant_choice_source", "password") or "password").strip().lower()
+    email = str(session.pop("tenant_choice_email", "") or "").strip().lower()
+
+    ids: list[int] = []
+    if isinstance(raw_ids, list):
+        for item in raw_ids:
+            try:
+                ids.append(int(item))
+            except Exception:
+                continue
+    return ids, app_target, next_url, source, email
+
+
+@bp.route("/login/choose-tenant", methods=["GET", "POST"])
+def choose_tenant_login():
+    raw_ids = session.get("tenant_choice_user_ids")
+    if not isinstance(raw_ids, list) or not raw_ids:
+        flash(tr("Session de sélection expirée. Veuillez vous reconnecter.", getattr(g, "lang", None)), "warning")
+        return redirect(url_for("auth.login"))
+
+    ids: list[int] = []
+    for item in raw_ids:
+        try:
+            ids.append(int(item))
+        except Exception:
+            continue
+    app_target = str(session.get("tenant_choice_app_target") or "bi").strip().lower()
+    next_url = _safe_relative_url(session.get("tenant_choice_next"))
+    source = str(session.get("tenant_choice_source") or "password").strip().lower()
+    email = str(session.get("tenant_choice_email") or "").strip().lower()
+
+    users = User.query.filter(User.id.in_(ids)).all() if ids else []
+    entries = []
+    for user in users:
+        tenant = Tenant.query.get(user.tenant_id)
+        if not tenant:
+            continue
+        entries.append({
+            "user_id": int(user.id),
+            "tenant_name": tenant.name,
+            "tenant_slug": tenant.slug,
+            "email": user.email,
+        })
+    entries.sort(key=lambda x: (str(x.get("tenant_name") or "").lower(), str(x.get("tenant_slug") or "").lower()))
+
+    if request.method == "POST":
+        selected_raw = request.form.get("selected_user_id", "").strip()
+        try:
+            selected_user_id = int(selected_raw)
+        except Exception:
+            selected_user_id = 0
+
+        allowed = {int(item) for item in ids}
+        if selected_user_id not in allowed:
+            flash(tr("Choix invalide. Réessayez.", getattr(g, "lang", None)), "error")
+            return render_template(
+                "portal/choose_tenant_login.html",
+                choices=entries,
+                app_target=app_target,
+                email_hint=email,
+            )
+
+        user = User.query.get(selected_user_id)
+        if not user:
+            flash(tr("Utilisateur introuvable.", getattr(g, "lang", None)), "error")
+            return redirect(url_for("auth.login"))
+        tenant = Tenant.query.get(user.tenant_id)
+        if not tenant:
+            flash(tr("Tenant not found.", getattr(g, "lang", None)), "error")
+            return redirect(url_for("auth.login"))
+
+        if user.status == "pending_verification":
+            flash(tr("Você precisa verificar seu email antes de fazer login.", getattr(g, "lang", None)), "warning")
+            return redirect(url_for("auth.resend_verification", email=user.email))
+
+        _pop_tenant_choice_state()
+
+        login_user(user)
+        user.last_login_at = datetime.utcnow()
+        db.session.add(
+            AuditEvent(
+                tenant_id=tenant.id,
+                user_id=user.id,
+                event_type="auth.login.tenant_choice.success",
+                payload_json={"email": user.email, "app": app_target, "source": source},
+            )
+        )
+        db.session.commit()
+
+        set_current_tenant(CurrentTenant(id=tenant.id, slug=tenant.slug, name=tenant.name))
+        if app_target == "finance":
+            session["app_mode"] = "finance"
+        else:
+            session.pop("app_mode", None)
+
+        return redirect(_login_redirect_target(app_target, next_url))
+
+    return render_template(
+        "portal/choose_tenant_login.html",
+        choices=entries,
+        app_target=app_target,
+        email_hint=email,
+    )
+
+
 def _google_oauth_authorize_url() -> str:
     return str(
         current_app.config.get("GOOGLE_OAUTH_AUTHORIZE_URL")
@@ -94,7 +276,7 @@ def _save_google_profile_photo(tenant: Tenant, user: User, photo_url: str | None
 
 @bp.route("/login", methods=["GET", "POST"])
 def login():
-    # MVP: tenant selected by slug on login screen
+    # Tenant is optional: auto-resolve by email when unique.
     next_url = _safe_next_url()
     if request.method == "GET":
         track_public_like_page_view("/app/login", "auth.login")
@@ -103,22 +285,26 @@ def login():
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
 
-        tenant = Tenant.query.filter_by(slug=tenant_slug).first()
-        if not tenant:
+        user, tenant, login_error = _resolve_password_login_user(email, password, tenant_slug)
+        if login_error == "tenant_not_found":
             flash(tr("Tenant não encontrado.", getattr(g, "lang", None)), "error")
             return render_template(
                 "portal/login.html",
                 next_url=next_url,
                 google_oauth_enabled=_google_oauth_enabled(),
             )
-
-        user = User.query.filter_by(tenant_id=tenant.id, email=email).first()
-        if not user or not user.check_password(password):
+        if login_error == "ambiguous_tenant":
+            users = _matching_users_for_password(email, password, tenant_slug=None)
+            if users:
+                return redirect(_start_tenant_choice(users, "bi", next_url, "password", email))
+            flash(tr("Plusieurs organisations sont associées à cet email. Renseignez le tenant pour continuer.", getattr(g, "lang", None)), "warning")
+            return render_template("portal/login.html", next_url=next_url, google_oauth_enabled=_google_oauth_enabled())
+        if login_error == "invalid_credentials" or not user or not tenant:
             flash(tr("Credenciais inválidas.", getattr(g, "lang", None)), "error")
             # Optional: record failed login attempt (without storing password)
             db.session.add(
                 AuditEvent(
-                    tenant_id=tenant.id,
+                    tenant_id=tenant.id if tenant else None,
                     user_id=user.id if user else None,
                     event_type="auth.login.failed",
                     payload_json={"email": email},
@@ -173,21 +359,25 @@ def login_finance():
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
 
-        tenant = Tenant.query.filter_by(slug=tenant_slug).first()
-        if not tenant:
+        user, tenant, login_error = _resolve_password_login_user(email, password, tenant_slug)
+        if login_error == "tenant_not_found":
             flash(tr("Tenant não encontrado.", getattr(g, "lang", None)), "error")
             return render_template(
                 "portal/login_finance.html",
                 next_url=next_url,
                 google_oauth_enabled=_google_oauth_enabled(),
             )
-
-        user = User.query.filter_by(tenant_id=tenant.id, email=email).first()
-        if not user or not user.check_password(password):
+        if login_error == "ambiguous_tenant":
+            users = _matching_users_for_password(email, password, tenant_slug=None)
+            if users:
+                return redirect(_start_tenant_choice(users, "finance", next_url, "password", email))
+            flash(tr("Plusieurs organisations sont associées à cet email. Renseignez le tenant pour continuer.", getattr(g, "lang", None)), "warning")
+            return render_template("portal/login_finance.html", next_url=next_url, google_oauth_enabled=_google_oauth_enabled())
+        if login_error == "invalid_credentials" or not user or not tenant:
             flash(tr("Credenciais inválidas.", getattr(g, "lang", None)), "error")
             db.session.add(
                 AuditEvent(
-                    tenant_id=tenant.id,
+                    tenant_id=tenant.id if tenant else None,
                     user_id=user.id if user else None,
                     event_type="auth.login.failed",
                     payload_json={"email": email, "app": "finance"},
@@ -256,22 +446,15 @@ def google_login_start():
         if not org_name:
             org_name = TenantService.generate_unique_cosmic_tenant_name()
     else:
-        if not tenant_slug:
-            flash(tr("Tenant is required for Google login.", getattr(g, "lang", None)), "error")
-            if app_target == "finance":
-                return redirect(url_for("auth.login_finance"))
-            if app_target == "tenant":
-                return redirect(url_for("tenant.login"))
-            return redirect(url_for("auth.login"))
-
-        tenant = Tenant.query.filter_by(slug=tenant_slug).first()
-        if not tenant:
-            flash(tr("Tenant not found.", getattr(g, "lang", None)), "error")
-            if app_target == "finance":
-                return redirect(url_for("auth.login_finance"))
-            if app_target == "tenant":
-                return redirect(url_for("tenant.login"))
-            return redirect(url_for("auth.login"))
+        if tenant_slug:
+            tenant = Tenant.query.filter_by(slug=tenant_slug).first()
+            if not tenant:
+                flash(tr("Tenant not found.", getattr(g, "lang", None)), "error")
+                if app_target == "finance":
+                    return redirect(url_for("auth.login_finance"))
+                if app_target == "tenant":
+                    return redirect(url_for("tenant.login"))
+                return redirect(url_for("auth.login"))
 
     callback_url = url_for("auth.google_login_callback", _external=True)
     oauth_state = secrets.token_urlsafe(24)
@@ -321,11 +504,6 @@ def google_login_callback():
         return redirect(url_for("auth.login"))
 
     tenant = None
-    if google_mode != "signup":
-        tenant = Tenant.query.filter_by(slug=tenant_slug).first()
-        if not tenant:
-            flash(tr("Tenant not found.", getattr(g, "lang", None)), "error")
-            return redirect(url_for("auth.login"))
 
     callback_url = url_for("auth.google_login_callback", _external=True)
     token_payload = {
@@ -409,14 +587,41 @@ def google_login_callback():
             flash(tr("Google signup failed. Please try again.", getattr(g, "lang", None)), "error")
             return redirect(url_for("tenant.login"))
     else:
-        user = User.query.filter_by(tenant_id=tenant.id, email=email).first()
-        if not user:
-            flash(tr("No account found for this Google email in the selected tenant.", getattr(g, "lang", None)), "error")
-            if app_target == "finance":
-                return redirect(url_for("auth.login_finance"))
-            if app_target == "tenant":
-                return redirect(url_for("tenant.login"))
-            return redirect(url_for("auth.login"))
+        if tenant_slug:
+            tenant = Tenant.query.filter_by(slug=tenant_slug).first()
+            if not tenant:
+                flash(tr("Tenant not found.", getattr(g, "lang", None)), "error")
+                if app_target == "finance":
+                    return redirect(url_for("auth.login_finance"))
+                if app_target == "tenant":
+                    return redirect(url_for("tenant.login"))
+                return redirect(url_for("auth.login"))
+
+            user = User.query.filter_by(tenant_id=tenant.id, email=email).first()
+            if not user:
+                flash(tr("No account found for this Google email in the selected tenant.", getattr(g, "lang", None)), "error")
+                if app_target == "finance":
+                    return redirect(url_for("auth.login_finance"))
+                if app_target == "tenant":
+                    return redirect(url_for("tenant.login"))
+                return redirect(url_for("auth.login"))
+        else:
+            users = User.query.filter_by(email=email).all()
+            if not users:
+                flash(tr("No account found for this Google email.", getattr(g, "lang", None)), "error")
+                if app_target == "finance":
+                    return redirect(url_for("auth.login_finance"))
+                if app_target == "tenant":
+                    return redirect(url_for("tenant.login"))
+                return redirect(url_for("auth.login"))
+            if len(users) > 1:
+                return redirect(_start_tenant_choice(users, app_target, next_url, "google", email))
+
+            user = users[0]
+            tenant = Tenant.query.get(user.tenant_id)
+            if not tenant:
+                flash(tr("Tenant not found.", getattr(g, "lang", None)), "error")
+                return redirect(url_for("auth.login"))
 
         _save_google_profile_photo(tenant, user, google_photo, google_name)
 
@@ -442,13 +647,7 @@ def google_login_callback():
     else:
         session.pop("app_mode", None)
 
-    if next_url:
-        return redirect(next_url)
-    if app_target == "tenant":
-        return redirect(url_for("tenant.dashboard"))
-    if app_target == "finance":
-        return redirect(url_for("finance.dashboard"))
-    return redirect(url_for("portal.home"))
+    return redirect(_login_redirect_target(app_target, next_url))
 
 
 @bp.route("/logout")
