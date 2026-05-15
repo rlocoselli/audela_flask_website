@@ -7,6 +7,15 @@ on:
         description: "Git ref to deploy before migrations (branch/tag/sha)"
         required: false
         default: "main"
+      python_seed_profile:
+        description: "Python seeding profile"
+        required: false
+        type: choice
+        options:
+          - all
+          - data-analysis
+          - none
+        default: all
       install_mode:
         description: "Deployment mode"
         required: true
@@ -37,6 +46,7 @@ jobs:
     uses: ./.github/workflows/migrations-only.yml
     with:
       git_ref: ${{ github.event.inputs.git_ref || 'main' }}
+      python_seed_profile: ${{ github.event.inputs.python_seed_profile || 'all' }}
     secrets: inherit
 
   deploy:

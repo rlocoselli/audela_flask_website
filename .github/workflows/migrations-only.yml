@@ -8,12 +8,26 @@ on:
         required: false
         type: string
         default: "main"
+      python_seed_profile:
+        description: "Python seeding profile: all, data-analysis, none"
+        required: false
+        type: string
+        default: "all"
   workflow_dispatch:
     inputs:
       git_ref:
         description: "Git ref to deploy before migrations (branch/tag/sha)"
         required: false
         default: "main"
+      python_seed_profile:
+        description: "Python seeding profile"
+        required: false
+        type: choice
+        options:
+          - all
+          - data-analysis
+          - none
+        default: all
 
 jobs:
   migrate:
@@ -40,6 +54,9 @@ jobs:
 
             TARGET_REF="${{ inputs.git_ref || github.event.inputs.git_ref }}"
             if [ -z "$TARGET_REF" ]; then TARGET_REF="main"; fi
+            PYTHON_SEED_PROFILE="${{ inputs.python_seed_profile || github.event.inputs.python_seed_profile }}"
+            if [ -z "$PYTHON_SEED_PROFILE" ]; then PYTHON_SEED_PROFILE="all"; fi
+            echo "🐍 Python seed profile: $PYTHON_SEED_PROFILE"
 
             echo "📥 Git fetch/reset to $TARGET_REF"
             git fetch --all --prune
@@ -116,9 +133,7 @@ jobs:
 
             ensure_public_page_visits_geo_columns () {
               echo "🩹 Ensure public_page_visits geo/language columns exist (idempotent)"
-              aud_run python -c "from sqlalchemy import text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); exists=db.session.execute(text(\"SELECT to_regclass('public.public_page_visits')\")).scalar(); print('public_page_visits exists:', bool(exists));\
-if exists: db.session.execute(text(\"ALTER TABLE public.public_page_visits ADD COLUMN IF NOT EXISTS country_code VARCHAR(8)\")); db.session.execute(text(\"ALTER TABLE public.public_page_visits ADD COLUMN IF NOT EXISTS language_code VARCHAR(12)\")); db.session.execute(text(\"CREATE INDEX IF NOT EXISTS ix_public_page_visits_country_code ON public.public_page_visits (country_code)\")); db.session.execute(text(\"CREATE INDEX IF NOT EXISTS ix_public_page_visits_language_code ON public.public_page_visits (language_code)\")); db.session.commit(); print('public_page_visits geo/language columns ready');\
-ctx.pop()"
+              aud_run python -c "from sqlalchemy import text; from audela import create_app; from audela.extensions import db; app=create_app(); ctx=app.app_context(); ctx.push(); exists=db.session.execute(text(\"SELECT to_regclass('public.public_page_visits')\")).scalar(); print('public_page_visits exists:', bool(exists)); db.session.execute(text(\"ALTER TABLE public.public_page_visits ADD COLUMN IF NOT EXISTS country_code VARCHAR(8)\")) if exists else None; db.session.execute(text(\"ALTER TABLE public.public_page_visits ADD COLUMN IF NOT EXISTS language_code VARCHAR(12)\")) if exists else None; db.session.execute(text(\"CREATE INDEX IF NOT EXISTS ix_public_page_visits_country_code ON public.public_page_visits (country_code)\")) if exists else None; db.session.execute(text(\"CREATE INDEX IF NOT EXISTS ix_public_page_visits_language_code ON public.public_page_visits (language_code)\")) if exists else None; db.session.commit() if exists else None; print('public_page_visits geo/language columns ready') if exists else None; ctx.pop()"
             }
 
             ensure_public_page_visits_geo_columns
@@ -149,9 +164,21 @@ ctx.pop()"
             aud_run flask seed-e-learning
             aud_run python -c "from audela import create_app; from audela.models import ELearningSubject, ELearningModule; app=create_app(); ctx=app.app_context(); ctx.push(); subject=ELearningSubject.query.filter_by(code='sql').first(); assert subject is not None, 'sql subject missing'; modules={m.code for m in ELearningModule.query.filter_by(subject_id=subject.id).all()}; assert 'sql201' in modules, 'sql201 module missing'; assert len(modules) >= 12, f'expected >=12 SQL modules, got {len(modules)}'; print('e-learning modules ready:', len(modules)); ctx.pop()"
 
-            echo "🐍 Seed Python Data Analysis course (idempotent)"
-            aud_run flask seed-python-data-analysis
-            aud_run python -c "from audela import create_app; from audela.models import ELearningSubject, ELearningModule; app=create_app(); ctx=app.app_context(); ctx.push(); subject=ELearningSubject.query.filter_by(code='python_data_analysis').first(); assert subject is not None, 'python_data_analysis subject missing'; modules=ELearningModule.query.filter_by(subject_id=subject.id).all(); assert len(modules) >= 10, f'expected >=10 Python modules, got {len(modules)}'; print('Python Data Analysis modules ready:', len(modules)); ctx.pop()"
+            if [ "$PYTHON_SEED_PROFILE" = "all" ]; then
+              echo "🐍 Seed Python tracks (idempotent)"
+              aud_run flask seed-python-tracks
+              aud_run python -c "from audela import create_app; from audela.models import ELearningSubject; app=create_app(); ctx=app.app_context(); ctx.push(); assert ELearningSubject.query.filter_by(code='python-data-analysis').first() is not None, 'python-data-analysis subject missing'; assert ELearningSubject.query.filter_by(code='python-fundamentals').first() is not None, 'python-fundamentals subject missing'; assert ELearningSubject.query.filter_by(code='machine-learning-python').first() is not None, 'machine-learning-python subject missing'; assert ELearningSubject.query.filter_by(code='django-web-development').first() is not None, 'django-web-development subject missing'; print('python subjects ready'); ctx.pop()"
+            elif [ "$PYTHON_SEED_PROFILE" = "data-analysis" ]; then
+              echo "🐍 Seed Python Data Analysis only (idempotent)"
+              aud_run flask seed-python-data-analysis
+              aud_run python -c "from audela import create_app; from audela.models import ELearningSubject; app=create_app(); ctx=app.app_context(); ctx.push(); assert ELearningSubject.query.filter_by(code='python-data-analysis').first() is not None, 'python-data-analysis subject missing'; print('python-data-analysis subject ready'); ctx.pop()"
+            elif [ "$PYTHON_SEED_PROFILE" = "none" ]; then
+              echo "⏭️ Skipping Python seeding (python_seed_profile=none)"
+            else
+              echo "❌ Invalid python_seed_profile: $PYTHON_SEED_PROFILE"
+              echo "   Allowed values: all | data-analysis | none"
+              exit 1
+            fi
 
             echo "🧪 Ensure database is at Alembic head(s)"
             HEAD_REVS="$(aud_run flask db heads | awk '/^[0-9a-f]+/ {print $1}')"
