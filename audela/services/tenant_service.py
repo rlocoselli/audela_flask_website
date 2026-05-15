@@ -8,6 +8,7 @@ from typing import List, Optional, Any
 from datetime import datetime
 from types import SimpleNamespace
 import re
+import random
 
 from flask import current_app
 from sqlalchemy import func
@@ -57,6 +58,21 @@ def dict_to_obj(d: Any) -> Any:
 
 class TenantService:
     """Service de gestion des tenants."""
+
+    _COSMIC_CONSTELLATIONS = [
+        "Orion", "Lyra", "Andromeda", "Cassiopeia", "Pegasus", "Cygnus", "Perseus", "Phoenix",
+        "Draco", "Hydra", "Centaurus", "Aquila", "Ursa", "Vela", "Lupus", "Auriga",
+    ]
+
+    _COSMIC_STARS = [
+        "Sirius", "Vega", "Rigel", "Altair", "Deneb", "Aldebaran", "Arcturus", "Betelgeuse",
+        "Polaris", "Canopus", "Spica", "Antares", "Procyon", "Capella", "Bellatrix", "Fomalhaut",
+    ]
+
+    _COSMIC_PLANETS = [
+        "Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune",
+        "Ceres", "Pluto", "Eris", "Haumea", "Makemake", "Kepler", "Trappist", "Europa",
+    ]
     
     @staticmethod
     def create_tenant(
@@ -64,7 +80,8 @@ class TenantService:
         email: str,
         password: str,
         plan_code: str = "free",
-        send_verification: bool = True
+        send_verification: bool = True,
+        email_lang: str | None = None,
     ) -> tuple[Tenant, User]:
         """
         Créer un nouveau tenant avec son premier utilisateur admin.
@@ -112,7 +129,7 @@ class TenantService:
         # Envoyer email de vérification
         if send_verification:
             token = EmailVerificationService.create_verification_token(user)
-            EmailService.send_verification_email(user, token.token)
+            EmailService.send_verification_email(user, token.token, lang=email_lang)
         
         current_app.logger.info(f"Created tenant {tenant.slug} with admin {user.email}")
         
@@ -486,6 +503,42 @@ class TenantService:
             counter += 1
         
         return slug
+
+    @staticmethod
+    def _tenant_name_exists(name: str) -> bool:
+        normalized = (name or "").strip()
+        if not normalized:
+            return False
+        return (
+            db.session.query(Tenant.id)
+            .filter(func.lower(Tenant.name) == normalized.lower())
+            .first()
+            is not None
+        )
+
+    @staticmethod
+    def generate_unique_cosmic_tenant_name(max_attempts: int = 200) -> str:
+        """Generate a readable cosmic organization name that is not already used."""
+        constellations = TenantService._COSMIC_CONSTELLATIONS
+        stars = TenantService._COSMIC_STARS
+        planets = TenantService._COSMIC_PLANETS
+
+        for _ in range(max_attempts):
+            pattern = random.randint(1, 3)
+            if pattern == 1:
+                candidate = f"{random.choice(constellations)} {random.choice(stars)} Collective"
+            elif pattern == 2:
+                candidate = f"{random.choice(stars)} {random.choice(planets)} Observatory"
+            else:
+                candidate = f"{random.choice(planets)} {random.choice(constellations)} Systems"
+
+            if not TenantService._tenant_name_exists(candidate):
+                return candidate
+
+        while True:
+            fallback = f"{random.choice(stars)}-{random.randint(1000, 9999)}"
+            if not TenantService._tenant_name_exists(fallback):
+                return fallback
     
     @staticmethod
     def delete_tenant(tenant_id: int) -> bool:

@@ -11,7 +11,8 @@ from flask import (
     request,
     session,
     g,
-    current_app
+    current_app,
+    jsonify,
 )
 from flask_login import login_user, logout_user, login_required, current_user
 from datetime import datetime
@@ -44,6 +45,13 @@ AVATAR_CHOICES = [
     "lightning",
     "palette",
 ]
+
+
+def _google_oauth_enabled() -> bool:
+    return bool(
+        str(current_app.config.get("GOOGLE_OAUTH_CLIENT_ID") or "").strip()
+        and str(current_app.config.get("GOOGLE_OAUTH_CLIENT_SECRET") or "").strip()
+    )
 
 
 UAM_MENU_KEYS: dict[str, list[str]] = {
@@ -361,7 +369,18 @@ def login():
         else:
             return _handle_login()
     
-    return render_template("tenant/login.html")
+    return render_template("tenant/login.html", google_oauth_enabled=_google_oauth_enabled())
+
+
+@bp.route("/suggest-organization-name", methods=["GET"])
+def suggest_organization_name():
+    """Return a unique cosmic organization name for signup UX."""
+    try:
+        suggestion = TenantService.generate_unique_cosmic_tenant_name()
+        return jsonify({"ok": True, "name": suggestion})
+    except Exception as exc:
+        current_app.logger.error(f"Could not generate organization suggestion: {exc}")
+        return jsonify({"ok": False, "error": "generation_failed"}), 500
 
 
 def _handle_login():
@@ -373,7 +392,7 @@ def _handle_login():
     tenant = Tenant.query.filter_by(slug=tenant_slug).first()
     if not tenant:
         flash(tr("Tenant não encontrado.", getattr(g, "lang", None)), "error")
-        return render_template("tenant/login.html")
+        return render_template("tenant/login.html", google_oauth_enabled=_google_oauth_enabled())
     
     user = User.query.filter_by(tenant_id=tenant.id, email=email).first()
     if not user or not user.check_password(password):
@@ -387,7 +406,7 @@ def _handle_login():
             )
         )
         db.session.commit()
-        return render_template("tenant/login.html")
+        return render_template("tenant/login.html", google_oauth_enabled=_google_oauth_enabled())
     
     # Check email verification
     if user.status == "pending_verification":
@@ -418,22 +437,25 @@ def _handle_signup():
     password_confirm = request.form.get("password_confirm", "")
     
     # Validation
-    if not tenant_name or not email or not password:
+    if not email or not password:
         flash(tr("Preencha todos os campos.", getattr(g, "lang", None)), "error")
-        return render_template("tenant/login.html")
+        return render_template("tenant/login.html", google_oauth_enabled=_google_oauth_enabled())
+
+    if not tenant_name:
+        tenant_name = TenantService.generate_unique_cosmic_tenant_name()
     
     if password != password_confirm:
         flash(tr("As senhas não coincidem.", getattr(g, "lang", None)), "error")
-        return render_template("tenant/login.html")
+        return render_template("tenant/login.html", google_oauth_enabled=_google_oauth_enabled())
     
     if len(password) < 8:
         flash(tr("A senha deve ter pelo menos 8 caracteres.", getattr(g, "lang", None)), "error")
-        return render_template("tenant/login.html")
+        return render_template("tenant/login.html", google_oauth_enabled=_google_oauth_enabled())
     
     # Check if email already exists
     if User.query.filter_by(email=email).first():
         flash(tr("Este email já está em uso.", getattr(g, "lang", None)), "error")
-        return render_template("tenant/login.html")
+        return render_template("tenant/login.html", google_oauth_enabled=_google_oauth_enabled())
     
     try:
         # Create tenant with admin user
@@ -442,7 +464,8 @@ def _handle_signup():
             email=email,
             password=password,
             plan_code="free",
-            send_verification=True
+            send_verification=True,
+            email_lang=getattr(g, "lang", None) or session.get("lang"),
         )
         
         # Audit event
@@ -469,7 +492,7 @@ def _handle_signup():
         current_app.logger.error(f"Signup error: {e}")
         db.session.rollback()
         flash(tr("Error creating account. Please try again.", getattr(g, "lang", None)), "error")
-        return render_template("tenant/login.html")
+        return render_template("tenant/login.html", google_oauth_enabled=_google_oauth_enabled())
 
 
 @bp.route("/dashboard")

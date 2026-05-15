@@ -55,18 +55,18 @@ jobs:
           APP_RELEASE: ${{ github.sha }}
           GRAFANA_HOSTNAME: ${{ secrets.GRAFANA_HOSTNAME }}
           GRAFANA_HOSTNAME_ALT: ${{ secrets.GRAFANA_HOSTNAME_ALT }}
-          SITE_URL: ${{ vars.SITE_URL || 'https://audeladedonnees.fr' }}
-          BRIDGE_CALLBACK_URL: ${{ vars.BRIDGE_CALLBACK_URL || 'https://audeladedonnees.fr/finance/banks/callback' }}
-          BRIDGE_CLIENT_ID: ${{ secrets.BRIDGE_CLIENT_ID || vars.BRIDGE_CLIENT_ID || '' }}
-          BRIDGE_CLIENT_SECRET: ${{ secrets.BRIDGE_CLIENT_SECRET || vars.BRIDGE_CLIENT_SECRET || '' }}
-          BRIDGE_BASE_URL: ${{ vars.BRIDGE_BASE_URL || 'https://api.bridgeapi.io' }}
-          BRIDGE_VERSION: ${{ vars.BRIDGE_VERSION || '2025-01-15' }}
-          MLFLOW_TRACKING_URI: ${{ vars.MLFLOW_TRACKING_URI || 'http://mlflow:5000' }}
-          MLFLOW_EMBED_URL: ${{ vars.MLFLOW_EMBED_URL || '' }}
-          MLFLOW_ENABLED: ${{ vars.MLFLOW_ENABLED || '1' }}
-          POWENS_CLIENT_ID: ${{ secrets.POWENS_CLIENT_ID || vars.POWENS_CLIENT_ID || '' }}
-          POWENS_CLIENT_SECRET: ${{ secrets.POWENS_CLIENT_SECRET || vars.POWENS_CLIENT_SECRET || '' }}
-          POWENS_WEBHOOK_SECRET: ${{ secrets.POWENS_WEBHOOK_SECRET || vars.POWENS_WEBHOOK_SECRET || '' }}
+          SITE_URL: ${{ secrets.SITE_URL || 'https://audeladedonnees.fr' }}
+          BRIDGE_CALLBACK_URL: ${{ secrets.BRIDGE_CALLBACK_URL || 'https://audeladedonnees.fr/finance/banks/callback' }}
+          BRIDGE_CLIENT_ID: ${{ secrets.BRIDGE_CLIENT_ID || '' }}
+          BRIDGE_CLIENT_SECRET: ${{ secrets.BRIDGE_CLIENT_SECRET || '' }}
+          BRIDGE_BASE_URL: ${{ secrets.BRIDGE_BASE_URL || 'https://api.bridgeapi.io' }}
+          BRIDGE_VERSION: ${{ secrets.BRIDGE_VERSION || '2025-01-15' }}
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI || 'http://mlflow:5000' }}
+          MLFLOW_EMBED_URL: ${{ secrets.MLFLOW_EMBED_URL || '' }}
+          MLFLOW_ENABLED: ${{ secrets.MLFLOW_ENABLED || '1' }}
+          POWENS_CLIENT_ID: ${{ secrets.POWENS_CLIENT_ID || '' }}
+          POWENS_CLIENT_SECRET: ${{ secrets.POWENS_CLIENT_SECRET || '' }}
+          POWENS_WEBHOOK_SECRET: ${{ secrets.POWENS_WEBHOOK_SECRET || '' }}
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -568,15 +568,18 @@ jobs:
           APP_RELEASE: ${{ github.sha }}
           GRAFANA_HOSTNAME: ${{ secrets.GRAFANA_HOSTNAME }}
           GRAFANA_HOSTNAME_ALT: ${{ secrets.GRAFANA_HOSTNAME_ALT }}
-          SITE_URL: ${{ vars.SITE_URL || 'https://audeladedonnees.fr' }}
-          BRIDGE_CALLBACK_URL: ${{ vars.BRIDGE_CALLBACK_URL || 'https://audeladedonnees.fr/finance/banks/callback' }}
-          BRIDGE_CLIENT_ID: ${{ secrets.BRIDGE_CLIENT_ID || vars.BRIDGE_CLIENT_ID || '' }}
-          BRIDGE_CLIENT_SECRET: ${{ secrets.BRIDGE_CLIENT_SECRET || vars.BRIDGE_CLIENT_SECRET || '' }}
-          BRIDGE_BASE_URL: ${{ vars.BRIDGE_BASE_URL || 'https://api.bridgeapi.io' }}
-          BRIDGE_VERSION: ${{ vars.BRIDGE_VERSION || '2025-01-15' }}
-          POWENS_CLIENT_ID: ${{ secrets.POWENS_CLIENT_ID || vars.POWENS_CLIENT_ID || '' }}
-          POWENS_CLIENT_SECRET: ${{ secrets.POWENS_CLIENT_SECRET || vars.POWENS_CLIENT_SECRET || '' }}
-          POWENS_WEBHOOK_SECRET: ${{ secrets.POWENS_WEBHOOK_SECRET || vars.POWENS_WEBHOOK_SECRET || '' }}
+          SITE_URL: ${{ secrets.SITE_URL || 'https://audeladedonnees.fr' }}
+          BRIDGE_CALLBACK_URL: ${{ secrets.BRIDGE_CALLBACK_URL || 'https://audeladedonnees.fr/finance/banks/callback' }}
+          BRIDGE_CLIENT_ID: ${{ secrets.BRIDGE_CLIENT_ID || '' }}
+          BRIDGE_CLIENT_SECRET: ${{ secrets.BRIDGE_CLIENT_SECRET || '' }}
+          BRIDGE_BASE_URL: ${{ secrets.BRIDGE_BASE_URL || 'https://api.bridgeapi.io' }}
+          BRIDGE_VERSION: ${{ secrets.BRIDGE_VERSION || '2025-01-15' }}
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI || 'http://mlflow:5000' }}
+          MLFLOW_EMBED_URL: ${{ secrets.MLFLOW_EMBED_URL || '' }}
+          MLFLOW_ENABLED: ${{ secrets.MLFLOW_ENABLED || '1' }}
+          POWENS_CLIENT_ID: ${{ secrets.POWENS_CLIENT_ID || '' }}
+          POWENS_CLIENT_SECRET: ${{ secrets.POWENS_CLIENT_SECRET || '' }}
+          POWENS_WEBHOOK_SECRET: ${{ secrets.POWENS_WEBHOOK_SECRET || '' }}
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -586,7 +589,7 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           timeout: 90s
           command_timeout: 40m
-          envs: SERVER_ENV_FILE,INSTALL_MODE,CELERY_ACTION,APP_RELEASE,GRAFANA_HOSTNAME,GRAFANA_HOSTNAME_ALT,SITE_URL,BRIDGE_CALLBACK_URL,BRIDGE_CLIENT_ID,BRIDGE_CLIENT_SECRET,BRIDGE_BASE_URL,BRIDGE_VERSION,POWENS_CLIENT_ID,POWENS_CLIENT_SECRET,POWENS_WEBHOOK_SECRET,ENCRYPTION_KEY
+          envs: SERVER_ENV_FILE,INSTALL_MODE,CELERY_ACTION,APP_RELEASE,GRAFANA_HOSTNAME,GRAFANA_HOSTNAME_ALT,SITE_URL,BRIDGE_CALLBACK_URL,BRIDGE_CLIENT_ID,BRIDGE_CLIENT_SECRET,BRIDGE_BASE_URL,BRIDGE_VERSION,MLFLOW_TRACKING_URI,MLFLOW_EMBED_URL,MLFLOW_ENABLED,POWENS_CLIENT_ID,POWENS_CLIENT_SECRET,POWENS_WEBHOOK_SECRET,ENCRYPTION_KEY
           script: *deploy_script
 
       - name: Fail if SSH deploy failed twice

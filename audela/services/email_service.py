@@ -378,7 +378,7 @@ class EmailVerificationService:
         return user
     
     @staticmethod
-    def resend_verification(user: User) -> bool:
+    def resend_verification(user: User, lang: str | None = None) -> bool:
         """
         Renvoyer un email de vérification.
         
@@ -398,7 +398,7 @@ class EmailVerificationService:
         token = EmailVerificationService.create_verification_token(user)
         
         # Envoyer email
-        return EmailService.send_verification_email(user, token.token)
+        return EmailService.send_verification_email(user, token.token, lang=lang)
 
 
 class InvitationService:

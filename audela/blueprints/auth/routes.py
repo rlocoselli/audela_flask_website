@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime
+import secrets
+from urllib.parse import urlencode
+
+import requests
 
 from flask import flash, redirect, render_template, request, url_for, g, session, current_app
 from flask_login import login_user, logout_user, current_user, login_required
@@ -24,6 +28,41 @@ def _safe_next_url() -> str | None:
     return None
 
 
+def _safe_relative_url(value: str | None) -> str | None:
+    nxt = (value or "").strip()
+    if nxt.startswith("/") and not nxt.startswith("//"):
+        return nxt
+    return None
+
+
+def _google_oauth_enabled() -> bool:
+    return bool(
+        str(current_app.config.get("GOOGLE_OAUTH_CLIENT_ID") or "").strip()
+        and str(current_app.config.get("GOOGLE_OAUTH_CLIENT_SECRET") or "").strip()
+    )
+
+
+def _google_oauth_authorize_url() -> str:
+    return str(
+        current_app.config.get("GOOGLE_OAUTH_AUTHORIZE_URL")
+        or "https://accounts.google.com/o/oauth2/v2/auth"
+    ).strip()
+
+
+def _google_oauth_token_url() -> str:
+    return str(
+        current_app.config.get("GOOGLE_OAUTH_TOKEN_URL")
+        or "https://oauth2.googleapis.com/token"
+    ).strip()
+
+
+def _google_oauth_userinfo_url() -> str:
+    return str(
+        current_app.config.get("GOOGLE_OAUTH_USERINFO_URL")
+        or "https://openidconnect.googleapis.com/v1/userinfo"
+    ).strip()
+
+
 @bp.route("/login", methods=["GET", "POST"])
 def login():
     # MVP: tenant selected by slug on login screen
@@ -38,7 +77,11 @@ def login():
         tenant = Tenant.query.filter_by(slug=tenant_slug).first()
         if not tenant:
             flash(tr("Tenant não encontrado.", getattr(g, "lang", None)), "error")
-            return render_template("portal/login.html", next_url=next_url)
+            return render_template(
+                "portal/login.html",
+                next_url=next_url,
+                google_oauth_enabled=_google_oauth_enabled(),
+            )
 
         user = User.query.filter_by(tenant_id=tenant.id, email=email).first()
         if not user or not user.check_password(password):
@@ -53,7 +96,11 @@ def login():
                 )
             )
             db.session.commit()
-            return render_template("portal/login.html", next_url=next_url)
+            return render_template(
+                "portal/login.html",
+                next_url=next_url,
+                google_oauth_enabled=_google_oauth_enabled(),
+            )
         
         # Check email verification
         if user.status == "pending_verification":
@@ -78,7 +125,11 @@ def login():
             return redirect(next_url)
         return redirect(url_for("portal.home"))
 
-    return render_template("portal/login.html", next_url=next_url)
+    return render_template(
+        "portal/login.html",
+        next_url=next_url,
+        google_oauth_enabled=_google_oauth_enabled(),
+    )
 
 
 @bp.route("/login/finance", methods=["GET", "POST"])
@@ -96,7 +147,11 @@ def login_finance():
         tenant = Tenant.query.filter_by(slug=tenant_slug).first()
         if not tenant:
             flash(tr("Tenant não encontrado.", getattr(g, "lang", None)), "error")
-            return render_template("portal/login_finance.html", next_url=next_url)
+            return render_template(
+                "portal/login_finance.html",
+                next_url=next_url,
+                google_oauth_enabled=_google_oauth_enabled(),
+            )
 
         user = User.query.filter_by(tenant_id=tenant.id, email=email).first()
         if not user or not user.check_password(password):
@@ -110,7 +165,11 @@ def login_finance():
                 )
             )
             db.session.commit()
-            return render_template("portal/login_finance.html", next_url=next_url)
+            return render_template(
+                "portal/login_finance.html",
+                next_url=next_url,
+                google_oauth_enabled=_google_oauth_enabled(),
+            )
         
         # Check email verification
         if user.status == "pending_verification":
@@ -135,7 +194,180 @@ def login_finance():
             return redirect(next_url)
         return redirect(url_for("finance.dashboard"))
 
-    return render_template("portal/login_finance.html", next_url=next_url)
+    return render_template(
+        "portal/login_finance.html",
+        next_url=next_url,
+        google_oauth_enabled=_google_oauth_enabled(),
+    )
+
+
+@bp.route("/login/google/start", methods=["GET"])
+def google_login_start():
+    """Start Google OAuth flow for tenant-aware login."""
+    if not _google_oauth_enabled():
+        flash(tr("Google login is not configured yet.", getattr(g, "lang", None)), "warning")
+        app_target = (request.args.get("app") or "bi").strip().lower()
+        if app_target == "finance":
+            return redirect(url_for("auth.login_finance"))
+        if app_target == "tenant":
+            return redirect(url_for("tenant.login"))
+        return redirect(url_for("auth.login"))
+
+    tenant_slug = (request.args.get("tenant_slug") or "").strip().lower()
+    app_target = (request.args.get("app") or "bi").strip().lower()
+    if app_target not in {"bi", "finance", "tenant"}:
+        app_target = "bi"
+
+    if not tenant_slug:
+        flash(tr("Tenant is required for Google login.", getattr(g, "lang", None)), "error")
+        if app_target == "finance":
+            return redirect(url_for("auth.login_finance"))
+        if app_target == "tenant":
+            return redirect(url_for("tenant.login"))
+        return redirect(url_for("auth.login"))
+
+    tenant = Tenant.query.filter_by(slug=tenant_slug).first()
+    if not tenant:
+        flash(tr("Tenant not found.", getattr(g, "lang", None)), "error")
+        if app_target == "finance":
+            return redirect(url_for("auth.login_finance"))
+        if app_target == "tenant":
+            return redirect(url_for("tenant.login"))
+        return redirect(url_for("auth.login"))
+
+    callback_url = url_for("auth.google_login_callback", _external=True)
+    oauth_state = secrets.token_urlsafe(24)
+    next_url = _safe_relative_url(request.args.get("next"))
+
+    session["google_oauth_state"] = oauth_state
+    session["google_oauth_tenant_slug"] = tenant_slug
+    session["google_oauth_app_target"] = app_target
+    session["google_oauth_next"] = next_url
+
+    params = {
+        "client_id": str(current_app.config.get("GOOGLE_OAUTH_CLIENT_ID") or "").strip(),
+        "redirect_uri": callback_url,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "state": oauth_state,
+        "access_type": "online",
+        "prompt": "select_account",
+    }
+    return redirect(f"{_google_oauth_authorize_url()}?{urlencode(params)}")
+
+
+@bp.route("/login/google/callback", methods=["GET"])
+def google_login_callback():
+    """Complete Google OAuth flow and login mapped tenant user."""
+    expected_state = session.pop("google_oauth_state", None)
+    state = (request.args.get("state") or "").strip()
+    if not expected_state or not state or expected_state != state:
+        flash(tr("Google login failed (invalid state).", getattr(g, "lang", None)), "error")
+        return redirect(url_for("auth.login"))
+
+    tenant_slug = (session.pop("google_oauth_tenant_slug", "") or "").strip().lower()
+    app_target = (session.pop("google_oauth_app_target", "bi") or "bi").strip().lower()
+    next_url = _safe_relative_url(session.pop("google_oauth_next", None))
+
+    code = (request.args.get("code") or "").strip()
+    if not code:
+        flash(tr("Google login was canceled or denied.", getattr(g, "lang", None)), "warning")
+        if app_target == "finance":
+            return redirect(url_for("auth.login_finance"))
+        if app_target == "tenant":
+            return redirect(url_for("tenant.login"))
+        return redirect(url_for("auth.login"))
+
+    tenant = Tenant.query.filter_by(slug=tenant_slug).first()
+    if not tenant:
+        flash(tr("Tenant not found.", getattr(g, "lang", None)), "error")
+        return redirect(url_for("auth.login"))
+
+    callback_url = url_for("auth.google_login_callback", _external=True)
+    token_payload = {
+        "code": code,
+        "client_id": str(current_app.config.get("GOOGLE_OAUTH_CLIENT_ID") or "").strip(),
+        "client_secret": str(current_app.config.get("GOOGLE_OAUTH_CLIENT_SECRET") or "").strip(),
+        "redirect_uri": callback_url,
+        "grant_type": "authorization_code",
+    }
+
+    try:
+        token_response = requests.post(
+            _google_oauth_token_url(),
+            data=token_payload,
+            timeout=12,
+        )
+        token_response.raise_for_status()
+        token_data = token_response.json()
+        access_token = str(token_data.get("access_token") or "").strip()
+        if not access_token:
+            raise ValueError("Missing access token")
+
+        userinfo_response = requests.get(
+            _google_oauth_userinfo_url(),
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=12,
+        )
+        userinfo_response.raise_for_status()
+        userinfo = userinfo_response.json()
+    except Exception as exc:
+        current_app.logger.warning(f"Google OAuth exchange failed: {exc}")
+        flash(tr("Google login failed. Please try again.", getattr(g, "lang", None)), "error")
+        if app_target == "finance":
+            return redirect(url_for("auth.login_finance"))
+        if app_target == "tenant":
+            return redirect(url_for("tenant.login"))
+        return redirect(url_for("auth.login"))
+
+    email = str(userinfo.get("email") or "").strip().lower()
+    email_verified = bool(userinfo.get("email_verified"))
+    if not email or not email_verified:
+        flash(tr("Google account email is not verified.", getattr(g, "lang", None)), "error")
+        if app_target == "finance":
+            return redirect(url_for("auth.login_finance"))
+        if app_target == "tenant":
+            return redirect(url_for("tenant.login"))
+        return redirect(url_for("auth.login"))
+
+    user = User.query.filter_by(tenant_id=tenant.id, email=email).first()
+    if not user:
+        flash(tr("No account found for this Google email in the selected tenant.", getattr(g, "lang", None)), "error")
+        if app_target == "finance":
+            return redirect(url_for("auth.login_finance"))
+        if app_target == "tenant":
+            return redirect(url_for("tenant.login"))
+        return redirect(url_for("auth.login"))
+
+    if user.status == "pending_verification":
+        user.status = "active"
+
+    login_user(user)
+    user.last_login_at = datetime.utcnow()
+    db.session.add(
+        AuditEvent(
+            tenant_id=tenant.id,
+            user_id=user.id,
+            event_type="auth.login.google.success",
+            payload_json={"email": email, "app": app_target},
+        )
+    )
+    db.session.commit()
+
+    set_current_tenant(CurrentTenant(id=tenant.id, slug=tenant.slug, name=tenant.name))
+
+    if app_target == "finance":
+        session["app_mode"] = "finance"
+    else:
+        session.pop("app_mode", None)
+
+    if next_url:
+        return redirect(next_url)
+    if app_target == "tenant":
+        return redirect(url_for("tenant.dashboard"))
+    if app_target == "finance":
+        return redirect(url_for("finance.dashboard"))
+    return redirect(url_for("portal.home"))
 
 
 @bp.route("/logout")
@@ -272,9 +504,12 @@ def register():
         plan_code = request.form.get("plan_code", "free")
         
         # Validation
-        if not tenant_name or not email or not password:
+        if not email or not password:
             flash(tr("Preencha todos os campos.", getattr(g, "lang", None)), "error")
             return render_template("portal/register.html")
+
+        if not tenant_name:
+            tenant_name = TenantService.generate_unique_cosmic_tenant_name()
         
         if password != password_confirm:
             flash(tr("As senhas não coincidem.", getattr(g, "lang", None)), "error")
@@ -296,7 +531,8 @@ def register():
                 email=email,
                 password=password,
                 plan_code=plan_code,
-                send_verification=True
+                send_verification=True,
+                email_lang=getattr(g, "lang", None) or session.get("lang"),
             )
             
             # Audit event
@@ -347,7 +583,7 @@ def verify_email(token):
         db.session.commit()
         
         flash(tr("Email verificado com sucesso! Você já pode fazer login.", getattr(g, "lang", None)), "success")
-        return redirect(url_for("auth.login"))
+        return redirect("https://audeladedonnees.fr/tenant/login")
     
     except ValueError as e:
         current_app.logger.warning(f"Email verification failed: {e}")
@@ -372,7 +608,10 @@ def resend_verification():
         
         if user:
             try:
-                sent = EmailVerificationService.resend_verification(user)
+                sent = EmailVerificationService.resend_verification(
+                    user,
+                    lang=getattr(g, "lang", None) or session.get("lang"),
+                )
                 if sent:
                     flash(
                         tr("Email de verificação reenviado. Verifique sua caixa de entrada.", getattr(g, "lang", None)),
