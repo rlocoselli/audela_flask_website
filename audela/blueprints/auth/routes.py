@@ -5,6 +5,7 @@ import secrets
 from urllib.parse import urlencode
 
 import requests
+from sqlalchemy.orm.attributes import flag_modified
 
 from flask import flash, redirect, render_template, request, url_for, g, session, current_app
 from flask_login import login_user, logout_user, current_user, login_required
@@ -61,6 +62,34 @@ def _google_oauth_userinfo_url() -> str:
         current_app.config.get("GOOGLE_OAUTH_USERINFO_URL")
         or "https://openidconnect.googleapis.com/v1/userinfo"
     ).strip()
+
+
+def _save_google_profile_photo(tenant: Tenant, user: User, photo_url: str | None, display_name: str | None = None) -> None:
+    """Persist Google avatar in tenant user profile for profile-circle rendering."""
+    photo = str(photo_url or "").strip()
+    if not photo:
+        return
+    if not (photo.startswith("http://") or photo.startswith("https://")):
+        return
+
+    settings = tenant.settings_json if isinstance(tenant.settings_json, dict) else {}
+    profiles = settings.get("user_profiles") if isinstance(settings.get("user_profiles"), dict) else {}
+    key = str(int(user.id))
+    existing = profiles.get(key) if isinstance(profiles.get(key), dict) else {}
+
+    name_candidate = str(display_name or "").strip()
+    next_profile = {
+        "display_name": str(existing.get("display_name") or name_candidate).strip(),
+        "bio": str(existing.get("bio") or "").strip(),
+        "avatar_mode": "photo",
+        "avatar_icon": str(existing.get("avatar_icon") or "person-circle").strip() or "person-circle",
+        "photo_url": photo,
+        "updated_at": datetime.utcnow().isoformat(),
+    }
+    profiles[key] = next_profile
+    settings["user_profiles"] = profiles
+    tenant.settings_json = settings
+    flag_modified(tenant, "settings_json")
 
 
 @bp.route("/login", methods=["GET", "POST"])
@@ -336,6 +365,8 @@ def google_login_callback():
         return redirect(url_for("auth.login"))
 
     email = str(userinfo.get("email") or "").strip().lower()
+    google_photo = str(userinfo.get("picture") or "").strip()
+    google_name = str(userinfo.get("name") or "").strip()
     email_verified = bool(userinfo.get("email_verified"))
     if not email or not email_verified:
         flash(tr("Google account email is not verified.", getattr(g, "lang", None)), "error")
@@ -362,6 +393,7 @@ def google_login_callback():
                 send_verification=False,
                 email_lang=getattr(g, "lang", None) or session.get("lang"),
             )
+            _save_google_profile_photo(tenant, user, google_photo, google_name)
             db.session.add(
                 AuditEvent(
                     tenant_id=tenant.id,
@@ -385,6 +417,8 @@ def google_login_callback():
             if app_target == "tenant":
                 return redirect(url_for("tenant.login"))
             return redirect(url_for("auth.login"))
+
+        _save_google_profile_photo(tenant, user, google_photo, google_name)
 
     if user.status == "pending_verification":
         user.status = "active"
