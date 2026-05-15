@@ -1,0 +1,211 @@
+{% extends 'e_learning/admin/base_admin.html' %}
+{% set page_title = "Academy Admin — Dashboard" %}
+
+{% block admin_content %}
+<!-- Stats row -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="stat-card text-center">
+      <div class="fs-2 fw-bold text-primary">{{ subjects|length }}</div>
+      <div class="text-muted small">Subjects</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card text-center">
+      <div class="fs-2 fw-bold text-success">{{ modules|length }}</div>
+      <div class="text-muted small">Modules</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card text-center">
+      <div class="fs-2 fw-bold text-warning">{{ lessons|length }}</div>
+      <div class="text-muted small">Lessons</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card text-center">
+      <div class="fs-2 fw-bold text-danger">{{ exercises|length }}</div>
+      <div class="text-muted small">Exercises</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="stat-card text-center">
+      <div class="fs-2 fw-bold text-info">{{ total_quizzes }}</div>
+      <div class="text-muted small">Quizzes</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card text-center">
+      <div class="fs-2 fw-bold text-primary">{{ quiz_attempt_rate }}%</div>
+      <div class="text-muted small">Quiz Attempt Rate</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card text-center">
+      <div class="fs-2 fw-bold text-success">{{ quiz_pass_rate }}%</div>
+      <div class="text-muted small">Quiz Pass Rate</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card text-center">
+      <div class="fs-2 fw-bold text-warning">{{ quiz_avg_score }}%</div>
+      <div class="text-muted small">Average Quiz Score</div>
+    </div>
+  </div>
+</div>
+
+<!-- Quick actions row -->
+<div class="d-flex flex-wrap gap-2 mb-4">
+  <a href="{{ url_for('e_learning.admin_subject_form') }}" class="btn btn-sm btn-outline-primary">
+    <span class="material-symbols-outlined" style="font-size:.9rem;vertical-align:text-bottom;">add</span> Subject
+  </a>
+  <a href="{{ url_for('e_learning.admin_module_form') }}" class="btn btn-sm btn-outline-primary">
+    <span class="material-symbols-outlined" style="font-size:.9rem;vertical-align:text-bottom;">add</span> Module
+  </a>
+  <a href="{{ url_for('e_learning.admin_lesson_form') }}" class="btn btn-sm btn-outline-primary">
+    <span class="material-symbols-outlined" style="font-size:.9rem;vertical-align:text-bottom;">add</span> Lesson
+  </a>
+  <a href="{{ url_for('e_learning.admin_exercise_form') }}" class="btn btn-sm btn-outline-primary">
+    <span class="material-symbols-outlined" style="font-size:.9rem;vertical-align:text-bottom;">add</span> Exercise
+  </a>
+  <a href="{{ url_for('e_learning.admin_student_files') }}" class="btn btn-sm btn-outline-secondary">
+    <span class="material-symbols-outlined" style="font-size:.9rem;vertical-align:text-bottom;">attach_file</span> Student Files ({{ total_files }})
+  </a>
+  <a href="{{ url_for('e_learning.admin_quiz_list') }}" class="btn btn-sm btn-outline-secondary">
+    <span class="material-symbols-outlined" style="font-size:.9rem;vertical-align:text-bottom;">quiz</span> Quizzes ({{ total_quizzes }})
+  </a>
+</div>
+
+<!-- Subjects & Modules tree -->
+{% for subject in subjects %}
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-header d-flex align-items-center justify-content-between py-2"
+       style="background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;border-radius:.75rem .75rem 0 0;">
+    <div class="d-flex align-items-center gap-2">
+      <span class="material-symbols-outlined" style="font-size:1rem;">folder_open</span>
+      <strong>{{ subject.name_i18n.get('en', subject.code) }}</strong>
+      <span class="badge bg-light text-dark" style="font-size:.7rem;">{{ subject.code }}</span>
+      {% if not subject.is_active %}<span class="badge bg-warning text-dark">inactive</span>{% endif %}
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('e_learning.admin_subject_form', subject_id=subject.id) }}"
+         class="btn btn-sm btn-light btn-sm py-0 px-2" style="font-size:.75rem;">Edit</a>
+      <form action="{{ url_for('e_learning.admin_subject_delete', subject_id=subject.id) }}"
+            method="POST" class="d-inline"
+            onsubmit="return confirm('Delete subject {{ subject.code|e }} and ALL its content?');">
+        <button class="btn btn-sm btn-danger py-0 px-2" style="font-size:.75rem;">Delete</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card-body p-0">
+    {% set subj_modules = modules | selectattr('subject_id', 'eq', subject.id) | list %}
+    {% if subj_modules %}
+    <table class="table table-sm table-hover mb-0" style="font-size:.82rem;">
+      <thead class="table-light">
+        <tr>
+          <th style="width:2rem;">#</th>
+          <th>Module</th>
+          <th>Level</th>
+          <th>Lessons</th>
+          <th>Exercises</th>
+          <th>Active</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for module in subj_modules %}
+        {% set mod_lessons = lessons | selectattr('module_id', 'eq', module.id) | list %}
+        {% set mod_exercises = [] %}
+        {% for l in mod_lessons %}{% set _ = mod_exercises.extend(exercises | selectattr('lesson_id', 'eq', l.id) | list) %}{% endfor %}
+        <tr>
+          <td class="text-muted">{{ module.order }}</td>
+          <td>
+            <strong>{{ module.title_i18n.get('en', module.code) }}</strong>
+            <span class="text-muted ms-1" style="font-size:.75rem;">{{ module.code }}</span>
+          </td>
+          <td>
+            <span class="badge bg-{{ 'success' if module.level=='beginner' else ('warning' if module.level=='intermediate' else 'danger') }}-subtle text-{{ 'success' if module.level=='beginner' else ('warning' if module.level=='intermediate' else 'danger') }}">
+              {{ module.level }}
+            </span>
+          </td>
+          <td>{{ mod_lessons|length }}</td>
+          <td>{{ mod_exercises|length }}</td>
+          <td>
+            {% if module.is_active %}<span class="text-success">✓</span>{% else %}<span class="text-muted">—</span>{% endif %}
+          </td>
+          <td class="tbl-action">
+            <a href="{{ url_for('e_learning.admin_module_form', module_id=module.id) }}"
+               class="btn btn-xs btn-outline-secondary btn-sm py-0 px-2 me-1">Edit</a>
+            <form action="{{ url_for('e_learning.admin_module_delete', module_id=module.id) }}"
+                  method="POST" class="d-inline"
+                  onsubmit="return confirm('Delete {{ module.code|e }}?');">
+              <button class="btn btn-xs btn-outline-danger btn-sm py-0 px-2">Del</button>
+            </form>
+          </td>
+        </tr>
+        <!-- Lessons rows (collapsible) -->
+        {% for lesson in mod_lessons %}
+        <tr class="table-light" style="font-size:.78rem;">
+          <td></td>
+          <td colspan="2" class="ps-4 text-muted">
+            <span class="material-symbols-outlined" style="font-size:.85rem;vertical-align:text-bottom;">article</span>
+            {{ lesson.title_i18n.get('en', lesson.code) }}
+            <span class="text-secondary">({{ lesson.code }})</span>
+          </td>
+          <td colspan="2" class="text-muted">
+            {% set les_exercises = exercises | selectattr('lesson_id', 'eq', lesson.id) | list %}
+            {{ les_exercises|length }} exercise{{ 's' if les_exercises|length != 1 else '' }}
+          </td>
+          <td></td>
+          <td class="tbl-action">
+            <a href="{{ url_for('e_learning.admin_lesson_form', lesson_id=lesson.id) }}"
+               class="btn btn-xs btn-outline-secondary btn-sm py-0 px-1 me-1">Edit</a>
+            <a href="{{ url_for('e_learning.admin_exercise_form') }}?lesson_id={{ lesson.id }}"
+               class="btn btn-xs btn-outline-primary btn-sm py-0 px-1 me-1">+ Exercise</a>
+            <form action="{{ url_for('e_learning.admin_lesson_delete', lesson_id=lesson.id) }}"
+                  method="POST" class="d-inline"
+                  onsubmit="return confirm('Delete lesson {{ lesson.code|e }}?');">
+              <button class="btn btn-xs btn-outline-danger btn-sm py-0 px-1">Del</button>
+            </form>
+          </td>
+        </tr>
+        {% set les_exercises = exercises | selectattr('lesson_id', 'eq', lesson.id) | list %}
+        {% for ex in les_exercises | sort(attribute='order') %}
+        <tr style="font-size:.75rem;background:#fafbff;">
+          <td></td>
+          <td colspan="3" class="ps-5 text-muted">
+            <span class="material-symbols-outlined" style="font-size:.8rem;vertical-align:text-bottom;">quiz</span>
+            {{ ex.title_i18n.get('en', ex.code) if ex.title_i18n else ex.code }}
+            <span class="text-secondary">({{ ex.code }})</span>
+            <span class="badge bg-light text-secondary border ms-1" style="font-size:.68rem;">{{ ex.type }}</span>
+            {% if not ex.is_active %}<span class="badge bg-secondary ms-1" style="font-size:.68rem;">inactive</span>{% endif %}
+          </td>
+          <td class="text-muted">{{ ex.points }} pts</td>
+          <td class="tbl-action">
+            <a href="{{ url_for('e_learning.admin_exercise_form', exercise_id=ex.id) }}"
+               class="btn btn-xs btn-outline-secondary btn-sm py-0 px-1 me-1">Edit</a>
+            <form action="{{ url_for('e_learning.admin_exercise_delete', exercise_id=ex.id) }}"
+                  method="POST" class="d-inline"
+                  onsubmit="return confirm('Delete exercise {{ ex.code|e }}?');">
+              <button class="btn btn-xs btn-outline-danger btn-sm py-0 px-1">Del</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+        {% endfor %}
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-muted p-3 mb-0">No modules yet. <a href="{{ url_for('e_learning.admin_module_form') }}?subject_id={{ subject.id }}">Add one.</a></p>
+    {% endif %}
+  </div>
+</div>
+{% else %}
+<div class="alert alert-info">No subjects yet. <a href="{{ url_for('e_learning.admin_subject_form') }}">Create the first one.</a></div>
+{% endfor %}
+{% endblock %}

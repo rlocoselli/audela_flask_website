@@ -260,8 +260,10 @@ def api_complete_module(module_id):
     return jsonify({
         "success": True,
         "certificate_id": cert.id,
+        "certificate_uuid": cert.shared_link_uuid,
         "certificate_number": cert.certificate_number,
         "verification_code": cert.verification_code,
+        "share_link": f"/e_learning/certificate/share/{cert.shared_link_uuid}",
         "message": tr("module_completed_certificate_issued"),
     })
 

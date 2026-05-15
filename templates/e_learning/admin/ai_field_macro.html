@@ -1,0 +1,274 @@
+{#
+  Reusable Jinja2 macro: multilingual text input with AI helpers.
+
+  Usage:
+    {% from 'e_learning/admin/ai_field_macro.html' import ai_field, ai_richtext %}
+
+    {{ ai_field('title', label='Module title', current=module.title_i18n if module else {}, lang_names=lang_names, all_langs=all_langs, field_type='title', ai_enabled=ai_enabled) }}
+    {{ ai_richtext('content_html', label='Lesson body', current=lesson.content_html_i18n if lesson else {}, lang_names=lang_names, all_langs=all_langs, field_type='content_html', ai_enabled=ai_enabled) }}
+#}
+
+{% macro ai_field(prefix, label, current, lang_names, all_langs, field_type='description', ai_enabled=false) %}
+{% set current_map = current|default({}, true) %}
+<div class="mb-4 ai-field-group" data-prefix="{{ prefix }}" data-field-type="{{ field_type }}">
+  <div class="d-flex align-items-center justify-content-between mb-1">
+    <label class="form-label fw-semibold mb-0">{{ label }}</label>
+    {% if ai_enabled %}
+    <div class="d-flex gap-1">
+      <button type="button" class="btn btn-xs btn-outline-purple btn-sm py-0 px-2"
+              style="font-size:.72rem;border-color:#7c3aed;color:#7c3aed;"
+              onclick="aiGenerate('{{ prefix }}', '{{ field_type }}')">
+        ✨ Generate
+      </button>
+      <button type="button" class="btn btn-xs btn-outline-secondary btn-sm py-0 px-2"
+              style="font-size:.72rem;"
+              onclick="aiTranslateField('{{ prefix }}', '{{ field_type }}')">
+        🌐 Translate all
+      </button>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Language tabs -->
+  <ul class="nav nav-tabs nav-tabs-sm mb-0" style="font-size:.8rem;">
+    {% for lang in all_langs %}
+    <li class="nav-item">
+      <button class="nav-link {% if loop.first %}active{% endif %} py-1 px-2"
+              style="font-size:.78rem;"
+              type="button"
+              data-bs-toggle="tab"
+              data-bs-target="#{{ prefix }}_tab_{{ lang }}">
+        {{ lang_names.get(lang, lang)|truncate(3,true,'') }}
+        {% if current_map.get(lang) %}<span class="text-success ms-1">●</span>{% endif %}
+      </button>
+    </li>
+    {% endfor %}
+  </ul>
+
+  <div class="tab-content border border-top-0 rounded-bottom p-2">
+    {% for lang in all_langs %}
+    <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="{{ prefix }}_tab_{{ lang }}">
+      <div class="d-flex gap-1 mb-1 justify-content-end">
+        {% if ai_enabled %}
+        <button type="button" class="btn btn-xs py-0 px-2"
+                style="font-size:.7rem;background:rgba(124,58,237,.08);color:#7c3aed;border:1px solid rgba(124,58,237,.25);"
+                onclick="aiImprove('{{ prefix }}', '{{ lang }}', '{{ field_type }}')">
+          ✦ Improve
+        </button>
+        {% endif %}
+      </div>
+      <textarea
+        class="form-control form-control-sm ai-inp"
+        id="{{ prefix }}__{{ lang }}"
+        name="{{ prefix }}__{{ lang }}"
+        rows="{{ 2 if field_type in ('title',) else 4 }}"
+        placeholder="{{ lang_names.get(lang, lang) }}"
+        style="resize:vertical;font-size:.83rem;">{{ current_map.get(lang, '') }}</textarea>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if ai_enabled %}
+  <!-- Generate dialog -->
+  <div id="{{ prefix }}_gen_panel"
+       style="display:none;background:#faf5ff;border:1px solid #ddd6fe;border-radius:.5rem;padding:.75rem;margin-top:.5rem;">
+    <div class="d-flex gap-2 align-items-start">
+      <select id="{{ prefix }}_gen_lang" class="form-select form-select-sm" style="width:9rem;font-size:.8rem;">
+        {% for lang in all_langs %}
+        <option value="{{ lang }}" {% if lang=='en' %}selected{% endif %}>{{ lang_names.get(lang, lang) }}</option>
+        {% endfor %}
+      </select>
+      <textarea id="{{ prefix }}_gen_prompt" class="form-control form-control-sm"
+                rows="2" placeholder="Describe what to write…" style="flex:1;font-size:.8rem;"></textarea>
+      <button type="button" class="btn btn-sm btn-primary"
+              style="font-size:.8rem;white-space:nowrap;"
+              onclick="aiGenerateSubmit('{{ prefix }}', '{{ field_type }}')">Go</button>
+      <button type="button" class="btn btn-sm btn-light"
+              style="font-size:.8rem;"
+              onclick="document.getElementById('{{ prefix }}_gen_panel').style.display='none'">✕</button>
+    </div>
+    <div id="{{ prefix }}_gen_status" class="text-muted mt-1" style="font-size:.75rem;"></div>
+  </div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+
+{% macro ai_richtext(prefix, label, current, lang_names, all_langs, field_type='content_html', ai_enabled=false) %}
+{% set current_map = current|default({}, true) %}
+<div class="mb-4 ai-field-group" data-prefix="{{ prefix }}" data-field-type="{{ field_type }}">
+  <div class="d-flex align-items-center justify-content-between mb-1">
+    <label class="form-label fw-semibold mb-0">{{ label }}</label>
+    {% if ai_enabled %}
+    <div class="d-flex gap-1">
+      <button type="button" class="btn btn-xs btn-sm py-0 px-2"
+              style="font-size:.72rem;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;"
+              onclick="aiGenerate('{{ prefix }}', '{{ field_type }}')">
+        ✨ Generate with AI
+      </button>
+      <button type="button" class="btn btn-xs btn-outline-secondary btn-sm py-0 px-2"
+              style="font-size:.72rem;"
+              onclick="aiTranslateField('{{ prefix }}', '{{ field_type }}')">
+        🌐 Translate all
+      </button>
+    </div>
+    {% endif %}
+  </div>
+
+  <ul class="nav nav-tabs mb-0" style="font-size:.8rem;">
+    {% for lang in all_langs %}
+    <li class="nav-item">
+      <button class="nav-link {% if loop.first %}active{% endif %} py-1 px-2"
+              style="font-size:.78rem;"
+              type="button" data-bs-toggle="tab"
+              data-bs-target="#{{ prefix }}_tab_{{ lang }}">
+        {{ lang_names.get(lang, lang)|truncate(3,true,'') }}
+        {% if current_map.get(lang) %}<span class="text-success ms-1">●</span>{% endif %}
+      </button>
+    </li>
+    {% endfor %}
+  </ul>
+
+  <div class="tab-content border border-top-0 rounded-bottom">
+    {% for lang in all_langs %}
+    <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="{{ prefix }}_tab_{{ lang }}">
+      <div class="d-flex gap-1 p-1 justify-content-end bg-light border-bottom" style="font-size:.72rem;">
+        {% if ai_enabled %}
+        <button type="button" class="btn btn-xs py-0 px-2"
+                style="font-size:.7rem;background:rgba(99,102,241,.1);color:#4f46e5;border:1px solid rgba(99,102,241,.3);"
+                onclick="aiImprove('{{ prefix }}', '{{ lang }}', '{{ field_type }}')">
+          ✦ Improve
+        </button>
+        {% endif %}
+        <small class="text-muted align-self-center ms-2">HTML is supported</small>
+      </div>
+      <textarea
+        class="form-control border-0 rounded-0 rounded-bottom ai-inp"
+        id="{{ prefix }}__{{ lang }}"
+        name="{{ prefix }}__{{ lang }}"
+        rows="10"
+        placeholder="{{ lang_names.get(lang, lang) }} — HTML content"
+        style="resize:vertical;font-size:.82rem;font-family:inherit;">{{ current_map.get(lang, '') }}</textarea>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if ai_enabled %}
+  <div id="{{ prefix }}_gen_panel"
+       style="display:none;background:#faf5ff;border:1px solid #ddd6fe;border-radius:.5rem;padding:.75rem;margin-top:.5rem;">
+    <div class="d-flex gap-2 align-items-start">
+      <select id="{{ prefix }}_gen_lang" class="form-select form-select-sm" style="width:9rem;font-size:.8rem;">
+        {% for lang in all_langs %}
+        <option value="{{ lang }}" {% if lang=='en' %}selected{% endif %}>{{ lang_names.get(lang, lang) }}</option>
+        {% endfor %}
+      </select>
+      <textarea id="{{ prefix }}_gen_prompt" class="form-control form-control-sm"
+                rows="2" placeholder="Topic / prompt for AI…" style="flex:1;font-size:.8rem;"></textarea>
+      <button type="button" class="btn btn-sm btn-primary"
+              style="font-size:.8rem;white-space:nowrap;"
+              onclick="aiGenerateSubmit('{{ prefix }}', '{{ field_type }}')">Generate</button>
+      <button type="button" class="btn btn-sm btn-light"
+              style="font-size:.8rem;"
+              onclick="document.getElementById('{{ prefix }}_gen_panel').style.display='none'">✕</button>
+    </div>
+    <div id="{{ prefix }}_gen_status" class="text-muted mt-1" style="font-size:.75rem;"></div>
+  </div>
+  {% endif %}
+</div>
+{% endmacro %}
+
+
+{# JavaScript block — include once per page #}
+{% macro ai_scripts(ai_enabled) %}
+{% if ai_enabled %}
+<script>
+const _AI = {
+  generate: '{{ url_for("e_learning.admin_api_ai_generate") }}',
+  improve:  '{{ url_for("e_learning.admin_api_ai_improve") }}',
+  translate:'{{ url_for("e_learning.admin_api_ai_translate") }}',
+};
+
+function _setStatus(prefix, msg, cls='text-muted') {
+  const el = document.getElementById(prefix + '_gen_status');
+  if (el) { el.className = cls + ' mt-1'; el.style.fontSize='.75rem'; el.textContent = msg; }
+}
+
+function aiGenerate(prefix, fieldType) {
+  const panel = document.getElementById(prefix + '_gen_panel');
+  if (panel) { panel.style.display = panel.style.display === 'none' ? '' : 'none'; }
+}
+
+async function aiGenerateSubmit(prefix, fieldType) {
+  const prompt = document.getElementById(prefix + '_gen_prompt')?.value?.trim();
+  const lang   = document.getElementById(prefix + '_gen_lang')?.value || 'en';
+  if (!prompt) { _setStatus(prefix, 'Enter a prompt first.', 'text-danger'); return; }
+  _setStatus(prefix, '⏳ Generating…');
+  try {
+    const resp = await fetch(_AI.generate, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({prompt, field: fieldType, lang})
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.error) { _setStatus(prefix, '❌ ' + (data.error||resp.statusText), 'text-danger'); return; }
+    const ta = document.getElementById(prefix + '__' + lang);
+    if (ta) ta.value = data.result;
+    // Switch to that tab
+    const tabBtn = document.querySelector(`[data-bs-target="#${prefix}_tab_${lang}"]`);
+    if (tabBtn) new bootstrap.Tab(tabBtn).show();
+    _setStatus(prefix, '✅ Done — review and edit as needed.', 'text-success');
+  } catch(e) { _setStatus(prefix, '❌ Error: ' + e, 'text-danger'); }
+}
+
+async function aiImprove(prefix, lang, fieldType) {
+  const ta = document.getElementById(prefix + '__' + lang);
+  if (!ta || !ta.value.trim()) return;
+  const original = ta.value;
+  ta.disabled = true;
+  try {
+    const resp = await fetch(_AI.improve, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({text: original, field: fieldType, lang})
+    });
+    const data = await resp.json();
+    if (resp.ok && data.result) ta.value = data.result;
+  } finally { ta.disabled = false; }
+}
+
+async function aiTranslateField(prefix, fieldType) {
+  const langs = ['en','pt','fr','es','it','de'];
+
+  // Source language is the currently selected tab for this field
+  let srcLang = 'en';
+  const activeTabBtn =
+    document.querySelector(`[data-bs-target^="#${prefix}_tab_"].active`) ||
+    document.querySelector(`[data-bs-target^="#${prefix}_tab_"][aria-selected="true"]`);
+  if (activeTabBtn) {
+    const target = activeTabBtn.getAttribute('data-bs-target') || '';
+    const match = target.match(new RegExp(`^#${prefix}_tab_([a-z]{2})$`));
+    if (match && match[1]) srcLang = match[1];
+  }
+
+  const srcTextarea = document.getElementById(prefix + '__' + srcLang);
+  const srcText = (srcTextarea?.value || '').trim();
+  if (!srcText) {
+    alert('Add content in the currently selected language tab first.');
+    return;
+  }
+
+  const targets = langs.filter(l => l !== srcLang);
+  try {
+    const resp = await fetch(_AI.translate, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({text: srcText, source_lang: srcLang, target_langs: targets})
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.translations) return;
+    for (const [lg, txt] of Object.entries(data.translations)) {
+      const ta = document.getElementById(prefix + '__' + lg);
+      if (ta) ta.value = txt;
+    }
+  } catch(e) { console.error(e); }
+}
+</script>
+{% endif %}
+{% endmacro %}

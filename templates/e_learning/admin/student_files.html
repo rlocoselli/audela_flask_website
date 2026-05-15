@@ -1,0 +1,106 @@
+{% extends 'e_learning/admin/base_admin.html' %}
+
+{% block admin_content %}
+<div class="row g-4">
+  <div class="col-12 col-lg-5">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-transparent fw-semibold">Upload file to student</div>
+      <div class="card-body">
+        <form method="POST" action="{{ url_for('e_learning.admin_student_file_upload') }}" enctype="multipart/form-data" class="d-flex flex-column gap-3">
+          <div>
+            <label class="form-label">Student</label>
+            <select class="form-select" name="user_id" required>
+              <option value="">Select student</option>
+              {% for u in all_users %}
+              <option value="{{ u.id }}">{{ u.email }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label">Module (optional)</label>
+              <select class="form-select" name="module_id">
+                <option value="">None</option>
+                {% for m in modules %}
+                <option value="{{ m.id }}">{{ m.title_i18n.get('en', m.code) }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Lesson (optional)</label>
+              <select class="form-select" name="lesson_id">
+                <option value="">None</option>
+                {% for l in lessons %}
+                <option value="{{ l.id }}">{{ l.title_i18n.get('en', l.code) }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label class="form-label">Label (optional)</label>
+            <input type="text" class="form-control" name="label" placeholder="Statement, assignment, notes...">
+          </div>
+          <div>
+            <label class="form-label">Description (optional)</label>
+            <textarea class="form-control" name="description" rows="3"></textarea>
+          </div>
+          <div>
+            <label class="form-label">File</label>
+            <input type="file" class="form-control" name="file" required>
+            <div class="form-text">Allowed: pdf, doc/docx, xls/xlsx/csv, txt/md, png/jpg/gif/svg, zip, ppt/pptx</div>
+          </div>
+
+          <button class="btn btn-primary" type="submit">Upload</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-7">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-transparent fw-semibold">Shared files</div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Student</th>
+              <th>File</th>
+              <th>Scope</th>
+              <th>Date</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for f in files %}
+            <tr>
+              <td>{{ f.user.email if f.user else ('User#' ~ f.user_id) }}</td>
+              <td>
+                <div class="fw-semibold">{{ f.label or f.original_filename }}</div>
+                <div class="small text-muted">{{ f.original_filename }}</div>
+              </td>
+              <td>
+                {% if f.module %}<span class="badge bg-primary-subtle text-primary-emphasis">{{ f.module.code }}</span>{% endif %}
+                {% if f.lesson %}<span class="badge bg-secondary-subtle text-secondary-emphasis">{{ f.lesson.code }}</span>{% endif %}
+              </td>
+              <td class="small text-muted">{{ f.created_at.strftime('%Y-%m-%d %H:%M') if f.created_at else '' }}</td>
+              <td class="text-end">
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('e_learning.student_file_download', file_id=f.id) }}">Download</a>
+                <form method="POST" action="{{ url_for('e_learning.admin_student_file_delete', file_id=f.id) }}" class="d-inline" onsubmit="return confirm('Delete this file?')">
+                  <button class="btn btn-sm btn-outline-danger">Delete</button>
+                </form>
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="5" class="text-center text-muted py-4">No files shared yet.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

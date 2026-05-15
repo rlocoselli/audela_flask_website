@@ -1270,7 +1270,7 @@ def change_admin_password():
 @bp.route("/internal-analytics")
 def internal_analytics():
     """Internal page-view and feature-usage analytics dashboard."""
-    guard = _require_admin_login()
+    guard = _admin_guard_redirect()
     if guard:
         return guard
 

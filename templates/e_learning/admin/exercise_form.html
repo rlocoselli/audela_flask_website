@@ -1,0 +1,92 @@
+{% extends 'e_learning/admin/base_admin.html' %}
+{% from 'e_learning/admin/ai_field_macro.html' import ai_field, ai_scripts %}
+{% set page_title = ('Edit Exercise — ' ~ (exercise.code if exercise else '')) if exercise else 'New Exercise' %}
+
+{% block admin_content %}
+<div class="card border-0 shadow-sm" style="max-width:1200px;">
+  <div class="card-header py-2" style="background:#f8fafc;border-bottom:1px solid #e2e8f0;">
+    <h5 class="mb-0 fw-semibold" style="font-size:.95rem;">{{ 'Edit Exercise' if exercise else 'New Exercise' }}</h5>
+  </div>
+  <div class="card-body p-4">
+    <form method="POST">
+      <div class="row g-3 mb-3">
+        <div class="col-md-4">
+          <label class="form-label fw-semibold">Lesson <span class="text-danger">*</span></label>
+          <select class="form-select" name="lesson_id" required>
+            <option value="">Select lesson</option>
+            {% set preselect_lesson = request.args.get('lesson_id', '')|int %}
+            {% for l in lessons %}
+            <option value="{{ l.id }}" {% if (exercise and exercise.lesson_id == l.id) or (not exercise and preselect_lesson == l.id) %}selected{% endif %}>
+              {{ l.title_i18n.get('en', l.code) }} ({{ l.code }})
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">Code <span class="text-danger">*</span></label>
+          <input type="text" name="code" class="form-control" value="{{ exercise.code if exercise else '' }}" placeholder="ex-001" required>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label fw-semibold">Type</label>
+          <select class="form-select" name="type">
+            {% set ex_type = exercise.type if exercise else 'sql_query' %}
+            <option value="sql_query" {% if ex_type == 'sql_query' %}selected{% endif %}>sql_query</option>
+            <option value="sql_dml" {% if ex_type == 'sql_dml' %}selected{% endif %}>sql_dml</option>
+            <option value="multiple_choice" {% if ex_type == 'multiple_choice' %}selected{% endif %}>multiple_choice</option>
+            <option value="code" {% if ex_type == 'code' %}selected{% endif %}>code</option>
+          </select>
+        </div>
+        <div class="col-md-1">
+          <label class="form-label fw-semibold">Order</label>
+          <input type="number" name="order" class="form-control" value="{{ exercise.order if exercise else 0 }}" min="0">
+        </div>
+        <div class="col-md-1">
+          <label class="form-label fw-semibold">Points</label>
+          <input type="number" name="points" class="form-control" value="{{ exercise.points if exercise else 10 }}" min="0">
+        </div>
+        <div class="col-md-1 d-flex align-items-end">
+          <label class="form-check-label fw-semibold">
+            <input type="checkbox" name="is_active" value="1" class="form-check-input me-2" {% if not exercise or exercise.is_active %}checked{% endif %}>
+            Active
+          </label>
+        </div>
+      </div>
+
+      {{ ai_field('title', 'Exercise title', exercise.title_i18n if exercise else {}, lang_names, all_langs, 'title', ai_enabled) }}
+      {{ ai_field('instruction', 'Instruction', exercise.instruction_i18n if exercise else {}, lang_names, all_langs, 'instruction', ai_enabled) }}
+      {{ ai_field('hint', 'Hint', exercise.hint_i18n if exercise else {}, lang_names, all_langs, 'hint', ai_enabled) }}
+
+      <div class="row g-3">
+        <div class="col-12">
+          <label class="form-label fw-semibold">Expected SQL (optional)</label>
+          <textarea name="expected_sql" class="form-control" rows="4" placeholder="SELECT ...">{{ exercise.expected_sql if exercise and exercise.expected_sql else '' }}</textarea>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-semibold">DML operation (optional)</label>
+          <input type="text" name="dml_operation" class="form-control" value="{{ exercise.dml_operation if exercise and exercise.dml_operation else '' }}" placeholder="INSERT/UPDATE/DELETE">
+        </div>
+        <div class="col-md-8">
+          <label class="form-label fw-semibold">Passing condition (optional)</label>
+          <input type="text" name="passing_condition" class="form-control" value="{{ exercise.passing_condition if exercise and exercise.passing_condition else '' }}" placeholder="row_count >= 1">
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold">Validation query (optional)</label>
+          <textarea name="validation_query" class="form-control" rows="4" placeholder="SELECT COUNT(*) ...">{{ exercise.validation_query if exercise and exercise.validation_query else '' }}</textarea>
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold">Expected result JSON (optional)</label>
+          <textarea name="expected_result_json" class="form-control font-monospace" rows="4" placeholder='{"columns":["id","name"],"rows":[[1,"Alice"]]}'>{%- if exercise and exercise.expected_result_json -%}{{ exercise.expected_result_json | tojson }}{%- endif -%}</textarea>
+          <div class="form-text">JSON object describing the expected query output for automated validation.</div>
+        </div>
+      </div>
+
+      <div class="d-flex gap-2 mt-3">
+        <button type="submit" class="btn btn-primary">Save</button>
+        <a href="{{ url_for('e_learning.admin_dashboard') }}" class="btn btn-light">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+{{ ai_scripts(ai_enabled) }}
+{% endblock %}

@@ -1,75 +1,157 @@
 {% extends 'e_learning/base_e_learning.html' %}
 
 {% block e_learning_content %}
-{% set share_url = url_for('e_learning.certificate_view', cert_id=certificate.id, _external=True) %}
+{% set share_url = url_for('e_learning.certificate_view_uuid', uuid=certificate.shared_link_uuid, _external=True) %}
+{% set verify_url = url_for('e_learning.verify_certificate', code=certificate.verification_code, _external=True) %}
+{% set qr_url = url_for('e_learning.certificate_qr', code=certificate.verification_code) %}
+
+{# LinkedIn "Add to Profile" deep-link parameters #}
+{% set li_name = (certificate.module.title_i18n.get(current_lang, certificate.module.title_i18n.get('en', certificate.module.code))) | urlencode %}
+{% set li_cert_url = share_url | urlencode %}
+{% set li_org = "Audela" %}
+{% set li_issue_year = certificate.issued_at.strftime('%Y') %}
+{% set li_issue_month = certificate.issued_at.strftime('%-m') %}
+{% set linkedin_add_url = "https://www.linkedin.com/profile/add?startTask=CERTIFICATION_NAME&name=" ~ li_name ~ "&organizationName=" ~ li_org ~ "&issueYear=" ~ li_issue_year ~ "&issueMonth=" ~ li_issue_month ~ "&certUrl=" ~ li_cert_url ~ "&certId=" ~ certificate.certificate_number %}
+
 <div class="container py-5">
     <div class="row justify-content-center">
-        <div class="col-lg-8">
-            <!-- Certificate -->
-            <div class="card border-0 shadow-lg" style="background: linear-gradient(135deg, #ffd89b 0%, #19547b 100%); color: white; min-height: 500px;">
-                <div class="card-body d-flex flex-column justify-content-center align-items-center text-center px-5 py-5">
-                    <span class="material-symbols-outlined" style="font-size: 96px; margin-bottom: 2rem;">card_giftcard</span>
-                    
-                    <h2 class="mb-4">{{ _('Certificate of Completion') }}</h2>
-                    
-                    <p class="lead mb-1">{{ _('This Certifies That') }}</p>
-                    <h4 class="mb-4" style="border-bottom: 2px solid white; padding-bottom: 1rem;">
+        <div class="col-lg-9">
+
+            <!-- Certificate card -->
+            <div id="certificate-card" class="border-0 shadow-lg" style="
+                background: linear-gradient(145deg, #0a1628 0%, #0f2450 45%, #193a6e 100%);
+                color: white;
+                border-radius: 1.25rem;
+                overflow: hidden;
+                position: relative;
+            ">
+                <!-- Decorative top accent bar -->
+                <div style="height:6px;background:linear-gradient(90deg,#8fe3ff 0%,#5cc6ff 50%,#3b9fe8 100%);"></div>
+
+                <div class="d-flex flex-column align-items-center text-center px-5 py-5" style="position:relative;z-index:2;">
+
+                    <!-- Audela logo -->
+                    <div class="mb-3">
+                        <img src="{{ url_for('static', filename='images/audela-logo.svg') }}"
+                             alt="Audela"
+                             style="height:54px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.35));" />
+                    </div>
+
+                    <!-- Decorative separator -->
+                    <div style="width:60px;height:2px;background:linear-gradient(90deg,#8fe3ff,#5cc6ff);border-radius:2px;margin-bottom:1.75rem;"></div>
+
+                    <h2 class="mb-4 fw-bold" style="font-size:1.75rem;letter-spacing:.04em;text-transform:uppercase;font-family:Georgia,serif;color:white;">
+                        Certificado de Conclusão
+                    </h2>
+
+                    <p class="mb-1 text-uppercase" style="font-size:.75rem;letter-spacing:.14em;opacity:.75;">{{ _('This Certifies That') }}</p>
+                    <h3 class="mb-4 fw-bold" style="font-size:2rem;font-family:Georgia,serif;border-bottom:2px solid rgba(143,227,255,.45);padding-bottom:.85rem;min-width:280px;">
                         {{ certificate.user.username if certificate.user else 'User' }}
-                    </h4>
-                    
-                    <p class="mb-1">{{ _('Has successfully completed the course') }}</p>
-                    <h5 class="mb-4">{{ certificate.module.title_i18n.get(current_lang, certificate.module.title_i18n.get('en', certificate.module.code)) }}</h5>
-                    
-                    <p class="mb-3">
-                        <strong>{{ _('Final Score') }}: {{ certificate.final_score }}%</strong>
-                    </p>
-                    
-                    <div class="mt-4 w-100" style="border-top: 2px solid white; padding-top: 2rem;">
-                        <small>{{ _('Certificate Number') }}: {{ certificate.certificate_number }}</small><br/>
-                        <small>{{ _('Issued On') }}: {{ certificate.issued_at.strftime('%d/%m/%Y') }}</small><br/>
-                        <small>{{ _('Verification Code') }}: {{ certificate.verification_code }}</small>
+                    </h3>
+
+                    <p class="mb-1 text-uppercase" style="font-size:.75rem;letter-spacing:.14em;opacity:.75;">{{ _('Has successfully completed the course') }}</p>
+                    <h5 class="mb-3 fw-semibold" style="font-size:1.2rem;color:#8fe3ff;max-width:560px;">{{ certificate.module.title_i18n.get(current_lang, certificate.module.title_i18n.get('en', certificate.module.code)) }}</h5>
+
+                    <!-- Score badge -->
+                    <div class="mb-4" style="background:rgba(143,227,255,.15);border:1px solid rgba(143,227,255,.35);border-radius:999px;padding:.4rem 1.4rem;font-size:.95rem;">
+                        <strong style="color:#8fe3ff;">{{ _('Final Score') }}:</strong>&nbsp;{{ certificate.final_score }}%
+                    </div>
+
+                    <!-- Footer row: meta + QR -->
+                    <div class="w-100 d-flex align-items-center justify-content-between flex-wrap gap-3" style="border-top:1px solid rgba(143,227,255,.3);padding-top:1.5rem;margin-top:.5rem;">
+                        <div class="text-start" style="font-size:.78rem;opacity:.85;line-height:1.8;">
+                            <div>{{ _('Certificate Number') }}: <strong>{{ certificate.certificate_number }}</strong></div>
+                            <div>{{ _('Issued On') }}: {{ certificate.issued_at.strftime('%d/%m/%Y') }}</div>
+                            <div>{{ _('Verification Code') }}: <code style="color:#8fe3ff;">{{ certificate.verification_code }}</code></div>
+                            <div style="margin-top:.4rem;opacity:.65;font-size:.72rem;">audela.com &nbsp;·&nbsp; Aller au-delà des données</div>
+                        </div>
+                        <!-- QR code -->
+                        <div class="text-center">
+                            <img src="{{ qr_url }}"
+                                 alt="Scan to verify certificate"
+                                 style="width:90px;height:90px;border-radius:.5rem;background:white;padding:4px;" />
+                            <div style="font-size:.68rem;margin-top:.35rem;opacity:.75;">{{ _('Scan to verify') }}</div>
+                        </div>
                     </div>
                 </div>
+
+                <!-- Decorative bottom accent bar -->
+                <div style="height:4px;background:linear-gradient(90deg,#3b9fe8 0%,#5cc6ff 50%,#8fe3ff 100%);"></div>
+
+                <!-- Subtle background orb decoration -->
+                <div style="position:absolute;top:-80px;right:-80px;width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,rgba(92,198,255,.12) 0%,transparent 70%);z-index:1;pointer-events:none;"></div>
+                <div style="position:absolute;bottom:-60px;left:-60px;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(143,227,255,.08) 0%,transparent 70%);z-index:1;pointer-events:none;"></div>
             </div>
-            
+
             <!-- Actions -->
-            <div class="row mt-4 gap-2">
-                <div class="col-md-6">
-                    <a href="https://www.linkedin.com/sharing/share-offsite/?url={{ share_url }}" target="_blank" class="btn btn-primary w-100">
-                        <span class="material-symbols-outlined" style="display: inline;">share</span>
+            <div class="row mt-4 g-2">
+                <div class="col-sm-6 col-md-3">
+                    <a href="{{ linkedin_add_url }}" target="_blank" rel="noopener noreferrer"
+                       class="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M0 1.146C0 .513.526 0 1.175 0h13.65C15.474 0 16 .513 16 1.146v13.708c0 .633-.526 1.146-1.175 1.146H1.175C.526 16 0 15.487 0 14.854zm4.943 12.248V6.169H2.542v7.225zm-1.2-8.212c.837 0 1.358-.554 1.358-1.248-.015-.709-.52-1.248-1.342-1.248S2.4 3.226 2.4 3.934c0 .694.521 1.248 1.327 1.248zm4.908 8.212V9.359c0-.216.016-.432.08-.586.173-.431.568-.878 1.232-.878.869 0 1.216.662 1.216 1.634v3.865h2.401V9.25c0-2.22-1.184-3.252-2.764-3.252-1.274 0-1.845.7-2.165 1.193v.025h-.016l.016-.025V6.169h-2.4c.03.678 0 7.225 0 7.225z"/>
+                        </svg>
+                        {{ _('Add to LinkedIn') }}
+                    </a>
+                </div>
+                <div class="col-sm-6 col-md-3">
+                    {% set module_title = certificate.module.title_i18n.get(current_lang, certificate.module.title_i18n.get('en', certificate.module.code)) %}
+                    {% set linkedin_post_text = "🎓 Thrilled to share that I have just completed the \"" ~ module_title ~ "\" course at Audela Academy with a score of " ~ certificate.final_score ~ "%! 🚀\n\nThis certification has strengthened my skills and I'm excited to apply this knowledge in real-world projects.\n\n🔗 Verify my certificate: " ~ share_url %}
+                    <a href="https://www.linkedin.com/sharing/share-offsite/?url={{ share_url | urlencode }}&summary={{ linkedin_post_text | urlencode }}"
+                       target="_blank" rel="noopener noreferrer"
+                       class="btn btn-outline-primary w-100 d-flex align-items-center justify-content-center gap-2">
+                        <span class="material-symbols-outlined" style="font-size:.95rem;">share</span>
                         {{ _('Share on LinkedIn') }}
                     </a>
                 </div>
-                <div class="col-md-6">
-                    <button class="btn btn-outline-primary w-100" onclick="window.print()">
-                        <span class="material-symbols-outlined" style="display: inline;">print</span>
-                        {{ _('Download PDF') }}
+                <div class="col-sm-6 col-md-3">
+                    <button class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center gap-2"
+                            onclick="navigator.clipboard.writeText('{{ verify_url }}').then(()=>{ this.textContent='✓ Copied!'; setTimeout(()=>{ this.innerHTML='<span class=\'material-symbols-outlined\' style=\'font-size:.95rem;\'>link</span> {{ _('Copy Link') }}'; },2000); })">
+                        <span class="material-symbols-outlined" style="font-size:.95rem;">link</span>
+                        {{ _('Copy Link') }}
+                    </button>
+                </div>
+                <div class="col-sm-6 col-md-3">
+                    <button class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center gap-2"
+                            onclick="window.print()">
+                        <span class="material-symbols-outlined" style="font-size:.95rem;">print</span>
+                        {{ _('Print / PDF') }}
                     </button>
                 </div>
             </div>
-            
-            <!-- Verification Info -->
-            <div class="alert alert-info mt-4">
-                <strong>{{ _('Public Verification Link') }}:</strong><br/>
-                <code>{{ url_for('e_learning.verify_certificate', code=certificate.verification_code, _external=True) }}</code>
+
+            <!-- Employer verification info -->
+            <div class="card border-0 shadow-sm mt-4">
+                <div class="card-body">
+                    <h6 class="fw-semibold mb-2">
+                        <span class="material-symbols-outlined align-middle me-1" style="font-size:1rem;">verified</span>
+                        {{ _('Employer Verification') }}
+                    </h6>
+                    <p class="text-muted mb-3" style="font-size:.85rem;">
+                        {{ _('Employers can scan the QR code on the certificate or visit the link below to instantly verify its authenticity.') }}
+                    </p>
+                    <div class="d-flex align-items-center gap-4 flex-wrap">
+                        <img src="{{ qr_url }}" alt="QR code for certificate verification"
+                             style="width:110px;height:110px;border:1px solid #e2e8f0;border-radius:.5rem;padding:4px;" />
+                        <div>
+                            <div class="mb-1"><strong>{{ _('Verification URL') }}:</strong></div>
+                            <code class="text-break" style="font-size:.8rem;">{{ verify_url }}</code>
+                        </div>
+                    </div>
+                </div>
             </div>
+
         </div>
     </div>
 </div>
 
 <style>
     .material-symbols-outlined {
-        font-variation-settings:
-            'FILL' 0,
-            'wght' 400,
-            'GRAD' 0,
-            'opsz' 24;
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
     }
-    
     @media print {
-        .btn, .alert {
-            display: none;
-        }
+        .btn, .card:not(#certificate-card), nav, header, footer { display: none !important; }
+        #certificate-card { box-shadow: none !important; }
     }
 </style>
 {% endblock %}

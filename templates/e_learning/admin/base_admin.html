@@ -1,0 +1,117 @@
+{% extends 'portal/base_portal.html' %}
+
+{% block title %}{% if page_title %}{{ page_title }} — {% endif %}AUDELA Academy Admin{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+
+<style>
+  .admin-shell { min-height: 100vh; background: #f8fafc; }
+  .admin-sidebar { width: 260px; min-width: 260px; background: #0f172a; min-height: 100vh; }
+  .admin-nav-link {
+    display: flex; align-items: center; gap: .6rem;
+    padding: .65rem 1rem; border-radius: .6rem;
+    color: #94a3b8; text-decoration: none; font-size: .86rem;
+    transition: all .15s;
+  }
+  .admin-nav-link:hover { background: rgba(255,255,255,.07); color: #e2e8f0; }
+  .admin-nav-link.is-active { background: #2563eb; color: #fff; }
+  .admin-nav-section { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: #475569; padding: .75rem 1rem .25rem; }
+  .admin-topbar { background: #fff; border-bottom: 1px solid #e2e8f0; }
+  .ai-badge { background: linear-gradient(135deg,#6366f1,#8b5cf6); color: #fff; font-size: .7rem; padding: 2px 7px; border-radius: 999px; }
+  .stat-card { background:#fff; border-radius:1rem; border:1px solid #e2e8f0; padding:1.25rem 1.5rem; }
+  .tbl-action { font-size: .8rem; white-space: nowrap; }
+</style>
+
+<div class="admin-shell d-flex">
+  <!-- Sidebar -->
+  <aside class="admin-sidebar d-none d-lg-flex flex-column p-3" style="position:sticky;top:0;height:100vh;overflow-y:auto;">
+    <div class="d-flex align-items-center gap-2 mb-4 px-1" style="margin-top:.5rem;">
+      <span class="material-symbols-outlined" style="color:#2563eb;font-size:1.5rem;">school</span>
+      <span style="color:#e2e8f0;font-weight:700;font-size:1rem;">Academy Admin</span>
+    </div>
+
+    <div class="admin-nav-section">Content</div>
+    <a href="{{ url_for('e_learning.admin_dashboard') }}"
+       class="admin-nav-link {% if request.endpoint == 'e_learning.admin_dashboard' %}is-active{% endif %}">
+      <span class="material-symbols-outlined" style="font-size:1rem;">dashboard</span> Dashboard
+    </a>
+    <a href="{{ url_for('e_learning.admin_subject_form') }}"
+       class="admin-nav-link">
+      <span class="material-symbols-outlined" style="font-size:1rem;">folder</span> New Subject
+    </a>
+    <a href="{{ url_for('e_learning.admin_module_form') }}"
+       class="admin-nav-link">
+      <span class="material-symbols-outlined" style="font-size:1rem;">menu_book</span> New Module
+    </a>
+    <a href="{{ url_for('e_learning.admin_lesson_form') }}"
+       class="admin-nav-link">
+      <span class="material-symbols-outlined" style="font-size:1rem;">article</span> New Lesson
+    </a>
+    <a href="{{ url_for('e_learning.admin_exercise_form') }}"
+       class="admin-nav-link">
+      <span class="material-symbols-outlined" style="font-size:1rem;">code</span> New Exercise
+    </a>
+
+    <div class="admin-nav-section mt-3">Students</div>
+    <a href="{{ url_for('e_learning.admin_student_files') }}"
+       class="admin-nav-link {% if request.endpoint == 'e_learning.admin_student_files' %}is-active{% endif %}">
+      <span class="material-symbols-outlined" style="font-size:1rem;">attach_file</span> Student Files
+    </a>
+
+    <div class="admin-nav-section mt-3">Quizzes</div>
+    <a href="{{ url_for('e_learning.admin_quiz_list') }}"
+       class="admin-nav-link {% if 'quiz' in (request.endpoint or '') %}is-active{% endif %}">
+      <span class="material-symbols-outlined" style="font-size:1rem;">quiz</span> All Quizzes
+    </a>
+    <a href="{{ url_for('e_learning.admin_quiz_form') }}"
+       class="admin-nav-link">
+      <span class="material-symbols-outlined" style="font-size:1rem;">add_circle</span> New Quiz
+    </a>
+
+    <div class="admin-nav-section mt-3">Certificates</div>
+    <a href="{{ url_for('e_learning.admin_certificate_template') }}"
+       class="admin-nav-link {% if request.endpoint == 'e_learning.admin_certificate_template' %}is-active{% endif %}">
+      <span class="material-symbols-outlined" style="font-size:1rem;">workspace_premium</span> Certificate Template
+    </a>
+
+    <div class="mt-auto pt-4 border-top" style="border-color:rgba(255,255,255,.08)!important;">
+      <a href="{{ url_for('e_learning.subjects_list') }}" class="admin-nav-link">
+        <span class="material-symbols-outlined" style="font-size:1rem;">open_in_new</span> View Academy
+      </a>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="flex-grow-1 d-flex flex-column" style="min-width:0;">
+    <!-- Topbar -->
+    <header class="admin-topbar d-flex align-items-center justify-content-between px-4 py-2">
+      <span class="fw-semibold text-secondary" style="font-size:.9rem;">
+        {% if page_title %}{{ page_title }}{% else %}Academy Admin{% endif %}
+      </span>
+      <div class="d-flex align-items-center gap-3">
+        {% if ai_enabled is defined and ai_enabled %}
+        <span class="ai-badge">✨ AI</span>
+        {% endif %}
+        <span class="text-muted" style="font-size:.82rem;">{{ current_user.email }}</span>
+      </div>
+    </header>
+
+    <!-- Flash messages -->
+    <div class="px-4 pt-3">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}{% for cat, msg in messages %}
+      <div class="alert alert-{{ 'danger' if cat in ('error','danger') else ('success' if cat=='success' else 'warning') }} alert-dismissible fade show py-2" role="alert">
+        {{ msg }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+      {% endfor %}{% endif %}
+      {% endwith %}
+    </div>
+
+    <!-- Page content -->
+    <main class="flex-grow-1 p-4">
+      {% block admin_content %}{% endblock %}
+    </main>
+  </div>
+</div>
+{% endblock %}

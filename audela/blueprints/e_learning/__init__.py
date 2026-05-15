@@ -10,6 +10,6 @@ bp = Blueprint(
     static_folder="static",
 )
 
-from . import api_routes, routes
+from . import admin_routes, api_routes, routes
 
 __all__ = ["bp"]

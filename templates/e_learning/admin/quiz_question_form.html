@@ -1,0 +1,185 @@
+{% extends "e_learning/admin/base_admin.html" %}
+{% from "e_learning/admin/ai_field_macro.html" import ai_field, ai_scripts %}
+
+{% set langs = ['en', 'pt', 'fr', 'es', 'it', 'de'] %}
+
+{% block admin_content %}
+<div class="d-flex align-items-center gap-3 mb-4">
+    <a href="{{ url_for('e_learning.admin_quiz_form', quiz_id=quiz.id) }}" class="btn btn-sm btn-outline-secondary">
+        <span class="material-symbols-outlined">arrow_back</span>
+    </a>
+    <h2 class="h4 mb-0">{{ 'Edit Question' if question else 'Add Question' }} — {{ quiz.title_i18n.get('en', quiz.title_i18n.get('pt','Quiz')) }}</h2>
+</div>
+
+<form method="POST" id="questionForm">
+    <div class="row g-4">
+        <div class="col-12 col-lg-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-transparent fw-semibold">Settings</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Order</label>
+                        <input type="number" name="order" class="form-control" value="{{ question.order if question else 0 }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Question type</label>
+                        <select name="question_type" class="form-select" id="qType" onchange="handleTypeChange(this.value)">
+                            <option value="multiple_choice" {{ 'selected' if question and question.question_type == 'multiple_choice' }}>Multiple choice</option>
+                            <option value="true_false" {{ 'selected' if question and question.question_type == 'true_false' }}>True / False</option>
+                            <option value="short_answer" {{ 'selected' if question and question.question_type == 'short_answer' }}>Short answer</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Points</label>
+                        <input type="number" name="points" class="form-control" value="{{ question.points if question else 1 }}" min="0">
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" name="allow_partial_credit" id="allowPartial" {{ 'checked' if question and question.allow_partial_credit }}>
+                        <label class="form-check-label" for="allowPartial">Allow partial credit</label>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Negative marking (penalty points)</label>
+                        <input type="number" name="penalty_points" class="form-control" value="{{ question.penalty_points if question else 0 }}" min="0">
+                        <div class="form-text">Applied only when an incorrect answer is submitted.</div>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="is_active" id="isActive" {{ 'checked' if not question or question.is_active }}>
+                        <label class="form-check-label" for="isActive">Active</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-lg-8">
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-transparent fw-semibold">Question text</div>
+                <div class="card-body">
+                    {{ ai_field('text', 'Question Text', (question.text_i18n if question else {}), lang_names, all_langs, field_type='description', ai_enabled=ai_enabled) }}
+                </div>
+            </div>
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-transparent fw-semibold">Explanation (shown after answer)</div>
+                <div class="card-body">
+                    {{ ai_field('explanation', 'Explanation', (question.explanation_i18n if question and question.explanation_i18n else {}), lang_names, all_langs, field_type='description', ai_enabled=ai_enabled) }}
+                </div>
+            </div>
+
+            {# Short answer #}
+            <div id="shortAnswerBlock" class="card border-0 shadow-sm mb-4" style="display:none">
+                <div class="card-header bg-transparent fw-semibold">Expected answer (keywords, case-insensitive)</div>
+                <div class="card-body">
+                    <input type="text" name="expected_answer" class="form-control" value="{{ question.expected_answer if question and question.expected_answer else '' }}">
+                </div>
+            </div>
+
+            {# Options (multiple_choice / true_false) #}
+            <div id="optionsBlock" class="card border-0 shadow-sm">
+                <div class="card-header bg-transparent fw-semibold d-flex justify-content-between align-items-center">
+                    <span>Answer Options</span>
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="addOption()" id="addOptBtn">+ Add option</button>
+                </div>
+                <div class="card-body" id="optionsList">
+                    {# Existing options #}
+                    {% if question and question.options %}
+                        {% for opt in question.options %}
+                        <div class="option-row border rounded p-3 mb-3" id="optRow{{ loop.index0 }}">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <strong>Option {{ loop.index }}</strong>
+                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="removeOption({{ loop.index0 }})">Remove</button>
+                            </div>
+                            {% for lang in langs %}
+                            <div class="mb-2">
+                                <label class="form-label small text-muted text-uppercase">{{ lang }}</label>
+                                <input type="text" name="option__text__{{ lang }}_{{ loop.index0 }}" class="form-control form-control-sm" value="{{ opt.text_i18n.get(lang, '') }}">
+                            </div>
+                            {% endfor %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="option__is_correct_{{ loop.index0 }}" id="correct{{ loop.index0 }}" {{ 'checked' if opt.is_correct }}>
+                                <label class="form-check-label" for="correct{{ loop.index0 }}">Correct answer</label>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-4 d-flex gap-2">
+        <button type="submit" class="btn btn-primary">Save Question</button>
+        <a href="{{ url_for('e_learning.admin_quiz_form', quiz_id=quiz.id) }}" class="btn btn-outline-secondary">Cancel</a>
+    </div>
+</form>
+
+<script>
+const LANGS = {{ langs | tojson }};
+let optionCount = {{ (question.options | length) if question and question.options else 0 }};
+
+function handleTypeChange(type) {
+    const optBlock = document.getElementById('optionsBlock');
+    const saBlock = document.getElementById('shortAnswerBlock');
+    const addBtn = document.getElementById('addOptBtn');
+    if (type === 'short_answer') {
+        optBlock.style.display = 'none';
+        saBlock.style.display = '';
+    } else if (type === 'true_false') {
+        optBlock.style.display = '';
+        saBlock.style.display = 'none';
+        addBtn.style.display = 'none';
+        // Pre-fill True/False options if empty
+        const list = document.getElementById('optionsList');
+        if (list.querySelectorAll('.option-row').length === 0) {
+            addTrueFalseOptions();
+        }
+    } else {
+        optBlock.style.display = '';
+        saBlock.style.display = 'none';
+        addBtn.style.display = '';
+    }
+}
+
+function addTrueFalseOptions() {
+    ['True', 'False'].forEach(function(label) {
+        const idx = optionCount++;
+        const div = document.createElement('div');
+        div.className = 'option-row border rounded p-3 mb-3';
+        div.id = 'optRow' + idx;
+        let inner = '<div class="d-flex justify-content-between align-items-center mb-2"><strong>' + label + '</strong></div>';
+        LANGS.forEach(function(lang) {
+            inner += '<div class="mb-2"><label class="form-label small text-muted text-uppercase">' + lang + '</label>';
+            inner += '<input type="text" name="option__text__' + lang + '_' + idx + '" class="form-control form-control-sm" value="' + label + '"></div>';
+        });
+        inner += '<div class="form-check"><input class="form-check-input" type="checkbox" name="option__is_correct_' + idx + '" id="correct' + idx + '"' + (label === 'True' ? ' checked' : '') + '>';
+        inner += '<label class="form-check-label" for="correct' + idx + '">Correct answer</label></div>';
+        div.innerHTML = inner;
+        document.getElementById('optionsList').appendChild(div);
+    });
+}
+
+function addOption() {
+    const idx = optionCount++;
+    const div = document.createElement('div');
+    div.className = 'option-row border rounded p-3 mb-3';
+    div.id = 'optRow' + idx;
+    let inner = '<div class="d-flex justify-content-between align-items-center mb-2"><strong>Option ' + (idx + 1) + '</strong>';
+    inner += '<button type="button" class="btn btn-sm btn-outline-danger" onclick="removeOption(' + idx + ')">Remove</button></div>';
+    LANGS.forEach(function(lang) {
+        inner += '<div class="mb-2"><label class="form-label small text-muted text-uppercase">' + lang + '</label>';
+        inner += '<input type="text" name="option__text__' + lang + '_' + idx + '" class="form-control form-control-sm" placeholder="Option text in ' + lang + '"></div>';
+    });
+    inner += '<div class="form-check"><input class="form-check-input" type="checkbox" name="option__is_correct_' + idx + '" id="correct' + idx + '">';
+    inner += '<label class="form-check-label" for="correct' + idx + '">Correct answer</label></div>';
+    div.innerHTML = inner;
+    document.getElementById('optionsList').appendChild(div);
+}
+
+function removeOption(idx) {
+    const el = document.getElementById('optRow' + idx);
+    if (el) el.remove();
+}
+
+// Init on load
+handleTypeChange(document.getElementById('qType').value);
+</script>
+{{ ai_scripts(ai_enabled) }}
+{% endblock %}

@@ -180,7 +180,7 @@ jobs:
           AUTO_CREATE_DB: "false"
         run: |
           HEAD_COUNT=$(flask --app app db heads | awk '/^[0-9a-f]+/ {c++} END {print c+0}')
-          test "$HEAD_COUNT" -ge 1
+          test "$HEAD_COUNT" -eq 1
 
       - name: Dry-run migrations SQL (no apply)
         env:
@@ -196,6 +196,39 @@ jobs:
           AUTO_CREATE_DB: "false"
         run: |
           flask --app app db upgrade heads
+
+      - name: Verify e-learning migration tables
+        env:
+          DATABASE_URL: ${{ env.CI_DATABASE_URL }}
+          AUTO_CREATE_DB: "false"
+        run: |
+          python - <<'PY'
+          from sqlalchemy import inspect
+          from audela import create_app
+          from audela.extensions import db
+
+          app = create_app()
+          with app.app_context():
+            insp = inspect(db.engine)
+            tables = set(insp.get_table_names())
+            required = {
+              "e_learning_student_files",
+              "e_learning_quizzes",
+              "e_learning_quiz_questions",
+              "e_learning_quiz_options",
+              "user_quiz_attempts",
+            }
+            missing = sorted(required - tables)
+            assert not missing, f"Missing migrated e-learning tables: {missing}"
+
+            q_cols = {c["name"] for c in insp.get_columns("e_learning_quiz_questions")}
+            assert "allow_partial_credit" in q_cols, "missing e_learning_quiz_questions.allow_partial_credit"
+            assert "penalty_points" in q_cols, "missing e_learning_quiz_questions.penalty_points"
+
+            a_cols = {c["name"] for c in insp.get_columns("user_quiz_attempts")}
+            assert "question_scores_json" in a_cols, "missing user_quiz_attempts.question_scores_json"
+            print("e-learning migration tables verified")
+          PY
 
       - name: Seed default subscription plans (idempotent)
         env:

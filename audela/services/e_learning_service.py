@@ -239,12 +239,11 @@ class ELearningService:
         # Award points if correct
         if is_correct:
             points_earned = exercise.points
-            enrollment.overall_score += points_earned
         
-        # Update progress
+        # Update progress and recalculate score percentage
         enrollment.progress_percentage = self._calculate_progress_percentage(enrollment, module)
-        if enrollment.overall_score >= (module.pass_threshold * module.total_exercises * exercise.points) // 100:
-            enrollment.passed = True
+        enrollment.overall_score = self._calculate_overall_score(enrollment, module)
+        enrollment.passed = enrollment.overall_score >= module.pass_threshold
         
         # Record submission
         submission = UserELearningSubmission(
@@ -313,6 +312,25 @@ class ELearningService:
         ).count()
         
         percentage = int((submissions / module.total_exercises) * 100)
+        return min(100, percentage)
+    
+    def _calculate_overall_score(self, enrollment: UserELearningEnrollment, module: ELearningModule) -> int:
+        """Calculate overall score as a percentage based on points earned."""
+        # Get total points from correct submissions
+        correct_submissions = UserELearningSubmission.query.filter_by(
+            enrollment_id=enrollment.id,
+            is_correct=True
+        ).all()
+        
+        total_points_earned = sum(sub.points_earned for sub in correct_submissions)
+        
+        # Get total possible points
+        total_possible_points = sum(e.points for lesson in module.lessons for e in lesson.exercises)
+        
+        if total_possible_points == 0:
+            return 0
+        
+        percentage = int((total_points_earned / total_possible_points) * 100)
         return min(100, percentage)
     
     # ===== PROGRESS TRACKING =====

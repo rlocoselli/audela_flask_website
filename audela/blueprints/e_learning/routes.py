@@ -1,8 +1,9 @@
 """E-Learning UI Routes."""
 
-from flask import render_template, redirect, url_for, request, session, flash
+from flask import render_template, redirect, url_for, request, session, flash, Response
 from flask_login import login_required, current_user
 from sqlalchemy import desc
+from datetime import datetime
 
 from ...extensions import db
 from ...models.e_learning import (
@@ -16,6 +17,9 @@ from ...models.e_learning import (
     Achievement,
     ELearningCertificate,
     UserELearningSubmission,
+    ELearningStudentFile,
+    ELearningQuiz,
+    UserQuizAttempt,
 )
 from ...i18n import tr, normalize_lang
 from . import bp
@@ -128,6 +132,7 @@ def lesson_view(lesson_id):
         return redirect(url_for("e_learning.dashboard"))
     module = lesson.module
     exercises = ELearningExercise.query.filter_by(lesson_id=lesson_id, is_active=True).order_by(ELearningExercise.order).all()
+    quizzes = ELearningQuiz.query.filter_by(lesson_id=lesson_id, is_active=True).order_by(ELearningQuiz.order).all()
     
     # Get enrollment
     enrollment = UserELearningEnrollment.query.filter_by(
@@ -139,6 +144,7 @@ def lesson_view(lesson_id):
         lesson=lesson,
         module=module,
         exercises=exercises,
+        quizzes=quizzes,
         enrollment=enrollment,
         page_title=lesson.title_i18n.get(get_user_language(), lesson.title_i18n.get("en", lesson.code)),
     )
@@ -241,8 +247,32 @@ def leaderboard():
 
 @bp.route("/certificate/<int:cert_id>", methods=["GET"])
 def certificate_view(cert_id):
-    """View and share certificate."""
+    """View and share certificate by numeric ID (legacy)."""
     cert = ELearningCertificate.query.get(cert_id)
+    if not cert:
+        flash(tr("Certificate not found."), "warning")
+        return redirect(url_for("e_learning.subjects_list"))
+    
+    # Verify visibility
+    if not cert.is_public and (not current_user.is_authenticated or cert.user_id != current_user.id):
+        flash(tr("Certificate is private or unavailable."), "warning")
+        return redirect(url_for("e_learning.subjects_list"))
+    
+    # Increment view count
+    cert.viewed_count += 1
+    db.session.commit()
+    
+    return render_template(
+        "e_learning/certificate_view.html",
+        certificate=cert,
+        page_title=f"{tr('certificate')} - {cert.module.title_i18n.get(get_user_language(), cert.module.code)}",
+    )
+
+
+@bp.route("/certificate/share/<uuid>", methods=["GET"])
+def certificate_view_uuid(uuid):
+    """View and share certificate by UUID (LinkedIn-friendly share link)."""
+    cert = ELearningCertificate.query.filter_by(shared_link_uuid=uuid).first()
     if not cert:
         flash(tr("Certificate not found."), "warning")
         return redirect(url_for("e_learning.subjects_list"))
@@ -316,3 +346,207 @@ def dashboard():
         recommended=recommended,
         page_title=tr("my_learning_dashboard"),
     )
+
+
+@bp.route("/my-files", methods=["GET"])
+@login_required
+def my_files():
+    """Files shared with the current student by an admin."""
+    files = (
+        ELearningStudentFile.query
+        .filter_by(user_id=current_user.id, is_active=True)
+        .order_by(ELearningStudentFile.created_at.desc())
+        .all()
+    )
+    lang = get_user_language()
+    return render_template(
+        "e_learning/my_files.html",
+        files=files,
+        lang=lang,
+        page_title=tr("my_shared_files"),
+    )
+
+
+# ──────────────────────────────────────────────────────────────
+# Quiz routes (student-facing)
+# ──────────────────────────────────────────────────────────────
+
+@bp.route("/quiz/<int:quiz_id>", methods=["GET"])
+@login_required
+def quiz_detail(quiz_id):
+    """Show quiz info and start button."""
+    quiz = ELearningQuiz.query.filter_by(id=quiz_id, is_active=True).first_or_404()
+    lang = get_user_language()
+    attempts = UserQuizAttempt.query.filter_by(user_id=current_user.id, quiz_id=quiz_id).order_by(UserQuizAttempt.started_at.desc()).all()
+    best = max((a for a in attempts if a.score_pct is not None), key=lambda a: a.score_pct, default=None)
+    already_passed = any(a.passed for a in attempts)
+    max_reached = quiz.max_attempts and len(attempts) >= quiz.max_attempts
+    return render_template(
+        "e_learning/quiz_detail.html",
+        quiz=quiz,
+        lang=lang,
+        attempts=attempts,
+        best=best,
+        already_passed=already_passed,
+        max_reached=max_reached,
+        page_title=tr("quiz"),
+    )
+
+
+@bp.route("/quiz/<int:quiz_id>/take", methods=["GET", "POST"])
+@login_required
+def quiz_take(quiz_id):
+    """Render quiz form (GET) or grade submission (POST)."""
+    quiz = ELearningQuiz.query.filter_by(id=quiz_id, is_active=True).first_or_404()
+    lang = get_user_language()
+
+    # Guard: max attempts
+    if quiz.max_attempts:
+        count = UserQuizAttempt.query.filter_by(user_id=current_user.id, quiz_id=quiz_id).count()
+        if count >= quiz.max_attempts:
+            flash(tr("Max attempts reached"), "warning")
+            return redirect(url_for("e_learning.quiz_detail", quiz_id=quiz_id))
+
+    questions = [q for q in quiz.questions if q.is_active]
+    if quiz.shuffle_questions:
+        import random
+        questions = random.sample(questions, len(questions))
+
+    if request.method == "POST":
+        answers = {}
+        for q in questions:
+            if q.question_type == "multiple_choice":
+                # May be multiple checkboxes selected
+                answers[str(q.id)] = request.form.getlist(f"q_{q.id}")
+            elif q.question_type == "true_false":
+                answers[str(q.id)] = request.form.get(f"q_{q.id}", "")
+            else:  # short_answer
+                answers[str(q.id)] = (request.form.get(f"q_{q.id}") or "").strip()
+
+        # Grade with optional per-question partial credit and negative marking
+        total_points = sum(q.points for q in questions)
+        earned = 0.0
+        question_results = {}
+        question_scores = {}
+        for q in questions:
+            ans = answers.get(str(q.id))
+            correct, question_earned = _score_quiz_question(q, ans)
+
+            # Apply negative marking only when a wrong answer was actually submitted
+            has_answer = bool(ans) if not isinstance(ans, list) else bool(set(ans))
+            if has_answer and (not correct) and (q.penalty_points or 0) > 0:
+                question_earned -= float(q.penalty_points or 0)
+
+            earned += question_earned
+            question_results[str(q.id)] = correct
+            question_scores[str(q.id)] = {
+                "earned": round(question_earned, 2),
+                "max": q.points,
+                "correct": bool(correct),
+            }
+
+        earned_non_negative = max(earned, 0.0)
+        score_pct = round(earned_non_negative / total_points * 100) if total_points else 0
+        passed = score_pct >= quiz.pass_threshold
+        points_earned = quiz.points_on_pass if passed else 0
+
+        attempt = UserQuizAttempt(
+            user_id=current_user.id,
+            quiz_id=quiz_id,
+            submitted_at=datetime.utcnow(),
+            score_pct=score_pct,
+            points_earned=points_earned,
+            passed=passed,
+            answers_json=answers,
+            question_scores_json=question_scores,
+        )
+        db.session.add(attempt)
+
+        if passed:
+            # Award points to profile
+            profile = UserELearningProfile.query.filter_by(user_id=current_user.id).first()
+            if profile:
+                profile.total_points = (profile.total_points or 0) + points_earned
+                profile.updated_at = datetime.utcnow()
+
+        db.session.commit()
+
+        return render_template(
+            "e_learning/quiz_results.html",
+            quiz=quiz,
+            lang=lang,
+            attempt=attempt,
+            questions=questions,
+            answers=answers,
+            question_results=question_results,
+            question_scores=question_scores,
+            score_pct=score_pct,
+            passed=passed,
+            page_title=tr("Quiz Results"),
+        )
+
+    return render_template(
+        "e_learning/quiz_take.html",
+        quiz=quiz,
+        lang=lang,
+        questions=questions,
+        page_title=tr("quiz"),
+    )
+
+
+def _score_quiz_question(question, answer) -> tuple[bool, float]:
+    """Return (is_fully_correct, earned_points_before_penalty)."""
+    if question.question_type == "multiple_choice":
+        correct_ids = {str(o.id) for o in question.options if o.is_correct}
+        given_ids = set(answer) if isinstance(answer, list) else set()
+        if given_ids == correct_ids:
+            return True, float(question.points)
+        if question.allow_partial_credit and correct_ids:
+            true_positive = len(given_ids & correct_ids)
+            false_positive = len(given_ids - correct_ids)
+            ratio = (true_positive / len(correct_ids)) - (false_positive / len(correct_ids))
+            ratio = min(max(ratio, 0.0), 1.0)
+            return False, float(question.points) * ratio
+        return False, 0.0
+
+    if question.question_type == "true_false":
+        correct_opt = next((o for o in question.options if o.is_correct), None)
+        is_correct = bool(correct_opt and answer and str(correct_opt.id) == str(answer))
+        return is_correct, float(question.points) if is_correct else 0.0
+
+    # short_answer
+    expected_raw = (question.expected_answer or "").strip().lower()
+    given = (answer or "").strip().lower()
+    if not expected_raw or not given:
+        return False, 0.0
+
+    keywords = [k.strip() for k in expected_raw.split(",") if k.strip()]
+    if not keywords:
+        is_correct = expected_raw in given
+        return is_correct, float(question.points) if is_correct else 0.0
+
+    matched = sum(1 for keyword in keywords if keyword in given)
+    if matched == len(keywords):
+        return True, float(question.points)
+    if question.allow_partial_credit:
+        ratio = matched / len(keywords)
+        return False, float(question.points) * ratio
+    return False, 0.0
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# QR code for certificate verification (public)
+# ──────────────────────────────────────────────────────────────────────────────
+
+@bp.route("/certificate/verify/<code>/qr.png", methods=["GET"])
+def certificate_qr(code):
+    """Return a QR-code PNG encoding the public verification URL for a certificate."""
+    import qrcode
+    import io
+
+    verify_url = url_for("e_learning.verify_certificate", code=code, _external=True)
+    img = qrcode.make(verify_url)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return Response(buf.getvalue(), mimetype="image/png")

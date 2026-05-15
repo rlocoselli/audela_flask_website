@@ -157,6 +157,24 @@
                     </a>
                 </div>
             </div>
+            {% elif enrollment.passed and enrollment.status != 'completed' %}
+            <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">
+                <div class="card-body text-center" style="color: white;">
+                    <span class="material-symbols-outlined" style="font-size: 48px; display: block; margin-bottom: 1rem;">verified</span>
+                    <h5>{{ _('Congratulations!') }}</h5>
+                    <p class="text-sm mb-3">{{ _('You passed! Claim your certificate now.') }}</p>
+                    <button id="completeCertBtn" type="button" class="btn btn-light btn-sm" onclick="completModuleAndGetCertificate({{ module.id }})">
+                        <span class="material-symbols-outlined" style="font-size: 18px; display: inline; vertical-align: middle;">download</span>
+                        {{ _('Complete & Get Certificate') }}
+                    </button>
+                    <div id="certCompletingState" class="d-none mt-2">
+                        <spinner class="spinner-border spinner-border-sm text-light me-2" role="status">
+                            <span class="visually-hidden">{{ _('Loading') }}...</span>
+                        </spinner>
+                        <small>{{ _('Generating certificate...') }}</small>
+                    </div>
+                </div>
+            </div>
             {% endif %}
         </div>
     </div>
@@ -360,6 +378,104 @@ function resetDatabase() {
             alert(error.message);
         });
     }
+}
+
+function completModuleAndGetCertificate(moduleId) {
+    const btn = document.getElementById('completeCertBtn');
+    const completingState = document.getElementById('certCompletingState');
+    
+    if (!btn || !completingState) return;
+    
+    // Show loading state
+    btn.disabled = true;
+    completingState.classList.remove('d-none');
+    
+    fetch(`{{ url_for('e_learning.api_complete_module', module_id=0) }}`.replace('/0', '/' + moduleId), {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token() }}',
+            'X-CSRF-Token': '{{ csrf_token() }}',
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || '{{ _("Unable to complete module.") }}');
+        }
+        return data;
+    })
+    .then((data) => {
+        // Success! Show toast message
+        showSuccessToast('{{ _("Certificate Generated!") }}', data.message || '{{ _("Your certificate has been generated successfully. Refresh the page to view it.") }}');
+        
+        // Reload page after a short delay
+        setTimeout(() => {
+            location.reload();
+        }, 2000);
+    })
+    .catch((error) => {
+        // Restore button state
+        btn.disabled = false;
+        completingState.classList.add('d-none');
+        showErrorToast('{{ _("Error") }}', error.message);
+    });
+}
+
+function showSuccessToast(title, message) {
+    const toastHtml = `
+        <div class="toast align-items-center text-white bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body">
+                    <strong>${title}</strong><br/>${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    `;
+    const container = document.querySelector('.toast-container') || createToastContainer();
+    const el = document.createElement('div');
+    el.innerHTML = toastHtml;
+    container.appendChild(el.firstElementChild);
+    
+    const toast = bootstrap.Toast.getOrCreateInstance(container.lastElementChild);
+    toast.show();
+    
+    setTimeout(() => {
+        container.removeChild(container.lastElementChild);
+    }, 5000);
+}
+
+function showErrorToast(title, message) {
+    const toastHtml = `
+        <div class="toast align-items-center text-white bg-danger border-0" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="d-flex">
+                <div class="toast-body">
+                    <strong>${title}</strong><br/>${message}
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    `;
+    const container = document.querySelector('.toast-container') || createToastContainer();
+    const el = document.createElement('div');
+    el.innerHTML = toastHtml;
+    container.appendChild(el.firstElementChild);
+    
+    const toast = bootstrap.Toast.getOrCreateInstance(container.lastElementChild);
+    toast.show();
+    
+    setTimeout(() => {
+        container.removeChild(container.lastElementChild);
+    }, 5000);
+}
+
+function createToastContainer() {
+    const container = document.createElement('div');
+    container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+    container.style.zIndex = '11';
+    document.body.appendChild(container);
+    return container;
 }
 
 document.addEventListener('DOMContentLoaded', function () {

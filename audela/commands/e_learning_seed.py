@@ -566,6 +566,151 @@ def _localize_phrase(text: str, lang: str) -> str:
     return _CURRICULUM_PHRASE_I18N.get(text, {}).get(lang, text)
 
 
+_EXERCISE_BRIEF_I18N = {
+    "en": {
+        "intro": "Professional brief: this exercise is designed to check whether you can turn a business requirement into a correct and readable SQL result.",
+        "process": "Approach it methodically: inspect the schema, identify the relevant tables and keys, write the query in small steps, and keep aliases explicit.",
+        "validate": "Before submitting, verify the output columns, row count, filters, and ordering so the result is deterministic and easy to review.",
+        "deliverable": "Deliverable: a single SQL statement that produces the requested output without extra columns or ambiguous ordering.",
+        "playbook_title": "How to approach the exercises",
+        "playbook_desc": "Work like a consultant: understand the objective, map the data model, draft the query incrementally, and validate the output before you send it.",
+        "playbook_1": "Read the objective and restate the expected business answer in your own words.",
+        "playbook_2": "Inspect the tables and columns first, then build the query step by step.",
+        "playbook_3": "Run the query, compare it with the expected shape, and only then submit.",
+    },
+    "pt": {
+        "intro": "Resumo profissional: este exercicio foi desenhado para verificar se voce consegue transformar um requisito de negocio em um resultado SQL correto e legivel.",
+        "process": "Siga de forma metódica: examine o esquema, identifique tabelas e chaves relevantes, escreva a consulta em pequenos passos e use aliases claros.",
+        "validate": "Antes de enviar, confirme colunas de saida, quantidade de linhas, filtros e ordenacao para que o resultado seja deterministico e facil de revisar.",
+        "deliverable": "Entregavel: uma unica instrução SQL que produza o resultado solicitado sem colunas extras ou ordenacao ambigua.",
+        "playbook_title": "Como abordar os exercicios",
+        "playbook_desc": "Trabalhe como um consultor: entenda o objetivo, mapeie o modelo de dados, rascunhe a query de forma incremental e valide a saida antes do envio.",
+        "playbook_1": "Leia o objetivo e reformule a resposta de negocio esperada com suas palavras.",
+        "playbook_2": "Inspecione primeiro tabelas e colunas, depois construa a consulta passo a passo.",
+        "playbook_3": "Execute a consulta, compare com o formato esperado e so entao envie.",
+    },
+    "fr": {
+        "intro": "Note professionnelle : cet exercice verifie votre capacite a transformer une demande metier en resultat SQL correct et lisible.",
+        "process": "Procédez methodiquement : examinez le schema, identifiez les tables et cles utiles, construisez la requete par petites etapes et utilisez des alias explicites.",
+        "validate": "Avant de soumettre, verifiez les colonnes, le nombre de lignes, les filtres et le tri afin d'obtenir un resultat deterministe et simple a relire.",
+        "deliverable": "Livrable : une seule requete SQL qui produit le resultat demande, sans colonnes superflues ni tri ambigu.",
+        "playbook_title": "Comment aborder les exercices",
+        "playbook_desc": "Travaillez comme un consultant : comprenez l'objectif, cartographiez le modele de donnees, redigez la requete progressivement et validez le resultat avant l'envoi.",
+        "playbook_1": "Lisez l'objectif et reformulez la reponse metier attendue avec vos propres mots.",
+        "playbook_2": "Inspectez d'abord les tables et les colonnes, puis construisez la requete etape par etape.",
+        "playbook_3": "Executez la requete, comparez-la au format attendu, puis soumettez seulement apres verification.",
+    },
+    "es": {
+        "intro": "Resumen profesional: este ejercicio evalua si puedes convertir un requisito de negocio en un resultado SQL correcto y legible.",
+        "process": "Afrontalo de forma metódica: revisa el esquema, identifica tablas y claves relevantes, escribe la consulta por pasos y usa alias claros.",
+        "validate": "Antes de enviar, comprueba columnas de salida, numero de filas, filtros y orden para que el resultado sea determinista y facil de revisar.",
+        "deliverable": "Entregable: una sola instruccion SQL que produzca el resultado solicitado sin columnas extra ni orden ambigua.",
+        "playbook_title": "Como abordar los ejercicios",
+        "playbook_desc": "Trabaja como un consultor: entiende el objetivo, mapea el modelo de datos, redacta la consulta de forma incremental y valida la salida antes de enviar.",
+        "playbook_1": "Lee el objetivo y reformula con tus palabras la respuesta de negocio esperada.",
+        "playbook_2": "Revisa primero tablas y columnas, luego construye la consulta paso a paso.",
+        "playbook_3": "Ejecuta la consulta, compara el resultado con el formato esperado y solo entonces envia.",
+    },
+    "it": {
+        "intro": "Sintesi professionale: questo esercizio verifica la tua capacita di trasformare un requisito di business in un risultato SQL corretto e leggibile.",
+        "process": "Affrontalo in modo metodico: esamina lo schema, individua tabelle e chiavi rilevanti, scrivi la query per piccoli passi e usa alias espliciti.",
+        "validate": "Prima dell'invio verifica colonne di output, numero di righe, filtri e ordinamento per ottenere un risultato deterministico e facile da revisionare.",
+        "deliverable": "Consegna: una singola istruzione SQL che produca il risultato richiesto senza colonne extra o ordinamento ambiguo.",
+        "playbook_title": "Come affrontare gli esercizi",
+        "playbook_desc": "Lavora come un consulente: comprendi l'obiettivo, mappa il modello dati, prepara la query in modo incrementale e valida l'output prima dell'invio.",
+        "playbook_1": "Leggi l'obiettivo e riformula con parole tue la risposta di business attesa.",
+        "playbook_2": "Ispeziona prima tabelle e colonne, poi costruisci la query passo dopo passo.",
+        "playbook_3": "Esegui la query, confrontala con il formato atteso e inviala solo dopo la verifica.",
+    },
+    "de": {
+        "intro": "Professioneller Hinweis: Diese Aufgabe prueft, ob Sie eine fachliche Anforderung in ein korrektes und gut lesbares SQL-Ergebnis uebersetzen koennen.",
+        "process": "Gehen Sie methodisch vor: pruefen Sie das Schema, identifizieren Sie die relevanten Tabellen und Schluessel, bauen Sie die Abfrage schrittweise auf und verwenden Sie klare Aliase.",
+        "validate": "Pruefen Sie vor dem Absenden die Ausgabespalten, Zeilenanzahl, Filter und Sortierung, damit das Ergebnis deterministisch und leicht pruefbar ist.",
+        "deliverable": "Lieferobjekt: eine einzelne SQL-Anweisung, die das geforderte Ergebnis ohne Zusatzspalten oder uneindeutige Sortierung liefert.",
+        "playbook_title": "So gehen Sie die Uebungen an",
+        "playbook_desc": "Arbeiten Sie wie ein Berater: Verstehen Sie das Ziel, kartieren Sie das Datenmodell, entwerfen Sie die Abfrage inkrementell und validieren Sie die Ausgabe vor dem Absenden.",
+        "playbook_1": "Lesen Sie das Ziel und formulieren Sie die erwartete fachliche Antwort mit eigenen Worten.",
+        "playbook_2": "Pruefen Sie zuerst Tabellen und Spalten und bauen Sie dann die Abfrage Schritt fuer Schritt auf.",
+        "playbook_3": "Fuehren Sie die Abfrage aus, vergleichen Sie das Ergebnis mit der erwarteten Form und senden Sie erst dann ab.",
+    },
+}
+
+
+def _professionalize_exercise_description(description_i18n: dict[str, str]) -> dict[str, str]:
+    enriched: dict[str, str] = {}
+    for lang in ("en", "pt", "fr", "es", "it", "de"):
+        base = description_i18n.get(lang) or description_i18n.get("en") or ""
+        brief = _EXERCISE_BRIEF_I18N.get(lang, _EXERCISE_BRIEF_I18N["en"])
+        enriched[lang] = "\n".join([
+            brief["intro"],
+            base,
+            brief["process"],
+            brief["validate"],
+            brief["deliverable"],
+        ])
+    return enriched
+
+
+_EXERCISE_HINTS_I18N = {
+    "en": [
+        "Start by identifying the output grain and the driving table.",
+        "Write the query in stages: filter, join, group, and sort.",
+        "Check NULL handling and ordering before submitting.",
+    ],
+    "pt": [
+        "Comece identificando o grão de saida e a tabela principal.",
+        "Escreva a query em etapas: filtrar, juntar, agrupar e ordenar.",
+        "Verifique tratamento de NULL e ordenacao antes de enviar.",
+    ],
+    "fr": [
+        "Commencez par definir le niveau de detail et la table principale.",
+        "Construisez la requete par etapes : filtre, jointure, aggregation, tri.",
+        "Verifiez la gestion des NULL et du tri avant l'envoi.",
+    ],
+    "es": [
+        "Empieza identificando el nivel de detalle y la tabla principal.",
+        "Construye la consulta por etapas: filtro, join, agrupacion y orden.",
+        "Comprueba el manejo de NULL y el orden antes de enviar.",
+    ],
+    "it": [
+        "Inizia identificando il livello di dettaglio e la tabella guida.",
+        "Costruisci la query per fasi: filtro, join, aggregazione e ordinamento.",
+        "Controlla la gestione dei NULL e l'ordinamento prima dell'invio.",
+    ],
+    "de": [
+        "Beginnen Sie mit dem Ausgabegra und der Fuehrungstabelle.",
+        "Bauen Sie die Abfrage schrittweise auf: filtern, joinen, gruppieren, sortieren.",
+        "Pruefen Sie NULL-Behandlung und Sortierung vor dem Absenden.",
+    ],
+}
+
+
+def _professionalize_exercise_hints(hints_i18n: dict[str, list[str]]) -> dict[str, list[str]]:
+    enriched: dict[str, list[str]] = {}
+    for lang in ("en", "pt", "fr", "es", "it", "de"):
+        existing = list(hints_i18n.get(lang) or hints_i18n.get("en") or [])
+        extra = _EXERCISE_HINTS_I18N.get(lang, _EXERCISE_HINTS_I18N["en"])
+        combined: list[str] = []
+        for hint in existing + extra:
+            if hint and hint not in combined:
+                combined.append(hint)
+        enriched[lang] = combined
+    return enriched
+
+
+def _exercise_playbook_html(lang: str) -> str:
+    brief = _EXERCISE_BRIEF_I18N.get(lang, _EXERCISE_BRIEF_I18N["en"])
+    return f"""
+<h5>{brief['playbook_title']}</h5>
+<p class="text-muted">{brief['playbook_desc']}</p>
+<ol>
+  <li>{brief['playbook_1']}</li>
+  <li>{brief['playbook_2']}</li>
+  <li>{brief['playbook_3']}</li>
+</ol>
+"""
+
+
 _EXACT_CONCEPT_EXPLANATIONS = {
     "what is a database": {
         "en": "A database is an organized system for storing and retrieving data reliably. It helps teams keep consistent records and answer business questions quickly.",
@@ -1647,6 +1792,7 @@ def _build_module_content(mod: dict, module_number: int, lang: str = "en") -> st
             <thead><tr><th>#</th><th>{_t_content('task', lang)}</th></tr></thead>
       <tbody>{practical_rows}</tbody>
     </table>
+        {_exercise_playbook_html(lang)}
         <h5>{_t_content('mini_project', lang)}</h5>
     <p><strong>{mini_project}</strong></p>
         <h5>{_t_content('references', lang)}</h5>
@@ -1948,7 +2094,6 @@ def _build_modules() -> list[dict]:
                 {
                     "code": "sql201-les2",
                     "title_i18n": {"en": "SQL 201 - GROUP BY and HAVING", "pt": "SQL 201 - GROUP BY e HAVING", "fr": "SQL 201 - GROUP BY et HAVING", "es": "SQL 201 - GROUP BY y HAVING", "it": "SQL 201 - GROUP BY e HAVING", "de": "SQL 201 - GROUP BY und HAVING"},
-                    "content_i18n": {"en": _build_module_content(mod, index, "en"), "pt": _build_module_content(mod, index, "pt"), "fr": _build_module_content(mod, index, "fr"), "es": _build_module_content(mod, index, "es"), "it": _build_module_content(mod, index, "it"), "de": _build_module_content(mod, index, "de")},
                     "content_i18n": {
                         "en": _build_lesson_content(mod, index, "en", "SQL 201 - GROUP BY and HAVING", lesson2_concepts, lesson2_practical, "Grouped KPI performance report"),
                         "pt": _build_lesson_content(mod, index, "pt", "SQL 201 - GROUP BY e HAVING", lesson2_concepts, lesson2_practical, "Relatorio de KPI com agrupamentos"),
@@ -2031,6 +2176,11 @@ def _build_modules() -> list[dict]:
                     ],
                 },
             ]
+
+        for lesson in lessons:
+            for exercise in lesson.get("exercises", []):
+                exercise["description_i18n"] = _professionalize_exercise_description(exercise.get("description_i18n", {}))
+                exercise["hints_i18n"] = _professionalize_exercise_hints(exercise.get("hints_i18n", {}))
 
         total_exercises = sum(len(lesson.get("exercises", [])) for lesson in lessons)
         modules.append(

@@ -1,0 +1,91 @@
+{% extends "e_learning/base_e_learning.html" %}
+
+{% block e_learning_content %}
+<div class="container-lg py-4">
+    {# Result banner #}
+    <div class="card border-0 shadow mb-5 {% if passed %}border-success{% else %}border-danger{% endif %}" style="border-left: 4px solid !important">
+        <div class="card-body p-4 d-flex align-items-center gap-4 flex-wrap">
+            <span class="material-symbols-outlined" style="font-size:3.5rem;color:{% if passed %}#198754{% else %}#dc3545{% endif %}">
+                {{ 'emoji_events' if passed else 'sentiment_dissatisfied' }}
+            </span>
+            <div>
+                <h2 class="h3 mb-1">{% if passed %}{{ _('Quiz passed') }}{% else %}{{ _('Quiz failed') }}{% endif %}</h2>
+                <p class="mb-0 text-muted">{{ quiz.title_i18n.get(lang, quiz.title_i18n.get('en','')) }}</p>
+            </div>
+            <div class="ms-auto text-center">
+                <div class="display-4 fw-bold {% if passed %}text-success{% else %}text-danger{% endif %}">{{ score_pct }}%</div>
+                <div class="small text-muted">{{ _('Your score') }}</div>
+            </div>
+            {% if passed and attempt.points_earned %}
+            <div class="text-center">
+                <div class="display-6 fw-bold text-warning">+{{ attempt.points_earned }}</div>
+                <div class="small text-muted">{{ _('Points') }}</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {# Per-question review #}
+    {% if quiz.show_correct_answers %}
+    <h4 class="mb-3">{{ _('Quiz Results') }}</h4>
+    {% for q in questions %}
+    {% set qid = q.id | string %}
+    {% set is_correct = question_results.get(qid, False) %}
+    <div class="card mb-3 border-0 shadow-sm">
+        <div class="card-body p-4">
+            <div class="d-flex gap-3 mb-2">
+                <span class="badge {% if is_correct %}bg-success{% else %}bg-danger{% endif %} rounded-pill">{{ loop.index }}</span>
+                <div class="fw-semibold">{{ q.text_i18n.get(lang, q.text_i18n.get('en','')) }}</div>
+                {% set score_item = question_scores.get(qid, {'earned': 0, 'max': q.points}) %}
+                <small class="text-muted">{{ score_item.earned }} / {{ score_item.max }} pts</small>
+                <span class="ms-auto material-symbols-outlined {% if is_correct %}text-success{% else %}text-danger{% endif %}">
+                    {{ 'check_circle' if is_correct else 'cancel' }}
+                </span>
+            </div>
+
+            {% if q.question_type in ('multiple_choice', 'true_false') %}
+            {% for opt in q.options %}
+            {% set given = answers.get(qid) %}
+            {% set selected = (opt.id | string) in (given if given is iterable and given is not string else [given or '']) %}
+            <div class="form-check mb-1 {% if opt.is_correct %}text-success fw-semibold{% elif selected and not opt.is_correct %}text-danger{% endif %}">
+                <span class="material-symbols-outlined me-1" style="font-size:0.9rem;vertical-align:-2px">
+                    {{ 'check_box' if (selected and opt.is_correct) else ('check_box_outline_blank' if not selected else ('disabled_by_default' if not opt.is_correct else 'check_box')) }}
+                </span>
+                {{ opt.text_i18n.get(lang, opt.text_i18n.get('en','')) }}
+                {% if opt.is_correct %}<span class="badge bg-success ms-1">{{ _('Correct') }}</span>{% endif %}
+            </div>
+            {% endfor %}
+            {% else %}
+            <div class="mb-1"><strong>{{ _('Your answer') }}:</strong> {{ answers.get(qid) or '—' }}</div>
+            {% if q.expected_answer %}
+            <div class="text-success"><strong>{{ _('Correct answer') }}:</strong> {{ q.expected_answer }}</div>
+            {% endif %}
+            {% endif %}
+
+            {% if q.explanation_i18n %}
+            {% set expl = q.explanation_i18n.get(lang, q.explanation_i18n.get('en','')) %}
+            {% if expl %}
+            <div class="mt-2 p-2 bg-body-secondary rounded small">
+                <span class="material-symbols-outlined" style="font-size:0.9rem;vertical-align:-2px">info</span>
+                {{ expl }}
+            </div>
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <div class="d-flex gap-3 mt-4">
+        {% if not passed and (not quiz.max_attempts or attempt.id) %}
+        <a href="{{ url_for('e_learning.quiz_take', quiz_id=quiz.id) }}" class="btn btn-primary d-inline-flex align-items-center gap-2">
+            <span class="material-symbols-outlined">replay</span>
+            {{ _('Retake Quiz') }}
+        </a>
+        {% endif %}
+        <a href="{{ url_for('e_learning.quiz_detail', quiz_id=quiz.id) }}" class="btn btn-outline-secondary">
+            {{ _('Back to lesson') }}
+        </a>
+    </div>
+</div>
+{% endblock %}

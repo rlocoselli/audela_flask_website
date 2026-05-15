@@ -462,10 +462,12 @@ def create_app() -> Flask:
     # Finance CLI Commands
     from .commands import init_finance_cli, init_celery_cli, init_admin_cli
     from .commands.e_learning_seed import init_e_learning_seed_cli
+    from .commands.python_data_analysis_seed import init_python_data_analysis_seed_cli
     init_finance_cli(app)
     init_celery_cli(app)
     init_admin_cli(app)
     init_e_learning_seed_cli(app)
+    init_python_data_analysis_seed_cli(app)
 
     # Finance Auto-balance Updates (SQLAlchemy Event Listeners)
     from .services.bank_configuration_service import initialize_balance_updates

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from typing import Optional
+import uuid
 
 from sqlalchemy import UniqueConstraint
 
@@ -376,6 +377,7 @@ class ELearningCertificate(db.Model):
     
     # Sharing & verification
     verification_code = db.Column(db.String(32), nullable=False, unique=True, index=True)
+    shared_link_uuid = db.Column(db.String(36), nullable=False, unique=True, index=True, default=lambda: str(uuid.uuid4()))
     is_public = db.Column(db.Boolean, nullable=False, default=True)
     viewed_count = db.Column(db.Integer, nullable=False, default=0)
     
@@ -420,3 +422,179 @@ class ELearningSampleDatabase(db.Model):
 
     def __repr__(self):
         return f"<ELearningSampleDatabase user={self.user_id} module={self.module_id}>"
+
+
+class ELearningStudentFile(db.Model):
+    """Admin-uploaded file personalised to a student.
+
+    The admin can attach any file (PDF, spreadsheet, image, zip…) to a specific
+    student, optionally scoped to a module or lesson, so it surfaces in that
+    student's own learning area.
+    """
+
+    __tablename__ = "e_learning_student_files"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    # Target student
+    user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # Optional scope
+    module_id = db.Column(
+        db.Integer, db.ForeignKey("e_learning_modules.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    lesson_id = db.Column(
+        db.Integer, db.ForeignKey("e_learning_lessons.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
+    # Uploaded by (admin)
+    uploaded_by_user_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
+    # File metadata
+    original_filename = db.Column(db.String(255), nullable=False)
+    storage_path = db.Column(db.String(500), nullable=False)
+    mime_type = db.Column(db.String(128), nullable=True)
+    size_bytes = db.Column(db.Integer, nullable=True)
+
+    # Display
+    label = db.Column(db.String(255), nullable=True)  # Human-readable title shown to student
+    description = db.Column(db.Text, nullable=True)
+
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    # Relationships
+    user = db.relationship("User", foreign_keys=[user_id], backref=db.backref("student_files", lazy="dynamic"))
+    uploaded_by = db.relationship("User", foreign_keys=[uploaded_by_user_id])
+    module = db.relationship("ELearningModule")
+    lesson = db.relationship("ELearningLesson")
+
+    def __repr__(self):
+        return f"<ELearningStudentFile user={self.user_id} file={self.original_filename}>"
+
+
+# ---------------------------------------------------------------------------
+# Quiz models
+# ---------------------------------------------------------------------------
+
+class ELearningQuiz(db.Model):
+    """A quiz attached to a lesson (standalone assessment with questions & points)."""
+
+    __tablename__ = "e_learning_quizzes"
+
+    id = db.Column(db.Integer, primary_key=True)
+    lesson_id = db.Column(db.Integer, db.ForeignKey("e_learning_lessons.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    code = db.Column(db.String(64), nullable=False, index=True)
+    order = db.Column(db.Integer, nullable=False, default=0)
+
+    # Internationalized content
+    title_i18n = db.Column(db.JSON, nullable=False, default=dict)
+    description_i18n = db.Column(db.JSON, nullable=True)
+
+    # Settings
+    time_limit_minutes = db.Column(db.Integer, nullable=True)    # None = no limit
+    pass_threshold = db.Column(db.Integer, nullable=False, default=70)  # percentage
+    max_attempts = db.Column(db.Integer, nullable=True)          # None = unlimited
+    shuffle_questions = db.Column(db.Boolean, nullable=False, default=False)
+    show_correct_answers = db.Column(db.Boolean, nullable=False, default=True)
+
+    # Gamification
+    points_on_pass = db.Column(db.Integer, nullable=False, default=20)
+
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("lesson_id", "code", name="uq_quiz_code_per_lesson"),
+    )
+
+    lesson = db.relationship("ELearningLesson", backref=db.backref("quizzes", lazy="dynamic", order_by="ELearningQuiz.order"))
+    questions = db.relationship("ELearningQuizQuestion", back_populates="quiz", cascade="all, delete-orphan", order_by="ELearningQuizQuestion.order")
+    attempts = db.relationship("UserQuizAttempt", back_populates="quiz", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<ELearningQuiz {self.code}>"
+
+
+class ELearningQuizQuestion(db.Model):
+    """A single question inside a quiz."""
+
+    __tablename__ = "e_learning_quiz_questions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    quiz_id = db.Column(db.Integer, db.ForeignKey("e_learning_quizzes.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    order = db.Column(db.Integer, nullable=False, default=0)
+    # question_type: multiple_choice | true_false | short_answer
+    question_type = db.Column(db.String(32), nullable=False, default="multiple_choice")
+
+    # Internationalized content
+    text_i18n = db.Column(db.JSON, nullable=False, default=dict)
+    explanation_i18n = db.Column(db.JSON, nullable=True)  # shown after answer
+
+    # Points for this question
+    points = db.Column(db.Integer, nullable=False, default=1)
+    allow_partial_credit = db.Column(db.Boolean, nullable=False, default=False)
+    penalty_points = db.Column(db.Integer, nullable=False, default=0)
+
+    # For short_answer: expected keywords / exact answer (simple string matching)
+    expected_answer = db.Column(db.Text, nullable=True)
+
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+
+    quiz = db.relationship("ELearningQuiz", back_populates="questions")
+    options = db.relationship("ELearningQuizOption", back_populates="question", cascade="all, delete-orphan", order_by="ELearningQuizOption.order")
+
+    def __repr__(self):
+        return f"<ELearningQuizQuestion quiz={self.quiz_id} order={self.order}>"
+
+
+class ELearningQuizOption(db.Model):
+    """An answer option for a multiple_choice or true_false question."""
+
+    __tablename__ = "e_learning_quiz_options"
+
+    id = db.Column(db.Integer, primary_key=True)
+    question_id = db.Column(db.Integer, db.ForeignKey("e_learning_quiz_questions.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    order = db.Column(db.Integer, nullable=False, default=0)
+    text_i18n = db.Column(db.JSON, nullable=False, default=dict)
+    is_correct = db.Column(db.Boolean, nullable=False, default=False)
+
+    question = db.relationship("ELearningQuizQuestion", back_populates="options")
+
+    def __repr__(self):
+        return f"<ELearningQuizOption question={self.question_id} correct={self.is_correct}>"
+
+
+class UserQuizAttempt(db.Model):
+    """Records a student's attempt at a quiz."""
+
+    __tablename__ = "user_quiz_attempts"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    quiz_id = db.Column(db.Integer, db.ForeignKey("e_learning_quizzes.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    started_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    submitted_at = db.Column(db.DateTime, nullable=True)
+
+    score_pct = db.Column(db.Integer, nullable=True)   # 0-100
+    points_earned = db.Column(db.Integer, nullable=False, default=0)
+    passed = db.Column(db.Boolean, nullable=True)
+
+    # JSON: {question_id: answer} where answer is option_id(s) or text string
+    answers_json = db.Column(db.JSON, nullable=True)
+    # JSON: {question_id: {"earned": x, "max": y, "correct": bool}}
+    question_scores_json = db.Column(db.JSON, nullable=True)
+
+    user = db.relationship("User", backref=db.backref("quiz_attempts", lazy="dynamic"))
+    quiz = db.relationship("ELearningQuiz", back_populates="attempts")
+
+    def __repr__(self):
+        return f"<UserQuizAttempt user={self.user_id} quiz={self.quiz_id} score={self.score_pct}>"

@@ -1,0 +1,87 @@
+{% extends "e_learning/base_e_learning.html" %}
+
+{% block e_learning_content %}
+<div class="container-lg py-4">
+    <div class="d-flex align-items-center gap-3 mb-4">
+        <span class="material-symbols-outlined fs-1 text-primary">quiz</span>
+        <h1 class="h3 mb-0">{{ quiz.title_i18n.get(lang, quiz.title_i18n.get('en','')) }}</h1>
+    </div>
+
+    <form method="POST" id="quizForm">
+        {% if quiz.time_limit_minutes %}
+        <div class="alert alert-warning d-flex align-items-center gap-2 mb-4" id="timerBanner">
+            <span class="material-symbols-outlined">timer</span>
+            <span>{{ _('Time limit') }}: <strong id="countdown">{{ quiz.time_limit_minutes }}:00</strong></span>
+        </div>
+        {% endif %}
+
+        {% for q in questions %}
+        <div class="card mb-4 border-0 shadow-sm">
+            <div class="card-body p-4">
+                <div class="d-flex gap-3 mb-3">
+                    <span class="badge bg-primary rounded-pill">{{ loop.index }}</span>
+                    <div class="fw-semibold fs-6">{{ q.text_i18n.get(lang, q.text_i18n.get('en','')) }}</div>
+                </div>
+                <div class="small text-muted mb-3">
+                    <span class="material-symbols-outlined" style="font-size:0.9rem;vertical-align:-2px">stars</span>
+                    {{ q.points }} {{ _('Points') }}
+                    &bull;
+                    {% if q.question_type == 'multiple_choice' %}{{ _('Multiple choice') }}
+                    {% elif q.question_type == 'true_false' %}{{ _('True/False') }}
+                    {% else %}{{ _('Short answer') }}{% endif %}
+                </div>
+
+                {% if q.question_type in ('multiple_choice', 'true_false') %}
+                    {% set correct_count = q.options | selectattr('is_correct') | list | length %}
+                    {% for opt in q.options %}
+                    <div class="form-check mb-2">
+                        {% if correct_count > 1 %}
+                        <input class="form-check-input" type="checkbox" name="q_{{ q.id }}" id="opt_{{ opt.id }}" value="{{ opt.id }}">
+                        {% else %}
+                        <input class="form-check-input" type="radio" name="q_{{ q.id }}" id="opt_{{ opt.id }}" value="{{ opt.id }}">
+                        {% endif %}
+                        <label class="form-check-label" for="opt_{{ opt.id }}">
+                            {{ opt.text_i18n.get(lang, opt.text_i18n.get('en','')) }}
+                        </label>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                <textarea class="form-control" name="q_{{ q.id }}" rows="2" placeholder="{{ _('Your answer') }}"></textarea>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+
+        <div class="d-flex gap-3 mt-4">
+            <button type="submit" class="btn btn-primary btn-lg d-inline-flex align-items-center gap-2">
+                <span class="material-symbols-outlined">send</span>
+                {{ _('Submit Quiz') }}
+            </button>
+            <a href="{{ url_for('e_learning.quiz_detail', quiz_id=quiz.id) }}" class="btn btn-outline-secondary btn-lg">
+                {{ _('Back to lesson') }}
+            </a>
+        </div>
+    </form>
+</div>
+
+{% if quiz.time_limit_minutes %}
+<script>
+(function () {
+    let secs = {{ quiz.time_limit_minutes }} * 60;
+    const el = document.getElementById('countdown');
+    const tid = setInterval(function () {
+        secs--;
+        if (secs <= 0) {
+            clearInterval(tid);
+            document.getElementById('quizForm').submit();
+            return;
+        }
+        const m = Math.floor(secs / 60);
+        const s = secs % 60;
+        el.textContent = m + ':' + String(s).padStart(2, '0');
+        if (secs <= 60) el.style.color = 'red';
+    }, 1000);
+})();
+</script>
+{% endif %}
+{% endblock %}

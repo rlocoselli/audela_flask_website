@@ -5,19 +5,30 @@
     <div class="row justify-content-center">
         <div class="col-lg-8">
             {% if is_valid and certificate %}
+            {% set qr_url = url_for('e_learning.certificate_qr', code=certificate.verification_code) %}
             <div class="card border-0 shadow-sm">
-                <div class="card-header bg-success text-white">
+                <div class="card-header bg-success text-white d-flex align-items-center gap-2">
+                    <span class="material-symbols-outlined">verified</span>
                     <h5 class="mb-0">{{ _('Certificate Verified') }}</h5>
                 </div>
                 <div class="card-body">
-                    <p class="mb-3">{{ _('This certificate is authentic') }}</p>
-                    <ul class="list-group list-group-flush">
-                        <li class="list-group-item"><strong>{{ _('Issued To') }}:</strong> {{ certificate.user.username if certificate.user else 'User' }}</li>
-                        <li class="list-group-item"><strong>{{ _('Module') }}:</strong> {{ certificate.module.title_i18n.get(current_lang, certificate.module.title_i18n.get('en', certificate.module.code)) if certificate.module else '-' }}</li>
-                        <li class="list-group-item"><strong>{{ _('Final Score') }}:</strong> {{ certificate.final_score }}%</li>
-                        <li class="list-group-item"><strong>{{ _('Issued On') }}:</strong> {{ certificate.issued_at.strftime('%d/%m/%Y') }}</li>
-                        <li class="list-group-item"><strong>{{ _('Verification Code') }}:</strong> {{ certificate.verification_code }}</li>
-                    </ul>
+                    <p class="mb-3 text-success fw-semibold">{{ _('This certificate is authentic') }}</p>
+                    <div class="row">
+                        <div class="col-md-8">
+                            <ul class="list-group list-group-flush">
+                                <li class="list-group-item"><strong>{{ _('Issued To') }}:</strong> {{ certificate.user.username if certificate.user else 'User' }}</li>
+                                <li class="list-group-item"><strong>{{ _('Module') }}:</strong> {{ certificate.module.title_i18n.get(current_lang, certificate.module.title_i18n.get('en', certificate.module.code)) if certificate.module else '-' }}</li>
+                                <li class="list-group-item"><strong>{{ _('Final Score') }}:</strong> {{ certificate.final_score }}%</li>
+                                <li class="list-group-item"><strong>{{ _('Issued On') }}:</strong> {{ certificate.issued_at.strftime('%d/%m/%Y') }}</li>
+                                <li class="list-group-item"><strong>{{ _('Verification Code') }}:</strong> <code>{{ certificate.verification_code }}</code></li>
+                            </ul>
+                        </div>
+                        <div class="col-md-4 d-flex flex-column align-items-center justify-content-center mt-3 mt-md-0">
+                            <img src="{{ qr_url }}" alt="QR verification code"
+                                 style="width:130px;height:130px;border:1px solid #e2e8f0;border-radius:.5rem;padding:4px;" />
+                            <small class="text-muted mt-1">{{ _('Scan to share') }}</small>
+                        </div>
+                    </div>
                 </div>
             </div>
             {% else %}
@@ -33,4 +44,7 @@
         </div>
     </div>
 </div>
+<style>
+.material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+</style>
 {% endblock %}

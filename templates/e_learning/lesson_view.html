@@ -58,6 +58,28 @@
                     {% endfor %}
                 </div>
             </div>
+
+            <!-- Quizzes -->
+            {% if quizzes %}
+            <div class="card border-0 shadow-sm mt-4">
+                <div class="card-header bg-body-tertiary">
+                    <h5 class="mb-0">{{ _('Quizzes') }} ({{ quizzes|length }})</h5>
+                </div>
+                <div class="list-group list-group-flush">
+                    {% for quiz in quizzes %}
+                    <a href="{{ url_for('e_learning.quiz_detail', quiz_id=quiz.id) }}" class="list-group-item list-group-item-action">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">{{ quiz.title_i18n.get(current_lang, quiz.title_i18n.get('en', quiz.code)) }}</h6>
+                                <small class="text-muted">{{ _('Passing score') }}: {{ quiz.pass_threshold }}%</small>
+                            </div>
+                            <span class="badge bg-success">+{{ quiz.points_on_pass }} {{ _('Points') }}</span>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>

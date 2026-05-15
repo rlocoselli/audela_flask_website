@@ -307,9 +307,14 @@ def get_active_users(days: int = 7) -> list[dict]:
             FeatureUsageEvent.created_at >= since,
         ).scalar() or 0
 
+        if user and getattr(user, "email", None):
+            display_name = user.email.split("@")[0]
+        else:
+            display_name = f"User#{row.user_id}"
+
         result.append({
             "user_id": row.user_id,
-            "username": user.username if user else f"User#{row.user_id}",
+            "username": display_name,
             "email": user.email if user else "",
             "page_views": row.page_views,
             "feature_events": event_count,
