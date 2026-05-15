@@ -159,6 +159,11 @@
   data-running-label="{{ t.lab_running }}"
   data-placeholder="{{ t.lab_placeholder }}"
   data-no-output="{{ t.no_output }}"
+  data-help-welcome="{{ _('Bienvenue dans le laboratoire Python. Posez une question sur les snippets, erreurs ou bonnes pratiques.') }}"
+  data-help-default="{{ _('Je peux aider sur la syntaxe Python, les snippets IA et la lecture des résultats.') }}"
+  data-help-error="{{ _('Relisez le traceback, corrigez ligne par ligne et relancez. Commencez par des prints simples pour isoler le bug.') }}"
+  data-help-snippet="{{ _('Choisissez un snippet à gauche, exécutez, puis modifiez une variable pour observer l\'impact.') }}"
+  data-help-autocomplete="{{ _('Utilisez Ctrl+Space pour voir les suggestions Python dans l\'éditeur Monaco.') }}"
 >
   <div class="lab-hero">
     <h1>{{ t.lab_title }}</h1>
@@ -210,6 +215,33 @@
     </div>
   </div>
 </section>
+
+<div id="labHelpChat" class="position-fixed bottom-0 end-0 p-3" style="z-index:1080;">
+  <button
+    id="labHelpChatToggle"
+    class="btn btn-primary rounded-circle"
+    style="width:48px;height:48px;"
+    type="button"
+    aria-label="{{ _('Ouvrir l\'aide du laboratoire') }}"
+    title="{{ _('Ouvrir l\'aide du laboratoire') }}"
+  >
+    <i class="bi bi-chat-dots"></i>
+  </button>
+
+  <div id="labHelpChatPanel" class="card mt-2 d-none" style="width: 340px; max-width: calc(100vw - 2rem);">
+    <div class="card-header d-flex align-items-center justify-content-between py-2">
+      <span class="fw-semibold">{{ _('Assistant laboratoire') }}</span>
+      <button id="labHelpChatClose" class="btn btn-sm btn-outline-secondary" type="button" aria-label="{{ _('Fermer') }}">×</button>
+    </div>
+    <div id="labHelpChatMessages" class="card-body" style="height: 300px; overflow:auto;"></div>
+    <div class="card-footer">
+      <div class="input-group input-group-sm">
+        <input id="labHelpChatInput" type="text" class="form-control" placeholder="{{ _('Posez votre question Python...') }}" />
+        <button id="labHelpChatSend" class="btn btn-primary" type="button">{{ _('Envoyer') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block body_scripts %}
@@ -226,6 +258,11 @@
   const runningLabel = page.getAttribute('data-running-label') || 'Running...';
   const editorPlaceholder = page.getAttribute('data-placeholder') || "print('Hello AI Lab')";
   const noOutput = page.getAttribute('data-no-output') || 'No output.';
+  const helpWelcome = page.getAttribute('data-help-welcome') || 'Welcome to the lab.';
+  const helpDefault = page.getAttribute('data-help-default') || 'I can help with Python syntax and snippets.';
+  const helpError = page.getAttribute('data-help-error') || 'Read traceback details and fix code incrementally.';
+  const helpSnippet = page.getAttribute('data-help-snippet') || 'Pick a snippet, run it, then tweak variables to learn.';
+  const helpAutocomplete = page.getAttribute('data-help-autocomplete') || 'Use Ctrl+Space to open editor suggestions.';
 
   const snippets = {
     risk: "loans = [1200, 3400, 900, 5100, 2200]\nthreshold = 2500\nlabels = ['high' if x >= threshold else 'low' for x in loans]\nprint(labels)",
@@ -268,6 +305,13 @@
           return {
             suggestions: [
               {
+                label: 'def-function',
+                kind: monaco.languages.CompletionItemKind.Snippet,
+                insertText: 'def ${1:function_name}(${2:args}):\n    ${3:return None}',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Python function template'
+              },
+              {
                 label: 'for-range',
                 kind: monaco.languages.CompletionItemKind.Snippet,
                 insertText: 'for i in range(${1:10}):\n    ${2:print(i)}',
@@ -287,10 +331,21 @@
                 insertText: 'x = [${1:1.0}, ${2:2.0}]\nw = [${3:0.4}, ${4:-0.8}]\nb = ${5:0.0}\ny = w[0]*x[0] + w[1]*x[1] + b\nprint(y)',
                 insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
                 documentation: 'Linear model core equation'
+              },
+              {
+                label: 'try-except',
+                kind: monaco.languages.CompletionItemKind.Snippet,
+                insertText: 'try:\n    ${1:result = 1/0}\nexcept Exception as e:\n    print(e)',
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                documentation: 'Error handling template'
               }
             ]
           };
         }
+      });
+
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Space, function () {
+        editor.trigger('keyboard', 'editor.action.triggerSuggest', {});
       });
 
       document.querySelectorAll('[data-snippet]').forEach((btn) => {
@@ -333,6 +388,65 @@
   }
 
   runBtn.addEventListener('click', runCustom);
+
+  const helpToggle = document.getElementById('labHelpChatToggle');
+  const helpPanel = document.getElementById('labHelpChatPanel');
+  const helpClose = document.getElementById('labHelpChatClose');
+  const helpInput = document.getElementById('labHelpChatInput');
+  const helpSend = document.getElementById('labHelpChatSend');
+  const helpMessages = document.getElementById('labHelpChatMessages');
+
+  function addHelpMsg(text, who) {
+    if (!helpMessages) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'mb-2 d-flex ' + (who === 'user' ? 'justify-content-end' : 'justify-content-start');
+    const b = document.createElement('div');
+    b.className = (who === 'user' ? 'bg-primary text-white' : 'bg-body-tertiary') + ' rounded px-2 py-1 small';
+    b.style.maxWidth = '85%';
+    b.textContent = text;
+    wrap.appendChild(b);
+    helpMessages.appendChild(wrap);
+    helpMessages.scrollTop = helpMessages.scrollHeight;
+  }
+
+  function helpReply(msg) {
+    const m = String(msg || '').toLowerCase();
+    if (m.includes('error') || m.includes('erreur')) {
+      return helpError;
+    }
+    if (m.includes('snippet') || m.includes('example')) {
+      return helpSnippet;
+    }
+    if (m.includes('autocomplete') || m.includes('ctrl+space')) {
+      return helpAutocomplete;
+    }
+    return helpDefault;
+  }
+
+  if (helpToggle && helpPanel && helpClose && helpInput && helpSend && helpMessages) {
+    helpToggle.addEventListener('click', function () {
+      helpPanel.classList.toggle('d-none');
+      if (!helpPanel.classList.contains('d-none') && !helpMessages.dataset.welcome) {
+        addHelpMsg(helpWelcome, 'bot');
+        helpMessages.dataset.welcome = '1';
+      }
+    });
+    helpClose.addEventListener('click', function () { helpPanel.classList.add('d-none'); });
+    helpSend.addEventListener('click', function () {
+      const msg = (helpInput.value || '').trim();
+      if (!msg) return;
+      addHelpMsg(msg, 'user');
+      helpInput.value = '';
+      addHelpMsg(helpReply(msg), 'bot');
+    });
+    helpInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        helpSend.click();
+      }
+    });
+  }
+
   setupEditor();
 })();
 </script>

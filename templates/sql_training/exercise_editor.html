@@ -1,6 +1,8 @@
 {% extends "sql_training/base_sql_training.html" %}
 
 {% block sql_training_content %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css">
 <div class="container-lg">
   <!-- Breadcrumb -->
   <nav aria-label="breadcrumb" class="mt-4">
@@ -62,6 +64,9 @@
         <div class="card-body p-0">
           <textarea id="sql-editor" class="form-control border-0" style="font-family: 'Monaco', 'Courier New', monospace; min-height: 300px;">
 SELECT * FROM (SELECT 'Start typing your SQL here');</textarea>
+        </div>
+        <div class="card-footer bg-light small text-muted">
+          {{ _('Autocomplete activé: utilisez Ctrl+Space pour suggestions SQL.') }}
         </div>
       </div>
 
@@ -208,12 +213,88 @@ SELECT * FROM (SELECT 'Start typing your SQL here');</textarea>
 </div>
 
 <script>
+let sqlEditor = null;
+
 const moduleId = {{ exercise.lesson.module.id }};
 const exerciseId = {{ exercise.id }};
 const enrollmentId = {{ enrollment.id }};
 
+function getEditorValue() {
+  if (sqlEditor && typeof sqlEditor.getValue === 'function') {
+    return sqlEditor.getValue();
+  }
+  return document.getElementById('sql-editor').value;
+}
+
+function setEditorValue(value) {
+  if (sqlEditor && typeof sqlEditor.setValue === 'function') {
+    sqlEditor.setValue(value || '');
+    sqlEditor.focus();
+    return;
+  }
+  const textarea = document.getElementById('sql-editor');
+  textarea.value = value || '';
+  textarea.focus();
+}
+
+function buildSqlHints() {
+  const keywords = [
+    'SELECT', 'FROM', 'WHERE', 'GROUP BY', 'ORDER BY', 'HAVING', 'LIMIT',
+    'JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'INNER JOIN', 'OUTER JOIN',
+    'INSERT INTO', 'UPDATE', 'DELETE FROM', 'CREATE TABLE', 'DROP TABLE',
+    'COUNT()', 'SUM()', 'AVG()', 'MIN()', 'MAX()', 'DISTINCT'
+  ];
+  return keywords.map(function (kw) {
+    return {
+      text: kw,
+      displayText: kw,
+      className: 'cm-sql-keyword'
+    };
+  });
+}
+
+function initSqlEditor() {
+  if (typeof CodeMirror === 'undefined') return;
+  const textarea = document.getElementById('sql-editor');
+  if (!textarea) return;
+
+  sqlEditor = CodeMirror.fromTextArea(textarea, {
+    mode: 'text/x-sql',
+    lineNumbers: true,
+    indentWithTabs: false,
+    indentUnit: 2,
+    lineWrapping: true,
+    extraKeys: {
+      'Ctrl-Space': 'autocomplete',
+      'Cmd-Space': 'autocomplete'
+    },
+    hintOptions: {
+      completeSingle: false,
+      hint: function (cm) {
+        const cur = cm.getCursor();
+        const token = cm.getTokenAt(cur);
+        const start = token.start;
+        const end = cur.ch;
+        const current = token.string ? token.string.trim().toUpperCase() : '';
+        const list = buildSqlHints().filter(function (item) {
+          return !current || item.text.indexOf(current) === 0;
+        });
+        return { list: list, from: CodeMirror.Pos(cur.line, start), to: CodeMirror.Pos(cur.line, end) };
+      }
+    }
+  });
+
+  sqlEditor.on('inputRead', function (cm, change) {
+    if (!change || !change.text || !change.text.length) return;
+    const typed = change.text[0] || '';
+    if (/^[a-zA-Z_]$/.test(typed)) {
+      CodeMirror.commands.autocomplete(cm, null, { completeSingle: false });
+    }
+  });
+}
+
 function executeSQL() {
-  const sql = document.getElementById('sql-editor').value;
+  const sql = getEditorValue();
   
   fetch('/sql-training/api/execute-query', {
     method: 'POST',
@@ -238,7 +319,7 @@ function executeSQL() {
 }
 
 function submitExercise() {
-  const sql = document.getElementById('sql-editor').value;
+  const sql = getEditorValue();
   
   fetch('/sql-training/api/submit-exercise', {
     method: 'POST',
@@ -320,18 +401,22 @@ function showError(message) {
 }
 
 function clearEditor() {
-  document.getElementById('sql-editor').value = '';
+  setEditorValue('');
   document.getElementById('results-container').style.display = 'none';
 }
 
 function insertSQL(text) {
-  const editor = document.getElementById('sql-editor');
-  editor.value += text;
-  editor.focus();
+  const current = getEditorValue();
+  setEditorValue((current || '') + text);
 }
 
 function viewSchema() {
   window.location.href = '{{ url_for("sql_training.database_diagram", module_id=exercise.lesson.module.id) }}';
 }
+
+document.addEventListener('DOMContentLoaded', initSqlEditor);
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/sql/sql.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.js"></script>
 {% endblock %}

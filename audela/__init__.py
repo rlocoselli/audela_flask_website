@@ -193,6 +193,28 @@ def _assert_production_secrets(app: Flask) -> None:
         )
 
 
+def _log_google_oauth_status(app: Flask) -> None:
+    """Emit a startup diagnostic for Google OAuth configuration.
+
+    This logs only presence/shape information, never secret values.
+    """
+    client_id = str(app.config.get("GOOGLE_OAUTH_CLIENT_ID") or "").strip()
+    client_secret = str(app.config.get("GOOGLE_OAUTH_CLIENT_SECRET") or "").strip()
+    authorize_url = str(app.config.get("GOOGLE_OAUTH_AUTHORIZE_URL") or "").strip()
+    token_url = str(app.config.get("GOOGLE_OAUTH_TOKEN_URL") or "").strip()
+
+    enabled = bool(client_id and client_secret)
+    logger = logging.getLogger(__name__)
+    logger.info(
+        "Google OAuth startup status: enabled=%s client_id_set=%s client_secret_set=%s authorize_host=%s token_host=%s",
+        "yes" if enabled else "no",
+        "yes" if bool(client_id) else "no",
+        "yes" if bool(client_secret) else "no",
+        urlsplit(authorize_url).netloc or "<missing>",
+        urlsplit(token_url).netloc or "<missing>",
+    )
+
+
 def create_app() -> Flask:
     _configure_logging()
 
@@ -236,6 +258,7 @@ def create_app() -> Flask:
     env = os.environ.get("FLASK_ENV", "development").lower()
     app.config.from_object(DevConfig if env != "production" else ProdConfig)
     _assert_production_secrets(app)
+    _log_google_oauth_status(app)
 
     # Extensions
     db.init_app(app)

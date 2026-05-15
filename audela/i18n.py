@@ -21718,6 +21718,86 @@ for _lang, _mp in _E_LEARNING_EXHAUSTIVE_I18N_20260513.items():
     TRANSLATIONS.setdefault(_lang, {}).update(_mp)
 
 
+# Verification email copy harmonization.
+# Templates use FR msgids; ensure complete coverage for all UI languages.
+_VERIFY_EMAIL_I18N_OVERRIDES = {
+    "en": {
+        "Vérifiez votre email": "Verify your email",
+        "Vérification de votre email": "Email verification",
+        "Bienvenue sur AUDELA! 👋": "Welcome to AUDELA! 👋",
+        "Bonjour": "Hello",
+        "Merci de vous être inscrit sur AUDELA. Pour commencer à utiliser votre compte, veuillez vérifier votre adresse email en cliquant sur le bouton ci-dessous:": "Thanks for signing up to AUDELA. To start using your account, please verify your email address by clicking the button below:",
+        "Merci de vous être inscrit sur AUDELA. Pour commencer à utiliser votre compte, veuillez vérifier votre adresse email en cliquant sur le lien ci-dessous:": "Thanks for signing up to AUDELA. To start using your account, please verify your email address by clicking the link below:",
+        "Vérifier mon email": "Verify my email",
+        "⏰ Important:": "⏰ Important:",
+        "Ce lien expire dans 24 heures.": "This link expires in 24 hours.",
+        "Si le bouton ne fonctionne pas, copiez et collez ce lien dans votre navigateur:": "If the button does not work, copy and paste this link into your browser:",
+        "Si vous n'avez pas créé de compte sur AUDELA, vous pouvez ignorer cet email.": "If you did not create an AUDELA account, you can ignore this email.",
+        "© 2024 AUDELA - Plateforme de gestion financière et business intelligence": "© 2024 AUDELA - Financial management and business intelligence platform",
+        "Cet email a été envoyé automatiquement, merci de ne pas répondre.": "This email was sent automatically, please do not reply.",
+    },
+    "pt": {
+        "Vérifiez votre email": "Verifique seu email",
+        "Vérification de votre email": "Verificacao do seu email",
+        "Bienvenue sur AUDELA! 👋": "Bem-vindo a AUDELA! 👋",
+        "Bonjour": "Ola",
+        "Merci de vous être inscrit sur AUDELA. Pour commencer à utiliser votre compte, veuillez vérifier votre adresse email en cliquant sur le bouton ci-dessous:": "Obrigado por se cadastrar na AUDELA. Para comecar a usar sua conta, verifique seu email clicando no botao abaixo:",
+        "Merci de vous être inscrit sur AUDELA. Pour commencer à utiliser votre compte, veuillez vérifier votre adresse email en cliquant sur le lien ci-dessous:": "Obrigado por se cadastrar na AUDELA. Para comecar a usar sua conta, verifique seu email clicando no link abaixo:",
+        "Vérifier mon email": "Verificar meu email",
+        "Ce lien expire dans 24 heures.": "Este link expira em 24 horas.",
+        "Si le bouton ne fonctionne pas, copiez et collez ce lien dans votre navigateur:": "Se o botao nao funcionar, copie e cole este link no seu navegador:",
+        "Si vous n'avez pas créé de compte sur AUDELA, vous pouvez ignorer cet email.": "Se voce nao criou uma conta na AUDELA, pode ignorar este email.",
+        "© 2024 AUDELA - Plateforme de gestion financière et business intelligence": "© 2024 AUDELA - Plataforma de gestao financeira e business intelligence",
+        "Cet email a été envoyé automatiquement, merci de ne pas répondre.": "Este email foi enviado automaticamente, por favor nao responda.",
+    },
+    "es": {
+        "Vérifiez votre email": "Verifica tu correo electronico",
+        "Vérification de votre email": "Verificacion de tu correo electronico",
+        "Bienvenue sur AUDELA! 👋": "Bienvenido a AUDELA! 👋",
+        "Bonjour": "Hola",
+        "Merci de vous être inscrit sur AUDELA. Pour commencer à utiliser votre compte, veuillez vérifier votre adresse email en cliquant sur le bouton ci-dessous:": "Gracias por registrarte en AUDELA. Para empezar a usar tu cuenta, verifica tu correo electronico haciendo clic en el boton de abajo:",
+        "Merci de vous être inscrit sur AUDELA. Pour commencer à utiliser votre compte, veuillez vérifier votre adresse email en cliquant sur le lien ci-dessous:": "Gracias por registrarte en AUDELA. Para empezar a usar tu cuenta, verifica tu correo electronico haciendo clic en el enlace de abajo:",
+        "Vérifier mon email": "Verificar mi correo electronico",
+        "Ce lien expire dans 24 heures.": "Este enlace caduca en 24 horas.",
+        "Si le bouton ne fonctionne pas, copiez et collez ce lien dans votre navigateur:": "Si el boton no funciona, copia y pega este enlace en tu navegador:",
+        "Si vous n'avez pas créé de compte sur AUDELA, vous pouvez ignorer cet email.": "Si no creaste una cuenta en AUDELA, puedes ignorar este correo.",
+        "© 2024 AUDELA - Plateforme de gestion financière et business intelligence": "© 2024 AUDELA - Plataforma de gestion financiera y business intelligence",
+        "Cet email a été envoyé automatiquement, merci de ne pas répondre.": "Este correo fue enviado automaticamente, por favor no respondas.",
+    },
+    "it": {
+        "Vérifiez votre email": "Verifica la tua email",
+        "Vérification de votre email": "Verifica della tua email",
+        "Bienvenue sur AUDELA! 👋": "Benvenuto su AUDELA! 👋",
+        "Bonjour": "Ciao",
+        "Merci de vous être inscrit sur AUDELA. Pour commencer à utiliser votre compte, veuillez vérifier votre adresse email en cliquant sur le bouton ci-dessous:": "Grazie per esserti registrato su AUDELA. Per iniziare a usare il tuo account, verifica la tua email cliccando sul pulsante qui sotto:",
+        "Merci de vous être inscrit sur AUDELA. Pour commencer à utiliser votre compte, veuillez vérifier votre adresse email en cliquant sur le lien ci-dessous:": "Grazie per esserti registrato su AUDELA. Per iniziare a usare il tuo account, verifica la tua email cliccando sul link qui sotto:",
+        "Vérifier mon email": "Verifica la mia email",
+        "Ce lien expire dans 24 heures.": "Questo link scade tra 24 ore.",
+        "Si le bouton ne fonctionne pas, copiez et collez ce lien dans votre navigateur:": "Se il pulsante non funziona, copia e incolla questo link nel tuo browser:",
+        "Si vous n'avez pas créé de compte sur AUDELA, vous pouvez ignorer cet email.": "Se non hai creato un account AUDELA, puoi ignorare questa email.",
+        "© 2024 AUDELA - Plateforme de gestion financière et business intelligence": "© 2024 AUDELA - Piattaforma di gestione finanziaria e business intelligence",
+        "Cet email a été envoyé automatiquement, merci de ne pas répondre.": "Questa email e stata inviata automaticamente, non rispondere.",
+    },
+    "de": {
+        "Vérifiez votre email": "Bestaetigen Sie Ihre E-Mail",
+        "Vérification de votre email": "E-Mail-Bestaetigung",
+        "Bienvenue sur AUDELA! 👋": "Willkommen bei AUDELA! 👋",
+        "Bonjour": "Hallo",
+        "Merci de vous être inscrit sur AUDELA. Pour commencer à utiliser votre compte, veuillez vérifier votre adresse email en cliquant sur le bouton ci-dessous:": "Vielen Dank fuer Ihre Registrierung bei AUDELA. Um Ihr Konto zu nutzen, bestaetigen Sie bitte Ihre E-Mail-Adresse ueber die Schaltflaeche unten:",
+        "Merci de vous être inscrit sur AUDELA. Pour commencer à utiliser votre compte, veuillez vérifier votre adresse email en cliquant sur le lien ci-dessous:": "Vielen Dank fuer Ihre Registrierung bei AUDELA. Um Ihr Konto zu nutzen, bestaetigen Sie bitte Ihre E-Mail-Adresse ueber den Link unten:",
+        "Vérifier mon email": "Meine E-Mail bestaetigen",
+        "Ce lien expire dans 24 heures.": "Dieser Link laeuft in 24 Stunden ab.",
+        "Si le bouton ne fonctionne pas, copiez et collez ce lien dans votre navigateur:": "Falls die Schaltflaeche nicht funktioniert, kopieren Sie diesen Link in Ihren Browser:",
+        "Si vous n'avez pas créé de compte sur AUDELA, vous pouvez ignorer cet email.": "Wenn Sie kein AUDELA-Konto erstellt haben, koennen Sie diese E-Mail ignorieren.",
+        "© 2024 AUDELA - Plateforme de gestion financière et business intelligence": "© 2024 AUDELA - Plattform fuer Finanzmanagement und Business Intelligence",
+        "Cet email a été envoyé automatiquement, merci de ne pas répondre.": "Diese E-Mail wurde automatisch versendet, bitte antworten Sie nicht.",
+    },
+}
+
+for _lang, _mp in _VERIFY_EMAIL_I18N_OVERRIDES.items():
+    TRANSLATIONS.setdefault(_lang, {}).update(_mp)
+
+
 def tr(msgid: str, lang: str | None = None, **kwargs: Any) -> str:
     """Translate msgid using the configured dictionary.
 

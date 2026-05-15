@@ -3,6 +3,16 @@
 {% block title %}{{ _('AUDELA IFRS9') }}{% endblock %}
 
 {% block content %}
+<style>
+  .module-avatar-photo {
+    width: 1.35rem;
+    height: 1.35rem;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+  }
+</style>
 <div class="container py-4">
   <div class="d-flex justify-content-end align-items-center gap-2 mb-3 flex-wrap">
     <div class="dropdown">
@@ -15,8 +25,13 @@
         {% endfor %}
       </ul>
     </div>
-    <a href="{{ url_for('tenant.profile') }}" class="btn btn-outline-primary btn-sm">
-      <i class="bi bi-person-circle"></i> {{ _('Mon profil') }}
+    <a href="{{ url_for('tenant.profile') }}" class="btn btn-outline-primary btn-sm d-inline-flex align-items-center gap-1">
+      {% if layout_user_profile and layout_user_profile.avatar_mode == 'photo' and layout_user_profile.photo_url %}
+      <img src="{{ layout_user_profile.photo_url }}" alt="{{ _('Photo de profil') }}" class="module-avatar-photo">
+      {% else %}
+      <i class="bi {{ layout_user_profile.avatar_icon if layout_user_profile and layout_user_profile.avatar_icon else 'bi-person-circle' }}"></i>
+      {% endif %}
+      {{ _('Mon profil') }}
     </a>
   </div>
 

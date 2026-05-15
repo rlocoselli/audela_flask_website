@@ -69,6 +69,14 @@
     .material-symbols-outlined {
         font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
     }
+    .module-avatar-photo {
+        width: 1.35rem;
+        height: 1.35rem;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 1px solid #cbd5e1;
+        background: #fff;
+    }
     @media (max-width: 991.98px) {
         .academy-content {
             padding: 1rem .95rem 1.25rem;
@@ -146,6 +154,16 @@
                     <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('tenant.products') }}">
                         <i class="bi bi-grid me-1"></i>{{ _('My Products') }}
                     </a>
+                    {% if current_user.is_authenticated %}
+                    <a class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1" href="{{ url_for('tenant.profile') }}" title="{{ _('Mon profil') }}">
+                        {% if layout_user_profile and layout_user_profile.avatar_mode == 'photo' and layout_user_profile.photo_url %}
+                        <img src="{{ layout_user_profile.photo_url }}" alt="{{ _('Photo de profil') }}" class="module-avatar-photo">
+                        {% else %}
+                        <i class="bi {{ layout_user_profile.avatar_icon if layout_user_profile and layout_user_profile.avatar_icon else 'bi-person-circle' }}"></i>
+                        {% endif %}
+                        <span class="d-none d-md-inline">{{ _('Mon profil') }}</span>
+                    </a>
+                    {% endif %}
                     <div class="dropdown">
                         <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
                             {{ lang_label(current_lang) }}
@@ -205,4 +223,93 @@
         </div>
     </div>
 </div>
+
+<div id="academyHelpChat" class="position-fixed bottom-0 end-0 p-3" style="z-index:1080;">
+        <button
+            id="academyHelpChatToggle"
+            class="btn btn-primary rounded-circle"
+            style="width:48px;height:48px;"
+            type="button"
+            aria-label="{{ _('Ouvrir l\'aide Academy') }}"
+            title="{{ _('Ouvrir l\'aide Academy') }}"
+        >
+            <i class="bi bi-chat-dots"></i>
+        </button>
+
+        <div id="academyHelpChatPanel" class="card mt-2 d-none" style="width: 340px; max-width: calc(100vw - 2rem);">
+            <div class="card-header d-flex align-items-center justify-content-between py-2">
+                <span class="fw-semibold">{{ _('Assistant Academy') }}</span>
+                <button id="academyHelpChatClose" class="btn btn-sm btn-outline-secondary" type="button" aria-label="{{ _('Fermer') }}">×</button>
+            </div>
+            <div id="academyHelpChatMessages" class="card-body" style="height: 300px; overflow:auto;"></div>
+            <div class="card-footer">
+                <div class="input-group input-group-sm">
+                    <input id="academyHelpChatInput" type="text" class="form-control" placeholder="{{ _('Posez votre question Academy...') }}" />
+                    <button id="academyHelpChatSend" class="btn btn-primary" type="button">{{ _('Envoyer') }}</button>
+                </div>
+            </div>
+        </div>
+</div>
+
+<script>
+(function () {
+        const toggle = document.getElementById('academyHelpChatToggle');
+        const panel = document.getElementById('academyHelpChatPanel');
+        const closeBtn = document.getElementById('academyHelpChatClose');
+        const input = document.getElementById('academyHelpChatInput');
+        const sendBtn = document.getElementById('academyHelpChatSend');
+        const messages = document.getElementById('academyHelpChatMessages');
+        if (!toggle || !panel || !closeBtn || !input || !sendBtn || !messages) return;
+
+        function addMsg(text, who) {
+                const wrap = document.createElement('div');
+                wrap.className = 'mb-2 d-flex ' + (who === 'user' ? 'justify-content-end' : 'justify-content-start');
+                const b = document.createElement('div');
+                b.className = (who === 'user' ? 'bg-primary text-white' : 'bg-body-tertiary') + ' rounded px-2 py-1 small';
+                b.style.maxWidth = '85%';
+                b.textContent = text;
+                wrap.appendChild(b);
+                messages.appendChild(wrap);
+                messages.scrollTop = messages.scrollHeight;
+        }
+
+        function replyFor(msg) {
+                const m = String(msg || '').toLowerCase();
+                if (m.includes('quiz') || m.includes('examen')) {
+                        return "{{ _('Ouvrez un quiz depuis le module, validez chaque réponse puis consultez vos résultats et certificats.') }}";
+                }
+                if (m.includes('certif') || m.includes('badge')) {
+                        return "{{ _('Les certificats apparaissent après validation des parcours; vous pouvez les retrouver dans votre profil Academy.') }}";
+                }
+                if (m.includes('exercise') || m.includes('pratique') || m.includes('practice')) {
+                        return "{{ _('Utilisez les exercices pour vous entraîner, puis vérifiez vos progrès dans le tableau de bord Learning.') }}";
+                }
+                return "{{ _('Je peux aider sur les cours, quiz, progression et certificats. Posez une question plus précise.') }}";
+        }
+
+        function send() {
+                const msg = (input.value || '').trim();
+                if (!msg) return;
+                addMsg(msg, 'user');
+                input.value = '';
+                addMsg(replyFor(msg), 'bot');
+        }
+
+        toggle.addEventListener('click', function () {
+                panel.classList.toggle('d-none');
+                if (!panel.classList.contains('d-none') && !messages.dataset.welcome) {
+                        addMsg("{{ _('Bienvenue sur Academy. Je peux vous guider sur les cours, quiz et certifications.') }}", 'bot');
+                        messages.dataset.welcome = '1';
+                }
+        });
+        closeBtn.addEventListener('click', function () { panel.classList.add('d-none'); });
+        sendBtn.addEventListener('click', send);
+        input.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                        e.preventDefault();
+                        send();
+                }
+        });
+})();
+</script>
 {% endblock %}

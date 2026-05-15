@@ -337,6 +337,31 @@ def _bi_lite_menu_access() -> dict[str, bool]:
 @bp.app_context_processor
 def _portal_layout_context():
     tenant = getattr(g, "tenant", None)
+    layout_user_profile = {
+        "display_name": "",
+        "avatar_mode": "icon",
+        "avatar_icon": "bi-person-circle",
+        "photo_url": "",
+    }
+    if getattr(current_user, "is_authenticated", False):
+        layout_user_profile["display_name"] = (
+            getattr(current_user, "username", None)
+            or getattr(current_user, "email", "")
+            or ""
+        )
+        if tenant is not None and getattr(current_user, "id", None) is not None:
+            settings = tenant.settings_json if isinstance(getattr(tenant, "settings_json", None), dict) else {}
+            profiles = settings.get("user_profiles") if isinstance(settings.get("user_profiles"), dict) else {}
+            raw_profile = profiles.get(str(int(current_user.id))) if isinstance(profiles, dict) else None
+            if isinstance(raw_profile, dict):
+                layout_user_profile["display_name"] = (
+                    str(raw_profile.get("display_name") or "").strip()
+                    or layout_user_profile["display_name"]
+                )
+                layout_user_profile["avatar_mode"] = str(raw_profile.get("avatar_mode") or "icon").strip() or "icon"
+                layout_user_profile["avatar_icon"] = str(raw_profile.get("avatar_icon") or "bi-person-circle").strip() or "bi-person-circle"
+                layout_user_profile["photo_url"] = str(raw_profile.get("photo_url") or "").strip()
+
     module_access = get_user_module_access(tenant, getattr(current_user, "id", None))
     bi_menu_access = get_user_menu_access(tenant, getattr(current_user, "id", None), "bi")
     bi_enabled = bool(module_access.get("bi", True))
@@ -367,6 +392,7 @@ def _portal_layout_context():
             "bi_lite_switch_href": url_for("portal.bi_lite", bi_ui_mode="lite"),
             "bi_full_home_href": url_for("portal.home", bi_ui_mode="full"),
             "portal_href": _portal_href,
+            "layout_user_profile": layout_user_profile,
         }
     else:
         _, current_count, max_limit = SubscriptionService.check_limit(tenant.id, "transactions")
@@ -378,6 +404,7 @@ def _portal_layout_context():
             "bi_lite_switch_href": url_for("portal.bi_lite", bi_ui_mode="lite"),
             "bi_full_home_href": url_for("portal.home", bi_ui_mode="full"),
             "portal_href": _portal_href,
+            "layout_user_profile": layout_user_profile,
             "transaction_usage": {
                 "current": int(current_count),
                 "max": int(max_limit),

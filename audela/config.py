@@ -109,8 +109,16 @@ class Config:
     OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL", "")
 
     # Google OAuth (social login)
-    GOOGLE_OAUTH_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "").strip()
-    GOOGLE_OAUTH_CLIENT_SECRET = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET", "").strip()
+    GOOGLE_OAUTH_CLIENT_ID = (
+        os.environ.get("GOOGLE_OAUTH_CLIENT_ID")
+        or os.environ.get("GOOGLE_CLIENT_ID")
+        or ""
+    ).strip()
+    GOOGLE_OAUTH_CLIENT_SECRET = (
+        os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET")
+        or os.environ.get("GOOGLE_CLIENT_SECRET")
+        or ""
+    ).strip()
     GOOGLE_OAUTH_AUTHORIZE_URL = os.environ.get(
         "GOOGLE_OAUTH_AUTHORIZE_URL",
         "https://accounts.google.com/o/oauth2/v2/auth",

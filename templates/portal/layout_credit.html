@@ -26,6 +26,14 @@
   .credit-more summary::-webkit-details-marker {
     display: none;
   }
+  .module-avatar-photo {
+    width: 1.35rem;
+    height: 1.35rem;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+  }
   @media (max-width: 991.98px) {
     .credit-shell.menu-hidden .sidebar {
       display: none !important;
@@ -113,6 +121,17 @@
           <button class="btn btn-outline-secondary btn-sm" type="button" onclick="__toggleTheme()" title="{{ _('Tema') }}">
             <i class="bi bi-moon-stars"></i>
           </button>
+
+          {% if current_user.is_authenticated %}
+          <a class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1" href="{{ url_for('tenant.profile') }}" title="{{ _('Mon profil') }}">
+            {% if layout_user_profile and layout_user_profile.avatar_mode == 'photo' and layout_user_profile.photo_url %}
+              <img src="{{ layout_user_profile.photo_url }}" alt="{{ _('Photo de profil') }}" class="module-avatar-photo">
+            {% else %}
+              <i class="bi {{ layout_user_profile.avatar_icon if layout_user_profile and layout_user_profile.avatar_icon else 'bi-person-circle' }}"></i>
+            {% endif %}
+            <span class="d-none d-md-inline">{{ _('Mon profil') }}</span>
+          </a>
+          {% endif %}
 
           <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('auth.change_password') }}">
             <i class="bi bi-key"></i>

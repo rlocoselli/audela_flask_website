@@ -43,6 +43,18 @@
             {% endfor %}
           </ul>
         </li>
+        {% if current_user.is_authenticated %}
+        <li class="nav-item">
+          <a class="nav-link d-inline-flex align-items-center gap-1" href="{{ url_for('tenant.profile') }}" title="{{ _('Mon profil') }}">
+            {% if layout_user_profile and layout_user_profile.avatar_mode == 'photo' and layout_user_profile.photo_url %}
+              <img src="{{ layout_user_profile.photo_url }}" alt="{{ _('Photo de profil') }}" class="module-avatar-photo">
+            {% else %}
+              <i class="bi {{ layout_user_profile.avatar_icon if layout_user_profile and layout_user_profile.avatar_icon else 'bi-person-circle' }}"></i>
+            {% endif %}
+            <span class="d-none d-md-inline">{{ _('Mon profil') }}</span>
+          </a>
+        </li>
+        {% endif %}
       </ul>
     </div>
   </div>
@@ -50,6 +62,33 @@
 
 <div class="sql-training-container">
   {% block sql_training_content %}{% endblock %}
+</div>
+
+<div id="sqlTrainingHelpChat" class="position-fixed bottom-0 end-0 p-3" style="z-index:1080;">
+  <button
+    id="sqlTrainingHelpChatToggle"
+    class="btn btn-primary rounded-circle"
+    style="width:48px;height:48px;"
+    type="button"
+    aria-label="{{ _('Ouvrir l\'aide SQL Training') }}"
+    title="{{ _('Ouvrir l\'aide SQL Training') }}"
+  >
+    <i class="bi bi-chat-dots"></i>
+  </button>
+
+  <div id="sqlTrainingHelpChatPanel" class="card mt-2 d-none" style="width: 340px; max-width: calc(100vw - 2rem);">
+    <div class="card-header d-flex align-items-center justify-content-between py-2">
+      <span class="fw-semibold">{{ _('Assistant SQL Training') }}</span>
+      <button id="sqlTrainingHelpChatClose" class="btn btn-sm btn-outline-secondary" type="button" aria-label="{{ _('Fermer') }}">×</button>
+    </div>
+    <div id="sqlTrainingHelpChatMessages" class="card-body" style="height: 300px; overflow:auto;"></div>
+    <div class="card-footer">
+      <div class="input-group input-group-sm">
+        <input id="sqlTrainingHelpChatInput" type="text" class="form-control" placeholder="{{ _('Posez votre question SQL...') }}" />
+        <button id="sqlTrainingHelpChatSend" class="btn btn-primary" type="button">{{ _('Envoyer') }}</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <style>
@@ -67,6 +106,14 @@
     color: var(--sql-primary) !important;
     font-size: 1.3rem;
   }
+  .module-avatar-photo {
+    width: 1.35rem;
+    height: 1.35rem;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+  }
   
   .sql-training-container {
     min-height: 80vh;
@@ -79,4 +126,66 @@
     }
   }
 </style>
+
+<script>
+(function () {
+  const toggle = document.getElementById('sqlTrainingHelpChatToggle');
+  const panel = document.getElementById('sqlTrainingHelpChatPanel');
+  const closeBtn = document.getElementById('sqlTrainingHelpChatClose');
+  const input = document.getElementById('sqlTrainingHelpChatInput');
+  const sendBtn = document.getElementById('sqlTrainingHelpChatSend');
+  const messages = document.getElementById('sqlTrainingHelpChatMessages');
+  if (!toggle || !panel || !closeBtn || !input || !sendBtn || !messages) return;
+
+  function addMsg(text, who) {
+    const wrap = document.createElement('div');
+    wrap.className = 'mb-2 d-flex ' + (who === 'user' ? 'justify-content-end' : 'justify-content-start');
+    const b = document.createElement('div');
+    b.className = (who === 'user' ? 'bg-primary text-white' : 'bg-body-tertiary') + ' rounded px-2 py-1 small';
+    b.style.maxWidth = '85%';
+    b.textContent = text;
+    wrap.appendChild(b);
+    messages.appendChild(wrap);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function replyFor(msg) {
+    const m = String(msg || '').toLowerCase();
+    if (m.includes('join')) {
+      return "{{ _('Commencez par identifier la clé commune entre tables, puis testez avec LEFT JOIN et INNER JOIN.') }}";
+    }
+    if (m.includes('group') || m.includes('aggregate')) {
+      return "{{ _('Utilisez GROUP BY avec des agrégations (COUNT, SUM, AVG) puis filtrez avec HAVING si nécessaire.') }}";
+    }
+    if (m.includes('hint') || m.includes('indice')) {
+      return "{{ _('Ouvrez les indices de l\'exercice et utilisez Ctrl+Space dans l\'éditeur pour accélérer la rédaction SQL.') }}";
+    }
+    return "{{ _('Je peux aider sur SELECT, JOIN, GROUP BY, filtres, et bonnes pratiques SQL.') }}";
+  }
+
+  function send() {
+    const msg = (input.value || '').trim();
+    if (!msg) return;
+    addMsg(msg, 'user');
+    input.value = '';
+    addMsg(replyFor(msg), 'bot');
+  }
+
+  toggle.addEventListener('click', function () {
+    panel.classList.toggle('d-none');
+    if (!panel.classList.contains('d-none') && !messages.dataset.welcome) {
+      addMsg("{{ _('Bienvenue sur SQL Training. Je peux vous aider pendant les exercices pratiques.') }}", 'bot');
+      messages.dataset.welcome = '1';
+    }
+  });
+  closeBtn.addEventListener('click', function () { panel.classList.add('d-none'); });
+  sendBtn.addEventListener('click', send);
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      send();
+    }
+  });
+})();
+</script>
 {% endblock %}
