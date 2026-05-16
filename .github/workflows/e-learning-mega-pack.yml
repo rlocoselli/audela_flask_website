@@ -1,0 +1,96 @@
+name: Seed E-Learning Mega Pack (one shot)
+
+on:
+  workflow_call:
+    inputs:
+      git_ref:
+        description: "Git ref to deploy before seeding (branch/tag/sha)"
+        required: false
+        type: string
+        default: "main"
+      force:
+        description: "Run mega-pack seed with --force"
+        required: false
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      git_ref:
+        description: "Git ref to deploy before seeding (branch/tag/sha)"
+        required: false
+        default: "main"
+      force:
+        description: "Run mega-pack seed with --force"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  seed_mega_pack:
+    runs-on: ubuntu-latest
+    environment: audeladesdonnees
+
+    steps:
+      - name: Seed E-Learning mega pack via SSH (root)
+        id: seed_mega_pack_ssh
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: root
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          timeout: 90s
+          command_timeout: 50m
+          script: |
+            set -e
+            echo "📦 E-Learning mega-pack one-shot job started"
+
+            cd /root/audela_flask_website
+
+            TARGET_REF="${{ inputs.git_ref || github.event.inputs.git_ref }}"
+            if [ -z "$TARGET_REF" ]; then TARGET_REF="main"; fi
+
+            FORCE_INPUT="${{ inputs.force || github.event.inputs.force }}"
+            if [ -z "$FORCE_INPUT" ]; then FORCE_INPUT="false"; fi
+
+            echo "📥 Git fetch/reset to $TARGET_REF"
+            git fetch --all --prune
+            git checkout "$TARGET_REF"
+            git reset --hard "origin/$TARGET_REF" || true
+
+            COMPOSE_CMD="docker compose"
+            if ! docker compose version >/dev/null 2>&1; then
+              COMPOSE_CMD="docker-compose"
+            fi
+
+            if [ ! -f .env ]; then
+              echo "⚠️ .env missing on server"
+              if [ -n "${{ secrets.SERVER_ENV_FILE }}" ]; then
+                printf "%s" "${{ secrets.SERVER_ENV_FILE }}" > .env
+                chmod 600 .env || true
+                echo "✅ .env bootstrapped from GitHub secret SERVER_ENV_FILE"
+              else
+                echo "❌ .env missing and secret SERVER_ENV_FILE is not set"
+                exit 1
+              fi
+            fi
+
+            echo "🚀 Ensure app container is up"
+            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml up -d --no-deps audela
+
+            aud_run () {
+              $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml run --rm --no-deps --entrypoint "" audela "$@"
+            }
+
+            echo "🔎 Verify mega-pack command exists"
+            aud_run flask --help | grep -q "seed-e-learning-mega-pack"
+
+            if [ "$FORCE_INPUT" = "true" ]; then
+              echo "🧠 Running mega-pack with --force"
+              aud_run flask seed-e-learning-mega-pack --force
+            else
+              echo "🧠 Running mega-pack"
+              aud_run flask seed-e-learning-mega-pack
+            fi
+
+            echo "✅ Mega-pack seed finished"

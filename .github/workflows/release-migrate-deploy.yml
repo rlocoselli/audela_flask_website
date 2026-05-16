@@ -7,15 +7,11 @@ on:
         description: "Git ref to deploy before migrations (branch/tag/sha)"
         required: false
         default: "main"
-      python_seed_profile:
-        description: "Python seeding profile"
+      e_learning_force:
+        description: "Run e-learning mega-pack with --force"
         required: false
-        type: choice
-        options:
-          - all
-          - data-analysis
-          - none
-        default: all
+        type: boolean
+        default: false
       install_mode:
         description: "Deployment mode"
         required: true
@@ -46,7 +42,7 @@ jobs:
     uses: ./.github/workflows/migrations-only.yml
     with:
       git_ref: ${{ github.event.inputs.git_ref || 'main' }}
-      python_seed_profile: ${{ github.event.inputs.python_seed_profile || 'all' }}
+      python_seed_profile: none
     secrets: inherit
 
   deploy:
@@ -58,11 +54,11 @@ jobs:
       celery_action: ${{ github.event.inputs.celery_action || 'keep' }}
     secrets: inherit
 
-  seed_python:
-    name: Seed Python tracks
+  seed_e_learning_mega_pack:
+    name: Seed E-Learning Mega Pack
     needs: deploy
-    uses: ./.github/workflows/python-seed-only.yml
+    uses: ./.github/workflows/e-learning-mega-pack.yml
     with:
       git_ref: ${{ github.event.inputs.git_ref || 'main' }}
-      python_seed_profile: ${{ github.event.inputs.python_seed_profile || 'all' }}
+      force: ${{ github.event.inputs.e_learning_force == 'true' || github.event.inputs.e_learning_force == true }}
     secrets: inherit

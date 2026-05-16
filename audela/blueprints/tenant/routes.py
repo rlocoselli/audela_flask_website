@@ -460,15 +460,37 @@ def _handle_login():
         return render_template("tenant/login.html", google_oauth_enabled=_google_oauth_enabled())
     if login_error == "invalid_credentials" or not user or not tenant:
         flash(tr("Credenciais inválidas.", getattr(g, "lang", None)), "error")
-        db.session.add(
-            AuditEvent(
-                tenant_id=tenant.id if tenant else None,
-                user_id=user.id if user else None,
-                event_type="tenant.login.failed",
-                payload_json={"email": email},
+        # Audit events are tenant-scoped and require a non-null tenant_id.
+        # For failed logins we may not have a resolved tenant, so try safe fallbacks.
+        audit_tenant_id = tenant.id if tenant else None
+        if not audit_tenant_id and tenant_slug:
+            scoped = Tenant.query.filter_by(slug=tenant_slug).first()
+            audit_tenant_id = scoped.id if scoped else None
+        if not audit_tenant_id and email:
+            tenant_rows = (
+                db.session.query(User.tenant_id)
+                .filter(User.email == email, User.tenant_id.isnot(None))
+                .distinct()
+                .all()
             )
-        )
-        db.session.commit()
+            if len(tenant_rows) == 1:
+                audit_tenant_id = int(tenant_rows[0][0])
+
+        if audit_tenant_id:
+            db.session.add(
+                AuditEvent(
+                    tenant_id=audit_tenant_id,
+                    user_id=user.id if user else None,
+                    event_type="tenant.login.failed",
+                    payload_json={"email": email},
+                )
+            )
+            db.session.commit()
+        else:
+            current_app.logger.warning(
+                "Skipping tenant.login.failed audit event because tenant_id could not be resolved",
+                extra={"email": email, "tenant_slug": tenant_slug},
+            )
         return render_template("tenant/login.html", google_oauth_enabled=_google_oauth_enabled())
     
     # Check email verification

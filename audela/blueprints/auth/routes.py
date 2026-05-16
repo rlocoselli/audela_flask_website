@@ -86,6 +86,70 @@ def _matching_users_for_password(email: str, password: str, tenant_slug: str | N
     return [u for u in candidates if u and u.check_password(password)]
 
 
+def _resolve_audit_tenant_id_for_failed_login(
+    tenant: Tenant | None,
+    tenant_slug: str | None,
+    email: str | None,
+) -> int | None:
+    """Resolve a safe tenant id for failed-login audit rows.
+
+    AuditEvent is tenant-scoped and requires tenant_id to be non-null.
+    """
+    if tenant and tenant.id:
+        return int(tenant.id)
+
+    scoped_slug = str(tenant_slug or "").strip().lower()
+    if scoped_slug:
+        scoped = Tenant.query.filter_by(slug=scoped_slug).first()
+        if scoped and scoped.id:
+            return int(scoped.id)
+
+    scoped_email = str(email or "").strip().lower()
+    if scoped_email:
+        tenant_rows = (
+            db.session.query(User.tenant_id)
+            .filter(User.email == scoped_email, User.tenant_id.isnot(None))
+            .distinct()
+            .all()
+        )
+        if len(tenant_rows) == 1:
+            return int(tenant_rows[0][0])
+
+    return None
+
+
+def _record_failed_login_audit(
+    *,
+    tenant: Tenant | None,
+    user: User | None,
+    tenant_slug: str | None,
+    email: str,
+    payload_extra: dict | None = None,
+) -> None:
+    """Best-effort audit for failed login attempts without breaking request flow."""
+    audit_tenant_id = _resolve_audit_tenant_id_for_failed_login(tenant, tenant_slug, email)
+    if not audit_tenant_id:
+        current_app.logger.warning(
+            "Skipping auth.login.failed audit event because tenant_id could not be resolved",
+            extra={"email": email, "tenant_slug": tenant_slug},
+        )
+        return
+
+    payload = {"email": email}
+    if isinstance(payload_extra, dict):
+        payload.update(payload_extra)
+
+    db.session.add(
+        AuditEvent(
+            tenant_id=audit_tenant_id,
+            user_id=user.id if user else None,
+            event_type="auth.login.failed",
+            payload_json=payload,
+        )
+    )
+    db.session.commit()
+
+
 def _login_redirect_target(app_target: str, next_url: str | None = None) -> str:
     if next_url:
         return next_url
@@ -301,16 +365,12 @@ def login():
             return render_template("portal/login.html", next_url=next_url, google_oauth_enabled=_google_oauth_enabled())
         if login_error == "invalid_credentials" or not user or not tenant:
             flash(tr("Credenciais inválidas.", getattr(g, "lang", None)), "error")
-            # Optional: record failed login attempt (without storing password)
-            db.session.add(
-                AuditEvent(
-                    tenant_id=tenant.id if tenant else None,
-                    user_id=user.id if user else None,
-                    event_type="auth.login.failed",
-                    payload_json={"email": email},
-                )
+            _record_failed_login_audit(
+                tenant=tenant,
+                user=user,
+                tenant_slug=tenant_slug,
+                email=email,
             )
-            db.session.commit()
             return render_template(
                 "portal/login.html",
                 next_url=next_url,
@@ -375,15 +435,13 @@ def login_finance():
             return render_template("portal/login_finance.html", next_url=next_url, google_oauth_enabled=_google_oauth_enabled())
         if login_error == "invalid_credentials" or not user or not tenant:
             flash(tr("Credenciais inválidas.", getattr(g, "lang", None)), "error")
-            db.session.add(
-                AuditEvent(
-                    tenant_id=tenant.id if tenant else None,
-                    user_id=user.id if user else None,
-                    event_type="auth.login.failed",
-                    payload_json={"email": email, "app": "finance"},
-                )
+            _record_failed_login_audit(
+                tenant=tenant,
+                user=user,
+                tenant_slug=tenant_slug,
+                email=email,
+                payload_extra={"app": "finance"},
             )
-            db.session.commit()
             return render_template(
                 "portal/login_finance.html",
                 next_url=next_url,

@@ -1,0 +1,1377 @@
+{% extends 'e_learning/base_e_learning.html' %}
+
+{% block e_learning_content %}
+<style>
+  .brain-page {
+    --brain-ink: #12263a;
+    --brain-muted: #486581;
+    --brain-bg-1: #fff9ec;
+    --brain-bg-2: #edf7ff;
+    --brain-accent: #ff7a00;
+    --brain-accent-2: #007ea7;
+    --brain-ok: #0f766e;
+    --brain-card: #ffffff;
+    color: var(--brain-ink);
+  }
+  .brain-hero {
+    background:
+      radial-gradient(circle at 12% 20%, rgba(255, 122, 0, 0.18), transparent 38%),
+      radial-gradient(circle at 85% 15%, rgba(0, 126, 167, 0.2), transparent 32%),
+      linear-gradient(140deg, var(--brain-bg-1), var(--brain-bg-2));
+    border-radius: 1.2rem;
+    border: 1px solid #e8e8e8;
+    padding: 1.2rem;
+  }
+  .brain-title {
+    font-family: 'Trebuchet MS', 'Segoe UI', sans-serif;
+    font-size: 1.75rem;
+    letter-spacing: 0.02em;
+    margin: 0;
+  }
+  .brain-subtitle {
+    color: var(--brain-muted);
+    margin-top: 0.45rem;
+  }
+  .brain-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border-radius: 999px;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid #d7e2ef;
+    background: #fff;
+    font-size: 0.84rem;
+    margin-right: 0.4rem;
+    margin-bottom: 0.4rem;
+  }
+  .brain-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+  .brain-card {
+    background: var(--brain-card);
+    border-radius: 1rem;
+    border: 1px solid #e3e8ef;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+    overflow: hidden;
+  }
+  .brain-card-body {
+    padding: 0.95rem;
+  }
+  .brain-card h5 {
+    margin: 0 0 0.45rem;
+    font-size: 1.02rem;
+  }
+  .brain-card p {
+    margin: 0;
+    color: var(--brain-muted);
+    font-size: 0.93rem;
+  }
+  .brain-card img {
+    display: block;
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+    background: #f6f9fd;
+  }
+  .brain-panel {
+    margin-top: 1rem;
+    background: #fff;
+    border: 1px solid #e4e7ec;
+    border-radius: 1rem;
+    padding: 1rem;
+  }
+  .brain-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.9rem;
+  }
+  .brain-game {
+    border: 1px solid #dce4ed;
+    border-radius: 0.9rem;
+    padding: 0.85rem;
+    background: #fbfdff;
+  }
+  .brain-game h6 {
+    margin: 0 0 0.45rem;
+    font-size: 0.98rem;
+  }
+  .brain-game p {
+    margin: 0.2rem 0;
+    color: var(--brain-muted);
+    font-size: 0.9rem;
+  }
+  .brain-visual-canvas {
+    width: 100%;
+    max-width: 390px;
+    height: 90px;
+    border: 1px dashed #b7c8db;
+    border-radius: 0.65rem;
+    background: #ffffff;
+    display: block;
+  }
+  .brain-visual-options {
+    display: flex;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+    margin-top: 0.55rem;
+  }
+  .brain-maze-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: flex-start;
+  }
+  .brain-maze-canvas {
+    width: 280px;
+    height: 280px;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.6rem;
+    background: #ffffff;
+  }
+  .brain-maze-controls {
+    display: grid;
+    grid-template-columns: repeat(3, 42px);
+    grid-template-rows: repeat(3, 42px);
+    gap: 0.35rem;
+    align-items: center;
+    justify-items: center;
+  }
+  .brain-maze-controls .btn {
+    width: 42px;
+    height: 42px;
+    padding: 0;
+  }
+  .brain-score-badge {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    font-weight: 600;
+    padding: 0.3rem 0.65rem;
+    background: #eef6ff;
+    color: #0c4a6e;
+    border: 1px solid #cfe5ff;
+    font-size: 0.85rem;
+  }
+  .brain-classification {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--brain-ok);
+  }
+  .brain-graph-wrap {
+    position: relative;
+    min-height: 230px;
+  }
+  .brain-graph {
+    width: 100%;
+    min-height: 230px;
+    border-radius: 0.8rem;
+    border: 1px solid #dbe6f3;
+    background: linear-gradient(180deg, #ffffff 0%, #f5f9ff 100%);
+  }
+  .brain-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.7rem;
+  }
+  .brain-meta {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .brain-chip {
+    background: #f1f5f9;
+    border: 1px solid #d3dfec;
+    color: #0f172a;
+    border-radius: 999px;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+  .brain-fade-in {
+    opacity: 0;
+    transform: translateY(8px);
+    animation: brainReveal 0.45s ease forwards;
+  }
+  .brain-fade-in:nth-child(2) { animation-delay: 0.08s; }
+  .brain-fade-in:nth-child(3) { animation-delay: 0.16s; }
+  @keyframes brainReveal {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @media (max-width: 992px) {
+    .brain-grid {
+      grid-template-columns: 1fr;
+    }
+    .brain-row {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<div class="brain-page">
+  <section class="brain-hero">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+      <div>
+        <h1 class="brain-title">{{ _('Brain Trainer: Calcul rapide') }}</h1>
+        <p class="brain-subtitle">
+          {{ _('Parcours e-learning type Brain Age: logique, calcul mental, memoire, puis classement et suivi de progression.') }}
+        </p>
+      </div>
+      <div class="text-end">
+        <div class="brain-score-badge" id="overallScoreBadge">{{ _('Score global') }}: 0</div>
+        <div class="small text-secondary mt-2" id="lastSessionLabel">{{ _('Aucune session enregistree') }}</div>
+      </div>
+    </div>
+
+    <div class="mt-3">
+      <span class="brain-pill"><i class="bi bi-calculator"></i> {{ _('Calcul mental') }}</span>
+      <span class="brain-pill"><i class="bi bi-puzzle"></i> {{ _('Logique') }}</span>
+      <span class="brain-pill"><i class="bi bi-memory"></i> {{ _('Memoire') }}</span>
+      <span class="brain-pill"><i class="bi bi-triangle"></i> {{ _('QI visuel') }}</span>
+      <span class="brain-pill"><i class="bi bi-sign-turn-right"></i> {{ _('Navigation') }}</span>
+      <span class="brain-pill"><i class="bi bi-graph-up"></i> {{ _('Evolution') }}</span>
+    </div>
+  </section>
+
+  <section class="brain-grid">
+    <article class="brain-card brain-fade-in">
+      <img src="{{ url_for('static', filename='assets/brain_trainer/math.svg') }}" alt="{{ _('Illustration calcul mental') }}">
+      <div class="brain-card-body">
+        <h5>{{ _('Module 1: Vitesse de calcul') }}</h5>
+        <p>{{ _('Objectif: augmenter la vitesse de reponse sur additions, soustractions et multiplications.') }}</p>
+      </div>
+    </article>
+
+    <article class="brain-card brain-fade-in">
+      <img src="{{ url_for('static', filename='assets/brain_trainer/logic.svg') }}" alt="{{ _('Illustration logique') }}">
+      <div class="brain-card-body">
+        <h5>{{ _('Module 2: Raisonnement logique') }}</h5>
+        <p>{{ _('Objectif: identifier des suites et motifs rapidement avec des choix simples.') }}</p>
+      </div>
+    </article>
+
+    <article class="brain-card brain-fade-in">
+      <img src="{{ url_for('static', filename='assets/brain_trainer/memory.svg') }}" alt="{{ _('Illustration memoire') }}">
+      <div class="brain-card-body">
+        <h5>{{ _('Module 3: Memoire active') }}</h5>
+        <p>{{ _('Objectif: memoriser une sequence courte puis la restituer avec precision.') }}</p>
+      </div>
+    </article>
+
+    <article class="brain-card brain-fade-in">
+      <img src="{{ url_for('static', filename='assets/brain_trainer/visual.svg') }}" alt="{{ _('Illustration QI visuel') }}">
+      <div class="brain-card-body">
+        <h5>{{ _('Module 4: Sequence visuelle') }}</h5>
+        <p>{{ _('Objectif: trouver la forme manquante dans une suite de figures.') }}</p>
+      </div>
+    </article>
+  </section>
+
+  <section class="brain-panel">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+      <h4 class="mb-0">{{ _('Mini jeux simples') }}</h4>
+      <div class="brain-classification" id="classificationLabel">{{ _('Classification: Debutant') }}</div>
+    </div>
+    <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+      <label for="difficultyLevel" class="small text-secondary mb-0">{{ _('Difficulte') }}</label>
+      <select id="difficultyLevel" class="form-select form-select-sm" style="max-width:180px;">
+        <option value="easy">{{ _('Facile') }}</option>
+        <option value="medium" selected>{{ _('Moyen') }}</option>
+        <option value="hard">{{ _('Difficile') }}</option>
+        <option value="expert">{{ _('Expert') }}</option>
+      </select>
+      <button id="toggleChallenge" type="button" class="btn btn-sm btn-dark">{{ _('Demarrer challenge') }}</button>
+      <button id="toggleCampaign" type="button" class="btn btn-sm btn-outline-dark">{{ _('Mode campagne') }}</button>
+      <div class="brain-meta">
+        <span class="brain-chip" id="timerChip">{{ _('Temps') }}: --</span>
+        <span class="brain-chip" id="streakChip">{{ _('Serie') }}: 0</span>
+        <span class="brain-chip" id="campaignChip">{{ _('Campagne') }}: --</span>
+      </div>
+    </div>
+
+    <div class="brain-row mt-3">
+      <div class="brain-game">
+        <h6>{{ _('Jeu 1 - Calcul mental') }}</h6>
+        <p id="mathQuestion">8 + 7 = ?</p>
+        <div class="input-group input-group-sm mt-2">
+          <input class="form-control" type="number" id="mathAnswer" placeholder="{{ _('Votre reponse') }}">
+          <button class="btn btn-primary" id="submitMath">{{ _('Valider') }}</button>
+        </div>
+        <p class="mt-2" id="mathFeedback"></p>
+      </div>
+
+      <div class="brain-game">
+        <h6>{{ _('Jeu 2 - Logique (suite)') }}</h6>
+        <p id="logicQuestion">2, 4, 8, 16, ?</p>
+        <div id="logicChoices" class="d-flex gap-2 flex-wrap mt-2"></div>
+        <p class="mt-2" id="logicFeedback"></p>
+      </div>
+
+      <div class="brain-game">
+        <h6>{{ _('Jeu 3 - Memoire flash') }}</h6>
+        <p>{{ _('Memorisez la sequence puis saisissez-la.') }}</p>
+        <p class="fw-bold fs-5" id="memorySequence">-----</p>
+        <div class="input-group input-group-sm mt-2">
+          <input class="form-control" id="memoryAnswer" maxlength="8" placeholder="{{ _('Entrez la sequence') }}">
+          <button class="btn btn-outline-primary" id="submitMemory">{{ _('Valider') }}</button>
+        </div>
+        <p class="mt-2" id="memoryFeedback"></p>
+      </div>
+
+      <div class="brain-game">
+        <h6>{{ _('Jeu 4 - QI visuel (formes)') }}</h6>
+        <p id="visualPrompt">{{ _('Trouvez la forme suivante dans la suite.') }}</p>
+        <canvas id="visualSequence" class="brain-visual-canvas" width="390" height="90"></canvas>
+        <div id="visualOptions" class="brain-visual-options"></div>
+        <p class="mt-2" id="visualFeedback"></p>
+      </div>
+
+      <div class="brain-game">
+        <h6>{{ _('Jeu 5 - Attention (couleur/mot)') }}</h6>
+        <p id="stroopPrompt">{{ _('Le mot et la couleur correspondent-ils ?') }}</p>
+        <p id="stroopWord" class="fw-bold fs-4 mb-2">ROUGE</p>
+        <div class="d-flex gap-2 flex-wrap">
+          <button class="btn btn-sm btn-outline-success" id="stroopMatch">{{ _('Oui') }}</button>
+          <button class="btn btn-sm btn-outline-danger" id="stroopNoMatch">{{ _('Non') }}</button>
+        </div>
+        <p class="mt-2" id="stroopFeedback"></p>
+      </div>
+
+      <div class="brain-game">
+        <h6>{{ _('Jeu 6 - Chien vers la nourriture') }}</h6>
+        <p id="mazePrompt">{{ _('Aidez le chien a atteindre la nourriture sans toucher les murs.') }}</p>
+        <div class="brain-maze-wrap mt-2">
+          <canvas id="mazeCanvas" class="brain-maze-canvas" width="280" height="280"></canvas>
+          <div>
+            <div class="brain-maze-controls mb-2">
+              <span></span>
+              <button class="btn btn-sm btn-outline-primary" id="mazeUp" type="button">↑</button>
+              <span></span>
+              <button class="btn btn-sm btn-outline-primary" id="mazeLeft" type="button">←</button>
+              <button class="btn btn-sm btn-outline-secondary" id="mazeReset" type="button">⟳</button>
+              <button class="btn btn-sm btn-outline-primary" id="mazeRight" type="button">→</button>
+              <span></span>
+              <button class="btn btn-sm btn-outline-primary" id="mazeDown" type="button">↓</button>
+              <span></span>
+            </div>
+            <p class="small mb-1" id="mazeTheme">Theme: -</p>
+            <p class="small mb-1" id="mazeSteps">{{ _('Pas:') }} 0</p>
+            <p class="small text-secondary mb-0" id="mazeHint">{{ _('Astuce: vous pouvez aussi utiliser les fleches du clavier.') }}</p>
+          </div>
+        </div>
+        <p class="mt-2" id="mazeFeedback"></p>
+      </div>
+
+      <div class="brain-game">
+        <h6>{{ _('Resultats de session') }}</h6>
+        <p>{{ _('Score calcul:') }} <strong id="mathScore">0</strong>/100</p>
+        <p>{{ _('Score logique:') }} <strong id="logicScore">0</strong>/100</p>
+        <p>{{ _('Score memoire:') }} <strong id="memoryScore">0</strong>/100</p>
+        <p>{{ _('Score visuel:') }} <strong id="visualScore">0</strong>/100</p>
+        <p>{{ _('Score attention:') }} <strong id="attentionScore">0</strong>/100</p>
+        <p>{{ _('Score navigation:') }} <strong id="mazeScore">0</strong>/100</p>
+        <p>{{ _('Moyenne:') }} <strong id="averageScore">0</strong>/100</p>
+        <p class="small text-secondary" id="campaignBest">--</p>
+        <div class="brain-actions">
+          <button class="btn btn-success btn-sm" id="saveSession">{{ _('Enregistrer cette session') }}</button>
+          <button class="btn btn-outline-secondary btn-sm" id="newRound">{{ _('Nouveau round') }}</button>
+          <button class="btn btn-outline-danger btn-sm" id="resetHistory">{{ _('Vider l historique') }}</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="brain-panel">
+    <h4>{{ _('Graphique d evolution') }}</h4>
+    <p class="text-secondary mb-2">{{ _('Affiche vos 20 dernieres sessions en score moyen.') }}</p>
+    <div class="brain-graph-wrap">
+      <canvas id="progressChart" class="brain-graph" width="880" height="280"></canvas>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  const storageKey = 'audela_brain_trainer_history_v1';
+  const campaignBestKey = 'audela_brain_trainer_campaign_best_v1';
+  const lang = String("{{ (current_lang or 'en')[:2] }}").toLowerCase();
+
+  const I18N = {
+    fr: {
+      logic_correct: 'Correct. Excellent reflexe logique.', logic_wrong: 'Incorrect. Reponse attendue: {value}',
+      memory_watch: 'Memorisez pendant quelques secondes...', memory_type: 'Saisissez la sequence memorisee.',
+      class_beginner: 'Debutant', class_intermediate: 'Intermediaire', class_advanced: 'Avance', class_expert: 'Expert', class_elite: 'Elite',
+      class_prefix: 'Classification:', score_global: 'Score global', no_data: 'Aucune donnee pour le moment.',
+      last_session: 'Derniere session: {value}/100 ({label})', math_correct: 'Correct. Tres bien.', math_wrong: 'Incorrect. Reponse: {value}',
+      memory_perfect: 'Parfait, sequence exacte.', memory_wrong: 'Bonne sequence: {value}', history_cleared: 'Historique efface',
+      visual_correct: 'Excellent, forme correcte.', visual_wrong: 'Incorrect. Bonne forme: {value}', visual_prompt: 'Trouvez la forme suivante dans la suite.',
+      challenge_start: 'Challenge lance', challenge_stop: 'Challenge arrete', challenge_done: 'Challenge termine', timer_label: 'Temps', streak_label: 'Serie',
+      stroop_prompt: 'Le mot et la couleur correspondent-ils ?', stroop_correct: 'Bon reflexe attentionnel.', stroop_wrong: 'Mauvaise reponse. C etait {value}.',
+      answer_yes: 'Oui', answer_no: 'Non', color_red: 'ROUGE', color_blue: 'BLEU', color_green: 'VERT', color_orange: 'ORANGE',
+      campaign_start_button: 'Mode campagne', campaign_stop_button: 'Arreter campagne', campaign_label: 'Campagne',
+      campaign_idle: '--', campaign_level_label: 'Niveau {level}', campaign_stage_label: 'Maze {current}/3',
+      campaign_start_msg: 'Campagne demarree. Terminez 3 labyrinthes pour monter de niveau.', campaign_timeout_msg: 'Temps ecoule. Campagne arretee.',
+      campaign_level_up_msg: 'Niveau valide! Passage au niveau {level}.', campaign_complete_msg: 'Campagne terminee! Excellent travail.',
+      campaign_best_none: 'Meilleure campagne: aucune donnee.', campaign_best_value: 'Meilleure campagne: niveau {level}, meilleur temps restant {seconds}s',
+      maze_prompt: 'Aidez le chien a atteindre la nourriture sans toucher les murs.',
+      maze_hint: 'Astuce: vous pouvez aussi utiliser les fleches du clavier.',
+      maze_steps: 'Pas', maze_success: 'Bravo! Le chien a trouve la nourriture.', maze_fail: 'Bloque. Essayez un autre chemin.',
+      maze_theme_label: 'Theme: {value}', maze_theme_forest: 'Foret', maze_theme_desert: 'Desert', maze_theme_neon: 'Neon', maze_theme_ice: 'Glace',
+      shape_triangle: 'Triangle', shape_square: 'Carre', shape_circle: 'Cercle', shape_diamond: 'Losange'
+    },
+    en: {
+      logic_correct: 'Correct. Excellent logic reflex.', logic_wrong: 'Incorrect. Expected answer: {value}',
+      memory_watch: 'Memorize for a few seconds...', memory_type: 'Type the memorized sequence.',
+      class_beginner: 'Beginner', class_intermediate: 'Intermediate', class_advanced: 'Advanced', class_expert: 'Expert', class_elite: 'Elite',
+      class_prefix: 'Classification:', score_global: 'Global score', no_data: 'No data yet.',
+      last_session: 'Last session: {value}/100 ({label})', math_correct: 'Correct. Great.', math_wrong: 'Incorrect. Answer: {value}',
+      memory_perfect: 'Perfect, exact sequence.', memory_wrong: 'Correct sequence: {value}', history_cleared: 'History cleared',
+      visual_correct: 'Excellent, correct shape.', visual_wrong: 'Incorrect. Correct shape: {value}', visual_prompt: 'Find the next shape in the sequence.',
+      challenge_start: 'Challenge started', challenge_stop: 'Challenge stopped', challenge_done: 'Challenge complete', timer_label: 'Time', streak_label: 'Streak',
+      stroop_prompt: 'Do the word and color match?', stroop_correct: 'Great attention reflex.', stroop_wrong: 'Wrong answer. It was {value}.',
+      answer_yes: 'Yes', answer_no: 'No', color_red: 'RED', color_blue: 'BLUE', color_green: 'GREEN', color_orange: 'ORANGE',
+      campaign_start_button: 'Campaign mode', campaign_stop_button: 'Stop campaign', campaign_label: 'Campaign',
+      campaign_idle: '--', campaign_level_label: 'Level {level}', campaign_stage_label: 'Maze {current}/3',
+      campaign_start_msg: 'Campaign started. Clear 3 mazes to level up.', campaign_timeout_msg: 'Time is up. Campaign stopped.',
+      campaign_level_up_msg: 'Level cleared! Moving to level {level}.', campaign_complete_msg: 'Campaign complete! Great run.',
+      campaign_best_none: 'Best campaign: no data yet.', campaign_best_value: 'Best campaign: level {level}, best remaining time {seconds}s',
+      maze_prompt: 'Help the dog reach food without hitting walls.',
+      maze_hint: 'Tip: you can also use keyboard arrows.',
+      maze_steps: 'Steps', maze_success: 'Great! The dog reached the food.', maze_fail: 'Blocked. Try another path.',
+      maze_theme_label: 'Theme: {value}', maze_theme_forest: 'Forest', maze_theme_desert: 'Desert', maze_theme_neon: 'Neon', maze_theme_ice: 'Ice',
+      shape_triangle: 'Triangle', shape_square: 'Square', shape_circle: 'Circle', shape_diamond: 'Diamond'
+    },
+    pt: {
+      logic_correct: 'Correto. Excelente reflexo logico.', logic_wrong: 'Incorreto. Resposta esperada: {value}',
+      memory_watch: 'Memorize por alguns segundos...', memory_type: 'Digite a sequencia memorizada.',
+      class_beginner: 'Iniciante', class_intermediate: 'Intermediario', class_advanced: 'Avancado', class_expert: 'Especialista', class_elite: 'Elite',
+      class_prefix: 'Classificacao:', score_global: 'Pontuacao global', no_data: 'Sem dados no momento.',
+      last_session: 'Ultima sessao: {value}/100 ({label})', math_correct: 'Correto. Muito bem.', math_wrong: 'Incorreto. Resposta: {value}',
+      memory_perfect: 'Perfeito, sequencia exata.', memory_wrong: 'Sequencia correta: {value}', history_cleared: 'Historico limpo',
+      visual_correct: 'Excelente, forma correta.', visual_wrong: 'Incorreto. Forma correta: {value}', visual_prompt: 'Encontre a proxima forma na sequencia.',
+      challenge_start: 'Desafio iniciado', challenge_stop: 'Desafio parado', challenge_done: 'Desafio concluido', timer_label: 'Tempo', streak_label: 'Serie',
+      stroop_prompt: 'A palavra e a cor combinam?', stroop_correct: 'Otimo reflexo de atencao.', stroop_wrong: 'Resposta errada. Era {value}.',
+      answer_yes: 'Sim', answer_no: 'Nao', color_red: 'VERMELHO', color_blue: 'AZUL', color_green: 'VERDE', color_orange: 'LARANJA',
+      campaign_start_button: 'Modo campanha', campaign_stop_button: 'Parar campanha', campaign_label: 'Campanha',
+      campaign_idle: '--', campaign_level_label: 'Nivel {level}', campaign_stage_label: 'Labirinto {current}/3',
+      campaign_start_msg: 'Campanha iniciada. Complete 3 labirintos para subir de nivel.', campaign_timeout_msg: 'Tempo esgotado. Campanha encerrada.',
+      campaign_level_up_msg: 'Nivel concluido! Indo para o nivel {level}.', campaign_complete_msg: 'Campanha concluida! Otima corrida.',
+      campaign_best_none: 'Melhor campanha: sem dados.', campaign_best_value: 'Melhor campanha: nivel {level}, melhor tempo restante {seconds}s',
+      maze_prompt: 'Ajude o cachorro a chegar na comida sem bater nas paredes.',
+      maze_hint: 'Dica: voce tambem pode usar as setas do teclado.',
+      maze_steps: 'Passos', maze_success: 'Otimo! O cachorro chegou na comida.', maze_fail: 'Bloqueado. Tente outro caminho.',
+      maze_theme_label: 'Tema: {value}', maze_theme_forest: 'Floresta', maze_theme_desert: 'Deserto', maze_theme_neon: 'Neon', maze_theme_ice: 'Gelo',
+      shape_triangle: 'Triangulo', shape_square: 'Quadrado', shape_circle: 'Circulo', shape_diamond: 'Losango'
+    },
+    es: {
+      logic_correct: 'Correcto. Excelente reflejo logico.', logic_wrong: 'Incorrecto. Respuesta esperada: {value}',
+      memory_watch: 'Memoriza unos segundos...', memory_type: 'Escribe la secuencia memorizada.',
+      class_beginner: 'Principiante', class_intermediate: 'Intermedio', class_advanced: 'Avanzado', class_expert: 'Experto', class_elite: 'Elite',
+      class_prefix: 'Clasificacion:', score_global: 'Puntuacion global', no_data: 'No hay datos por ahora.',
+      last_session: 'Ultima sesion: {value}/100 ({label})', math_correct: 'Correcto. Muy bien.', math_wrong: 'Incorrecto. Respuesta: {value}',
+      memory_perfect: 'Perfecto, secuencia exacta.', memory_wrong: 'Secuencia correcta: {value}', history_cleared: 'Historial borrado',
+      visual_correct: 'Excelente, forma correcta.', visual_wrong: 'Incorrecto. Forma correcta: {value}', visual_prompt: 'Encuentra la siguiente forma en la secuencia.',
+      challenge_start: 'Desafio iniciado', challenge_stop: 'Desafio detenido', challenge_done: 'Desafio completado', timer_label: 'Tiempo', streak_label: 'Racha',
+      stroop_prompt: 'La palabra y el color coinciden?', stroop_correct: 'Excelente reflejo de atencion.', stroop_wrong: 'Respuesta incorrecta. Era {value}.',
+      answer_yes: 'Si', answer_no: 'No', color_red: 'ROJO', color_blue: 'AZUL', color_green: 'VERDE', color_orange: 'NARANJA',
+      campaign_start_button: 'Modo campana', campaign_stop_button: 'Detener campana', campaign_label: 'Campana',
+      campaign_idle: '--', campaign_level_label: 'Nivel {level}', campaign_stage_label: 'Laberinto {current}/3',
+      campaign_start_msg: 'Campana iniciada. Completa 3 laberintos para subir de nivel.', campaign_timeout_msg: 'Tiempo agotado. Campana detenida.',
+      campaign_level_up_msg: 'Nivel superado! Pasando al nivel {level}.', campaign_complete_msg: 'Campana completada! Excelente partida.',
+      campaign_best_none: 'Mejor campana: sin datos.', campaign_best_value: 'Mejor campana: nivel {level}, mejor tiempo restante {seconds}s',
+      maze_prompt: 'Ayuda al perro a llegar a la comida sin tocar paredes.',
+      maze_hint: 'Consejo: tambien puedes usar flechas del teclado.',
+      maze_steps: 'Pasos', maze_success: 'Genial! El perro llego a la comida.', maze_fail: 'Bloqueado. Prueba otra ruta.',
+      maze_theme_label: 'Tema: {value}', maze_theme_forest: 'Bosque', maze_theme_desert: 'Desierto', maze_theme_neon: 'Neon', maze_theme_ice: 'Hielo',
+      shape_triangle: 'Triangulo', shape_square: 'Cuadrado', shape_circle: 'Circulo', shape_diamond: 'Rombo'
+    },
+    it: {
+      logic_correct: 'Corretto. Ottimo riflesso logico.', logic_wrong: 'Errato. Risposta attesa: {value}',
+      memory_watch: 'Memorizza per alcuni secondi...', memory_type: 'Inserisci la sequenza memorizzata.',
+      class_beginner: 'Principiante', class_intermediate: 'Intermedio', class_advanced: 'Avanzato', class_expert: 'Esperto', class_elite: 'Elite',
+      class_prefix: 'Classificazione:', score_global: 'Punteggio globale', no_data: 'Nessun dato al momento.',
+      last_session: 'Ultima sessione: {value}/100 ({label})', math_correct: 'Corretto. Molto bene.', math_wrong: 'Errato. Risposta: {value}',
+      memory_perfect: 'Perfetto, sequenza esatta.', memory_wrong: 'Sequenza corretta: {value}', history_cleared: 'Storico cancellato',
+      visual_correct: 'Ottimo, forma corretta.', visual_wrong: 'Errato. Forma corretta: {value}', visual_prompt: 'Trova la forma successiva nella sequenza.',
+      challenge_start: 'Sfida avviata', challenge_stop: 'Sfida fermata', challenge_done: 'Sfida completata', timer_label: 'Tempo', streak_label: 'Serie',
+      stroop_prompt: 'La parola e il colore coincidono?', stroop_correct: 'Ottimo riflesso di attenzione.', stroop_wrong: 'Risposta errata. Era {value}.',
+      answer_yes: 'Si', answer_no: 'No', color_red: 'ROSSO', color_blue: 'BLU', color_green: 'VERDE', color_orange: 'ARANCIONE',
+      campaign_start_button: 'Modalita campagna', campaign_stop_button: 'Ferma campagna', campaign_label: 'Campagna',
+      campaign_idle: '--', campaign_level_label: 'Livello {level}', campaign_stage_label: 'Labirinto {current}/3',
+      campaign_start_msg: 'Campagna avviata. Completa 3 labirinti per salire di livello.', campaign_timeout_msg: 'Tempo scaduto. Campagna fermata.',
+      campaign_level_up_msg: 'Livello completato! Passaggio al livello {level}.', campaign_complete_msg: 'Campagna completata! Ottima prova.',
+      campaign_best_none: 'Migliore campagna: nessun dato.', campaign_best_value: 'Migliore campagna: livello {level}, miglior tempo residuo {seconds}s',
+      maze_prompt: 'Aiuta il cane a raggiungere il cibo senza toccare i muri.',
+      maze_hint: 'Suggerimento: puoi usare anche le frecce da tastiera.',
+      maze_steps: 'Passi', maze_success: 'Ottimo! Il cane ha raggiunto il cibo.', maze_fail: 'Bloccato. Prova un altro percorso.',
+      maze_theme_label: 'Tema: {value}', maze_theme_forest: 'Foresta', maze_theme_desert: 'Deserto', maze_theme_neon: 'Neon', maze_theme_ice: 'Ghiaccio',
+      shape_triangle: 'Triangolo', shape_square: 'Quadrato', shape_circle: 'Cerchio', shape_diamond: 'Rombo'
+    },
+    de: {
+      logic_correct: 'Korrekt. Sehr guter Logikreflex.', logic_wrong: 'Falsch. Erwartete Antwort: {value}',
+      memory_watch: 'Einige Sekunden einpragen...', memory_type: 'Geben Sie die gemerkte Sequenz ein.',
+      class_beginner: 'Anfanger', class_intermediate: 'Fortgeschritten', class_advanced: 'Sehr gut', class_expert: 'Experte', class_elite: 'Elite',
+      class_prefix: 'Klassifizierung:', score_global: 'Gesamtpunktzahl', no_data: 'Noch keine Daten.',
+      last_session: 'Letzte Sitzung: {value}/100 ({label})', math_correct: 'Korrekt. Sehr gut.', math_wrong: 'Falsch. Antwort: {value}',
+      memory_perfect: 'Perfekt, exakte Sequenz.', memory_wrong: 'Richtige Sequenz: {value}', history_cleared: 'Verlauf geloscht',
+      visual_correct: 'Sehr gut, richtige Form.', visual_wrong: 'Falsch. Richtige Form: {value}', visual_prompt: 'Finden Sie die nachste Form in der Reihe.',
+      challenge_start: 'Challenge gestartet', challenge_stop: 'Challenge gestoppt', challenge_done: 'Challenge beendet', timer_label: 'Zeit', streak_label: 'Serie',
+      stroop_prompt: 'Passen Wort und Farbe zusammen?', stroop_correct: 'Sehr guter Aufmerksamkeitsreflex.', stroop_wrong: 'Falsche Antwort. Es war {value}.',
+      answer_yes: 'Ja', answer_no: 'Nein', color_red: 'ROT', color_blue: 'BLAU', color_green: 'GRUN', color_orange: 'ORANGE',
+      campaign_start_button: 'Kampagnenmodus', campaign_stop_button: 'Kampagne stoppen', campaign_label: 'Kampagne',
+      campaign_idle: '--', campaign_level_label: 'Level {level}', campaign_stage_label: 'Labyrinth {current}/3',
+      campaign_start_msg: 'Kampagne gestartet. SchlieBen Sie 3 Labyrinthe fur den Aufstieg ab.', campaign_timeout_msg: 'Zeit abgelaufen. Kampagne gestoppt.',
+      campaign_level_up_msg: 'Level geschafft! Weiter zu Level {level}.', campaign_complete_msg: 'Kampagne abgeschlossen! Sehr stark.',
+      campaign_best_none: 'Beste Kampagne: keine Daten.', campaign_best_value: 'Beste Kampagne: Level {level}, beste Restzeit {seconds}s',
+      maze_prompt: 'Hilf dem Hund, das Futter zu erreichen, ohne Wande zu beruehren.',
+      maze_hint: 'Tipp: Sie koennen auch die Pfeiltasten verwenden.',
+      maze_steps: 'Schritte', maze_success: 'Super! Der Hund hat das Futter erreicht.', maze_fail: 'Blockiert. Versuchen Sie einen anderen Weg.',
+      maze_theme_label: 'Thema: {value}', maze_theme_forest: 'Wald', maze_theme_desert: 'Wuste', maze_theme_neon: 'Neon', maze_theme_ice: 'Eis',
+      shape_triangle: 'Dreieck', shape_square: 'Quadrat', shape_circle: 'Kreis', shape_diamond: 'Raute'
+    }
+  };
+
+  function t(key, vars) {
+    const dict = I18N[lang] || I18N.en;
+    const base = dict[key] || I18N.en[key] || key;
+    if (!vars) return base;
+    return Object.keys(vars).reduce((out, k) => out.replace(`{${k}}`, String(vars[k])), base);
+  }
+
+  const state = {
+    math: 0, logic: 0, memory: 0, visual: 0, attention: 0, maze: 0,
+    difficulty: 'medium', challengeActive: false, timerSeconds: 0, challengeIntervalId: null, streak: 0, maxStreak: 0,
+    currentMath: null, currentLogic: null, currentMemory: null, currentVisual: null, currentStroop: null, currentMaze: null,
+    mazeLastIndexByDifficulty: {}, mazeLastThemeIndex: null,
+    campaignActive: false, campaignLevel: 0, campaignMazeInLevel: 0, campaignTimerSeconds: 0, campaignIntervalId: null
+  };
+
+  const el = {
+    mathQuestion: document.getElementById('mathQuestion'), mathAnswer: document.getElementById('mathAnswer'), submitMath: document.getElementById('submitMath'), mathFeedback: document.getElementById('mathFeedback'),
+    logicQuestion: document.getElementById('logicQuestion'), logicChoices: document.getElementById('logicChoices'), logicFeedback: document.getElementById('logicFeedback'),
+    memorySequence: document.getElementById('memorySequence'), memoryAnswer: document.getElementById('memoryAnswer'), submitMemory: document.getElementById('submitMemory'), memoryFeedback: document.getElementById('memoryFeedback'),
+    visualPrompt: document.getElementById('visualPrompt'), visualSequence: document.getElementById('visualSequence'), visualOptions: document.getElementById('visualOptions'), visualFeedback: document.getElementById('visualFeedback'),
+    stroopPrompt: document.getElementById('stroopPrompt'), stroopWord: document.getElementById('stroopWord'), stroopMatch: document.getElementById('stroopMatch'), stroopNoMatch: document.getElementById('stroopNoMatch'), stroopFeedback: document.getElementById('stroopFeedback'),
+    mazePrompt: document.getElementById('mazePrompt'), mazeHint: document.getElementById('mazeHint'), mazeTheme: document.getElementById('mazeTheme'), mazeCanvas: document.getElementById('mazeCanvas'), mazeUp: document.getElementById('mazeUp'), mazeDown: document.getElementById('mazeDown'), mazeLeft: document.getElementById('mazeLeft'), mazeRight: document.getElementById('mazeRight'), mazeReset: document.getElementById('mazeReset'), mazeSteps: document.getElementById('mazeSteps'), mazeFeedback: document.getElementById('mazeFeedback'),
+    mathScore: document.getElementById('mathScore'), logicScore: document.getElementById('logicScore'), memoryScore: document.getElementById('memoryScore'), visualScore: document.getElementById('visualScore'), attentionScore: document.getElementById('attentionScore'), mazeScore: document.getElementById('mazeScore'), averageScore: document.getElementById('averageScore'),
+    saveSession: document.getElementById('saveSession'), newRound: document.getElementById('newRound'), resetHistory: document.getElementById('resetHistory'),
+    difficultyLevel: document.getElementById('difficultyLevel'), toggleChallenge: document.getElementById('toggleChallenge'), toggleCampaign: document.getElementById('toggleCampaign'), timerChip: document.getElementById('timerChip'), streakChip: document.getElementById('streakChip'), campaignChip: document.getElementById('campaignChip'),
+    overallScoreBadge: document.getElementById('overallScoreBadge'), classificationLabel: document.getElementById('classificationLabel'), lastSessionLabel: document.getElementById('lastSessionLabel'), chart: document.getElementById('progressChart'), campaignBest: document.getElementById('campaignBest')
+  };
+  const startChallengeButtonText = el.toggleChallenge ? String(el.toggleChallenge.textContent || '').trim() : 'Start';
+  const difficultyOrder = ['easy', 'medium', 'hard', 'expert'];
+
+  function rand(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+  function shapeLabel(shape) { return t(`shape_${shape}`); }
+  function colorLabel(code) { return t(`color_${code}`); }
+
+  function difficultyFactor() {
+    if (state.difficulty === 'easy') return 1;
+    if (state.difficulty === 'hard') return 1.6;
+    if (state.difficulty === 'expert') return 2;
+    return 1.25;
+  }
+
+  function updateChallengeMeta() {
+    el.timerChip.textContent = `${t('timer_label')}: ${state.timerSeconds > 0 ? state.timerSeconds : '--'}`;
+    el.streakChip.textContent = `${t('streak_label')}: ${state.streak}`;
+  }
+
+  function campaignLevelTime(level) {
+    if (level <= 1) return 95;
+    if (level === 2) return 80;
+    if (level === 3) return 65;
+    return 55;
+  }
+
+  function updateCampaignMeta() {
+    if (!el.campaignChip) return;
+    if (!state.campaignActive) {
+      el.campaignChip.textContent = `${t('campaign_label')}: ${t('campaign_idle')}`;
+      return;
+    }
+    const levelText = t('campaign_level_label', { level: state.campaignLevel });
+    const mazeText = t('campaign_stage_label', { current: state.campaignMazeInLevel + 1 });
+    el.campaignChip.textContent = `${levelText} - ${mazeText} - ${t('timer_label')}: ${state.campaignTimerSeconds}`;
+  }
+
+  function setCampaignDifficultyFromLevel() {
+    const idx = Math.max(0, Math.min(difficultyOrder.length - 1, state.campaignLevel - 1));
+    state.difficulty = difficultyOrder[idx];
+    el.difficultyLevel.value = state.difficulty;
+  }
+
+  function readCampaignBest() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(campaignBestKey) || 'null');
+      if (!raw || typeof raw !== 'object') return null;
+      const level = Number(raw.max_level || 0);
+      const seconds = Number(raw.best_time_left || 0);
+      if (level <= 0 || seconds < 0) return null;
+      return { max_level: level, best_time_left: seconds };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function writeCampaignBest(best) {
+    if (!best) return;
+    localStorage.setItem(campaignBestKey, JSON.stringify({
+      max_level: best.max_level,
+      best_time_left: best.best_time_left,
+      ts: Date.now()
+    }));
+  }
+
+  function refreshCampaignBestDisplay() {
+    if (!el.campaignBest) return;
+    const best = readCampaignBest();
+    if (!best) {
+      el.campaignBest.textContent = t('campaign_best_none');
+      return;
+    }
+    el.campaignBest.textContent = t('campaign_best_value', { level: best.max_level, seconds: best.best_time_left });
+  }
+
+  function rememberCampaignProgress(level, secondsLeft) {
+    const safeLevel = Math.max(0, Number(level) || 0);
+    const safeSeconds = Math.max(0, Number(secondsLeft) || 0);
+    if (safeLevel <= 0) return;
+    const current = readCampaignBest();
+    if (!current || safeLevel > current.max_level || (safeLevel === current.max_level && safeSeconds > current.best_time_left)) {
+      writeCampaignBest({ max_level: safeLevel, best_time_left: safeSeconds });
+      refreshCampaignBestDisplay();
+    }
+  }
+
+  function stopCampaign(done, timeout) {
+    if (state.campaignActive) {
+      rememberCampaignProgress(state.campaignLevel, state.campaignTimerSeconds);
+    }
+    if (state.campaignIntervalId) {
+      window.clearInterval(state.campaignIntervalId);
+      state.campaignIntervalId = null;
+    }
+    state.campaignActive = false;
+    state.campaignLevel = 0;
+    state.campaignMazeInLevel = 0;
+    state.campaignTimerSeconds = 0;
+    if (el.difficultyLevel) el.difficultyLevel.disabled = false;
+    if (el.toggleCampaign) el.toggleCampaign.textContent = t('campaign_start_button');
+    updateCampaignMeta();
+    if (done) el.mazeFeedback.textContent = t('campaign_complete_msg');
+    else if (timeout) el.mazeFeedback.textContent = t('campaign_timeout_msg');
+  }
+
+  function startCampaign() {
+    if (state.campaignActive) return;
+    if (state.challengeActive) stopChallenge(false);
+    state.campaignActive = true;
+    state.campaignLevel = 1;
+    state.campaignMazeInLevel = 0;
+    setCampaignDifficultyFromLevel();
+    state.campaignTimerSeconds = campaignLevelTime(state.campaignLevel);
+    if (el.difficultyLevel) el.difficultyLevel.disabled = true;
+    if (el.toggleCampaign) el.toggleCampaign.textContent = t('campaign_stop_button');
+    el.mazeFeedback.textContent = t('campaign_start_msg');
+    updateCampaignMeta();
+    if (state.campaignIntervalId) window.clearInterval(state.campaignIntervalId);
+    state.campaignIntervalId = window.setInterval(function () {
+      state.campaignTimerSeconds -= 1;
+      updateCampaignMeta();
+      if (state.campaignTimerSeconds <= 0) {
+        stopCampaign(false, true);
+      }
+    }, 1000);
+    createMazeRound();
+  }
+
+  function onCampaignMazeSuccess() {
+    if (!state.campaignActive) return;
+    state.campaignMazeInLevel += 1;
+    if (state.campaignMazeInLevel >= 3) {
+      const clearedLevel = state.campaignLevel;
+      rememberCampaignProgress(clearedLevel, state.campaignTimerSeconds);
+      state.campaignLevel += 1;
+      if (state.campaignLevel > difficultyOrder.length) {
+        stopCampaign(true, false);
+        return;
+      }
+      state.campaignMazeInLevel = 0;
+      setCampaignDifficultyFromLevel();
+      state.campaignTimerSeconds = campaignLevelTime(state.campaignLevel);
+      el.mazeFeedback.textContent = t('campaign_level_up_msg', { level: state.campaignLevel });
+    }
+    updateCampaignMeta();
+    window.setTimeout(createMazeRound, 700);
+  }
+
+  function applyGameResult(key, ok, goodScore, lowScore) {
+    let score = ok ? goodScore : lowScore;
+    if (state.challengeActive) {
+      if (ok) {
+        state.streak += 1;
+        state.maxStreak = Math.max(state.maxStreak, state.streak);
+        score = Math.min(100, score + Math.min(20, state.streak * 3));
+      } else {
+        state.streak = 0;
+        score = Math.max(0, score - 10);
+      }
+      updateChallengeMeta();
+    }
+    state[key] = score;
+    refreshScores();
+  }
+
+  function startChallenge() {
+    if (state.challengeActive) return;
+    state.challengeActive = true;
+    state.streak = 0;
+    state.maxStreak = 0;
+    state.timerSeconds = state.difficulty === 'easy' ? 75 : (state.difficulty === 'expert' ? 40 : 60);
+    el.toggleChallenge.textContent = t('challenge_stop');
+    el.lastSessionLabel.textContent = t('challenge_start');
+    updateChallengeMeta();
+    state.challengeIntervalId = window.setInterval(function () {
+      state.timerSeconds -= 1;
+      updateChallengeMeta();
+      if (state.timerSeconds <= 0) {
+        stopChallenge(true);
+      }
+    }, 1000);
+  }
+
+  function stopChallenge(done) {
+    if (state.challengeIntervalId) {
+      window.clearInterval(state.challengeIntervalId);
+      state.challengeIntervalId = null;
+    }
+    state.challengeActive = false;
+    state.timerSeconds = 0;
+    el.toggleChallenge.textContent = startChallengeButtonText;
+    el.lastSessionLabel.textContent = done ? `${t('challenge_done')} (${t('streak_label')}: ${state.maxStreak})` : t('challenge_stop');
+    updateChallengeMeta();
+  }
+
+  function createMathRound() {
+    const factor = difficultyFactor();
+    const ops = ['+', '-', '*'];
+    const op = ops[rand(0, ops.length - 1)];
+    const a = rand(4, Math.round(20 + factor * 10));
+    const b = op === '*' ? rand(2, Math.round(6 + factor * 4)) : rand(3, Math.round(16 + factor * 8));
+    const result = op === '+' ? a + b : (op === '-' ? a - b : a * b);
+    state.currentMath = { result };
+    el.mathQuestion.textContent = `${a} ${op} ${b} = ?`;
+    el.mathAnswer.value = '';
+    el.mathFeedback.textContent = '';
+  }
+
+  function createLogicRound() {
+    const factor = difficultyFactor();
+    const start = rand(1, Math.round(6 + factor * 4));
+    const step = rand(2, Math.round(3 + factor * 3));
+    const seq = [start, start + step, start + step * 2, start + step * 3];
+    const correct = start + step * 4;
+    const options = [correct, correct + rand(1, 4), correct - rand(1, 4), correct + step];
+    for (let i = options.length - 1; i > 0; i -= 1) {
+      const j = rand(0, i);
+      const tmp = options[i]; options[i] = options[j]; options[j] = tmp;
+    }
+    el.logicQuestion.textContent = `${seq.join(', ')}, ?`;
+    el.logicChoices.innerHTML = '';
+    el.logicFeedback.textContent = '';
+    options.forEach((opt) => {
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-outline-primary btn-sm';
+      btn.textContent = String(opt);
+      btn.type = 'button';
+      btn.addEventListener('click', function () {
+        const ok = opt === correct;
+        applyGameResult('logic', ok, 100, 35);
+        el.logicFeedback.textContent = ok ? t('logic_correct') : t('logic_wrong', { value: correct });
+        if (state.challengeActive) window.setTimeout(createLogicRound, 650);
+      });
+      el.logicChoices.appendChild(btn);
+    });
+  }
+
+  function drawShape(ctx, shape, cx, cy, size, color) {
+    ctx.fillStyle = color;
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    if (shape === 'circle') ctx.arc(cx, cy, size * 0.5, 0, Math.PI * 2);
+    else if (shape === 'square') ctx.rect(cx - size * 0.5, cy - size * 0.5, size, size);
+    else if (shape === 'triangle') { ctx.moveTo(cx, cy - size * 0.58); ctx.lineTo(cx - size * 0.56, cy + size * 0.46); ctx.lineTo(cx + size * 0.56, cy + size * 0.46); ctx.closePath(); }
+    else { ctx.moveTo(cx, cy - size * 0.58); ctx.lineTo(cx - size * 0.5, cy); ctx.lineTo(cx, cy + size * 0.58); ctx.lineTo(cx + size * 0.5, cy); ctx.closePath(); }
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  function mazeTemplates() {
+    return {
+      easy: [
+        [
+          [0,0,0,0,0],
+          [1,1,0,1,0],
+          [0,0,0,1,0],
+          [0,1,0,0,0],
+          [0,1,1,1,0],
+        ],
+        [
+          [0,0,0,1,0],
+          [1,1,0,1,0],
+          [0,0,0,0,0],
+          [0,1,1,1,0],
+          [0,0,0,0,0],
+        ],
+        [
+          [0,0,1,0,0],
+          [0,0,1,0,1],
+          [1,0,0,0,1],
+          [1,1,1,0,0],
+          [0,0,0,0,0],
+        ],
+      ],
+      medium: [
+        [
+          [0,0,1,0,0,0],
+          [1,0,1,0,1,0],
+          [1,0,0,0,1,0],
+          [1,1,1,0,1,0],
+          [0,0,0,0,0,0],
+          [0,1,1,1,1,0],
+        ],
+        [
+          [0,0,0,1,0,0],
+          [1,1,0,1,0,1],
+          [0,0,0,0,0,1],
+          [0,1,1,1,0,0],
+          [0,0,0,1,0,1],
+          [1,1,0,0,0,0],
+        ],
+        [
+          [0,1,0,0,0,0],
+          [0,1,0,1,1,0],
+          [0,0,0,1,0,0],
+          [1,1,0,0,0,1],
+          [0,0,0,1,0,0],
+          [0,1,1,1,1,0],
+        ],
+      ],
+      hard: [
+        [
+          [0,1,0,0,0,1,0],
+          [0,1,0,1,0,1,0],
+          [0,0,0,1,0,0,0],
+          [1,1,0,1,1,1,0],
+          [0,0,0,0,0,1,0],
+          [0,1,1,1,0,1,0],
+          [0,0,0,1,0,0,0],
+        ],
+        [
+          [0,0,0,1,0,0,0],
+          [1,1,0,1,0,1,0],
+          [0,0,0,0,0,1,0],
+          [0,1,1,1,0,1,0],
+          [0,1,0,0,0,0,0],
+          [0,1,0,1,1,1,0],
+          [0,0,0,0,0,1,0],
+        ],
+        [
+          [0,1,0,0,0,0,0],
+          [0,1,0,1,1,1,0],
+          [0,0,0,1,0,0,0],
+          [1,1,0,1,0,1,1],
+          [0,0,0,0,0,0,0],
+          [0,1,1,1,1,1,0],
+          [0,0,0,0,0,0,0],
+        ],
+      ],
+      expert: [
+        [
+          [0,1,0,0,0,1,0,0],
+          [0,1,0,1,0,1,0,1],
+          [0,0,0,1,0,0,0,1],
+          [1,1,0,1,1,1,0,1],
+          [0,0,0,0,0,1,0,0],
+          [0,1,1,1,0,1,1,0],
+          [0,0,0,1,0,0,0,0],
+          [0,1,0,1,1,1,1,0],
+        ],
+        [
+          [0,0,1,0,0,0,1,0],
+          [1,0,1,0,1,0,1,0],
+          [1,0,0,0,1,0,0,0],
+          [1,1,1,0,1,1,1,0],
+          [0,0,0,0,0,0,1,0],
+          [0,1,1,1,1,0,1,0],
+          [0,0,0,0,1,0,0,0],
+          [1,1,1,0,1,1,1,0],
+        ],
+        [
+          [0,1,0,0,0,0,0,0],
+          [0,1,0,1,1,1,1,0],
+          [0,0,0,1,0,0,0,0],
+          [1,1,0,1,0,1,1,1],
+          [0,0,0,0,0,1,0,0],
+          [0,1,1,1,0,1,0,1],
+          [0,0,0,1,0,0,0,1],
+          [0,1,0,0,0,1,0,0],
+        ],
+      ]
+    };
+  }
+
+  function mazeThemes() {
+    return [
+      { key: 'maze_theme_forest', floorA: '#f1f8ee', floorB: '#e7f3e0', wall: '#3f5d3d', wallEdge: '#2f4530', grid: '#c7dcc4', food: '#f97316', dog: '#2563eb' },
+      { key: 'maze_theme_desert', floorA: '#fff4dc', floorB: '#f7e7c1', wall: '#a16207', wallEdge: '#7c4a03', grid: '#ecd8af', food: '#ef4444', dog: '#0f766e' },
+      { key: 'maze_theme_neon', floorA: '#0b1020', floorB: '#121a33', wall: '#4c1d95', wallEdge: '#6d28d9', grid: '#1f2a44', food: '#22d3ee', dog: '#facc15' },
+      { key: 'maze_theme_ice', floorA: '#ecfeff', floorB: '#dff7fb', wall: '#155e75', wallEdge: '#0e7490', grid: '#bfe9f2', food: '#f43f5e', dog: '#0369a1' }
+    ];
+  }
+
+  function shortestMazePath(grid, sx, sy, tx, ty) {
+    const h = grid.length;
+    const w = grid[0].length;
+    const q = [[sx, sy, 0]];
+    const seen = new Set([`${sx},${sy}`]);
+    const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+    while (q.length) {
+      const [x, y, d] = q.shift();
+      if (x === tx && y === ty) return d;
+      for (const [dx, dy] of dirs) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h || grid[ny][nx] === 1) continue;
+        const key = `${nx},${ny}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        q.push([nx, ny, d + 1]);
+      }
+    }
+    return 999;
+  }
+
+  function drawMaze() {
+    const mz = state.currentMaze;
+    const canvas = el.mazeCanvas;
+    const ctx = canvas ? canvas.getContext('2d') : null;
+    if (!mz || !ctx) return;
+    const theme = mz.theme || mazeThemes()[0];
+    const h = mz.grid.length;
+    const w = mz.grid[0].length;
+    const cell = Math.floor(canvas.width / w);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (let y = 0; y < h; y += 1) {
+      for (let x = 0; x < w; x += 1) {
+        if (mz.grid[y][x] === 1) {
+          ctx.fillStyle = theme.wall;
+          ctx.fillRect(x * cell, y * cell, cell, cell);
+          ctx.fillStyle = theme.wallEdge;
+          ctx.fillRect(x * cell + 2, y * cell + 2, Math.max(cell - 4, 1), Math.max(cell * 0.22, 1));
+        } else {
+          // Checkerboard floor gives each theme a stronger visual identity.
+          ctx.fillStyle = (x + y) % 2 === 0 ? theme.floorA : theme.floorB;
+          ctx.fillRect(x * cell, y * cell, cell, cell);
+        }
+        ctx.strokeStyle = theme.grid;
+        ctx.strokeRect(x * cell, y * cell, cell, cell);
+      }
+    }
+    const fx = mz.food.x * cell + cell * 0.5;
+    const fy = mz.food.y * cell + cell * 0.5;
+    ctx.fillStyle = theme.food;
+    ctx.beginPath();
+    ctx.arc(fx, fy, cell * 0.25, 0, Math.PI * 2);
+    ctx.fill();
+    const dx = mz.dog.x * cell + cell * 0.5;
+    const dy = mz.dog.y * cell + cell * 0.5;
+    ctx.fillStyle = theme.dog;
+    ctx.beginPath();
+    ctx.arc(dx, dy, cell * 0.27, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Simple iconography avoids emoji rendering differences across platforms.
+    ctx.fillStyle = '#111827';
+    ctx.beginPath();
+    ctx.arc(dx - cell * 0.12, dy - cell * 0.12, cell * 0.08, 0, Math.PI * 2);
+    ctx.arc(dx + cell * 0.12, dy - cell * 0.12, cell * 0.08, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(dx - cell * 0.08, dy - cell * 0.03, cell * 0.035, 0, Math.PI * 2);
+    ctx.arc(dx + cell * 0.08, dy - cell * 0.03, cell * 0.035, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(dx - cell * 0.06, dy + cell * 0.06, cell * 0.12, cell * 0.05);
+
+    ctx.strokeStyle = '#7c2d12';
+    ctx.lineWidth = Math.max(2, Math.floor(cell * 0.08));
+    ctx.beginPath();
+    ctx.moveTo(fx - cell * 0.16, fy - cell * 0.02);
+    ctx.lineTo(fx + cell * 0.16, fy + cell * 0.02);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(fx - cell * 0.18, fy - cell * 0.03, cell * 0.08, 0, Math.PI * 2);
+    ctx.arc(fx + cell * 0.18, fy + cell * 0.03, cell * 0.08, 0, Math.PI * 2);
+    ctx.fillStyle = '#fecaca';
+    ctx.fill();
+  }
+
+  function createMazeRound() {
+    const templates = mazeTemplates();
+    const pool = templates[state.difficulty] || templates.medium;
+    const themes = mazeThemes();
+    let idx = rand(0, pool.length - 1);
+    const prevIdx = state.mazeLastIndexByDifficulty[state.difficulty];
+    if (pool.length > 1 && Number.isInteger(prevIdx) && idx === prevIdx) {
+      idx = (idx + 1 + rand(0, pool.length - 2)) % pool.length;
+    }
+    state.mazeLastIndexByDifficulty[state.difficulty] = idx;
+    let themeIdx = rand(0, themes.length - 1);
+    if (themes.length > 1 && Number.isInteger(state.mazeLastThemeIndex) && themeIdx === state.mazeLastThemeIndex) {
+      themeIdx = (themeIdx + 1 + rand(0, themes.length - 2)) % themes.length;
+    }
+    state.mazeLastThemeIndex = themeIdx;
+    const theme = themes[themeIdx];
+    const grid = pool[idx].map((row) => row.slice());
+    const h = grid.length;
+    const w = grid[0].length;
+    const dog = { x: 0, y: 0 };
+    const food = { x: w - 1, y: h - 1 };
+    if (grid[dog.y][dog.x] === 1) grid[dog.y][dog.x] = 0;
+    if (grid[food.y][food.x] === 1) grid[food.y][food.x] = 0;
+    const best = shortestMazePath(grid, dog.x, dog.y, food.x, food.y);
+    state.currentMaze = { grid, dog, food, theme, steps: 0, best, maxSteps: Math.max(best * 2 + 2, 10), finished: false };
+    el.mazePrompt.textContent = t('maze_prompt');
+    if (el.mazeHint) el.mazeHint.textContent = t('maze_hint');
+    if (el.mazeTheme) el.mazeTheme.textContent = t('maze_theme_label', { value: t(theme.key) });
+    el.mazeFeedback.textContent = '';
+    el.mazeSteps.textContent = `${t('maze_steps')}: 0`;
+    drawMaze();
+  }
+
+  function moveMazeDog(dx, dy) {
+    const mz = state.currentMaze;
+    if (!mz || mz.finished) return;
+    const nx = mz.dog.x + dx;
+    const ny = mz.dog.y + dy;
+    if (ny < 0 || nx < 0 || ny >= mz.grid.length || nx >= mz.grid[0].length) return;
+    if (mz.grid[ny][nx] === 1) return;
+    mz.dog.x = nx;
+    mz.dog.y = ny;
+    mz.steps += 1;
+    el.mazeSteps.textContent = `${t('maze_steps')}: ${mz.steps}`;
+
+    if (mz.dog.x === mz.food.x && mz.dog.y === mz.food.y) {
+      mz.finished = true;
+      const efficiency = Math.max(0, 1 - ((mz.steps - mz.best) / Math.max(mz.best, 1)) * 0.45);
+      const score = Math.max(35, Math.round(100 * efficiency));
+      applyGameResult('maze', true, score, 35);
+      el.mazeFeedback.textContent = t('maze_success');
+      if (state.campaignActive) onCampaignMazeSuccess();
+      else if (state.challengeActive) window.setTimeout(createMazeRound, 700);
+    } else if (mz.steps > mz.maxSteps) {
+      mz.finished = true;
+      applyGameResult('maze', false, 20, 20);
+      el.mazeFeedback.textContent = t('maze_fail');
+      if (state.challengeActive) window.setTimeout(createMazeRound, 700);
+    }
+    drawMaze();
+  }
+
+  function drawVisualSequence(seq) {
+    const canvas = el.visualSequence;
+    const ctx = canvas ? canvas.getContext('2d') : null;
+    if (!ctx) return;
+    const colors = ['#0ea5e9', '#f97316', '#14b8a6', '#8b5cf6'];
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const boxes = 5;
+    const spacing = canvas.width / boxes;
+    for (let i = 0; i < boxes; i += 1) {
+      const x = spacing * i + spacing / 2;
+      const y = canvas.height / 2;
+      ctx.fillStyle = '#f8fafc';
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.rect(x - 30, y - 30, 60, 60); ctx.fill(); ctx.stroke();
+      if (i < seq.length) drawShape(ctx, seq[i], x, y, 34, colors[i % colors.length]);
+      else { ctx.fillStyle = '#64748b'; ctx.font = '26px sans-serif'; ctx.fillText('?', x - 7, y + 9); }
+    }
+  }
+
+  function createVisualRound() {
+    const shapes = ['triangle', 'square', 'circle', 'diamond'];
+    const step = state.difficulty === 'expert' ? 2 : 1;
+    const start = rand(0, shapes.length - 1);
+    const seq = [shapes[start % 4], shapes[(start + step) % 4], shapes[(start + step * 2) % 4], shapes[(start + step * 3) % 4]];
+    const correct = shapes[(start + step * 4) % 4];
+    state.currentVisual = { correct };
+    el.visualPrompt.textContent = t('visual_prompt');
+    el.visualFeedback.textContent = '';
+    drawVisualSequence(seq);
+    const options = shapes.slice();
+    for (let i = options.length - 1; i > 0; i -= 1) {
+      const j = rand(0, i);
+      const tmp = options[i]; options[i] = options[j]; options[j] = tmp;
+    }
+    el.visualOptions.innerHTML = '';
+    options.forEach((shape) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-outline-primary btn-sm';
+      btn.textContent = shapeLabel(shape);
+      btn.addEventListener('click', function () {
+        const ok = shape === correct;
+        applyGameResult('visual', ok, 100, 35);
+        el.visualFeedback.textContent = ok ? t('visual_correct') : t('visual_wrong', { value: shapeLabel(correct) });
+        if (state.challengeActive) window.setTimeout(createVisualRound, 650);
+      });
+      el.visualOptions.appendChild(btn);
+    });
+  }
+
+  function createMemoryRound() {
+    const len = state.difficulty === 'easy' ? 5 : (state.difficulty === 'expert' ? 8 : 6);
+    const seq = Array.from({ length: len }, function () { return String(rand(0, 9)); }).join('');
+    state.currentMemory = seq;
+    el.memorySequence.textContent = seq;
+    el.memoryAnswer.value = '';
+    el.memoryFeedback.textContent = t('memory_watch');
+    const hideDelay = state.difficulty === 'easy' ? 4200 : (state.difficulty === 'expert' ? 2400 : 3200);
+    window.setTimeout(function () {
+      if (el.memorySequence.textContent === seq) {
+        el.memorySequence.textContent = '.....';
+        el.memoryFeedback.textContent = t('memory_type');
+      }
+    }, hideDelay);
+  }
+
+  function createStroopRound() {
+    const palette = [
+      { code: 'red', css: '#dc2626' },
+      { code: 'blue', css: '#2563eb' },
+      { code: 'green', css: '#16a34a' },
+      { code: 'orange', css: '#ea580c' }
+    ];
+    const wordColor = palette[rand(0, palette.length - 1)];
+    const paintColor = palette[rand(0, palette.length - 1)];
+    state.currentStroop = { isMatch: wordColor.code === paintColor.code };
+    el.stroopPrompt.textContent = t('stroop_prompt');
+    el.stroopWord.textContent = colorLabel(wordColor.code);
+    el.stroopWord.style.color = paintColor.css;
+    el.stroopFeedback.textContent = '';
+  }
+
+  function classification(score) {
+    if (score < 40) return t('class_beginner');
+    if (score < 60) return t('class_intermediate');
+    if (score < 80) return t('class_advanced');
+    if (score < 92) return t('class_expert');
+    return t('class_elite');
+  }
+
+  function average() { return Math.round((state.math + state.logic + state.memory + state.visual + state.attention + state.maze) / 6); }
+
+  function refreshScores() {
+    const avg = average();
+    el.mathScore.textContent = String(state.math);
+    el.logicScore.textContent = String(state.logic);
+    el.memoryScore.textContent = String(state.memory);
+    el.visualScore.textContent = String(state.visual);
+    el.attentionScore.textContent = String(state.attention);
+    el.mazeScore.textContent = String(state.maze);
+    el.averageScore.textContent = String(avg);
+    el.classificationLabel.textContent = `${t('class_prefix')} ${classification(avg)}`;
+    el.overallScoreBadge.textContent = `${t('score_global')}: ${avg}`;
+  }
+
+  function readHistory() {
+    try { return JSON.parse(localStorage.getItem(storageKey) || '[]'); }
+    catch (e) { return []; }
+  }
+
+  function writeHistory(history) { localStorage.setItem(storageKey, JSON.stringify(history)); }
+
+  function drawChart(history) {
+    const canvas = el.chart;
+    const ctx = canvas ? canvas.getContext('2d') : null;
+    if (!ctx) return;
+    const w = canvas.width;
+    const h = canvas.height;
+    const pad = { top: 24, right: 24, bottom: 35, left: 42 };
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = '#d4dee9';
+    ctx.lineWidth = 1;
+    for (let y = 0; y <= 5; y += 1) {
+      const py = pad.top + (y * (h - pad.top - pad.bottom) / 5);
+      ctx.beginPath(); ctx.moveTo(pad.left, py); ctx.lineTo(w - pad.right, py); ctx.stroke();
+    }
+    ctx.fillStyle = '#5b6c82';
+    ctx.font = '12px sans-serif';
+    [100, 80, 60, 40, 20, 0].forEach((v, idx) => {
+      const py = pad.top + (idx * (h - pad.top - pad.bottom) / 5) + 4;
+      ctx.fillText(String(v), 10, py);
+    });
+    if (!history.length) {
+      ctx.fillStyle = '#6b7280';
+      ctx.font = '14px sans-serif';
+      ctx.fillText(t('no_data'), pad.left + 10, h / 2);
+      return;
+    }
+    const list = history.slice(-20);
+    const stepX = list.length > 1 ? (w - pad.left - pad.right) / (list.length - 1) : 0;
+    ctx.strokeStyle = '#0f766e';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    list.forEach((item, idx) => {
+      const x = pad.left + idx * stepX;
+      const y = pad.top + ((100 - item.avg) / 100) * (h - pad.top - pad.bottom);
+      if (idx === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    list.forEach((item, idx) => {
+      const x = pad.left + idx * stepX;
+      const y = pad.top + ((100 - item.avg) / 100) * (h - pad.top - pad.bottom);
+      ctx.fillStyle = '#ff7a00';
+      ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
+    });
+    const last = list[list.length - 1];
+    if (last) el.lastSessionLabel.textContent = t('last_session', { value: last.avg, label: last.label });
+  }
+
+  el.submitMath.addEventListener('click', function () {
+    if (!state.currentMath) return;
+    const given = Number(el.mathAnswer.value);
+    const good = given === state.currentMath.result;
+    applyGameResult('math', good, 100, 30);
+    el.mathFeedback.textContent = good ? t('math_correct') : t('math_wrong', { value: state.currentMath.result });
+    if (state.challengeActive) window.setTimeout(createMathRound, 650);
+  });
+
+  el.submitMemory.addEventListener('click', function () {
+    if (!state.currentMemory) return;
+    const answer = (el.memoryAnswer.value || '').trim();
+    let hits = 0;
+    for (let i = 0; i < Math.min(answer.length, state.currentMemory.length); i += 1) if (answer[i] === state.currentMemory[i]) hits += 1;
+    const computed = Math.max(0, Math.round((hits / state.currentMemory.length) * 100));
+    const ok = answer === state.currentMemory;
+    applyGameResult('memory', ok, computed, Math.max(0, computed - 10));
+    el.memoryFeedback.textContent = ok ? t('memory_perfect') : t('memory_wrong', { value: state.currentMemory });
+    if (state.challengeActive) window.setTimeout(createMemoryRound, 650);
+  });
+
+  el.stroopMatch.addEventListener('click', function () {
+    if (!state.currentStroop) return;
+    const ok = state.currentStroop.isMatch === true;
+    applyGameResult('attention', ok, 100, 25);
+    el.stroopFeedback.textContent = ok ? t('stroop_correct') : t('stroop_wrong', { value: t('answer_no') });
+    if (state.challengeActive) window.setTimeout(createStroopRound, 650);
+  });
+
+  el.stroopNoMatch.addEventListener('click', function () {
+    if (!state.currentStroop) return;
+    const ok = state.currentStroop.isMatch === false;
+    applyGameResult('attention', ok, 100, 25);
+    el.stroopFeedback.textContent = ok ? t('stroop_correct') : t('stroop_wrong', { value: t('answer_yes') });
+    if (state.challengeActive) window.setTimeout(createStroopRound, 650);
+  });
+
+  el.mazeUp.addEventListener('click', function () { moveMazeDog(0, -1); });
+  el.mazeDown.addEventListener('click', function () { moveMazeDog(0, 1); });
+  el.mazeLeft.addEventListener('click', function () { moveMazeDog(-1, 0); });
+  el.mazeRight.addEventListener('click', function () { moveMazeDog(1, 0); });
+  el.mazeReset.addEventListener('click', function () { createMazeRound(); });
+  document.addEventListener('keydown', function (evt) {
+    if (!state.currentMaze || state.currentMaze.finished) return;
+    if (evt.key === 'ArrowUp') { evt.preventDefault(); moveMazeDog(0, -1); }
+    else if (evt.key === 'ArrowDown') { evt.preventDefault(); moveMazeDog(0, 1); }
+    else if (evt.key === 'ArrowLeft') { evt.preventDefault(); moveMazeDog(-1, 0); }
+    else if (evt.key === 'ArrowRight') { evt.preventDefault(); moveMazeDog(1, 0); }
+  });
+
+  el.difficultyLevel.addEventListener('change', function () {
+    if (state.campaignActive) {
+      el.difficultyLevel.value = state.difficulty;
+      return;
+    }
+    state.difficulty = String(el.difficultyLevel.value || 'medium');
+    createMathRound();
+    createLogicRound();
+    createMemoryRound();
+    createVisualRound();
+    createStroopRound();
+    createMazeRound();
+  });
+
+  el.toggleChallenge.addEventListener('click', function () {
+    if (state.campaignActive) stopCampaign(false, false);
+    if (state.challengeActive) stopChallenge(false);
+    else startChallenge();
+  });
+
+  if (el.toggleCampaign) {
+    el.toggleCampaign.addEventListener('click', function () {
+      if (state.campaignActive) stopCampaign(false, false);
+      else startCampaign();
+    });
+  }
+
+  el.saveSession.addEventListener('click', function () {
+    const avg = average();
+    const history = readHistory();
+    history.push({
+      ts: Date.now(),
+      math: state.math, logic: state.logic, memory: state.memory, visual: state.visual, attention: state.attention, maze: state.maze,
+      difficulty: state.difficulty, max_streak: state.maxStreak, avg: avg, label: classification(avg)
+    });
+    writeHistory(history.slice(-80));
+    drawChart(readHistory());
+  });
+
+  el.newRound.addEventListener('click', function () {
+    state.math = 0; state.logic = 0; state.memory = 0; state.visual = 0; state.attention = 0; state.maze = 0;
+    state.streak = 0; state.maxStreak = 0;
+    if (state.challengeActive) stopChallenge(false);
+    if (state.campaignActive) stopCampaign(false, false);
+    refreshScores();
+    createMathRound();
+    createLogicRound();
+    createMemoryRound();
+    createVisualRound();
+    createStroopRound();
+    createMazeRound();
+    updateChallengeMeta();
+  });
+
+  el.resetHistory.addEventListener('click', function () {
+    localStorage.removeItem(storageKey);
+    localStorage.removeItem(campaignBestKey);
+    drawChart([]);
+    el.lastSessionLabel.textContent = t('history_cleared');
+    refreshCampaignBestDisplay();
+  });
+
+  createMathRound();
+  createLogicRound();
+  createMemoryRound();
+  createVisualRound();
+  createStroopRound();
+  createMazeRound();
+  updateChallengeMeta();
+  updateCampaignMeta();
+  refreshCampaignBestDisplay();
+  refreshScores();
+  drawChart(readHistory());
+})();
+</script>
+{% endblock %}

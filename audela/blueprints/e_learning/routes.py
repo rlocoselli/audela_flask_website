@@ -348,6 +348,16 @@ def dashboard():
     )
 
 
+@bp.route("/brain-trainer", methods=["GET"])
+@login_required
+def brain_trainer():
+    """Interactive brain training course with mini games and progress graph."""
+    return render_template(
+        "e_learning/brain_trainer.html",
+        page_title=tr("Brain Trainer"),
+    )
+
+
 @bp.route("/my-files", methods=["GET"])
 @login_required
 def my_files():

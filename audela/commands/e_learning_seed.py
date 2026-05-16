@@ -2535,6 +2535,832 @@ def _seed_sql_subject(force: bool = False) -> dict:
     return stats
 
 
+PREMIUM_SUBJECTS = [
+    {
+        "code": "programming_logic",
+        "name": "Programming Logic Engineering",
+        "fr_name": "Ingenierie de logique de programmation",
+        "description": "Algorithmic thinking, flow control, decomposition, debugging, and production-ready problem solving.",
+        "fr_description": "Pensee algorithmique, controle de flux, decomposition, debogage et resolution de problemes prete pour la production.",
+        "icon": "logic",
+        "order": 40,
+        "modules": [
+            {
+                "code": "prog_logic_foundations",
+                "title": "Logic Foundations and Algorithmic Thinking",
+                "fr_title": "Fondamentaux de logique et pensee algorithmique",
+                "level": "beginner",
+                "hours": 12,
+                "lessons": [
+                    "Problem decomposition and goal framing",
+                    "Control flow patterns and decision trees",
+                    "Data structures for reasoning",
+                    "Algorithm complexity and trade-offs",
+                    "Debugging strategies and invariants",
+                    "Reading and improving legacy logic",
+                ],
+            },
+            {
+                "code": "prog_logic_patterns",
+                "title": "Practical Logic Patterns and Refactoring",
+                "fr_title": "Patterns logiques pratiques et refactoring",
+                "level": "intermediate",
+                "hours": 14,
+                "lessons": [
+                    "State machines and workflow modeling",
+                    "Validation pipelines and guard clauses",
+                    "Error handling and fallback logic",
+                    "Concurrency-safe logical decisions",
+                    "Refactoring nested conditionals",
+                    "Building reusable decision engines",
+                ],
+            },
+            {
+                "code": "prog_logic_system_design",
+                "title": "Logic for System Design and Interviews",
+                "fr_title": "Logique pour system design et entretiens",
+                "level": "advanced",
+                "hours": 16,
+                "lessons": [
+                    "Domain modeling and business rules",
+                    "Idempotency and consistency decisions",
+                    "Scoring engines and ranking logic",
+                    "Backtracking and search strategies",
+                    "Constraint solving for real-world cases",
+                    "Interview drills and whiteboard tactics",
+                ],
+            },
+        ],
+    },
+    {
+        "code": "aws_cloud",
+        "name": "AWS Architect and Builder",
+        "fr_name": "Architecte et Builder AWS",
+        "description": "Design, deploy, secure, and optimize cloud-native workloads on AWS with production best practices.",
+        "fr_description": "Concevoir, deployer, securiser et optimiser des workloads cloud-native sur AWS avec des pratiques production.",
+        "icon": "aws",
+        "order": 50,
+        "modules": [
+            {
+                "code": "aws_core_services",
+                "title": "AWS Core Services and IAM",
+                "fr_title": "Services coeur AWS et IAM",
+                "level": "beginner",
+                "hours": 12,
+                "lessons": [
+                    "Global infrastructure and shared responsibility",
+                    "IAM users, roles, and least privilege",
+                    "Compute choices: EC2, Lambda, ECS",
+                    "Storage patterns: S3, EBS, EFS",
+                    "Networking essentials with VPC",
+                    "Observability with CloudWatch",
+                ],
+            },
+            {
+                "code": "aws_architecture",
+                "title": "Resilient AWS Architecture",
+                "fr_title": "Architecture AWS resiliente",
+                "level": "intermediate",
+                "hours": 15,
+                "lessons": [
+                    "High availability and multi-AZ design",
+                    "Auto scaling and load balancing",
+                    "Data services: RDS, DynamoDB, ElastiCache",
+                    "Messaging and event-driven systems",
+                    "Disaster recovery and backup strategy",
+                    "Cost optimization and FinOps basics",
+                ],
+            },
+            {
+                "code": "aws_security_ops",
+                "title": "AWS Security, Governance, and Operations",
+                "fr_title": "Securite, gouvernance et operations AWS",
+                "level": "advanced",
+                "hours": 18,
+                "lessons": [
+                    "Security services: KMS, WAF, GuardDuty",
+                    "Landing zones and account strategy",
+                    "Infrastructure as Code with CloudFormation",
+                    "CI/CD with CodePipeline and CodeBuild",
+                    "Well-Architected Framework deep dive",
+                    "Operational excellence runbooks",
+                ],
+            },
+        ],
+    },
+    {
+        "code": "gcp_cloud",
+        "name": "Google Cloud Professional Track",
+        "fr_name": "Parcours professionnel Google Cloud",
+        "description": "Build scalable data and application platforms on GCP, from networking to MLOps.",
+        "fr_description": "Construire des plateformes data et applicatives scalables sur GCP, du reseau au MLOps.",
+        "icon": "gcp",
+        "order": 60,
+        "modules": [
+            {
+                "code": "gcp_fundamentals",
+                "title": "GCP Fundamentals and Project Setup",
+                "fr_title": "Fondamentaux GCP et setup projet",
+                "level": "beginner",
+                "hours": 12,
+                "lessons": [
+                    "Resource hierarchy and IAM model",
+                    "Compute Engine, Cloud Run, GKE overview",
+                    "Cloud Storage and data lifecycle",
+                    "VPC networks and firewall rules",
+                    "Monitoring and logging with Cloud Operations",
+                    "Quotas, billing, and budget alerts",
+                ],
+            },
+            {
+                "code": "gcp_data_platform",
+                "title": "Data Engineering on GCP",
+                "fr_title": "Data engineering sur GCP",
+                "level": "intermediate",
+                "hours": 15,
+                "lessons": [
+                    "BigQuery architecture and optimization",
+                    "Dataflow pipelines and stream processing",
+                    "Pub/Sub event architectures",
+                    "Cloud Composer orchestration",
+                    "Dataproc and Spark workload strategy",
+                    "Data governance with Dataplex",
+                ],
+            },
+            {
+                "code": "gcp_security_reliability",
+                "title": "Security, Reliability, and SRE on GCP",
+                "fr_title": "Securite, fiabilite et SRE sur GCP",
+                "level": "advanced",
+                "hours": 17,
+                "lessons": [
+                    "Identity-aware security and zero trust",
+                    "Cloud Armor and security controls",
+                    "SLOs, error budgets, and incident response",
+                    "Multi-region and DR architectures",
+                    "Terraform on GCP best practices",
+                    "Production readiness reviews",
+                ],
+            },
+        ],
+    },
+    {
+        "code": "azure_cloud",
+        "name": "Azure Solutions Engineering",
+        "fr_name": "Ingenierie de solutions Azure",
+        "description": "Create enterprise-ready Azure platforms with governance, security, and automation.",
+        "fr_description": "Creer des plateformes Azure pretes entreprise avec gouvernance, securite et automatisation.",
+        "icon": "azure",
+        "order": 70,
+        "modules": [
+            {
+                "code": "azure_core",
+                "title": "Azure Core Services and Identity",
+                "fr_title": "Services coeur Azure et identite",
+                "level": "beginner",
+                "hours": 12,
+                "lessons": [
+                    "Subscriptions, management groups, and RBAC",
+                    "Compute with VM, App Service, Functions",
+                    "Storage accounts and redundancy options",
+                    "Networking with VNets and NSGs",
+                    "Azure Monitor and Log Analytics",
+                    "Cost management and tagging strategy",
+                ],
+            },
+            {
+                "code": "azure_architecture",
+                "title": "Azure Application Architecture",
+                "fr_title": "Architecture applicative Azure",
+                "level": "intermediate",
+                "hours": 15,
+                "lessons": [
+                    "API Management and integration patterns",
+                    "Data services: Azure SQL, Cosmos DB, Cache",
+                    "Eventing with Service Bus and Event Grid",
+                    "Container strategy with AKS",
+                    "Resilience and business continuity",
+                    "Performance tuning and scaling",
+                ],
+            },
+            {
+                "code": "azure_governance_security",
+                "title": "Azure Governance, Security, and DevOps",
+                "fr_title": "Gouvernance, securite et DevOps Azure",
+                "level": "advanced",
+                "hours": 18,
+                "lessons": [
+                    "Policy, Blueprints, and landing zones",
+                    "Defender for Cloud and Sentinel",
+                    "Key Vault and secret rotation",
+                    "IaC with Bicep and Terraform",
+                    "CI/CD with Azure DevOps and GitHub Actions",
+                    "Operational maturity model",
+                ],
+            },
+        ],
+    },
+    {
+        "code": "generative_ai",
+        "name": "Generative AI Engineering",
+        "fr_name": "Ingenierie IA generative",
+        "description": "Design, evaluate, and operate production-grade generative AI systems with guardrails and measurable quality.",
+        "fr_description": "Concevoir, evaluer et operer des systemes IA generative de niveau production avec garde-fous et qualite mesurable.",
+        "icon": "ai",
+        "order": 80,
+        "modules": [
+            {
+                "code": "genai_fundamentals",
+                "title": "Generative AI Foundations",
+                "fr_title": "Fondamentaux IA generative",
+                "level": "beginner",
+                "hours": 14,
+                "lessons": [
+                    "Transformer intuition and tokenization",
+                    "Prompting frameworks and task design",
+                    "Model selection: quality, latency, cost",
+                    "Embeddings and semantic retrieval",
+                    "Safety basics and responsible AI",
+                    "Evaluation metrics for generated outputs",
+                ],
+            },
+            {
+                "code": "genai_rag_agents",
+                "title": "RAG Systems and Agent Architectures",
+                "fr_title": "Systemes RAG et architectures agentiques",
+                "level": "intermediate",
+                "hours": 18,
+                "lessons": [
+                    "RAG pipeline design and chunking",
+                    "Vector stores, indexing, and retrieval quality",
+                    "Tool use and function calling patterns",
+                    "Memory strategies and context windows",
+                    "Agent orchestration and reliability",
+                    "Human-in-the-loop review workflows",
+                ],
+            },
+            {
+                "code": "genai_prod_ops",
+                "title": "GenAI Production, Security, and Governance",
+                "fr_title": "Production, securite et gouvernance GenAI",
+                "level": "advanced",
+                "hours": 20,
+                "lessons": [
+                    "Hallucination mitigation and confidence",
+                    "Prompt injection and data exfiltration defense",
+                    "Observability for LLM applications",
+                    "A/B testing and quality regression control",
+                    "Cost controls and caching strategies",
+                    "Policy, compliance, and model governance",
+                ],
+            },
+        ],
+    },
+]
+
+
+def _subject_i18n(subject: dict) -> tuple[dict, dict]:
+    return (
+        {
+            "en": subject["name"],
+            "fr": subject["fr_name"],
+            "pt": subject["name"],
+            "es": subject["name"],
+            "it": subject["name"],
+            "de": subject["name"],
+        },
+        {
+            "en": subject["description"],
+            "fr": subject["fr_description"],
+            "pt": subject["description"],
+            "es": subject["description"],
+            "it": subject["description"],
+            "de": subject["description"],
+        },
+    )
+
+
+def _module_i18n(module: dict, subject_name: str) -> tuple[dict, dict]:
+    title_i18n = {
+        "en": module["title"],
+        "fr": module["fr_title"],
+        "pt": module["title"],
+        "es": module["title"],
+        "it": module["title"],
+        "de": module["title"],
+    }
+    desc_en = (
+        f"Comprehensive module for {subject_name}. Includes architecture principles, implementation tactics, "
+        f"hands-on quizzes, and production readiness checkpoints."
+    )
+    desc_fr = (
+        f"Module complet pour {subject_name}. Inclut principes d architecture, tactiques d implementation, "
+        f"quiz pratiques et checkpoints de readiness production."
+    )
+    description_i18n = {
+        "en": desc_en,
+        "fr": desc_fr,
+        "pt": desc_en,
+        "es": desc_en,
+        "it": desc_en,
+        "de": desc_en,
+    }
+    return title_i18n, description_i18n
+
+
+def _lesson_content(topic: str, module_title: str) -> dict:
+    html_en = (
+        f"<h3>{topic}</h3>"
+        "<p>This lesson is built for practical mastery: concepts, architecture choices, anti-patterns, and review checklists.</p>"
+        "<ul>"
+        "<li>Core idea and when to apply it.</li>"
+        "<li>Common implementation pitfalls and mitigation.</li>"
+        "<li>Decision matrix: quality, scalability, security, and cost.</li>"
+        "<li>Operational checklist for production deployment.</li>"
+        "</ul>"
+        f"<p><strong>Context:</strong> {module_title}</p>"
+    )
+    html_fr = (
+        f"<h3>{topic}</h3>"
+        "<p>Cette lecon vise la maitrise pratique: concepts, choix d architecture, anti-patterns et checklists de revue.</p>"
+        "<ul>"
+        "<li>Idee centrale et cas d usage.</li>"
+        "<li>Pieges frequents et mitigation.</li>"
+        "<li>Matrice de decision: qualite, scalabilite, securite et cout.</li>"
+        "<li>Checklist operationnelle pour la mise en production.</li>"
+        "</ul>"
+        f"<p><strong>Contexte:</strong> {module_title}</p>"
+    )
+    return {
+        "en": html_en,
+        "fr": html_fr,
+        "pt": html_en,
+        "es": html_en,
+        "it": html_en,
+        "de": html_en,
+    }
+
+
+def _seed_premium_catalog(force: bool = False) -> dict:
+    from ..models.e_learning import (
+        ELearningSubject,
+        ELearningModule,
+        ELearningLesson,
+        ELearningExercise,
+    )
+
+    stats = {"subjects": 0, "modules": 0, "lessons": 0, "exercises": 0}
+
+    for subject_data in PREMIUM_SUBJECTS:
+        name_i18n, description_i18n = _subject_i18n(subject_data)
+        subject = ELearningSubject.query.filter_by(code=subject_data["code"]).first()
+        if not subject:
+            subject = ELearningSubject(code=subject_data["code"])
+            db.session.add(subject)
+            stats["subjects"] += 1
+
+        subject.name_i18n = name_i18n
+        subject.description_i18n = description_i18n
+        subject.icon_url = f"/static/assets/icons/{subject_data['icon']}.svg"
+        subject.order = subject_data["order"]
+        subject.is_active = True
+        db.session.flush()
+
+        valid_module_codes = {m["code"] for m in subject_data["modules"]}
+        if force and valid_module_codes:
+            stale_modules = ELearningModule.query.filter(
+                ELearningModule.subject_id == subject.id,
+                ELearningModule.code.notin_(valid_module_codes),
+            ).all()
+            for stale in stale_modules:
+                db.session.delete(stale)
+            if stale_modules:
+                db.session.flush()
+
+        for mod_index, module_data in enumerate(subject_data["modules"], start=1):
+            module = ELearningModule.query.filter_by(subject_id=subject.id, code=module_data["code"]).first()
+            if not module:
+                module = ELearningModule(subject_id=subject.id, code=module_data["code"])
+                db.session.add(module)
+            stats["modules"] += 1
+
+            title_i18n, description_i18n = _module_i18n(module_data, subject_data["name"])
+            module.title_i18n = title_i18n
+            module.description_i18n = description_i18n
+            module.level = module_data["level"]
+            module.order = mod_index
+            module.is_active = True
+            module.total_lessons = len(module_data["lessons"])
+            module.total_exercises = len(module_data["lessons"]) * 2
+            module.estimated_hours = float(module_data["hours"])
+            module.pass_threshold = 80
+            module.points_on_completion = 220 + mod_index * 30
+            db.session.flush()
+
+            valid_lesson_codes = {f"{module_data['code']}_l{idx:02d}" for idx in range(1, len(module_data["lessons"]) + 1)}
+            if force and valid_lesson_codes:
+                stale_lessons = ELearningLesson.query.filter(
+                    ELearningLesson.module_id == module.id,
+                    ELearningLesson.code.notin_(valid_lesson_codes),
+                ).all()
+                for stale in stale_lessons:
+                    db.session.delete(stale)
+                if stale_lessons:
+                    db.session.flush()
+
+            for lesson_index, lesson_topic in enumerate(module_data["lessons"], start=1):
+                lesson_code = f"{module_data['code']}_l{lesson_index:02d}"
+                lesson = ELearningLesson.query.filter_by(module_id=module.id, code=lesson_code).first()
+                if not lesson:
+                    lesson = ELearningLesson(module_id=module.id, code=lesson_code)
+                    db.session.add(lesson)
+                stats["lessons"] += 1
+
+                lesson.title_i18n = {
+                    "en": lesson_topic,
+                    "fr": lesson_topic,
+                    "pt": lesson_topic,
+                    "es": lesson_topic,
+                    "it": lesson_topic,
+                    "de": lesson_topic,
+                }
+                lesson.description_i18n = {
+                    "en": f"Guided practice on {lesson_topic.lower()}.",
+                    "fr": f"Pratique guidee sur {lesson_topic.lower()}.",
+                    "pt": f"Guided practice on {lesson_topic.lower()}.",
+                    "es": f"Guided practice on {lesson_topic.lower()}.",
+                    "it": f"Guided practice on {lesson_topic.lower()}.",
+                    "de": f"Guided practice on {lesson_topic.lower()}.",
+                }
+                lesson.content_html_i18n = _lesson_content(lesson_topic, module_data["title"])
+                lesson.key_concepts_i18n = {
+                    "en": [
+                        f"{lesson_topic} fundamentals",
+                        "Design decisions and trade-offs",
+                        "Reliability and security implications",
+                        "Production readiness checklist",
+                    ],
+                    "fr": [
+                        f"Fondamentaux: {lesson_topic}",
+                        "Decisions d architecture et compromis",
+                        "Impacts fiabilite et securite",
+                        "Checklist readiness production",
+                    ],
+                }
+                lesson.order = lesson_index
+                lesson.is_active = True
+                db.session.flush()
+
+                ex_defs = [
+                    {
+                        "code": f"{lesson_code}_quiz_a",
+                        "title": "Concept Mastery Quiz",
+                        "fr_title": "Quiz maitrise des concepts",
+                        "instruction": (
+                            "Choose the best answer according to architecture trade-offs, operational constraints, "
+                            "and security requirements."
+                        ),
+                        "fr_instruction": (
+                            "Choisissez la meilleure reponse selon les compromis d architecture, les contraintes "
+                            "operationnelles et les exigences securite."
+                        ),
+                        "points": 12,
+                        "question": f"Which strategy best improves reliability for '{lesson_topic}' without uncontrolled cost growth?",
+                        "choices": [
+                            "Single region deployment with manual failover",
+                            "Automated resilience pattern with observability and guardrails",
+                            "Disable monitoring to reduce overhead",
+                            "Use one oversized resource for all workloads",
+                        ],
+                        "answer": 1,
+                    },
+                    {
+                        "code": f"{lesson_code}_quiz_b",
+                        "title": "Scenario Decision Quiz",
+                        "fr_title": "Quiz decisionnel par scenario",
+                        "instruction": (
+                            "Read the scenario and select the option that maximizes quality, security, and maintainability "
+                            "under realistic delivery constraints."
+                        ),
+                        "fr_instruction": (
+                            "Lisez le scenario et selectionnez l option qui maximise qualite, securite et maintenabilite "
+                            "sous contraintes de delivery reelles."
+                        ),
+                        "points": 14,
+                        "question": f"A team must implement '{lesson_topic}' for a regulated environment. What is the best first step?",
+                        "choices": [
+                            "Skip threat modeling and iterate quickly",
+                            "Define SLOs, controls, and measurable acceptance criteria before rollout",
+                            "Deploy directly to production then document later",
+                            "Use default settings without review",
+                        ],
+                        "answer": 1,
+                    },
+                ]
+
+                if force:
+                    valid_exercise_codes = {e["code"] for e in ex_defs}
+                    stale_exercises = ELearningExercise.query.filter(
+                        ELearningExercise.lesson_id == lesson.id,
+                        ELearningExercise.code.notin_(valid_exercise_codes),
+                    ).all()
+                    for stale in stale_exercises:
+                        db.session.delete(stale)
+                    if stale_exercises:
+                        db.session.flush()
+
+                for exercise_index, ex in enumerate(ex_defs, start=1):
+                    exercise = ELearningExercise.query.filter_by(lesson_id=lesson.id, code=ex["code"]).first()
+                    if not exercise:
+                        exercise = ELearningExercise(lesson_id=lesson.id, code=ex["code"])
+                        db.session.add(exercise)
+                    stats["exercises"] += 1
+
+                    exercise.type = "multiple_choice"
+                    exercise.title_i18n = {
+                        "en": ex["title"],
+                        "fr": ex["fr_title"],
+                        "pt": ex["title"],
+                        "es": ex["title"],
+                        "it": ex["title"],
+                        "de": ex["title"],
+                    }
+                    exercise.instruction_i18n = {
+                        "en": ex["instruction"],
+                        "fr": ex["fr_instruction"],
+                        "pt": ex["instruction"],
+                        "es": ex["instruction"],
+                        "it": ex["instruction"],
+                        "de": ex["instruction"],
+                    }
+                    exercise.hint_i18n = {
+                        "en": {
+                            "tip": "Prioritize resilient design, observable systems, and governance-safe defaults."
+                        },
+                        "fr": {
+                            "tip": "Priorisez un design resilient, observable et conforme a la gouvernance."
+                        },
+                    }
+                    exercise.points = ex["points"]
+                    exercise.order = exercise_index
+                    exercise.is_active = True
+                    exercise.expected_sql = None
+                    exercise.expected_result_json = {
+                        "question": ex["question"],
+                        "choices": ex["choices"],
+                        "correct_choice_index": ex["answer"],
+                        "rationale": "Best-practice answer balancing reliability, security, cost, and maintainability.",
+                    }
+                    exercise.validation_query = None
+                    exercise.passing_condition = None
+                    exercise.dml_operation = None
+                    db.session.flush()
+
+    db.session.commit()
+    return stats
+
+
+EXAM_BLUEPRINT_BY_SUBJECT = {
+    "programming_logic": {
+        "track": "Programming Logic Professional",
+        "domains": [
+            "Algorithm design",
+            "Data structure selection",
+            "Complexity trade-offs",
+            "Debugging and correctness",
+            "Production-safe decision logic",
+            "Edge-case handling",
+        ],
+    },
+    "aws_cloud": {
+        "track": "AWS Solutions Architect",
+        "domains": [
+            "Reliability and fault tolerance",
+            "Security and identity",
+            "Performance efficiency",
+            "Cost optimization",
+            "Operational excellence",
+            "Disaster recovery",
+        ],
+    },
+    "gcp_cloud": {
+        "track": "Google Cloud Professional Architect",
+        "domains": [
+            "Secure infrastructure",
+            "Service selection",
+            "Scalable architecture",
+            "Data platform decisions",
+            "Reliability engineering",
+            "Cost and governance",
+        ],
+    },
+    "azure_cloud": {
+        "track": "Microsoft Azure Solutions Architect",
+        "domains": [
+            "Identity and governance",
+            "Compute and integration",
+            "Data and storage strategy",
+            "Network segmentation",
+            "Security posture",
+            "DevOps and operations",
+        ],
+    },
+    "generative_ai": {
+        "track": "Generative AI Production Engineer",
+        "domains": [
+            "Prompt and context engineering",
+            "RAG design and retrieval quality",
+            "Model evaluation",
+            "Safety and guardrails",
+            "Observability and regression control",
+            "Cost-latency-quality balancing",
+        ],
+    },
+}
+
+
+def _exam_title_i18n(module_title: str, track: str) -> dict:
+    en = f"Exam Lab: {track} for {module_title}"
+    fr = f"Lab examen: {track} pour {module_title}"
+    return {"en": en, "fr": fr, "pt": en, "es": en, "it": en, "de": en}
+
+
+def _exam_content_i18n(track: str, module_title: str) -> dict:
+    en = (
+        f"<h3>{track} - Exam Readiness</h3>"
+        f"<p>This lab prepares you for scenario-based assessments in <strong>{module_title}</strong>.</p>"
+        "<ul>"
+        "<li>Timed decision-making under constraints.</li>"
+        "<li>Architecture trade-offs with measurable outcomes.</li>"
+        "<li>Security, reliability, and cost balancing.</li>"
+        "<li>Production-grade answer rationale.</li>"
+        "</ul>"
+    )
+    fr = (
+        f"<h3>{track} - Preparation examen</h3>"
+        f"<p>Ce lab vous prepare aux evaluations par scenarios sur <strong>{module_title}</strong>.</p>"
+        "<ul>"
+        "<li>Prise de decision sous contraintes.</li>"
+        "<li>Compromis d architecture avec resultats mesurables.</li>"
+        "<li>Equilibre securite, fiabilite et cout.</li>"
+        "<li>Justification orientee production.</li>"
+        "</ul>"
+    )
+    return {"en": en, "fr": fr, "pt": en, "es": en, "it": en, "de": en}
+
+
+def _build_exam_question_pack(subject_code: str, module_title: str) -> list[dict]:
+    bp = EXAM_BLUEPRINT_BY_SUBJECT[subject_code]
+    domains = bp["domains"]
+    questions: list[dict] = []
+
+    for idx, domain in enumerate(domains, start=1):
+        questions.append(
+            {
+                "code": f"q{idx:02d}",
+                "title": f"Certification Quiz {idx}",
+                "fr_title": f"Quiz certification {idx}",
+                "instruction": (
+                    "Select the option that best satisfies reliability, security, operational, and cost constraints "
+                    "for this scenario."
+                ),
+                "fr_instruction": (
+                    "Selectionnez l option qui satisfait le mieux les contraintes de fiabilite, securite, operations "
+                    "et cout pour ce scenario."
+                ),
+                "points": 20,
+                "question": (
+                    f"In module '{module_title}', your team must improve '{domain.lower()}' while preserving delivery speed. "
+                    "Which approach is the most production-ready?"
+                ),
+                "choices": [
+                    "Apply a quick fix without observability and governance checks",
+                    "Adopt a phased architecture plan with metrics, rollback, and least-privilege controls",
+                    "Delay all design decisions and optimize only after incidents",
+                    "Consolidate all workloads into one shared high-risk component",
+                ],
+                "answer": 1,
+                "rationale": (
+                    "A phased approach with measurable controls improves reliability and security while limiting delivery risk."
+                ),
+                "domain": domain,
+            }
+        )
+
+    return questions
+
+
+def _seed_exam_ready_catalog(force: bool = False) -> dict:
+    from ..models.e_learning import (
+        ELearningSubject,
+        ELearningModule,
+        ELearningLesson,
+        ELearningExercise,
+    )
+
+    stats = {"subjects": 0, "modules": 0, "lessons": 0, "exercises": 0}
+
+    for subject_code, blueprint in EXAM_BLUEPRINT_BY_SUBJECT.items():
+        subject = ELearningSubject.query.filter_by(code=subject_code).first()
+        if not subject:
+            continue
+        stats["subjects"] += 1
+
+        modules = ELearningModule.query.filter_by(subject_id=subject.id, is_active=True).order_by(ELearningModule.order.asc()).all()
+        for module in modules:
+            stats["modules"] += 1
+            lesson_code = f"{module.code}_exam_ready"
+            lesson = ELearningLesson.query.filter_by(module_id=module.id, code=lesson_code).first()
+            if not lesson:
+                lesson = ELearningLesson(module_id=module.id, code=lesson_code)
+                db.session.add(lesson)
+            stats["lessons"] += 1
+
+            lesson.title_i18n = _exam_title_i18n(module.title_i18n.get("en") or module.code, blueprint["track"])
+            lesson.description_i18n = {
+                "en": f"Certification-style assessment lab for {module.title_i18n.get('en') or module.code}.",
+                "fr": f"Lab d evaluation type certification pour {module.title_i18n.get('en') or module.code}.",
+                "pt": f"Certification-style assessment lab for {module.title_i18n.get('en') or module.code}.",
+                "es": f"Certification-style assessment lab for {module.title_i18n.get('en') or module.code}.",
+                "it": f"Certification-style assessment lab for {module.title_i18n.get('en') or module.code}.",
+                "de": f"Certification-style assessment lab for {module.title_i18n.get('en') or module.code}.",
+            }
+            lesson.content_html_i18n = _exam_content_i18n(blueprint["track"], module.title_i18n.get("en") or module.code)
+            lesson.key_concepts_i18n = {
+                "en": blueprint["domains"],
+                "fr": blueprint["domains"],
+            }
+            lesson.order = max(module.total_lessons, 1) + 1
+            lesson.is_active = True
+            db.session.flush()
+
+            question_pack = _build_exam_question_pack(subject_code, module.title_i18n.get("en") or module.code)
+            valid_codes = {f"{lesson_code}_{q['code']}" for q in question_pack}
+            if force and valid_codes:
+                stale = ELearningExercise.query.filter(
+                    ELearningExercise.lesson_id == lesson.id,
+                    ELearningExercise.code.notin_(valid_codes),
+                ).all()
+                for ex in stale:
+                    db.session.delete(ex)
+                if stale:
+                    db.session.flush()
+
+            for order, q in enumerate(question_pack, start=1):
+                ex_code = f"{lesson_code}_{q['code']}"
+                exercise = ELearningExercise.query.filter_by(lesson_id=lesson.id, code=ex_code).first()
+                if not exercise:
+                    exercise = ELearningExercise(lesson_id=lesson.id, code=ex_code)
+                    db.session.add(exercise)
+                stats["exercises"] += 1
+
+                exercise.type = "multiple_choice"
+                exercise.title_i18n = {
+                    "en": q["title"],
+                    "fr": q["fr_title"],
+                    "pt": q["title"],
+                    "es": q["title"],
+                    "it": q["title"],
+                    "de": q["title"],
+                }
+                exercise.instruction_i18n = {
+                    "en": q["instruction"],
+                    "fr": q["fr_instruction"],
+                    "pt": q["instruction"],
+                    "es": q["instruction"],
+                    "it": q["instruction"],
+                    "de": q["instruction"],
+                }
+                exercise.hint_i18n = {
+                    "en": {"tip": "Evaluate options with measurable risk, control coverage, and operational impact."},
+                    "fr": {"tip": "Evaluez les options via risque mesurable, couverture des controles et impact operationnel."},
+                }
+                exercise.points = q["points"]
+                exercise.order = order
+                exercise.is_active = True
+                exercise.expected_sql = None
+                exercise.expected_result_json = {
+                    "question": q["question"],
+                    "choices": q["choices"],
+                    "correct_choice_index": q["answer"],
+                    "rationale": q["rationale"],
+                    "domain": q["domain"],
+                    "track": blueprint["track"],
+                }
+                exercise.validation_query = None
+                exercise.passing_condition = None
+                exercise.dml_operation = None
+                db.session.flush()
+
+            module.total_lessons = ELearningLesson.query.filter_by(module_id=module.id).count()
+            module.total_exercises = db.session.query(ELearningExercise).join(
+                ELearningLesson, ELearningExercise.lesson_id == ELearningLesson.id
+            ).filter(ELearningLesson.module_id == module.id).count()
+
+    db.session.commit()
+    return stats
+
+
 def init_e_learning_seed_cli(app: Flask) -> None:
     """Register e-learning seed CLI commands."""
 
@@ -2554,3 +3380,63 @@ def init_e_learning_seed_cli(app: Flask) -> None:
         click.echo(f"  ✅ Exercises: {stats['exercises']} created")
 
         click.echo("\n🚀 Done! Visit /e-learning/ to browse the content.")
+
+    @app.cli.command("seed-e-learning-premium")
+    @click.option("--force", is_flag=True, default=False, help="Re-seed premium records")
+    def seed_e_learning_premium(force: bool):
+        """Seed premium multi-track catalog: programming logic, AWS, GCP, Azure, and Generative AI."""
+        click.echo("🎯 Seeding premium E-Learning catalog...")
+
+        stats = _seed_premium_catalog(force=force)
+        click.echo(f"  ✅ Subjects: {stats['subjects']} created")
+        click.echo(f"  ✅ Modules: {stats['modules']} created/updated")
+        click.echo(f"  ✅ Lessons: {stats['lessons']} created/updated")
+        click.echo(f"  ✅ Exercises: {stats['exercises']} created/updated")
+
+        click.echo("\n🚀 Done! Premium tracks are available in /e-learning/.")
+
+    @app.cli.command("seed-e-learning-exam-ready")
+    @click.option("--force", is_flag=True, default=False, help="Re-seed exam-ready records")
+    def seed_e_learning_exam_ready(force: bool):
+        """Seed certification-oriented quiz banks for premium tracks."""
+        click.echo("🧠 Seeding exam-ready quiz banks...")
+
+        stats = _seed_exam_ready_catalog(force=force)
+        click.echo(f"  ✅ Subjects covered: {stats['subjects']}")
+        click.echo(f"  ✅ Modules covered: {stats['modules']}")
+        click.echo(f"  ✅ Exam lessons created/updated: {stats['lessons']}")
+        click.echo(f"  ✅ Certification quizzes created/updated: {stats['exercises']}")
+
+        click.echo("\n🚀 Done! Exam-ready content is available in /e-learning/.")
+
+    @app.cli.command("seed-e-learning-mega-pack")
+    @click.option("--force", is_flag=True, default=False, help="Re-seed all records")
+    def seed_e_learning_mega_pack(force: bool):
+        """Run all e-learning seeds: base SQL, premium catalog, and exam-ready quizzes."""
+        click.echo("📦 Seeding full E-Learning mega pack...")
+
+        ach_count = _seed_achievements(force=force)
+        sql_stats = _seed_sql_subject(force=force)
+        premium_stats = _seed_premium_catalog(force=force)
+        exam_stats = _seed_exam_ready_catalog(force=force)
+
+        click.echo("\nBase SQL track:")
+        click.echo(f"  ✅ Achievements: {ach_count} created/updated")
+        click.echo(f"  ✅ Subjects: {sql_stats['subjects']} created/updated")
+        click.echo(f"  ✅ Modules: {sql_stats['modules']} created/updated")
+        click.echo(f"  ✅ Lessons: {sql_stats['lessons']} created/updated")
+        click.echo(f"  ✅ Exercises: {sql_stats['exercises']} created/updated")
+
+        click.echo("\nPremium tracks:")
+        click.echo(f"  ✅ Subjects: {premium_stats['subjects']} created/updated")
+        click.echo(f"  ✅ Modules: {premium_stats['modules']} created/updated")
+        click.echo(f"  ✅ Lessons: {premium_stats['lessons']} created/updated")
+        click.echo(f"  ✅ Exercises: {premium_stats['exercises']} created/updated")
+
+        click.echo("\nExam-ready quizzes:")
+        click.echo(f"  ✅ Subjects covered: {exam_stats['subjects']}")
+        click.echo(f"  ✅ Modules covered: {exam_stats['modules']}")
+        click.echo(f"  ✅ Exam lessons created/updated: {exam_stats['lessons']}")
+        click.echo(f"  ✅ Certification quizzes created/updated: {exam_stats['exercises']}")
+
+        click.echo("\n🚀 Mega pack complete! Browse /e-learning/ for full catalog.")
