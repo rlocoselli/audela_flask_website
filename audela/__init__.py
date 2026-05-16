@@ -502,7 +502,7 @@ def create_app() -> Flask:
     if app.config.get("AUTO_CREATE_DB", False):
         with app.app_context():
             try:
-                db.create_all(checkfirst=True)
+                db.create_all()
             except Exception as _create_all_err:
                 # On PostgreSQL, orphaned constraints from prior partial migrations can
                 # cause DuplicateTable errors even when checkfirst=True skips the table.
