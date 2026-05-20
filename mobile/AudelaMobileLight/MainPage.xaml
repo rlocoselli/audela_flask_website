@@ -44,8 +44,8 @@
                                TextColor="#D7EAFF" />
                     </VerticalStackLayout>
 
-                    <Image Grid.Column="1"
-                           Source="audela_logo.png"
+                          <Image Grid.Column="1"
+                              Source="audela_logo_light.svg"
                            HeightRequest="68"
                            VerticalOptions="Start"
                            Aspect="AspectFit" />

@@ -16,16 +16,10 @@
 
         <ScrollView>
             <VerticalStackLayout Padding="20,20,20,24" Spacing="14">
-                  <Border Padding="14,10"
-                       BackgroundColor="#F4FAFF"
-                       StrokeThickness="0"
-                       StrokeShape="RoundRectangle 20"
-                       HorizontalOptions="Center">
-                      <Image Source="audela_logo.png"
-                          HeightRequest="90"
-                          Aspect="AspectFit"
-                          HorizontalOptions="Center" />
-                  </Border>
+                  <Image Source="audela_logo_light.svg"
+                      HeightRequest="86"
+                      Aspect="AspectFit"
+                      HorizontalOptions="Center" />
 
                 <Label Text="Creation de compte"
                        FontSize="28"

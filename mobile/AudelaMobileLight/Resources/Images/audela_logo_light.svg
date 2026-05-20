@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="220" viewBox="0 0 760 220" role="img" aria-label="AUDELA logo">
+  <defs>
+    <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#8fe3ff"/>
+      <stop offset="1" stop-color="#5cc6ff"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Mark: stylised A + data dots -->
+  <g transform="translate(44,28)">
+    <path d="M88 164 L148 20 L208 164" fill="none" stroke="url(#g)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M116 112 L180 112" fill="none" stroke="url(#g)" stroke-width="18" stroke-linecap="round"/>
+    <circle cx="242" cy="56" r="9" fill="#8fe3ff"/>
+    <circle cx="262" cy="76" r="7" fill="#8fe3ff" opacity="0.92"/>
+    <circle cx="282" cy="96" r="5" fill="#8fe3ff" opacity="0.84"/>
+  </g>
+
+  <!-- Wordmark: white for dark backgrounds -->
+  <text x="360" y="138" font-family="Arial, Helvetica, sans-serif" font-size="78" font-weight="800"
+        fill="#ffffff" letter-spacing="2">AUDELA</text>
+  <text x="365" y="178" font-family="Arial, Helvetica, sans-serif" font-size="22"
+        fill="rgba(255,255,255,0.82)" letter-spacing="0.5">Aller au-delà des données</text>
+</svg>

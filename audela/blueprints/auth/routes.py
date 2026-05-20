@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 import secrets
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 import requests
 from sqlalchemy.orm.attributes import flag_modified
@@ -34,6 +34,45 @@ def _safe_relative_url(value: str | None) -> str | None:
     if nxt.startswith("/") and not nxt.startswith("//"):
         return nxt
     return None
+
+
+def _safe_mobile_return_url(value: str | None) -> str | None:
+    raw = (value or "").strip()
+    if not raw:
+        return None
+
+    parsed = urlsplit(raw)
+    if parsed.scheme != "audelamobilelight":
+        return None
+    if parsed.netloc not in {"oauth-callback", "auth-callback"}:
+        return None
+    if parsed.path and parsed.path not in {"", "/"}:
+        return None
+
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
+def _mobile_return_redirect(
+    mobile_return_url: str | None,
+    *,
+    status: str,
+    message: str | None = None,
+    extra: dict | None = None,
+):
+    target = _safe_mobile_return_url(mobile_return_url)
+    if not target:
+        return None
+
+    payload = {"status": str(status or "").strip() or "unknown"}
+    if message:
+        payload["message"] = str(message).strip()
+    if isinstance(extra, dict):
+        for key, value in extra.items():
+            if value is None:
+                continue
+            payload[str(key)] = str(value)
+
+    return redirect(f"{target}?{urlencode(payload)}")
 
 
 def _google_oauth_enabled() -> bool:
@@ -481,7 +520,17 @@ def login_finance():
 @bp.route("/login/google/start", methods=["GET"])
 def google_login_start():
     """Start Google OAuth flow for tenant-aware login."""
+    mobile_return_url = _safe_mobile_return_url(request.args.get("mobile_return"))
+
     if not _google_oauth_enabled():
+        mobile_redirect = _mobile_return_redirect(
+            mobile_return_url,
+            status="error",
+            message="Google login is not configured.",
+        )
+        if mobile_redirect:
+            return mobile_redirect
+
         flash(tr("Google login is not configured yet.", getattr(g, "lang", None)), "warning")
         app_target = (request.args.get("app") or "bi").strip().lower()
         if app_target == "finance":
@@ -524,6 +573,7 @@ def google_login_start():
     session["google_oauth_signup_org_name"] = org_name
     session["google_oauth_app_target"] = app_target
     session["google_oauth_next"] = next_url
+    session["google_oauth_mobile_return"] = mobile_return_url
 
     params = {
         "client_id": str(current_app.config.get("GOOGLE_OAUTH_CLIENT_ID") or "").strip(),
@@ -540,9 +590,19 @@ def google_login_start():
 @bp.route("/login/google/callback", methods=["GET"])
 def google_login_callback():
     """Complete Google OAuth flow and login mapped tenant user."""
+    mobile_return_url = _safe_mobile_return_url(session.get("google_oauth_mobile_return"))
+
     expected_state = session.pop("google_oauth_state", None)
     state = (request.args.get("state") or "").strip()
     if not expected_state or not state or expected_state != state:
+        mobile_redirect = _mobile_return_redirect(
+            mobile_return_url,
+            status="error",
+            message="Google login failed (invalid state).",
+        )
+        if mobile_redirect:
+            return mobile_redirect
+
         flash(tr("Google login failed (invalid state).", getattr(g, "lang", None)), "error")
         return redirect(url_for("auth.login"))
 
@@ -551,9 +611,18 @@ def google_login_callback():
     signup_org_name = (session.pop("google_oauth_signup_org_name", "") or "").strip()
     app_target = (session.pop("google_oauth_app_target", "bi") or "bi").strip().lower()
     next_url = _safe_relative_url(session.pop("google_oauth_next", None))
+    mobile_return_url = _safe_mobile_return_url(session.pop("google_oauth_mobile_return", None))
 
     code = (request.args.get("code") or "").strip()
     if not code:
+        mobile_redirect = _mobile_return_redirect(
+            mobile_return_url,
+            status="error",
+            message="Google login was canceled or denied.",
+        )
+        if mobile_redirect:
+            return mobile_redirect
+
         flash(tr("Google login was canceled or denied.", getattr(g, "lang", None)), "warning")
         if app_target == "finance":
             return redirect(url_for("auth.login_finance"))
@@ -593,6 +662,14 @@ def google_login_callback():
         userinfo = userinfo_response.json()
     except Exception as exc:
         current_app.logger.warning(f"Google OAuth exchange failed: {exc}")
+        mobile_redirect = _mobile_return_redirect(
+            mobile_return_url,
+            status="error",
+            message="Google login failed.",
+        )
+        if mobile_redirect:
+            return mobile_redirect
+
         flash(tr("Google login failed. Please try again.", getattr(g, "lang", None)), "error")
         if app_target == "finance":
             return redirect(url_for("auth.login_finance"))
@@ -605,6 +682,14 @@ def google_login_callback():
     google_name = str(userinfo.get("name") or "").strip()
     email_verified = bool(userinfo.get("email_verified"))
     if not email or not email_verified:
+        mobile_redirect = _mobile_return_redirect(
+            mobile_return_url,
+            status="error",
+            message="Google account email is not verified.",
+        )
+        if mobile_redirect:
+            return mobile_redirect
+
         flash(tr("Google account email is not verified.", getattr(g, "lang", None)), "error")
         if app_target == "finance":
             return redirect(url_for("auth.login_finance"))
@@ -704,6 +789,22 @@ def google_login_callback():
         session["app_mode"] = "finance"
     else:
         session.pop("app_mode", None)
+
+    mobile_redirect = _mobile_return_redirect(
+        mobile_return_url,
+        status="success",
+        message="Google login successful.",
+        extra={
+            "tenantId": tenant.id,
+            "tenantName": tenant.name,
+            "tenantSlug": tenant.slug,
+            "userId": user.id,
+            "email": user.email,
+            "fullName": (f"{getattr(user, 'first_name', '')} {getattr(user, 'last_name', '')}").strip(),
+        },
+    )
+    if mobile_redirect:
+        return mobile_redirect
 
     return redirect(_login_redirect_target(app_target, next_url))
 
