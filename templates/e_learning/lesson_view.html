@@ -1,17 +1,19 @@
 {% extends 'e_learning/base_e_learning.html' %}
 
 {% block e_learning_content %}
+{% set subject_code = (module.subject.code if module.subject and module.subject.code else '')|lower %}
+{% set is_math_subject = 'math' in subject_code %}
 <div class="container py-5">
     <div class="row">
         <div class="col-lg-8">
             <!-- Lesson Content -->
-            <div class="card border-0 shadow-sm mb-4">
+            <div class="academy-surface mb-4">
                 <div class="card-body">
                     <h1 class="mb-3">{{ lesson.title_i18n.get(current_lang, lesson.title_i18n.get('en', lesson.code)) }}</h1>
                     <p class="lead text-muted">{{ lesson.description_i18n.get(current_lang, lesson.description_i18n.get('en', '')) }}</p>
                     {% if module.subject.code == 'sql' %}
-                    <a href="{{ url_for('e_learning.module_detail', module_id=module.id, show_schema=1) }}" class="btn btn-outline-primary btn-sm mb-3">
-                        <span class="material-symbols-outlined" style="font-size: 18px; display: inline;">database</span>
+                    <a href="{{ url_for('e_learning.module_detail', module_id=module.id, show_schema=1) }}" class="btn academy-btn-outline btn-sm mb-3">
+                        <span class="material-symbols-outlined academy-icon-inline-sm">database</span>
                         {{ _('View Schema Diagram') }}
                     </a>
                     {% endif %}
@@ -20,6 +22,48 @@
                     {% if lesson.content_html_i18n %}
                     <div class="mt-4 lesson-content">
                         {{ lesson.content_html_i18n.get(current_lang, lesson.content_html_i18n.get('en', ''))|safe }}
+                    </div>
+                    {% endif %}
+
+                    {% if is_math_subject %}
+                    <div class="mt-4 p-3 academy-surface-soft rounded">
+                        <h5 class="mb-3">{{ _('Finance Graph Calculator') }}</h5>
+                        <p class="small text-muted mb-3">{{ _('GeoGebra-style sandbox: adjust parameters and visualize sensitivity in real time.') }}</p>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-4">
+                                <label for="financeModel" class="form-label">{{ _('Model') }}</label>
+                                <select id="financeModel" class="form-select form-select-sm">
+                                    <option value="compound">{{ _('Compound growth') }}</option>
+                                    <option value="discount">{{ _('Discount factor') }}</option>
+                                    <option value="annuity">{{ _('Annuity payment') }}</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="paramRate" class="form-label">{{ _('Rate (%)') }}</label>
+                                <input id="paramRate" type="range" class="form-range" min="0" max="25" step="0.25" value="7">
+                                <div class="small text-muted"><span id="paramRateLabel">7.00%</span></div>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="paramBase" class="form-label">{{ _('Base amount') }}</label>
+                                <input id="paramBase" type="range" class="form-range" min="1000" max="200000" step="500" value="10000">
+                                <div class="small text-muted"><span id="paramBaseLabel">10000</span></div>
+                            </div>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6">
+                                <label for="paramN" class="form-label">{{ _('Horizon (periods)') }}</label>
+                                <input id="paramN" type="range" class="form-range" min="1" max="30" step="1" value="12">
+                                <div class="small text-muted"><span id="paramNLabel">12</span></div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">{{ _('Current value') }}</label>
+                                <div id="financeFormulaValue" class="fw-semibold">-</div>
+                                <div id="financeFormulaText" class="small text-muted">-</div>
+                            </div>
+                        </div>
+                        <div class="finance-graph-wrap">
+                            <canvas id="financeGraphCanvas"></canvas>
+                        </div>
                     </div>
                     {% endif %}
                     
@@ -39,9 +83,10 @@
         </div>
         
         <div class="col-lg-4">
+            {% if show_exercises %}
             <!-- Exercises -->
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-gradient" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
+            <div class="academy-surface">
+                <div class="card-header bg-gradient academy-header-brand">
                     <h5 class="mb-0">{{ _('Exercises') }} ({{ exercises|length }})</h5>
                 </div>
                 <div class="list-group list-group-flush">
@@ -58,11 +103,19 @@
                     {% endfor %}
                 </div>
             </div>
+            {% else %}
+            <div class="academy-surface">
+                <div class="card-body">
+                    <h6 class="mb-2">{{ _('Labs are available for SQL and Python tracks.') }}</h6>
+                    <p class="text-muted mb-0">{{ _('For this subject, continue with lesson content and quizzes for validation.') }}</p>
+                </div>
+            </div>
+            {% endif %}
 
             <!-- Quizzes -->
             {% if quizzes %}
-            <div class="card border-0 shadow-sm mt-4">
-                <div class="card-header bg-body-tertiary">
+            <div class="academy-surface mt-4">
+                <div class="card-header bg-body-tertiary border-0" style="background:#ecf7f3 !important;">
                     <h5 class="mb-0">{{ _('Quizzes') }} ({{ quizzes|length }})</h5>
                 </div>
                 <div class="list-group list-group-flush">
@@ -86,8 +139,8 @@
 
 <style>
     .lesson-content {
-        font-size: 1.1rem;
-        line-height: 1.8;
+        font-size: 1.04rem;
+        line-height: 1.85;
     }
     
     .lesson-content img {
@@ -107,6 +160,17 @@
         margin: 1rem 0;
         font-size: 0.95rem;
     }
+    .lesson-content h2,
+    .lesson-content h3,
+    .lesson-content h4 {
+        color: #0f4f4a;
+        margin-top: 1.1rem;
+    }
+
+    .finance-graph-wrap {
+        position: relative;
+        height: 240px;
+    }
 </style>
 
 <script>
@@ -120,6 +184,121 @@ document.addEventListener('DOMContentLoaded', function () {
             img.replaceWith(placeholder);
         });
     });
+
+    {% if is_math_subject %}
+    const modelEl = document.getElementById('financeModel');
+    const rateEl = document.getElementById('paramRate');
+    const baseEl = document.getElementById('paramBase');
+    const nEl = document.getElementById('paramN');
+    const rateLabel = document.getElementById('paramRateLabel');
+    const baseLabel = document.getElementById('paramBaseLabel');
+    const nLabel = document.getElementById('paramNLabel');
+    const valueLabel = document.getElementById('financeFormulaValue');
+    const formulaLabel = document.getElementById('financeFormulaText');
+    const canvas = document.getElementById('financeGraphCanvas');
+    let financeChart = null;
+    let renderQueued = false;
+
+    function currency(v) {
+        return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(v);
+    }
+
+    function computeSeries(model, base, rate, n) {
+        const r = rate / 100;
+        const labels = [];
+        const values = [];
+        for (let t = 1; t <= n; t += 1) {
+            let v = 0;
+            if (model === 'compound') {
+                v = base * Math.pow(1 + r, t);
+            } else if (model === 'discount') {
+                v = base / Math.pow(1 + r, t);
+            } else {
+                const denom = 1 - Math.pow(1 + r, -t);
+                v = denom === 0 ? 0 : (base * r) / denom;
+            }
+            labels.push(`t=${t}`);
+            values.push(Number(v.toFixed(2)));
+        }
+        return { labels, values };
+    }
+
+    function updateFinanceGraph() {
+        const model = modelEl.value;
+        const rate = Number(rateEl.value || 0);
+        const base = Number(baseEl.value || 0);
+        const n = Number(nEl.value || 1);
+        const { labels, values } = computeSeries(model, base, rate, n);
+        const currentValue = values[values.length - 1] || 0;
+
+        rateLabel.textContent = `${rate.toFixed(2)}%`;
+        baseLabel.textContent = String(base);
+        nLabel.textContent = String(n);
+        valueLabel.textContent = currency(currentValue);
+
+        if (model === 'compound') {
+            formulaLabel.textContent = 'FV = PV * (1 + r)^n';
+        } else if (model === 'discount') {
+            formulaLabel.textContent = 'PV = FV / (1 + r)^n';
+        } else {
+            formulaLabel.textContent = 'PMT = P * r / (1 - (1 + r)^(-n))';
+        }
+
+        if (!window.Chart) return;
+        if (financeChart) {
+            financeChart.data.labels = labels;
+            financeChart.data.datasets[0].data = values;
+            financeChart.update('none');
+            return;
+        }
+
+        financeChart = new Chart(canvas.getContext('2d'), {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{
+                    label: '{{ _("Value") }}',
+                    data: values,
+                    borderColor: '#0f766e',
+                    backgroundColor: 'rgba(15,118,110,0.12)',
+                    fill: true,
+                    tension: 0.2,
+                    pointRadius: 1.5,
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                scales: {
+                    y: {
+                        ticks: {
+                            callback: function(value) { return currency(value); }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function scheduleFinanceGraphUpdate() {
+        if (renderQueued) return;
+        renderQueued = true;
+        requestAnimationFrame(() => {
+            renderQueued = false;
+            updateFinanceGraph();
+        });
+    }
+
+    modelEl.addEventListener('change', scheduleFinanceGraphUpdate);
+    [rateEl, baseEl, nEl].forEach((el) => {
+        el.addEventListener('input', scheduleFinanceGraphUpdate);
+    });
+    scheduleFinanceGraphUpdate();
+    {% endif %}
 });
 </script>
+{% if is_math_subject %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+{% endif %}
 {% endblock %}

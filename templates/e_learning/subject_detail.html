@@ -12,9 +12,12 @@
     
     <!-- Subject Header -->
     <div class="row mb-5 align-items-center">
-        <div class="col-md-8">
+        <div class="col-md-10">
+            <div class="academy-hero">
+                <span class="academy-chip mb-2">{{ _('Learning Track') }}</span>
             <h1 class="display-5 fw-bold mb-3">{{ subject.name_i18n.get(current_lang, subject.name_i18n.get('en', subject.code)) }}</h1>
-            <p class="lead text-muted">{{ subject.description_i18n.get(current_lang, subject.description_i18n.get('en', '')) }}</p>
+                <p class="lead mb-0 opacity-75">{{ subject.description_i18n.get(current_lang, subject.description_i18n.get('en', '')) }}</p>
+            </div>
         </div>
     </div>
     
@@ -22,13 +25,13 @@
     <div class="row">
         {% for module in modules %}
         <div class="col-md-6 col-lg-4 mb-4">
-            <div class="card border-0 shadow-sm h-100 hover-card" style="transition: transform 0.3s, box-shadow 0.3s;">
+            <div class="academy-surface h-100 hover-card" style="transition: transform 0.25s, box-shadow 0.25s;">
                 <!-- Module Header -->
-                <div class="card-header border-0 pb-0" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 1.5rem;">
+                <div class="card-header border-0 pb-0" style="background: linear-gradient(140deg, #0f766e 0%, #115e59 100%); color: white; padding: 1.5rem;">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
                             <h5 class="card-title mb-1" style="color: white;">{{ module.title_i18n.get(current_lang, module.title_i18n.get('en', module.code)) }}</h5>
-                            <small class="badge" style="background-color: rgba(255,255,255,0.3);">{{ module.level|upper }}</small>
+                            <small class="badge" style="background-color: rgba(255,255,255,0.26);">{{ module.level|upper }}</small>
                         </div>
                     </div>
                 </div>
@@ -58,7 +61,7 @@
                     <div class="mb-3">
                         <small class="d-block text-muted mb-1">{{ _('Learning Progress') }}: {{ enrollment.progress_percentage }}%</small>
                         <div class="progress" style="height: 6px; border-radius: 3px;">
-                            <div class="progress-bar" style="width: {{ enrollment.progress_percentage }}%; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);"></div>
+                            <div class="progress-bar" style="width: {{ enrollment.progress_percentage }}%; background: linear-gradient(90deg, #0f766e 0%, #115e59 100%);"></div>
                         </div>
                     </div>
                     {% endif %}
@@ -68,13 +71,13 @@
                 <div class="card-footer bg-white border-top-0">
                     {% if module.id in enrollments %}
                     {% set enrollment = enrollments[module.id] %}
-                    <a href="{{ url_for('e_learning.module_detail', module_id=module.id) }}" class="btn btn-sm btn-primary w-100">
-                        <span class="material-symbols-outlined" style="font-size: 18px; display: inline;">school</span>
+                    <a href="{{ url_for('e_learning.module_detail', module_id=module.id) }}" class="btn btn-sm academy-btn-primary w-100">
+                        <span class="material-symbols-outlined academy-icon-inline-sm">school</span>
                         {{ _('Continue Learning') }}
                     </a>
                     {% else %}
-                    <a href="{{ url_for('e_learning.module_detail', module_id=module.id) }}" class="btn btn-sm btn-outline-primary w-100">
-                        <span class="material-symbols-outlined" style="font-size: 18px; display: inline;">add</span>
+                    <a href="{{ url_for('e_learning.module_detail', module_id=module.id) }}" class="btn btn-sm academy-btn-outline w-100">
+                        <span class="material-symbols-outlined academy-icon-inline-sm">add</span>
                         {{ _('Enroll Now') }}
                     </a>
                     {% endif %}
@@ -85,7 +88,7 @@
     </div>
     
     {% if not modules %}
-    <div class="alert alert-info text-center" style="padding: 3rem;">
+    <div class="alert alert-info academy-empty-state">
         <p>{{ _('No modules available yet') }}</p>
     </div>
     {% endif %}
@@ -93,13 +96,8 @@
 
 <style>
     .hover-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15) !important;
-    }
-    
-    .card {
-        border-radius: 0.75rem;
-        overflow: hidden;
+        transform: translateY(-6px);
+        box-shadow: 0 16px 28px rgba(15, 118, 110, 0.13) !important;
     }
 </style>
 {% endblock %}

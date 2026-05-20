@@ -1,410 +1,413 @@
 {% extends 'e_learning/base_e_learning.html' %}
 
 {% block e_learning_content %}
+{% set is_sql_exercise = module.subject and module.subject.code == 'sql' and exercise.type in ['sql_query', 'sql_dml'] %}
+{% set is_python_exercise = exercise.type in ['code_challenge', 'code'] %}
+{% set mc_payload = exercise.expected_result_json or {} %}
+
+{% if is_sql_exercise or is_python_exercise %}
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css">
+{% endif %}
+
 <div class="container py-5">
-    <div class="row">
-        <div class="col-lg-8">
-            <!-- Editor -->
-            <div class="card border-0 shadow-sm mb-4">
-                <div class="card-body">
-                    <h4>{{ exercise.title_i18n.get(current_lang, exercise.title_i18n.get('en', exercise.code)) }}</h4>
-                    <p class="text-muted" style="white-space: pre-line;">{{ exercise.instruction_i18n.get(current_lang, exercise.instruction_i18n.get('en', '')) }}</p>
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="academy-surface mb-4">
+        <div class="card-body">
+          <h4>{{ exercise.title_i18n.get(current_lang, exercise.title_i18n.get('en', exercise.code)) }}</h4>
+          <p class="text-muted academy-preline">{{ exercise.instruction_i18n.get(current_lang, exercise.instruction_i18n.get('en', '')) }}</p>
 
-                    <div class="alert alert-primary mb-3" role="alert">
-                        <h6 class="alert-heading mb-2">{{ _('What you need to do') }}</h6>
-                        <ol class="mb-2 ps-3">
-                            <li>{{ _('Write one SQL query that satisfies the objective above.') }}</li>
-                            <li>{{ _('Use the schema tables and the correct joins/filters.') }}</li>
-                            <li>{{ _('Your result must match the expected columns and rows.') }}</li>
-                            <li>{{ _('Use Run Query first, then Submit Solution.') }}</li>
-                        </ol>
-                        <p class="mb-0"><strong>{{ _('Success criteria') }}:</strong> {{ _('Correct result set, valid SQL syntax, and stable ordering when needed.') }}</p>
-                    </div>
+          {% if is_sql_exercise or is_python_exercise %}
+          <div class="alert academy-alert-soft mb-3" role="alert">
+            <h6 class="alert-heading mb-2">{{ _('Lab workflow') }}</h6>
+            <ol class="mb-2 ps-3">
+              <li>{{ _('Write your solution in the editor.') }}</li>
+              <li>{{ _('Use Run / Test to validate your result before submit.') }}</li>
+              <li>{{ _('Submit once output and checks look correct.') }}</li>
+            </ol>
+          </div>
 
-                    {% if module.subject.code == 'sql' %}
-                    <a href="{{ url_for('e_learning.module_detail', module_id=module.id, show_schema=1) }}" class="btn btn-outline-primary btn-sm mb-3">
-                        <span class="material-symbols-outlined" style="font-size: 18px; display: inline;">database</span>
-                        {{ _('View Schema Diagram') }}
-                    </a>
-                    {% endif %}
-                    
-                    <!-- SQL Editor -->
-                    <form method="POST" action="{{ url_for('e_learning.api_submit_exercise') }}" id="exerciseForm">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <textarea id="sqlEditor" name="submitted_sql" class="form-control" rows="10" placeholder="{{ _('Enter your SQL here...') }}" style="font-family: 'Monaco', 'Courier New', monospace;"></textarea>
-                        
-                        <div class="mt-3 d-flex gap-2">
-                            <button type="button" class="btn btn-outline-primary" onclick="runQuery()">
-                                <span class="material-symbols-outlined" style="display: inline;">play_arrow</span>
-                                {{ _('Run Query') }}
-                            </button>
-                            <button type="submit" class="btn btn-primary">
-                                <span class="material-symbols-outlined" style="display: inline;">send</span>
-                                {{ _('Submit Solution') }}
-                            </button>
-                            <button type="button" class="btn btn-outline-secondary" onclick="resetEditor()">
-                                <span class="material-symbols-outlined" style="display: inline;">refresh</span>
-                                {{ _('Clear') }}
-                            </button>
-                        </div>
-                    </form>
-                    
-                    <!-- Results -->
-                    <div id="resultsContainer" class="mt-4" style="display: none;">
-                        <h5>{{ _('Results') }}</h5>
-                        <div id="resultContent"></div>
-                    </div>
+          <form method="POST" action="{{ url_for('e_learning.api_submit_exercise') }}" id="exerciseForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <textarea id="codeEditor" class="form-control academy-sql-font" rows="12" placeholder="{% if is_python_exercise %}{{ _('Write your Python code here...') }}{% else %}{{ _('Enter your SQL here...') }}{% endif %}">{% if is_python_exercise %}# Quick self-test example:
+# def solve(x):
+#     return x * 2
+# assert solve(3) == 6
+print('ready')
+{% else %}SELECT 1 AS ready;{% endif %}</textarea>
 
-                    <div id="runResultContainer" class="mt-4" style="display: none;">
-                        <h5>{{ _('Query Preview') }}</h5>
-                        <div id="runResultContent"></div>
-                    </div>
-                </div>
+            <div class="mt-3 d-flex gap-2">
+              <button type="button" class="btn academy-btn-outline" onclick="runCode()">
+                <span class="material-symbols-outlined academy-icon-inline">play_arrow</span>
+                {{ _('Run / Test') }}
+              </button>
+              <button type="submit" class="btn academy-btn-primary">
+                <span class="material-symbols-outlined academy-icon-inline">send</span>
+                {{ _('Submit Solution') }}
+              </button>
+              <button type="button" class="btn academy-btn-outline" onclick="clearEditor()">
+                <span class="material-symbols-outlined academy-icon-inline">refresh</span>
+                {{ _('Clear') }}
+              </button>
             </div>
+          </form>
+
+          <div id="runResultContainer" class="mt-4 academy-hidden">
+            <h5>{% if is_python_exercise %}{{ _('Execution Output') }}{% else %}{{ _('Query Preview') }}{% endif %}</h5>
+            <div id="runResultContent"></div>
+          </div>
+
+          <div id="resultsContainer" class="mt-4 academy-hidden">
+            <h5>{{ _('Submission Result') }}</h5>
+            <div id="resultContent"></div>
+          </div>
+
+          {% else %}
+          <div class="academy-surface-soft p-3 rounded mb-3">
+            <h5 class="mb-3">{{ mc_payload.get('question', _('Choose the best answer')) }}</h5>
+            <form id="quizExerciseForm">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              {% for choice in mc_payload.get('choices', []) %}
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="radio" name="selected_answer" id="choice_{{ loop.index0 }}" value="{{ loop.index0 }}">
+                <label class="form-check-label" for="choice_{{ loop.index0 }}">{{ choice }}</label>
+              </div>
+              {% endfor %}
+              <div class="mt-3 d-flex gap-2">
+                <button type="button" class="btn academy-btn-primary" onclick="submitMultipleChoice()">
+                  <span class="material-symbols-outlined academy-icon-inline">task_alt</span>
+                  {{ _('Submit Answer') }}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <div id="resultsContainer" class="mt-4 academy-hidden">
+            <h5>{{ _('Results') }}</h5>
+            <div id="resultContent"></div>
+          </div>
+          {% endif %}
         </div>
-        
-        <div class="col-lg-4">
-            <!-- Hint -->
-            {% if exercise.hint_i18n %}
-            <div class="card border-0 shadow-sm mb-4 bg-light">
-                <div class="card-header bg-white border-bottom" style="cursor: pointer;" onclick="toggleHint()">
-                    <h6 class="mb-0">
-                        <span class="material-symbols-outlined" style="display: inline;">lightbulb</span>
-                        {{ _('Hint') }}
-                    </h6>
-                </div>
-                <div class="card-body" id="hintContent" style="display: none;">
-                    {{ exercise.hint_i18n.get(current_lang, exercise.hint_i18n.get('en', '')) }}
-                </div>
-            </div>
-            {% endif %}
-            
-            <!-- Exercise Info -->
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-gradient" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
-                    <h6 class="mb-0">{{ _('Exercise Info') }}</h6>
-                </div>
-                <div class="card-body">
-                    <p class="mb-2"><strong>{{ _('Type') }}:</strong> {{ exercise.type }}</p>
-                    <p class="mb-0"><strong>{{ _('Points') }}:</strong> <span class="badge bg-success">{{ exercise.points }}</span></p>
-                </div>
-            </div>
-        </div>
+      </div>
     </div>
+
+    <div class="col-lg-4">
+      {% if exercise.hint_i18n %}
+      <div class="academy-surface academy-surface-soft mb-4">
+        <div class="card-header bg-white border-bottom academy-clickable" onclick="toggleHint()">
+          <h6 class="mb-0">
+            <span class="material-symbols-outlined academy-icon-inline">lightbulb</span>
+            {{ _('Hint') }}
+          </h6>
+        </div>
+        <div class="card-body academy-hidden" id="hintContent">
+          {{ exercise.hint_i18n.get(current_lang, exercise.hint_i18n.get('en', '')) }}
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="academy-surface mb-4">
+        <div class="card-header academy-header-brand">
+          <h6 class="mb-0">{{ _('Exercise Info') }}</h6>
+        </div>
+        <div class="card-body">
+          <p class="mb-2"><strong>{{ _('Type') }}:</strong> {{ exercise.type }}</p>
+          <p class="mb-2"><strong>{{ _('Points') }}:</strong> <span class="badge bg-success">{{ exercise.points }}</span></p>
+          <p class="mb-0"><strong>{{ _('Attempts shown') }}:</strong> {{ submissions|length }}</p>
+        </div>
+      </div>
+
+      {% if submissions %}
+      <div class="academy-surface">
+        <div class="card-header bg-light border-bottom">
+          <h6 class="mb-0">{{ _('Previous Attempts') }}</h6>
+        </div>
+        <div class="card-body">
+          {% for s in submissions %}
+          <div class="small mb-2">
+            <strong>{{ s.submitted_at.strftime('%Y-%m-%d %H:%M') }}</strong><br>
+            {% if s.is_correct %}
+            <span class="text-success">{{ _('Correct') }} (+{{ s.points_earned }})</span>
+            {% else %}
+            <span class="text-warning">{{ _('Needs improvement') }}</span>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
 </div>
 
 <script>
-let sqlEditor = null;
-let sqlHintItems = [];
+{% if is_sql_exercise or is_python_exercise %}
+let codeMirrorEditor = null;
+let hintItems = [];
 
-const SQL_KEYWORDS = [
-    'SELECT', 'FROM', 'WHERE', 'GROUP BY', 'ORDER BY', 'HAVING', 'LIMIT',
-    'JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'INNER JOIN', 'FULL OUTER JOIN',
-    'ON', 'AND', 'OR', 'NOT', 'IN', 'BETWEEN', 'LIKE', 'IS NULL', 'IS NOT NULL',
-    'DISTINCT', 'AS', 'CASE WHEN', 'THEN', 'ELSE', 'END',
-    'COUNT()', 'SUM()', 'AVG()', 'MIN()', 'MAX()',
-    'INSERT INTO', 'VALUES', 'UPDATE', 'SET', 'DELETE FROM',
-    'CREATE TABLE', 'ALTER TABLE', 'DROP TABLE'
+const KEYWORDS = [
+  'SELECT', 'FROM', 'WHERE', 'JOIN', 'GROUP BY', 'ORDER BY', 'HAVING', 'LIMIT',
+  'INSERT INTO', 'UPDATE', 'DELETE FROM', 'CREATE TABLE',
+  'def', 'return', 'for', 'while', 'if', 'elif', 'else', 'try', 'except',
+  'assert', 'import', 'from', 'class', 'print()'
 ];
 
-function getEditorValue() {
-    if (sqlEditor && typeof sqlEditor.getValue === 'function') {
-        return sqlEditor.getValue();
-    }
-    return document.getElementById('sqlEditor').value;
-}
-
-function setEditorValue(value) {
-    if (sqlEditor && typeof sqlEditor.setValue === 'function') {
-        sqlEditor.setValue(value || '');
-        sqlEditor.focus();
-        return;
-    }
-    const textarea = document.getElementById('sqlEditor');
-    textarea.value = value || '';
-    textarea.focus();
-}
-
-function buildBaseHints() {
-    return SQL_KEYWORDS.map((kw) => ({
-        text: kw,
-        displayText: kw,
-        className: 'cm-sql-keyword'
-    }));
-}
-
-function buildSchemaHints(schemaPayload) {
-    if (!schemaPayload || !Array.isArray(schemaPayload.schema)) {
-        return [];
-    }
-
-    const hints = [];
-    schemaPayload.schema.forEach((table) => {
-        if (!table || !table.name) return;
-        hints.push({
-            text: table.name,
-            displayText: table.name + ' (table)',
-            className: 'cm-sql-table'
-        });
-        if (Array.isArray(table.columns)) {
-            table.columns.forEach((col) => {
-                if (!col || !col.name) return;
-                hints.push({
-                    text: col.name,
-                    displayText: col.name + ' (' + table.name + ')',
-                    className: 'cm-sql-column'
-                });
-                hints.push({
-                    text: table.name + '.' + col.name,
-                    displayText: table.name + '.' + col.name,
-                    className: 'cm-sql-column'
-                });
-            });
-        }
-    });
-
-    return hints;
-}
-
-function dedupeHints(items) {
-    const seen = new Set();
-    return items.filter((item) => {
-        const key = String(item.text || '').toUpperCase();
-        if (!key || seen.has(key)) return false;
-        seen.add(key);
-        return true;
-    });
-}
-
-function customSqlHint(cm) {
-    const cursor = cm.getCursor();
-    const token = cm.getTokenAt(cursor);
-    const start = token.start;
-    const end = cursor.ch;
-    const raw = token.string || '';
-    const current = raw.trim().toUpperCase();
-
-    const list = sqlHintItems.filter((item) => {
-        if (!current) return true;
-        return String(item.text || '').toUpperCase().includes(current);
-    });
-
-    return {
-        list,
-        from: CodeMirror.Pos(cursor.line, start),
-        to: CodeMirror.Pos(cursor.line, end)
-    };
-}
-
-async function loadSchemaHints() {
-    try {
-        const response = await fetch('{{ url_for("e_learning.api_get_schema", module_id=module.id) }}', {
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            }
-        });
-        if (!response.ok) {
-            return [];
-        }
-        const payload = await response.json();
-        return buildSchemaHints(payload);
-    } catch (_) {
-        return [];
-    }
-}
-
-async function initSqlEditor() {
-    const textarea = document.getElementById('sqlEditor');
-    if (!textarea || typeof CodeMirror === 'undefined') {
-        return;
-    }
-
-    const baseHints = buildBaseHints();
-    const schemaHints = await loadSchemaHints();
-    sqlHintItems = dedupeHints(baseHints.concat(schemaHints));
-
-    sqlEditor = CodeMirror.fromTextArea(textarea, {
-        mode: 'text/x-sql',
-        lineNumbers: true,
-        indentWithTabs: false,
-        indentUnit: 2,
-        lineWrapping: true,
-        extraKeys: {
-            'Ctrl-Space': 'autocomplete',
-            'Cmd-Space': 'autocomplete'
-        },
-        hintOptions: {
-            completeSingle: false,
-            hint: customSqlHint
-        }
-    });
-
-    sqlEditor.on('inputRead', function(cm, change) {
-        if (!change || !change.text || !change.text.length) return;
-        const typed = change.text[0] || '';
-        if (/^[a-zA-Z_.]$/.test(typed)) {
-            CodeMirror.commands.autocomplete(cm, null, { completeSingle: false });
-        }
-    });
-}
-
-function toggleHint() {
-    const hintContent = document.getElementById('hintContent');
-    hintContent.style.display = hintContent.style.display === 'none' ? 'block' : 'none';
-}
-
-function resetEditor() {
-    setEditorValue('');
-    document.getElementById('runResultContainer').style.display = 'none';
-}
-
 function escapeHtml(value) {
-    return String(value)
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#039;');
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
 }
 
-function renderQueryTable(data) {
-    const columns = Array.isArray(data.columns) ? data.columns : [];
-    const rows = Array.isArray(data.result_data) ? data.result_data : [];
-
-    if (!rows.length || !columns.length) {
-        return '<div class="alert alert-info mb-0">{{ _("Query executed successfully with no rows returned.") }}</div>';
-    }
-
-    const headerHtml = columns.map((col) => `<th>${escapeHtml(col)}</th>`).join('');
-    const bodyHtml = rows.map((row) => {
-        return `<tr>${columns.map((col) => `<td>${escapeHtml(row[col] ?? '')}</td>`).join('')}</tr>`;
-    }).join('');
-
-    return `
-        <div class="table-responsive">
-            <table class="table table-sm table-striped table-bordered align-middle mb-0">
-                <thead><tr>${headerHtml}</tr></thead>
-                <tbody>${bodyHtml}</tbody>
-            </table>
-        </div>
-    `;
+function getEditorValue() {
+  if (codeMirrorEditor && typeof codeMirrorEditor.getValue === 'function') {
+    return codeMirrorEditor.getValue();
+  }
+  return document.getElementById('codeEditor').value;
 }
 
-function runQuery() {
-    const sql = getEditorValue();
-    const runContainer = document.getElementById('runResultContainer');
-    const runContent = document.getElementById('runResultContent');
-    const csrfToken = document.querySelector('#exerciseForm input[name="csrf_token"]').value;
+function setEditorValue(v) {
+  if (codeMirrorEditor && typeof codeMirrorEditor.setValue === 'function') {
+    codeMirrorEditor.setValue(v || '');
+    return;
+  }
+  document.getElementById('codeEditor').value = v || '';
+}
 
-    if (!sql.trim()) {
-        runContainer.style.display = 'block';
-        runContent.innerHTML = '<div class="alert alert-warning mb-0">{{ _("Please enter a query before running.") }}</div>';
-        return;
+function baseHints() {
+  return KEYWORDS.map((kw) => ({ text: kw, displayText: kw, className: 'cm-sql-keyword' }));
+}
+
+function customHint(cm) {
+  const cur = cm.getCursor();
+  const token = cm.getTokenAt(cur);
+  const current = (token.string || '').trim().toUpperCase();
+  const list = hintItems.filter((it) => !current || String(it.text || '').toUpperCase().includes(current));
+  return {
+    list,
+    from: CodeMirror.Pos(cur.line, token.start),
+    to: CodeMirror.Pos(cur.line, cur.ch)
+  };
+}
+
+function initEditor() {
+  if (typeof CodeMirror === 'undefined') return;
+  const textarea = document.getElementById('codeEditor');
+  hintItems = baseHints();
+  codeMirrorEditor = CodeMirror.fromTextArea(textarea, {
+    mode: {% if is_python_exercise %}'python'{% else %}'text/x-sql'{% endif %},
+    lineNumbers: true,
+    lineWrapping: true,
+    extraKeys: { 'Ctrl-Space': 'autocomplete', 'Cmd-Space': 'autocomplete' },
+    hintOptions: { completeSingle: false, hint: customHint }
+  });
+
+  codeMirrorEditor.on('inputRead', function(cm, change) {
+    if (!change || !change.text || !change.text.length) return;
+    const typed = change.text[0] || '';
+    if (/^[a-zA-Z_.]$/.test(typed)) {
+      CodeMirror.commands.autocomplete(cm, null, { completeSingle: false });
     }
+  });
+}
 
-    runContainer.style.display = 'block';
-    runContent.innerHTML = '<div class="alert alert-secondary mb-0">{{ _("Running query...") }}</div>';
+function clearEditor() {
+  setEditorValue('');
+  document.getElementById('runResultContainer').style.display = 'none';
+}
 
-    fetch('{{ url_for("e_learning.api_execute_query") }}', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrfToken,
-            'X-CSRF-Token': csrfToken,
-            'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: JSON.stringify({
-            module_id: {{ module.id }},
-            query: sql
-        })
-    })
-    .then(async (r) => {
-        const data = await r.json().catch(() => ({ error: '{{ _("Server response is not valid JSON. Check session/CSRF and API route.") }}' }));
-        if (!r.ok || data.success === false) {
-            throw new Error(data.error || '{{ _("Query execution failed.") }}');
-        }
-        return data;
-    })
-    .then((data) => {
-        const rowCount = Number.isInteger(data.row_count) ? data.row_count : 0;
-        const timing = data.execution_time_ms ? ` <small class="text-muted">(${Math.round(data.execution_time_ms)} ms)</small>` : '';
-        runContent.innerHTML = `
-            <div class="alert alert-success">${rowCount} {{ _('rows returned') }}${timing}</div>
-            ${renderQueryTable(data)}
-        `;
-    })
-    .catch((err) => {
-        runContent.innerHTML = `<div class="alert alert-danger mb-0">${escapeHtml(err.message)}</div>`;
-    });
+function renderSqlResult(data) {
+  const columns = Array.isArray(data.columns) ? data.columns : [];
+  const rows = Array.isArray(data.result_data) ? data.result_data : [];
+  if (!rows.length || !columns.length) {
+    return '<div class="alert alert-info mb-0">{{ _('Query executed successfully with no rows returned.') }}</div>';
+  }
+  const h = columns.map((c) => `<th>${escapeHtml(c)}</th>`).join('');
+  const b = rows.map((row) => `<tr>${columns.map((c) => `<td>${escapeHtml(row[c] ?? '')}</td>`).join('')}</tr>`).join('');
+  return `<div class="table-responsive"><table class="table table-sm table-striped table-bordered mb-0"><thead><tr>${h}</tr></thead><tbody>${b}</tbody></table></div>`;
+}
+
+function runCode() {
+  const payload = {
+    module_id: {{ module.id }},
+    query: getEditorValue()
+  };
+  const csrfToken = document.querySelector('#exerciseForm input[name="csrf_token"]').value;
+  const runContainer = document.getElementById('runResultContainer');
+  const runContent = document.getElementById('runResultContent');
+
+  runContainer.style.display = 'block';
+  runContent.innerHTML = '<div class="alert alert-secondary mb-0">{{ _('Running...') }}</div>';
+
+  fetch('{{ url_for("e_learning.api_execute_query") }}', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken,
+      'X-CSRF-Token': csrfToken,
+      'X-Requested-With': 'XMLHttpRequest'
+    },
+    body: JSON.stringify(payload)
+  })
+  .then(async (r) => {
+    const data = await r.json().catch(() => ({ error: '{{ _('Invalid server response') }}' }));
+    if (!r.ok || data.success === false) throw new Error(data.error || '{{ _('Execution failed') }}');
+    return data;
+  })
+  .then((data) => {
+    {% if is_python_exercise %}
+    const out = (data.stdout || '').trim();
+    if (out) {
+      runContent.innerHTML = `<pre class="bg-dark text-light p-3 rounded mb-0">${escapeHtml(out)}</pre>`;
+    } else {
+      runContent.innerHTML = '<div class="alert alert-success mb-0">{{ _('Code executed successfully (no output).') }}</div>';
+    }
+    {% else %}
+    const rowCount = Number.isInteger(data.row_count) ? data.row_count : 0;
+    runContent.innerHTML = `<div class="alert alert-success">${rowCount} {{ _('rows returned') }}</div>${renderSqlResult(data)}`;
+    {% endif %}
+  })
+  .catch((err) => {
+    runContent.innerHTML = `<div class="alert alert-danger mb-0">${escapeHtml(err.message)}</div>`;
+  });
 }
 
 document.getElementById('exerciseForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const sql = getEditorValue();
-    const csrfToken = document.querySelector('#exerciseForm input[name="csrf_token"]').value;
-    const pointsLabel = '{{ _("Points") }}';
-    
-    fetch('{{ url_for("e_learning.api_submit_exercise") }}', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrfToken,
-            'X-CSRF-Token': csrfToken,
-            'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: JSON.stringify({
-            exercise_id: {{ exercise.id }},
-            module_id: {{ module.id }},
-            submitted_sql: sql
-        })
-    })
-    .then(async (r) => {
-        const data = await r.json().catch(() => ({
-            is_correct: false,
-            feedback: '{{ _("Server response is not valid JSON. Check session/CSRF and API route.") }}'
-        }));
-        if (!r.ok) {
-            throw new Error(data.error || data.feedback || 'Request failed');
-        }
-        return data;
-    })
-    .then(data => {
-        document.getElementById('resultsContainer').style.display = 'block';
-        if (data.is_correct) {
-            document.getElementById('resultContent').innerHTML = '<div class="alert alert-success">' + data.feedback + ' +' + data.points_earned + ' ' + pointsLabel + '</div>';
-        } else {
-            document.getElementById('resultContent').innerHTML = '<div class="alert alert-warning">' + data.feedback + (data.error ? '<br>' + data.error : '') + '</div>';
-        }
-    })
-    .catch((err) => {
-        document.getElementById('resultsContainer').style.display = 'block';
-        document.getElementById('resultContent').innerHTML = '<div class="alert alert-danger">' + err.message + '</div>';
-    });
-});
+  e.preventDefault();
+  const csrfToken = document.querySelector('#exerciseForm input[name="csrf_token"]').value;
+  const content = getEditorValue();
 
-document.addEventListener('DOMContentLoaded', initSqlEditor);
+  const payload = {
+    exercise_id: {{ exercise.id }},
+    module_id: {{ module.id }}
+  };
+  {% if is_python_exercise %}
+  payload.submitted_code = content;
+  {% else %}
+  payload.submitted_sql = content;
+  {% endif %}
+
+  fetch('{{ url_for("e_learning.api_submit_exercise") }}', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken,
+      'X-CSRF-Token': csrfToken,
+      'X-Requested-With': 'XMLHttpRequest'
+    },
+    body: JSON.stringify(payload)
+  })
+  .then(async (r) => {
+    const data = await r.json().catch(() => ({ error: '{{ _('Invalid server response') }}' }));
+    if (!r.ok) throw new Error(data.error || data.feedback || 'Request failed');
+    return data;
+  })
+  .then((data) => {
+    const box = document.getElementById('resultsContainer');
+    const content = document.getElementById('resultContent');
+    box.style.display = 'block';
+
+    if (data.is_correct) {
+      let extra = '';
+      {% if is_python_exercise %}
+      if (data.result && data.result.stdout) {
+        extra = `<pre class="bg-dark text-light p-3 rounded mt-2 mb-0">${escapeHtml(data.result.stdout)}</pre>`;
+      }
+      {% endif %}
+      content.innerHTML = `<div class="alert alert-success">${escapeHtml(data.feedback || '')} +${data.points_earned} {{ _('Points') }}</div>${extra}`;
+    } else {
+      content.innerHTML = `<div class="alert alert-warning">${escapeHtml(data.feedback || '')}${data.error ? '<br>' + escapeHtml(data.error) : ''}</div>`;
+    }
+  })
+  .catch((err) => {
+    const box = document.getElementById('resultsContainer');
+    const content = document.getElementById('resultContent');
+    box.style.display = 'block';
+    content.innerHTML = `<div class="alert alert-danger">${escapeHtml(err.message)}</div>`;
+  });
+});
+{% else %}
+function submitMultipleChoice() {
+  const checked = document.querySelector('input[name="selected_answer"]:checked');
+  const csrfToken = document.querySelector('#quizExerciseForm input[name="csrf_token"]').value;
+  const resultsContainer = document.getElementById('resultsContainer');
+  const resultContent = document.getElementById('resultContent');
+
+  if (!checked) {
+    resultsContainer.style.display = 'block';
+    resultContent.innerHTML = '<div class="alert alert-warning">{{ _('Please select an answer before submitting.') }}</div>';
+    return;
+  }
+
+  fetch('{{ url_for("e_learning.api_submit_exercise") }}', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': csrfToken,
+      'X-CSRF-Token': csrfToken,
+      'X-Requested-With': 'XMLHttpRequest'
+    },
+    body: JSON.stringify({
+      exercise_id: {{ exercise.id }},
+      module_id: {{ module.id }},
+      submitted_answer: checked.value
+    })
+  })
+  .then(async (r) => {
+    const data = await r.json().catch(() => ({ is_correct: false, feedback: '{{ _('Invalid server response') }}' }));
+    if (!r.ok) throw new Error(data.error || data.feedback || 'Request failed');
+    return data;
+  })
+  .then((data) => {
+    resultsContainer.style.display = 'block';
+    const result = data.result || {};
+    const rationale = result.rationale ? `<p class="mb-2"><strong>{{ _('Explanation') }}:</strong> ${escapeHtml(result.rationale)}</p>` : '';
+    if (data.is_correct) {
+      resultContent.innerHTML = `<div class="alert alert-success"><p class="mb-2">${escapeHtml(data.feedback || '')}</p>${rationale}</div>`;
+    } else {
+      resultContent.innerHTML = `<div class="alert alert-warning"><p class="mb-2">${escapeHtml(data.feedback || '')}</p>${rationale}</div>`;
+    }
+  })
+  .catch((err) => {
+    resultsContainer.style.display = 'block';
+    resultContent.innerHTML = `<div class="alert alert-danger">${escapeHtml(err.message)}</div>`;
+  });
+}
+{% endif %}
+
+function toggleHint() {
+  const hintContent = document.getElementById('hintContent');
+  hintContent.style.display = hintContent.style.display === 'none' ? 'block' : 'none';
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  {% if is_sql_exercise or is_python_exercise %}
+  initEditor();
+  {% endif %}
+});
 </script>
+
+{% if is_sql_exercise or is_python_exercise %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/sql/sql.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.js"></script>
+{% endif %}
 
 <style>
-    .material-symbols-outlined {
-        font-variation-settings:
-            'FILL' 0,
-            'wght' 400,
-            'GRAD' 0,
-            'opsz' 24;
-    }
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
 
-    .CodeMirror {
-        min-height: 260px;
-        border: 1px solid #dee2e6;
-        border-radius: 0.375rem;
-        font-family: 'Monaco', 'Courier New', monospace;
-        font-size: 14px;
-    }
+  .CodeMirror {
+    min-height: 280px;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    font-family: 'Monaco', 'Courier New', monospace;
+    font-size: 14px;
+  }
 </style>
 {% endblock %}

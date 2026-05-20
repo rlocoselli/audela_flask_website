@@ -12,6 +12,7 @@ Handles:
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import logging
 import os
@@ -19,6 +20,7 @@ import sqlite3
 import string
 import tempfile
 import time
+from contextlib import redirect_stdout
 from datetime import datetime, timedelta, date
 from pathlib import Path
 from random import choices
@@ -52,6 +54,86 @@ class ELearningService:
     def __init__(self):
         self.sandbox_dir = Path(tempfile.gettempdir()) / "audela_e_learning"
         self.sandbox_dir.mkdir(exist_ok=True)
+        self._python_allowed_modules = {
+            "math",
+            "statistics",
+            "random",
+            "datetime",
+            "itertools",
+            "collections",
+            "json",
+            "re",
+            "numpy",
+            "pandas",
+        }
+
+    def _is_python_module(self, module: ELearningModule) -> bool:
+        code = (module.subject.code or "").lower() if module and module.subject else ""
+        return ("python" in code) or code.startswith("django-")
+
+    def _build_python_exec_globals(self) -> dict[str, Any]:
+        def _safe_import(name, globals=None, locals=None, fromlist=(), level=0):
+            root = (name or "").split(".")[0]
+            if root not in self._python_allowed_modules:
+                raise ImportError(f"Import '{root}' is not allowed in this exercise sandbox")
+            return __import__(name, globals, locals, fromlist, level)
+
+        safe_builtins = {
+            "abs": abs,
+            "all": all,
+            "any": any,
+            "bool": bool,
+            "dict": dict,
+            "enumerate": enumerate,
+            "float": float,
+            "int": int,
+            "len": len,
+            "list": list,
+            "max": max,
+            "min": min,
+            "print": print,
+            "range": range,
+            "round": round,
+            "set": set,
+            "sorted": sorted,
+            "str": str,
+            "sum": sum,
+            "tuple": tuple,
+            "zip": zip,
+            "__import__": _safe_import,
+        }
+        return {"__builtins__": safe_builtins}
+
+    def execute_python_code(self, module: ELearningModule, code: str) -> dict[str, Any]:
+        """Execute Python code in a restricted sandbox for Python/code challenges."""
+        if not self._is_python_module(module):
+            raise ELearningSandboxError("Python execution is enabled only for Python-oriented modules")
+
+        source = (code or "").strip()
+        if not source:
+            return {"success": False, "error": "Code cannot be empty"}
+
+        stdout_buffer = io.StringIO()
+        exec_globals = self._build_python_exec_globals()
+        exec_locals: dict[str, Any] = {}
+
+        try:
+            with redirect_stdout(stdout_buffer):
+                compiled = compile(source, "<exercise>", "exec")
+                exec(compiled, exec_globals, exec_locals)
+            output = stdout_buffer.getvalue()
+            return {
+                "success": True,
+                "stdout": output,
+                "result_data": [{"output": output.strip()}] if output.strip() else [],
+                "row_count": 1 if output.strip() else 0,
+                "execution_time_ms": 0,
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Python Error: {e}",
+            }
     
     # ===== SQL SANDBOX OPERATIONS =====
     
@@ -219,31 +301,65 @@ class ELearningService:
         error_message = None
         
         try:
-            # Execute query
-            exec_result = self.execute_query(module, user_id, submitted_sql)
-            
-            if not exec_result["success"]:
-                error_message = exec_result.get("error", "Unknown error")
-                feedback = self._generate_feedback(False, error_message, DEFAULT_LANG)
+            payload = exercise.expected_result_json or {}
+            has_choice_payload = isinstance(payload, dict) and "correct_choice_index" in payload
+
+            if exercise.type == "multiple_choice" or has_choice_payload:
+                try:
+                    selected_index = int((submitted_sql or "").strip())
+                except (TypeError, ValueError):
+                    selected_index = -1
+                correct_index = int(payload.get("correct_choice_index", -1))
+
+                is_correct = selected_index == correct_index
+                result = {
+                    "question": payload.get("question"),
+                    "selected_choice_index": selected_index,
+                    "correct_choice_index": correct_index,
+                    "choices": payload.get("choices", []),
+                    "rationale": payload.get("rationale"),
+                    "why_not": payload.get("why_not", []),
+                }
+                feedback_text = payload.get("rationale") if is_correct else tr("exercise_incorrect")
+                feedback = {
+                    DEFAULT_LANG: feedback_text,
+                    "en": feedback_text,
+                }
             else:
-                result = exec_result
-                
-                # Evaluate correctness
-                if exercise.type == "sql_query":
-                    is_correct = self._evaluate_query_result(exec_result["result_data"], exercise)
-                
-                elif exercise.type == "sql_dml":
-                    if not exercise.validation_query:
-                        error_message = "Exercise validation is not configured for this SQL change task."
+                if exercise.type in {"code_challenge", "code"}:
+                    exec_result = self.execute_python_code(module=module, code=submitted_sql)
+                    if exec_result["success"]:
+                        result = exec_result
+                        is_correct = True
+                    else:
+                        error_message = exec_result.get("error", "Python execution failed")
+                        feedback = self._generate_feedback(False, error_message, DEFAULT_LANG)
+                else:
+                    # Execute query for SQL-type exercises.
+                    exec_result = self.execute_query(module, user_id, submitted_sql)
+
+                    if not exec_result["success"]:
+                        error_message = exec_result.get("error", "Unknown error")
                         feedback = self._generate_feedback(False, error_message, DEFAULT_LANG)
                     else:
-                        validation_result = self.execute_query(module, user_id, exercise.validation_query)
-                        if validation_result["success"]:
-                            is_correct = self._evaluate_dml_result(validation_result["result_data"], exercise)
-                        else:
-                            error_message = validation_result.get("error", "Validation query failed")
-                            feedback = self._generate_feedback(False, error_message, DEFAULT_LANG)
-                
+                        result = exec_result
+
+                        # Evaluate correctness
+                        if exercise.type == "sql_query":
+                            is_correct = self._evaluate_query_result(exec_result["result_data"], exercise)
+
+                        elif exercise.type == "sql_dml":
+                            if not exercise.validation_query:
+                                error_message = "Exercise validation is not configured for this SQL change task."
+                                feedback = self._generate_feedback(False, error_message, DEFAULT_LANG)
+                            else:
+                                validation_result = self.execute_query(module, user_id, exercise.validation_query)
+                                if validation_result["success"]:
+                                    is_correct = self._evaluate_dml_result(validation_result["result_data"], exercise)
+                                else:
+                                    error_message = validation_result.get("error", "Validation query failed")
+                                    feedback = self._generate_feedback(False, error_message, DEFAULT_LANG)
+
                 if not feedback:
                     feedback = self._generate_feedback(is_correct, None, DEFAULT_LANG)
         

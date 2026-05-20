@@ -41,12 +41,35 @@ def api_submit_exercise():
     exercise_id = data.get("exercise_id")
     module_id = data.get("module_id")
     submitted_sql = data.get("submitted_sql")
-    
-    if not all([exercise_id, module_id, submitted_sql]):
+    submitted_code = data.get("submitted_code")
+    submitted_answer = data.get("submitted_answer")
+
+    if not all([exercise_id, module_id]):
         return jsonify({"error": "Missing required fields"}), 400
     
     exercise = ELearningExercise.query.get_or_404(exercise_id)
     module = ELearningModule.query.get_or_404(module_id)
+
+    subject_code = (module.subject.code or "").lower() if module.subject else ""
+    payload = exercise.expected_result_json or {}
+    has_choice_payload = isinstance(payload, dict) and "correct_choice_index" in payload
+
+    if exercise.type == "multiple_choice" or has_choice_payload:
+        if submitted_answer is None or str(submitted_answer).strip() == "":
+            return jsonify({"error": "Missing required answer"}), 400
+        submitted_sql = str(submitted_answer)
+    elif exercise.type in {"code_challenge", "code"}:
+        if submitted_code is None or str(submitted_code).strip() == "":
+            return jsonify({"error": "Missing required Python code submission"}), 400
+        submitted_sql = str(submitted_code)
+    elif subject_code == "sql":
+        if submitted_sql is None or str(submitted_sql).strip() == "":
+            return jsonify({"error": "Missing required SQL submission"}), 400
+    elif submitted_answer is not None and str(submitted_answer).strip() != "":
+        # Legacy compatibility: non-SQL exercises mis-typed as sql_query/sql_dml still accept quiz answers.
+        submitted_sql = str(submitted_answer)
+    elif submitted_sql is None or str(submitted_sql).strip() == "":
+        return jsonify({"error": "Missing required submission"}), 400
     
     # Get or create enrollment
     enrollment = UserELearningEnrollment.query.filter_by(
@@ -141,7 +164,7 @@ def api_submit_exercise():
 @bp.route("/api/execute-query", methods=["POST"])
 @login_required
 def api_execute_query():
-    """Execute SQL query for practice (read-only or DML based on module type)."""
+    """Execute SQL query or Python code for practice depending on module subject."""
     data = request.json or {}
     module_id = data.get("module_id")
     query = data.get("query")
@@ -152,11 +175,18 @@ def api_execute_query():
     module = ELearningModule.query.get_or_404(module_id)
     
     try:
-        result = service.execute_query(
-            module=module,
-            user_id=current_user.id,
-            query=query
-        )
+        subject_code = (module.subject.code or "").lower() if module.subject else ""
+        if ("python" in subject_code) or subject_code.startswith("django-"):
+            result = service.execute_python_code(
+                module=module,
+                code=query,
+            )
+        else:
+            result = service.execute_query(
+                module=module,
+                user_id=current_user.id,
+                query=query
+            )
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 400

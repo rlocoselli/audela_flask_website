@@ -326,6 +326,7 @@
         <div class="col-md-6">
           <div class="card border-0 shadow-sm h-100">
             <div class="card-body p-4">
+              {% set _lang = g.lang or 'en' %}
               <div class="d-flex align-items-center mb-3">
                 <div class="bg-success bg-opacity-10 rounded-circle p-3 me-3">
                   <i class="bi bi-mortarboard text-success" style="font-size: 2rem;"></i>
@@ -341,6 +342,24 @@
                 <li class="mb-2 text-muted small"><i class="bi bi-check-circle text-success me-2"></i>{{ _(feature) }}</li>
                 {% endfor %}
               </ul>
+
+              {% if academy_tracks %}
+              <div class="border rounded p-3 bg-light mb-3">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                  <strong class="small text-uppercase text-muted">{{ _('Academy tracks available') }}</strong>
+                  <span class="badge bg-success">{{ academy_tracks|length }}</span>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                  {% for track in academy_tracks %}
+                  <a href="{{ url_for('e_learning.subject_detail', subject_id=track.id) }}" class="badge text-bg-light text-decoration-none">
+                    {{ track.name_i18n.get(_lang, track.name_i18n.get('en', track.code)) }}
+                    {% if track.code == 'audela_math_finance' %}<span class="badge bg-success ms-1">{{ _('New') }}</span>{% endif %}
+                  </a>
+                  {% endfor %}
+                </div>
+              </div>
+              {% endif %}
+
               <a href="{{ url_for('e_learning.dashboard') }}" class="btn btn-success w-100">
                 <i class="bi bi-mortarboard"></i> {{ _(e_learning.tenant_access_label) }}
               </a>

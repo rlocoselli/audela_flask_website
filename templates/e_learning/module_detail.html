@@ -15,13 +15,13 @@
         <!-- Main Content -->
         <div class="col-lg-8">
             <!-- Module Header -->
-            <div class="card border-0 shadow-sm mb-4" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+            <div class="academy-surface academy-surface-emerald mb-4">
                 <div class="card-body">
                     <h1 class="card-title mb-2">{{ module.title_i18n.get(current_lang, module.title_i18n.get('en', module.code)) }}</h1>
                     <p class="card-text">{{ module.description_i18n.get(current_lang, module.description_i18n.get('en', '')) }}</p>
                     {% if module.subject.code == 'sql' %}
-                    <button type="button" class="btn btn-light btn-sm mt-2" data-bs-toggle="modal" data-bs-target="#schemaDiagramModal" onclick="loadSchemaDiagram()">
-                        <span class="material-symbols-outlined" style="font-size: 18px; display: inline;">database</span>
+                    <button type="button" class="btn academy-btn-outline btn-sm mt-2" data-bs-toggle="modal" data-bs-target="#schemaDiagramModal" onclick="loadSchemaDiagram()">
+                        <span class="material-symbols-outlined academy-icon-inline-sm">database</span>
                         {{ _('View Schema Diagram') }}
                     </button>
                     {% endif %}
@@ -29,22 +29,22 @@
                     <div class="row mt-4">
                         <div class="col-4">
                             <small>{{ _('Lessons') }}</small><br/>
-                            <strong style="font-size: 1.5rem;">{{ module.total_lessons }}</strong>
+                            <strong class="academy-metric-lg">{{ module.total_lessons }}</strong>
                         </div>
                         <div class="col-4">
                             <small>{{ _('Exercises') }}</small><br/>
-                            <strong style="font-size: 1.5rem;">{{ module.total_exercises }}</strong>
+                            <strong class="academy-metric-lg">{{ module.total_exercises }}</strong>
                         </div>
                         <div class="col-4">
                             <small>{{ _('Study Hours') }}</small><br/>
-                            <strong style="font-size: 1.5rem;">{{ module.estimated_hours }}</strong>
+                            <strong class="academy-metric-lg">{{ module.estimated_hours }}</strong>
                         </div>
                     </div>
                 </div>
             </div>
             
             <!-- Progress Card -->
-            <div class="card border-0 shadow-sm mb-4">
+            <div class="academy-surface mb-4">
                 <div class="card-header border-bottom-0 bg-white">
                     <h5 class="mb-0">{{ _('Learning Progress') }}</h5>
                 </div>
@@ -54,20 +54,20 @@
                             <span>{{ _('Module Progress') }}</span>
                             <strong>{{ enrollment.progress_percentage }}%</strong>
                         </div>
-                        <div class="progress" style="height: 8px; border-radius: 4px;">
-                            <div class="progress-bar" style="width: {{ enrollment.progress_percentage }}%; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);"></div>
+                        <div class="progress academy-progress-track-md">
+                            <div class="progress-bar academy-progress-fill-brand" style="width: {{ enrollment.progress_percentage }}%;"></div>
                         </div>
                     </div>
                     
                     <div class="row mt-4">
                         <div class="col-md-6">
                             <small class="text-muted">{{ _('Score') }}</small><br/>
-                            <strong style="font-size: 1.25rem;">{{ enrollment.overall_score }}%</strong>
+                            <strong class="academy-metric-md">{{ enrollment.overall_score }}%</strong>
                         </div>
                         <div class="col-md-6">
                             <small class="text-muted">{{ _('Status') }}</small><br/>
-                            <strong style="font-size: 1.25rem;">
-                                <span class="badge" style="background: {% if enrollment.status == 'completed' %}#28a745{% elif enrollment.status == 'in_progress' %}#667eea{% else %}#6c757d{% endif %};">
+                                <strong class="academy-metric-md">
+                                    <span class="badge {% if enrollment.status == 'completed' %}bg-success{% elif enrollment.status == 'in_progress' %}bg-primary{% else %}bg-secondary{% endif %}">
                                     {{ enrollment.status|upper }}
                                 </span>
                             </strong>
@@ -77,7 +77,7 @@
             </div>
             
             <!-- Lessons List -->
-            <div class="card border-0 shadow-sm">
+            <div class="academy-surface">
                 <div class="card-header bg-white border-bottom">
                     <h5 class="mb-0">{{ _('Course Lessons') }}</h5>
                 </div>
@@ -99,27 +99,27 @@
         <div class="col-lg-4">
             <!-- Gamification Stats -->
             {% if profile %}
-            <div class="card border-0 shadow-sm mb-4">
-                <div class="card-header bg-gradient" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
+            <div class="academy-surface mb-4">
+                <div class="card-header academy-header-brand">
                     <h5 class="mb-0">
-                        <span class="material-symbols-outlined" style="display: inline;">star</span>
+                        <span class="material-symbols-outlined academy-icon-inline">star</span>
                         {{ _('Your Stats') }}
                     </h5>
                 </div>
                 <div class="card-body">
                     <div class="mb-3 text-center pb-3 border-bottom">
                         <small class="text-muted d-block mb-1">{{ _('Level') }}</small>
-                        <h2 style="color: #667eea;">{{ profile.current_level }}</h2>
+                        <h2 class="academy-stat-teal">{{ profile.current_level }}</h2>
                     </div>
                     
                     <div class="row text-center">
                         <div class="col-6 mb-3">
                             <small class="text-muted d-block">{{ _('Points') }}</small>
-                            <h4 style="color: #764ba2;">{{ profile.total_points }}</h4>
+                            <h4 class="academy-stat-teal">{{ profile.total_points }}</h4>
                         </div>
                         <div class="col-6 mb-3">
                             <small class="text-muted d-block">{{ _('Streak') }}</small>
-                            <h4 style="color: #764ba2;">{{ profile.current_streak }}</h4>
+                            <h4 class="academy-stat-teal">{{ profile.current_streak }}</h4>
                         </div>
                     </div>
                 </div>
@@ -127,18 +127,18 @@
             {% endif %}
             
             <!-- Actions -->
-            <div class="card border-0 shadow-sm mb-4">
+            <div class="academy-surface mb-4">
                 <div class="card-header bg-white border-bottom">
                     <h5 class="mb-0">{{ _('Actions') }}</h5>
                 </div>
                 <div class="card-body">
                     {% if module.subject.code == 'sql' %}
-                    <button type="button" class="btn btn-outline-primary btn-sm w-100 mb-2" data-bs-toggle="modal" data-bs-target="#schemaDiagramModal" onclick="loadSchemaDiagram()">
-                        <span class="material-symbols-outlined" style="font-size: 18px; display: inline;">database</span>
+                    <button type="button" class="btn academy-btn-primary btn-sm w-100 mb-2" data-bs-toggle="modal" data-bs-target="#schemaDiagramModal" onclick="loadSchemaDiagram()">
+                        <span class="material-symbols-outlined academy-icon-inline-sm">database</span>
                         {{ _('View Schema Diagram') }}
                     </button>
-                    <a href="#" onclick="resetDatabase()" class="btn btn-outline-secondary btn-sm w-100">
-                        <span class="material-symbols-outlined" style="font-size: 18px; display: inline;">refresh</span>
+                    <a href="#" onclick="resetDatabase()" class="btn academy-btn-outline btn-sm w-100">
+                        <span class="material-symbols-outlined academy-icon-inline-sm">refresh</span>
                         {{ _('Reset Database') }}
                     </a>
                     {% endif %}
@@ -147,9 +147,9 @@
             
             <!-- Certificate Preview -->
             {% if enrollment.certificate %}
-            <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #ffd89b 0%, #19547b 100%);">
-                <div class="card-body text-center" style="color: white;">
-                    <span class="material-symbols-outlined" style="font-size: 48px; display: block; margin-bottom: 1rem;">card_giftcard</span>
+            <div class="card border-0 shadow-sm academy-surface-certificate">
+                <div class="card-body text-center academy-header-white">
+                    <span class="material-symbols-outlined academy-icon-xxl">card_giftcard</span>
                     <h5>{{ _('Certificate Earned!') }}</h5>
                     <p class="text-sm">{{ _('Share your achievement') }}</p>
                     <a href="{{ url_for('e_learning.certificate_view', cert_id=enrollment.certificate.id) }}" class="btn btn-light btn-sm">
@@ -158,13 +158,13 @@
                 </div>
             </div>
             {% elif enrollment.passed and enrollment.status != 'completed' %}
-            <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);">
-                <div class="card-body text-center" style="color: white;">
-                    <span class="material-symbols-outlined" style="font-size: 48px; display: block; margin-bottom: 1rem;">verified</span>
+            <div class="card border-0 shadow-sm academy-surface-success">
+                <div class="card-body text-center academy-header-white">
+                    <span class="material-symbols-outlined academy-icon-xxl">verified</span>
                     <h5>{{ _('Congratulations!') }}</h5>
                     <p class="text-sm mb-3">{{ _('You passed! Claim your certificate now.') }}</p>
                     <button id="completeCertBtn" type="button" class="btn btn-light btn-sm" onclick="completModuleAndGetCertificate({{ module.id }})">
-                        <span class="material-symbols-outlined" style="font-size: 18px; display: inline; vertical-align: middle;">download</span>
+                        <span class="material-symbols-outlined academy-icon-inline-sm">download</span>
                         {{ _('Complete & Get Certificate') }}
                     </button>
                     <div id="certCompletingState" class="d-none mt-2">
@@ -190,7 +190,7 @@
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body" style="background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);">
+            <div class="modal-body academy-modal-body-soft">
                 <div id="schemaModalLoading" class="text-center py-5">
                     <div class="spinner-border text-primary" role="status">
                         <span class="visually-hidden">{{ _('Loading') }}...</span>
@@ -250,12 +250,12 @@ function renderSchemaModal(data) {
         <div class="col-md-4">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body d-flex align-items-center gap-3">
-                    <div class="rounded-circle bg-primary-subtle text-primary d-flex align-items-center justify-content-center" style="width:42px;height:42px;">
+                    <div class="rounded-circle bg-primary-subtle text-primary d-flex align-items-center justify-content-center academy-icon-badge-md">
                         <i class="bi ${item.icon}"></i>
                     </div>
                     <div>
                         <small class="text-muted d-block">${item.label}</small>
-                        <strong style="font-size:1.2rem;">${item.value}</strong>
+                        <strong class="academy-metric-sm">${item.value}</strong>
                     </div>
                 </div>
             </div>

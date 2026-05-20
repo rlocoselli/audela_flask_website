@@ -178,9 +178,18 @@ def _seed_track(track: dict, force: bool = False) -> dict:
 
         module.title_i18n = {"en": module_def["title"], "fr": module_def["title"], "pt": module_def["title"]}
         module.description_i18n = {
-            "en": f"{module_def['title']} with guided lessons, practical exercises, quizzes, and a mini-project.",
-            "fr": f"{module_def['title']} avec leçons guidées, exercices pratiques, quiz et mini-projet.",
-            "pt": f"{module_def['title']} com aulas guiadas, exercícios práticos, quiz e mini-projeto.",
+            "en": (
+                f"{module_def['title']} with concept breakdowns, production examples, coding labs, "
+                "and a mini-project connected to real engineering workflows."
+            ),
+            "fr": (
+                f"{module_def['title']} avec explication des concepts, exemples reel production, "
+                "labs de code et mini-projet relie aux workflows d ingenierie."
+            ),
+            "pt": (
+                f"{module_def['title']} com explicação de conceitos, exemplos reais de produção, "
+                "labs de código e mini-projeto conectado a fluxos de engenharia."
+            ),
         }
         module.level = module_def["level"]
         module.total_lessons = 2
@@ -207,16 +216,46 @@ def _seed_track(track: dict, force: bool = False) -> dict:
             lesson_title = f"{module_def['title']} – {'Guided Lesson' if lesson_index == 1 else 'Hands-On Lab'}"
             lesson.title_i18n = {"en": lesson_title, "fr": lesson_title, "pt": lesson_title}
             lesson.description_i18n = {
-                "en": f"Topics: {', '.join(module_def.get('topics', []))}.",
-                "fr": f"Sujets : {', '.join(module_def.get('topics', []))}.",
-                "pt": f"Tópicos: {', '.join(module_def.get('topics', []))}.",
+                "en": (
+                    f"Real implementation focus on: {', '.join(module_def.get('topics', []))}. "
+                    f"Includes a concrete use case for '{module_def.get('project', 'capstone')}'."
+                ),
+                "fr": (
+                    f"Focus implementation reelle: {', '.join(module_def.get('topics', []))}. "
+                    f"Inclut un cas concret pour '{module_def.get('project', 'capstone')}'."
+                ),
+                "pt": (
+                    f"Foco em implementação real: {', '.join(module_def.get('topics', []))}. "
+                    f"Inclui um caso concreto para '{module_def.get('project', 'capstone')}'."
+                ),
             }
+            real_example = (
+                "Example: validate user payload, normalize data, and return deterministic output for API consumers."
+                if lesson_index == 1
+                else "Example: implement automated checks with asserts/pytest style tests before release."
+            )
             lesson.content_html_i18n = {
                 "en": (
                     f"<h3>{lesson_title}</h3>"
                     f"<p>Focus topics: {', '.join(module_def.get('topics', []))}.</p>"
+                    "<p>Concept briefing: choose readable abstractions first, then optimize with profiling data.</p>"
+                    f"<p><strong>Real example:</strong> {real_example}</p>"
                     f"<p>Mini-project: <strong>{module_def.get('project', 'Capstone task')}</strong></p>"
                 )
+            }
+            lesson.key_concepts_i18n = {
+                "en": [
+                    f"{module_def['title']} practical architecture",
+                    "Readable implementation before micro-optimization",
+                    "Testing strategy and regression prevention",
+                    "Operational readiness for production handoff",
+                ],
+                "fr": [
+                    f"Architecture pratique: {module_def['title']}",
+                    "Implementation lisible avant micro-optimisation",
+                    "Strategie de test et prevention des regressions",
+                    "Readiness operationnelle avant mise en prod",
+                ],
             }
             lesson.order = lesson_index
             lesson.is_active = True

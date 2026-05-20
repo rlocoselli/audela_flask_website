@@ -131,7 +131,12 @@ def lesson_view(lesson_id):
         flash(tr("Requested lesson was not found. Redirected to your dashboard."), "warning")
         return redirect(url_for("e_learning.dashboard"))
     module = lesson.module
-    exercises = ELearningExercise.query.filter_by(lesson_id=lesson_id, is_active=True).order_by(ELearningExercise.order).all()
+    subject_code = (module.subject.code or "").lower() if module.subject else ""
+    show_exercises = subject_code == "sql" or ("python" in subject_code) or subject_code.startswith("django-")
+    if show_exercises:
+        exercises = ELearningExercise.query.filter_by(lesson_id=lesson_id, is_active=True).order_by(ELearningExercise.order).all()
+    else:
+        exercises = []
     quizzes = ELearningQuiz.query.filter_by(lesson_id=lesson_id, is_active=True).order_by(ELearningQuiz.order).all()
     
     # Get enrollment
@@ -144,6 +149,7 @@ def lesson_view(lesson_id):
         lesson=lesson,
         module=module,
         exercises=exercises,
+        show_exercises=show_exercises,
         quizzes=quizzes,
         enrollment=enrollment,
         page_title=lesson.title_i18n.get(get_user_language(), lesson.title_i18n.get("en", lesson.code)),
@@ -160,6 +166,12 @@ def exercise_view(exercise_id):
         return redirect(url_for("e_learning.dashboard"))
     lesson = exercise.lesson
     module = lesson.module
+    subject_code = (module.subject.code or "").lower() if module.subject else ""
+    is_lab_subject = subject_code == "sql" or ("python" in subject_code) or subject_code.startswith("django-")
+
+    if not is_lab_subject:
+        flash(tr("Labs are available for SQL and Python tracks only."), "info")
+        return redirect(url_for("e_learning.lesson_view", lesson_id=lesson.id))
     
     # Get enrollment
     enrollment = UserELearningEnrollment.query.filter_by(

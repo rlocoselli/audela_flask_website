@@ -14,7 +14,7 @@
 
     <div class="row g-4">
         <div class="col-12 col-lg-8">
-            <div class="card border-0 shadow-sm">
+            <div class="academy-surface">
                 <div class="card-body p-4">
                     <div class="d-flex align-items-center gap-3 mb-3">
                         <span class="material-symbols-outlined fs-1 text-primary">quiz</span>
@@ -28,27 +28,27 @@
 
                     <div class="row g-3 mb-4">
                         <div class="col-6 col-md-3">
-                            <div class="text-center p-3 bg-body-secondary rounded">
+                            <div class="academy-kpi">
                                 <div class="fs-4 fw-bold text-primary">{{ quiz.questions | selectattr('is_active') | list | length }}</div>
                                 <div class="small text-muted">{{ _('Questions') }}</div>
                             </div>
                         </div>
                         <div class="col-6 col-md-3">
-                            <div class="text-center p-3 bg-body-secondary rounded">
+                            <div class="academy-kpi">
                                 <div class="fs-4 fw-bold text-success">{{ quiz.pass_threshold }}%</div>
                                 <div class="small text-muted">{{ _('Passing score') }}</div>
                             </div>
                         </div>
                         {% if quiz.time_limit_minutes %}
                         <div class="col-6 col-md-3">
-                            <div class="text-center p-3 bg-body-secondary rounded">
+                            <div class="academy-kpi">
                                 <div class="fs-4 fw-bold text-warning">{{ quiz.time_limit_minutes }}</div>
                                 <div class="small text-muted">{{ _('minutes') }}</div>
                             </div>
                         </div>
                         {% endif %}
                         <div class="col-6 col-md-3">
-                            <div class="text-center p-3 bg-body-secondary rounded">
+                            <div class="academy-kpi">
                                 <div class="fs-4 fw-bold text-info">{{ quiz.points_on_pass }}</div>
                                 <div class="small text-muted">{{ _('Points') }}</div>
                             </div>
@@ -63,7 +63,7 @@
                     {% elif max_reached %}
                     <div class="alert alert-warning">{{ _('Max attempts reached') }}</div>
                     {% else %}
-                    <a href="{{ url_for('e_learning.quiz_take', quiz_id=quiz.id) }}" class="btn btn-primary btn-lg d-inline-flex align-items-center gap-2">
+                    <a href="{{ url_for('e_learning.quiz_take', quiz_id=quiz.id) }}" class="btn academy-btn-primary btn-lg d-inline-flex align-items-center gap-2">
                         <span class="material-symbols-outlined">play_arrow</span>
                         {{ _('Start Quiz') }}
                     </a>
@@ -74,7 +74,7 @@
 
         {% if attempts %}
         <div class="col-12 col-lg-4">
-            <div class="card border-0 shadow-sm">
+            <div class="academy-surface">
                 <div class="card-header bg-transparent fw-semibold">{{ _('Attempts') }}</div>
                 <ul class="list-group list-group-flush">
                     {% for a in attempts %}

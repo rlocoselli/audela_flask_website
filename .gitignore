@@ -112,5 +112,19 @@ temp/
 # =========================
 # SQLite local (se usar)
 # =========================
+*.sqlite
 *.sqlite3
 *.db
+*.dblite
+*.db3
+*.s3db
+*.db-journal
+*.sqlite-journal
+*.db-wal
+*.sqlite-wal
+*.db-shm
+*.sqlite-shm
+*.seed.sqlite3
+*.seed.db
+test*.sqlite3
+test*.db

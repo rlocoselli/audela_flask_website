@@ -29,6 +29,15 @@ on:
           - enable
           - disable
         default: keep
+      python_seed_profile:
+        description: "Python course seeding profile"
+        required: true
+        type: choice
+        options:
+          - all
+          - data-analysis
+          - none
+        default: all
 
 concurrency:
   group: release-migrate-deploy-${{ github.ref }}
@@ -42,7 +51,7 @@ jobs:
     uses: ./.github/workflows/migrations-only.yml
     with:
       git_ref: ${{ github.event.inputs.git_ref || 'main' }}
-      python_seed_profile: none
+      python_seed_profile: ${{ github.event.inputs.python_seed_profile || 'all' }}
     secrets: inherit
 
   deploy:

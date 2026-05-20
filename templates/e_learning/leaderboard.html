@@ -5,11 +5,13 @@
     <!-- Header -->
     <div class="row mb-5">
         <div class="col-md-8">
-            <h1 class="display-5 fw-bold mb-3">
-                <span class="material-symbols-outlined" style="display: inline; margin-right: 10px;">leaderboard</span>
-                {{ _('Leaderboard') }}
-            </h1>
-            <p class="lead text-muted">{{ _('Top Learners') }}</p>
+            <div class="academy-hero">
+                <h1 class="display-6 fw-bold mb-2">
+                    <span class="material-symbols-outlined academy-icon-inline me-2">leaderboard</span>
+                    {{ _('Leaderboard') }}
+                </h1>
+                <p class="lead mb-0 opacity-75">{{ _('Top Learners') }}</p>
+            </div>
         </div>
     </div>
     
@@ -17,7 +19,7 @@
     {% if current_user.is_authenticated and user_rank %}
     <div class="row mb-4">
         <div class="col-md-12">
-            <div class="card border-0 shadow-sm" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+            <div class="academy-surface academy-rank-surface">
                 <div class="card-body">
                     <div class="row align-items-center">
                         <div class="col-md-8">
@@ -25,7 +27,7 @@
                             <p class="card-text mb-0">{{ _('Keep learning to climb the rankings!') }}</p>
                         </div>
                         <div class="col-md-4 text-end">
-                            <h1 style="margin: 0;">#{{ user_rank }}</h1>
+                            <h1 class="m-0">#{{ user_rank }}</h1>
                             <small>{{ _('Global Rank') }}</small>
                         </div>
                     </div>
@@ -36,25 +38,25 @@
     {% endif %}
     
     <!-- Leaderboard Table -->
-    <div class="card border-0 shadow-sm">
+    <div class="academy-surface">
         <table class="table table-hover mb-0">
-            <thead style="background: #f8f9fa;">
+            <thead class="academy-table-head">
                 <tr>
-                    <th style="width: 80px; color: #667eea;">
-                        <span class="material-symbols-outlined" style="font-size: 20px;">leaderboard</span>
+                    <th class="academy-text-brand academy-col-rank">
+                        <span class="material-symbols-outlined academy-icon-lg">leaderboard</span>
                     </th>
                     <th>{{ _('Learner') }}</th>
-                    <th style="width: 100px; text-align: center;">{{ _('Points') }}</th>
-                    <th style="width: 100px; text-align: center;">{{ _('Level') }}</th>
-                    <th style="width: 120px; text-align: center;">{{ _('Current Streak') }}</th>
+                    <th class="academy-center academy-col-sm">{{ _('Points') }}</th>
+                    <th class="academy-center academy-col-sm">{{ _('Level') }}</th>
+                    <th class="academy-center academy-col-md">{{ _('Current Streak') }}</th>
                 </tr>
             </thead>
             <tbody>
                 {% for user_data in top_users.items %}
                 {% set medal = ('🥇' if loop.index == 1 else '🥈' if loop.index == 2 else '🥉' if loop.index == 3 else '') %}
-                <tr {% if current_user.is_authenticated and user_data.user_id == current_user.id %}style="background-color: #f0f4ff; font-weight: 600;"{% endif %}>
+                <tr {% if current_user.is_authenticated and user_data.user_id == current_user.id %}class="academy-rank-highlight"{% endif %}>
                     <td>
-                        <span style="font-size: 1.5rem;">
+                        <span class="academy-metric-lg">
                             {% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}<strong>#{{ loop.index }}</strong>{% endif %}
                         </span>
                     </td>
@@ -66,16 +68,16 @@
                             {% endif %}
                         </div>
                     </td>
-                    <td style="text-align: center;">
-                        <strong style="color: #667eea; font-size: 1.1rem;">{{ user_data.points }}</strong>
+                    <td class="academy-center">
+                        <strong class="academy-text-brand">{{ user_data.points }}</strong>
                     </td>
-                    <td style="text-align: center;">
-                        <span class="badge" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                    <td class="academy-center">
+                        <span class="badge academy-badge-brand-grad">
                             L{{ user_data.level }}
                         </span>
                     </td>
-                    <td style="text-align: center;">
-                        <span class="material-symbols-outlined" style="color: #ff9800; font-size: 20px; display: inline;">local_fire_department</span>
+                    <td class="academy-center">
+                        <span class="material-symbols-outlined academy-icon-inline academy-icon-lg academy-text-accent">local_fire_department</span>
                         <strong>{{ user_data.streak }}</strong>
                     </td>
                 </tr>
@@ -120,27 +122,27 @@
     <!-- Tips Section -->
     <div class="row mt-5">
         <div class="col-md-4 mb-3">
-            <div class="card border-0 shadow-sm h-100">
+            <div class="academy-surface h-100">
                 <div class="card-body text-center">
-                    <span class="material-symbols-outlined" style="font-size: 48px; color: #667eea; display: block; margin-bottom: 1rem;">trending_up</span>
+                    <span class="material-symbols-outlined academy-icon-xxl academy-icon-brand">trending_up</span>
                     <h5>{{ _('Gain Points') }}</h5>
                     <p class="text-muted small">{{ _('Complete exercises and earn points') }}</p>
                 </div>
             </div>
         </div>
         <div class="col-md-4 mb-3">
-            <div class="card border-0 shadow-sm h-100">
+            <div class="academy-surface h-100">
                 <div class="card-body text-center">
-                    <span class="material-symbols-outlined" style="font-size: 48px; color: #ff9800; display: block; margin-bottom: 1rem;">local_fire_department</span>
+                    <span class="material-symbols-outlined academy-icon-xxl academy-text-accent">local_fire_department</span>
                     <h5>{{ _('Build Streaks') }}</h5>
                     <p class="text-muted small">{{ _('Learn every day to build your streak') }}</p>
                 </div>
             </div>
         </div>
         <div class="col-md-4 mb-3">
-            <div class="card border-0 shadow-sm h-100">
+            <div class="academy-surface h-100">
                 <div class="card-body text-center">
-                    <span class="material-symbols-outlined" style="font-size: 48px; color: #28a745; display: block; margin-bottom: 1rem;">trophy</span>
+                    <span class="material-symbols-outlined academy-icon-xxl text-success">trophy</span>
                     <h5>{{ _('Unlock Achievements') }}</h5>
                     <p class="text-muted small">{{ _('Earn badges for reaching milestones') }}</p>
                 </div>

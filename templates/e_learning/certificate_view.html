@@ -18,69 +18,63 @@
         <div class="col-lg-9">
 
             <!-- Certificate card -->
-            <div id="certificate-card" class="border-0 shadow-lg" style="
-                background: linear-gradient(145deg, #0a1628 0%, #0f2450 45%, #193a6e 100%);
-                color: white;
-                border-radius: 1.25rem;
-                overflow: hidden;
-                position: relative;
-            ">
+            <div id="certificate-card" class="border-0 shadow-lg cert-card">
                 <!-- Decorative top accent bar -->
-                <div style="height:6px;background:linear-gradient(90deg,#8fe3ff 0%,#5cc6ff 50%,#3b9fe8 100%);"></div>
+                <div class="cert-top-accent"></div>
 
-                <div class="d-flex flex-column align-items-center text-center px-5 py-5" style="position:relative;z-index:2;">
+                <div class="d-flex flex-column align-items-center text-center px-5 py-5 cert-content">
 
                     <!-- Audela logo -->
                     <div class="mb-3">
                         <img src="{{ url_for('static', filename='images/audela-logo.svg') }}"
                              alt="Audela"
-                             style="height:54px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.35));" />
+                             class="cert-logo" />
                     </div>
 
                     <!-- Decorative separator -->
-                    <div style="width:60px;height:2px;background:linear-gradient(90deg,#8fe3ff,#5cc6ff);border-radius:2px;margin-bottom:1.75rem;"></div>
+                    <div class="cert-separator"></div>
 
-                    <h2 class="mb-4 fw-bold" style="font-size:1.75rem;letter-spacing:.04em;text-transform:uppercase;font-family:Georgia,serif;color:white;">
+                    <h2 class="mb-4 fw-bold cert-title">
                         Certificado de Conclusão
                     </h2>
 
-                    <p class="mb-1 text-uppercase" style="font-size:.75rem;letter-spacing:.14em;opacity:.75;">{{ _('This Certifies That') }}</p>
-                    <h3 class="mb-4 fw-bold" style="font-size:2rem;font-family:Georgia,serif;border-bottom:2px solid rgba(143,227,255,.45);padding-bottom:.85rem;min-width:280px;">
+                    <p class="mb-1 text-uppercase cert-subtitle">{{ _('This Certifies That') }}</p>
+                    <h3 class="mb-4 fw-bold cert-name">
                         {{ certificate.user.username if certificate.user else 'User' }}
                     </h3>
 
-                    <p class="mb-1 text-uppercase" style="font-size:.75rem;letter-spacing:.14em;opacity:.75;">{{ _('Has successfully completed the course') }}</p>
-                    <h5 class="mb-3 fw-semibold" style="font-size:1.2rem;color:#8fe3ff;max-width:560px;">{{ certificate.module.title_i18n.get(current_lang, certificate.module.title_i18n.get('en', certificate.module.code)) }}</h5>
+                    <p class="mb-1 text-uppercase cert-subtitle">{{ _('Has successfully completed the course') }}</p>
+                    <h5 class="mb-3 fw-semibold cert-module">{{ certificate.module.title_i18n.get(current_lang, certificate.module.title_i18n.get('en', certificate.module.code)) }}</h5>
 
                     <!-- Score badge -->
-                    <div class="mb-4" style="background:rgba(143,227,255,.15);border:1px solid rgba(143,227,255,.35);border-radius:999px;padding:.4rem 1.4rem;font-size:.95rem;">
-                        <strong style="color:#8fe3ff;">{{ _('Final Score') }}:</strong>&nbsp;{{ certificate.final_score }}%
+                    <div class="mb-4 cert-score-pill">
+                        <strong class="cert-accent">{{ _('Final Score') }}:</strong>&nbsp;{{ certificate.final_score }}%
                     </div>
 
                     <!-- Footer row: meta + QR -->
-                    <div class="w-100 d-flex align-items-center justify-content-between flex-wrap gap-3" style="border-top:1px solid rgba(143,227,255,.3);padding-top:1.5rem;margin-top:.5rem;">
-                        <div class="text-start" style="font-size:.78rem;opacity:.85;line-height:1.8;">
+                    <div class="w-100 d-flex align-items-center justify-content-between flex-wrap gap-3 cert-footer-row">
+                        <div class="text-start cert-meta">
                             <div>{{ _('Certificate Number') }}: <strong>{{ certificate.certificate_number }}</strong></div>
                             <div>{{ _('Issued On') }}: {{ certificate.issued_at.strftime('%d/%m/%Y') }}</div>
-                            <div>{{ _('Verification Code') }}: <code style="color:#8fe3ff;">{{ certificate.verification_code }}</code></div>
-                            <div style="margin-top:.4rem;opacity:.65;font-size:.72rem;">audela.com &nbsp;·&nbsp; Aller au-delà des données</div>
+                            <div>{{ _('Verification Code') }}: <code class="cert-accent">{{ certificate.verification_code }}</code></div>
+                            <div class="cert-meta-note">audela.com &nbsp;·&nbsp; Aller au-dela des donnees</div>
                         </div>
                         <!-- QR code -->
                         <div class="text-center">
                             <img src="{{ qr_url }}"
                                  alt="Scan to verify certificate"
-                                 style="width:90px;height:90px;border-radius:.5rem;background:white;padding:4px;" />
-                            <div style="font-size:.68rem;margin-top:.35rem;opacity:.75;">{{ _('Scan to verify') }}</div>
+                                 class="cert-qr" />
+                            <div class="cert-qr-caption">{{ _('Scan to verify') }}</div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Decorative bottom accent bar -->
-                <div style="height:4px;background:linear-gradient(90deg,#3b9fe8 0%,#5cc6ff 50%,#8fe3ff 100%);"></div>
+                <div class="cert-bottom-accent"></div>
 
                 <!-- Subtle background orb decoration -->
-                <div style="position:absolute;top:-80px;right:-80px;width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,rgba(92,198,255,.12) 0%,transparent 70%);z-index:1;pointer-events:none;"></div>
-                <div style="position:absolute;bottom:-60px;left:-60px;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(143,227,255,.08) 0%,transparent 70%);z-index:1;pointer-events:none;"></div>
+                <div class="cert-orb cert-orb-top"></div>
+                <div class="cert-orb cert-orb-bottom"></div>
             </div>
 
             <!-- Actions -->
@@ -97,7 +91,7 @@
                 <div class="col-sm-6 col-md-3">
                     <button type="button" onclick="shareOnLinkedIn()"
                        class="btn btn-outline-primary w-100 d-flex align-items-center justify-content-center gap-2">
-                        <span class="material-symbols-outlined" style="font-size:.95rem;">share</span>
+                        <span class="material-symbols-outlined academy-icon-inline">share</span>
                         {{ _('Share on LinkedIn') }}
                     </button>
                 </div>
@@ -118,16 +112,16 @@
                         <div class="modal-body">
                             <p class="text-muted small mb-2">LinkedIn doesn't allow pre-filling post text. Copy the message below, then paste it after LinkedIn opens.</p>
                             <div class="position-relative">
-                                <textarea id="linkedinPostText" class="form-control" rows="7" readonly style="font-size:.9rem;resize:none;"></textarea>
-                                <button class="btn btn-sm btn-outline-secondary position-absolute" style="top:8px;right:8px;" onclick="copyLinkedInText(this)">
-                                    <span class="material-symbols-outlined" style="font-size:.85rem;">content_copy</span>
+                                <textarea id="linkedinPostText" class="form-control cert-linkedin-text" rows="7" readonly></textarea>
+                                <button class="btn btn-sm btn-outline-secondary position-absolute cert-copy-btn" onclick="copyLinkedInText(this)">
+                                    <span class="material-symbols-outlined academy-icon-xs">content_copy</span>
                                 </button>
                             </div>
                         </div>
                         <div class="modal-footer border-0">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                             <button type="button" class="btn btn-primary d-flex align-items-center gap-2" onclick="copyAndOpenLinkedIn()">
-                                <span class="material-symbols-outlined" style="font-size:.9rem;">open_in_new</span>
+                                <span class="material-symbols-outlined academy-icon-inline">open_in_new</span>
                                 Copy text &amp; Open LinkedIn
                             </button>
                         </div>
@@ -136,15 +130,15 @@
             </div>
                 <div class="col-sm-6 col-md-3">
                     <button class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center gap-2"
-                            onclick="navigator.clipboard.writeText('{{ verify_url }}').then(()=>{ this.textContent='✓ Copied!'; setTimeout(()=>{ this.innerHTML='<span class=\'material-symbols-outlined\' style=\'font-size:.95rem;\'>link</span> {{ _('Copy Link') }}'; },2000); })">
-                        <span class="material-symbols-outlined" style="font-size:.95rem;">link</span>
+                            onclick="navigator.clipboard.writeText('{{ verify_url }}').then(()=>{ this.textContent='✓ Copied!'; setTimeout(()=>{ this.innerHTML='<span class=\'material-symbols-outlined academy-icon-inline\'>link</span> {{ _('Copy Link') }}'; },2000); })">
+                        <span class="material-symbols-outlined academy-icon-inline">link</span>
                         {{ _('Copy Link') }}
                     </button>
                 </div>
                 <div class="col-sm-6 col-md-3">
                     <button class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center gap-2"
                             onclick="window.print()">
-                        <span class="material-symbols-outlined" style="font-size:.95rem;">print</span>
+                        <span class="material-symbols-outlined academy-icon-inline">print</span>
                         {{ _('Print / PDF') }}
                     </button>
                 </div>
@@ -154,18 +148,18 @@
             <div class="card border-0 shadow-sm mt-4">
                 <div class="card-body">
                     <h6 class="fw-semibold mb-2">
-                        <span class="material-symbols-outlined align-middle me-1" style="font-size:1rem;">verified</span>
+                        <span class="material-symbols-outlined align-middle me-1 academy-icon-md">verified</span>
                         {{ _('Employer Verification') }}
                     </h6>
-                    <p class="text-muted mb-3" style="font-size:.85rem;">
+                    <p class="text-muted mb-3 cert-muted-sm">
                         {{ _('Employers can scan the QR code on the certificate or visit the link below to instantly verify its authenticity.') }}
                     </p>
                     <div class="d-flex align-items-center gap-4 flex-wrap">
                         <img src="{{ qr_url }}" alt="QR code for certificate verification"
-                             style="width:110px;height:110px;border:1px solid #e2e8f0;border-radius:.5rem;padding:4px;" />
+                             class="cert-qr cert-qr-lg" />
                         <div>
                             <div class="mb-1"><strong>{{ _('Verification URL') }}:</strong></div>
-                            <code class="text-break" style="font-size:.8rem;">{{ verify_url }}</code>
+                            <code class="text-break cert-code-sm">{{ verify_url }}</code>
                         </div>
                     </div>
                 </div>
@@ -176,6 +170,136 @@
 </div>
 
 <style>
+    .cert-card {
+        background: linear-gradient(145deg, #0a1628 0%, #0f2450 45%, #193a6e 100%);
+        color: #fff;
+        border-radius: 1.25rem;
+        overflow: hidden;
+        position: relative;
+    }
+    .cert-top-accent {
+        height: 6px;
+        background: linear-gradient(90deg, #8fe3ff 0%, #5cc6ff 50%, #3b9fe8 100%);
+    }
+    .cert-bottom-accent {
+        height: 4px;
+        background: linear-gradient(90deg, #3b9fe8 0%, #5cc6ff 50%, #8fe3ff 100%);
+    }
+    .cert-content {
+        position: relative;
+        z-index: 2;
+    }
+    .cert-logo {
+        height: 54px;
+        filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .35));
+    }
+    .cert-separator {
+        width: 60px;
+        height: 2px;
+        background: linear-gradient(90deg, #8fe3ff, #5cc6ff);
+        border-radius: 2px;
+        margin-bottom: 1.75rem;
+    }
+    .cert-title {
+        font-size: 1.75rem;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+        font-family: Georgia, serif;
+        color: #fff;
+    }
+    .cert-subtitle {
+        font-size: .75rem;
+        letter-spacing: .14em;
+        opacity: .75;
+    }
+    .cert-name {
+        font-size: 2rem;
+        font-family: Georgia, serif;
+        border-bottom: 2px solid rgba(143, 227, 255, .45);
+        padding-bottom: .85rem;
+        min-width: 280px;
+    }
+    .cert-module {
+        font-size: 1.2rem;
+        color: #8fe3ff;
+        max-width: 560px;
+    }
+    .cert-score-pill {
+        background: rgba(143, 227, 255, .15);
+        border: 1px solid rgba(143, 227, 255, .35);
+        border-radius: 999px;
+        padding: .4rem 1.4rem;
+        font-size: .95rem;
+    }
+    .cert-accent {
+        color: #8fe3ff;
+    }
+    .cert-footer-row {
+        border-top: 1px solid rgba(143, 227, 255, .3);
+        padding-top: 1.5rem;
+        margin-top: .5rem;
+    }
+    .cert-meta {
+        font-size: .78rem;
+        opacity: .85;
+        line-height: 1.8;
+    }
+    .cert-meta-note {
+        margin-top: .4rem;
+        opacity: .65;
+        font-size: .72rem;
+    }
+    .cert-qr {
+        width: 90px;
+        height: 90px;
+        border-radius: .5rem;
+        background: #fff;
+        padding: 4px;
+    }
+    .cert-qr-lg {
+        width: 110px;
+        height: 110px;
+        border: 1px solid #e2e8f0;
+    }
+    .cert-qr-caption {
+        font-size: .68rem;
+        margin-top: .35rem;
+        opacity: .75;
+    }
+    .cert-orb {
+        position: absolute;
+        border-radius: 50%;
+        z-index: 1;
+        pointer-events: none;
+    }
+    .cert-orb-top {
+        top: -80px;
+        right: -80px;
+        width: 300px;
+        height: 300px;
+        background: radial-gradient(circle, rgba(92, 198, 255, .12) 0%, transparent 70%);
+    }
+    .cert-orb-bottom {
+        bottom: -60px;
+        left: -60px;
+        width: 240px;
+        height: 240px;
+        background: radial-gradient(circle, rgba(143, 227, 255, .08) 0%, transparent 70%);
+    }
+    .cert-linkedin-text {
+        font-size: .9rem;
+        resize: none;
+    }
+    .cert-copy-btn {
+        top: 8px;
+        right: 8px;
+    }
+    .cert-muted-sm {
+        font-size: .85rem;
+    }
+    .cert-code-sm {
+        font-size: .8rem;
+    }
     .material-symbols-outlined {
         font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
     }
@@ -202,8 +326,8 @@ function shareOnLinkedIn() {
 
 function copyLinkedInText(btn) {
     navigator.clipboard.writeText(LINKEDIN_POST_TEXT).then(() => {
-        btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:.85rem;">check</span>';
-        setTimeout(() => { btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:.85rem;">content_copy</span>'; }, 2000);
+        btn.innerHTML = '<span class="material-symbols-outlined academy-icon-xs">check</span>';
+        setTimeout(() => { btn.innerHTML = '<span class="material-symbols-outlined academy-icon-xs">content_copy</span>'; }, 2000);
     });
 }
 

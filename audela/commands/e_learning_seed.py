@@ -9,6 +9,7 @@ Run with:
 
 import click
 import sqlite3
+from pathlib import Path
 from flask import Flask
 from ..extensions import db
 
@@ -1831,6 +1832,59 @@ def _materialize_expected_result(schema_sql: str, seed_sql: str, expected_sql: s
         conn.close()
 
 
+def _seed_local_sqlite_file(db_path: str, force: bool = False) -> dict:
+    """Create a local SQLite/DBLite file with seeded SQL training data."""
+    output_path = Path(db_path).expanduser()
+    if not output_path.is_absolute():
+        output_path = Path.cwd() / output_path
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if output_path.exists() and not force:
+        raise click.ClickException(
+            f"File already exists: {output_path}. Use --force to recreate it."
+        )
+
+    if output_path.exists() and force:
+        output_path.unlink()
+
+    conn = sqlite3.connect(str(output_path))
+    conn.execute("PRAGMA foreign_keys = ON")
+    try:
+        conn.executescript(SAMPLE_SCHEMA_SQL101)
+        conn.executescript(SAMPLE_SCHEMA_EMPLOYEES)
+        conn.executescript(SAMPLE_DATA_SQL101)
+        conn.executescript(SAMPLE_DATA_EMPLOYEES)
+
+        # Handy view used by advanced module exercises and BI smoke checks.
+        conn.executescript(
+            """
+            CREATE VIEW IF NOT EXISTS customer_order_totals AS
+            SELECT
+                c.customer_id,
+                c.first_name,
+                c.last_name,
+                COUNT(o.order_id) AS total_orders,
+                COALESCE(SUM(o.amount), 0) AS total_amount
+            FROM customers c
+            LEFT JOIN orders o ON o.customer_id = c.customer_id
+            GROUP BY c.customer_id, c.first_name, c.last_name;
+            """
+        )
+        conn.commit()
+
+        counts = {}
+        for table_name in ["customers", "orders", "products", "order_items", "departments", "employees"]:
+            row = conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()
+            counts[table_name] = int(row[0]) if row else 0
+    finally:
+        conn.close()
+
+    return {
+        "path": str(output_path),
+        "counts": counts,
+    }
+
+
 def _build_module_content(mod: dict, module_number: int, lang: str = "en") -> str:
     concept_items = "".join([f"<li><code>{_localize_phrase(c, lang)}</code></li>" for c in mod["concepts"]])
     concept_dive = _build_concept_deep_dive(mod, lang)
@@ -2593,6 +2647,62 @@ PREMIUM_SUBJECTS = [
         ],
     },
     {
+        "code": "audela_math_finance",
+        "name": "Audela Math for Finance",
+        "fr_name": "Audela Math pour la finance",
+        "description": "Interactive financial math with graphing, parameter sliders, and scenario labs inspired by GeoGebra-style exploration.",
+        "fr_description": "Mathematiques financieres interactives avec tracage de courbes, sliders de parametres et labs scenario inspires d'une approche type GeoGebra.",
+        "icon": "functions",
+        "order": 45,
+        "modules": [
+            {
+                "code": "math_finance_foundations",
+                "title": "Financial Math Foundations and Interactive Curves",
+                "fr_title": "Fondamentaux de maths financieres et courbes interactives",
+                "level": "beginner",
+                "hours": 12,
+                "lessons": [
+                    "Time value of money and discounting intuition",
+                    "Simple vs compound interest with interactive sliders",
+                    "Growth curves and interpolation for finance decisions",
+                    "Log scales, volatility, and return normalization",
+                    "Building graph-based intuition for risk and payoff",
+                    "Reading and validating financial charts",
+                ],
+            },
+            {
+                "code": "math_finance_products",
+                "title": "Loans, Bonds, and Portfolio Math Studio",
+                "fr_title": "Studio math prets, obligations et portefeuille",
+                "level": "intermediate",
+                "hours": 15,
+                "lessons": [
+                    "Loan amortization surfaces and payment sensitivity",
+                    "Bond pricing, duration, and convexity visuals",
+                    "Annuities and cash-flow timeline simulation",
+                    "Yield curves and scenario stress testing",
+                    "Portfolio variance and correlation geometry",
+                    "Optimization trade-offs under practical constraints",
+                ],
+            },
+            {
+                "code": "math_finance_risk_ifrs9",
+                "title": "Risk Modeling, What-If, and IFRS9 Analytics",
+                "fr_title": "Modelisation risque, what-if et analytique IFRS9",
+                "level": "advanced",
+                "hours": 18,
+                "lessons": [
+                    "PD/LGD/EAD parameter interaction maps",
+                    "IFRS9 staging thresholds with dynamic boundaries",
+                    "Monte Carlo basics for portfolio loss simulation",
+                    "Stress scenarios with macro-factor sliders",
+                    "Sensitivity analysis and tornado charts",
+                    "Model governance, validation, and explainability",
+                ],
+            },
+        ],
+    },
+    {
         "code": "aws_cloud",
         "name": "AWS Architect and Builder",
         "fr_name": "Architecte et Builder AWS",
@@ -2868,29 +2978,180 @@ def _module_i18n(module: dict, subject_name: str) -> tuple[dict, dict]:
     return title_i18n, description_i18n
 
 
-def _lesson_content(topic: str, module_title: str) -> dict:
+def _premium_subject_focus(subject_code: str) -> dict:
+    focus_by_subject = {
+        "audela_math_finance": {
+            "mission": "Model financial decisions with explicit formulas, scenario assumptions, and sensitivity analysis.",
+            "failure_mode": "Using incorrect discount/compounding assumptions and ignoring parameter sensitivity in decisions.",
+            "metric": "NPV stability, sensitivity slope, and forecast error under stress",
+            "artifacts": [
+                "Formula sheet with variable definitions and units",
+                "Worked examples with manual cross-check",
+                "Sensitivity table for key inputs (rate, tenor, growth)",
+            ],
+        },
+        "programming_logic": {
+            "mission": "Build deterministic business logic that stays correct under edge cases and change pressure.",
+            "failure_mode": "Conflicting rules and hidden branches that produce non-deterministic outcomes.",
+            "metric": "branch coverage, defect escape rate, and decision latency",
+            "artifacts": [
+                "Decision table with explicit precedence and fallback",
+                "Invariant checklist for correctness and safety",
+                "Test matrix for happy path, edge cases, and regressions",
+            ],
+        },
+        "aws_cloud": {
+            "mission": "Design resilient AWS workloads with auditable security and operational readiness.",
+            "failure_mode": "Single-AZ dependencies, excessive IAM permissions, and untested rollback paths.",
+            "metric": "SLO attainment, IAM policy violations, and recovery time objective",
+            "artifacts": [
+                "Reference architecture with failure-domain boundaries",
+                "IAM least-privilege matrix and trust assumptions",
+                "Alarm + runbook package tied to release gates",
+            ],
+        },
+        "gcp_cloud": {
+            "mission": "Ship scalable GCP platforms with strong governance and observable reliability.",
+            "failure_mode": "Service misfit, missing guardrails, and delayed detection of pipeline regressions.",
+            "metric": "error budget burn, cost variance, and data freshness",
+            "artifacts": [
+                "Service selection memo with trade-off analysis",
+                "SLO dashboard and alert policy",
+                "Data governance controls for access and lifecycle",
+            ],
+        },
+        "azure_cloud": {
+            "mission": "Implement enterprise Azure solutions with policy-driven governance and safe delivery.",
+            "failure_mode": "Policy drift, secret exposure, and weak network isolation between workloads.",
+            "metric": "policy compliance rate, secret incident count, and deployment success rate",
+            "artifacts": [
+                "Landing-zone governance checklist",
+                "Secret rotation and access control design",
+                "CI/CD quality gates with rollback proof",
+            ],
+        },
+        "generative_ai": {
+            "mission": "Operate trustworthy GenAI systems with measurable quality, safety, and cost controls.",
+            "failure_mode": "Hallucinations, prompt injection gaps, and quality regressions in production.",
+            "metric": "grounded answer rate, blocked unsafe prompts, and cost-per-successful-task",
+            "artifacts": [
+                "Evaluation set with pass/fail criteria",
+                "Guardrail policy and abuse test results",
+                "Model routing and observability report",
+            ],
+        },
+    }
+    return focus_by_subject.get(subject_code, focus_by_subject["programming_logic"])
+
+
+def _topic_acceptance_checks(topic: str) -> list[str]:
+    topic_l = topic.lower()
+    checks = [
+        "Acceptance criteria are explicit and testable before release.",
+        "Ownership and rollback path are documented and rehearsed.",
+        "Monitoring covers leading indicators, not only failures.",
+    ]
+    if "security" in topic_l or "iam" in topic_l or "governance" in topic_l:
+        checks.append("Access controls follow least privilege and are validated by tests.")
+    elif "cost" in topic_l or "finops" in topic_l:
+        checks.append("Cost guardrails and budget alerts are active in production.")
+    elif "incident" in topic_l or "reliability" in topic_l or "resilien" in topic_l:
+        checks.append("Failure drills demonstrate recovery within target RTO/RPO.")
+    else:
+        checks.append("Operational runbook includes escalation and handoff criteria.")
+    return checks
+
+
+def _lesson_content(subject_code: str, topic: str, module_title: str, lab_blueprint: dict) -> dict:
+    if subject_code == "audela_math_finance":
+        html_en = (
+            f"<h3>{topic}</h3>"
+            f"<p><strong>Context:</strong> In <em>{module_title}</em>, this lesson turns {topic.lower()} into measurable decisions using formulas and scenario checks.</p>"
+            "<h5>Core Formulas</h5>"
+            "<ul>"
+            "<li><strong>Future Value:</strong> FV = PV * (1 + r)^n</li>"
+            "<li><strong>Present Value:</strong> PV = FV / (1 + r)^n</li>"
+            "<li><strong>Annuity Payment:</strong> PMT = P * r / (1 - (1 + r)^(-n))</li>"
+            "<li><strong>Bond Price:</strong> P = Sum(C / (1 + y)^t) + FV / (1 + y)^n</li>"
+            "</ul>"
+            "<h5>Worked Example</h5>"
+            "<p>An investment of 10,000 at 7% for 5 years gives FV = 10,000 * (1.07)^5 = 14,025.52. "
+            "The same cash flow discounted at 9% gives PV = 14,025.52 / (1.09)^5 = 9,116.08.</p>"
+            "<h5>Interpretation Checklist</h5>"
+            "<ul>"
+            "<li>Confirm units: annual vs monthly rate and tenor consistency.</li>"
+            "<li>Stress test rate up/down by 100 bps and compare delta in value.</li>"
+            "<li>Record assumption source before approving the decision.</li>"
+            "</ul>"
+            "<p><strong>Practice:</strong> Use the interactive graph calculator below to visualize curve shape and sensitivity.</p>"
+        )
+        html_fr = (
+            f"<h3>{topic}</h3>"
+            f"<p><strong>Contexte:</strong> Dans <em>{module_title}</em>, cette lecon transforme {topic.lower()} en decisions mesurables via formules et tests de scenario.</p>"
+            "<h5>Formules coeur</h5>"
+            "<ul>"
+            "<li><strong>Valeur future:</strong> FV = PV * (1 + r)^n</li>"
+            "<li><strong>Valeur presente:</strong> PV = FV / (1 + r)^n</li>"
+            "<li><strong>Paiement annuite:</strong> PMT = P * r / (1 - (1 + r)^(-n))</li>"
+            "<li><strong>Prix obligation:</strong> P = Somme(C / (1 + y)^t) + FV / (1 + y)^n</li>"
+            "</ul>"
+            "<h5>Exemple calcule</h5>"
+            "<p>Un investissement de 10 000 a 7% pendant 5 ans donne FV = 10 000 * (1.07)^5 = 14 025.52. "
+            "Ce meme flux actualise a 9% donne PV = 14 025.52 / (1.09)^5 = 9 116.08.</p>"
+            "<h5>Checklist d interpretation</h5>"
+            "<ul>"
+            "<li>Verifier les unites: taux annuel vs mensuel et coherence des periodes.</li>"
+            "<li>Faire un stress test du taux (+/- 100 bps) et mesurer l impact.</li>"
+            "<li>Tracer les hypotheses avant validation de la decision.</li>"
+            "</ul>"
+            "<p><strong>Pratique:</strong> Utilisez le calculateur graphique interactif ci-dessous pour visualiser la sensibilite.</p>"
+        )
+
+        return {
+            "en": html_en,
+            "fr": html_fr,
+            "pt": html_en,
+            "es": html_en,
+            "it": html_en,
+            "de": html_en,
+        }
+
+    focus = _premium_subject_focus(subject_code)
+    checks = _topic_acceptance_checks(topic)
+    artifacts_html = "".join([f"<li>{item}</li>" for item in focus["artifacts"]])
+    checks_html = "".join([f"<li>{item}</li>" for item in checks])
+    deliverables_html = "".join([f"<li>{item}</li>" for item in lab_blueprint.get("deliverables", [])])
+
     html_en = (
         f"<h3>{topic}</h3>"
-        "<p>This lesson is built for practical mastery: concepts, architecture choices, anti-patterns, and review checklists.</p>"
-        "<ul>"
-        "<li>Core idea and when to apply it.</li>"
-        "<li>Common implementation pitfalls and mitigation.</li>"
-        "<li>Decision matrix: quality, scalability, security, and cost.</li>"
-        "<li>Operational checklist for production deployment.</li>"
-        "</ul>"
-        f"<p><strong>Context:</strong> {module_title}</p>"
+        f"<p><strong>Mission:</strong> {focus['mission']}</p>"
+        f"<p><strong>Scenario:</strong> In <em>{module_title}</em>, this lesson addresses {topic.lower()} with production constraints.</p>"
+        "<h5>What Can Go Wrong</h5>"
+        f"<p>{focus['failure_mode']}</p>"
+        "<h5>Implementation Deliverables</h5>"
+        f"<ul>{deliverables_html}</ul>"
+        "<h5>Engineering Artifacts</h5>"
+        f"<ul>{artifacts_html}</ul>"
+        "<h5>Acceptance Gates</h5>"
+        f"<ul>{checks_html}</ul>"
+        f"<p><strong>Primary metric family:</strong> {focus['metric']}.</p>"
     )
+
     html_fr = (
         f"<h3>{topic}</h3>"
-        "<p>Cette lecon vise la maitrise pratique: concepts, choix d architecture, anti-patterns et checklists de revue.</p>"
-        "<ul>"
-        "<li>Idee centrale et cas d usage.</li>"
-        "<li>Pieges frequents et mitigation.</li>"
-        "<li>Matrice de decision: qualite, scalabilite, securite et cout.</li>"
-        "<li>Checklist operationnelle pour la mise en production.</li>"
-        "</ul>"
-        f"<p><strong>Contexte:</strong> {module_title}</p>"
+        "<p><strong>Mission:</strong> Mettre en place une implementation fiable, securisee et operable en production.</p>"
+        f"<p><strong>Scenario:</strong> Dans <em>{module_title}</em>, cette lecon traite {topic.lower()} avec des contraintes reelles.</p>"
+        "<h5>Risques principaux</h5>"
+        f"<p>{focus['failure_mode']}</p>"
+        "<h5>Livrables d implementation</h5>"
+        f"<ul>{deliverables_html}</ul>"
+        "<h5>Artefacts d ingenierie</h5>"
+        f"<ul>{artifacts_html}</ul>"
+        "<h5>Gates d acceptance</h5>"
+        f"<ul>{checks_html}</ul>"
+        f"<p><strong>Famille de metriques prioritaire:</strong> {focus['metric']}.</p>"
     )
+
     return {
         "en": html_en,
         "fr": html_fr,
@@ -2901,15 +3162,516 @@ def _lesson_content(topic: str, module_title: str) -> dict:
     }
 
 
+def _text_i18n(en_text: str, fr_text: str) -> dict:
+    """Build simple i18n payload with EN/FR source and EN fallback for other locales."""
+    return {
+        "en": en_text,
+        "fr": fr_text,
+        "pt": en_text,
+        "es": en_text,
+        "it": en_text,
+        "de": en_text,
+    }
+
+
+PREMIUM_TRACK_REALITY_KITS = {
+    "programming_logic": {
+        "quiz_a_title": "Logic Engine Design Review",
+        "quiz_b_title": "Edge-case Failure Triage",
+        "stack": "Python service, decision table, deterministic test suite",
+        "lab": {
+            "name": "Fraud Rule Decision Engine Lab",
+            "context": "Design and harden a payment fraud decision engine with deterministic outputs.",
+            "deliverables": [
+                "Decision table covering normal, risky, and blocked outcomes",
+                "Rule evaluation flowchart with fallback behavior",
+                "20 automated tests including edge cases and invariants",
+                "Post-incident review note documenting one prevented bug",
+            ],
+            "validation": [
+                "No conflicting rules for the same input vector",
+                "All branches are reachable via tests",
+                "Median decision latency remains below agreed threshold",
+            ],
+        },
+    },
+    "aws_cloud": {
+        "quiz_a_title": "AWS Architecture Trade-off",
+        "quiz_b_title": "AWS Operational Readiness Gate",
+        "stack": "VPC, ALB, Auto Scaling, RDS Multi-AZ, CloudWatch, IAM",
+        "lab": {
+            "name": "Three-Tier AWS Production Lab",
+            "context": "Build a resilient web workload with auditable security and rollback safety.",
+            "deliverables": [
+                "Network layout with public/private subnets across 2 AZs",
+                "IAM least-privilege matrix for app/runtime/deploy roles",
+                "CloudWatch dashboard + alarm runbook",
+                "Blue/green or canary release plan with rollback procedure",
+            ],
+            "validation": [
+                "Single AZ failure does not break SLA",
+                "Unauthorized role assumption is denied",
+                "Recovery path is tested end-to-end",
+            ],
+        },
+    },
+    "gcp_cloud": {
+        "quiz_a_title": "GCP Service Selection Drill",
+        "quiz_b_title": "GCP Reliability Incident Drill",
+        "stack": "Cloud Run, BigQuery, Pub/Sub, Dataflow, Cloud Monitoring",
+        "lab": {
+            "name": "Streaming Analytics on GCP Lab",
+            "context": "Deliver near-real-time analytics with governed access and cost controls.",
+            "deliverables": [
+                "Pub/Sub to Dataflow pipeline with dead-letter strategy",
+                "BigQuery schema and partitioning plan",
+                "IAM boundaries for developers, operators, and auditors",
+                "SLO dashboard with burn-rate alert policy",
+            ],
+            "validation": [
+                "Pipeline recovers from malformed events",
+                "BigQuery cost guardrails prevent runaway spend",
+                "Alerting catches SLA degradation before user impact",
+            ],
+        },
+    },
+    "azure_cloud": {
+        "quiz_a_title": "Azure Enterprise Pattern Review",
+        "quiz_b_title": "Azure Governance Escalation Case",
+        "stack": "Azure App Service, Azure SQL, Key Vault, VNets, Azure Monitor",
+        "lab": {
+            "name": "Azure Governance + DevOps Lab",
+            "context": "Ship an enterprise app with policy controls and secure CI/CD.",
+            "deliverables": [
+                "Landing zone controls with RBAC and policy definitions",
+                "Secret rotation design using Key Vault",
+                "Pipeline quality gates for security, tests, and approvals",
+                "Operational playbook for Sev-2 incident response",
+            ],
+            "validation": [
+                "Policy violations are blocked before deploy",
+                "Secrets never appear in build logs",
+                "Runbook restores service within target recovery objective",
+            ],
+        },
+    },
+    "generative_ai": {
+        "quiz_a_title": "GenAI Architecture Evaluation",
+        "quiz_b_title": "Prompt Injection Response Drill",
+        "stack": "RAG pipeline, vector index, policy filters, LLM observability",
+        "lab": {
+            "name": "RAG Reliability and Safety Lab",
+            "context": "Implement a production RAG assistant with measurable quality and safety.",
+            "deliverables": [
+                "Retrieval evaluation set with precision and recall tracking",
+                "Guardrail policy for prompt injection and data leakage",
+                "Latency/cost dashboard by model and route",
+                "Human-review workflow for low-confidence answers",
+            ],
+            "validation": [
+                "Unsafe prompts are detected and blocked",
+                "Grounded answer rate meets target threshold",
+                "Regression suite catches output quality drift",
+            ],
+        },
+    },
+}
+
+
+PREMIUM_QUIZ_THEME_BY_SUBJECT = {
+    "programming_logic": [
+        "deterministic decision logic",
+        "branch and edge-case coverage",
+        "idempotent behavior under retries",
+        "complexity and maintainability",
+    ],
+    "aws_cloud": [
+        "high availability and fault isolation",
+        "least-privilege IAM design",
+        "observability and incident response",
+        "cost-aware architecture decisions",
+    ],
+    "gcp_cloud": [
+        "managed service selection",
+        "secure project/IAM boundaries",
+        "SLO and reliability operations",
+        "data platform governance",
+    ],
+    "azure_cloud": [
+        "policy-driven governance",
+        "identity and secret management",
+        "network isolation strategy",
+        "DevOps release controls",
+    ],
+    "generative_ai": [
+        "prompt/context reliability",
+        "RAG retrieval quality",
+        "safety and abuse prevention",
+        "quality/cost observability",
+    ],
+}
+
+
+def _build_premium_quiz_questions(subject_code: str, module_title: str, lesson_topic: str) -> list[dict]:
+    if subject_code == "audela_math_finance":
+        return [
+            {
+                "text_i18n": {
+                    "en": (
+                        f"In '{module_title}' for '{lesson_topic}', which statement about discount rates is correct "
+                        "when valuing future cash flows?"
+                    ),
+                    "fr": (
+                        f"Dans '{module_title}' pour '{lesson_topic}', quelle affirmation sur le taux d actualisation "
+                        "est correcte pour valoriser des flux futurs ?"
+                    ),
+                },
+                "explanation_i18n": {
+                    "en": "Higher discount rates reduce present value because future cash flows are discounted more aggressively.",
+                    "fr": "Un taux d actualisation plus eleve reduit la valeur presente car les flux futurs sont davantage actualises.",
+                },
+                "options": [
+                    {"text_i18n": {"en": "A higher discount rate increases present value.", "fr": "Un taux plus eleve augmente la valeur presente."}, "is_correct": False},
+                    {"text_i18n": {"en": "A higher discount rate decreases present value.", "fr": "Un taux plus eleve diminue la valeur presente."}, "is_correct": True},
+                    {"text_i18n": {"en": "Discount rate has no impact on valuation.", "fr": "Le taux n a pas d impact sur la valorisation."}, "is_correct": False},
+                    {"text_i18n": {"en": "Only maturity matters, not discount rate.", "fr": "Seule la maturite compte, pas le taux."}, "is_correct": False},
+                ],
+            },
+            {
+                "text_i18n": {
+                    "en": "A bond has fixed coupons. If yield rises, what is the expected first-order impact on price?",
+                    "fr": "Une obligation a coupons fixes. Si le rendement monte, quel est l impact de premier ordre sur le prix ?",
+                },
+                "explanation_i18n": {
+                    "en": "Bond price and yield move in opposite directions; duration captures this first-order sensitivity.",
+                    "fr": "Le prix obligataire evolue en sens inverse du rendement; la duration capte cette sensibilite de premier ordre.",
+                },
+                "options": [
+                    {"text_i18n": {"en": "Price rises.", "fr": "Le prix augmente."}, "is_correct": False},
+                    {"text_i18n": {"en": "Price is unchanged.", "fr": "Le prix est inchange."}, "is_correct": False},
+                    {"text_i18n": {"en": "Price falls.", "fr": "Le prix baisse."}, "is_correct": True},
+                    {"text_i18n": {"en": "Price becomes random.", "fr": "Le prix devient aleatoire."}, "is_correct": False},
+                ],
+            },
+            {
+                "text_i18n": {
+                    "en": "For a standard annuity, which change increases the periodic payment PMT (all else equal)?",
+                    "fr": "Pour une annuite standard, quel changement augmente PMT (toutes choses egales par ailleurs) ?",
+                },
+                "explanation_i18n": {
+                    "en": "For fixed principal and tenor, higher periodic rate implies a higher payment amount.",
+                    "fr": "A principal et maturite fixes, un taux periodique plus eleve implique un paiement plus eleve.",
+                },
+                "options": [
+                    {"text_i18n": {"en": "Lower rate with same tenor.", "fr": "Taux plus faible a maturite identique."}, "is_correct": False},
+                    {"text_i18n": {"en": "Higher rate with same tenor.", "fr": "Taux plus eleve a maturite identique."}, "is_correct": True},
+                    {"text_i18n": {"en": "Longer tenor at same rate.", "fr": "Maturite plus longue au meme taux."}, "is_correct": False},
+                    {"text_i18n": {"en": "Zero principal.", "fr": "Principal nul."}, "is_correct": False},
+                ],
+            },
+            {
+                "text_i18n": {
+                    "en": "In IFRS9 what-if analysis, why do we run sensitivity tests on PD/LGD/EAD assumptions?",
+                    "fr": "Dans l analyse what-if IFRS9, pourquoi tester la sensibilite des hypotheses PD/LGD/EAD ?",
+                },
+                "explanation_i18n": {
+                    "en": "Sensitivity testing quantifies model risk and governance impact before portfolio decisions.",
+                    "fr": "Les tests de sensibilite quantifient le risque modele et l impact gouvernance avant decision portefeuille.",
+                },
+                "options": [
+                    {"text_i18n": {"en": "To avoid documenting assumptions.", "fr": "Pour eviter de documenter les hypotheses."}, "is_correct": False},
+                    {"text_i18n": {"en": "To quantify impact under alternative macro and risk assumptions.", "fr": "Pour quantifier l impact selon des hypotheses macro et risque alternatives."}, "is_correct": True},
+                    {"text_i18n": {"en": "To replace all baseline scenarios.", "fr": "Pour remplacer tous les scenarios de base."}, "is_correct": False},
+                    {"text_i18n": {"en": "Because accounting standards forbid base cases.", "fr": "Parce que les normes interdisent les cas de base."}, "is_correct": False},
+                ],
+            },
+        ]
+
+    themes = PREMIUM_QUIZ_THEME_BY_SUBJECT.get(subject_code, PREMIUM_QUIZ_THEME_BY_SUBJECT["programming_logic"])
+    q_defs: list[dict] = []
+
+    for idx, theme in enumerate(themes, start=1):
+        q_defs.append(
+            {
+                "text_i18n": {
+                    "en": (
+                        f"In '{module_title}', while working on '{lesson_topic}', which action best improves {theme} "
+                        "without increasing operational risk?"
+                    ),
+                    "fr": (
+                        f"Dans '{module_title}', sur '{lesson_topic}', quelle action ameliore le mieux {theme} "
+                        "sans augmenter le risque operationnel ?"
+                    ),
+                },
+                "explanation_i18n": {
+                    "en": (
+                        "A staged implementation with explicit controls, measurable outcomes, and rollback readiness "
+                        "is the most reliable production pattern."
+                    ),
+                    "fr": (
+                        "Une implementation progressive avec controles explicites, mesures et rollback teste "
+                        "est le pattern le plus fiable en production."
+                    ),
+                },
+                "options": [
+                    {
+                        "text_i18n": {
+                            "en": "Ship a fast workaround first, then design controls in a later sprint.",
+                            "fr": "Livrer un contournement rapide, puis definir les controles plus tard.",
+                        },
+                        "is_correct": False,
+                    },
+                    {
+                        "text_i18n": {
+                            "en": (
+                                "Adopt staged rollout with acceptance gates, telemetry, owner assignment, and "
+                                "validated rollback."
+                            ),
+                            "fr": (
+                                "Adopter un deploiement progressif avec gates d acceptance, telemetrie, ownership "
+                                "et rollback valide."
+                            ),
+                        },
+                        "is_correct": True,
+                    },
+                    {
+                        "text_i18n": {
+                            "en": "Consolidate critical and non-critical paths into one component for simplicity.",
+                            "fr": "Fusionner chemins critiques et non critiques dans un seul composant.",
+                        },
+                        "is_correct": False,
+                    },
+                    {
+                        "text_i18n": {
+                            "en": "Delay observability and runbook authoring until after production launch.",
+                            "fr": "Reporter observabilite et runbook apres la mise en production.",
+                        },
+                        "is_correct": False,
+                    },
+                ],
+            }
+        )
+
+    return q_defs
+
+
+def _build_premium_exercises(
+    subject_code: str,
+    subject_name: str,
+    module_title: str,
+    lesson_topic: str,
+    lesson_code: str,
+) -> list[dict]:
+    """Create two scenario quizzes + one practical lab check with concrete track-specific context."""
+    if subject_code == "audela_math_finance":
+        return [
+            {
+                "code": f"{lesson_code}_quiz_a",
+                "title": "Discounting Decision Drill",
+                "fr_title": "Drill de decision d actualisation",
+                "instruction": "Choose the best valuation decision based on formulas and numerical comparison.",
+                "fr_instruction": "Choisissez la meilleure decision de valorisation a partir des formules et d une comparaison numerique.",
+                "points": 14,
+                "question": (
+                    f"In '{module_title}', a project returns 120,000 in 3 years. At 8% and 12% discount rates, which conclusion is correct for '{lesson_topic}'?"
+                ),
+                "choices": [
+                    "Higher rate gives higher present value, so use 12% to maximize valuation.",
+                    "Present value at 12% is lower than at 8%, so valuation is more conservative at 12%.",
+                    "Discount rate is irrelevant when cash flow amount is fixed.",
+                    "Only maturity matters; rate choice cannot change present value.",
+                ],
+                "answer": 1,
+                "rationale": "Higher discount rates reduce present value and produce more conservative valuation outcomes.",
+                "why_not": [
+                    "Rate and value are inversely related in discounted cash flow math.",
+                    "Ignoring discount rate hides risk and opportunity cost.",
+                    "Maturity and rate both matter in time value calculations.",
+                ],
+                "learning_objective": "Apply time value formulas and compare scenario outcomes numerically.",
+                "subject": subject_name,
+            },
+            {
+                "code": f"{lesson_code}_quiz_b",
+                "title": "Duration and Yield Scenario",
+                "fr_title": "Scenario duration et rendement",
+                "instruction": "Select the most accurate interpretation of yield shocks on bond valuation.",
+                "fr_instruction": "Selectionnez l interpretation la plus juste d un choc de rendement sur la valorisation obligataire.",
+                "points": 16,
+                "question": (
+                    f"A fixed-coupon bond portfolio in '{lesson_topic}' faces a +75 bps shock. Which statement is correct before rebalancing?"
+                ),
+                "choices": [
+                    "Price impact is positive for all fixed-coupon bonds.",
+                    "Price impact is approximately negative and linked to duration.",
+                    "Yield changes do not affect mark-to-market value.",
+                    "Only convexity matters; duration can be ignored.",
+                ],
+                "answer": 1,
+                "rationale": "First-order bond price sensitivity to yield is captured by duration and is negative when yield rises.",
+                "why_not": [
+                    "Yield up typically implies price down for fixed coupons.",
+                    "Mark-to-market is directly rate-sensitive.",
+                    "Convexity refines but does not replace duration for first-order effect.",
+                ],
+                "learning_objective": "Interpret rate shocks with duration-first logic before second-order refinements.",
+                "subject": subject_name,
+            },
+            {
+                "code": f"{lesson_code}_lab",
+                "title": "What-If Finance Lab",
+                "fr_title": "Lab finance what-if",
+                "instruction": "Use graph and formulas to compare baseline vs stress assumptions, then pick the valid governance conclusion.",
+                "fr_instruction": "Utilisez graphe et formules pour comparer scenario de base vs stress, puis choisissez la conclusion de gouvernance valide.",
+                "points": 20,
+                "question": (
+                    f"You completed a what-if analysis for '{lesson_topic}'. Which artifact is mandatory before approving a risk decision?"
+                ),
+                "choices": [
+                    "Single baseline output with no sensitivity traceability.",
+                    "Sensitivity table (+/- shocks), documented assumptions, and decision rationale.",
+                    "One screenshot of the graph without numeric checkpoints.",
+                    "A verbal summary without model parameters.",
+                ],
+                "answer": 1,
+                "rationale": "Risk decisions require reproducible sensitivity evidence and explicit assumption governance.",
+                "why_not": [
+                    "Baseline alone is insufficient for model risk control.",
+                    "Graph visuals need numeric checkpoints to be auditable.",
+                    "Verbal summaries are not reproducible evidence.",
+                ],
+                "learning_objective": "Produce auditable what-if evidence for finance and IFRS9 governance decisions.",
+                "subject": subject_name,
+            },
+        ]
+
+    kit = PREMIUM_TRACK_REALITY_KITS.get(subject_code, PREMIUM_TRACK_REALITY_KITS["programming_logic"])
+    objective = f"Apply {lesson_topic.lower()} decisions under reliability, security, and delivery constraints"
+
+    quiz_a_choices = [
+        f"Ship ad-hoc changes in {kit['stack']} without baselines or rollback criteria",
+        (
+            "Implement staged rollout with measurable SLOs, ownership, automated checks, and a tested rollback path"
+        ),
+        "Merge critical and non-critical workloads into one failure domain to simplify diagrams",
+        "Postpone observability and incident response design until after launch",
+    ]
+    quiz_b_choices = [
+        "Bypass architecture/security review to preserve short-term release velocity",
+        "Translate findings into release gates with explicit controls, test evidence, and sign-off criteria",
+        "Stop all delivery work indefinitely without prioritizing high-risk gaps",
+        "Increase infrastructure size only, leaving decision logic and controls unchanged",
+    ]
+
+    lab_blueprint = kit["lab"]
+    return [
+        {
+            "code": f"{lesson_code}_quiz_a",
+            "title": kit["quiz_a_title"],
+            "fr_title": "Exercice de decision d'architecture",
+            "instruction": (
+                "Analyze the technical scenario and choose the option that remains secure, testable, and operable in production."
+            ),
+            "fr_instruction": (
+                "Analysez le scenario technique et choisissez l'option qui reste securisee, testable et operable en production."
+            ),
+            "points": 14,
+            "question": (
+                f"In '{module_title}', your team is implementing '{lesson_topic}' on {kit['stack']}. "
+                "Which approach is the most production-ready for the next release window?"
+            ),
+            "choices": quiz_a_choices,
+            "answer": 1,
+            "rationale": (
+                "The winning option combines controlled rollout, measurable outcomes, clear ownership, and rollback safety. "
+                "That is the minimum bar for production engineering."
+            ),
+            "why_not": [
+                "Uncontrolled changes create incident risk and weak auditability.",
+                "Single failure domains reduce resilience and increase blast radius.",
+                "Delayed observability hides regressions until user-facing impact.",
+            ],
+            "learning_objective": objective,
+            "subject": subject_name,
+        },
+        {
+            "code": f"{lesson_code}_quiz_b",
+            "title": kit["quiz_b_title"],
+            "fr_title": "Scenario de prevention d'incident",
+            "instruction": "Pick the first remediation step that closes risk quickly while preserving delivery quality.",
+            "fr_instruction": "Choisissez la premiere action de remediation qui reduit le risque sans perdre la qualite de delivery.",
+            "points": 16,
+            "question": (
+                f"A governance review failed your implementation of '{lesson_topic}' in '{module_title}'. "
+                "What should the team do before go-live?"
+            ),
+            "choices": quiz_b_choices,
+            "answer": 1,
+            "rationale": (
+                "Release gates tied to controls and validation evidence turn recommendations into enforceable engineering practice."
+            ),
+            "why_not": [
+                "Skipping controls compounds reliability and compliance risk.",
+                "Unbounded freeze harms value delivery and does not target the highest risks.",
+                "Capacity-only changes do not fix architecture, governance, or safety gaps.",
+            ],
+            "learning_objective": objective,
+            "subject": subject_name,
+        },
+        {
+            "code": f"{lesson_code}_lab",
+            "title": "Hands-on Production Lab",
+            "fr_title": "Laboratoire pratique production",
+            "instruction": (
+                "Execute the lab blueprint and submit your artifacts. Then answer the gating question for release readiness."
+            ),
+            "fr_instruction": (
+                "Executez le blueprint du lab et soumettez vos livrables. Puis repondez a la question de readiness release."
+            ),
+            "points": 20,
+            "question": (
+                f"You completed the lab '{lab_blueprint['name']}' for '{lesson_topic}'. "
+                "Which artifact is mandatory before approving production promotion?"
+            ),
+            "choices": [
+                "A slide deck describing intended architecture only",
+                "A backlog item to add monitoring in a future sprint",
+                "Evidence package with validation results, rollback test output, and ownership runbook",
+                "A cost estimate without reliability or security acceptance criteria",
+            ],
+            "answer": 2,
+            "rationale": (
+                "Production promotion requires verifiable evidence that controls, rollback, and ownership are real and tested."
+            ),
+            "why_not": [
+                "Design intent alone is insufficient without verification evidence.",
+                "Deferred observability leaves a known blind spot at launch.",
+                "Cost-only validation ignores safety and reliability obligations.",
+            ],
+            "learning_objective": f"Deliver a complete production lab for {lesson_topic.lower()}.",
+            "subject": subject_name,
+            "lab_blueprint": {
+                "name": lab_blueprint["name"],
+                "context": lab_blueprint["context"],
+                "deliverables": lab_blueprint["deliverables"],
+                "validation": lab_blueprint["validation"],
+            },
+        },
+    ]
+
+
 def _seed_premium_catalog(force: bool = False) -> dict:
     from ..models.e_learning import (
         ELearningSubject,
         ELearningModule,
         ELearningLesson,
         ELearningExercise,
+        ELearningQuiz,
+        ELearningQuizQuestion,
+        ELearningQuizOption,
     )
 
-    stats = {"subjects": 0, "modules": 0, "lessons": 0, "exercises": 0}
+    stats = {"subjects": 0, "modules": 0, "lessons": 0, "exercises": 0, "quizzes": 0, "questions": 0}
 
     for subject_data in PREMIUM_SUBJECTS:
         name_i18n, description_i18n = _subject_i18n(subject_data)
@@ -2951,7 +3713,7 @@ def _seed_premium_catalog(force: bool = False) -> dict:
             module.order = mod_index
             module.is_active = True
             module.total_lessons = len(module_data["lessons"])
-            module.total_exercises = len(module_data["lessons"]) * 2
+            module.total_exercises = 0
             module.estimated_hours = float(module_data["hours"])
             module.pass_threshold = 80
             module.points_on_completion = 220 + mod_index * 30
@@ -2985,136 +3747,189 @@ def _seed_premium_catalog(force: bool = False) -> dict:
                     "de": lesson_topic,
                 }
                 lesson.description_i18n = {
-                    "en": f"Guided practice on {lesson_topic.lower()}.",
-                    "fr": f"Pratique guidee sur {lesson_topic.lower()}.",
-                    "pt": f"Guided practice on {lesson_topic.lower()}.",
-                    "es": f"Guided practice on {lesson_topic.lower()}.",
-                    "it": f"Guided practice on {lesson_topic.lower()}.",
-                    "de": f"Guided practice on {lesson_topic.lower()}.",
+                    "en": (
+                        f"Production lesson on {lesson_topic.lower()} with concrete scenario, "
+                        "lab deliverables, and measurable acceptance gates."
+                    ),
+                    "fr": (
+                        f"Lecon production sur {lesson_topic.lower()} avec scenario concret, "
+                        "livrables de lab et gates d acceptance mesurables."
+                    ),
+                    "pt": (
+                        f"Production lesson on {lesson_topic.lower()} with concrete scenario, "
+                        "lab deliverables, and measurable acceptance gates."
+                    ),
+                    "es": (
+                        f"Production lesson on {lesson_topic.lower()} with concrete scenario, "
+                        "lab deliverables, and measurable acceptance gates."
+                    ),
+                    "it": (
+                        f"Production lesson on {lesson_topic.lower()} with concrete scenario, "
+                        "lab deliverables, and measurable acceptance gates."
+                    ),
+                    "de": (
+                        f"Production lesson on {lesson_topic.lower()} with concrete scenario, "
+                        "lab deliverables, and measurable acceptance gates."
+                    ),
                 }
-                lesson.content_html_i18n = _lesson_content(lesson_topic, module_data["title"])
+                kit = PREMIUM_TRACK_REALITY_KITS.get(
+                    subject_data["code"],
+                    PREMIUM_TRACK_REALITY_KITS["programming_logic"],
+                )
+                lesson.content_html_i18n = _lesson_content(
+                    subject_data["code"],
+                    lesson_topic,
+                    module_data["title"],
+                    kit["lab"],
+                )
                 lesson.key_concepts_i18n = {
                     "en": [
-                        f"{lesson_topic} fundamentals",
-                        "Design decisions and trade-offs",
-                        "Reliability and security implications",
-                        "Production readiness checklist",
+                        f"{lesson_topic} implementation strategy",
+                        "Real-world failure modes and mitigation",
+                        "Acceptance gates and release controls",
+                        "Operational ownership and rollback readiness",
+                        "Metrics and audit evidence for production",
                     ],
                     "fr": [
-                        f"Fondamentaux: {lesson_topic}",
-                        "Decisions d architecture et compromis",
-                        "Impacts fiabilite et securite",
-                        "Checklist readiness production",
+                        f"Strategie d implementation: {lesson_topic}",
+                        "Modes d echec reels et mitigations",
+                        "Gates d acceptance et controles release",
+                        "Ownership operationnel et rollback",
+                        "Metriques et preuves pour la production",
                     ],
                 }
                 lesson.order = lesson_index
                 lesson.is_active = True
                 db.session.flush()
 
-                ex_defs = [
-                    {
-                        "code": f"{lesson_code}_quiz_a",
-                        "title": "Concept Mastery Quiz",
-                        "fr_title": "Quiz maitrise des concepts",
-                        "instruction": (
-                            "Choose the best answer according to architecture trade-offs, operational constraints, "
-                            "and security requirements."
-                        ),
-                        "fr_instruction": (
-                            "Choisissez la meilleure reponse selon les compromis d architecture, les contraintes "
-                            "operationnelles et les exigences securite."
-                        ),
-                        "points": 12,
-                        "question": f"Which strategy best improves reliability for '{lesson_topic}' without uncontrolled cost growth?",
-                        "choices": [
-                            "Single region deployment with manual failover",
-                            "Automated resilience pattern with observability and guardrails",
-                            "Disable monitoring to reduce overhead",
-                            "Use one oversized resource for all workloads",
-                        ],
-                        "answer": 1,
-                    },
-                    {
-                        "code": f"{lesson_code}_quiz_b",
-                        "title": "Scenario Decision Quiz",
-                        "fr_title": "Quiz decisionnel par scenario",
-                        "instruction": (
-                            "Read the scenario and select the option that maximizes quality, security, and maintainability "
-                            "under realistic delivery constraints."
-                        ),
-                        "fr_instruction": (
-                            "Lisez le scenario et selectionnez l option qui maximise qualite, securite et maintenabilite "
-                            "sous contraintes de delivery reelles."
-                        ),
-                        "points": 14,
-                        "question": f"A team must implement '{lesson_topic}' for a regulated environment. What is the best first step?",
-                        "choices": [
-                            "Skip threat modeling and iterate quickly",
-                            "Define SLOs, controls, and measurable acceptance criteria before rollout",
-                            "Deploy directly to production then document later",
-                            "Use default settings without review",
-                        ],
-                        "answer": 1,
-                    },
-                ]
-
                 if force:
-                    valid_exercise_codes = {e["code"] for e in ex_defs}
-                    stale_exercises = ELearningExercise.query.filter(
-                        ELearningExercise.lesson_id == lesson.id,
-                        ELearningExercise.code.notin_(valid_exercise_codes),
+                    ELearningExercise.query.filter_by(lesson_id=lesson.id).delete(synchronize_session=False)
+
+                # Premium non-SQL/Python subjects rely on quizzes for evaluation.
+                # Keep exercise count at zero so labs remain only in SQL and Python tracks.
+
+                quiz_code = f"{lesson_code}_quiz"
+                quiz = ELearningQuiz.query.filter_by(lesson_id=lesson.id, code=quiz_code).first()
+                if not quiz:
+                    quiz = ELearningQuiz(lesson_id=lesson.id, code=quiz_code)
+                    db.session.add(quiz)
+                stats["quizzes"] += 1
+
+                quiz.title_i18n = {
+                    "en": f"{lesson_topic} - Production Knowledge Check",
+                    "fr": f"{lesson_topic} - Quiz de validation production",
+                    "pt": f"{lesson_topic} - Production Knowledge Check",
+                    "es": f"{lesson_topic} - Production Knowledge Check",
+                    "it": f"{lesson_topic} - Production Knowledge Check",
+                    "de": f"{lesson_topic} - Production Knowledge Check",
+                }
+                quiz.description_i18n = {
+                    "en": (
+                        "Scenario-based quiz on architecture decisions, controls, and operational readiness "
+                        "for this lesson."
+                    ),
+                    "fr": (
+                        "Quiz par scenarios sur decisions d architecture, controles et readiness operationnelle "
+                        "pour cette lecon."
+                    ),
+                    "pt": (
+                        "Scenario-based quiz on architecture decisions, controls, and operational readiness "
+                        "for this lesson."
+                    ),
+                    "es": (
+                        "Scenario-based quiz on architecture decisions, controls, and operational readiness "
+                        "for this lesson."
+                    ),
+                    "it": (
+                        "Scenario-based quiz on architecture decisions, controls, and operational readiness "
+                        "for this lesson."
+                    ),
+                    "de": (
+                        "Scenario-based quiz on architecture decisions, controls, and operational readiness "
+                        "for this lesson."
+                    ),
+                }
+                quiz.time_limit_minutes = 12
+                quiz.pass_threshold = 75
+                quiz.max_attempts = None
+                quiz.shuffle_questions = True
+                quiz.show_correct_answers = True
+                quiz.points_on_pass = 30
+                quiz.order = lesson_index
+                quiz.is_active = True
+                db.session.flush()
+
+                question_defs = _build_premium_quiz_questions(
+                    subject_data["code"],
+                    module_data["title"],
+                    lesson_topic,
+                )
+
+                valid_question_orders = set(range(1, len(question_defs) + 1))
+                if force:
+                    stale_questions = ELearningQuizQuestion.query.filter(
+                        ELearningQuizQuestion.quiz_id == quiz.id,
+                        ELearningQuizQuestion.order.notin_(valid_question_orders),
                     ).all()
-                    for stale in stale_exercises:
-                        db.session.delete(stale)
-                    if stale_exercises:
+                    for q in stale_questions:
+                        db.session.delete(q)
+                    if stale_questions:
                         db.session.flush()
 
-                for exercise_index, ex in enumerate(ex_defs, start=1):
-                    exercise = ELearningExercise.query.filter_by(lesson_id=lesson.id, code=ex["code"]).first()
-                    if not exercise:
-                        exercise = ELearningExercise(lesson_id=lesson.id, code=ex["code"])
-                        db.session.add(exercise)
-                    stats["exercises"] += 1
+                for q_order, q_def in enumerate(question_defs, start=1):
+                    question = ELearningQuizQuestion.query.filter_by(quiz_id=quiz.id, order=q_order).first()
+                    if not question:
+                        question = ELearningQuizQuestion(quiz_id=quiz.id)
+                        db.session.add(question)
+                    stats["questions"] += 1
 
-                    exercise.type = "multiple_choice"
-                    exercise.title_i18n = {
-                        "en": ex["title"],
-                        "fr": ex["fr_title"],
-                        "pt": ex["title"],
-                        "es": ex["title"],
-                        "it": ex["title"],
-                        "de": ex["title"],
+                    question.order = q_order
+                    question.question_type = "multiple_choice"
+                    question.text_i18n = {
+                        "en": q_def["text_i18n"]["en"],
+                        "fr": q_def["text_i18n"]["fr"],
+                        "pt": q_def["text_i18n"]["en"],
+                        "es": q_def["text_i18n"]["en"],
+                        "it": q_def["text_i18n"]["en"],
+                        "de": q_def["text_i18n"]["en"],
                     }
-                    exercise.instruction_i18n = {
-                        "en": ex["instruction"],
-                        "fr": ex["fr_instruction"],
-                        "pt": ex["instruction"],
-                        "es": ex["instruction"],
-                        "it": ex["instruction"],
-                        "de": ex["instruction"],
+                    question.explanation_i18n = {
+                        "en": q_def["explanation_i18n"]["en"],
+                        "fr": q_def["explanation_i18n"]["fr"],
+                        "pt": q_def["explanation_i18n"]["en"],
+                        "es": q_def["explanation_i18n"]["en"],
+                        "it": q_def["explanation_i18n"]["en"],
+                        "de": q_def["explanation_i18n"]["en"],
                     }
-                    exercise.hint_i18n = {
-                        "en": {
-                            "tip": "Prioritize resilient design, observable systems, and governance-safe defaults."
-                        },
-                        "fr": {
-                            "tip": "Priorisez un design resilient, observable et conforme a la gouvernance."
-                        },
-                    }
-                    exercise.points = ex["points"]
-                    exercise.order = exercise_index
-                    exercise.is_active = True
-                    exercise.expected_sql = None
-                    exercise.expected_result_json = {
-                        "question": ex["question"],
-                        "choices": ex["choices"],
-                        "correct_choice_index": ex["answer"],
-                        "rationale": "Best-practice answer balancing reliability, security, cost, and maintainability.",
-                    }
-                    exercise.validation_query = None
-                    exercise.passing_condition = None
-                    exercise.dml_operation = None
+                    question.points = 1
+                    question.allow_partial_credit = False
+                    question.penalty_points = 0
+                    question.is_active = True
                     db.session.flush()
+
+                    for o_order, option_def in enumerate(q_def["options"], start=1):
+                        option = ELearningQuizOption.query.filter_by(question_id=question.id, order=o_order).first()
+                        if not option:
+                            option = ELearningQuizOption(question_id=question.id)
+                            db.session.add(option)
+
+                        option.order = o_order
+                        option.text_i18n = {
+                            "en": option_def["text_i18n"]["en"],
+                            "fr": option_def["text_i18n"]["fr"],
+                            "pt": option_def["text_i18n"]["en"],
+                            "es": option_def["text_i18n"]["en"],
+                            "it": option_def["text_i18n"]["en"],
+                            "de": option_def["text_i18n"]["en"],
+                        }
+                        option.is_correct = bool(option_def["is_correct"])
+                        db.session.flush()
+
+                    if force:
+                        ELearningQuizOption.query.filter(
+                            ELearningQuizOption.question_id == question.id,
+                            ELearningQuizOption.order > len(q_def["options"]),
+                        ).delete(synchronize_session=False)
 
     db.session.commit()
     return stats
@@ -3130,6 +3945,17 @@ EXAM_BLUEPRINT_BY_SUBJECT = {
             "Debugging and correctness",
             "Production-safe decision logic",
             "Edge-case handling",
+        ],
+    },
+    "audela_math_finance": {
+        "track": "Financial Math and Risk Analytics",
+        "domains": [
+            "Time value of money decisions",
+            "Compounding and discounting trade-offs",
+            "Loan and annuity structuring",
+            "Bond sensitivity and yield interpretation",
+            "Portfolio risk decomposition",
+            "IFRS9 what-if and staging governance",
         ],
     },
     "aws_cloud": {
@@ -3179,6 +4005,50 @@ EXAM_BLUEPRINT_BY_SUBJECT = {
 }
 
 
+EXAM_REAL_SCENARIOS = {
+    "programming_logic": [
+        "Refactor nested if/else payment approval flow into a deterministic rules engine",
+        "Choose data structures for high-volume deduplication under strict latency",
+        "Reduce algorithmic complexity in a recommendation scoring pipeline",
+        "Diagnose intermittent bug caused by non-deterministic branch ordering",
+        "Define idempotent command handling for retry-heavy event ingestion",
+        "Handle edge-case inputs that previously caused false approvals",
+    ],
+    "aws_cloud": [
+        "Redesign a single-AZ web stack into multi-AZ architecture with audited failover",
+        "Tighten IAM and role trust boundaries after excessive permissions were found",
+        "Improve p95 latency for API path using ALB + Auto Scaling policy tuning",
+        "Lower monthly spend without violating reliability or security constraints",
+        "Document runbook for incident response and controlled rollback",
+        "Implement backup and disaster recovery targets for critical data services",
+    ],
+    "gcp_cloud": [
+        "Select resilient services for a global API + analytics platform",
+        "Secure IAM boundaries across projects and environments",
+        "Design scalable architecture with managed services and failure isolation",
+        "Choose BigQuery/Dataflow/PubSub topology for streaming analytics",
+        "Define SLOs, error budgets, and escalation paths for operations",
+        "Add governance controls to limit runaway cloud costs",
+    ],
+    "azure_cloud": [
+        "Standardize tenant RBAC and policy inheritance across subscriptions",
+        "Select compute/integration services for mixed synchronous and event workflows",
+        "Design data architecture across Azure SQL, Blob, and Cosmos DB",
+        "Harden network segmentation with private endpoints and NSG strategy",
+        "Raise security posture with Defender, Key Vault, and audit trails",
+        "Implement CI/CD gates with rollback and post-deploy verification",
+    ],
+    "generative_ai": [
+        "Engineer prompts and context windows for deterministic support responses",
+        "Improve RAG retrieval quality under noisy enterprise documents",
+        "Evaluate model quality with offline and online test datasets",
+        "Implement safety filters against prompt injection and data leakage",
+        "Set up observability for hallucination rate and quality regressions",
+        "Balance model routing for cost, latency, and answer quality",
+    ],
+}
+
+
 def _exam_title_i18n(module_title: str, track: str) -> dict:
     en = f"Exam Lab: {track} for {module_title}"
     fr = f"Lab examen: {track} pour {module_title}"
@@ -3212,9 +4082,11 @@ def _exam_content_i18n(track: str, module_title: str) -> dict:
 def _build_exam_question_pack(subject_code: str, module_title: str) -> list[dict]:
     bp = EXAM_BLUEPRINT_BY_SUBJECT[subject_code]
     domains = bp["domains"]
+    scenarios = EXAM_REAL_SCENARIOS.get(subject_code, [])
     questions: list[dict] = []
 
     for idx, domain in enumerate(domains, start=1):
+        scenario = scenarios[idx - 1] if idx - 1 < len(scenarios) else f"Improve {domain.lower()}"
         questions.append(
             {
                 "code": f"q{idx:02d}",
@@ -3230,20 +4102,31 @@ def _build_exam_question_pack(subject_code: str, module_title: str) -> list[dict
                 ),
                 "points": 20,
                 "question": (
-                    f"In module '{module_title}', your team must improve '{domain.lower()}' while preserving delivery speed. "
+                    f"In module '{module_title}', your team must solve this real scenario: {scenario}. "
                     "Which approach is the most production-ready?"
                 ),
                 "choices": [
-                    "Apply a quick fix without observability and governance checks",
-                    "Adopt a phased architecture plan with metrics, rollback, and least-privilege controls",
-                    "Delay all design decisions and optimize only after incidents",
-                    "Consolidate all workloads into one shared high-risk component",
+                    "Implement immediate changes without baseline metrics, threat model, or rollback rehearsal",
+                    "Use staged rollout with acceptance criteria, test evidence, ownership, and least-privilege controls",
+                    "Postpone controls and tune only after recurring incidents appear in production",
+                    "Collapse critical and non-critical workloads into one component to simplify maintenance",
                 ],
                 "answer": 1,
                 "rationale": (
-                    "A phased approach with measurable controls improves reliability and security while limiting delivery risk."
+                    "A staged plan with measurable controls and validated rollback provides safe delivery with audit-ready evidence."
                 ),
+                "why_not": [
+                    "Uncontrolled changes increase long-term incident probability and audit exposure.",
+                    "Postponed controls create unmanaged architecture debt and unstable operations.",
+                    "High-risk consolidation increases blast radius and weakens fault isolation.",
+                ],
                 "domain": domain,
+                "evaluation_checklist": [
+                    "Risk reduction is measurable with service-level indicators.",
+                    "Security controls are explicit and testable.",
+                    "Operational rollback path is documented and rehearsed.",
+                    "Runbooks define ownership and escalation for incident scenarios.",
+                ],
             }
         )
 
@@ -3331,10 +4214,10 @@ def _seed_exam_ready_catalog(force: bool = False) -> dict:
                     "it": q["instruction"],
                     "de": q["instruction"],
                 }
-                exercise.hint_i18n = {
-                    "en": {"tip": "Evaluate options with measurable risk, control coverage, and operational impact."},
-                    "fr": {"tip": "Evaluez les options via risque mesurable, couverture des controles et impact operationnel."},
-                }
+                exercise.hint_i18n = _text_i18n(
+                    "Use a decision matrix: control coverage, failure impact, rollback effort, and implementation speed.",
+                    "Utilisez une matrice de decision: couverture des controles, impact d'echec, effort de rollback et vitesse d'implementation.",
+                )
                 exercise.points = q["points"]
                 exercise.order = order
                 exercise.is_active = True
@@ -3344,8 +4227,10 @@ def _seed_exam_ready_catalog(force: bool = False) -> dict:
                     "choices": q["choices"],
                     "correct_choice_index": q["answer"],
                     "rationale": q["rationale"],
+                    "why_not": q["why_not"],
                     "domain": q["domain"],
                     "track": blueprint["track"],
+                    "evaluation_checklist": q["evaluation_checklist"],
                 }
                 exercise.validation_query = None
                 exercise.passing_condition = None
@@ -3359,6 +4244,76 @@ def _seed_exam_ready_catalog(force: bool = False) -> dict:
 
     db.session.commit()
     return stats
+
+
+def _repair_non_sql_exercises() -> int:
+    """Repair legacy exercises where non-SQL subjects still use SQL exercise types."""
+    from ..models.e_learning import ELearningExercise, ELearningLesson, ELearningModule, ELearningSubject
+
+    repaired = 0
+    broken = (
+        db.session.query(ELearningExercise)
+        .join(ELearningLesson, ELearningExercise.lesson_id == ELearningLesson.id)
+        .join(ELearningModule, ELearningLesson.module_id == ELearningModule.id)
+        .join(ELearningSubject, ELearningModule.subject_id == ELearningSubject.id)
+        .filter(ELearningSubject.code != "sql")
+        .filter(ELearningExercise.type.in_(["sql_query", "sql_dml"]))
+        .all()
+    )
+
+    for exercise in broken:
+        module = exercise.lesson.module if exercise.lesson else None
+        subject_code = (module.subject.code or "") if module and module.subject else ""
+        payload = exercise.expected_result_json or {}
+        has_choice_payload = isinstance(payload, dict) and "correct_choice_index" in payload
+
+        if has_choice_payload:
+            exercise.type = "multiple_choice"
+            exercise.expected_sql = None
+            exercise.validation_query = None
+            exercise.passing_condition = None
+            exercise.dml_operation = None
+        elif "python" in subject_code or subject_code.startswith("django-"):
+            exercise.type = "code_challenge"
+            if not exercise.expected_sql:
+                exercise.expected_sql = "# Write your Python solution here"
+            exercise.validation_query = None
+            exercise.passing_condition = None
+            exercise.dml_operation = None
+        else:
+            exercise.type = "multiple_choice"
+            question = (
+                (exercise.instruction_i18n or {}).get("en")
+                or (exercise.title_i18n or {}).get("en")
+                or "Select the best answer for this lesson objective."
+            )
+            exercise.expected_sql = None
+            exercise.validation_query = None
+            exercise.passing_condition = None
+            exercise.dml_operation = None
+            exercise.expected_result_json = {
+                "question": question,
+                "choices": [
+                    "Apply the lesson objective with explicit checks and measurable outcomes.",
+                    "Skip verification and rely only on assumptions.",
+                    "Ignore constraints and choose the fastest shortcut.",
+                    "Delay feedback and validation until after release.",
+                ],
+                "correct_choice_index": 0,
+                "rationale": "The best answer is the one aligned with the lesson objective and validated decisions.",
+                "why_not": [
+                    "Unverified assumptions increase error risk.",
+                    "Ignoring constraints breaks reliability and quality.",
+                    "Delayed validation creates avoidable regressions.",
+                ],
+            }
+
+        repaired += 1
+
+    if repaired:
+        db.session.commit()
+
+    return repaired
 
 
 def init_e_learning_seed_cli(app: Flask) -> None:
@@ -3381,6 +4336,25 @@ def init_e_learning_seed_cli(app: Flask) -> None:
 
         click.echo("\n🚀 Done! Visit /e-learning/ to browse the content.")
 
+    @app.cli.command("seed-e-learning-sqlite-local")
+    @click.option(
+        "--path",
+        "db_path",
+        default="instance/e_learning_seed_test.sqlite3",
+        show_default=True,
+        help="Output SQLite/DBLite file path (for example: instance/test.seed.dblite)",
+    )
+    @click.option("--force", is_flag=True, default=False, help="Overwrite existing SQLite file")
+    def seed_e_learning_sqlite_local(db_path: str, force: bool):
+        """Create a local SQLite/DBLite database seeded for e-learning testing."""
+        click.echo("🧪 Seeding local SQLite test database...")
+        result = _seed_local_sqlite_file(db_path=db_path, force=force)
+
+        click.echo(f"  ✅ SQLite file: {result['path']}")
+        for table_name, total in result["counts"].items():
+            click.echo(f"  ✅ {table_name}: {total} rows")
+        click.echo("\nDone. You can use this file for local SQL testing and demos.")
+
     @app.cli.command("seed-e-learning-premium")
     @click.option("--force", is_flag=True, default=False, help="Re-seed premium records")
     def seed_e_learning_premium(force: bool):
@@ -3392,6 +4366,10 @@ def init_e_learning_seed_cli(app: Flask) -> None:
         click.echo(f"  ✅ Modules: {stats['modules']} created/updated")
         click.echo(f"  ✅ Lessons: {stats['lessons']} created/updated")
         click.echo(f"  ✅ Exercises: {stats['exercises']} created/updated")
+        click.echo(f"  ✅ Quizzes: {stats['quizzes']} created/updated")
+        click.echo(f"  ✅ Quiz questions: {stats['questions']} created/updated")
+        repaired = _repair_non_sql_exercises()
+        click.echo(f"  ✅ Legacy exercise repairs: {repaired}")
 
         click.echo("\n🚀 Done! Premium tracks are available in /e-learning/.")
 
@@ -3406,8 +4384,18 @@ def init_e_learning_seed_cli(app: Flask) -> None:
         click.echo(f"  ✅ Modules covered: {stats['modules']}")
         click.echo(f"  ✅ Exam lessons created/updated: {stats['lessons']}")
         click.echo(f"  ✅ Certification quizzes created/updated: {stats['exercises']}")
+        repaired = _repair_non_sql_exercises()
+        click.echo(f"  ✅ Legacy exercise repairs: {repaired}")
 
         click.echo("\n🚀 Done! Exam-ready content is available in /e-learning/.")
+
+    @app.cli.command("repair-e-learning-exercises")
+    def repair_e_learning_exercises():
+        """Repair legacy non-SQL exercises incorrectly configured as SQL tasks."""
+        repaired = _repair_non_sql_exercises()
+        click.echo(f"🛠️ Repaired exercises: {repaired}")
+
+        click.echo("\n🚀 Done! Exercise types are now aligned to their subjects.")
 
     @app.cli.command("seed-e-learning-mega-pack")
     @click.option("--force", is_flag=True, default=False, help="Re-seed all records")
@@ -3419,6 +4407,7 @@ def init_e_learning_seed_cli(app: Flask) -> None:
         sql_stats = _seed_sql_subject(force=force)
         premium_stats = _seed_premium_catalog(force=force)
         exam_stats = _seed_exam_ready_catalog(force=force)
+        repaired = _repair_non_sql_exercises()
 
         click.echo("\nBase SQL track:")
         click.echo(f"  ✅ Achievements: {ach_count} created/updated")
@@ -3432,11 +4421,14 @@ def init_e_learning_seed_cli(app: Flask) -> None:
         click.echo(f"  ✅ Modules: {premium_stats['modules']} created/updated")
         click.echo(f"  ✅ Lessons: {premium_stats['lessons']} created/updated")
         click.echo(f"  ✅ Exercises: {premium_stats['exercises']} created/updated")
+        click.echo(f"  ✅ Quizzes: {premium_stats['quizzes']} created/updated")
+        click.echo(f"  ✅ Quiz questions: {premium_stats['questions']} created/updated")
 
         click.echo("\nExam-ready quizzes:")
         click.echo(f"  ✅ Subjects covered: {exam_stats['subjects']}")
         click.echo(f"  ✅ Modules covered: {exam_stats['modules']}")
         click.echo(f"  ✅ Exam lessons created/updated: {exam_stats['lessons']}")
         click.echo(f"  ✅ Certification quizzes created/updated: {exam_stats['exercises']}")
+        click.echo(f"  ✅ Legacy exercise repairs: {repaired}")
 
         click.echo("\n🚀 Mega pack complete! Browse /e-learning/ for full catalog.")

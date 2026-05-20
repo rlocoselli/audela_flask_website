@@ -103,6 +103,43 @@
     margin: .35rem 0;
     color: #1e293b;
   }
+  .track-strip {
+    margin-top: .85rem;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    padding: .8rem;
+  }
+  .track-strip-title {
+    font-size: .78rem;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: #475569;
+    font-weight: 700;
+    margin-bottom: .45rem;
+  }
+  .track-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+  }
+  .track-pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: .28rem .62rem;
+    border: 1px solid #dbe3ec;
+    background: #f8fafc;
+    color: #0f172a;
+    font-size: .82rem;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .track-pill.is-new {
+    background: #ecfdf3;
+    border-color: #86efac;
+    color: #166534;
+  }
   .topic-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -254,6 +291,20 @@
       <pre>pip install -r requirements.txt
 # Includes: torch, tensorflow-cpu</pre>
     </div>
+
+    {% if academy_tracks %}
+    {% set _lang = g.lang or 'en' %}
+    <div class="track-strip">
+      <div class="track-strip-title">Academy tracks</div>
+      <div class="track-pills">
+        {% for track in academy_tracks %}
+        <span class="track-pill {% if track.code == 'audela_math_finance' %}is-new{% endif %}">
+          {{ track.name_i18n.get(_lang, track.name_i18n.get('en', track.code)) }}
+        </span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
   </div>
 
   <div class="topic-grid">

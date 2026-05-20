@@ -952,10 +952,24 @@ def timeline():
 def e_learning():
     lang = normalize_lang(getattr(g, "lang", session.get("lang")))
     copy = ELEARNING_COPY.get(lang, ELEARNING_COPY[DEFAULT_LANG])
+    academy_tracks = []
+    try:
+        from ...models.e_learning import ELearningSubject
+
+        academy_tracks = (
+            ELearningSubject.query.filter_by(is_active=True)
+            .order_by(ELearningSubject.order.asc(), ELearningSubject.id.asc())
+            .limit(12)
+            .all()
+        )
+    except Exception:
+        academy_tracks = []
+
     response = make_response(render_template(
         "e_learning.html",
         t=copy,
         examples=list(ELEARNING_EXAMPLES.values()),
+        academy_tracks=academy_tracks,
     ))
     # Ensure latest content is served after deploy (avoid stale page from browser/proxy caches).
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"

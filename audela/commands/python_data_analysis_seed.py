@@ -693,6 +693,17 @@ def _seed_python_subject(force: bool = False) -> dict:
             lesson.title_i18n = {"en": lesson_title, "fr": lesson_title, "pt": lesson_title,
                                  "es": lesson_title, "it": lesson_title, "de": lesson_title}
             exercise_code_snippet = mod["exercise_code"][les_idx - 1] if les_idx - 1 < len(mod["exercise_code"]) else "# practice"
+            lesson.description_i18n = {
+                "en": (
+                    f"Hands-on lesson for {mod['title']} with real analytics context, concept review, and reproducible code examples."
+                ),
+                "fr": (
+                    f"Lecon pratique pour {mod['title']} avec contexte analytics reel, revue des concepts et exemples reproductibles."
+                ),
+                "pt": (
+                    f"Lição prática para {mod['title']} com contexto real de analytics, revisão de conceitos e exemplos reproduzíveis."
+                ),
+            }
             lesson.content_html_i18n = {
                 "en": _build_lesson_html(
                     mod, lesson_title,
@@ -701,6 +712,22 @@ def _seed_python_subject(force: bool = False) -> dict:
                     mod["mini_project"],
                     exercise_code_snippet,
                 )
+            }
+            lesson.key_concepts_i18n = {
+                "en": [
+                    f"{mod['title']} end-to-end workflow",
+                    "Data quality and preprocessing checks",
+                    "Readable notebooks/scripts with reproducible outputs",
+                    "Validation metrics before business decisions",
+                    "Real-world translation from analysis to action",
+                ],
+                "fr": [
+                    f"Workflow complet: {mod['title']}",
+                    "Controles de qualite et pre-processing",
+                    "Scripts/notebooks lisibles et reproductibles",
+                    "Metriques de validation avant decision metier",
+                    "Passage analyse -> action en contexte reel",
+                ],
             }
             lesson.order = les_idx
             lesson.is_active = True
@@ -749,7 +776,7 @@ def _seed_python_subject(force: bool = False) -> dict:
 
             quiz.title_i18n = {"en": f"{mod['title']} – Knowledge Check"}
             quiz.description_i18n = {
-                "en": "Test your understanding of the key concepts from this lesson."
+                "en": "Scenario-based validation quiz with realistic data-analysis decisions and implementation trade-offs."
             }
             quiz.time_limit_minutes = 10
             quiz.pass_threshold = 70

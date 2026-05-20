@@ -2,28 +2,30 @@
 
 {% block e_learning_content %}
 <div class="container-lg py-4">
-    <div class="d-flex align-items-center gap-3 mb-4">
-        <span class="material-symbols-outlined fs-1 text-primary">quiz</span>
-        <h1 class="h3 mb-0">{{ quiz.title_i18n.get(lang, quiz.title_i18n.get('en','')) }}</h1>
+    <div class="academy-hero mb-4">
+        <div class="d-flex align-items-center gap-3">
+            <span class="material-symbols-outlined fs-1">quiz</span>
+            <h1 class="h3 mb-0">{{ quiz.title_i18n.get(lang, quiz.title_i18n.get('en','')) }}</h1>
+        </div>
     </div>
 
     <form method="POST" id="quizForm">
         {% if quiz.time_limit_minutes %}
-        <div class="alert alert-warning d-flex align-items-center gap-2 mb-4" id="timerBanner">
+        <div class="alert academy-timer-banner d-flex align-items-center gap-2 mb-4" id="timerBanner">
             <span class="material-symbols-outlined">timer</span>
             <span>{{ _('Time limit') }}: <strong id="countdown">{{ quiz.time_limit_minutes }}:00</strong></span>
         </div>
         {% endif %}
 
         {% for q in questions %}
-        <div class="card mb-4 border-0 shadow-sm">
+        <div class="academy-surface mb-4">
             <div class="card-body p-4">
                 <div class="d-flex gap-3 mb-3">
                     <span class="badge bg-primary rounded-pill">{{ loop.index }}</span>
                     <div class="fw-semibold fs-6">{{ q.text_i18n.get(lang, q.text_i18n.get('en','')) }}</div>
                 </div>
                 <div class="small text-muted mb-3">
-                    <span class="material-symbols-outlined" style="font-size:0.9rem;vertical-align:-2px">stars</span>
+                    <span class="material-symbols-outlined academy-icon-inline">stars</span>
                     {{ q.points }} {{ _('Points') }}
                     &bull;
                     {% if q.question_type == 'multiple_choice' %}{{ _('Multiple choice') }}
@@ -53,11 +55,11 @@
         {% endfor %}
 
         <div class="d-flex gap-3 mt-4">
-            <button type="submit" class="btn btn-primary btn-lg d-inline-flex align-items-center gap-2">
+            <button type="submit" class="btn academy-btn-primary btn-lg d-inline-flex align-items-center gap-2">
                 <span class="material-symbols-outlined">send</span>
                 {{ _('Submit Quiz') }}
             </button>
-            <a href="{{ url_for('e_learning.quiz_detail', quiz_id=quiz.id) }}" class="btn btn-outline-secondary btn-lg">
+            <a href="{{ url_for('e_learning.quiz_detail', quiz_id=quiz.id) }}" class="btn academy-btn-outline btn-lg">
                 {{ _('Back to lesson') }}
             </a>
         </div>
@@ -79,7 +81,7 @@
         const m = Math.floor(secs / 60);
         const s = secs % 60;
         el.textContent = m + ':' + String(s).padStart(2, '0');
-        if (secs <= 60) el.style.color = 'red';
+        if (secs <= 60) el.classList.add('text-danger');
     }, 1000);
 })();
 </script>

@@ -6,42 +6,45 @@
     <div class="row mb-5 align-items-center">
         <div class="col-md-8">
             {% set display_name = current_user.username or (current_user.email.split('@')[0] if current_user.email else '') %}
-            <h1 class="display-5 fw-bold">{{ _('Welcome back') }}, {{ display_name }}!</h1>
-            <p class="lead text-muted">{{ _('Continue your learning journey') }}</p>
+            <div class="academy-hero">
+                <span class="academy-chip mb-2">{{ _('Academy Dashboard') }}</span>
+                <h1 class="display-6 fw-bold">{{ _('Welcome back') }}, {{ display_name }}!</h1>
+                <p class="lead mb-0 opacity-75">{{ _('Continue your learning journey') }}</p>
+            </div>
         </div>
     </div>
     
     <!-- Stats Cards -->
     <div class="row mb-5">
         <div class="col-md-3 mb-3">
-            <div class="card border-0 shadow-sm h-100">
+            <div class="academy-surface h-100">
                 <div class="card-body text-center">
-                    <h3 style="color: #667eea; margin: 0;">{{ profile.total_points }}</h3>
+                    <h3 class="academy-stat-teal">{{ profile.total_points }}</h3>
                     <small class="text-muted">{{ _('Total Points') }}</small>
                 </div>
             </div>
         </div>
         <div class="col-md-3 mb-3">
-            <div class="card border-0 shadow-sm h-100">
+            <div class="academy-surface h-100">
                 <div class="card-body text-center">
-                    <h3 style="color: #667eea; margin: 0;">{{ profile.current_level }}</h3>
+                    <h3 class="academy-stat-teal">{{ profile.current_level }}</h3>
                     <small class="text-muted">{{ _('Level') }}</small>
                 </div>
             </div>
         </div>
         <div class="col-md-3 mb-3">
-            <div class="card border-0 shadow-sm h-100">
+            <div class="academy-surface h-100">
                 <div class="card-body text-center">
-                    <h3 style="color: #ff9800; margin: 0;">{{ profile.modules_completed }}</h3>
+                    <h3 class="academy-stat-amber">{{ profile.modules_completed }}</h3>
                     <small class="text-muted">{{ _('Modules Finished') }}</small>
                 </div>
             </div>
         </div>
         <div class="col-md-3 mb-3">
-            <div class="card border-0 shadow-sm h-100">
+            <div class="academy-surface h-100">
                 <div class="card-body text-center">
-                    <h3 style="color: #ff9800; margin: 0;">
-                        <span class="material-symbols-outlined" style="display: inline;">local_fire_department</span>
+                    <h3 class="academy-stat-amber">
+                        <span class="material-symbols-outlined academy-icon-inline">local_fire_department</span>
                         {{ profile.current_streak }}
                     </h3>
                     <small class="text-muted">{{ _('Current Streak') }}</small>
@@ -51,28 +54,28 @@
     </div>
     
     <!-- Tabs for different views -->
-    <ul class="nav nav-tabs mb-4" role="tablist">
+    <ul class="nav nav-tabs mb-4 academy-tabs" role="tablist">
         <li class="nav-item" role="presentation">
             <button class="nav-link active" id="courses-tab" data-bs-toggle="tab" data-bs-target="#courses" type="button" role="tab">
-                <span class="material-symbols-outlined" style="display: inline; margin-right: 8px;">school</span>
+                <span class="material-symbols-outlined academy-icon-inline me-2">school</span>
                 {{ _('My Courses') }} ({{ enrollments|length }})
             </button>
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="exercises-tab" data-bs-toggle="tab" data-bs-target="#exercises" type="button" role="tab">
-                <span class="material-symbols-outlined" style="display: inline; margin-right: 8px;">assignment</span>
+                <span class="material-symbols-outlined academy-icon-inline me-2">assignment</span>
                 {{ _('Exercises Completed') }}
             </button>
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="certificates-tab" data-bs-toggle="tab" data-bs-target="#certificates" type="button" role="tab">
-                <span class="material-symbols-outlined" style="display: inline; margin-right: 8px;">card_giftcard</span>
+                <span class="material-symbols-outlined academy-icon-inline me-2">card_giftcard</span>
                 {{ _('All Certificates') }} ({{ certificates|length }})
             </button>
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="progress-tab" data-bs-toggle="tab" data-bs-target="#progress" type="button" role="tab">
-                <span class="material-symbols-outlined" style="display: inline; margin-right: 8px;">trending_up</span>
+                <span class="material-symbols-outlined academy-icon-inline me-2">trending_up</span>
                 {{ _('Progress Report') }}
             </button>
         </li>
@@ -86,8 +89,8 @@
             <div class="row">
                 {% for enrollment in enrollments %}
                 <div class="col-md-6 col-lg-4 mb-4">
-                    <div class="card border-0 shadow-sm h-100">
-                        <div class="card-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
+                    <div class="academy-surface h-100">
+                        <div class="card-header academy-header-brand">
                             <h5 class="mb-0">{{ enrollment.module.title_i18n.get(current_lang, enrollment.module.title_i18n.get('en', enrollment.module.code)) }}</h5>
                         </div>
                         <div class="card-body">
@@ -95,23 +98,23 @@
                             
                             <div class="mb-3">
                                 <small class="d-block text-muted mb-1">{{ _('Progress') }}: {{ enrollment.progress_percentage }}%</small>
-                                <div class="progress" style="height: 6px;">
-                                    <div class="progress-bar" style="width: {{ enrollment.progress_percentage }}%; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);"></div>
+                                <div class="progress academy-progress-track">
+                                    <div class="progress-bar" style="width: {{ enrollment.progress_percentage }}%; background: linear-gradient(90deg, #0f766e 0%, #115e59 100%);"></div>
                                 </div>
                             </div>
                             
                             <small class="d-block mb-2">
                                 <strong>{{ _('Score') }}: {{ enrollment.overall_score }}%</strong>
-                                <span class="badge" style="background: {% if enrollment.status == 'completed' %}#28a745{% elif enrollment.status == 'in_progress' %}#667eea{% else %}#6c757d{% endif %};">
+                                <span class="badge" style="background: {% if enrollment.status == 'completed' %}#166534{% elif enrollment.status == 'in_progress' %}#0f766e{% else %}#6c757d{% endif %};">
                                     {{ enrollment.status|upper }}
                                 </span>
                             </small>
                             
-                            <a href="{{ url_for('e_learning.module_detail', module_id=enrollment.module_id) }}" class="btn btn-sm btn-primary">
+                            <a href="{{ url_for('e_learning.module_detail', module_id=enrollment.module_id) }}" class="btn btn-sm academy-btn-primary">
                                 {{ _('Continue') }}
                             </a>
                             {% if enrollment.module.subject and enrollment.module.subject.code == 'sql' %}
-                            <a href="{{ url_for('e_learning.module_detail', module_id=enrollment.module_id, show_schema=1) }}" class="btn btn-sm btn-outline-primary ms-1">
+                            <a href="{{ url_for('e_learning.module_detail', module_id=enrollment.module_id, show_schema=1) }}" class="btn btn-sm academy-btn-outline ms-1">
                                 {{ _('View Schema Diagram') }}
                             </a>
                             {% endif %}
@@ -123,7 +126,7 @@
             {% else %}
             <div class="alert alert-info">
                 {{ _('No courses enrolled yet') }}
-                <a href="{{ url_for('e_learning.subjects_list') }}" class="btn btn-sm btn-primary ms-2">{{ _('Explore Subjects') }}</a>
+                <a href="{{ url_for('e_learning.subjects_list') }}" class="btn btn-sm academy-btn-primary ms-2">{{ _('Explore Subjects') }}</a>
             </div>
             {% endif %}
         </div>
@@ -135,15 +138,15 @@
                     <span class="visually-hidden">{{ _('Loading') }}...</span>
                 </div>
             </div>
-            <div id="exercisesContainer" class="table-responsive" style="display: none;">
+            <div id="exercisesContainer" class="table-responsive academy-hidden">
                 <table class="table table-hover">
-                    <thead style="background: #f8f9fa;">
+                    <thead class="academy-table-head">
                         <tr>
                             <th>{{ _('Exercise') }}</th>
                             <th>{{ _('Module') }}</th>
-                            <th style="text-align: center;">{{ _('Attempts') }}</th>
-                            <th style="text-align: center;">{{ _('Best Score') }}</th>
-                            <th style="text-align: center;">{{ _('Status') }}</th>
+                            <th class="academy-center">{{ _('Attempts') }}</th>
+                            <th class="academy-center">{{ _('Best Score') }}</th>
+                            <th class="academy-center">{{ _('Status') }}</th>
                             <th>{{ _('Last Attempt') }}</th>
                         </tr>
                     </thead>
@@ -156,8 +159,8 @@
         <!-- Certificates Tab -->
         <div class="tab-pane fade" id="certificates" role="tabpanel">
             <div class="mb-3">
-                <button class="btn btn-primary" onclick="downloadAllCertificates()">
-                    <span class="material-symbols-outlined" style="display: inline;">download</span>
+                <button class="btn academy-btn-primary" onclick="downloadAllCertificates()">
+                    <span class="material-symbols-outlined academy-icon-inline">download</span>
                     {{ _('Download All Certificates') }}
                 </button>
             </div>
@@ -166,10 +169,10 @@
             <div class="row">
                 {% for cert in certificates %}
                 <div class="col-md-6 col-lg-4 mb-4">
-                    <div class="card border-0 shadow-sm h-100">
-                        <div class="card-header" style="background: linear-gradient(135deg, #ffd89b 0%, #19547b 100%); color: white;">
+                    <div class="academy-surface h-100">
+                        <div class="card-header academy-header-cert">
                             <h6 class="mb-0">
-                                <span class="material-symbols-outlined" style="display: inline;">card_giftcard</span>
+                                <span class="material-symbols-outlined academy-icon-inline">card_giftcard</span>
                                 {{ cert.module.title_i18n.get(current_lang, cert.module.title_i18n.get('en', cert.module.code)) }}
                             </h6>
                         </div>
@@ -179,12 +182,12 @@
                             <small class="text-muted">{{ cert.issued_at.strftime('%d/%m/%Y') }}</small>
                         </div>
                         <div class="card-footer bg-white border-top">
-                            <a href="{{ url_for('e_learning.certificate_view', cert_id=cert.id) }}" class="btn btn-sm btn-outline-primary me-1">
-                                <span class="material-symbols-outlined" style="display: inline;">visibility</span>
+                            <a href="{{ url_for('e_learning.certificate_view', cert_id=cert.id) }}" class="btn btn-sm academy-btn-outline me-1">
+                                <span class="material-symbols-outlined academy-icon-inline">visibility</span>
                                 {{ _('View') }}
                             </a>
-                            <a href="{{ url_for('e_learning.download_certificate_pdf', cert_id=cert.id) }}" class="btn btn-sm btn-outline-secondary">
-                                <span class="material-symbols-outlined" style="display: inline;">download</span>
+                            <a href="{{ url_for('e_learning.download_certificate_pdf', cert_id=cert.id) }}" class="btn btn-sm academy-btn-outline">
+                                <span class="material-symbols-outlined academy-icon-inline">download</span>
                                 PDF
                             </a>
                         </div>
@@ -206,10 +209,10 @@
                     <span class="visually-hidden">{{ _('Loading') }}...</span>
                 </div>
             </div>
-            <div id="progressContainer" style="display: none;">
+            <div id="progressContainer" class="academy-hidden">
                 <div class="row mb-4">
                     <div class="col-md-3 mb-3">
-                        <div class="card border-0 shadow-sm">
+                        <div class="academy-surface">
                             <div class="card-body text-center">
                                 <h4 id="completionRate">0%</h4>
                                 <small class="text-muted">{{ _('Completion Rate') }}</small>
@@ -217,7 +220,7 @@
                         </div>
                     </div>
                     <div class="col-md-3 mb-3">
-                        <div class="card border-0 shadow-sm">
+                        <div class="academy-surface">
                             <div class="card-body text-center">
                                 <h4 id="averageScore">0%</h4>
                                 <small class="text-muted">{{ _('Average Score') }}</small>
@@ -225,7 +228,7 @@
                         </div>
                     </div>
                     <div class="col-md-3 mb-3">
-                        <div class="card border-0 shadow-sm">
+                        <div class="academy-surface">
                             <div class="card-body text-center">
                                 <h4 id="totalModules">0</h4>
                                 <small class="text-muted">{{ _('Total Modules') }}</small>
@@ -233,7 +236,7 @@
                         </div>
                     </div>
                     <div class="col-md-3 mb-3">
-                        <div class="card border-0 shadow-sm">
+                        <div class="academy-surface">
                             <div class="card-body text-center">
                                 <h4 id="totalExercises">0</h4>
                                 <small class="text-muted">{{ _('Total Exercises') }}</small>
@@ -243,13 +246,13 @@
                 </div>
                 
                 <div class="mb-4">
-                    <button class="btn btn-primary" onclick="downloadProgressReport()">
-                        <span class="material-symbols-outlined" style="display: inline;">download</span>
+                    <button class="btn academy-btn-primary" onclick="downloadProgressReport()">
+                        <span class="material-symbols-outlined academy-icon-inline">download</span>
                         {{ _('Download Progress Report') }}
                     </button>
                 </div>
                 
-                <div class="card border-0 shadow-sm">
+                <div class="academy-surface">
                     <div class="card-header bg-white border-bottom">
                         <h5 class="mb-0">{{ _('Modules Overview') }}</h5>
                     </div>
@@ -258,8 +261,8 @@
                             <thead>
                                 <tr>
                                     <th>{{ _('Module') }}</th>
-                                    <th style="text-align: center;">{{ _('Progress') }}</th>
-                                    <th style="text-align: center;">{{ _('Score') }}</th>
+                                    <th class="academy-center">{{ _('Progress') }}</th>
+                                    <th class="academy-center">{{ _('Score') }}</th>
                                     <th>{{ _('Status') }}</th>
                                 </tr>
                             </thead>
@@ -280,8 +283,8 @@
             <div class="row">
                 {% for module in recommended %}
                 <div class="col-md-6 col-lg-4 mb-4">
-                    <div class="card border-0 shadow-sm h-100 hover-card">
-                        <div class="card-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
+                    <div class="academy-surface h-100 hover-card">
+                        <div class="card-header academy-header-brand">
                             <h6 class="mb-0">{{ module.title_i18n.get(current_lang, module.title_i18n.get('en', module.code)) }}</h6>
                         </div>
                         <div class="card-body">
@@ -289,7 +292,7 @@
                             <p class="mt-2 text-muted small">{{ module.description_i18n.get(current_lang, module.description_i18n.get('en', ''))|truncate(60) }}</p>
                         </div>
                         <div class="card-footer bg-white border-top">
-                            <a href="{{ url_for('e_learning.module_detail', module_id=module.id) }}" class="btn btn-sm btn-primary w-100">
+                            <a href="{{ url_for('e_learning.module_detail', module_id=module.id) }}" class="btn btn-sm academy-btn-primary w-100">
                                 {{ _('Start Now') }}
                             </a>
                         </div>
@@ -312,8 +315,18 @@
     }
     
     .hover-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15) !important;
+        transform: translateY(-4px);
+        box-shadow: 0 14px 26px rgba(15, 118, 110, 0.14) !important;
+    }
+    .academy-tabs .nav-link {
+        border-radius: .8rem .8rem 0 0;
+        color: #356166;
+        font-weight: 700;
+    }
+    .academy-tabs .nav-link.active {
+        color: #0f766e;
+        border-color: #dce8e2 #dce8e2 #fff;
+        background: #fff;
     }
 </style>
 
@@ -342,9 +355,9 @@ async function loadExercises() {
                 <td><strong>${exercise.exercise_name.en || exercise.exercise_name}</strong></td>
                 <td>${exercise.module_name.en || exercise.module_name}</td>
                 <td style="text-align: center;"><span class="badge bg-info">${exercise.attempts}</span></td>
-                <td style="text-align: center;"><strong style="color: #667eea;">${exercise.best_score}</strong></td>
+                <td style="text-align: center;"><strong style="color: #0f766e;">${exercise.best_score}</strong></td>
                 <td style="text-align: center;">
-                    <span class="badge" style="background: ${exercise.correct ? '#28a745' : '#dc3545'};">
+                    <span class="badge" style="background: ${exercise.correct ? '#166534' : '#dc3545'};">
                         ${exercise.correct ? 'CORRECT' : 'PENDING'}
                     </span>
                 </td>
@@ -385,11 +398,11 @@ async function loadProgressReport() {
                 <td><strong>${enrollment.module_name.en || enrollment.module_name}</strong></td>
                 <td style="text-align: center;">
                     <div class="progress">
-                        <div class="progress-bar" style="width: ${enrollment.progress}%; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);"></div>
+                        <div class="progress-bar" style="width: ${enrollment.progress}%; background: linear-gradient(90deg, #0f766e 0%, #115e59 100%);"></div>
                     </div>
                 </td>
                 <td style="text-align: center;"><strong>${enrollment.score}%</strong></td>
-                <td><span class="badge" style="background: ${enrollment.status === 'completed' ? '#28a745' : '#667eea'};">${enrollment.status.toUpperCase()}</span></td>
+                <td><span class="badge" style="background: ${enrollment.status === 'completed' ? '#166534' : '#0f766e'};">${enrollment.status.toUpperCase()}</span></td>
             `;
             tbody.appendChild(row);
         });

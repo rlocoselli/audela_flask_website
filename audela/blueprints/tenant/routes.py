@@ -1001,6 +1001,20 @@ def products():
     
     has_e_learning = SubscriptionService.check_feature_access(current_user.tenant_id, "e_learning")
 
+    academy_tracks = []
+    try:
+        from ...models.e_learning import ELearningSubject
+
+        academy_tracks = (
+            ELearningSubject.query.filter_by(is_active=True)
+            .order_by(ELearningSubject.order.asc(), ELearningSubject.id.asc())
+            .limit(12)
+            .all()
+        )
+    except Exception:
+        # Keep product page resilient even if e-learning tables are not available yet.
+        academy_tracks = []
+
     if not has_finance and not has_bi and not has_ml and not has_credit and not has_ifrs9 and not has_project and not has_e_learning:
         flash(tr("No products available. Please upgrade your subscription.", getattr(g, "lang", None)), "warning")
         return redirect(url_for("billing.plans"))
@@ -1017,6 +1031,7 @@ def products():
         has_ifrs9=has_ifrs9,
         has_project=has_project,
         has_e_learning=has_e_learning,
+        academy_tracks=academy_tracks,
         module_access=module_access,
     )
 

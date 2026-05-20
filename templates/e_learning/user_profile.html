@@ -3,16 +3,16 @@
 {% block e_learning_content %}
 <div class="container py-5">
     <!-- Tabs -->
-    <ul class="nav nav-tabs mb-4" role="tablist">
+    <ul class="nav nav-tabs mb-4 academy-tabs" role="tablist">
         <li class="nav-item" role="presentation">
             <button class="nav-link active" id="achievements-tab" data-bs-toggle="tab" data-bs-target="#achievements" type="button" role="tab">
-                <span class="material-symbols-outlined" style="display: inline; margin-right: 8px;">trophy</span>
+                <span class="material-symbols-outlined academy-icon-inline me-2">trophy</span>
                 {{ _('My Achievements') }} ({{ achievements|count }})
             </button>
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="progress-tab" data-bs-toggle="tab" data-bs-target="#progress" type="button" role="tab">
-                <span class="material-symbols-outlined" style="display: inline; margin-right: 8px;">assessment</span>
+                <span class="material-symbols-outlined academy-icon-inline me-2">assessment</span>
                 {{ _('Learning Progress') }}
             </button>
         </li>
@@ -25,26 +25,26 @@
             <!-- Profile Stats -->
             <div class="row mb-4">
                 <div class="col-md-3 mb-3">
-                    <div class="card border-0 shadow-sm text-center">
+                    <div class="academy-surface text-center">
                         <div class="card-body">
-                            <h3 style="color: #667eea; margin: 0;">{{ profile.total_points }}</h3>
+                            <h3 class="academy-stat-teal">{{ profile.total_points }}</h3>
                             <small class="text-muted">{{ _('Total Points') }}</small>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-3 mb-3">
-                    <div class="card border-0 shadow-sm text-center">
+                    <div class="academy-surface text-center">
                         <div class="card-body">
-                            <h3 style="color: #667eea; margin: 0;">{{ profile.current_level }}</h3>
+                            <h3 class="academy-stat-teal">{{ profile.current_level }}</h3>
                             <small class="text-muted">{{ _('Current Level') }}</small>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-3 mb-3">
-                    <div class="card border-0 shadow-sm text-center">
+                    <div class="academy-surface text-center">
                         <div class="card-body">
-                            <h3 style="color: #ff9800; margin: 0;">
-                                <span class="material-symbols-outlined" style="display: inline;">local_fire_department</span>
+                            <h3 class="academy-stat-amber">
+                                <span class="material-symbols-outlined academy-icon-inline">local_fire_department</span>
                                 {{ profile.current_streak }}
                             </h3>
                             <small class="text-muted">{{ _('Current Streak') }}</small>
@@ -52,9 +52,9 @@
                     </div>
                 </div>
                 <div class="col-md-3 mb-3">
-                    <div class="card border-0 shadow-sm text-center">
+                    <div class="academy-surface text-center">
                         <div class="card-body">
-                            <h3 style="color: #ff9800; margin: 0;">{{ profile.longest_streak }}</h3>
+                            <h3 class="academy-stat-amber">{{ profile.longest_streak }}</h3>
                             <small class="text-muted">{{ _('Longest Streak') }}</small>
                         </div>
                     </div>
@@ -66,15 +66,15 @@
             <div class="row">
                 {% for user_ach, achievement in achievements %}
                 <div class="col-md-6 col-lg-4 mb-4">
-                    <div class="card border-0 shadow-sm h-100 text-center">
+                    <div class="academy-surface h-100 text-center">
                         {% if achievement.icon_url %}
-                        <img src="{{ achievement.icon_url }}" alt="{{ achievement.name_i18n.get(current_lang, achievement.code) }}" style="height: 120px; object-fit: cover;" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                        <div style="height: 120px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: none; align-items: center; justify-content: center; color: white;">
-                            <span class="material-symbols-outlined" style="font-size: 64px;">trophy</span>
+                        <img src="{{ achievement.icon_url }}" alt="{{ achievement.name_i18n.get(current_lang, achievement.code) }}" class="academy-achievement-image" onerror="this.classList.add('academy-hidden'); this.nextElementSibling.classList.remove('academy-hidden');">
+                        <div class="academy-achievement-media academy-hidden">
+                            <span class="material-symbols-outlined academy-icon-2xl">trophy</span>
                         </div>
                         {% else %}
-                        <div style="height: 120px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white;">
-                            <span class="material-symbols-outlined" style="font-size: 64px;">trophy</span>
+                        <div class="academy-achievement-media">
+                            <span class="material-symbols-outlined academy-icon-2xl">trophy</span>
                         </div>
                         {% endif %}
                         <div class="card-body">
@@ -90,8 +90,8 @@
                 {% endfor %}
             </div>
             {% else %}
-            <div class="alert alert-info text-center" style="padding: 3rem;">
-                <span class="material-symbols-outlined" style="font-size: 48px; color: #667eea; display: block; margin-bottom: 1rem;">emoji_events</span>
+            <div class="alert alert-info academy-empty-state">
+                <span class="material-symbols-outlined academy-icon-xxl academy-icon-brand">emoji_events</span>
                 <p>{{ _('No achievements yet') }}</p>
                 <p class="text-muted">{{ _('Start learning to earn achievements!') }}</p>
             </div>
@@ -111,21 +111,21 @@
             <div class="row">
                 {% for enrollment in enrollments %}
                 <div class="col-md-6 col-lg-4 mb-4">
-                    <div class="card border-0 shadow-sm h-100">
+                    <div class="academy-surface h-100">
                         <div class="card-body">
                             <h5 class="card-title">{{ enrollment.module.title_i18n.get(current_lang, enrollment.module.title_i18n.get('en', enrollment.module.code)) }}</h5>
                             <p class="text-muted small">{{ enrollment.module.description_i18n.get(current_lang, enrollment.module.description_i18n.get('en', '')) | truncate(60) }}</p>
                             
                             <div class="mb-3">
                                 <small class="d-block text-muted mb-1">{{ _('Progress') }}: {{ enrollment.progress_percentage }}%</small>
-                                <div class="progress" style="height: 6px;">
-                                    <div class="progress-bar" style="width: {{ enrollment.progress_percentage }}%; background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);"></div>
+                                <div class="progress academy-progress-track">
+                                    <div class="progress-bar academy-progress-fill-brand" style="width: {{ enrollment.progress_percentage }}%;"></div>
                                 </div>
                             </div>
                             
                             <small class="text-muted">
-                                <strong>{{ _('Score') }}: {{ enrollment.overall_score }}%</strong> • 
-                                <strong>{{ _('Status') }}: <span class="badge" style="background: {% if enrollment.status == 'completed' %}#28a745{% elif enrollment.status == 'in_progress' %}#667eea{% else %}#6c757d{% endif %};">{{ enrollment.status|upper }}</span></strong>
+                                <strong>{{ _('Score') }}: {{ enrollment.overall_score }}%</strong> •
+                                <strong>{{ _('Status') }}: <span class="badge {% if enrollment.status == 'completed' %}bg-success{% elif enrollment.status == 'in_progress' %}bg-primary{% else %}bg-secondary{% endif %}">{{ enrollment.status|upper }}</span></strong>
                             </small>
                         </div>
                     </div>
@@ -133,9 +133,9 @@
                 {% endfor %}
             </div>
             {% else %}
-            <div class="alert alert-info text-center" style="padding: 3rem;">
+            <div class="alert alert-info academy-empty-state">
                 <p>{{ _('No enrollments yet') }}</p>
-                <a href="{{ url_for('e_learning.subjects_list') }}" class="btn btn-primary">{{ _('Start Learning') }}</a>
+                <a href="{{ url_for('e_learning.subjects_list') }}" class="btn academy-btn-primary">{{ _('Start Learning') }}</a>
             </div>
             {% endif %}
         </div>
@@ -149,6 +149,16 @@
             'wght' 400,
             'GRAD' 0,
             'opsz' 24;
+    }
+    .academy-tabs .nav-link {
+        border-radius: .8rem .8rem 0 0;
+        color: #356166;
+        font-weight: 700;
+    }
+    .academy-tabs .nav-link.active {
+        color: #0f766e;
+        border-color: #dce8e2 #dce8e2 #fff;
+        background: #fff;
     }
 </style>
 {% endblock %}
