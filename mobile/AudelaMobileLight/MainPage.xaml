@@ -29,19 +29,27 @@
                         <GradientStop Color="#0A84FF" Offset="1.0" />
                     </LinearGradientBrush>
                 </Border.Background>
-                <VerticalStackLayout Spacing="6">
-                    <Label Text="AUDELA"
-                           FontSize="13"
-                           TextColor="#A7D1FF"
-                           TextTransform="Uppercase" />
-                    <Label Text="Mobile Light"
-                           FontAttributes="Bold"
-                           FontSize="30"
-                           TextColor="White" />
-                    <Label Text="Tous les produits, experience simplifiee."
-                           FontSize="14"
-                           TextColor="#D7EAFF" />
-                </VerticalStackLayout>
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <VerticalStackLayout Grid.Column="0" Spacing="6">
+                        <Label Text="AUDELA"
+                               FontSize="13"
+                               TextColor="#A7D1FF"
+                               TextTransform="Uppercase" />
+                        <Label Text="Mobile Light"
+                               FontAttributes="Bold"
+                               FontSize="30"
+                               TextColor="White" />
+                        <Label Text="Tous les produits, experience simplifiee."
+                               FontSize="14"
+                               TextColor="#D7EAFF" />
+                    </VerticalStackLayout>
+
+                    <Image Grid.Column="1"
+                           Source="audela_logo.png"
+                           HeightRequest="68"
+                           VerticalOptions="Start"
+                           Aspect="AspectFit" />
+                </Grid>
             </Border>
         </VerticalStackLayout>
 

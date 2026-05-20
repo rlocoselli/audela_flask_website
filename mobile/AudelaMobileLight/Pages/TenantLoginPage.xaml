@@ -1,38 +1,92 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:AudelaMobileLight.Pages"
              x:Class="AudelaMobileLight.Pages.TenantLoginPage"
-             Title="Login Tenant">
+             x:DataType="local:TenantLoginPage"
+             Title="Connexion">
 
-    <ScrollView>
-        <VerticalStackLayout Padding="20,16,20,24" Spacing="12">
-            <Label Text="Connexion Tenant"
-                   FontSize="28"
-                   FontAttributes="Bold" />
-            <Label Text="Connectez-vous comme sur le web (tenant + email + mot de passe)."
-                   FontSize="14"
-                   TextColor="#47637D" />
+    <Grid>
+        <Grid.Background>
+            <LinearGradientBrush EndPoint="1,1">
+                <GradientStop Color="#081524" Offset="0" />
+                <GradientStop Color="#10304D" Offset="0.45" />
+                <GradientStop Color="#122A40" Offset="1" />
+            </LinearGradientBrush>
+        </Grid.Background>
 
-            <Entry x:Name="TenantSlugEntry"
-                   Placeholder="Tenant slug (ex: demo-tenant)"
-                   Text="" />
+        <ScrollView>
+            <VerticalStackLayout Padding="20,20,20,24" Spacing="14">
+                <Border Padding="14,10"
+                        BackgroundColor="#F4FAFF"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 20"
+                        HorizontalOptions="Center">
+                    <Image Source="audela_logo.png"
+                           HeightRequest="90"
+                           Aspect="AspectFit"
+                           HorizontalOptions="Center" />
+                </Border>
 
-            <Entry x:Name="EmailEntry"
-                   Placeholder="Email"
-                   Keyboard="Email" />
+                <Label Text="Espace Tenant Premium"
+                       FontSize="30"
+                       FontAttributes="Bold"
+                       HorizontalTextAlignment="Center"
+                       TextColor="White" />
+                <Label Text="Connectez-vous a votre organisation AUDELA"
+                       FontSize="14"
+                       HorizontalTextAlignment="Center"
+                       TextColor="#B9D5EF" />
 
-            <Entry x:Name="PasswordEntry"
-                   Placeholder="Password"
-                   IsPassword="True" />
+                <Border Padding="16"
+                        StrokeThickness="0"
+                        BackgroundColor="#F4FAFF"
+                        StrokeShape="RoundRectangle 22">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="Tenant slug (optionnel)"
+                               FontSize="12"
+                               TextColor="#335977" />
+                        <Entry x:Name="TenantSlugEntry"
+                               Placeholder="laissez vide pour login web-like"
+                               IsEnabled="{Binding IsNotSubmitting}" />
 
-            <Button Text="Se connecter"
-                    Clicked="OnLoginClicked" />
+                        <Label Text="Email"
+                               FontSize="12"
+                               TextColor="#335977" />
+                        <Entry x:Name="EmailEntry"
+                               Placeholder="you@company.com"
+                               Keyboard="Email"
+                               IsEnabled="{Binding IsNotSubmitting}" />
 
-            <Button Text="Creer un compte"
-                    BackgroundColor="#E8F2FF"
-                    TextColor="#0A5FB8"
-                    Clicked="OnRegisterClicked" />
-        </VerticalStackLayout>
-    </ScrollView>
+                        <Label Text="Mot de passe"
+                               FontSize="12"
+                               TextColor="#335977" />
+                        <Entry x:Name="PasswordEntry"
+                               Placeholder="Votre mot de passe"
+                               IsPassword="True"
+                               IsEnabled="{Binding IsNotSubmitting}" />
+
+                        <Button Text="Se connecter"
+                                IsEnabled="{Binding IsNotSubmitting}"
+                                Clicked="OnLoginClicked" />
+                        <Button Text="Creer un compte"
+                                BackgroundColor="#E6F0FC"
+                                TextColor="#0D4E8E"
+                                IsEnabled="{Binding IsNotSubmitting}"
+                                Clicked="OnRegisterClicked" />
+
+                     <Button Text="Continuer avec Google"
+                            BackgroundColor="White"
+                            TextColor="#1A2D3F"
+                            IsEnabled="{Binding IsNotSubmitting}"
+                            Clicked="OnGoogleLoginClicked" />
+
+                        <ActivityIndicator IsVisible="{Binding IsSubmitting}"
+                                           IsRunning="{Binding IsSubmitting}" />
+                    </VerticalStackLayout>
+                </Border>
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
 
 </ContentPage>

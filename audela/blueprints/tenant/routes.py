@@ -21,7 +21,7 @@ from werkzeug.utils import secure_filename
 import os
 import uuid
 
-from ...extensions import db
+from ...extensions import db, csrf
 from ...models import Tenant, User, Role
 from ...models.subscription import TenantSubscription
 from ...models.bi import AuditEvent
@@ -528,6 +528,7 @@ def _handle_signup():
 
 
 @bp.route("/api/mobile/login", methods=["POST"])
+@csrf.exempt
 def mobile_login():
     """JSON login endpoint used by the MAUI mobile client."""
     data = request.get_json(silent=True) or {}
@@ -568,6 +569,7 @@ def mobile_login():
 
 
 @bp.route("/api/mobile/register", methods=["POST"])
+@csrf.exempt
 def mobile_register():
     """JSON registration endpoint used by the MAUI mobile client."""
     data = request.get_json(silent=True) or {}

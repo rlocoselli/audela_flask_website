@@ -13,9 +13,22 @@ public sealed class TenantAuthService
 
     private readonly string[] _baseUrls =
     [
+        "https://audeladedonnees.fr",
         "http://10.0.2.2:5000",
         "http://127.0.0.1:5000",
-        "https://audeladedonnees.fr",
+        "http://localhost:5000",
+    ];
+
+    private readonly string[] _mobileLoginPaths =
+    [
+        "/tenant/api/mobile/login",
+        "/api/mobile/login",
+    ];
+
+    private readonly string[] _mobileRegisterPaths =
+    [
+        "/tenant/api/mobile/register",
+        "/api/mobile/register",
     ];
 
     public async Task<(bool Ok, string Message, TenantSession? Session)> LoginAsync(string tenantSlug, string email, string password)
@@ -27,35 +40,43 @@ public sealed class TenantAuthService
             password,
         };
 
+        string lastMessage = "Service indisponible. Verifiez la connexion a audeladedonnees.fr.";
+
         foreach (var baseUrl in _baseUrls)
         {
-            try
+            foreach (var path in _mobileLoginPaths)
             {
-                var response = await _httpClient.PostAsJsonAsync($"{baseUrl}/tenant/api/mobile/login", payload);
-                var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
-                if (response.IsSuccessStatusCode && result?.Ok == true && result.Tenant is not null && result.User is not null)
+                try
                 {
-                    var fullName = ($"{result.User.FirstName} {result.User.LastName}").Trim();
-                    return (true, result.Message, new TenantSession
+                    var response = await _httpClient.PostAsJsonAsync($"{baseUrl}{path}", payload);
+                    var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
+                    if (response.IsSuccessStatusCode && result?.Ok == true && result.Tenant is not null && result.User is not null)
                     {
-                        TenantId = result.Tenant.Id,
-                        TenantName = result.Tenant.Name,
-                        TenantSlug = result.Tenant.Slug,
-                        UserId = result.User.Id,
-                        UserEmail = result.User.Email,
-                        FullName = fullName,
-                    });
-                }
+                        var fullName = ($"{result.User.FirstName} {result.User.LastName}").Trim();
+                        return (true, result.Message, new TenantSession
+                        {
+                            TenantId = result.Tenant.Id,
+                            TenantName = result.Tenant.Name,
+                            TenantSlug = result.Tenant.Slug,
+                            UserId = result.User.Id,
+                            UserEmail = result.User.Email,
+                            FullName = fullName,
+                        });
+                    }
 
-                return (false, result?.Message ?? "Login failed.", null);
-            }
-            catch
-            {
-                // Try next base URL.
+                    if (result is not null && !string.IsNullOrWhiteSpace(result.Message))
+                    {
+                        lastMessage = result.Message;
+                    }
+                }
+                catch
+                {
+                    // Try next API path/base URL.
+                }
             }
         }
 
-        return (false, "Server unavailable. Check API URL or backend status.", null);
+        return (false, lastMessage, null);
     }
 
     public async Task<(bool Ok, string Message)> RegisterAsync(string tenantName, string email, string password, string passwordConfirm)
@@ -68,26 +89,34 @@ public sealed class TenantAuthService
             passwordConfirm,
         };
 
+        string lastMessage = "Service indisponible. Verifiez la connexion a audeladedonnees.fr.";
+
         foreach (var baseUrl in _baseUrls)
         {
-            try
+            foreach (var path in _mobileRegisterPaths)
             {
-                var response = await _httpClient.PostAsJsonAsync($"{baseUrl}/tenant/api/mobile/register", payload);
-                var result = await response.Content.ReadFromJsonAsync<BaseResponse>();
-                if (response.IsSuccessStatusCode && result?.Ok == true)
+                try
                 {
-                    return (true, result.Message);
-                }
+                    var response = await _httpClient.PostAsJsonAsync($"{baseUrl}{path}", payload);
+                    var result = await response.Content.ReadFromJsonAsync<BaseResponse>();
+                    if (response.IsSuccessStatusCode && result?.Ok == true)
+                    {
+                        return (true, result.Message);
+                    }
 
-                return (false, result?.Message ?? "Registration failed.");
-            }
-            catch
-            {
-                // Try next base URL.
+                    if (result is not null && !string.IsNullOrWhiteSpace(result.Message))
+                    {
+                        lastMessage = result.Message;
+                    }
+                }
+                catch
+                {
+                    // Try next API path/base URL.
+                }
             }
         }
 
-        return (false, "Server unavailable. Check API URL or backend status.");
+        return (false, lastMessage);
     }
 
     private class BaseResponse

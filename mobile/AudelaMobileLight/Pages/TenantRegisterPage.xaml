@@ -1,36 +1,76 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:AudelaMobileLight.Pages"
              x:Class="AudelaMobileLight.Pages.TenantRegisterPage"
-             Title="Register Tenant">
+             x:DataType="local:TenantRegisterPage"
+             Title="Inscription">
 
-    <ScrollView>
-        <VerticalStackLayout Padding="20,16,20,24" Spacing="12">
-            <Label Text="Inscription Tenant"
-                   FontSize="28"
-                   FontAttributes="Bold" />
-            <Label Text="Creation de compte comme la page web tenant."
-                   FontSize="14"
-                   TextColor="#47637D" />
+    <Grid>
+        <Grid.Background>
+            <LinearGradientBrush EndPoint="1,1">
+                <GradientStop Color="#081524" Offset="0" />
+                <GradientStop Color="#123455" Offset="1" />
+            </LinearGradientBrush>
+        </Grid.Background>
 
-            <Entry x:Name="TenantNameEntry"
-                   Placeholder="Nom organisation" />
+        <ScrollView>
+            <VerticalStackLayout Padding="20,20,20,24" Spacing="14">
+                  <Border Padding="14,10"
+                       BackgroundColor="#F4FAFF"
+                       StrokeThickness="0"
+                       StrokeShape="RoundRectangle 20"
+                       HorizontalOptions="Center">
+                      <Image Source="audela_logo.png"
+                          HeightRequest="90"
+                          Aspect="AspectFit"
+                          HorizontalOptions="Center" />
+                  </Border>
 
-            <Entry x:Name="EmailEntry"
-                   Placeholder="Email"
-                   Keyboard="Email" />
+                <Label Text="Creation de compte"
+                       FontSize="28"
+                       FontAttributes="Bold"
+                       HorizontalTextAlignment="Center"
+                       TextColor="White" />
+                <Label Text="Experience premium AUDELA, rapide et securisee"
+                       FontSize="14"
+                       HorizontalTextAlignment="Center"
+                       TextColor="#BBD8F2" />
 
-            <Entry x:Name="PasswordEntry"
-                   Placeholder="Password"
-                   IsPassword="True" />
+                <Border Padding="16"
+                        StrokeThickness="0"
+                        BackgroundColor="#F4FAFF"
+                        StrokeShape="RoundRectangle 22">
+                    <VerticalStackLayout Spacing="10">
+                        <Entry x:Name="TenantNameEntry"
+                               Placeholder="Nom organisation"
+                               IsEnabled="{Binding IsNotSubmitting}" />
 
-            <Entry x:Name="PasswordConfirmEntry"
-                   Placeholder="Confirm password"
-                   IsPassword="True" />
+                        <Entry x:Name="EmailEntry"
+                               Placeholder="Email"
+                               Keyboard="Email"
+                               IsEnabled="{Binding IsNotSubmitting}" />
 
-            <Button Text="Creer mon tenant"
-                    Clicked="OnRegisterClicked" />
-        </VerticalStackLayout>
-    </ScrollView>
+                        <Entry x:Name="PasswordEntry"
+                               Placeholder="Mot de passe"
+                               IsPassword="True"
+                               IsEnabled="{Binding IsNotSubmitting}" />
+
+                        <Entry x:Name="PasswordConfirmEntry"
+                               Placeholder="Confirmez le mot de passe"
+                               IsPassword="True"
+                               IsEnabled="{Binding IsNotSubmitting}" />
+
+                        <Button Text="Creer mon tenant"
+                                IsEnabled="{Binding IsNotSubmitting}"
+                                Clicked="OnRegisterClicked" />
+
+                        <ActivityIndicator IsVisible="{Binding IsSubmitting}"
+                                           IsRunning="{Binding IsSubmitting}" />
+                    </VerticalStackLayout>
+                </Border>
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
 
 </ContentPage>

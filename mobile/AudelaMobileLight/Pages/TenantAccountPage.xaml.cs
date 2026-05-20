@@ -15,6 +15,12 @@ public partial class TenantAccountPage : ContentPage
         BindingContext = this;
     }
 
+    protected override void OnAppearing()
+    {
+        base.OnAppearing();
+        RefreshState();
+    }
+
     private void RefreshState()
     {
         TenantSessionStore.LoadFromDevice();
@@ -24,12 +30,21 @@ public partial class TenantAccountPage : ContentPage
             TenantNameLabel = "Non connecte";
             TenantSlugLabel = "";
             UserLabel = "";
+            NotifyLabelsChanged();
             return;
         }
 
         TenantNameLabel = session.TenantName;
         TenantSlugLabel = $"slug: {session.TenantSlug}";
         UserLabel = $"user: {session.FullName} ({session.UserEmail})";
+        NotifyLabelsChanged();
+    }
+
+    private void NotifyLabelsChanged()
+    {
+        OnPropertyChanged(nameof(TenantNameLabel));
+        OnPropertyChanged(nameof(TenantSlugLabel));
+        OnPropertyChanged(nameof(UserLabel));
     }
 
     private async void OnOpenTenantDashboardClicked(object? sender, EventArgs e)
