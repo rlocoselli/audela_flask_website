@@ -3749,27 +3749,27 @@ def _seed_premium_catalog(force: bool = False) -> dict:
                 lesson.description_i18n = {
                     "en": (
                         f"Production lesson on {lesson_topic.lower()} with concrete scenario, "
-                        "lab deliverables, and measurable acceptance gates."
+                        "implementation deliverables, and measurable acceptance gates."
                     ),
                     "fr": (
                         f"Lecon production sur {lesson_topic.lower()} avec scenario concret, "
-                        "livrables de lab et gates d acceptance mesurables."
+                        "livrables d implementation et gates d acceptance mesurables."
                     ),
                     "pt": (
                         f"Production lesson on {lesson_topic.lower()} with concrete scenario, "
-                        "lab deliverables, and measurable acceptance gates."
+                        "implementation deliverables, and measurable acceptance gates."
                     ),
                     "es": (
                         f"Production lesson on {lesson_topic.lower()} with concrete scenario, "
-                        "lab deliverables, and measurable acceptance gates."
+                        "implementation deliverables, and measurable acceptance gates."
                     ),
                     "it": (
                         f"Production lesson on {lesson_topic.lower()} with concrete scenario, "
-                        "lab deliverables, and measurable acceptance gates."
+                        "implementation deliverables, and measurable acceptance gates."
                     ),
                     "de": (
                         f"Production lesson on {lesson_topic.lower()} with concrete scenario, "
-                        "lab deliverables, and measurable acceptance gates."
+                        "implementation deliverables, and measurable acceptance gates."
                     ),
                 }
                 kit = PREMIUM_TRACK_REALITY_KITS.get(
