@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:AudelaMobileLight.Pages"
+             x:Class="AudelaMobileLight.Pages.ConfigurationPage"
+             x:DataType="local:ConfigurationPage"
+             Title="Configuration">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="16" Spacing="12">
+            <Label Text="Configuration (web)"
+                   FontSize="24"
+                   FontAttributes="Bold" />
+            <Label Text="La configuration avancee reste sur le portail web."
+                   TextColor="#44617D" />
+
+            <Button Text="Ouvrir login tenant web"
+                    Clicked="OnOpenTenantLoginClicked" />
+            <Button Text="Ouvrir portail web"
+                    Clicked="OnOpenPortalClicked" />
+            <Button Text="Mon compte tenant"
+                    Clicked="OnOpenTenantAccountClicked" />
+
+            <Border StrokeThickness="0" BackgroundColor="#F4F8FE" Padding="12" StrokeShape="RoundRectangle 12">
+                <Label Text="Visualisation quotidienne: native (Dashboards, Kanban, Learning, Finance)." />
+            </Border>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

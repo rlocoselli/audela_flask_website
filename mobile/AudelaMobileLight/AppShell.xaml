@@ -4,12 +4,46 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:local="clr-namespace:AudelaMobileLight"
+    xmlns:pages="clr-namespace:AudelaMobileLight.Pages"
     Title="AUDELA Mobile Light"
     Shell.NavBarHasShadow="False">
 
-    <ShellContent
-        Title="Produits"
-        ContentTemplate="{DataTemplate local:MainPage}"
-        Route="MainPage" />
+    <TabBar>
+        <ShellContent
+            Title="Produits"
+            Icon="tab_products.svg"
+            ContentTemplate="{DataTemplate local:MainPage}"
+            Route="MainPage" />
+
+        <ShellContent
+            Title="Dashboards"
+            Icon="tab_dashboard.svg"
+            ContentTemplate="{DataTemplate pages:DashboardPage}"
+            Route="DashboardPage" />
+
+        <ShellContent
+            Title="Kanban"
+            Icon="tab_kanban.svg"
+            ContentTemplate="{DataTemplate pages:KanbanPage}"
+            Route="KanbanPage" />
+
+        <ShellContent
+            Title="Learning"
+            Icon="tab_learning.svg"
+            ContentTemplate="{DataTemplate pages:LearningPage}"
+            Route="LearningPage" />
+
+        <ShellContent
+            Title="Finance"
+            Icon="tab_finance.svg"
+            ContentTemplate="{DataTemplate pages:FinanceEntriesPage}"
+            Route="FinanceEntriesPage" />
+
+        <ShellContent
+            Title="Config"
+            Icon="tab_config.svg"
+            ContentTemplate="{DataTemplate pages:ConfigurationPage}"
+            Route="ConfigurationPage" />
+    </TabBar>
 
 </Shell>

@@ -3,6 +3,7 @@ import hashlib
 import re
 from contextlib import redirect_stdout
 from datetime import date, datetime
+from decimal import Decimal
 from io import StringIO
 import traceback
 from uuid import uuid4
@@ -13,8 +14,11 @@ from flask_login import current_user
 
 from ...extensions import db
 from ...models import Prospect
+from ...models import User
 from ...models import Tenant
 from ...models import PublicPageVisit
+from ...models import Dashboard, QueryRun, FinanceTransaction, FinanceAccount, ProjectWorkspace
+from ...models import UserELearningEnrollment, ELearningModule
 from ...services.subscription_service import SubscriptionService
 from ...services.email_service import EmailService
 from ...product_catalog import get_product_catalog, get_product_entry
@@ -1364,6 +1368,189 @@ def mobile_products_catalog():
 
     payload.sort(key=lambda item: item["title"].lower())
     return jsonify({"products": payload, "count": len(payload)})
+
+
+def _mobile_resolve_tenant_from_query() -> Tenant | None:
+    tenant_slug = str(request.args.get("tenant") or "").strip().lower()
+    if not tenant_slug:
+        return None
+    return Tenant.query.filter_by(slug=tenant_slug).first()
+
+
+def _to_float(value) -> float:
+    if value is None:
+        return 0.0
+    if isinstance(value, Decimal):
+        return float(value)
+    try:
+        return float(value)
+    except Exception:
+        return 0.0
+
+
+@bp.route("/api/mobile/dashboard")
+def mobile_dashboard_data():
+    """Return lightweight real dashboard metrics for native mobile cards."""
+    tenant = _mobile_resolve_tenant_from_query()
+    tenant_id = int(tenant.id) if tenant else None
+
+    dashboard_count = 0
+    run_count = 0
+    finance_entries_count = 0
+    finance_balance = 0.0
+    learning_modules_count = 0
+    learning_progress_avg = 0
+    kanban_counts = {"backlog": 0, "todo": 0, "doing": 0, "done": 0}
+
+    try:
+        query = Dashboard.query
+        if tenant_id:
+            query = query.filter(Dashboard.tenant_id == tenant_id)
+        dashboard_count = int(query.count())
+    except Exception:
+        dashboard_count = 0
+
+    try:
+        query = QueryRun.query
+        if tenant_id:
+            query = query.filter(QueryRun.tenant_id == tenant_id)
+        run_count = int(query.count())
+    except Exception:
+        run_count = 0
+
+    try:
+        tx_query = FinanceTransaction.query
+        if tenant_id:
+            tx_query = tx_query.filter(FinanceTransaction.tenant_id == tenant_id)
+        finance_entries_count = int(tx_query.count())
+        finance_balance = sum(_to_float(t.amount) for t in tx_query.order_by(FinanceTransaction.id.desc()).limit(300).all())
+    except Exception:
+        finance_entries_count = 0
+        finance_balance = 0.0
+
+    try:
+        enroll_query = UserELearningEnrollment.query
+        if tenant_id:
+            enroll_query = enroll_query.join(User, UserELearningEnrollment.user_id == User.id).filter(User.tenant_id == tenant_id)
+        enrollments = enroll_query.all()
+        learning_modules_count = len(enrollments)
+        if enrollments:
+            learning_progress_avg = int(sum(int(e.progress_percentage or 0) for e in enrollments) / len(enrollments))
+    except Exception:
+        learning_modules_count = 0
+        learning_progress_avg = 0
+
+    try:
+        if tenant_id:
+            ws = ProjectWorkspace.query.filter_by(tenant_id=tenant_id).first()
+            state = ws.state_json if ws and isinstance(ws.state_json, dict) else {}
+            cards = state.get("cards") if isinstance(state.get("cards"), list) else []
+            for card in cards:
+                if not isinstance(card, dict):
+                    continue
+                col = str(card.get("col") or "").strip().lower()
+                if col in kanban_counts:
+                    kanban_counts[col] += 1
+    except Exception:
+        pass
+
+    return jsonify(
+        {
+            "tenant": str(tenant.slug) if tenant else "",
+            "dashboardCount": dashboard_count,
+            "queryRunCount": run_count,
+            "financeEntriesCount": finance_entries_count,
+            "financeNetAmount": round(finance_balance, 2),
+            "learningModulesCount": learning_modules_count,
+            "learningProgressAvg": learning_progress_avg,
+            "kanban": kanban_counts,
+        }
+    )
+
+
+@bp.route("/api/mobile/kanban")
+def mobile_kanban_data():
+    tenant = _mobile_resolve_tenant_from_query()
+    if not tenant:
+        return jsonify({"columns": [], "count": 0})
+
+    ws = ProjectWorkspace.query.filter_by(tenant_id=tenant.id).first()
+    state = ws.state_json if ws and isinstance(ws.state_json, dict) else {}
+    cards_raw = state.get("cards")
+    cards: list[dict] = [c for c in cards_raw if isinstance(c, dict)] if isinstance(cards_raw, list) else []
+
+    buckets: dict[str, list[dict]] = {"backlog": [], "todo": [], "doing": [], "done": []}
+    for card in cards:
+        col = str(card.get("col") or "todo").strip().lower()
+        if col not in buckets:
+            col = "todo"
+        buckets[col].append(
+            {
+                "id": str(card.get("id") or ""),
+                "title": str(card.get("title") or ""),
+                "owner": str(card.get("owner") or ""),
+                "priority": str(card.get("priority") or "medium"),
+                "dueDate": str(card.get("due_date") or ""),
+            }
+        )
+
+    columns = []
+    order = ["backlog", "todo", "doing", "done"]
+    for key in order:
+        columns.append({"key": key, "items": buckets[key][:20], "count": len(buckets[key])})
+    return jsonify({"columns": columns, "count": len(cards)})
+
+
+@bp.route("/api/mobile/learning")
+def mobile_learning_data():
+    tenant = _mobile_resolve_tenant_from_query()
+    tenant_id = int(tenant.id) if tenant else None
+
+    query = UserELearningEnrollment.query.join(ELearningModule, UserELearningEnrollment.module_id == ELearningModule.id)
+    if tenant_id:
+        query = query.join(User, UserELearningEnrollment.user_id == User.id).filter(User.tenant_id == tenant_id)
+
+    rows = query.order_by(UserELearningEnrollment.updated_at.desc()).limit(30).all()
+    payload = []
+    for row in rows:
+        module = row.module
+        payload.append(
+            {
+                "moduleCode": str(getattr(module, "code", "") or ""),
+                "moduleTitle": str(getattr(module, "title", "") or ""),
+                "status": str(row.status or "enrolled"),
+                "progress": int(row.progress_percentage or 0),
+                "score": int(row.overall_score or 0),
+            }
+        )
+
+    return jsonify({"enrollments": payload, "count": len(payload)})
+
+
+@bp.route("/api/mobile/finance/entries")
+def mobile_finance_entries_data():
+    tenant = _mobile_resolve_tenant_from_query()
+    tenant_id = int(tenant.id) if tenant else None
+
+    query = FinanceTransaction.query.join(FinanceAccount, FinanceTransaction.account_id == FinanceAccount.id)
+    if tenant_id:
+        query = query.filter(FinanceTransaction.tenant_id == tenant_id)
+
+    rows = query.order_by(FinanceTransaction.txn_date.desc(), FinanceTransaction.id.desc()).limit(50).all()
+    payload = []
+    for tx in rows:
+        payload.append(
+            {
+                "id": int(tx.id),
+                "date": tx.txn_date.isoformat() if tx.txn_date else "",
+                "description": str(tx.description or ""),
+                "amount": round(_to_float(tx.amount), 2),
+                "account": str(getattr(tx.account, "name", "") or ""),
+                "category": str(tx.category or ""),
+            }
+        )
+
+    return jsonify({"entries": payload, "count": len(payload)})
 
 
 # -----------------

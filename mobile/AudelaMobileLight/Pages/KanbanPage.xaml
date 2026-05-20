@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:AudelaMobileLight.Pages"
+             xmlns:model="clr-namespace:AudelaMobileLight.Models"
+             x:Class="AudelaMobileLight.Pages.KanbanPage"
+             x:DataType="local:KanbanPage"
+             Title="Kanban">
+
+    <Grid RowDefinitions="Auto,*">
+        <ActivityIndicator Grid.Row="0"
+                           Margin="0,10,0,0"
+                           IsVisible="{Binding IsLoading}"
+                           IsRunning="{Binding IsLoading}" />
+
+        <CollectionView Grid.Row="1"
+                        ItemsSource="{Binding Columns}"
+                        ItemsLayout="HorizontalList"
+                        Margin="12,10,12,12">
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="model:MobileKanbanColumn">
+                    <Border WidthRequest="280"
+                            StrokeThickness="0"
+                            BackgroundColor="#F8FAFF"
+                            Padding="10"
+                            Margin="0,0,10,0"
+                            StrokeShape="RoundRectangle 12">
+                        <VerticalStackLayout Spacing="8">
+                            <Label Text="{Binding Key}" FontAttributes="Bold" TextTransform="Uppercase" />
+                            <Label Text="{Binding Count, StringFormat='{}Items: {0}'}"
+                                   FontSize="12"
+                                   TextColor="#4C6D8E" />
+
+                            <CollectionView ItemsSource="{Binding Items}">
+                                <CollectionView.ItemTemplate>
+                                    <DataTemplate x:DataType="model:MobileKanbanItem">
+                                        <Border StrokeThickness="0"
+                                                BackgroundColor="White"
+                                                Padding="10"
+                                                Margin="0,0,0,6"
+                                                StrokeShape="RoundRectangle 10">
+                                            <VerticalStackLayout Spacing="4">
+                                                <Label Text="{Binding Title}" FontAttributes="Bold" />
+                                                <Label Text="{Binding Owner}" FontSize="12" TextColor="#4C6D8E" />
+                                            </VerticalStackLayout>
+                                        </Border>
+                                    </DataTemplate>
+                                </CollectionView.ItemTemplate>
+                            </CollectionView>
+                        </VerticalStackLayout>
+                    </Border>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+    </Grid>
+</ContentPage>

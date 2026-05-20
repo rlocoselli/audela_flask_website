@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:AudelaMobileLight.Pages"
+             xmlns:model="clr-namespace:AudelaMobileLight.Models"
+             x:Class="AudelaMobileLight.Pages.FinanceEntriesPage"
+             x:DataType="local:FinanceEntriesPage"
+             Title="Finance">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="16" Spacing="10">
+            <Label Text="Saisies finance natives"
+                   FontSize="24"
+                   FontAttributes="Bold" />
+            <Label Text="Capture rapide des ecritures et mouvements depuis mobile."
+                   TextColor="#44617D" />
+
+            <ActivityIndicator IsVisible="{Binding IsLoading}"
+                               IsRunning="{Binding IsLoading}" />
+
+            <CollectionView ItemsSource="{Binding Entries}">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="model:MobileFinanceEntry">
+                        <Border StrokeThickness="0" BackgroundColor="#FAFBFF" Padding="12" StrokeShape="RoundRectangle 14" Margin="0,0,0,8">
+                            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="6">
+                                <Label Text="{Binding Description}" FontAttributes="Bold" />
+                                <Label Grid.Column="1" Text="{Binding AmountLabel}" TextColor="{Binding AmountColor}" />
+                                <Label Grid.Row="1" Text="{Binding Category}" FontSize="12" TextColor="#4C6D8E" />
+                                <Label Grid.Row="1" Grid.Column="1" Text="{Binding Date}" FontSize="12" TextColor="#4C6D8E" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

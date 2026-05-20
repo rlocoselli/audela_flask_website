@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:AudelaMobileLight.Pages"
+             x:Class="AudelaMobileLight.Pages.DashboardPage"
+             x:DataType="local:DashboardPage"
+             Title="Dashboards">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="16" Spacing="12">
+            <Label Text="Dashboards natifs"
+                   FontSize="24"
+                   FontAttributes="Bold" />
+            <Label Text="Vue mobile rapide des KPIs principaux."
+                   TextColor="#44617D" />
+
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="10" RowSpacing="10">
+                <Border StrokeThickness="0" BackgroundColor="#EDF6FF" Padding="12" StrokeShape="RoundRectangle 14">
+                    <VerticalStackLayout>
+                        <Label Text="Net finance" FontSize="12" TextColor="#4C6D8E" />
+                        <Label Text="{Binding FinanceNetAmountLabel}" FontSize="22" FontAttributes="Bold" />
+                    </VerticalStackLayout>
+                </Border>
+                <Border Grid.Column="1" StrokeThickness="0" BackgroundColor="#ECFFF6" Padding="12" StrokeShape="RoundRectangle 14">
+                    <VerticalStackLayout>
+                        <Label Text="Learning avg" FontSize="12" TextColor="#4C6D8E" />
+                        <Label Text="{Binding LearningProgressLabel}" FontSize="22" FontAttributes="Bold" />
+                    </VerticalStackLayout>
+                </Border>
+                <Border Grid.Row="1" StrokeThickness="0" BackgroundColor="#FFF5EB" Padding="12" StrokeShape="RoundRectangle 14">
+                    <VerticalStackLayout>
+                        <Label Text="Dashboards" FontSize="12" TextColor="#4C6D8E" />
+                        <Label Text="{Binding DashboardCountLabel}" FontSize="22" FontAttributes="Bold" />
+                    </VerticalStackLayout>
+                </Border>
+                <Border Grid.Row="1" Grid.Column="1" StrokeThickness="0" BackgroundColor="#F5F0FF" Padding="12" StrokeShape="RoundRectangle 14">
+                    <VerticalStackLayout>
+                        <Label Text="Runs" FontSize="12" TextColor="#4C6D8E" />
+                        <Label Text="{Binding QueryRunCountLabel}" FontSize="22" FontAttributes="Bold" />
+                    </VerticalStackLayout>
+                </Border>
+            </Grid>
+
+            <Label Text="Kanban global" FontAttributes="Bold" FontSize="18" Margin="0,8,0,0" />
+            <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="8">
+                <Border StrokeThickness="0" BackgroundColor="#F4F7FB" Padding="10" StrokeShape="RoundRectangle 10">
+                    <VerticalStackLayout>
+                        <Label Text="Backlog" FontSize="11" TextColor="#4C6D8E" />
+                        <Label Text="{Binding KanbanBacklogLabel}" FontAttributes="Bold" />
+                    </VerticalStackLayout>
+                </Border>
+                <Border Grid.Column="1" StrokeThickness="0" BackgroundColor="#F4F7FB" Padding="10" StrokeShape="RoundRectangle 10">
+                    <VerticalStackLayout>
+                        <Label Text="Todo" FontSize="11" TextColor="#4C6D8E" />
+                        <Label Text="{Binding KanbanTodoLabel}" FontAttributes="Bold" />
+                    </VerticalStackLayout>
+                </Border>
+                <Border Grid.Column="2" StrokeThickness="0" BackgroundColor="#F4F7FB" Padding="10" StrokeShape="RoundRectangle 10">
+                    <VerticalStackLayout>
+                        <Label Text="Doing" FontSize="11" TextColor="#4C6D8E" />
+                        <Label Text="{Binding KanbanDoingLabel}" FontAttributes="Bold" />
+                    </VerticalStackLayout>
+                </Border>
+                <Border Grid.Column="3" StrokeThickness="0" BackgroundColor="#F4F7FB" Padding="10" StrokeShape="RoundRectangle 10">
+                    <VerticalStackLayout>
+                        <Label Text="Done" FontSize="11" TextColor="#4C6D8E" />
+                        <Label Text="{Binding KanbanDoneLabel}" FontAttributes="Bold" />
+                    </VerticalStackLayout>
+                </Border>
+            </Grid>
+
+            <ActivityIndicator IsVisible="{Binding IsLoading}"
+                               IsRunning="{Binding IsLoading}"
+                               Margin="0,6,0,0" />
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

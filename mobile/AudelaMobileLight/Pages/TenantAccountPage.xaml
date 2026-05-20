@@ -45,8 +45,8 @@
                     </VerticalStackLayout>
                 </Border>
 
-                <Button Text="Ouvrir dashboard web tenant"
-                        Clicked="OnOpenTenantDashboardClicked" />
+                <Button Text="Ouvrir configuration web"
+                    Clicked="OnOpenWebConfigurationClicked" />
 
                 <Button Text="Se deconnecter"
                         BackgroundColor="#FFE9E9"

@@ -47,7 +47,7 @@ public partial class TenantAccountPage : ContentPage
         OnPropertyChanged(nameof(UserLabel));
     }
 
-    private async void OnOpenTenantDashboardClicked(object? sender, EventArgs e)
+    private async void OnOpenWebConfigurationClicked(object? sender, EventArgs e)
     {
         TenantSessionStore.LoadFromDevice();
         var session = TenantSessionStore.Current;
