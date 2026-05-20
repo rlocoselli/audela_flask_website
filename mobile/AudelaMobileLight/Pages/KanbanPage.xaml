@@ -7,43 +7,66 @@
              x:DataType="local:KanbanPage"
              Title="Kanban">
 
-    <Grid RowDefinitions="Auto,Auto,*">
+    <Grid RowDefinitions="Auto,Auto,*" BackgroundColor="#F3F7FC">
         <VerticalStackLayout Grid.Row="0" Padding="16,12,16,8" Spacing="8">
             <Label Text="Kanban Projet"
                    FontSize="24"
-                   FontAttributes="Bold" />
-            <Label Text="Vue web style Jira + resume mobile"
+                   FontAttributes="Bold"
+                   TextColor="#11263A" />
+            <Label Text="Vue native style Jira"
                    TextColor="#44617D" />
-            <Button Text="Ouvrir Kanban web complet"
-                    Clicked="OnOpenProjectWebClicked" />
         </VerticalStackLayout>
 
-        <CollectionView Grid.Row="1"
+        <ActivityIndicator Grid.Row="1"
+                           Margin="0,8,0,0"
+                           IsVisible="{Binding IsLoading}"
+                           IsRunning="{Binding IsLoading}" />
+
+        <CollectionView Grid.Row="2"
                         ItemsSource="{Binding Columns}"
                         ItemsLayout="HorizontalList"
-                        HeightRequest="120"
-                        Margin="12,0,12,8">
+                        Margin="12,0,12,12">
             <CollectionView.ItemTemplate>
                 <DataTemplate x:DataType="model:MobileKanbanColumn">
-                    <Border WidthRequest="130"
+                    <Border WidthRequest="286"
                             StrokeThickness="0"
-                            BackgroundColor="#F8FAFF"
-                            Padding="10"
+                            BackgroundColor="#FFFFFF"
+                            Padding="12"
                             Margin="0,0,8,0"
                             StrokeShape="RoundRectangle 10">
-                        <VerticalStackLayout Spacing="4">
-                            <Label Text="{Binding Key}" FontAttributes="Bold" TextTransform="Uppercase" />
+                        <Border.GestureRecognizers>
+                            <DropGestureRecognizer Drop="OnColumnDrop" />
+                        </Border.GestureRecognizers>
+                        <VerticalStackLayout Spacing="6">
+                            <Label Text="{Binding Key}" FontAttributes="Bold" TextTransform="Uppercase" TextColor="#11263A" />
                             <Label Text="{Binding Count, StringFormat='{}Items: {0}'}"
                                    FontSize="12"
                                    TextColor="#4C6D8E" />
+
+                            <CollectionView ItemsSource="{Binding Items}" HeightRequest="420">
+                                <CollectionView.ItemTemplate>
+                                    <DataTemplate x:DataType="model:MobileKanbanItem">
+                                        <Border StrokeThickness="0"
+                                                BackgroundColor="#EEF5FF"
+                                                Padding="10"
+                                                Margin="0,0,0,6"
+                                                StrokeShape="RoundRectangle 10">
+                                            <Border.GestureRecognizers>
+                                                <DragGestureRecognizer DragStarting="OnCardDragStarting" />
+                                            </Border.GestureRecognizers>
+                                            <VerticalStackLayout Spacing="4">
+                                                <Label Text="{Binding Title}" FontAttributes="Bold" TextColor="#17314A" />
+                                                <Label Text="{Binding Owner}" FontSize="12" TextColor="#4C6D8E" />
+                                                <Label Text="{Binding Priority, StringFormat='{}Priority: {0}'}" FontSize="11" TextColor="#355E84" />
+                                            </VerticalStackLayout>
+                                        </Border>
+                                    </DataTemplate>
+                                </CollectionView.ItemTemplate>
+                            </CollectionView>
                         </VerticalStackLayout>
                     </Border>
                 </DataTemplate>
             </CollectionView.ItemTemplate>
         </CollectionView>
-
-        <WebView Grid.Row="2"
-                 Margin="10,0,10,10"
-                 Source="{Binding ProjectKanbanUrl}" />
     </Grid>
 </ContentPage>

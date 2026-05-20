@@ -11,3 +11,20 @@ public sealed class MobileLearningEnrollment
     public double ProgressRatio => Math.Clamp(Progress / 100.0, 0.0, 1.0);
     public string ProgressLabel => $"{Progress}% complete";
 }
+
+public sealed class MobileLearningLesson
+{
+    public int Id { get; set; }
+    public string ModuleTitle { get; set; } = string.Empty;
+    public string LessonTitle { get; set; } = string.Empty;
+    public string Summary { get; set; } = string.Empty;
+}
+
+public sealed class MobileLearningQuizSummary
+{
+    public int Id { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public int QuestionCount { get; set; }
+    public int PassingScorePct { get; set; }
+    public string QuizLabel => $"{QuestionCount} questions - seuil {PassingScorePct}%";
+}

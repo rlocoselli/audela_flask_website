@@ -7,16 +7,14 @@ namespace AudelaMobileLight.Pages;
 public partial class LearningPage : ContentPage
 {
     private readonly MobileVisualizationService _service = new();
-    public string LearningContentUrl { get; } = $"{BackendEndpoints.PrimaryPublicBaseUrl}/e-learning/";
-    public string LearningQuizUrl { get; } = $"{BackendEndpoints.PrimaryPublicBaseUrl}/e-learning/dashboard";
-    public string ActiveLearningUrl { get; private set; }
     public ObservableCollection<MobileLearningEnrollment> Enrollments { get; } = [];
+    public ObservableCollection<MobileLearningLesson> Lessons { get; } = [];
+    public ObservableCollection<MobileLearningQuizSummary> Quizzes { get; } = [];
     public bool IsLoading { get; private set; }
 
     public LearningPage()
     {
         InitializeComponent();
-        ActiveLearningUrl = LearningContentUrl;
         BindingContext = this;
     }
 
@@ -34,10 +32,24 @@ public partial class LearningPage : ContentPage
             OnPropertyChanged(nameof(IsLoading));
 
             var rows = await _service.GetLearningAsync(CancellationToken.None);
+            var lessons = await _service.GetLearningContentAsync(CancellationToken.None);
+            var quizzes = await _service.GetLearningQuizzesAsync(CancellationToken.None);
             Enrollments.Clear();
             foreach (var row in rows)
             {
                 Enrollments.Add(row);
+            }
+
+            Lessons.Clear();
+            foreach (var row in lessons)
+            {
+                Lessons.Add(row);
+            }
+
+            Quizzes.Clear();
+            foreach (var row in quizzes)
+            {
+                Quizzes.Add(row);
             }
         }
         finally
@@ -45,22 +57,5 @@ public partial class LearningPage : ContentPage
             IsLoading = false;
             OnPropertyChanged(nameof(IsLoading));
         }
-    }
-
-    private async void OnOpenCurrentLearningWebClicked(object? sender, EventArgs e)
-    {
-        await Launcher.Default.OpenAsync(ActiveLearningUrl);
-    }
-
-    private void OnShowLearningContentClicked(object? sender, EventArgs e)
-    {
-        ActiveLearningUrl = LearningContentUrl;
-        OnPropertyChanged(nameof(ActiveLearningUrl));
-    }
-
-    private void OnShowLearningQuizClicked(object? sender, EventArgs e)
-    {
-        ActiveLearningUrl = LearningQuizUrl;
-        OnPropertyChanged(nameof(ActiveLearningUrl));
     }
 }

@@ -7,9 +7,10 @@ namespace AudelaMobileLight.Pages;
 public partial class KanbanPage : ContentPage
 {
     private readonly MobileVisualizationService _service = new();
-    public string ProjectKanbanUrl { get; } = $"{BackendEndpoints.PrimaryPublicBaseUrl}/project/";
     public ObservableCollection<MobileKanbanColumn> Columns { get; } = [];
     public bool IsLoading { get; private set; }
+    private MobileKanbanItem? _draggedItem;
+    private string _draggedFromColumn = string.Empty;
 
     public KanbanPage()
     {
@@ -44,8 +45,42 @@ public partial class KanbanPage : ContentPage
         }
     }
 
-    private async void OnOpenProjectWebClicked(object? sender, EventArgs e)
+    private void OnCardDragStarting(object? sender, DragStartingEventArgs e)
     {
-        await Launcher.Default.OpenAsync(ProjectKanbanUrl);
+        if (sender is not Border border || border.BindingContext is not MobileKanbanItem item)
+        {
+            return;
+        }
+
+        _draggedItem = item;
+        var parentColumn = Columns.FirstOrDefault(c => c.Items.Any(i => i.Id == item.Id));
+        _draggedFromColumn = parentColumn?.Key ?? string.Empty;
     }
+
+    private async void OnColumnDrop(object? sender, DropEventArgs e)
+    {
+        if (_draggedItem is null || sender is not Border border || border.BindingContext is not MobileKanbanColumn targetColumn)
+        {
+            return;
+        }
+
+        var targetKey = (targetColumn.Key ?? string.Empty).Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(targetKey) || targetKey == (_draggedFromColumn ?? string.Empty).Trim().ToLowerInvariant())
+        {
+            _draggedItem = null;
+            _draggedFromColumn = string.Empty;
+            return;
+        }
+
+        var (ok, message) = await _service.MoveKanbanCardAsync(_draggedItem.Id, targetKey, CancellationToken.None);
+        if (!ok)
+        {
+            await ModernAlertService.ShowAsync(this, "Kanban", message, AlertTone.Error);
+        }
+
+        _draggedItem = null;
+        _draggedFromColumn = string.Empty;
+        await LoadAsync();
+    }
+
 }

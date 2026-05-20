@@ -7,17 +7,14 @@
              x:DataType="local:FinanceEntriesPage"
              Title="Finance">
 
-    <Grid RowDefinitions="Auto,*">
-        <ScrollView Grid.Row="0">
+    <ScrollView BackgroundColor="#F3F7FC">
         <VerticalStackLayout Padding="16" Spacing="10">
             <Label Text="Saisies finance natives"
                    FontSize="24"
-                   FontAttributes="Bold" />
+             FontAttributes="Bold"
+             TextColor="#11263A" />
             <Label Text="Capture rapide des ecritures et mouvements depuis mobile."
                    TextColor="#44617D" />
-
-            <Button Text="Ouvrir Finance web complet"
-                    Clicked="OnOpenFinanceWebClicked" />
 
             <Border StrokeThickness="0" BackgroundColor="#EEF5FF" Padding="12" StrokeShape="RoundRectangle 14">
                 <VerticalStackLayout Spacing="8">
@@ -68,16 +65,6 @@
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
             </CollectionView>
-
-            <Label Text="Finance Web (dettes, credits, analyses completes)"
-                   FontAttributes="Bold"
-                   FontSize="18"
-                   Margin="0,8,0,0" />
         </VerticalStackLayout>
-        </ScrollView>
-
-        <WebView Grid.Row="1"
-                 Margin="10,0,10,10"
-                 Source="{Binding FinanceDashboardUrl}" />
-    </Grid>
+    </ScrollView>
 </ContentPage>

@@ -173,6 +173,14 @@
         </Setter>
     </Style>
 
+    <Style TargetType="ContentPage">
+        <Setter Property="BackgroundColor" Value="#F3F7FC" />
+    </Style>
+
+    <Style TargetType="CollectionView">
+        <Setter Property="BackgroundColor" Value="Transparent" />
+    </Style>
+
     <Style TargetType="Label" x:Key="Headline">
         <Setter Property="TextColor" Value="{AppThemeBinding Light={StaticResource MidnightBlue}, Dark={StaticResource White}}" />
         <Setter Property="FontSize" Value="32" />

@@ -37,10 +37,86 @@ public sealed class MobileVisualizationService
         return payload?.Columns ?? [];
     }
 
+    public async Task<(bool Ok, string Message)> MoveKanbanCardAsync(string itemId, string targetColumn, CancellationToken cancellationToken)
+    {
+        var body = new
+        {
+            itemId,
+            targetColumn,
+        };
+
+        foreach (var baseUrl in BackendEndpoints.Candidates())
+        {
+            var endpoint = BuildUrl(baseUrl, "/api/mobile/kanban/move");
+            try
+            {
+                var response = await _httpClient.PostAsJsonAsync(endpoint, body, cancellationToken);
+                var payload = await response.Content.ReadFromJsonAsync<MoveCardPayload>(cancellationToken: cancellationToken);
+                if (response.IsSuccessStatusCode && payload?.Ok == true)
+                {
+                    return (true, payload.Message);
+                }
+
+                if (payload is not null && !string.IsNullOrWhiteSpace(payload.Message))
+                {
+                    return (false, payload.Message);
+                }
+            }
+            catch
+            {
+                // try next endpoint
+            }
+        }
+
+        return (false, "Impossible de deplacer la carte.");
+    }
+
     public async Task<IReadOnlyList<MobileLearningEnrollment>> GetLearningAsync(CancellationToken cancellationToken)
     {
         var payload = await GetFirstAsync<LearningPayload>("/api/mobile/learning", cancellationToken);
         return payload?.Enrollments ?? [];
+    }
+
+    public async Task<IReadOnlyList<MobileLearningLesson>> GetLearningContentAsync(CancellationToken cancellationToken)
+    {
+        var payload = await GetFirstAsync<LearningContentPayload>("/api/mobile/learning/content", cancellationToken);
+        return payload?.Lessons ?? [];
+    }
+
+    public async Task<IReadOnlyList<MobileLearningQuizSummary>> GetLearningQuizzesAsync(CancellationToken cancellationToken)
+    {
+        var payload = await GetFirstAsync<LearningQuizzesPayload>("/api/mobile/learning/quizzes", cancellationToken);
+        return payload?.Quizzes ?? [];
+    }
+
+    public async Task<(bool Ok, string Message)> AskAiAsync(string message, CancellationToken cancellationToken)
+    {
+        var body = new { message };
+
+        foreach (var baseUrl in BackendEndpoints.Candidates())
+        {
+            var endpoint = BuildUrl(baseUrl, "/api/mobile/ai/chat");
+            try
+            {
+                var response = await _httpClient.PostAsJsonAsync(endpoint, body, cancellationToken);
+                var payload = await response.Content.ReadFromJsonAsync<AiChatPayload>(cancellationToken: cancellationToken);
+                if (response.IsSuccessStatusCode && payload is not null && payload.Ok)
+                {
+                    return (true, payload.Message);
+                }
+
+                if (payload is not null && !string.IsNullOrWhiteSpace(payload.Message))
+                {
+                    return (false, payload.Message);
+                }
+            }
+            catch
+            {
+                // try next endpoint
+            }
+        }
+
+        return (false, "Assistant AI indisponible pour le moment.");
     }
 
     public async Task<IReadOnlyList<MobileFinanceEntry>> GetFinanceEntriesAsync(CancellationToken cancellationToken)
@@ -188,6 +264,18 @@ public sealed class MobileVisualizationService
         public List<MobileLearningEnrollment> Enrollments { get; set; } = [];
     }
 
+    private sealed class LearningContentPayload
+    {
+        [JsonPropertyName("lessons")]
+        public List<MobileLearningLesson> Lessons { get; set; } = [];
+    }
+
+    private sealed class LearningQuizzesPayload
+    {
+        [JsonPropertyName("quizzes")]
+        public List<MobileLearningQuizSummary> Quizzes { get; set; } = [];
+    }
+
     private sealed class FinancePayload
     {
         [JsonPropertyName("entries")]
@@ -195,6 +283,24 @@ public sealed class MobileVisualizationService
     }
 
     private sealed class FinanceCreatePayload
+    {
+        [JsonPropertyName("ok")]
+        public bool Ok { get; set; }
+
+        [JsonPropertyName("message")]
+        public string Message { get; set; } = string.Empty;
+    }
+
+    private sealed class MoveCardPayload
+    {
+        [JsonPropertyName("ok")]
+        public bool Ok { get; set; }
+
+        [JsonPropertyName("message")]
+        public string Message { get; set; } = string.Empty;
+    }
+
+    private sealed class AiChatPayload
     {
         [JsonPropertyName("ok")]
         public bool Ok { get; set; }

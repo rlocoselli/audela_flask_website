@@ -12,13 +12,14 @@ from urllib.parse import urljoin, urlsplit
 from flask import Response, current_app, redirect, render_template, request, session, url_for, flash, jsonify, g, make_response
 from flask_login import current_user
 
-from ...extensions import db
+from ...extensions import db, csrf
 from ...models import Prospect
 from ...models import User
 from ...models import Tenant
 from ...models import PublicPageVisit
 from ...models import Dashboard, QueryRun, FinanceTransaction, FinanceAccount, ProjectWorkspace
 from ...models import UserELearningEnrollment, ELearningModule
+from ...models.e_learning import ELearningLesson, ELearningQuiz
 from ...services.subscription_service import SubscriptionService
 from ...services.email_service import EmailService
 from ...product_catalog import get_product_catalog, get_product_entry
@@ -1527,6 +1528,86 @@ def mobile_learning_data():
     return jsonify({"enrollments": payload, "count": len(payload)})
 
 
+@bp.route("/api/mobile/learning/content")
+def mobile_learning_content_data():
+    rows = (
+        ELearningLesson.query.join(ELearningModule, ELearningLesson.module_id == ELearningModule.id)
+        .filter(ELearningLesson.is_active == True, ELearningModule.is_active == True)
+        .order_by(ELearningModule.order.asc(), ELearningLesson.order.asc())
+        .limit(40)
+        .all()
+    )
+
+    payload = []
+    for lesson in rows:
+        lesson_title = str((lesson.title_i18n or {}).get("fr") or (lesson.title_i18n or {}).get("en") or lesson.code or "Lecon")
+        module_title = str((lesson.module.title_i18n or {}).get("fr") or (lesson.module.title_i18n or {}).get("en") or lesson.module.code or "Module")
+        summary = str((lesson.content_i18n or {}).get("fr") or (lesson.content_i18n or {}).get("en") or "")
+        payload.append(
+            {
+                "id": int(lesson.id),
+                "moduleTitle": module_title,
+                "lessonTitle": lesson_title,
+                "summary": summary[:220],
+            }
+        )
+
+    return jsonify({"lessons": payload, "count": len(payload)})
+
+
+@bp.route("/api/mobile/learning/quizzes")
+def mobile_learning_quizzes_data():
+    rows = (
+        ELearningQuiz.query.filter(ELearningQuiz.is_active == True)
+        .order_by(ELearningQuiz.id.desc())
+        .limit(30)
+        .all()
+    )
+
+    payload = []
+    for quiz in rows:
+        title = str((quiz.title_i18n or {}).get("fr") or (quiz.title_i18n or {}).get("en") or quiz.code or "Quiz")
+        question_count = len([q for q in (quiz.questions or []) if getattr(q, "is_active", True)])
+        payload.append(
+            {
+                "id": int(quiz.id),
+                "title": title,
+                "questionCount": int(question_count),
+                "passingScorePct": int(quiz.passing_score_pct or 70),
+            }
+        )
+
+    return jsonify({"quizzes": payload, "count": len(payload)})
+
+
+@bp.route("/api/mobile/ai/chat", methods=["POST"])
+def mobile_ai_chat():
+    data = request.get_json(silent=True) or {}
+    message = str(data.get("message") or "").strip()
+    if not message:
+        return jsonify({"ok": False, "message": "Message requis."}), 400
+
+    tenant = _mobile_resolve_tenant_from_query()
+    tenant_label = str(tenant.slug) if tenant else "global"
+    metrics = mobile_dashboard_data().get_json(silent=True) or {}
+
+    normalized = message.lower()
+    if "finance" in normalized or "debt" in normalized or "credit" in normalized:
+        answer = f"Finance: net={metrics.get('financeNetAmount', 0)} sur {metrics.get('financeEntriesCount', 0)} ecritures."
+    elif "kanban" in normalized or "project" in normalized:
+        k = metrics.get("kanban", {}) or {}
+        answer = f"Projet: backlog={k.get('backlog', 0)}, todo={k.get('todo', 0)}, doing={k.get('doing', 0)}, done={k.get('done', 0)}."
+    elif "learning" in normalized or "quiz" in normalized:
+        answer = f"Learning: progression moyenne {metrics.get('learningProgressAvg', 0)}% sur {metrics.get('learningModulesCount', 0)} modules."
+    else:
+        answer = (
+            "Assistant AUDELA Mobile: demandez un resume BI, finance, kanban projet ou learning. "
+            f"Contexte tenant={tenant_label}."
+        )
+
+    return jsonify({"ok": True, "message": answer})
+
+
 @bp.route("/api/mobile/finance/entries")
 def mobile_finance_entries_data():
     tenant = _mobile_resolve_tenant_from_query()
@@ -1554,6 +1635,7 @@ def mobile_finance_entries_data():
 
 
 @bp.route("/api/mobile/finance/entries", methods=["POST"])
+@csrf.exempt
 def mobile_finance_entries_create():
     tenant = _mobile_resolve_tenant_from_query()
     if not tenant:
@@ -1600,6 +1682,48 @@ def mobile_finance_entries_create():
             },
         }
     )
+
+
+@bp.route("/api/mobile/kanban/move", methods=["POST"])
+@csrf.exempt
+def mobile_kanban_move_card():
+    tenant = _mobile_resolve_tenant_from_query()
+    if not tenant:
+        return jsonify({"ok": False, "message": "Tenant is required."}), 400
+
+    data = request.get_json(silent=True) or {}
+    item_id = str(data.get("itemId") or "").strip()
+    target_col = str(data.get("targetColumn") or "").strip().lower()
+    allowed_cols = {"backlog", "todo", "doing", "done"}
+
+    if not item_id:
+        return jsonify({"ok": False, "message": "itemId is required."}), 400
+    if target_col not in allowed_cols:
+        return jsonify({"ok": False, "message": "targetColumn is invalid."}), 400
+
+    ws = ProjectWorkspace.query.filter_by(tenant_id=tenant.id).first()
+    state = ws.state_json if ws and isinstance(ws.state_json, dict) else {}
+    cards_raw = state.get("cards") if isinstance(state.get("cards"), list) else []
+
+    moved = False
+    for card in cards_raw:
+        if not isinstance(card, dict):
+            continue
+        if str(card.get("id") or "").strip() == item_id:
+            card["col"] = target_col
+            moved = True
+            break
+
+    if not moved:
+        return jsonify({"ok": False, "message": "Card not found."}), 404
+
+    if not ws:
+        ws = ProjectWorkspace(tenant_id=tenant.id)
+        db.session.add(ws)
+
+    ws.state_json = state
+    db.session.commit()
+    return jsonify({"ok": True, "message": "Card moved."})
 
 
 @bp.route("/api/mobile/finance/summary")

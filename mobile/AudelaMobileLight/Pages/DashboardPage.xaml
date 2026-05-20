@@ -6,52 +6,65 @@
              x:DataType="local:DashboardPage"
              Title="Dashboards">
 
-    <Grid RowDefinitions="Auto,*">
-        <ScrollView Grid.Row="0">
-            <VerticalStackLayout Padding="16" Spacing="12">
-            <Label Text="Dashboards natifs"
+    <ScrollView BackgroundColor="#F3F7FC">
+        <VerticalStackLayout Padding="16" Spacing="12">
+            <Label Text="BI Dashboard (Natif)"
                    FontSize="24"
-                   FontAttributes="Bold" />
-            <Label Text="KPIs rapides + dashboard BI web complet"
+                   FontAttributes="Bold"
+                   TextColor="#11263A" />
+            <Label Text="Vue mobile BI + assistant AI natif"
                    TextColor="#44617D" />
-
-                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                <Button Text="Dashboards BI"
-                    Clicked="OnShowDashboardsClicked" />
-                <Button Grid.Column="1"
-                    Text="Chat AI"
-                    Clicked="OnShowAiChatClicked" />
-                </Grid>
-
-                <Button Text="Ouvrir page actuelle dans navigateur"
-                    Clicked="OnOpenCurrentWebClicked" />
 
             <Grid ColumnDefinitions="*,*" ColumnSpacing="10" RowSpacing="10">
                 <Border StrokeThickness="0" BackgroundColor="#EDF6FF" Padding="12" StrokeShape="RoundRectangle 14">
                     <VerticalStackLayout>
                         <Label Text="Net finance" FontSize="12" TextColor="#4C6D8E" />
-                        <Label Text="{Binding FinanceNetAmountLabel}" FontSize="22" FontAttributes="Bold" />
+                        <Label Text="{Binding FinanceNetAmountLabel}" FontSize="22" FontAttributes="Bold" TextColor="#11263A" />
                     </VerticalStackLayout>
                 </Border>
                 <Border Grid.Column="1" StrokeThickness="0" BackgroundColor="#ECFFF6" Padding="12" StrokeShape="RoundRectangle 14">
                     <VerticalStackLayout>
                         <Label Text="Learning avg" FontSize="12" TextColor="#4C6D8E" />
-                        <Label Text="{Binding LearningProgressLabel}" FontSize="22" FontAttributes="Bold" />
+                        <Label Text="{Binding LearningProgressLabel}" FontSize="22" FontAttributes="Bold" TextColor="#11263A" />
                     </VerticalStackLayout>
                 </Border>
                 <Border Grid.Row="1" StrokeThickness="0" BackgroundColor="#FFF5EB" Padding="12" StrokeShape="RoundRectangle 14">
                     <VerticalStackLayout>
                         <Label Text="Dashboards" FontSize="12" TextColor="#4C6D8E" />
-                        <Label Text="{Binding DashboardCountLabel}" FontSize="22" FontAttributes="Bold" />
+                        <Label Text="{Binding DashboardCountLabel}" FontSize="22" FontAttributes="Bold" TextColor="#11263A" />
                     </VerticalStackLayout>
                 </Border>
                 <Border Grid.Row="1" Grid.Column="1" StrokeThickness="0" BackgroundColor="#F5F0FF" Padding="12" StrokeShape="RoundRectangle 14">
                     <VerticalStackLayout>
                         <Label Text="Runs" FontSize="12" TextColor="#4C6D8E" />
-                        <Label Text="{Binding QueryRunCountLabel}" FontSize="22" FontAttributes="Bold" />
+                        <Label Text="{Binding QueryRunCountLabel}" FontSize="22" FontAttributes="Bold" TextColor="#11263A" />
                     </VerticalStackLayout>
                 </Border>
             </Grid>
+
+            <Border StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 14">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="Graph Finance (Jour)" FontAttributes="Bold" FontSize="16" TextColor="#11263A" />
+                    <Label Text="{Binding DailyInLabel, StringFormat='Credits: {0}'}" FontSize="12" TextColor="#2D5B3E" />
+                    <ProgressBar Progress="{Binding DailyInRatio}" ProgressColor="#1F8A4D" />
+                    <Label Text="{Binding DailyOutLabel, StringFormat='Debits: {0}'}" FontSize="12" TextColor="#8B2C2C" />
+                    <ProgressBar Progress="{Binding DailyOutRatio}" ProgressColor="#D64545" />
+                </VerticalStackLayout>
+            </Border>
+
+            <Border StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 14">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="Graph Kanban" FontAttributes="Bold" FontSize="16" TextColor="#11263A" />
+                    <Label Text="Backlog" FontSize="12" TextColor="#4C6D8E" />
+                    <ProgressBar Progress="{Binding KanbanBacklogRatio}" ProgressColor="#536878" />
+                    <Label Text="Todo" FontSize="12" TextColor="#4C6D8E" />
+                    <ProgressBar Progress="{Binding KanbanTodoRatio}" ProgressColor="#0A84FF" />
+                    <Label Text="Doing" FontSize="12" TextColor="#4C6D8E" />
+                    <ProgressBar Progress="{Binding KanbanDoingRatio}" ProgressColor="#F59E0B" />
+                    <Label Text="Done" FontSize="12" TextColor="#4C6D8E" />
+                    <ProgressBar Progress="{Binding KanbanDoneRatio}" ProgressColor="#1F8A4D" />
+                </VerticalStackLayout>
+            </Border>
 
             <Label Text="Kanban global" FontAttributes="Bold" FontSize="18" Margin="0,8,0,0" />
             <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="8">
@@ -81,19 +94,26 @@
                 </Border>
             </Grid>
 
+            <Border StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 14">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="Chat AI" FontAttributes="Bold" FontSize="18" TextColor="#11263A" />
+                    <CollectionView HeightRequest="170" ItemsSource="{Binding AiMessages}">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate>
+                                <Border StrokeThickness="0" BackgroundColor="#EEF5FF" Padding="10" Margin="0,0,0,6" StrokeShape="RoundRectangle 10">
+                                    <Label Text="{Binding .}" TextColor="#14314A" />
+                                </Border>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+                    <Entry x:Name="AiQuestionEntry" Placeholder="Ex: donne moi le resume finance" />
+                    <Button Text="Demander a AI" Clicked="OnAskAiClicked" />
+                </VerticalStackLayout>
+            </Border>
+
             <ActivityIndicator IsVisible="{Binding IsLoading}"
                                IsRunning="{Binding IsLoading}"
                                Margin="0,6,0,0" />
-
-              <Label Text="BI / AI Web (comme sur AUDELA Web)"
-                   FontAttributes="Bold"
-                   FontSize="18"
-                   Margin="0,10,0,0" />
         </VerticalStackLayout>
-        </ScrollView>
-
-        <WebView Grid.Row="1"
-                 Margin="10,0,10,10"
-                  Source="{Binding ActiveBiUrl}" />
-    </Grid>
+    </ScrollView>
 </ContentPage>

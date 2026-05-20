@@ -7,7 +7,6 @@ namespace AudelaMobileLight.Pages;
 public partial class FinanceEntriesPage : ContentPage
 {
     private readonly MobileVisualizationService _service = new();
-    public string FinanceDashboardUrl { get; } = $"{BackendEndpoints.PrimaryPublicBaseUrl}/finance/";
     public ObservableCollection<MobileFinanceEntry> Entries { get; } = [];
     public bool IsLoading { get; private set; }
     public string DailyInLabel { get; private set; } = "0";
@@ -98,8 +97,4 @@ public partial class FinanceEntriesPage : ContentPage
         await LoadAsync();
     }
 
-    private async void OnOpenFinanceWebClicked(object? sender, EventArgs e)
-    {
-        await Launcher.Default.OpenAsync(FinanceDashboardUrl);
-    }
 }

@@ -7,30 +7,24 @@
              x:DataType="local:LearningPage"
              Title="Learning">
 
-    <Grid RowDefinitions="Auto,*">
-        <ScrollView Grid.Row="0">
+    <ScrollView BackgroundColor="#F3F7FC">
         <VerticalStackLayout Padding="16" Spacing="10">
             <Label Text="Learning natif"
                    FontSize="24"
-                   FontAttributes="Bold" />
-            <Label Text="Contenu e-learning + quiz (comme sur le web)"
+             FontAttributes="Bold"
+             TextColor="#11263A" />
+         <Label Text="Contenu e-learning et quiz natifs"
                    TextColor="#44617D" />
-
-            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                <Button Text="Contenu"
-                        Clicked="OnShowLearningContentClicked" />
-                <Button Grid.Column="1"
-                        Text="Quiz"
-                        Clicked="OnShowLearningQuizClicked" />
-            </Grid>
-
-            <Button Text="Ouvrir page e-learning actuelle"
-                    Clicked="OnOpenCurrentLearningWebClicked" />
 
             <ActivityIndicator IsVisible="{Binding IsLoading}"
                                IsRunning="{Binding IsLoading}" />
 
-            <CollectionView ItemsSource="{Binding Enrollments}">
+            <Label Text="Progression"
+                   FontAttributes="Bold"
+                   FontSize="18"
+                   TextColor="#11263A" />
+
+            <CollectionView ItemsSource="{Binding Enrollments}" HeightRequest="180">
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="model:MobileLearningEnrollment">
                         <Border StrokeThickness="0" BackgroundColor="#F1F6FF" Padding="12" StrokeShape="RoundRectangle 14" Margin="0,0,0,8">
@@ -44,15 +38,43 @@
                 </CollectionView.ItemTemplate>
             </CollectionView>
 
-            <Label Text="E-learning Web (contenu + quiz)"
+            <Label Text="Contenu"
                    FontAttributes="Bold"
                    FontSize="18"
-                   Margin="0,8,0,0" />
-        </VerticalStackLayout>
-        </ScrollView>
+                   Margin="0,8,0,0"
+                   TextColor="#11263A" />
 
-        <WebView Grid.Row="1"
-                 Margin="10,0,10,10"
-                 Source="{Binding ActiveLearningUrl}" />
-    </Grid>
+            <CollectionView ItemsSource="{Binding Lessons}" HeightRequest="210">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="model:MobileLearningLesson">
+                        <Border StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 14" Margin="0,0,0,8">
+                            <VerticalStackLayout Spacing="6">
+                                <Label Text="{Binding ModuleTitle}" FontSize="12" TextColor="#4C6D8E" />
+                                <Label Text="{Binding LessonTitle}" FontAttributes="Bold" TextColor="#17314A" />
+                                <Label Text="{Binding Summary}" FontSize="12" MaxLines="3" LineBreakMode="TailTruncation" TextColor="#355E84" />
+                            </VerticalStackLayout>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+
+            <Label Text="Quiz"
+                   FontAttributes="Bold"
+                   FontSize="18"
+                   TextColor="#11263A" />
+
+            <CollectionView ItemsSource="{Binding Quizzes}" HeightRequest="190">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="model:MobileLearningQuizSummary">
+                        <Border StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 14" Margin="0,0,0,8">
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="{Binding Title}" FontAttributes="Bold" TextColor="#17314A" />
+                                <Label Text="{Binding QuizLabel}" FontSize="12" TextColor="#4C6D8E" />
+                            </VerticalStackLayout>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </VerticalStackLayout>
+    </ScrollView>
 </ContentPage>
