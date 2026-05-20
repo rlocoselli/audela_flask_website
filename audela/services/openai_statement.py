@@ -185,6 +185,31 @@ def _call_openai_structured_json(
     except requests.RequestException as e:
         raise OpenAIStatementError(f"OpenAI request failed: {str(e)[:200]}") from e
 
+    if not r.ok and r.status_code in (400, 404, 415, 422):
+        # Compatibility fallback for providers/endpoints that do not support strict json_schema.
+        body_fallback = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {
+                    "role": "user",
+                    "content": (
+                        user_text
+                        + "\n\nReturn ONLY valid JSON with keys: bank, currency, transactions. "
+                        + "Each transaction item must contain: txn_date, description, amount, currency, counterparty, reference, balance."
+                    ),
+                },
+            ],
+            "temperature": 0,
+            "response_format": {"type": "json_object"},
+        }
+        try:
+            r = requests.post(url, headers=headers, json=body_fallback, timeout=(10, timeout))
+        except requests.Timeout as e:
+            raise OpenAIStatementError(f"OpenAI timeout after {timeout}s") from e
+        except requests.RequestException as e:
+            raise OpenAIStatementError(f"OpenAI request failed: {str(e)[:200]}") from e
+
     if not r.ok:
         msg = _extract_openai_error_message(r.text)
         raise OpenAIStatementError(f"OpenAI error ({r.status_code}): {msg}")

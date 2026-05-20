@@ -1,0 +1,293 @@
+{% extends 'e_learning/base_e_learning.html' %}
+
+{% block e_learning_content %}
+<div class="container py-4">
+    <div class="academy-hero mb-4">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+            <div>
+                <div class="academy-chip mb-2">{{ _('Math Tools') }}</div>
+                <h1 class="mb-2">{{ _('Cartesian Function Lab') }}</h1>
+                <p class="mb-0 opacity-75">{{ _('A simple and pretty GeoGebra-like board for analytical geometry functions.') }}</p>
+            </div>
+            <a href="{{ url_for('e_learning.subjects_list') }}" class="btn academy-btn-outline">{{ _('Back to Subjects') }}</a>
+        </div>
+    </div>
+
+    <div class="academy-surface p-3 p-md-4">
+        <div class="row g-2 mb-3">
+            <div class="col-md-4">
+                <label for="fnExpr1" class="form-label">f(x)</label>
+                <input id="fnExpr1" type="text" class="form-control" value="x^2 - 2*x + 1" placeholder="x^2 - 2*x + 1">
+            </div>
+            <div class="col-md-4">
+                <label for="fnExpr2" class="form-label">g(x)</label>
+                <input id="fnExpr2" type="text" class="form-control" value="sin(x)" placeholder="sin(x)">
+            </div>
+            <div class="col-md-4">
+                <label for="fnExpr3" class="form-label">h(x)</label>
+                <input id="fnExpr3" type="text" class="form-control" value="" placeholder="0.5*x + 1">
+            </div>
+        </div>
+
+        <div class="row g-2 mb-3">
+            <div class="col-md-3">
+                <label for="fnXMin" class="form-label">x min</label>
+                <input id="fnXMin" type="number" class="form-control" value="-10" step="1">
+            </div>
+            <div class="col-md-3">
+                <label for="fnXMax" class="form-label">x max</label>
+                <input id="fnXMax" type="number" class="form-control" value="10" step="1">
+            </div>
+            <div class="col-md-3">
+                <label for="fnStep" class="form-label">step</label>
+                <input id="fnStep" type="number" class="form-control" value="0.25" step="0.05" min="0.01">
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <button id="fnPresetBtn" type="button" class="btn academy-btn-primary w-100">{{ _('Try preset') }}</button>
+            </div>
+        </div>
+
+        <div class="small text-muted mb-2" id="fnPlotMessage"></div>
+        <div class="cartesian-graph-wrap">
+            <canvas id="functionGraphCanvas"></canvas>
+        </div>
+    </div>
+</div>
+
+<style>
+.cartesian-graph-wrap {
+    position: relative;
+    height: 420px;
+    border-radius: 0.8rem;
+    border: 1px solid #cfe8e2;
+    background: linear-gradient(135deg, #f7fffc 0%, #eef8ff 100%);
+}
+@media (max-width: 768px) {
+    .cartesian-graph-wrap {
+        height: 280px;
+    }
+}
+</style>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const fnCanvas = document.getElementById('functionGraphCanvas');
+    const fnExpr1 = document.getElementById('fnExpr1');
+    const fnExpr2 = document.getElementById('fnExpr2');
+    const fnExpr3 = document.getElementById('fnExpr3');
+    const fnXMin = document.getElementById('fnXMin');
+    const fnXMax = document.getElementById('fnXMax');
+    const fnStep = document.getElementById('fnStep');
+    const fnPresetBtn = document.getElementById('fnPresetBtn');
+    const fnPlotMessage = document.getElementById('fnPlotMessage');
+
+    let functionChart = null;
+    let functionRenderQueued = false;
+    const zeroAxesPlugin = {
+        id: 'zeroAxesPlugin',
+        afterDraw(chart) {
+            const xScale = chart.scales.x;
+            const yScale = chart.scales.y;
+            if (!xScale || !yScale) return;
+
+            const ctx = chart.ctx;
+            ctx.save();
+            ctx.strokeStyle = 'rgba(15, 23, 42, 0.45)';
+            ctx.lineWidth = 1;
+
+            if (yScale.min <= 0 && yScale.max >= 0) {
+                const y0 = yScale.getPixelForValue(0);
+                ctx.beginPath();
+                ctx.moveTo(xScale.left, y0);
+                ctx.lineTo(xScale.right, y0);
+                ctx.stroke();
+            }
+
+            if (xScale.min <= 0 && xScale.max >= 0) {
+                const x0 = xScale.getPixelForValue(0);
+                ctx.beginPath();
+                ctx.moveTo(x0, yScale.top);
+                ctx.lineTo(x0, yScale.bottom);
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        },
+    };
+
+    function normalizeExpression(rawExpr) {
+        return String(rawExpr || '').trim().toLowerCase().replace(/,/g, '.');
+    }
+
+    function compileExpression(rawExpr) {
+        const raw = normalizeExpression(rawExpr);
+        if (!raw) return null;
+
+        if (!/^[0-9x+\-*/^().\s,_a-z]+$/.test(raw)) {
+            throw new Error('Unsupported characters in expression');
+        }
+
+        const blocked = ['function', '=>', 'while', 'for', 'if', 'window', 'document', 'this', 'constructor', 'prototype', 'require', 'import', 'eval', 'new'];
+        if (blocked.some((w) => raw.includes(w))) {
+            throw new Error('Unsafe expression');
+        }
+
+        let expr = raw
+            .replace(/(\d)\s*x/g, '$1*x')
+            .replace(/x\s*\(/g, 'x*(')
+            .replace(/\)\s*x/g, ')*x')
+            .replace(/\bpi\b/g, 'Math.PI')
+            .replace(/\be\b/g, 'Math.E')
+            .replace(/\bln\s*\(/g, 'Math.log(')
+            .replace(/\bsin\s*\(/g, 'Math.sin(')
+            .replace(/\bcos\s*\(/g, 'Math.cos(')
+            .replace(/\btan\s*\(/g, 'Math.tan(')
+            .replace(/\basin\s*\(/g, 'Math.asin(')
+            .replace(/\bacos\s*\(/g, 'Math.acos(')
+            .replace(/\batan\s*\(/g, 'Math.atan(')
+            .replace(/\bsqrt\s*\(/g, 'Math.sqrt(')
+            .replace(/\babs\s*\(/g, 'Math.abs(')
+            .replace(/\blog\s*\(/g, 'Math.log10(')
+            .replace(/\bexp\s*\(/g, 'Math.exp(')
+            .replace(/\bfloor\s*\(/g, 'Math.floor(')
+            .replace(/\bceil\s*\(/g, 'Math.ceil(')
+            .replace(/\bround\s*\(/g, 'Math.round(')
+            .replace(/\bmin\s*\(/g, 'Math.min(')
+            .replace(/\bmax\s*\(/g, 'Math.max(')
+            .replace(/\^/g, '**');
+
+        return Function('x', '"use strict"; return (' + expr + ');');
+    }
+
+    function sampleRangeValues(xMin, xMax, step) {
+        const values = [];
+        for (let x = xMin; x <= xMax + step / 2; x += step) {
+            values.push(Number(x.toFixed(5)));
+            if (values.length > 2000) break;
+        }
+        return values;
+    }
+
+    function buildFunctionDataset(label, exprText, color, xValues) {
+        const compiled = compileExpression(exprText);
+        if (!compiled) return null;
+        const points = [];
+        for (const x of xValues) {
+            let y;
+            try {
+                y = compiled(x);
+            } catch (_) {
+                y = NaN;
+            }
+            if (Number.isFinite(y)) {
+                points.push({ x, y: Number(y.toFixed(6)) });
+            }
+        }
+        return {
+            label,
+            data: points,
+            showLine: true,
+            borderColor: color,
+            backgroundColor: color,
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0,
+        };
+    }
+
+    function updateFunctionPlot() {
+        if (!window.Chart || !fnCanvas) return;
+
+        const xMin = Number(fnXMin.value || -10);
+        const xMax = Number(fnXMax.value || 10);
+        const step = Math.max(0.01, Number(fnStep.value || 0.25));
+        if (!Number.isFinite(xMin) || !Number.isFinite(xMax) || xMax <= xMin) {
+            fnPlotMessage.textContent = 'Invalid x range.';
+            return;
+        }
+
+        const xValues = sampleRangeValues(xMin, xMax, step);
+        const colors = ['#0f766e', '#2563eb', '#dc2626'];
+        const exprs = [fnExpr1.value, fnExpr2.value, fnExpr3.value];
+        const labels = ['f(x)', 'g(x)', 'h(x)'];
+        const datasets = [];
+
+        try {
+            exprs.forEach((expr, idx) => {
+                const ds = buildFunctionDataset(labels[idx], expr, colors[idx], xValues);
+                if (ds && ds.data.length > 0) datasets.push(ds);
+            });
+        } catch (err) {
+            fnPlotMessage.textContent = 'Parse error: ' + String(err.message || err);
+            return;
+        }
+
+        const finalDatasets = [...datasets];
+        fnPlotMessage.textContent = datasets.length ? '' : 'Add at least one valid function.';
+
+        if (functionChart) {
+            functionChart.data.datasets = finalDatasets;
+            functionChart.options.scales.x.min = xMin;
+            functionChart.options.scales.x.max = xMax;
+            functionChart.update('none');
+            return;
+        }
+
+        functionChart = new Chart(fnCanvas.getContext('2d'), {
+            type: 'scatter',
+            data: { datasets: finalDatasets },
+            plugins: [zeroAxesPlugin],
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                plugins: {
+                    legend: { display: true },
+                },
+                scales: {
+                    x: {
+                        type: 'linear',
+                        min: xMin,
+                        max: xMax,
+                        grid: { color: 'rgba(15,118,110,0.12)' },
+                    },
+                    y: {
+                        type: 'linear',
+                        grid: { color: 'rgba(15,118,110,0.12)' },
+                    },
+                },
+            },
+        });
+    }
+
+    function scheduleFunctionPlotUpdate() {
+        if (functionRenderQueued) return;
+        functionRenderQueued = true;
+        requestAnimationFrame(() => {
+            functionRenderQueued = false;
+            updateFunctionPlot();
+        });
+    }
+
+    [fnExpr1, fnExpr2, fnExpr3, fnXMin, fnXMax, fnStep].forEach((el) => {
+        el.addEventListener('input', scheduleFunctionPlotUpdate);
+        el.addEventListener('change', scheduleFunctionPlotUpdate);
+    });
+
+    if (fnPresetBtn) {
+        fnPresetBtn.addEventListener('click', () => {
+            fnExpr1.value = 'x^2 - 4';
+            fnExpr2.value = '0.5*x + 1';
+            fnExpr3.value = 'cos(x)';
+            fnXMin.value = '-12';
+            fnXMax.value = '12';
+            fnStep.value = '0.2';
+            scheduleFunctionPlotUpdate();
+        });
+    }
+
+    scheduleFunctionPlotUpdate();
+});
+</script>
+{% endblock %}

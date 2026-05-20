@@ -2703,6 +2703,62 @@ PREMIUM_SUBJECTS = [
         ],
     },
     {
+        "code": "audela_pure_math",
+        "name": "Audela Pure Mathematics",
+        "fr_name": "Audela Mathematiques pures",
+        "description": "Core pure mathematics with interactive reasoning: algebra, geometry, and analytical geometry.",
+        "fr_description": "Mathematiques pures fondamentales avec raisonnement interactif: algebre, geometrie et geometrie analytique.",
+        "icon": "functions",
+        "order": 47,
+        "modules": [
+            {
+                "code": "pure_math_algebra",
+                "title": "Algebra Foundations and Equation Solving",
+                "fr_title": "Fondamentaux d algebre et resolution d equations",
+                "level": "beginner",
+                "hours": 12,
+                "lessons": [
+                    "Sets, numbers, and algebraic notation",
+                    "Linear equations and proportional reasoning",
+                    "Factoring identities and polynomial expansion",
+                    "Systems of equations and elimination methods",
+                    "Inequalities and interval reasoning",
+                    "Function notation and composition basics",
+                ],
+            },
+            {
+                "code": "pure_math_geometry",
+                "title": "Euclidean Geometry and Proof Thinking",
+                "fr_title": "Geometrie euclidienne et raisonnement par preuve",
+                "level": "intermediate",
+                "hours": 14,
+                "lessons": [
+                    "Angles, triangles, and congruence criteria",
+                    "Parallel lines and theorem applications",
+                    "Similarity, scale factors, and ratio geometry",
+                    "Circles, tangents, and arc relationships",
+                    "Area and perimeter optimization problems",
+                    "Structured proof strategies in geometry",
+                ],
+            },
+            {
+                "code": "pure_math_analytic_geometry",
+                "title": "Analytical Geometry and Cartesian Modeling",
+                "fr_title": "Geometrie analytique et modelisation cartesienne",
+                "level": "advanced",
+                "hours": 16,
+                "lessons": [
+                    "Cartesian plane and coordinate transformations",
+                    "Line equations, slope, and intercept analysis",
+                    "Distance, midpoint, and vector interpretation",
+                    "Conic sections: parabola, ellipse, hyperbola",
+                    "Intersection systems and geometric constraints",
+                    "Graph-based modeling and interpretation",
+                ],
+            },
+        ],
+    },
+    {
         "code": "aws_cloud",
         "name": "AWS Architect and Builder",
         "fr_name": "Architecte et Builder AWS",
@@ -2978,6 +3034,158 @@ def _module_i18n(module: dict, subject_name: str) -> tuple[dict, dict]:
     return title_i18n, description_i18n
 
 
+PURE_MATH_LESSON_TITLES_I18N = {
+    "Sets, numbers, and algebraic notation": {
+        "fr": "Ensembles, nombres et notation algebrique",
+        "pt": "Conjuntos, numeros e notacao algebrica",
+        "es": "Conjuntos, numeros y notacion algebraica",
+        "it": "Insiemi, numeri e notazione algebrica",
+        "de": "Mengen, Zahlen und algebraische Notation",
+    },
+    "Linear equations and proportional reasoning": {
+        "fr": "Equations lineaires et raisonnement proportionnel",
+        "pt": "Equacoes lineares e raciocinio proporcional",
+        "es": "Ecuaciones lineales y razonamiento proporcional",
+        "it": "Equazioni lineari e ragionamento proporzionale",
+        "de": "Lineare Gleichungen und proportionales Denken",
+    },
+    "Factoring identities and polynomial expansion": {
+        "fr": "Identites remarquables et developpement polynomial",
+        "pt": "Identidades notaveis e expansao de polinomios",
+        "es": "Identidades notables y expansion de polinomios",
+        "it": "Identita notevoli ed espansione dei polinomi",
+        "de": "Binomische Formeln und Polynomexpansion",
+    },
+    "Systems of equations and elimination methods": {
+        "fr": "Systemes d equations et methodes d elimination",
+        "pt": "Sistemas de equacoes e metodos de eliminacao",
+        "es": "Sistemas de ecuaciones y metodos de eliminacion",
+        "it": "Sistemi di equazioni e metodi di eliminazione",
+        "de": "Gleichungssysteme und Eliminationsverfahren",
+    },
+    "Inequalities and interval reasoning": {
+        "fr": "Inequations et raisonnement sur les intervalles",
+        "pt": "Inequacoes e raciocinio por intervalos",
+        "es": "Inecuaciones y razonamiento por intervalos",
+        "it": "Disequazioni e ragionamento sugli intervalli",
+        "de": "Ungleichungen und Intervallargumentation",
+    },
+    "Function notation and composition basics": {
+        "fr": "Notation des fonctions et bases de composition",
+        "pt": "Notacao de funcoes e fundamentos de composicao",
+        "es": "Notacion de funciones y bases de composicion",
+        "it": "Notazione di funzione e basi di composizione",
+        "de": "Funktionsnotation und Grundlagen der Komposition",
+    },
+    "Angles, triangles, and congruence criteria": {
+        "fr": "Angles, triangles et criteres de congruence",
+        "pt": "Angulos, triangulos e criterios de congruencia",
+        "es": "Angulos, triangulos y criterios de congruencia",
+        "it": "Angoli, triangoli e criteri di congruenza",
+        "de": "Winkel, Dreiecke und Kongruenzkriterien",
+    },
+    "Parallel lines and theorem applications": {
+        "fr": "Droites paralleles et applications de theoremes",
+        "pt": "Retas paralelas e aplicacoes de teoremas",
+        "es": "Rectas paralelas y aplicaciones de teoremas",
+        "it": "Rette parallele e applicazioni dei teoremi",
+        "de": "Parallele Geraden und Theoremanwendungen",
+    },
+    "Similarity, scale factors, and ratio geometry": {
+        "fr": "Similarite, facteurs d echelle et geometrie des rapports",
+        "pt": "Semelhanca, fatores de escala e geometria das razoes",
+        "es": "Semejanza, factores de escala y geometria de razones",
+        "it": "Similitudine, fattori di scala e geometria dei rapporti",
+        "de": "Ahnlichkeit, Skalierungsfaktoren und Verhaltnisgeometrie",
+    },
+    "Circles, tangents, and arc relationships": {
+        "fr": "Cercles, tangentes et relations entre arcs",
+        "pt": "Circulos, tangentes e relacoes entre arcos",
+        "es": "Circulos, tangentes y relaciones entre arcos",
+        "it": "Cerchi, tangenti e relazioni tra archi",
+        "de": "Kreise, Tangenten und Bogenbeziehungen",
+    },
+    "Area and perimeter optimization problems": {
+        "fr": "Problemes d optimisation d aire et de perimetre",
+        "pt": "Problemas de otimizacao de area e perimetro",
+        "es": "Problemas de optimizacion de area y perimetro",
+        "it": "Problemi di ottimizzazione di area e perimetro",
+        "de": "Optimierungsaufgaben zu Flache und Umfang",
+    },
+    "Structured proof strategies in geometry": {
+        "fr": "Strategies de preuve structurees en geometrie",
+        "pt": "Estrategias estruturadas de prova em geometria",
+        "es": "Estrategias estructuradas de demostracion en geometria",
+        "it": "Strategie strutturate di dimostrazione in geometria",
+        "de": "Strukturierte Beweisstrategien in der Geometrie",
+    },
+    "Cartesian plane and coordinate transformations": {
+        "fr": "Plan cartesien et transformations de coordonnees",
+        "pt": "Plano cartesiano e transformacoes de coordenadas",
+        "es": "Plano cartesiano y transformaciones de coordenadas",
+        "it": "Piano cartesiano e trasformazioni di coordinate",
+        "de": "Kartesische Ebene und Koordinatentransformationen",
+    },
+    "Line equations, slope, and intercept analysis": {
+        "fr": "Equations de droite, pente et analyse de l ordonnee a l origine",
+        "pt": "Equacoes da reta, inclinacao e analise do intercepto",
+        "es": "Ecuaciones de la recta, pendiente y analisis de la interseccion",
+        "it": "Equazioni della retta, pendenza e analisi dell intercetta",
+        "de": "Geradengleichungen, Steigung und Achsenabschnittsanalyse",
+    },
+    "Distance, midpoint, and vector interpretation": {
+        "fr": "Distance, milieu et interpretation vectorielle",
+        "pt": "Distancia, ponto medio e interpretacao vetorial",
+        "es": "Distancia, punto medio e interpretacion vectorial",
+        "it": "Distanza, punto medio e interpretazione vettoriale",
+        "de": "Distanz, Mittelpunkt und Vektorinterpretation",
+    },
+    "Conic sections: parabola, ellipse, hyperbola": {
+        "fr": "Coniques: parabole, ellipse, hyperbole",
+        "pt": "Secoes conicas: parabola, elipse, hiperbole",
+        "es": "Secciones conicas: parabola, elipse, hiperbola",
+        "it": "Sezioni coniche: parabola, ellisse, iperbole",
+        "de": "Kegelschnitte: Parabel, Ellipse, Hyperbel",
+    },
+    "Intersection systems and geometric constraints": {
+        "fr": "Systemes d intersection et contraintes geometriques",
+        "pt": "Sistemas de intersecao e restricoes geometricas",
+        "es": "Sistemas de interseccion y restricciones geometricas",
+        "it": "Sistemi di intersezione e vincoli geometrici",
+        "de": "Schnittpunktsysteme und geometrische Nebenbedingungen",
+    },
+    "Graph-based modeling and interpretation": {
+        "fr": "Modelisation et interpretation basees sur les graphes",
+        "pt": "Modelagem e interpretacao baseadas em graficos",
+        "es": "Modelado e interpretacion basados en graficas",
+        "it": "Modellazione e interpretazione basate su grafici",
+        "de": "Graphbasierte Modellierung und Interpretation",
+    },
+}
+
+
+def _premium_lesson_title_i18n(subject_code: str, lesson_topic: str) -> dict:
+    if subject_code == "audela_pure_math":
+        localized = PURE_MATH_LESSON_TITLES_I18N.get(lesson_topic, {})
+        return {
+            "en": lesson_topic,
+            "fr": localized.get("fr", lesson_topic),
+            "pt": localized.get("pt", lesson_topic),
+            "es": localized.get("es", lesson_topic),
+            "it": localized.get("it", lesson_topic),
+            "de": localized.get("de", lesson_topic),
+        }
+
+    return {
+        "en": lesson_topic,
+        "fr": lesson_topic,
+        "pt": lesson_topic,
+        "es": lesson_topic,
+        "it": lesson_topic,
+        "de": lesson_topic,
+    }
+
+
 def _premium_subject_focus(subject_code: str) -> dict:
     focus_by_subject = {
         "audela_math_finance": {
@@ -2988,6 +3196,16 @@ def _premium_subject_focus(subject_code: str) -> dict:
                 "Formula sheet with variable definitions and units",
                 "Worked examples with manual cross-check",
                 "Sensitivity table for key inputs (rate, tenor, growth)",
+            ],
+        },
+        "audela_pure_math": {
+            "mission": "Develop rigorous mathematical reasoning through algebra, geometry, and coordinate-based modeling.",
+            "failure_mode": "Applying formulas without verifying assumptions, constraints, or geometric interpretation.",
+            "metric": "solution correctness, proof completeness, and graph interpretation accuracy",
+            "artifacts": [
+                "Step-by-step derivation sheet with assumptions",
+                "Geometric sketch with labeled constraints",
+                "Cartesian plot cross-check for computed results",
             ],
         },
         "programming_logic": {
@@ -3105,6 +3323,55 @@ def _lesson_content(subject_code: str, topic: str, module_title: str, lab_bluepr
             "<li>Tracer les hypotheses avant validation de la decision.</li>"
             "</ul>"
             "<p><strong>Pratique:</strong> Utilisez le calculateur graphique interactif ci-dessous pour visualiser la sensibilite.</p>"
+        )
+
+        return {
+            "en": html_en,
+            "fr": html_fr,
+            "pt": html_en,
+            "es": html_en,
+            "it": html_en,
+            "de": html_en,
+        }
+
+    if subject_code == "audela_pure_math":
+        html_en = (
+            f"<h3>{topic}</h3>"
+            f"<p><strong>Context:</strong> In <em>{module_title}</em>, this lesson builds precise reasoning for {topic.lower()} with symbolic and visual validation.</p>"
+            "<h5>Core Mathematical Toolkit</h5>"
+            "<ul>"
+            "<li><strong>Algebra:</strong> preserve equivalence at every equation transformation.</li>"
+            "<li><strong>Geometry:</strong> justify each statement with a theorem, definition, or axiom.</li>"
+            "<li><strong>Analytical Geometry:</strong> connect symbolic equations to Cartesian interpretation.</li>"
+            "</ul>"
+            "<h5>Worked Pattern</h5>"
+            "<p>Start from assumptions, transform step by step, check domain constraints, then confirm with a graph or geometric sketch.</p>"
+            "<h5>Validation Checklist</h5>"
+            "<ul>"
+            "<li>All transformations are logically equivalent.</li>"
+            "<li>Boundary conditions and constraints are verified.</li>"
+            "<li>Symbolic result is consistent with geometric/cartesian view.</li>"
+            "</ul>"
+            "<p><strong>Practice:</strong> Use the Cartesian tools to verify intersection points, slopes, and shape intuition.</p>"
+        )
+        html_fr = (
+            f"<h3>{topic}</h3>"
+            f"<p><strong>Contexte:</strong> Dans <em>{module_title}</em>, cette lecon construit un raisonnement rigoureux pour {topic.lower()} avec validation symbolique et visuelle.</p>"
+            "<h5>Boite a outils mathematique</h5>"
+            "<ul>"
+            "<li><strong>Algebre:</strong> conserver l equivalence a chaque transformation.</li>"
+            "<li><strong>Geometrie:</strong> justifier chaque affirmation par un theoreme, une definition ou un axiome.</li>"
+            "<li><strong>Geometrie analytique:</strong> relier equations symboliques et interpretation cartesienne.</li>"
+            "</ul>"
+            "<h5>Schema de resolution</h5>"
+            "<p>Partir des hypotheses, transformer etape par etape, verifier les contraintes de domaine, puis confirmer avec un graphe ou un schema geometrique.</p>"
+            "<h5>Checklist de validation</h5>"
+            "<ul>"
+            "<li>Toutes les transformations sont logiquement equivalentes.</li>"
+            "<li>Les cas limites et contraintes sont verifies.</li>"
+            "<li>Le resultat symbolique est coherent avec la vue geometrique/cartesienne.</li>"
+            "</ul>"
+            "<p><strong>Pratique:</strong> Utilisez les outils cartesiens pour verifier les intersections, pentes et formes.</p>"
         )
 
         return {
@@ -3275,6 +3542,26 @@ PREMIUM_TRACK_REALITY_KITS = {
             ],
         },
     },
+    "audela_pure_math": {
+        "quiz_a_title": "Algebra and Logic Validation",
+        "quiz_b_title": "Geometric Reasoning Check",
+        "stack": "symbolic manipulation, theorem application, Cartesian verification",
+        "lab": {
+            "name": "Pure Math Proof + Plot Lab",
+            "context": "Solve a multi-step math problem and validate the result using algebraic checks and graph interpretation.",
+            "deliverables": [
+                "Formal derivation with each transformation justified",
+                "Geometric or Cartesian representation of the result",
+                "Edge-case validation for parameter bounds",
+                "Final interpretation linking symbolic and visual reasoning",
+            ],
+            "validation": [
+                "Each equation transformation preserves equivalence",
+                "Graph and algebraic result are consistent",
+                "Boundary conditions do not invalidate the conclusion",
+            ],
+        },
+    },
 }
 
 
@@ -3284,6 +3571,12 @@ PREMIUM_QUIZ_THEME_BY_SUBJECT = {
         "branch and edge-case coverage",
         "idempotent behavior under retries",
         "complexity and maintainability",
+    ],
+    "audela_pure_math": [
+        "equation solving rigor",
+        "proof structure and theorem usage",
+        "geometric interpretation accuracy",
+        "cartesian modeling consistency",
     ],
     "aws_cloud": [
         "high availability and fault isolation",
@@ -3383,6 +3676,155 @@ def _build_premium_quiz_questions(subject_code: str, module_title: str, lesson_t
                     {"text_i18n": {"en": "To quantify impact under alternative macro and risk assumptions.", "fr": "Pour quantifier l impact selon des hypotheses macro et risque alternatives."}, "is_correct": True},
                     {"text_i18n": {"en": "To replace all baseline scenarios.", "fr": "Pour remplacer tous les scenarios de base."}, "is_correct": False},
                     {"text_i18n": {"en": "Because accounting standards forbid base cases.", "fr": "Parce que les normes interdisent les cas de base."}, "is_correct": False},
+                ],
+            },
+        ]
+
+    if subject_code == "audela_pure_math":
+        return [
+            {
+                "text_i18n": {
+                    "en": f"In '{module_title}' for '{lesson_topic}', what is the first reliable check before finalizing a symbolic result?",
+                    "fr": f"Dans '{module_title}' pour '{lesson_topic}', quel est le premier controle fiable avant de finaliser un resultat symbolique ?",
+                },
+                "explanation_i18n": {
+                    "en": "A valid derivation must preserve equivalence at every transformation step.",
+                    "fr": "Une derivation valide doit conserver l equivalence a chaque etape de transformation.",
+                },
+                "options": [
+                    {
+                        "text_i18n": {
+                            "en": "Skip intermediate steps and verify only the final number.",
+                            "fr": "Ignorer les etapes intermediaires et verifier seulement le resultat final.",
+                        },
+                        "is_correct": False,
+                    },
+                    {
+                        "text_i18n": {
+                            "en": "Check equivalence at each transformation and state assumptions.",
+                            "fr": "Verifier l equivalence a chaque transformation et expliciter les hypotheses.",
+                        },
+                        "is_correct": True,
+                    },
+                    {
+                        "text_i18n": {
+                            "en": "Use numerical approximation only, no symbolic validation.",
+                            "fr": "Utiliser uniquement une approximation numerique, sans validation symbolique.",
+                        },
+                        "is_correct": False,
+                    },
+                    {
+                        "text_i18n": {
+                            "en": "Accept any method if the graph looks smooth.",
+                            "fr": "Accepter toute methode si la courbe parait lisse.",
+                        },
+                        "is_correct": False,
+                    },
+                ],
+            },
+            {
+                "text_i18n": {
+                    "en": "Which statement about Euclidean proofs is most accurate?",
+                    "fr": "Quelle affirmation sur les preuves euclidiennes est la plus juste ?",
+                },
+                "explanation_i18n": {
+                    "en": "A geometric proof is valid when each claim follows from definitions, axioms, or proven theorems.",
+                    "fr": "Une preuve geometrique est valide quand chaque affirmation decoule de definitions, axiomes ou theoremes deja prouves.",
+                },
+                "options": [
+                    {
+                        "text_i18n": {"en": "A drawing alone is sufficient evidence.", "fr": "Un dessin seul suffit comme preuve."},
+                        "is_correct": False,
+                    },
+                    {
+                        "text_i18n": {
+                            "en": "Only the final equality matters, not the argument chain.",
+                            "fr": "Seule l egalite finale compte, pas la chaine d arguments.",
+                        },
+                        "is_correct": False,
+                    },
+                    {
+                        "text_i18n": {
+                            "en": "Each step must be justified by a known theorem or property.",
+                            "fr": "Chaque etape doit etre justifiee par un theoreme ou une propriete connue.",
+                        },
+                        "is_correct": True,
+                    },
+                    {
+                        "text_i18n": {"en": "Proof quality is measured only by length.", "fr": "La qualite d une preuve se mesure uniquement a sa longueur."},
+                        "is_correct": False,
+                    },
+                ],
+            },
+            {
+                "text_i18n": {
+                    "en": "In analytical geometry, why cross-check with a Cartesian graph after solving algebraically?",
+                    "fr": "En geometrie analytique, pourquoi verifier avec un graphe cartesien apres une resolution algebrique ?",
+                },
+                "explanation_i18n": {
+                    "en": "Graphing helps detect sign/domain mistakes and validates intersection intuition.",
+                    "fr": "Le trace aide a detecter les erreurs de signe/domaine et valide l intuition d intersection.",
+                },
+                "options": [
+                    {
+                        "text_i18n": {
+                            "en": "Graphing is decorative and not useful for validation.",
+                            "fr": "Le trace est decoratif et inutile pour valider.",
+                        },
+                        "is_correct": False,
+                    },
+                    {
+                        "text_i18n": {"en": "Graphing replaces all symbolic reasoning.", "fr": "Le trace remplace tout raisonnement symbolique."},
+                        "is_correct": False,
+                    },
+                    {
+                        "text_i18n": {
+                            "en": "Graphing validates domain, signs, and intersection behavior.",
+                            "fr": "Le trace valide le domaine, les signes et le comportement d intersection.",
+                        },
+                        "is_correct": True,
+                    },
+                    {
+                        "text_i18n": {"en": "Graphing is needed only for statistics.", "fr": "Le trace est necessaire seulement pour les statistiques."},
+                        "is_correct": False,
+                    },
+                ],
+            },
+            {
+                "text_i18n": {
+                    "en": "For a constrained optimization geometry problem, what should be done before concluding?",
+                    "fr": "Pour un probleme geometrique d optimisation sous contrainte, que faut-il faire avant de conclure ?",
+                },
+                "explanation_i18n": {
+                    "en": "Always verify boundary cases and constraint feasibility.",
+                    "fr": "Il faut toujours verifier les cas limites et la faisabilite des contraintes.",
+                },
+                "options": [
+                    {
+                        "text_i18n": {
+                            "en": "Keep only the interior critical point and ignore bounds.",
+                            "fr": "Garder uniquement le point critique interieur et ignorer les bornes.",
+                        },
+                        "is_correct": False,
+                    },
+                    {
+                        "text_i18n": {
+                            "en": "Check interior solutions, boundaries, and constraint validity.",
+                            "fr": "Verifier solutions interieures, bords et validite des contraintes.",
+                        },
+                        "is_correct": True,
+                    },
+                    {
+                        "text_i18n": {
+                            "en": "Select the largest computed value even if constraints are violated.",
+                            "fr": "Choisir la plus grande valeur calculee meme si les contraintes sont violees.",
+                        },
+                        "is_correct": False,
+                    },
+                    {
+                        "text_i18n": {"en": "Avoid dimensional checks to save time.", "fr": "Eviter les controles dimensionnels pour gagner du temps."},
+                        "is_correct": False,
+                    },
                 ],
             },
         ]
@@ -3738,14 +4180,7 @@ def _seed_premium_catalog(force: bool = False) -> dict:
                     db.session.add(lesson)
                 stats["lessons"] += 1
 
-                lesson.title_i18n = {
-                    "en": lesson_topic,
-                    "fr": lesson_topic,
-                    "pt": lesson_topic,
-                    "es": lesson_topic,
-                    "it": lesson_topic,
-                    "de": lesson_topic,
-                }
+                lesson.title_i18n = _premium_lesson_title_i18n(subject_data["code"], lesson_topic)
                 lesson.description_i18n = {
                     "en": (
                         f"Production lesson on {lesson_topic.lower()} with concrete scenario, "
@@ -3958,6 +4393,17 @@ EXAM_BLUEPRINT_BY_SUBJECT = {
             "IFRS9 what-if and staging governance",
         ],
     },
+    "audela_pure_math": {
+        "track": "Pure Mathematics and Analytical Reasoning",
+        "domains": [
+            "Algebraic transformations and equivalence",
+            "Equation systems and constraints",
+            "Euclidean proof construction",
+            "Analytical geometry and coordinate methods",
+            "Conic interpretation and intersection logic",
+            "Graph-based validation of symbolic results",
+        ],
+    },
     "aws_cloud": {
         "track": "AWS Solutions Architect",
         "domains": [
@@ -4045,6 +4491,14 @@ EXAM_REAL_SCENARIOS = {
         "Implement safety filters against prompt injection and data leakage",
         "Set up observability for hallucination rate and quality regressions",
         "Balance model routing for cost, latency, and answer quality",
+    ],
+    "audela_pure_math": [
+        "Validate a multi-step polynomial factorization under domain constraints",
+        "Solve a linear system and justify uniqueness with determinant reasoning",
+        "Prove a triangle property using structured theorem chaining",
+        "Model a line-intersection problem in Cartesian coordinates",
+        "Interpret a conic section from its canonical equation",
+        "Cross-check symbolic roots against graph behavior and boundaries",
     ],
 }
 

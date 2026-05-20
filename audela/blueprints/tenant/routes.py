@@ -526,6 +526,99 @@ def _handle_signup():
         flash(tr("Preencha todos os campos.", getattr(g, "lang", None)), "error")
         return render_template("tenant/login.html", google_oauth_enabled=_google_oauth_enabled())
 
+
+@bp.route("/api/mobile/login", methods=["POST"])
+def mobile_login():
+    """JSON login endpoint used by the MAUI mobile client."""
+    data = request.get_json(silent=True) or {}
+    tenant_slug = str(data.get("tenantSlug") or "").strip().lower()
+    email = str(data.get("email") or "").strip().lower()
+    password = str(data.get("password") or "")
+
+    if not email or not password:
+        return jsonify({"ok": False, "message": "Email and password are required."}), 400
+
+    user, tenant, login_error = _resolve_password_login_user(email, password, tenant_slug)
+    if login_error == "tenant_not_found":
+        return jsonify({"ok": False, "message": "Tenant not found."}), 404
+    if login_error == "ambiguous_tenant":
+        return jsonify({"ok": False, "message": "Multiple tenants found. Provide tenant slug."}), 409
+    if login_error == "invalid_credentials" or not user or not tenant:
+        return jsonify({"ok": False, "message": "Invalid credentials."}), 401
+    if user.status == "pending_verification":
+        return jsonify({"ok": False, "message": "Please verify your email before login."}), 403
+
+    return jsonify(
+        {
+            "ok": True,
+            "message": "Login successful.",
+            "user": {
+                "id": int(user.id),
+                "email": str(user.email or ""),
+                "firstName": str(user.first_name or ""),
+                "lastName": str(user.last_name or ""),
+            },
+            "tenant": {
+                "id": int(tenant.id),
+                "name": str(tenant.name or ""),
+                "slug": str(tenant.slug or ""),
+            },
+        }
+    )
+
+
+@bp.route("/api/mobile/register", methods=["POST"])
+def mobile_register():
+    """JSON registration endpoint used by the MAUI mobile client."""
+    data = request.get_json(silent=True) or {}
+    tenant_name = str(data.get("tenantName") or "").strip()
+    email = str(data.get("email") or "").strip().lower()
+    password = str(data.get("password") or "")
+    password_confirm = str(data.get("passwordConfirm") or "")
+
+    if not email or not password:
+        return jsonify({"ok": False, "message": "Email and password are required."}), 400
+    if not tenant_name:
+        tenant_name = TenantService.generate_unique_cosmic_tenant_name()
+    if password != password_confirm:
+        return jsonify({"ok": False, "message": "Passwords do not match."}), 400
+    if len(password) < 8:
+        return jsonify({"ok": False, "message": "Password must contain at least 8 characters."}), 400
+    if User.query.filter_by(email=email).first():
+        return jsonify({"ok": False, "message": "Email already in use."}), 409
+
+    try:
+        tenant, user = TenantService.create_tenant(
+            name=tenant_name,
+            email=email,
+            password=password,
+            plan_code="free",
+            send_verification=True,
+            email_lang=getattr(g, "lang", None) or session.get("lang"),
+        )
+        db.session.add(
+            AuditEvent(
+                tenant_id=tenant.id,
+                user_id=user.id,
+                event_type="tenant.mobile_signup.success",
+                payload_json={"tenant_slug": tenant.slug, "email": email},
+            )
+        )
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("Mobile tenant registration failed")
+        return jsonify({"ok": False, "message": "Could not create account."}), 500
+
+    return jsonify(
+        {
+            "ok": True,
+            "message": "Account created. Verify your email before first login.",
+            "tenant": {"id": int(tenant.id), "name": str(tenant.name or ""), "slug": str(tenant.slug or "")},
+            "user": {"id": int(user.id), "email": str(user.email or "")},
+        }
+    )
+
     if not tenant_name:
         tenant_name = TenantService.generate_unique_cosmic_tenant_name()
     

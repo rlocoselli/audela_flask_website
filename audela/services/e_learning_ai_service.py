@@ -16,6 +16,7 @@ import logging
 from typing import Any
 
 from flask import current_app
+from .ai_runtime_config import resolve_ai_runtime_config
 
 log = logging.getLogger(__name__)
 
@@ -43,13 +44,14 @@ def _client():
         log.warning("openai package not installed — AI features disabled")
         return None
 
-    api_key: str = current_app.config.get("OPENAI_API_KEY", "")
+    runtime = resolve_ai_runtime_config(default_model="gpt-4o-mini")
+    api_key: str = str(runtime.get("api_key") or "")
     if not api_key:
-        log.info("OPENAI_API_KEY not configured — AI features disabled")
+        log.info("%s not configured — AI features disabled", runtime.get("missing_key_env") or "OPENAI_API_KEY")
         return None
 
     kwargs: dict[str, Any] = {"api_key": api_key}
-    base_url = current_app.config.get("OPENAI_BASE_URL", "")
+    base_url = str(runtime.get("base_url") or "")
     if base_url:
         kwargs["base_url"] = base_url.rstrip("/")
 
@@ -57,7 +59,8 @@ def _client():
 
 
 def _model() -> str:
-    m = current_app.config.get("OPENAI_MODEL", "")
+    runtime = resolve_ai_runtime_config(default_model="gpt-4o-mini")
+    m = str(runtime.get("model") or "")
     return m or "gpt-4o-mini"
 
 

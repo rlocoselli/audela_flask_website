@@ -70,6 +70,7 @@ jobs:
           GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID || secrets.GOOGLE_CLIENT_ID || '' }}
           GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET || secrets.GOOGLE_CLIENT_SECRET || '' }}
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY || '' }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -78,7 +79,7 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           timeout: 90s
           command_timeout: 40m
-          envs: SERVER_ENV_FILE,INSTALL_MODE,CELERY_ACTION,APP_RELEASE,GRAFANA_HOSTNAME,GRAFANA_HOSTNAME_ALT,SITE_URL,BRIDGE_CALLBACK_URL,BRIDGE_CLIENT_ID,BRIDGE_CLIENT_SECRET,BRIDGE_BASE_URL,BRIDGE_VERSION,MLFLOW_TRACKING_URI,MLFLOW_EMBED_URL,MLFLOW_ENABLED,POWENS_CLIENT_ID,POWENS_CLIENT_SECRET,POWENS_WEBHOOK_SECRET,GOOGLE_OAUTH_CLIENT_ID,GOOGLE_OAUTH_CLIENT_SECRET,ENCRYPTION_KEY
+          envs: SERVER_ENV_FILE,INSTALL_MODE,CELERY_ACTION,APP_RELEASE,GRAFANA_HOSTNAME,GRAFANA_HOSTNAME_ALT,SITE_URL,BRIDGE_CALLBACK_URL,BRIDGE_CLIENT_ID,BRIDGE_CLIENT_SECRET,BRIDGE_BASE_URL,BRIDGE_VERSION,MLFLOW_TRACKING_URI,MLFLOW_EMBED_URL,MLFLOW_ENABLED,POWENS_CLIENT_ID,POWENS_CLIENT_SECRET,POWENS_WEBHOOK_SECRET,GOOGLE_OAUTH_CLIENT_ID,GOOGLE_OAUTH_CLIENT_SECRET,ENCRYPTION_KEY,MISTRAL_API_KEY
 
           script: &deploy_script |
             set -e
@@ -158,6 +159,7 @@ jobs:
             upsert_env_var "GOOGLE_OAUTH_CLIENT_ID" "${GOOGLE_OAUTH_CLIENT_ID}"
             upsert_env_var "GOOGLE_OAUTH_CLIENT_SECRET" "${GOOGLE_OAUTH_CLIENT_SECRET}"
             upsert_env_var "ENCRYPTION_KEY" "${ENCRYPTION_KEY}"
+            upsert_env_var "MISTRAL_API_KEY" "${MISTRAL_API_KEY}"
             chmod 600 .env || true
 
             read_env_var () {
@@ -208,6 +210,7 @@ jobs:
               DB_USER_FULL="$(read_env_var APP_USER)"
               DB_PASSWORD_FULL="$(read_env_var APP_PASSWORD)"
               OPENAI_KEY_FULL="$(read_env_var OPENAI_API_KEY)"
+              MISTRAL_KEY_FULL="$(read_env_var MISTRAL_API_KEY)"
               DB_NAME_FULL="$(read_env_var DB_NAME)"
               DB_PORT_FULL="$(read_env_var DB_PORT)"
               DATABASE_URL_FULL="$(read_env_var DATABASE_URL)"
@@ -240,7 +243,8 @@ jobs:
                 "${MAIL_USE_SSL_FULL}" \
                 "${MAIL_USERNAME_FULL}" \
                 "${MAIL_PASSWORD_FULL}" \
-                "${MAIL_DEFAULT_SENDER_FULL}"
+                "${MAIL_DEFAULT_SENDER_FULL}" \
+                "${MISTRAL_KEY_FULL}"
             else
               echo "⚡ Incremental deploy (audela only, skip celery image rebuild)"
               $COMPOSE_CMD -f docker-compose.yml -f docker-compose.letsencrypt.yml build audela
@@ -587,6 +591,7 @@ jobs:
           GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID || secrets.GOOGLE_CLIENT_ID || '' }}
           GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET || secrets.GOOGLE_CLIENT_SECRET || '' }}
           ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY || '' }}
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -595,7 +600,7 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           timeout: 90s
           command_timeout: 40m
-          envs: SERVER_ENV_FILE,INSTALL_MODE,CELERY_ACTION,APP_RELEASE,GRAFANA_HOSTNAME,GRAFANA_HOSTNAME_ALT,SITE_URL,BRIDGE_CALLBACK_URL,BRIDGE_CLIENT_ID,BRIDGE_CLIENT_SECRET,BRIDGE_BASE_URL,BRIDGE_VERSION,MLFLOW_TRACKING_URI,MLFLOW_EMBED_URL,MLFLOW_ENABLED,POWENS_CLIENT_ID,POWENS_CLIENT_SECRET,POWENS_WEBHOOK_SECRET,GOOGLE_OAUTH_CLIENT_ID,GOOGLE_OAUTH_CLIENT_SECRET,ENCRYPTION_KEY
+          envs: SERVER_ENV_FILE,INSTALL_MODE,CELERY_ACTION,APP_RELEASE,GRAFANA_HOSTNAME,GRAFANA_HOSTNAME_ALT,SITE_URL,BRIDGE_CALLBACK_URL,BRIDGE_CLIENT_ID,BRIDGE_CLIENT_SECRET,BRIDGE_BASE_URL,BRIDGE_VERSION,MLFLOW_TRACKING_URI,MLFLOW_EMBED_URL,MLFLOW_ENABLED,POWENS_CLIENT_ID,POWENS_CLIENT_SECRET,POWENS_WEBHOOK_SECRET,GOOGLE_OAUTH_CLIENT_ID,GOOGLE_OAUTH_CLIENT_SECRET,ENCRYPTION_KEY,MISTRAL_API_KEY
           script: *deploy_script
 
       - name: Fail if SSH deploy failed twice

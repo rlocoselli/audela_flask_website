@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="AudelaMobileLight.Pages.TenantLoginPage"
+             Title="Login Tenant">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="20,16,20,24" Spacing="12">
+            <Label Text="Connexion Tenant"
+                   FontSize="28"
+                   FontAttributes="Bold" />
+            <Label Text="Connectez-vous comme sur le web (tenant + email + mot de passe)."
+                   FontSize="14"
+                   TextColor="#47637D" />
+
+            <Entry x:Name="TenantSlugEntry"
+                   Placeholder="Tenant slug (ex: demo-tenant)"
+                   Text="" />
+
+            <Entry x:Name="EmailEntry"
+                   Placeholder="Email"
+                   Keyboard="Email" />
+
+            <Entry x:Name="PasswordEntry"
+                   Placeholder="Password"
+                   IsPassword="True" />
+
+            <Button Text="Se connecter"
+                    Clicked="OnLoginClicked" />
+
+            <Button Text="Creer un compte"
+                    BackgroundColor="#E8F2FF"
+                    TextColor="#0A5FB8"
+                    Clicked="OnRegisterClicked" />
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>

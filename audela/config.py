@@ -107,6 +107,9 @@ class Config:
     OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
     OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "")
     OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL", "")
+    MISTRAL_API_KEY = os.environ.get("MISTRAL_API_KEY", "")
+    MISTRAL_MODEL = os.environ.get("MISTRAL_MODEL", "")
+    MISTRAL_BASE_URL = os.environ.get("MISTRAL_BASE_URL", "")
 
     # Google OAuth (social login)
     GOOGLE_OAUTH_CLIENT_ID = (

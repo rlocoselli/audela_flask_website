@@ -78,6 +78,16 @@ def subject_detail(subject_id):
     )
 
 
+@bp.route("/math-tools", methods=["GET"])
+@login_required
+def math_tools():
+    """Direct access to cartesian and math graph tools."""
+    return render_template(
+        "e_learning/math_tools.html",
+        page_title=tr("Math Tools"),
+    )
+
+
 @bp.route("/module/<int:module_id>", methods=["GET", "POST"])
 @login_required
 def module_detail(module_id):

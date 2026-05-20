@@ -45,6 +45,7 @@ from ...models.e_learning import (
     UserELearningEnrollment,
 )
 from ...services import e_learning_ai_service as ai_svc
+from ...services.ai_runtime_config import resolve_ai_runtime_config
 from ...services.certificate_template_service import (
     certificate_template_dir,
     is_allowed_certificate_template_file,
@@ -67,6 +68,11 @@ def _admin_required(f):
             return redirect(url_for("e_learning.subjects_list"))
         return f(*args, **kwargs)
     return decorated
+
+
+def _ai_enabled() -> bool:
+    runtime = resolve_ai_runtime_config(default_model="gpt-4o-mini")
+    return bool(runtime.get("api_key"))
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -106,7 +112,7 @@ def admin_dashboard():
         quiz_attempt_rate=round(attempt_rate, 1),
         quiz_pass_rate=round(pass_rate, 1),
         quiz_avg_score=round(float(avg_score or 0), 1),
-        ai_enabled=bool(current_app.config.get("OPENAI_API_KEY")),
+        ai_enabled=_ai_enabled(),
         all_langs=ai_svc.ALL_LANGS,
         lang_names=ai_svc.LANG_NAMES,
     )
@@ -156,7 +162,7 @@ def admin_subject_form(subject_id: int | None = None):
         subject=subject,
         all_langs=ai_svc.ALL_LANGS,
         lang_names=ai_svc.LANG_NAMES,
-        ai_enabled=bool(current_app.config.get("OPENAI_API_KEY")),
+        ai_enabled=_ai_enabled(),
     )
 
 
@@ -228,7 +234,7 @@ def admin_module_form(module_id: int | None = None):
         subjects=subjects,
         all_langs=ai_svc.ALL_LANGS,
         lang_names=ai_svc.LANG_NAMES,
-        ai_enabled=bool(current_app.config.get("OPENAI_API_KEY")),
+        ai_enabled=_ai_enabled(),
     )
 
 
@@ -299,7 +305,7 @@ def admin_lesson_form(lesson_id: int | None = None):
         modules=modules,
         all_langs=ai_svc.ALL_LANGS,
         lang_names=ai_svc.LANG_NAMES,
-        ai_enabled=bool(current_app.config.get("OPENAI_API_KEY")),
+        ai_enabled=_ai_enabled(),
     )
 
 
@@ -386,7 +392,7 @@ def admin_exercise_form(exercise_id: int | None = None):
         lessons=lessons,
         all_langs=ai_svc.ALL_LANGS,
         lang_names=ai_svc.LANG_NAMES,
-        ai_enabled=bool(current_app.config.get("OPENAI_API_KEY")),
+        ai_enabled=_ai_enabled(),
     )
 
 
@@ -831,7 +837,7 @@ def admin_quiz_form(quiz_id=None):
                 lessons=lessons,
                 all_langs=ai_svc.ALL_LANGS,
                 lang_names=ai_svc.LANG_NAMES,
-                ai_enabled=bool(current_app.config.get("OPENAI_API_KEY")),
+                ai_enabled=_ai_enabled(),
             )
 
         if not quiz:
@@ -863,7 +869,7 @@ def admin_quiz_form(quiz_id=None):
         lessons=lessons,
         all_langs=ai_svc.ALL_LANGS,
         lang_names=ai_svc.LANG_NAMES,
-        ai_enabled=bool(current_app.config.get("OPENAI_API_KEY")),
+        ai_enabled=_ai_enabled(),
     )
 
 
@@ -1157,7 +1163,7 @@ def admin_quiz_question_form(quiz_id=None, question_id=None):
         question=question,
         all_langs=ai_svc.ALL_LANGS,
         lang_names=ai_svc.LANG_NAMES,
-        ai_enabled=bool(current_app.config.get("OPENAI_API_KEY")),
+        ai_enabled=_ai_enabled(),
     )
 
 

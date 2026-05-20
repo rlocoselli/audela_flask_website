@@ -1,69 +1,88 @@
-# AUDELA Flask Website + BI Portal (MVP scaffold)
+# AUDELA Platform
 
-This repo keeps the public marketing pages and adds a logged `/app` area as the starting point of your multi-tenant BI solution.
+A multi-product data platform built with Flask, focused on analytics, finance workflows, project operations, and learning experiences.
 
-## MVP features implemented
+## ✨ What You Get
 
-- **Cadastro de fontes de dados por tenant** (config criptografada)
-- **Explorador de metadados** (introspecção via SQLAlchemy inspector)
-- **Editor SQL** (execução ad-hoc read-only com limites)
-- **Perguntas** (queries salvas) + execução (QueryRun)
-- **Dashboards** (cards simples baseados em perguntas)
-- **Auditoria** (AuditEvent) e **logs** (QueryRun) por tenant
+- 🧠 BI workspace with SQL editor, saved questions, dashboards, and AI-assisted analysis
+- 💼 Finance workspace for accounting flows, statement import, and ratio insights
+- 📊 Project workspace for planning, tracking, and delivery monitoring
+- 🤖 ML workspace with MLflow integration and notebook-ready foundations
+- 🎓 E-learning academy with multi-subject modules, quizzes, and interactive math labs
+- 🏢 Tenant-aware architecture with role-based access and scoped data operations
 
-## Quick start (local)
+## 🧱 Tech Stack
+
+- **Backend**: Flask, SQLAlchemy, Alembic
+- **Async**: Celery + Redis
+- **DB**: PostgreSQL (production), SQLite fallback (local)
+- **Infra**: Docker Compose, Traefik, Prometheus, Grafana
+- **AI Providers**: OpenAI and Mistral (switchable per tenant)
+
+## 🚀 Quick Start (Local)
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-
-export FLASK_APP=app.py
-export FLASK_ENV=development
-
-# Dev default: AUTO_CREATE_DB=true (cria as tabelas automaticamente no SQLite)
-python app.py
+python app2.py
 ```
 
 Open:
-- Public site: `http://localhost:5000/`
-- Login: `http://localhost:5000/app/login`
-- Bootstrap (dev only): `http://localhost:5000/app/bootstrap`
 
-After bootstrapping and logging in:
-- Fontes: `/app/sources`
-- Editor SQL: `/app/sql`
-- Perguntas: `/app/questions`
-- Dashboards: `/app/dashboards`
-- Auditoria: `/app/audit`
-- Execuções: `/app/runs`
+- `http://127.0.0.1:5000/` (public pages)
+- `http://127.0.0.1:5000/e-learning/` (academy)
+- `http://127.0.0.1:5000/tenant/login` (tenant access)
 
-## Tenancy model
+## 🔐 AI Provider Configuration
 
-MVP uses **model 1** (shared app DB with `tenant_id` on all BI entities) and **enforces scoping in backend**. Production hardening should add:
-- normalized ACL tables (instead of JSON)
-- tenant-aware query services and tests
-- database constraints and/or RLS for shared data sources
+AUDELA supports runtime switching between OpenAI and Mistral.
 
-## Notes
+Server environment keys:
 
-- To use **PostgreSQL** for the app DB, set `DATABASE_URL` (e.g. `postgresql+psycopg2://...`) and run `flask db upgrade`.
-- `DATA_KEY` can be set to rotate the encryption key used for datasource configs (otherwise it derives from `SECRET_KEY` in dev).
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL` (optional)
+- `OPENAI_BASE_URL` (optional)
+- `MISTRAL_API_KEY`
+- `MISTRAL_MODEL` (optional, default `mistral-small-latest`)
+- `MISTRAL_BASE_URL` (optional, default `https://api.mistral.ai/v1`)
 
-## Email in local dev
+Tenant-level switch:
 
-Email verification and invitation flows now support a dev mode that does not require a real SMTP server.
+- Go to `Tenant > Profile > AI Configuration`
+- Select provider (`OpenAI` or `Mistral AI`)
+- Optionally override model
 
-- `MAIL_DEV_MODE=true` (default in `FLASK_ENV=development`): renders templates and logs the email instead of sending it.
-- `MAIL_SUPPRESS_SEND=true` (default in `FLASK_ENV=development`): prevents real SMTP delivery.
+## 🐳 Docker Deployment
 
-Example (local):
+For production-style deployment (TLS, monitoring, MLflow, Celery):
+
+- Read: `README_DOCKER.md`
+
+Main deployment workflow:
+
+- `.github/workflows/deploy.yml`
+
+## 📚 Key Project Files
+
+- `app2.py`: app entrypoint used in local runs
+- `audela/config.py`: runtime settings and environment mapping
+- `audela/services/ai_runtime_config.py`: provider resolution (OpenAI/Mistral)
+- `templates/e_learning/lesson_view.html`: finance + Cartesian interactive graph labs
+
+## 🧪 Validation Commands
 
 ```bash
-export FLASK_ENV=development
-export MAIL_DEV_MODE=true
-export MAIL_SUPPRESS_SEND=true
+python -m py_compile audela/services/ai_service.py audela/services/openai_statement.py
+python app2.py
 ```
 
-For production, keep both values as `false` and configure normal SMTP settings (`MAIL_SERVER`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, etc.).
+## 🛣️ Suggested Next Improvements
 
+- Add pytest coverage for provider switching and AI fallback paths
+- Add visual regression checks for e-learning interactive graph components
+- Add smoke tests for tenant AI provider changes across products
+
+## 📄 License
+
+See `LICENSE.txt`.

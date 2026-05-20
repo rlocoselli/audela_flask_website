@@ -17,7 +17,7 @@ from ...models import Tenant
 from ...models import PublicPageVisit
 from ...services.subscription_service import SubscriptionService
 from ...services.email_service import EmailService
-from ...product_catalog import get_product_entry
+from ...product_catalog import get_product_catalog, get_product_entry
 
 from ...i18n import DEFAULT_LANG, SUPPORTED_LANGS, normalize_lang, tr
 
@@ -1337,6 +1337,33 @@ def product_ai_servers():
     lang = normalize_lang(getattr(g, "lang", session.get("lang")))
     copy = AI_SERVERS_COPY.get(lang, AI_SERVERS_COPY[DEFAULT_LANG])
     return render_template("products/ai_servers.html", t=copy)
+
+
+@bp.route("/api/mobile/products")
+def mobile_products_catalog():
+    """Expose a compact product catalog payload for the lightweight mobile app."""
+    catalog = get_product_catalog()
+    payload = []
+    for key, product in catalog.items():
+        raw_features = product.get("features")
+        raw_outcomes = product.get("outcomes")
+        features = raw_features if isinstance(raw_features, list) else []
+        outcomes = raw_outcomes if isinstance(raw_outcomes, list) else []
+        payload.append(
+            {
+                "id": key,
+                "title": str(product.get("tenant_title") or product.get("public_title") or key),
+                "subtitle": str(product.get("subtitle") or ""),
+                "summary": str(product.get("overview") or product.get("tenant_summary") or ""),
+                "audience": str(product.get("audience") or ""),
+                "featureHighlights": [str(item) for item in features[:3]],
+                "outcomeHighlights": [str(item) for item in outcomes[:2]],
+                "tag": str(product.get("plans_slug") or key),
+            }
+        )
+
+    payload.sort(key=lambda item: item["title"].lower())
+    return jsonify({"products": payload, "count": len(payload)})
 
 
 # -----------------

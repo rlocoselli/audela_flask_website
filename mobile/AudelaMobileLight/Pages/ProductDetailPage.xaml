@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:AudelaMobileLight.Pages"
+             x:Class="AudelaMobileLight.Pages.ProductDetailPage"
+             x:DataType="local:ProductDetailPage"
+             Title="Produit">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="20,12,20,24" Spacing="16">
+            <Border BackgroundColor="#0C2035"
+                    StrokeThickness="0"
+                    Padding="18"
+                    StrokeShape="RoundRectangle 20">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="{Binding Product.Tag}"
+                           FontSize="12"
+                           TextColor="#9BD3FF"
+                           TextTransform="Uppercase" />
+                    <Label Text="{Binding Product.Title}"
+                           FontAttributes="Bold"
+                           FontSize="28"
+                           TextColor="White" />
+                    <Label Text="{Binding Product.Subtitle}"
+                           FontSize="15"
+                           TextColor="#C2D7EA" />
+                </VerticalStackLayout>
+            </Border>
+
+            <Label Text="{Binding Product.Summary}"
+                   FontSize="16"
+                   LineHeight="1.3" />
+
+            <Label Text="Pour qui"
+                   FontAttributes="Bold"
+                   FontSize="18" />
+            <Label Text="{Binding Product.Audience}"
+                   FontSize="15" />
+
+            <Label Text="Highlights"
+                   FontAttributes="Bold"
+                   FontSize="18" />
+
+            <CollectionView ItemsSource="{Binding Product.FeatureHighlights}">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="x:String">
+                        <HorizontalStackLayout Spacing="8" Padding="0,4">
+                            <Label Text="•" FontSize="18" TextColor="#0A84FF" />
+                            <Label Text="{Binding .}" FontSize="15" LineBreakMode="WordWrap" />
+                        </HorizontalStackLayout>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+
+            <Label Text="Impact"
+                   FontAttributes="Bold"
+                   FontSize="18" />
+
+            <CollectionView ItemsSource="{Binding Product.OutcomeHighlights}">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="x:String">
+                        <HorizontalStackLayout Spacing="8" Padding="0,4">
+                            <Label Text="✓" FontSize="16" TextColor="#00A86B" />
+                            <Label Text="{Binding .}" FontSize="15" LineBreakMode="WordWrap" />
+                        </HorizontalStackLayout>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>

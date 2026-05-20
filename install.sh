@@ -5,7 +5,7 @@ set -euo pipefail
 # Docker deploy installer (used by GitHub Actions)
 # =============================================================================
 # Calling convention kept compatible with the legacy deploy:
-#   ./install.sh HOST USER PASSWORD OPENAI_API_KEY [DB_NAME] [DB_PORT] [DATABASE_URL]
+#   ./install.sh HOST USER PASSWORD OPENAI_API_KEY [DB_NAME] [DB_PORT] [DATABASE_URL] [MAIL_SERVER] [MAIL_PORT] [MAIL_USE_TLS] [MAIL_USE_SSL] [MAIL_USERNAME] [MAIL_PASSWORD] [MAIL_DEFAULT_SENDER] [MISTRAL_API_KEY]
 #
 # Notes:
 # - HOST/USER/PASSWORD/DB_* are treated as DB connection inputs (same as before).
@@ -37,9 +37,10 @@ MAIL_USE_SSL_ARG="${11:-}"
 MAIL_USERNAME_ARG="${12:-}"
 MAIL_PASSWORD_ARG="${13:-}"
 MAIL_DEFAULT_SENDER_ARG="${14:-}"
+MISTRAL_API_KEY_ARG="${15:-}"
 
 if [[ -z "${DB_HOST_ARG}" || -z "${DB_USER_ARG}" || -z "${DB_PASSWORD_ARG}" ]]; then
-  echo "❌ Missing required args. Usage: ./install.sh HOST USER PASSWORD OPENAI_API_KEY [DB_NAME] [DB_PORT] [DATABASE_URL]"
+  echo "❌ Missing required args. Usage: ./install.sh HOST USER PASSWORD OPENAI_API_KEY [DB_NAME] [DB_PORT] [DATABASE_URL] [MAIL_SERVER] [MAIL_PORT] [MAIL_USE_TLS] [MAIL_USE_SSL] [MAIL_USERNAME] [MAIL_PASSWORD] [MAIL_DEFAULT_SENDER] [MISTRAL_API_KEY]"
   exit 1
 fi
 
@@ -238,6 +239,7 @@ EOF
   upsert_env_var "DATA_KEY" "${data_key}"
 
   upsert_env_var "OPENAI_API_KEY" "${OPENAI_API_KEY_ARG}"
+  upsert_env_var "MISTRAL_API_KEY" "${MISTRAL_API_KEY_ARG}"
   upsert_env_var "DATABASE_URL" "${database_url_effective}"
   upsert_env_var "APP_HOST" "${db_host_effective}"
   upsert_env_var "APP_USER" "${DB_USER_ARG}"

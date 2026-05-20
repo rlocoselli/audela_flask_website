@@ -66,6 +66,7 @@
                 <option value="openai" {% if (ai_settings.provider or 'openai') == 'openai' %}selected{% endif %}>OpenAI</option>
                 <option value="mistral" {% if (ai_settings.provider or 'openai') == 'mistral' %}selected{% endif %}>Mistral AI</option>
               </select>
+              <div class="form-text">{{ _('Clés serveur: OPENAI_API_KEY pour OpenAI, MISTRAL_API_KEY pour Mistral.') }}</div>
             </div>
 
             <div class="col-12 col-md-6">

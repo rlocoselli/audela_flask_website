@@ -60,6 +60,29 @@ dist/
 pip-wheel-metadata/
 
 # =========================
+# .NET / MAUI build artifacts and binaries
+# =========================
+**/bin/
+**/obj/
+*.apk
+*.aab
+*.apks
+*.ipa
+*.dll
+*.exe
+*.so
+*.dylib
+*.o
+*.a
+*.lib
+*.class
+*.jar
+*.war
+*.ear
+*.pdb
+*.dSYM/
+
+# =========================
 # OS files
 # =========================
 .DS_Store

@@ -156,6 +156,32 @@ def parse_quick_entry_text_via_openai(
     except requests.RequestException as e:
         raise OpenAIQuickEntryError(f"OpenAI request failed: {str(e)[:200]}") from e
 
+    if not r.ok and r.status_code in (400, 404, 415, 422):
+        # Compatibility fallback for providers lacking strict json_schema response_format.
+        body_fallback = {
+            "model": model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a finance assistant. Return ONLY valid JSON with keys: "
+                        "direction, amount, currency, category, counterparty, description, txn_date. "
+                        "Use direction in ['inflow','outflow']; amount must be positive; "
+                        "txn_date must be ISO YYYY-MM-DD or null."
+                    ),
+                },
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": 0,
+            "response_format": {"type": "json_object"},
+        }
+        try:
+            r = requests.post(url, headers=headers, json=body_fallback, timeout=(10, timeout_s))
+        except requests.Timeout as e:
+            raise OpenAIQuickEntryError(f"OpenAI timeout after {timeout_s}s") from e
+        except requests.RequestException as e:
+            raise OpenAIQuickEntryError(f"OpenAI request failed: {str(e)[:200]}") from e
+
     if not r.ok:
         msg = _extract_openai_error_message(r.text)
         raise OpenAIQuickEntryError(f"OpenAI error ({r.status_code}): {msg}")
