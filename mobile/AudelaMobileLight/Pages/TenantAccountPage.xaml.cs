@@ -53,7 +53,7 @@ public partial class TenantAccountPage : ContentPage
         var session = TenantSessionStore.Current;
         if (session is null)
         {
-            await DisplayAlert("Info", "Connectez-vous d'abord.", "OK");
+            await ModernAlertService.ShowAsync(this, "Info", "Connectez-vous d'abord.");
             return;
         }
 
@@ -63,7 +63,7 @@ public partial class TenantAccountPage : ContentPage
     private async void OnLogoutClicked(object? sender, EventArgs e)
     {
         TenantSessionStore.Clear();
-        await DisplayAlert("Session", "Deconnecte.", "OK");
+        await ModernAlertService.ShowAsync(this, "Session", "Deconnecte.", AlertTone.Success);
         await Navigation.PopToRootAsync();
     }
 }

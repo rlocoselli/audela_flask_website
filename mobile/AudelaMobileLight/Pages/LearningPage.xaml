@@ -7,13 +7,25 @@
              x:DataType="local:LearningPage"
              Title="Learning">
 
-    <ScrollView>
+    <Grid RowDefinitions="Auto,*">
+        <ScrollView Grid.Row="0">
         <VerticalStackLayout Padding="16" Spacing="10">
             <Label Text="Learning natif"
                    FontSize="24"
                    FontAttributes="Bold" />
-            <Label Text="Progression, modules et pratique SQL depuis mobile."
+            <Label Text="Contenu e-learning + quiz (comme sur le web)"
                    TextColor="#44617D" />
+
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                <Button Text="Contenu"
+                        Clicked="OnShowLearningContentClicked" />
+                <Button Grid.Column="1"
+                        Text="Quiz"
+                        Clicked="OnShowLearningQuizClicked" />
+            </Grid>
+
+            <Button Text="Ouvrir page e-learning actuelle"
+                    Clicked="OnOpenCurrentLearningWebClicked" />
 
             <ActivityIndicator IsVisible="{Binding IsLoading}"
                                IsRunning="{Binding IsLoading}" />
@@ -31,6 +43,16 @@
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
             </CollectionView>
+
+            <Label Text="E-learning Web (contenu + quiz)"
+                   FontAttributes="Bold"
+                   FontSize="18"
+                   Margin="0,8,0,0" />
         </VerticalStackLayout>
-    </ScrollView>
+        </ScrollView>
+
+        <WebView Grid.Row="1"
+                 Margin="10,0,10,10"
+                 Source="{Binding ActiveLearningUrl}" />
+    </Grid>
 </ContentPage>

@@ -7,13 +7,49 @@
              x:DataType="local:FinanceEntriesPage"
              Title="Finance">
 
-    <ScrollView>
+    <Grid RowDefinitions="Auto,*">
+        <ScrollView Grid.Row="0">
         <VerticalStackLayout Padding="16" Spacing="10">
             <Label Text="Saisies finance natives"
                    FontSize="24"
                    FontAttributes="Bold" />
             <Label Text="Capture rapide des ecritures et mouvements depuis mobile."
                    TextColor="#44617D" />
+
+            <Button Text="Ouvrir Finance web complet"
+                    Clicked="OnOpenFinanceWebClicked" />
+
+            <Border StrokeThickness="0" BackgroundColor="#EEF5FF" Padding="12" StrokeShape="RoundRectangle 14">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="Quick entry" FontAttributes="Bold" />
+                    <Entry x:Name="DescriptionEntry" Placeholder="Description" />
+                    <Entry x:Name="CategoryEntry" Placeholder="Categorie (optionnel)" />
+                    <Entry x:Name="AmountEntry" Placeholder="Montant (ex: -120.50 ou 250)" Keyboard="Numeric" />
+                    <Button Text="Ajouter"
+                            Clicked="OnAddQuickEntryClicked"
+                            BackgroundColor="#0A84FF"
+                            TextColor="White" />
+                </VerticalStackLayout>
+            </Border>
+
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                <Border StrokeThickness="0" BackgroundColor="#F6FAFF" Padding="10" StrokeShape="RoundRectangle 12">
+                    <VerticalStackLayout Spacing="3">
+                        <Label Text="Daily net" FontSize="12" TextColor="#4C6D8E" />
+                        <Label Text="{Binding DailyNetLabel}" FontAttributes="Bold" FontSize="18" />
+                        <Label Text="{Binding DailyInLabel, StringFormat='In {0}'}" FontSize="11" TextColor="#4C6D8E" />
+                        <Label Text="{Binding DailyOutLabel, StringFormat='Out {0}'}" FontSize="11" TextColor="#4C6D8E" />
+                    </VerticalStackLayout>
+                </Border>
+                <Border Grid.Column="1" StrokeThickness="0" BackgroundColor="#F6FAFF" Padding="10" StrokeShape="RoundRectangle 12">
+                    <VerticalStackLayout Spacing="3">
+                        <Label Text="Monthly net" FontSize="12" TextColor="#4C6D8E" />
+                        <Label Text="{Binding MonthlyNetLabel}" FontAttributes="Bold" FontSize="18" />
+                        <Label Text="{Binding MonthlyInLabel, StringFormat='In {0}'}" FontSize="11" TextColor="#4C6D8E" />
+                        <Label Text="{Binding MonthlyOutLabel, StringFormat='Out {0}'}" FontSize="11" TextColor="#4C6D8E" />
+                    </VerticalStackLayout>
+                </Border>
+            </Grid>
 
             <ActivityIndicator IsVisible="{Binding IsLoading}"
                                IsRunning="{Binding IsLoading}" />
@@ -32,6 +68,16 @@
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
             </CollectionView>
+
+            <Label Text="Finance Web (dettes, credits, analyses completes)"
+                   FontAttributes="Bold"
+                   FontSize="18"
+                   Margin="0,8,0,0" />
         </VerticalStackLayout>
-    </ScrollView>
+        </ScrollView>
+
+        <WebView Grid.Row="1"
+                 Margin="10,0,10,10"
+                 Source="{Binding FinanceDashboardUrl}" />
+    </Grid>
 </ContentPage>

@@ -49,6 +49,60 @@ public sealed class MobileVisualizationService
         return payload?.Entries ?? [];
     }
 
+    public async Task<(bool Ok, string Message)> AddFinanceEntryAsync(string description, string category, double amount, CancellationToken cancellationToken)
+    {
+        var body = new
+        {
+            description,
+            category,
+            amount,
+        };
+
+        foreach (var baseUrl in BackendEndpoints.Candidates())
+        {
+            var endpoint = BuildUrl(baseUrl, "/api/mobile/finance/entries");
+            try
+            {
+                var response = await _httpClient.PostAsJsonAsync(endpoint, body, cancellationToken);
+                var payload = await response.Content.ReadFromJsonAsync<FinanceCreatePayload>(cancellationToken: cancellationToken);
+                if (response.IsSuccessStatusCode && payload?.Ok == true)
+                {
+                    return (true, payload.Message);
+                }
+
+                if (payload is not null && !string.IsNullOrWhiteSpace(payload.Message))
+                {
+                    return (false, payload.Message);
+                }
+            }
+            catch
+            {
+                // try next candidate endpoint
+            }
+        }
+
+        return (false, "Impossible d'ajouter la saisie finance.");
+    }
+
+    public async Task<MobileFinanceSummary> GetFinanceSummaryAsync(CancellationToken cancellationToken)
+    {
+        var payload = await GetFirstAsync<FinanceSummaryPayload>("/api/mobile/finance/summary", cancellationToken);
+        if (payload is null)
+        {
+            return new MobileFinanceSummary();
+        }
+
+        return new MobileFinanceSummary
+        {
+            DailyIn = payload.Daily.In,
+            DailyOut = payload.Daily.Out,
+            DailyNet = payload.Daily.Net,
+            MonthlyIn = payload.Monthly.In,
+            MonthlyOut = payload.Monthly.Out,
+            MonthlyNet = payload.Monthly.Net,
+        };
+    }
+
     private async Task<T?> GetFirstAsync<T>(string path, CancellationToken cancellationToken)
     {
         foreach (var baseUrl in BackendEndpoints.Candidates())
@@ -138,5 +192,35 @@ public sealed class MobileVisualizationService
     {
         [JsonPropertyName("entries")]
         public List<MobileFinanceEntry> Entries { get; set; } = [];
+    }
+
+    private sealed class FinanceCreatePayload
+    {
+        [JsonPropertyName("ok")]
+        public bool Ok { get; set; }
+
+        [JsonPropertyName("message")]
+        public string Message { get; set; } = string.Empty;
+    }
+
+    private sealed class FinanceSummaryPayload
+    {
+        [JsonPropertyName("daily")]
+        public FinancePeriod Daily { get; set; } = new();
+
+        [JsonPropertyName("monthly")]
+        public FinancePeriod Monthly { get; set; } = new();
+    }
+
+    private sealed class FinancePeriod
+    {
+        [JsonPropertyName("in")]
+        public double In { get; set; }
+
+        [JsonPropertyName("out")]
+        public double Out { get; set; }
+
+        [JsonPropertyName("net")]
+        public double Net { get; set; }
     }
 }

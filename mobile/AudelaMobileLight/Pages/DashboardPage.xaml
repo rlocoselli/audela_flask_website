@@ -6,13 +6,25 @@
              x:DataType="local:DashboardPage"
              Title="Dashboards">
 
-    <ScrollView>
-        <VerticalStackLayout Padding="16" Spacing="12">
+    <Grid RowDefinitions="Auto,*">
+        <ScrollView Grid.Row="0">
+            <VerticalStackLayout Padding="16" Spacing="12">
             <Label Text="Dashboards natifs"
                    FontSize="24"
                    FontAttributes="Bold" />
-            <Label Text="Vue mobile rapide des KPIs principaux."
+            <Label Text="KPIs rapides + dashboard BI web complet"
                    TextColor="#44617D" />
+
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                <Button Text="Dashboards BI"
+                    Clicked="OnShowDashboardsClicked" />
+                <Button Grid.Column="1"
+                    Text="Chat AI"
+                    Clicked="OnShowAiChatClicked" />
+                </Grid>
+
+                <Button Text="Ouvrir page actuelle dans navigateur"
+                    Clicked="OnOpenCurrentWebClicked" />
 
             <Grid ColumnDefinitions="*,*" ColumnSpacing="10" RowSpacing="10">
                 <Border StrokeThickness="0" BackgroundColor="#EDF6FF" Padding="12" StrokeShape="RoundRectangle 14">
@@ -72,6 +84,16 @@
             <ActivityIndicator IsVisible="{Binding IsLoading}"
                                IsRunning="{Binding IsLoading}"
                                Margin="0,6,0,0" />
+
+              <Label Text="BI / AI Web (comme sur AUDELA Web)"
+                   FontAttributes="Bold"
+                   FontSize="18"
+                   Margin="0,10,0,0" />
         </VerticalStackLayout>
-    </ScrollView>
+        </ScrollView>
+
+        <WebView Grid.Row="1"
+                 Margin="10,0,10,10"
+                  Source="{Binding ActiveBiUrl}" />
+    </Grid>
 </ContentPage>

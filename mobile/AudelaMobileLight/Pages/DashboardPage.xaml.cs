@@ -5,6 +5,9 @@ namespace AudelaMobileLight.Pages;
 public partial class DashboardPage : ContentPage
 {
     private readonly MobileVisualizationService _service = new();
+    public string BiDashboardsUrl { get; } = $"{BackendEndpoints.PrimaryPublicBaseUrl}/app/dashboards";
+    public string AiChatUrl { get; } = $"{BackendEndpoints.PrimaryPublicBaseUrl}/app/ai";
+    public string ActiveBiUrl { get; private set; }
 
     public string FinanceNetAmountLabel { get; private set; } = "0";
     public string LearningProgressLabel { get; private set; } = "0%";
@@ -19,6 +22,7 @@ public partial class DashboardPage : ContentPage
     public DashboardPage()
     {
         InitializeComponent();
+        ActiveBiUrl = BiDashboardsUrl;
         BindingContext = this;
     }
 
@@ -59,5 +63,22 @@ public partial class DashboardPage : ContentPage
             IsLoading = false;
             OnPropertyChanged(nameof(IsLoading));
         }
+    }
+
+    private async void OnOpenCurrentWebClicked(object? sender, EventArgs e)
+    {
+        await Launcher.Default.OpenAsync(ActiveBiUrl);
+    }
+
+    private void OnShowDashboardsClicked(object? sender, EventArgs e)
+    {
+        ActiveBiUrl = BiDashboardsUrl;
+        OnPropertyChanged(nameof(ActiveBiUrl));
+    }
+
+    private void OnShowAiChatClicked(object? sender, EventArgs e)
+    {
+        ActiveBiUrl = AiChatUrl;
+        OnPropertyChanged(nameof(ActiveBiUrl));
     }
 }

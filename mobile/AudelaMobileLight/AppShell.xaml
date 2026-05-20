@@ -16,7 +16,7 @@
             Route="MainPage" />
 
         <ShellContent
-            Title="Dashboards"
+            Title="BI &amp; AI"
             Icon="tab_dashboard.svg"
             ContentTemplate="{DataTemplate pages:DashboardPage}"
             Route="DashboardPage" />

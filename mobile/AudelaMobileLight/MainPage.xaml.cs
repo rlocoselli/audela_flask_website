@@ -73,7 +73,7 @@ public partial class MainPage : ContentPage
 		}
 		catch (Exception ex)
 		{
-			await DisplayAlert("Erreur", $"Impossible de charger les produits: {ex.Message}", "OK");
+			await ModernAlertService.ShowAsync(this, "Erreur", $"Impossible de charger les produits: {ex.Message}", AlertTone.Error);
 		}
 		finally
 		{

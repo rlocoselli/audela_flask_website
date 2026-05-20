@@ -45,7 +45,7 @@ public partial class TenantRegisterPage : ContentPage
 
         if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
         {
-            await DisplayAlert("Erreur", "Email et mot de passe sont requis.", "OK");
+            await ModernAlertService.ShowAsync(this, "Erreur", "Email et mot de passe sont requis.", AlertTone.Error);
             return;
         }
 
@@ -63,11 +63,11 @@ public partial class TenantRegisterPage : ContentPage
         var (ok, message) = result;
         if (!ok)
         {
-            await DisplayAlert("Inscription echouee", message, "OK");
+            await ModernAlertService.ShowAsync(this, "Inscription echouee", message, AlertTone.Error);
             return;
         }
 
-        await DisplayAlert("Compte cree", message, "OK");
+        await ModernAlertService.ShowAsync(this, "Compte cree", message, AlertTone.Success);
         await Navigation.PopAsync();
     }
 }

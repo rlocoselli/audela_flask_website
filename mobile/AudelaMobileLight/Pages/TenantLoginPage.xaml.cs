@@ -27,7 +27,7 @@ public partial class TenantLoginPage : ContentPage
 
         if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
         {
-            await DisplayAlert("Erreur", "Email et mot de passe sont requis.", "OK");
+            await ModernAlertService.ShowAsync(this, "Erreur", "Email et mot de passe sont requis.", AlertTone.Error);
             return;
         }
 
@@ -40,12 +40,12 @@ public partial class TenantLoginPage : ContentPage
             var (ok, message, session) = await _tenantAuthService.LoginAsync(tenantSlug, email, password);
             if (!ok || session is null)
             {
-                await DisplayAlert("Connexion echouee", message, "OK");
+                await ModernAlertService.ShowAsync(this, "Connexion echouee", message, AlertTone.Error);
                 return;
             }
 
             TenantSessionStore.Save(session);
-            await DisplayAlert("Succes", $"Bienvenue {session.FullName}".Trim(), "OK");
+            await ModernAlertService.ShowAsync(this, "Succes", $"Bienvenue {session.FullName}".Trim(), AlertTone.Success);
             await Navigation.PushAsync(new TenantAccountPage());
         }
         finally

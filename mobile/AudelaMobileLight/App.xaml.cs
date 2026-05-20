@@ -47,7 +47,7 @@ public partial class App : Application
 		{
 			if (!string.IsNullOrWhiteSpace(message) && rootPage is not null)
 			{
-				await rootPage.DisplayAlert("Google Login", message, "OK");
+				await ModernAlertService.ShowAsync(rootPage, "Google Login", message, AlertTone.Error);
 			}
 			return;
 		}
@@ -76,7 +76,7 @@ public partial class App : Application
 
 		if (!string.IsNullOrWhiteSpace(message) && rootPage is not null)
 		{
-			await rootPage.DisplayAlert("Google Login", message, "OK");
+			await ModernAlertService.ShowAsync(rootPage, "Google Login", message, AlertTone.Success);
 		}
 	}
 

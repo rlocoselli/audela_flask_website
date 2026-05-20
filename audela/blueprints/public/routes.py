@@ -1553,6 +1553,81 @@ def mobile_finance_entries_data():
     return jsonify({"entries": payload, "count": len(payload)})
 
 
+@bp.route("/api/mobile/finance/entries", methods=["POST"])
+def mobile_finance_entries_create():
+    tenant = _mobile_resolve_tenant_from_query()
+    if not tenant:
+        return jsonify({"ok": False, "message": "Tenant is required."}), 400
+
+    data = request.get_json(silent=True) or {}
+    description = str(data.get("description") or "").strip()
+    category = str(data.get("category") or "").strip()
+    raw_amount = data.get("amount")
+
+    if not description:
+        return jsonify({"ok": False, "message": "Description is required."}), 400
+    amount = _to_float(raw_amount)
+    if abs(amount) < 0.000001:
+        return jsonify({"ok": False, "message": "Amount must be non-zero."}), 400
+
+    account = FinanceAccount.query.filter(FinanceAccount.tenant_id == tenant.id).order_by(FinanceAccount.id.asc()).first()
+    if not account:
+        return jsonify({"ok": False, "message": "No finance account found for tenant."}), 400
+
+    tx = FinanceTransaction(
+        tenant_id=int(tenant.id),
+        company_id=int(account.company_id),
+        account_id=int(account.id),
+        txn_date=date.today(),
+        amount=amount,
+        description=description,
+        category=category or None,
+    )
+    db.session.add(tx)
+    db.session.commit()
+
+    return jsonify(
+        {
+            "ok": True,
+            "message": "Entry created.",
+            "entry": {
+                "id": int(tx.id),
+                "date": tx.txn_date.isoformat() if tx.txn_date else "",
+                "description": str(tx.description or ""),
+                "amount": round(_to_float(tx.amount), 2),
+                "account": str(getattr(account, "name", "") or ""),
+                "category": str(tx.category or ""),
+            },
+        }
+    )
+
+
+@bp.route("/api/mobile/finance/summary")
+def mobile_finance_summary_data():
+    tenant = _mobile_resolve_tenant_from_query()
+    tenant_id = int(tenant.id) if tenant else None
+    if not tenant_id:
+        return jsonify({"daily": {"in": 0.0, "out": 0.0, "net": 0.0}, "monthly": {"in": 0.0, "out": 0.0, "net": 0.0}})
+
+    today = date.today()
+    month_start = date(today.year, today.month, 1)
+
+    query = FinanceTransaction.query.filter(FinanceTransaction.tenant_id == tenant_id)
+    daily_rows = query.filter(FinanceTransaction.txn_date == today).all()
+    monthly_rows = query.filter(FinanceTransaction.txn_date >= month_start, FinanceTransaction.txn_date <= today).all()
+
+    def _pack(rows):
+        inflow = sum(_to_float(r.amount) for r in rows if _to_float(r.amount) > 0)
+        outflow = sum(abs(_to_float(r.amount)) for r in rows if _to_float(r.amount) < 0)
+        return {
+            "in": round(inflow, 2),
+            "out": round(outflow, 2),
+            "net": round(inflow - outflow, 2),
+        }
+
+    return jsonify({"daily": _pack(daily_rows), "monthly": _pack(monthly_rows)})
+
+
 # -----------------
 # Legal pages
 # -----------------

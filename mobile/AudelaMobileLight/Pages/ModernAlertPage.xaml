@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:AudelaMobileLight.Pages"
+             x:Class="AudelaMobileLight.Pages.ModernAlertPage"
+             x:DataType="local:ModernAlertPage"
+             BackgroundColor="#77000000">
+
+    <Grid Padding="22">
+        <Border VerticalOptions="Center"
+                StrokeThickness="0"
+                BackgroundColor="#0E2236"
+                Padding="18"
+                StrokeShape="RoundRectangle 20">
+            <VerticalStackLayout Spacing="10">
+                <Label Text="{Binding TitleText}"
+                       FontAttributes="Bold"
+                       FontSize="20"
+                       TextColor="{Binding AccentColor}" />
+                <Label Text="{Binding MessageText}"
+                       FontSize="15"
+                       TextColor="#D7E8F8" />
+                <Button Text="OK"
+                        Margin="0,8,0,0"
+                        Clicked="OnOkClicked"
+                        BackgroundColor="{Binding AccentColor}"
+                        TextColor="#0E2236" />
+            </VerticalStackLayout>
+        </Border>
+    </Grid>
+</ContentPage>
