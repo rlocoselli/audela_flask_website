@@ -75,6 +75,24 @@ def _mobile_return_redirect(
     return redirect(f"{target}?{urlencode(payload)}")
 
 
+def _mobile_user_name_parts(user: User) -> tuple[str, str, str]:
+    """Return safe first/last/full names for mobile payloads.
+
+    Handles schemas where users may not have first_name/last_name columns.
+    """
+    first_name = str(getattr(user, "first_name", "") or "").strip()
+    last_name = str(getattr(user, "last_name", "") or "").strip()
+    if not first_name and not last_name:
+        display_name = str(getattr(user, "name", "") or "").strip()
+        if display_name:
+            parts = display_name.split(None, 1)
+            first_name = parts[0]
+            last_name = parts[1] if len(parts) > 1 else ""
+
+    full_name = f"{first_name} {last_name}".strip()
+    return first_name, last_name, full_name
+
+
 def _google_oauth_enabled() -> bool:
     return bool(
         str(current_app.config.get("GOOGLE_OAUTH_CLIENT_ID") or "").strip()
@@ -790,6 +808,8 @@ def google_login_callback():
     else:
         session.pop("app_mode", None)
 
+    _, _, full_name = _mobile_user_name_parts(user)
+
     mobile_redirect = _mobile_return_redirect(
         mobile_return_url,
         status="success",
@@ -800,7 +820,7 @@ def google_login_callback():
             "tenantSlug": tenant.slug,
             "userId": user.id,
             "email": user.email,
-            "fullName": (f"{getattr(user, 'first_name', '')} {getattr(user, 'last_name', '')}").strip(),
+            "fullName": full_name,
         },
     )
     if mobile_redirect:

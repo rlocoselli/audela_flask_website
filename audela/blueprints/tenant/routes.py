@@ -549,6 +549,15 @@ def mobile_login():
     if user.status == "pending_verification":
         return jsonify({"ok": False, "message": "Please verify your email before login."}), 403
 
+    first_name = str(getattr(user, "first_name", "") or "").strip()
+    last_name = str(getattr(user, "last_name", "") or "").strip()
+    if not first_name and not last_name:
+        display_name = str(getattr(user, "name", "") or "").strip()
+        if display_name:
+            parts = display_name.split(None, 1)
+            first_name = parts[0]
+            last_name = parts[1] if len(parts) > 1 else ""
+
     return jsonify(
         {
             "ok": True,
@@ -556,8 +565,8 @@ def mobile_login():
             "user": {
                 "id": int(user.id),
                 "email": str(user.email or ""),
-                "firstName": str(user.first_name or ""),
-                "lastName": str(user.last_name or ""),
+                "firstName": first_name,
+                "lastName": last_name,
             },
             "tenant": {
                 "id": int(tenant.id),
