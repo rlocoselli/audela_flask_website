@@ -64,8 +64,9 @@ public partial class TenantLoginPage : ContentPage
     private async void OnGoogleLoginClicked(object? sender, EventArgs e)
     {
         var tenantSlug = TenantSlugEntry.Text?.Trim().ToLowerInvariant() ?? string.Empty;
-        var baseUrl = "https://audeladedonnees.fr";
-        var googleLoginUrl = $"{baseUrl}/app/login/google/start?app=tenant&mode=login";
+        var baseUrl = BackendEndpoints.PrimaryPublicBaseUrl;
+        var mobileReturn = Uri.EscapeDataString("audelamobilelight://oauth-callback");
+        var googleLoginUrl = $"{baseUrl}/app/login/google/start?app=tenant&mode=login&mobile_return={mobileReturn}";
 
         if (!string.IsNullOrWhiteSpace(tenantSlug))
         {

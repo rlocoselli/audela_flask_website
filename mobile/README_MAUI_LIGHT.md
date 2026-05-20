@@ -43,9 +43,12 @@ dotnet run -f net9.0-android
 
 In order:
 
-1. `http://10.0.2.2:5000` (Android emulator to host machine)
-2. `http://127.0.0.1:5000`
-3. `https://audeladedonnees.fr`
+1. `https://audeladedonnees.fr`
+2. `https://grenobleski.fr`
+3. `https://www.audeladedonnees.fr`
+4. `https://www.grenobleski.fr`
+5. `http://10.0.2.2:5000` (Android emulator to host machine, DEBUG only)
+6. `http://127.0.0.1:5000` (DEBUG only)
 
 ## Main Files
 

@@ -4,6 +4,9 @@
 #logo .brand-text { letter-spacing: 0.06em; font-weight: 800; }
 #nav a { text-transform: none; }
 #banner .content header h2 { letter-spacing: 0.08em; }
+#banner .content header .banner-tagline {
+  text-wrap: balance;
+}
 
 /* --- AUDELA French modern accents (subtle tricolore) --- */
 :root{

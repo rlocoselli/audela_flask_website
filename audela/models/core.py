@@ -70,7 +70,11 @@ class User(UserMixin, db.Model):
     def check_password(self, password: str) -> bool:
         if not self.password_hash:
             return False
-        return check_password_hash(self.password_hash, password)
+        try:
+            return check_password_hash(self.password_hash, password)
+        except (ValueError, TypeError):
+            # Legacy or malformed hashes should not crash auth endpoints.
+            return False
 
     def has_role(self, code: str) -> bool:
         return any(r.code == code for r in self.roles)

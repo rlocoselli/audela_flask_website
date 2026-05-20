@@ -57,7 +57,7 @@ public partial class TenantAccountPage : ContentPage
             return;
         }
 
-        await Launcher.Default.OpenAsync($"https://audeladedonnees.fr/tenant/login?tenant={session.TenantSlug}");
+        await Launcher.Default.OpenAsync($"{BackendEndpoints.PrimaryPublicBaseUrl}/tenant/login?tenant={session.TenantSlug}");
     }
 
     private async void OnLogoutClicked(object? sender, EventArgs e)

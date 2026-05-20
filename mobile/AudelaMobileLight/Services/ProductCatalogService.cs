@@ -10,12 +10,7 @@ public sealed class ProductCatalogService
         Timeout = TimeSpan.FromSeconds(6),
     };
 
-    private readonly string[] _baseUrls =
-    [
-        "http://10.0.2.2:5000",
-        "http://127.0.0.1:5000",
-        "https://audeladedonnees.fr",
-    ];
+    private readonly IReadOnlyList<string> _baseUrls = BackendEndpoints.Candidates();
 
     public async Task<IReadOnlyList<AudelaProduct>> GetProductsAsync(CancellationToken cancellationToken)
     {

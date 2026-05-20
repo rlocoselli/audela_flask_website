@@ -11,24 +11,16 @@ public sealed class TenantAuthService
         Timeout = TimeSpan.FromSeconds(8),
     };
 
-    private readonly string[] _baseUrls =
-    [
-        "https://audeladedonnees.fr",
-        "http://10.0.2.2:5000",
-        "http://127.0.0.1:5000",
-        "http://localhost:5000",
-    ];
+    private readonly IReadOnlyList<string> _baseUrls = BackendEndpoints.Candidates();
 
     private readonly string[] _mobileLoginPaths =
     [
         "/tenant/api/mobile/login",
-        "/api/mobile/login",
     ];
 
     private readonly string[] _mobileRegisterPaths =
     [
         "/tenant/api/mobile/register",
-        "/api/mobile/register",
     ];
 
     public async Task<(bool Ok, string Message, TenantSession? Session)> LoginAsync(string tenantSlug, string email, string password)
@@ -40,7 +32,8 @@ public sealed class TenantAuthService
             password,
         };
 
-        string lastMessage = "Service indisponible. Verifiez la connexion a audeladedonnees.fr.";
+        string lastMessage = "Service indisponible. Impossible de joindre le backend AUDELA.";
+        var diagnostics = new List<string>();
 
         foreach (var baseUrl in _baseUrls)
         {
@@ -48,8 +41,18 @@ public sealed class TenantAuthService
             {
                 try
                 {
-                    var response = await _httpClient.PostAsJsonAsync($"{baseUrl}{path}", payload);
-                    var result = await response.Content.ReadFromJsonAsync<LoginResponse>();
+                    var endpoint = $"{baseUrl}{path}";
+                    var response = await _httpClient.PostAsJsonAsync(endpoint, payload);
+                    LoginResponse? result = null;
+                    try
+                    {
+                        result = await response.Content.ReadFromJsonAsync<LoginResponse>();
+                    }
+                    catch (Exception ex)
+                    {
+                        diagnostics.Add($"{endpoint} -> {(int)response.StatusCode} ({ex.GetType().Name})");
+                    }
+
                     if (response.IsSuccessStatusCode && result?.Ok == true && result.Tenant is not null && result.User is not null)
                     {
                         var fullName = ($"{result.User.FirstName} {result.User.LastName}").Trim();
@@ -67,13 +70,30 @@ public sealed class TenantAuthService
                     if (result is not null && !string.IsNullOrWhiteSpace(result.Message))
                     {
                         lastMessage = result.Message;
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            diagnostics.Add($"{endpoint} -> {(int)response.StatusCode}");
+                        }
                     }
+                    else if (!response.IsSuccessStatusCode)
+                    {
+                        diagnostics.Add($"{endpoint} -> {(int)response.StatusCode}");
+                    }
+                }
+                catch (TaskCanceledException)
+                {
+                    diagnostics.Add($"{baseUrl}{path} -> timeout");
                 }
                 catch
                 {
-                    // Try next API path/base URL.
+                    diagnostics.Add($"{baseUrl}{path} -> request_failed");
                 }
             }
+        }
+
+        if (diagnostics.Count > 0)
+        {
+            lastMessage = $"{lastMessage} Details: {string.Join(" | ", diagnostics.Take(3))}";
         }
 
         return (false, lastMessage, null);
@@ -89,7 +109,8 @@ public sealed class TenantAuthService
             passwordConfirm,
         };
 
-        string lastMessage = "Service indisponible. Verifiez la connexion a audeladedonnees.fr.";
+        string lastMessage = "Service indisponible. Impossible de joindre le backend AUDELA.";
+        var diagnostics = new List<string>();
 
         foreach (var baseUrl in _baseUrls)
         {
@@ -97,8 +118,18 @@ public sealed class TenantAuthService
             {
                 try
                 {
-                    var response = await _httpClient.PostAsJsonAsync($"{baseUrl}{path}", payload);
-                    var result = await response.Content.ReadFromJsonAsync<BaseResponse>();
+                    var endpoint = $"{baseUrl}{path}";
+                    var response = await _httpClient.PostAsJsonAsync(endpoint, payload);
+                    BaseResponse? result = null;
+                    try
+                    {
+                        result = await response.Content.ReadFromJsonAsync<BaseResponse>();
+                    }
+                    catch (Exception ex)
+                    {
+                        diagnostics.Add($"{endpoint} -> {(int)response.StatusCode} ({ex.GetType().Name})");
+                    }
+
                     if (response.IsSuccessStatusCode && result?.Ok == true)
                     {
                         return (true, result.Message);
@@ -107,13 +138,30 @@ public sealed class TenantAuthService
                     if (result is not null && !string.IsNullOrWhiteSpace(result.Message))
                     {
                         lastMessage = result.Message;
+                        if (!response.IsSuccessStatusCode)
+                        {
+                            diagnostics.Add($"{endpoint} -> {(int)response.StatusCode}");
+                        }
                     }
+                    else if (!response.IsSuccessStatusCode)
+                    {
+                        diagnostics.Add($"{endpoint} -> {(int)response.StatusCode}");
+                    }
+                }
+                catch (TaskCanceledException)
+                {
+                    diagnostics.Add($"{baseUrl}{path} -> timeout");
                 }
                 catch
                 {
-                    // Try next API path/base URL.
+                    diagnostics.Add($"{baseUrl}{path} -> request_failed");
                 }
             }
+        }
+
+        if (diagnostics.Count > 0)
+        {
+            lastMessage = $"{lastMessage} Details: {string.Join(" | ", diagnostics.Take(3))}";
         }
 
         return (false, lastMessage);
