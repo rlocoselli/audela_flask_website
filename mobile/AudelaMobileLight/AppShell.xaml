@@ -10,36 +10,42 @@
 
     <TabBar>
         <ShellContent
+            x:Name="ProductsTab"
             Title="Produits"
             Icon="tab_products.svg"
             ContentTemplate="{DataTemplate local:MainPage}"
             Route="MainPage" />
 
         <ShellContent
+            x:Name="DashboardTab"
             Title="BI &amp; AI"
             Icon="tab_dashboard.svg"
             ContentTemplate="{DataTemplate pages:DashboardPage}"
             Route="DashboardPage" />
 
         <ShellContent
+            x:Name="KanbanTab"
             Title="Kanban"
             Icon="tab_kanban.svg"
             ContentTemplate="{DataTemplate pages:KanbanPage}"
             Route="KanbanPage" />
 
         <ShellContent
+            x:Name="LearningTab"
             Title="Learning"
             Icon="tab_learning.svg"
             ContentTemplate="{DataTemplate pages:LearningPage}"
             Route="LearningPage" />
 
         <ShellContent
+            x:Name="FinanceTab"
             Title="Finance"
             Icon="tab_finance.svg"
             ContentTemplate="{DataTemplate pages:FinanceEntriesPage}"
             Route="FinanceEntriesPage" />
 
         <ShellContent
+            x:Name="ConfigTab"
             Title="Config"
             Icon="tab_config.svg"
             ContentTemplate="{DataTemplate pages:ConfigurationPage}"

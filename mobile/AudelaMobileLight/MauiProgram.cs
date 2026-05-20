@@ -1,4 +1,8 @@
 ﻿using Microsoft.Extensions.Logging;
+using AudelaMobileLight.Services;
+#if ANDROID
+using AudelaMobileLight.Platforms.Android;
+#endif
 
 namespace AudelaMobileLight;
 
@@ -17,6 +21,12 @@ public static class MauiProgram
 
 #if DEBUG
 		builder.Logging.AddDebug();
+#endif
+
+#if ANDROID
+		builder.Services.AddSingleton<IVoiceRecognitionService, AndroidVoiceRecognitionService>();
+#else
+		builder.Services.AddSingleton<IVoiceRecognitionService, NoopVoiceRecognitionService>();
 #endif
 
 		return builder.Build();

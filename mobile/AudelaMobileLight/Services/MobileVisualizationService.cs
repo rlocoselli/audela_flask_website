@@ -89,9 +89,14 @@ public sealed class MobileVisualizationService
         return payload?.Quizzes ?? [];
     }
 
-    public async Task<(bool Ok, string Message)> AskAiAsync(string message, CancellationToken cancellationToken)
+    public async Task<(bool Ok, string Message)> AskAiAsync(string message, string dataSource, string language, CancellationToken cancellationToken)
     {
-        var body = new { message };
+        var body = new
+        {
+            message,
+            dataSource,
+            lang = language,
+        };
 
         foreach (var baseUrl in BackendEndpoints.Candidates())
         {

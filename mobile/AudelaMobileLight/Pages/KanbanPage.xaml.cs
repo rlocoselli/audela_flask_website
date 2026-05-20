@@ -83,4 +83,19 @@ public partial class KanbanPage : ContentPage
         await LoadAsync();
     }
 
+    private async void OnCardDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (sender is not Border border || border.BindingContext is not MobileKanbanItem item)
+        {
+            return;
+        }
+
+        var ownerLabel = MobileLocalizer.T("kanban.details.owner");
+        var priorityLabel = MobileLocalizer.T("kanban.details.priority");
+        var dueLabel = MobileLocalizer.T("kanban.details.due");
+        var title = string.IsNullOrWhiteSpace(item.Title) ? MobileLocalizer.T("kanban.details.title") : item.Title;
+        var detail = $"{ownerLabel}: {item.Owner}\n{priorityLabel}: {item.Priority}\n{dueLabel}: {item.DueDate}";
+        await ModernAlertService.ShowAsync(this, title, detail, AlertTone.Info);
+    }
+
 }

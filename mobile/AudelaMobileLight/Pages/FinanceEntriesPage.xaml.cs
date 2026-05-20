@@ -1,14 +1,21 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
+using System.Text.RegularExpressions;
 using AudelaMobileLight.Models;
 using AudelaMobileLight.Services;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace AudelaMobileLight.Pages;
 
 public partial class FinanceEntriesPage : ContentPage
 {
     private readonly MobileVisualizationService _service = new();
+    private readonly IVoiceRecognitionService _voiceRecognitionService;
     public ObservableCollection<MobileFinanceEntry> Entries { get; } = [];
     public bool IsLoading { get; private set; }
+    public bool ShowDashboardSection { get; private set; } = true;
+    public bool ShowTransactionsSection { get; private set; }
+    public bool ShowQuickEntrySection { get; private set; }
     public string DailyInLabel { get; private set; } = "0";
     public string DailyOutLabel { get; private set; } = "0";
     public string DailyNetLabel { get; private set; } = "0";
@@ -20,6 +27,10 @@ public partial class FinanceEntriesPage : ContentPage
     {
         InitializeComponent();
         BindingContext = this;
+        _voiceRecognitionService = Application.Current?.Handler?.MauiContext?.Services.GetService<IVoiceRecognitionService>() ?? new NoopVoiceRecognitionService();
+        MobileLocalizer.LanguageChanged += OnLanguageChanged;
+        ApplyTranslations();
+        SetSection("dashboard");
     }
 
     protected override async void OnAppearing()
@@ -73,28 +84,115 @@ public partial class FinanceEntriesPage : ContentPage
 
         if (string.IsNullOrWhiteSpace(description) || string.IsNullOrWhiteSpace(amountRaw))
         {
-            await ModernAlertService.ShowAsync(this, "Erreur", "Description et montant sont requis.", AlertTone.Error);
+            await ModernAlertService.ShowAsync(this, MobileLocalizer.T("finance.error"), MobileLocalizer.T("finance.required"), AlertTone.Error);
             return;
         }
 
-        if (!double.TryParse(amountRaw.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var amount))
+        if (!double.TryParse(amountRaw.Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out var amount))
         {
-            await ModernAlertService.ShowAsync(this, "Erreur", "Montant invalide.", AlertTone.Error);
+            await ModernAlertService.ShowAsync(this, MobileLocalizer.T("finance.error"), MobileLocalizer.T("finance.invalidAmount"), AlertTone.Error);
             return;
         }
 
         var (ok, message) = await _service.AddFinanceEntryAsync(description, category, amount, CancellationToken.None);
         if (!ok)
         {
-            await ModernAlertService.ShowAsync(this, "Saisie impossible", message, AlertTone.Error);
+            await ModernAlertService.ShowAsync(this, MobileLocalizer.T("finance.inputFail"), message, AlertTone.Error);
             return;
         }
 
         DescriptionEntry.Text = string.Empty;
         CategoryEntry.Text = string.Empty;
         AmountEntry.Text = string.Empty;
-        await ModernAlertService.ShowAsync(this, "Succes", message, AlertTone.Success);
+        await ModernAlertService.ShowAsync(this, MobileLocalizer.T("finance.success"), message, AlertTone.Success);
         await LoadAsync();
+    }
+
+    private void OnDashboardMenuClicked(object? sender, EventArgs e) => SetSection("dashboard");
+
+    private void OnTransactionsMenuClicked(object? sender, EventArgs e) => SetSection("transactions");
+
+    private void OnQuickEntryMenuClicked(object? sender, EventArgs e) => SetSection("quick");
+
+    private async void OnFloatingQuickEntryClicked(object? sender, EventArgs e)
+    {
+        SetSection("quick");
+        await RunVoiceRecognitionAsync();
+    }
+
+    private async void OnVoiceQuickEntryClicked(object? sender, EventArgs e)
+    {
+        await RunVoiceRecognitionAsync();
+    }
+
+    private async Task RunVoiceRecognitionAsync()
+    {
+        var (ok, text, message) = await _voiceRecognitionService.RecognizeAsync(CancellationToken.None);
+        if (!ok)
+        {
+            await ModernAlertService.ShowAsync(this, MobileLocalizer.T("finance.error"), message, AlertTone.Error);
+            return;
+        }
+
+        ApplyTranscript(text);
+    }
+
+    private void ApplyTranscript(string transcript)
+    {
+        var normalized = (transcript ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return;
+        }
+
+        var amountMatch = Regex.Match(normalized, @"[-+]?\d+(?:[\.,]\d+)?");
+        if (amountMatch.Success && string.IsNullOrWhiteSpace(AmountEntry.Text))
+        {
+            AmountEntry.Text = amountMatch.Value.Replace(',', '.');
+        }
+
+        if (string.IsNullOrWhiteSpace(DescriptionEntry.Text))
+        {
+            var description = amountMatch.Success
+                ? normalized.Replace(amountMatch.Value, string.Empty).Trim(' ', '-', ':', ';')
+                : normalized;
+            DescriptionEntry.Text = string.IsNullOrWhiteSpace(description) ? normalized : description;
+        }
+    }
+
+    private void SetSection(string section)
+    {
+        ShowDashboardSection = section == "dashboard";
+        ShowTransactionsSection = section == "transactions";
+        ShowQuickEntrySection = section == "quick";
+        OnPropertyChanged(nameof(ShowDashboardSection));
+        OnPropertyChanged(nameof(ShowTransactionsSection));
+        OnPropertyChanged(nameof(ShowQuickEntrySection));
+
+        DashboardMenuButton.BackgroundColor = ShowDashboardSection ? Color.FromArgb("#0A84FF") : Color.FromArgb("#DDEAF9");
+        DashboardMenuButton.TextColor = ShowDashboardSection ? Colors.White : Color.FromArgb("#12304B");
+
+        TransactionsMenuButton.BackgroundColor = ShowTransactionsSection ? Color.FromArgb("#0A84FF") : Color.FromArgb("#DDEAF9");
+        TransactionsMenuButton.TextColor = ShowTransactionsSection ? Colors.White : Color.FromArgb("#12304B");
+
+        QuickEntryMenuButton.BackgroundColor = ShowQuickEntrySection ? Color.FromArgb("#0A84FF") : Color.FromArgb("#DDEAF9");
+        QuickEntryMenuButton.TextColor = ShowQuickEntrySection ? Colors.White : Color.FromArgb("#12304B");
+    }
+
+    private void OnLanguageChanged(object? sender, EventArgs e)
+    {
+        ApplyTranslations();
+    }
+
+    private void ApplyTranslations()
+    {
+        PageTitleLabel.Text = MobileLocalizer.T("finance.title");
+        PageSubtitleLabel.Text = MobileLocalizer.T("finance.subtitle");
+        DashboardMenuButton.Text = MobileLocalizer.T("finance.menu.dashboard");
+        TransactionsMenuButton.Text = MobileLocalizer.T("finance.menu.transactions");
+        QuickEntryMenuButton.Text = MobileLocalizer.T("finance.menu.quick");
+        VoiceQuickEntryButton.Text = MobileLocalizer.T("finance.voiceBtn");
+        FloatingQuickEntryButton.Text = MobileLocalizer.T("finance.voiceFab");
     }
 
 }

@@ -7,6 +7,9 @@ public partial class DashboardPage : ContentPage
 {
     private readonly MobileVisualizationService _service = new();
     public ObservableCollection<string> AiMessages { get; } = [];
+    public ObservableCollection<string> AiSourceLabels { get; } = [];
+    public string SelectedAiSourceLabel { get; set; } = string.Empty;
+    private readonly Dictionary<string, string> _sourceByLabel = new(StringComparer.OrdinalIgnoreCase);
 
     public string FinanceNetAmountLabel { get; private set; } = "0";
     public string DailyInLabel { get; private set; } = "0";
@@ -30,6 +33,9 @@ public partial class DashboardPage : ContentPage
     {
         InitializeComponent();
         BindingContext = this;
+        MobileLocalizer.LanguageChanged += OnLanguageChanged;
+        BuildAiSources();
+        ApplyTranslations();
         AiMessages.Add("Assistant AI pret. Pose ta question BI/Finance/Projet/Learning.");
     }
 
@@ -103,7 +109,62 @@ public partial class DashboardPage : ContentPage
 
         AiMessages.Insert(0, $"Vous: {question}");
         AiQuestionEntry.Text = string.Empty;
-        var (ok, answer) = await _service.AskAiAsync(question, CancellationToken.None);
+        var source = ResolveSelectedSourceCode();
+        var (ok, answer) = await _service.AskAiAsync(question, source, MobileLocalizer.CurrentLanguage, CancellationToken.None);
         AiMessages.Insert(0, ok ? $"AI: {answer}" : $"AI indisponible: {answer}");
+    }
+
+    private void BuildAiSources()
+    {
+        _sourceByLabel.Clear();
+        AiSourceLabels.Clear();
+
+        AddSource("dashboard.source.auto", "auto");
+        AddSource("dashboard.source.finance", "finance");
+        AddSource("dashboard.source.kanban", "kanban");
+        AddSource("dashboard.source.learning", "learning");
+        AddSource("dashboard.source.dashboard", "dashboard");
+
+        if (AiSourceLabels.Count > 0)
+        {
+            SelectedAiSourceLabel = AiSourceLabels[0];
+            OnPropertyChanged(nameof(SelectedAiSourceLabel));
+        }
+    }
+
+    private void AddSource(string key, string value)
+    {
+        var label = MobileLocalizer.T(key);
+        AiSourceLabels.Add(label);
+        _sourceByLabel[label] = value;
+    }
+
+    private string ResolveSelectedSourceCode()
+    {
+        var selected = SelectedAiSourceLabel;
+        if (string.IsNullOrWhiteSpace(selected) && AiSourcePicker.SelectedItem is string selectedFromPicker)
+        {
+            selected = selectedFromPicker;
+        }
+
+        if (!string.IsNullOrWhiteSpace(selected) && _sourceByLabel.TryGetValue(selected, out var source))
+        {
+            return source;
+        }
+
+        return "auto";
+    }
+
+    private void OnLanguageChanged(object? sender, EventArgs e)
+    {
+        BuildAiSources();
+        ApplyTranslations();
+    }
+
+    private void ApplyTranslations()
+    {
+        AiSourceLabel.Text = MobileLocalizer.T("dashboard.aiSource");
+        AskAiButton.Text = MobileLocalizer.T("dashboard.aiAsk");
+        AiQuestionEntry.Placeholder = MobileLocalizer.T("dashboard.aiPlaceholder");
     }
 }

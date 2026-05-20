@@ -97,6 +97,13 @@
             <Border StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 14">
                 <VerticalStackLayout Spacing="8">
                     <Label Text="Chat AI" FontAttributes="Bold" FontSize="18" TextColor="#11263A" />
+                    <Label x:Name="AiSourceLabel"
+                           Text="Source des donnees AI"
+                           FontSize="12"
+                           TextColor="#4C6D8E" />
+                    <Picker x:Name="AiSourcePicker"
+                            ItemsSource="{Binding AiSourceLabels}"
+                            SelectedItem="{Binding SelectedAiSourceLabel}" />
                     <CollectionView HeightRequest="170" ItemsSource="{Binding AiMessages}">
                         <CollectionView.ItemTemplate>
                             <DataTemplate>
@@ -107,7 +114,7 @@
                         </CollectionView.ItemTemplate>
                     </CollectionView>
                     <Entry x:Name="AiQuestionEntry" Placeholder="Ex: donne moi le resume finance" />
-                    <Button Text="Demander a AI" Clicked="OnAskAiClicked" />
+                    <Button x:Name="AskAiButton" Text="Demander a AI" Clicked="OnAskAiClicked" />
                 </VerticalStackLayout>
             </Border>
 

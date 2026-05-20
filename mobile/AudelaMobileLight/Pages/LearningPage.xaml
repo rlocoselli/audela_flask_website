@@ -47,7 +47,7 @@
             <CollectionView ItemsSource="{Binding Lessons}" HeightRequest="210">
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="model:MobileLearningLesson">
-                        <Border StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 14" Margin="0,0,0,8">
+                        <Border Stroke="#D8E5F3" StrokeThickness="1" BackgroundColor="#F8FBFF" Padding="12" StrokeShape="RoundRectangle 14" Margin="0,0,0,8">
                             <VerticalStackLayout Spacing="6">
                                 <Label Text="{Binding ModuleTitle}" FontSize="12" TextColor="#4C6D8E" />
                                 <Label Text="{Binding LessonTitle}" FontAttributes="Bold" TextColor="#17314A" />
@@ -66,7 +66,7 @@
             <CollectionView ItemsSource="{Binding Quizzes}" HeightRequest="190">
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="model:MobileLearningQuizSummary">
-                        <Border StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 14" Margin="0,0,0,8">
+                        <Border Stroke="#D8E5F3" StrokeThickness="1" BackgroundColor="#F8FBFF" Padding="12" StrokeShape="RoundRectangle 14" Margin="0,0,0,8">
                             <VerticalStackLayout Spacing="4">
                                 <Label Text="{Binding Title}" FontAttributes="Bold" TextColor="#17314A" />
                                 <Label Text="{Binding QuizLabel}" FontSize="12" TextColor="#4C6D8E" />

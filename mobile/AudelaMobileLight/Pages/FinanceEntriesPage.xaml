@@ -7,64 +7,97 @@
              x:DataType="local:FinanceEntriesPage"
              Title="Finance">
 
-    <ScrollView BackgroundColor="#F3F7FC">
-        <VerticalStackLayout Padding="16" Spacing="10">
-            <Label Text="Saisies finance natives"
-                   FontSize="24"
-             FontAttributes="Bold"
-             TextColor="#11263A" />
-            <Label Text="Capture rapide des ecritures et mouvements depuis mobile."
-                   TextColor="#44617D" />
+    <Grid BackgroundColor="#F3F7FC">
+        <ScrollView>
+            <VerticalStackLayout Padding="16" Spacing="10">
+                <Label x:Name="PageTitleLabel"
+                       Text="Saisies finance natives"
+                       FontSize="24"
+                       FontAttributes="Bold"
+                       TextColor="#11263A" />
+                <Label x:Name="PageSubtitleLabel"
+                       Text="Capture rapide des ecritures et mouvements depuis mobile."
+                       TextColor="#44617D" />
 
-            <Border StrokeThickness="0" BackgroundColor="#EEF5FF" Padding="12" StrokeShape="RoundRectangle 14">
-                <VerticalStackLayout Spacing="8">
-                    <Label Text="Quick entry" FontAttributes="Bold" />
-                    <Entry x:Name="DescriptionEntry" Placeholder="Description" />
-                    <Entry x:Name="CategoryEntry" Placeholder="Categorie (optionnel)" />
-                    <Entry x:Name="AmountEntry" Placeholder="Montant (ex: -120.50 ou 250)" Keyboard="Numeric" />
-                    <Button Text="Ajouter"
-                            Clicked="OnAddQuickEntryClicked"
-                            BackgroundColor="#0A84FF"
-                            TextColor="White" />
-                </VerticalStackLayout>
-            </Border>
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                    <Button x:Name="DashboardMenuButton" Text="Dashboard" Clicked="OnDashboardMenuClicked" />
+                    <Button x:Name="TransactionsMenuButton" Grid.Column="1" Text="Transactions" Clicked="OnTransactionsMenuClicked" />
+                    <Button x:Name="QuickEntryMenuButton" Grid.Column="2" Text="Quick entry" Clicked="OnQuickEntryMenuClicked" />
+                </Grid>
 
-            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                <Border StrokeThickness="0" BackgroundColor="#F6FAFF" Padding="10" StrokeShape="RoundRectangle 12">
-                    <VerticalStackLayout Spacing="3">
-                        <Label Text="Daily net" FontSize="12" TextColor="#4C6D8E" />
-                        <Label Text="{Binding DailyNetLabel}" FontAttributes="Bold" FontSize="18" />
-                        <Label Text="{Binding DailyInLabel, StringFormat='In {0}'}" FontSize="11" TextColor="#4C6D8E" />
-                        <Label Text="{Binding DailyOutLabel, StringFormat='Out {0}'}" FontSize="11" TextColor="#4C6D8E" />
-                    </VerticalStackLayout>
-                </Border>
-                <Border Grid.Column="1" StrokeThickness="0" BackgroundColor="#F6FAFF" Padding="10" StrokeShape="RoundRectangle 12">
-                    <VerticalStackLayout Spacing="3">
-                        <Label Text="Monthly net" FontSize="12" TextColor="#4C6D8E" />
-                        <Label Text="{Binding MonthlyNetLabel}" FontAttributes="Bold" FontSize="18" />
-                        <Label Text="{Binding MonthlyInLabel, StringFormat='In {0}'}" FontSize="11" TextColor="#4C6D8E" />
-                        <Label Text="{Binding MonthlyOutLabel, StringFormat='Out {0}'}" FontSize="11" TextColor="#4C6D8E" />
-                    </VerticalStackLayout>
-                </Border>
-            </Grid>
+                <ActivityIndicator IsVisible="{Binding IsLoading}"
+                                   IsRunning="{Binding IsLoading}" />
 
-            <ActivityIndicator IsVisible="{Binding IsLoading}"
-                               IsRunning="{Binding IsLoading}" />
-
-            <CollectionView ItemsSource="{Binding Entries}">
-                <CollectionView.ItemTemplate>
-                    <DataTemplate x:DataType="model:MobileFinanceEntry">
-                        <Border StrokeThickness="0" BackgroundColor="#FAFBFF" Padding="12" StrokeShape="RoundRectangle 14" Margin="0,0,0,8">
-                            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="6">
-                                <Label Text="{Binding Description}" FontAttributes="Bold" />
-                                <Label Grid.Column="1" Text="{Binding AmountLabel}" TextColor="{Binding AmountColor}" />
-                                <Label Grid.Row="1" Text="{Binding Category}" FontSize="12" TextColor="#4C6D8E" />
-                                <Label Grid.Row="1" Grid.Column="1" Text="{Binding Date}" FontSize="12" TextColor="#4C6D8E" />
-                            </Grid>
+                <VerticalStackLayout IsVisible="{Binding ShowDashboardSection}">
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                        <Border StrokeThickness="0" BackgroundColor="#F6FAFF" Padding="10" StrokeShape="RoundRectangle 12">
+                            <VerticalStackLayout Spacing="3">
+                                <Label Text="Daily net" FontSize="12" TextColor="#4C6D8E" />
+                                <Label Text="{Binding DailyNetLabel}" FontAttributes="Bold" FontSize="18" />
+                                <Label Text="{Binding DailyInLabel, StringFormat='In {0}'}" FontSize="11" TextColor="#4C6D8E" />
+                                <Label Text="{Binding DailyOutLabel, StringFormat='Out {0}'}" FontSize="11" TextColor="#4C6D8E" />
+                            </VerticalStackLayout>
                         </Border>
-                    </DataTemplate>
-                </CollectionView.ItemTemplate>
-            </CollectionView>
-        </VerticalStackLayout>
-    </ScrollView>
+                        <Border Grid.Column="1" StrokeThickness="0" BackgroundColor="#F6FAFF" Padding="10" StrokeShape="RoundRectangle 12">
+                            <VerticalStackLayout Spacing="3">
+                                <Label Text="Monthly net" FontSize="12" TextColor="#4C6D8E" />
+                                <Label Text="{Binding MonthlyNetLabel}" FontAttributes="Bold" FontSize="18" />
+                                <Label Text="{Binding MonthlyInLabel, StringFormat='In {0}'}" FontSize="11" TextColor="#4C6D8E" />
+                                <Label Text="{Binding MonthlyOutLabel, StringFormat='Out {0}'}" FontSize="11" TextColor="#4C6D8E" />
+                            </VerticalStackLayout>
+                        </Border>
+                    </Grid>
+                </VerticalStackLayout>
+
+                <VerticalStackLayout IsVisible="{Binding ShowTransactionsSection}">
+                    <CollectionView ItemsSource="{Binding Entries}">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="model:MobileFinanceEntry">
+                                <Border StrokeThickness="0" BackgroundColor="#FAFBFF" Padding="12" StrokeShape="RoundRectangle 14" Margin="0,0,0,8">
+                                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="6">
+                                        <Label Text="{Binding Description}" FontAttributes="Bold" />
+                                        <Label Grid.Column="1" Text="{Binding AmountLabel}" TextColor="{Binding AmountColor}" />
+                                        <Label Grid.Row="1" Text="{Binding Category}" FontSize="12" TextColor="#4C6D8E" />
+                                        <Label Grid.Row="1" Grid.Column="1" Text="{Binding Date}" FontSize="12" TextColor="#4C6D8E" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+                </VerticalStackLayout>
+
+                <VerticalStackLayout IsVisible="{Binding ShowQuickEntrySection}">
+                    <Border StrokeThickness="0" BackgroundColor="#EEF5FF" Padding="12" StrokeShape="RoundRectangle 14">
+                        <VerticalStackLayout Spacing="8">
+                            <Label Text="Quick entry" FontAttributes="Bold" />
+                            <Entry x:Name="DescriptionEntry" Placeholder="Description" />
+                            <Entry x:Name="CategoryEntry" Placeholder="Categorie (optionnel)" />
+                            <Entry x:Name="AmountEntry" Placeholder="Montant (ex: -120.50 ou 250)" Keyboard="Numeric" />
+                            <Button x:Name="VoiceQuickEntryButton"
+                                    Text="Dictee vocale"
+                                    Clicked="OnVoiceQuickEntryClicked"
+                                    BackgroundColor="#0F3E64"
+                                    TextColor="White" />
+                            <Button x:Name="AddQuickEntryButton"
+                                    Text="Ajouter"
+                                    Clicked="OnAddQuickEntryClicked"
+                                    BackgroundColor="#0A84FF"
+                                    TextColor="White" />
+                        </VerticalStackLayout>
+                    </Border>
+                </VerticalStackLayout>
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <Button x:Name="FloatingQuickEntryButton"
+                Text="Voix + entry"
+                Clicked="OnFloatingQuickEntryClicked"
+                HorizontalOptions="End"
+                VerticalOptions="End"
+                Margin="0,0,18,22"
+                Padding="14,10"
+                BackgroundColor="#0A84FF"
+                TextColor="White"
+                CornerRadius="24" />
+    </Grid>
 </ContentPage>

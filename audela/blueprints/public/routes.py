@@ -1587,23 +1587,56 @@ def mobile_ai_chat():
     if not message:
         return jsonify({"ok": False, "message": "Message requis."}), 400
 
+    data_source = str(data.get("dataSource") or "auto").strip().lower()
+    if data_source not in {"auto", "finance", "kanban", "learning", "dashboard"}:
+        data_source = "auto"
+    lang = normalize_lang(str(data.get("lang") or "").strip()) or "fr"
+
     tenant = _mobile_resolve_tenant_from_query()
     tenant_label = str(tenant.slug) if tenant else "global"
     metrics = mobile_dashboard_data().get_json(silent=True) or {}
 
     normalized = message.lower()
-    if "finance" in normalized or "debt" in normalized or "credit" in normalized:
-        answer = f"Finance: net={metrics.get('financeNetAmount', 0)} sur {metrics.get('financeEntriesCount', 0)} ecritures."
-    elif "kanban" in normalized or "project" in normalized:
+    resolved_source = data_source
+    if resolved_source == "auto":
+        if "finance" in normalized or "debt" in normalized or "credit" in normalized:
+            resolved_source = "finance"
+        elif "kanban" in normalized or "project" in normalized:
+            resolved_source = "kanban"
+        elif "learning" in normalized or "quiz" in normalized:
+            resolved_source = "learning"
+        else:
+            resolved_source = "dashboard"
+
+    if resolved_source == "finance":
+        if lang == "en":
+            answer = f"Finance: net={metrics.get('financeNetAmount', 0)} across {metrics.get('financeEntriesCount', 0)} entries."
+        elif lang == "it":
+            answer = f"Finanza: netto={metrics.get('financeNetAmount', 0)} su {metrics.get('financeEntriesCount', 0)} movimenti."
+        else:
+            answer = f"Finance: net={metrics.get('financeNetAmount', 0)} sur {metrics.get('financeEntriesCount', 0)} ecritures."
+    elif resolved_source == "kanban":
         k = metrics.get("kanban", {}) or {}
-        answer = f"Projet: backlog={k.get('backlog', 0)}, todo={k.get('todo', 0)}, doing={k.get('doing', 0)}, done={k.get('done', 0)}."
-    elif "learning" in normalized or "quiz" in normalized:
-        answer = f"Learning: progression moyenne {metrics.get('learningProgressAvg', 0)}% sur {metrics.get('learningModulesCount', 0)} modules."
+        if lang == "en":
+            answer = f"Project: backlog={k.get('backlog', 0)}, todo={k.get('todo', 0)}, doing={k.get('doing', 0)}, done={k.get('done', 0)}."
+        elif lang == "it":
+            answer = f"Progetto: backlog={k.get('backlog', 0)}, todo={k.get('todo', 0)}, doing={k.get('doing', 0)}, done={k.get('done', 0)}."
+        else:
+            answer = f"Projet: backlog={k.get('backlog', 0)}, todo={k.get('todo', 0)}, doing={k.get('doing', 0)}, done={k.get('done', 0)}."
+    elif resolved_source == "learning":
+        if lang == "en":
+            answer = f"Learning: average progress {metrics.get('learningProgressAvg', 0)}% over {metrics.get('learningModulesCount', 0)} modules."
+        elif lang == "it":
+            answer = f"Learning: progresso medio {metrics.get('learningProgressAvg', 0)}% su {metrics.get('learningModulesCount', 0)} moduli."
+        else:
+            answer = f"Learning: progression moyenne {metrics.get('learningProgressAvg', 0)}% sur {metrics.get('learningModulesCount', 0)} modules."
     else:
-        answer = (
-            "Assistant AUDELA Mobile: demandez un resume BI, finance, kanban projet ou learning. "
-            f"Contexte tenant={tenant_label}."
-        )
+        if lang == "en":
+            answer = f"AUDELA Mobile assistant (tenant={tenant_label}): ask for BI, finance, kanban, or learning insights."
+        elif lang == "it":
+            answer = f"Assistente AUDELA Mobile (tenant={tenant_label}): chiedi insight BI, finanza, kanban o learning."
+        else:
+            answer = f"Assistant AUDELA Mobile (tenant={tenant_label}) : demandez un resume BI, finance, kanban projet ou learning."
 
     return jsonify({"ok": True, "message": answer})
 

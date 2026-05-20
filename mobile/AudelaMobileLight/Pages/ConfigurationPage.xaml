@@ -8,21 +8,29 @@
 
     <ScrollView>
         <VerticalStackLayout Padding="16" Spacing="12">
-            <Label Text="Configuration (web)"
+             <Label x:Name="ConfigTitleLabel"
+                 Text="Configuration"
                    FontSize="24"
                    FontAttributes="Bold" />
-            <Label Text="La configuration avancee reste sur le portail web."
+             <Label x:Name="NativeModeLabel"
+                 Text="Mode natif actif: BI, Kanban, Finance et Learning utilisent des composants natifs."
                    TextColor="#44617D" />
 
-            <Button Text="Ouvrir login tenant web"
-                    Clicked="OnOpenTenantLoginClicked" />
-            <Button Text="Ouvrir portail web"
-                    Clicked="OnOpenPortalClicked" />
-            <Button Text="Mon compte tenant"
+             <Label x:Name="LanguageLabel"
+                 Text="Langue"
+                 FontAttributes="Bold"
+                 TextColor="#17314A" />
+             <Picker x:Name="LanguagePicker"
+                  ItemsSource="{Binding LanguageDisplayValues}"
+                  SelectedItem="{Binding SelectedLanguageDisplay}" />
+
+             <Button x:Name="TenantAccountButton"
+                  Text="Mon compte tenant"
                     Clicked="OnOpenTenantAccountClicked" />
 
             <Border StrokeThickness="0" BackgroundColor="#F4F8FE" Padding="12" StrokeShape="RoundRectangle 12">
-                <Label Text="Visualisation quotidienne: native (Dashboards, Kanban, Learning, Finance)." />
+              <Label x:Name="OAuthInfoLabel"
+                  Text="Seule exception web: redirection Google OAuth pendant l'authentification." />
             </Border>
         </VerticalStackLayout>
     </ScrollView>
