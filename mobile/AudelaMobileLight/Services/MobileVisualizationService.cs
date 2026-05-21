@@ -39,6 +39,22 @@ public sealed class MobileVisualizationService
         return payload?.Dashboards ?? [];
     }
 
+    public async Task<MobileBiDashboardDetail?> GetBiDashboardDetailAsync(int dashboardId, CancellationToken cancellationToken)
+    {
+        if (dashboardId <= 0)
+        {
+            return null;
+        }
+
+        var payload = await GetFirstAsync<BiDashboardDetailPayload>(
+            [
+                $"/api/mobile/bi/dashboards/{dashboardId}",
+                $"/tenant/api/mobile/bi/dashboards/{dashboardId}",
+            ],
+            cancellationToken);
+        return payload?.Dashboard;
+    }
+
     public async Task<IReadOnlyList<MobileKanbanColumn>> GetKanbanAsync(CancellationToken cancellationToken)
     {
         var payload = await GetFirstAsync<KanbanPayload>("/api/mobile/kanban", cancellationToken);
@@ -460,6 +476,15 @@ public sealed class MobileVisualizationService
     {
         [JsonPropertyName("dashboards")]
         public List<MobileBiDashboardSummary> Dashboards { get; set; } = [];
+    }
+
+    private sealed class BiDashboardDetailPayload
+    {
+        [JsonPropertyName("ok")]
+        public bool Ok { get; set; }
+
+        [JsonPropertyName("dashboard")]
+        public MobileBiDashboardDetail? Dashboard { get; set; }
     }
 
     private sealed class FinanceCreatePayload

@@ -17,11 +17,12 @@ from ...models import Prospect
 from ...models import User
 from ...models import Tenant
 from ...models import PublicPageVisit
-from ...models import Dashboard, DashboardCard, DataSource, QueryRun, FinanceTransaction, FinanceAccount, ProjectWorkspace
+from ...models import Dashboard, DashboardCard, DataSource, QueryRun, Question, FinanceTransaction, FinanceAccount, ProjectWorkspace
 from ...models import UserELearningEnrollment, ELearningModule
 from ...models.e_learning import ELearningLesson, ELearningQuiz
 from ...services.subscription_service import SubscriptionService
 from ...services.email_service import EmailService
+from ...services.query_service import QueryExecutionError, execute_sql
 from ...product_catalog import get_product_catalog, get_product_entry
 
 from ...i18n import DEFAULT_LANG, SUPPORTED_LANGS, normalize_lang, tr
@@ -1472,18 +1473,15 @@ def mobile_dashboard_data():
 @bp.route("/api/mobile/bi/datasources")
 def mobile_bi_datasources_data():
     tenant = _mobile_resolve_tenant_from_query()
-    rows = []
-    if tenant:
-        rows = (
-            DataSource.query.filter(DataSource.tenant_id == int(tenant.id))
-            .order_by(DataSource.name.asc(), DataSource.id.asc())
-            .limit(80)
-            .all()
-        )
+    if not tenant:
+        return jsonify({"datasources": [], "count": 0})
 
-    # Fallback for demo/bootstrap scenarios where tenant BI sources are not seeded yet.
-    if not rows:
-        rows = DataSource.query.order_by(DataSource.name.asc(), DataSource.id.asc()).limit(40).all()
+    rows = (
+        DataSource.query.filter(DataSource.tenant_id == int(tenant.id))
+        .order_by(DataSource.name.asc(), DataSource.id.asc())
+        .limit(80)
+        .all()
+    )
 
     payload = []
     for row in rows:
@@ -1502,19 +1500,16 @@ def mobile_bi_datasources_data():
 @bp.route("/api/mobile/bi/dashboards")
 def mobile_bi_dashboards_data():
     tenant = _mobile_resolve_tenant_from_query()
-    rows = []
-    tenant_id = int(tenant.id) if tenant else None
-    if tenant_id:
-        rows = (
-            Dashboard.query.filter(Dashboard.tenant_id == tenant_id)
-            .order_by(Dashboard.updated_at.desc(), Dashboard.id.desc())
-            .limit(40)
-            .all()
-        )
+    if not tenant:
+        return jsonify({"dashboards": [], "count": 0})
 
-    # Fallback so BI screen is never empty in demo tenants.
-    if not rows:
-        rows = Dashboard.query.order_by(Dashboard.updated_at.desc(), Dashboard.id.desc()).limit(40).all()
+    tenant_id = int(tenant.id)
+    rows = (
+        Dashboard.query.filter(Dashboard.tenant_id == tenant_id)
+        .order_by(Dashboard.updated_at.desc(), Dashboard.id.desc())
+        .limit(40)
+        .all()
+    )
 
     payload = []
     for row in rows:
@@ -1522,9 +1517,6 @@ def mobile_bi_dashboards_data():
         if tenant_id:
             cards_query = cards_query.filter(DashboardCard.tenant_id == tenant_id)
         cards_count = cards_query.count()
-
-        if cards_count == 0:
-            cards_count = DashboardCard.query.filter(DashboardCard.dashboard_id == int(row.id)).count()
 
         payload.append(
             {
@@ -1537,6 +1529,168 @@ def mobile_bi_dashboards_data():
         )
 
     return jsonify({"dashboards": payload, "count": len(payload)})
+
+
+def _mobile_is_number(value: object) -> bool:
+    if value is None or isinstance(value, bool):
+        return False
+    try:
+        float(value)
+        return True
+    except Exception:
+        return False
+
+
+def _mobile_dashboard_card_points(columns: list, rows: list, metric_index: int | None) -> list[dict]:
+    if metric_index is None:
+        return []
+
+    label_index = 0 if columns else None
+    points = []
+    for row in rows[:12]:
+        if not isinstance(row, (list, tuple)) or metric_index >= len(row):
+            continue
+        raw_value = row[metric_index]
+        if not _mobile_is_number(raw_value):
+            continue
+        x_value = ""
+        if label_index is not None and label_index < len(row):
+            x_value = str(row[label_index] or "")
+        points.append({"x": x_value or str(len(points) + 1), "y": float(raw_value)})
+    return points
+
+
+def _mobile_render_dashboard_card(tenant: Tenant, card: DashboardCard) -> dict:
+    question = Question.query.filter(
+        Question.id == int(card.question_id),
+        Question.tenant_id == int(tenant.id),
+    ).first()
+    if question is None:
+        return {
+            "id": int(card.id),
+            "title": f"Card {card.id}",
+            "vizType": "unknown",
+            "sourceName": "",
+            "primaryValue": "n/a",
+            "secondaryValue": "Question not found",
+            "points": [],
+        }
+
+    source = DataSource.query.filter(
+        DataSource.id == int(question.source_id),
+        DataSource.tenant_id == int(tenant.id),
+    ).first()
+    if source is None:
+        return {
+            "id": int(card.id),
+            "title": str(question.name or f"Question {question.id}"),
+            "vizType": "unknown",
+            "sourceName": "",
+            "primaryValue": "n/a",
+            "secondaryValue": "Datasource not found",
+            "points": [],
+        }
+
+    cfg = card.viz_config_json if isinstance(card.viz_config_json, dict) else {}
+    q_cfg = question.viz_config_json if isinstance(question.viz_config_json, dict) else {}
+    viz_type = str(cfg.get("type") or q_cfg.get("type") or "table")
+
+    try:
+        result = execute_sql(source, question.sql_text, params={"tenant_id": int(tenant.id)}, row_limit=24)
+        columns = result.get("columns") if isinstance(result.get("columns"), list) else []
+        rows = result.get("rows") if isinstance(result.get("rows"), list) else []
+
+        metric_index = None
+        for idx, col in enumerate(columns):
+            col_name = str(col or "").strip().lower()
+            if any(token in col_name for token in ("amount", "total", "sum", "count", "value", "kpi", "score")):
+                metric_index = idx
+                break
+        if metric_index is None and rows:
+            sample = rows[0] if isinstance(rows[0], (list, tuple)) else []
+            for idx, value in enumerate(sample):
+                if _mobile_is_number(value):
+                    metric_index = idx
+                    break
+
+        primary_value = "n/a"
+        if metric_index is not None and rows and isinstance(rows[0], (list, tuple)) and metric_index < len(rows[0]):
+            first_val = rows[0][metric_index]
+            if _mobile_is_number(first_val):
+                primary_value = f"{float(first_val):,.2f}"
+            else:
+                primary_value = str(first_val or "n/a")
+
+        points = _mobile_dashboard_card_points(columns, rows, metric_index)
+        secondary = f"{len(rows)} rows - {len(columns)} cols"
+        return {
+            "id": int(card.id),
+            "title": str(question.name or f"Question {question.id}"),
+            "vizType": viz_type,
+            "sourceName": str(source.name or ""),
+            "primaryValue": primary_value,
+            "secondaryValue": secondary,
+            "points": points,
+        }
+    except QueryExecutionError as exc:
+        return {
+            "id": int(card.id),
+            "title": str(question.name or f"Question {question.id}"),
+            "vizType": viz_type,
+            "sourceName": str(source.name or ""),
+            "primaryValue": "n/a",
+            "secondaryValue": str(exc),
+            "points": [],
+        }
+    except Exception:
+        return {
+            "id": int(card.id),
+            "title": str(question.name or f"Question {question.id}"),
+            "vizType": viz_type,
+            "sourceName": str(source.name or ""),
+            "primaryValue": "n/a",
+            "secondaryValue": "Card preview unavailable",
+            "points": [],
+        }
+
+
+@bp.route("/api/mobile/bi/dashboards/<int:dashboard_id>")
+def mobile_bi_dashboard_detail_data(dashboard_id: int):
+    tenant = _mobile_resolve_tenant_from_query()
+    if not tenant:
+        return jsonify({"ok": False, "message": "Tenant is required."}), 400
+
+    dashboard = Dashboard.query.filter(
+        Dashboard.id == int(dashboard_id),
+        Dashboard.tenant_id == int(tenant.id),
+    ).first()
+    if dashboard is None:
+        return jsonify({"ok": False, "message": "Dashboard not found."}), 404
+
+    cards = (
+        DashboardCard.query.filter(
+            DashboardCard.dashboard_id == int(dashboard.id),
+            DashboardCard.tenant_id == int(tenant.id),
+        )
+        .order_by(DashboardCard.id.asc())
+        .limit(40)
+        .all()
+    )
+
+    payload_cards = [_mobile_render_dashboard_card(tenant, card) for card in cards]
+    return jsonify(
+        {
+            "ok": True,
+            "dashboard": {
+                "id": int(dashboard.id),
+                "name": str(dashboard.name or f"Dashboard {dashboard.id}"),
+                "isPrimary": bool(getattr(dashboard, "is_primary", False)),
+                "updatedAt": dashboard.updated_at.isoformat() if getattr(dashboard, "updated_at", None) else "",
+                "cardsCount": len(payload_cards),
+                "cards": payload_cards,
+            },
+        }
+    )
 
 
 @bp.route("/api/mobile/kanban")
