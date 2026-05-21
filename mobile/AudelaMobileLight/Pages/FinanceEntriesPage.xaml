@@ -20,9 +20,9 @@
                        TextColor="#44617D" />
 
                 <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
-                    <Button x:Name="DashboardMenuButton" Text="Dashboard" Clicked="OnDashboardMenuClicked" />
-                    <Button x:Name="TransactionsMenuButton" Grid.Column="1" Text="Transactions" Clicked="OnTransactionsMenuClicked" />
-                    <Button x:Name="QuickEntryMenuButton" Grid.Column="2" Text="Quick entry" Clicked="OnQuickEntryMenuClicked" />
+                    <Button x:Name="DashboardMenuButton" Text="Dashboard" ImageSource="tab_dashboard.svg" ContentLayout="Top,4" Clicked="OnDashboardMenuClicked" />
+                    <Button x:Name="TransactionsMenuButton" Grid.Column="1" Text="Transactions" ImageSource="tab_finance.svg" ContentLayout="Top,4" Clicked="OnTransactionsMenuClicked" />
+                    <Button x:Name="QuickEntryMenuButton" Grid.Column="2" Text="Quick entry" ImageSource="ic_add.svg" ContentLayout="Top,4" Clicked="OnQuickEntryMenuClicked" />
                 </Grid>
 
                 <ActivityIndicator IsVisible="{Binding IsLoading}"
@@ -75,11 +75,15 @@
                             <Entry x:Name="AmountEntry" Placeholder="Montant (ex: -120.50 ou 250)" Keyboard="Numeric" />
                             <Button x:Name="VoiceQuickEntryButton"
                                     Text="Dictee vocale"
+                                    ImageSource="ic_mic.svg"
+                                    ContentLayout="Left,10"
                                     Clicked="OnVoiceQuickEntryClicked"
                                     BackgroundColor="#0F3E64"
                                     TextColor="White" />
                             <Button x:Name="AddQuickEntryButton"
                                     Text="Ajouter"
+                                    ImageSource="ic_add.svg"
+                                    ContentLayout="Left,10"
                                     Clicked="OnAddQuickEntryClicked"
                                     BackgroundColor="#0A84FF"
                                     TextColor="White" />
@@ -91,6 +95,8 @@
 
         <Button x:Name="FloatingQuickEntryButton"
                 Text="Voix + entry"
+            ImageSource="ic_mic.svg"
+            ContentLayout="Left,8"
                 Clicked="OnFloatingQuickEntryClicked"
                 HorizontalOptions="End"
                 VerticalOptions="End"

@@ -114,6 +114,11 @@ public partial class DashboardPage : ContentPage
         AiMessages.Insert(0, ok ? $"AI: {answer}" : $"AI indisponible: {answer}");
     }
 
+    private async void OnRefreshDashboardClicked(object? sender, EventArgs e)
+    {
+        await LoadAsync();
+    }
+
     private void BuildAiSources()
     {
         _sourceByLabel.Clear();

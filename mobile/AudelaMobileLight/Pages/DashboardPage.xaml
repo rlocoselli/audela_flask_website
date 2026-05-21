@@ -8,12 +8,23 @@
 
     <ScrollView BackgroundColor="#F3F7FC">
         <VerticalStackLayout Padding="16" Spacing="12">
-            <Label Text="BI Dashboard (Natif)"
-                   FontSize="24"
-                   FontAttributes="Bold"
-                   TextColor="#11263A" />
-            <Label Text="Vue mobile BI + assistant AI natif"
-                   TextColor="#44617D" />
+             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+              <VerticalStackLayout Spacing="2">
+                  <Label Text="BI Dashboard (Natif)"
+                      FontSize="24"
+                      FontAttributes="Bold"
+                      TextColor="#11263A" />
+                  <Label Text="Vue mobile BI + assistant AI natif"
+                      TextColor="#44617D" />
+              </VerticalStackLayout>
+              <Button Grid.Column="1"
+                   Text="Refresh"
+                   ImageSource="ic_refresh.svg"
+                   ContentLayout="Left,8"
+                   Style="{StaticResource IconActionButton}"
+                   BackgroundColor="#0A84FF"
+                   Clicked="OnRefreshDashboardClicked" />
+             </Grid>
 
             <Grid ColumnDefinitions="*,*" ColumnSpacing="10" RowSpacing="10">
                 <Border StrokeThickness="0" BackgroundColor="#EDF6FF" Padding="12" StrokeShape="RoundRectangle 14">
@@ -114,7 +125,12 @@
                         </CollectionView.ItemTemplate>
                     </CollectionView>
                     <Entry x:Name="AiQuestionEntry" Placeholder="Ex: donne moi le resume finance" />
-                    <Button x:Name="AskAiButton" Text="Demander a AI" Clicked="OnAskAiClicked" />
+                    <Button x:Name="AskAiButton"
+                            Text="Demander a AI"
+                            ImageSource="ic_ai.svg"
+                            ContentLayout="Left,10"
+                            Style="{StaticResource IconActionButton}"
+                            Clicked="OnAskAiClicked" />
                 </VerticalStackLayout>
             </Border>
 

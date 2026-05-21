@@ -49,6 +49,12 @@
         </Setter>
     </Style>
 
+    <Style x:Key="IconActionButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+        <Setter Property="CornerRadius" Value="14" />
+        <Setter Property="Padding" Value="14,12" />
+        <Setter Property="FontAttributes" Value="Bold" />
+    </Style>
+
     <Style TargetType="CheckBox">
         <Setter Property="Color" Value="{AppThemeBinding Light={StaticResource Primary}, Dark={StaticResource White}}" />
         <Setter Property="MinimumHeightRequest" Value="44"/>

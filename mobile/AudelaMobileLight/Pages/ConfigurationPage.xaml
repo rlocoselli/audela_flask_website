@@ -26,6 +26,9 @@
 
              <Button x:Name="TenantAccountButton"
                   Text="Mon compte tenant"
+                   ImageSource="tab_config.svg"
+                   ContentLayout="Left,10"
+                   Style="{StaticResource IconActionButton}"
                     Clicked="OnOpenTenantAccountClicked" />
 
             <Border StrokeThickness="0" BackgroundColor="#F4F8FE" Padding="12" StrokeShape="RoundRectangle 12">

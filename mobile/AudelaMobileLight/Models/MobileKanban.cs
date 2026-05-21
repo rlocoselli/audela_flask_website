@@ -11,7 +11,9 @@ public sealed class MobileKanbanItem
 {
     public string Id { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
     public string Owner { get; set; } = string.Empty;
     public string Priority { get; set; } = string.Empty;
     public string DueDate { get; set; } = string.Empty;
+    public string Column { get; set; } = string.Empty;
 }

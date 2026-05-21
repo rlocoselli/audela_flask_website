@@ -71,6 +71,97 @@ public sealed class MobileVisualizationService
         return (false, "Impossible de deplacer la carte.");
     }
 
+    public async Task<(bool Ok, string Message)> CreateKanbanTaskAsync(
+        string title,
+        string description,
+        string owner,
+        string priority,
+        string dueDate,
+        string column,
+        CancellationToken cancellationToken)
+    {
+        var body = new
+        {
+            title,
+            description,
+            owner,
+            priority,
+            dueDate,
+            column,
+        };
+
+        foreach (var baseUrl in BackendEndpoints.Candidates())
+        {
+            var endpoint = BuildUrl(baseUrl, "/api/mobile/kanban/tasks");
+            try
+            {
+                var response = await _httpClient.PostAsJsonAsync(endpoint, body, cancellationToken);
+                var payload = await response.Content.ReadFromJsonAsync<MoveCardPayload>(cancellationToken: cancellationToken);
+                if (response.IsSuccessStatusCode && payload?.Ok == true)
+                {
+                    return (true, payload.Message);
+                }
+
+                if (payload is not null && !string.IsNullOrWhiteSpace(payload.Message))
+                {
+                    return (false, payload.Message);
+                }
+            }
+            catch
+            {
+                // try next endpoint
+            }
+        }
+
+        return (false, "Impossible de creer la tache.");
+    }
+
+    public async Task<(bool Ok, string Message)> UpdateKanbanTaskAsync(
+        string itemId,
+        string title,
+        string description,
+        string owner,
+        string priority,
+        string dueDate,
+        string column,
+        CancellationToken cancellationToken)
+    {
+        var body = new
+        {
+            title,
+            description,
+            owner,
+            priority,
+            dueDate,
+            column,
+        };
+
+        foreach (var baseUrl in BackendEndpoints.Candidates())
+        {
+            var endpoint = BuildUrl(baseUrl, $"/api/mobile/kanban/tasks/{Uri.EscapeDataString(itemId)}");
+            try
+            {
+                var response = await _httpClient.PutAsJsonAsync(endpoint, body, cancellationToken);
+                var payload = await response.Content.ReadFromJsonAsync<MoveCardPayload>(cancellationToken: cancellationToken);
+                if (response.IsSuccessStatusCode && payload?.Ok == true)
+                {
+                    return (true, payload.Message);
+                }
+
+                if (payload is not null && !string.IsNullOrWhiteSpace(payload.Message))
+                {
+                    return (false, payload.Message);
+                }
+            }
+            catch
+            {
+                // try next endpoint
+            }
+        }
+
+        return (false, "Impossible de modifier la tache.");
+    }
+
     public async Task<IReadOnlyList<MobileLearningEnrollment>> GetLearningAsync(CancellationToken cancellationToken)
     {
         var payload = await GetFirstAsync<LearningPayload>("/api/mobile/learning", cancellationToken);

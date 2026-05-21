@@ -1492,6 +1492,8 @@ def mobile_kanban_data():
                 "owner": str(card.get("owner") or ""),
                 "priority": str(card.get("priority") or "medium"),
                 "dueDate": str(card.get("due_date") or ""),
+                "description": str(card.get("description") or ""),
+                "column": col,
             }
         )
 
@@ -1757,6 +1759,112 @@ def mobile_kanban_move_card():
     ws.state_json = state
     db.session.commit()
     return jsonify({"ok": True, "message": "Card moved."})
+
+
+@bp.route("/api/mobile/kanban/tasks", methods=["POST"])
+@csrf.exempt
+def mobile_kanban_create_task():
+    tenant = _mobile_resolve_tenant_from_query()
+    if not tenant:
+        return jsonify({"ok": False, "message": "Tenant is required."}), 400
+
+    data = request.get_json(silent=True) or {}
+    title = str(data.get("title") or "").strip()
+    owner = str(data.get("owner") or "").strip()
+    priority = str(data.get("priority") or "medium").strip().lower()
+    due_date = str(data.get("dueDate") or "").strip()
+    description = str(data.get("description") or "").strip()
+    target_col = str(data.get("column") or "todo").strip().lower()
+    allowed_cols = {"backlog", "todo", "doing", "done"}
+    allowed_priorities = {"low", "medium", "high", "critical"}
+
+    if not title:
+        return jsonify({"ok": False, "message": "title is required."}), 400
+    if target_col not in allowed_cols:
+        target_col = "todo"
+    if priority not in allowed_priorities:
+        priority = "medium"
+
+    ws = ProjectWorkspace.query.filter_by(tenant_id=tenant.id).first()
+    if not ws:
+        ws = ProjectWorkspace(tenant_id=tenant.id)
+        db.session.add(ws)
+
+    state = ws.state_json if isinstance(ws.state_json, dict) else {}
+    cards_raw = state.get("cards")
+    if not isinstance(cards_raw, list):
+        cards_raw = []
+        state["cards"] = cards_raw
+
+    task_id = f"card-{uuid4().hex[:12]}"
+    card = {
+        "id": task_id,
+        "title": title[:140],
+        "owner": owner[:120],
+        "priority": priority,
+        "due_date": due_date[:40],
+        "description": description[:1000],
+        "col": target_col,
+    }
+    cards_raw.append(card)
+    ws.state_json = state
+    db.session.commit()
+
+    return jsonify({"ok": True, "message": "Task created.", "task": card})
+
+
+@bp.route("/api/mobile/kanban/tasks/<string:item_id>", methods=["PUT", "PATCH"])
+@csrf.exempt
+def mobile_kanban_update_task(item_id: str):
+    tenant = _mobile_resolve_tenant_from_query()
+    if not tenant:
+        return jsonify({"ok": False, "message": "Tenant is required."}), 400
+
+    item_id = str(item_id or "").strip()
+    if not item_id:
+        return jsonify({"ok": False, "message": "itemId is required."}), 400
+
+    data = request.get_json(silent=True) or {}
+    allowed_cols = {"backlog", "todo", "doing", "done"}
+    allowed_priorities = {"low", "medium", "high", "critical"}
+
+    ws = ProjectWorkspace.query.filter_by(tenant_id=tenant.id).first()
+    state = ws.state_json if ws and isinstance(ws.state_json, dict) else {}
+    cards_raw = state.get("cards") if isinstance(state.get("cards"), list) else []
+
+    selected_card = None
+    for card in cards_raw:
+        if not isinstance(card, dict):
+            continue
+        if str(card.get("id") or "").strip() == item_id:
+            selected_card = card
+            break
+
+    if selected_card is None:
+        return jsonify({"ok": False, "message": "Card not found."}), 404
+
+    if "title" in data:
+        selected_card["title"] = str(data.get("title") or "").strip()[:140]
+    if "owner" in data:
+        selected_card["owner"] = str(data.get("owner") or "").strip()[:120]
+    if "description" in data:
+        selected_card["description"] = str(data.get("description") or "").strip()[:1000]
+    if "dueDate" in data:
+        selected_card["due_date"] = str(data.get("dueDate") or "").strip()[:40]
+
+    if "priority" in data:
+        priority = str(data.get("priority") or "").strip().lower()
+        if priority in allowed_priorities:
+            selected_card["priority"] = priority
+
+    if "column" in data:
+        target_col = str(data.get("column") or "").strip().lower()
+        if target_col in allowed_cols:
+            selected_card["col"] = target_col
+
+    ws.state_json = state
+    db.session.commit()
+    return jsonify({"ok": True, "message": "Task updated.", "task": selected_card})
 
 
 @bp.route("/api/mobile/finance/summary")

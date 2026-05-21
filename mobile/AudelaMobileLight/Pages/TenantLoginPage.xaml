@@ -61,17 +61,25 @@
                                IsEnabled="{Binding IsNotSubmitting}" />
 
                         <Button Text="Se connecter"
+                            ImageSource="ic_login.svg"
+                            ContentLayout="Left,12"
                                 IsEnabled="{Binding IsNotSubmitting}"
                                 Clicked="OnLoginClicked" />
                         <Button Text="Creer un compte"
+                            ImageSource="ic_register.svg"
+                            ContentLayout="Left,12"
                                 BackgroundColor="#E6F0FC"
                                 TextColor="#0D4E8E"
                                 IsEnabled="{Binding IsNotSubmitting}"
                                 Clicked="OnRegisterClicked" />
 
                      <Button Text="Continuer avec Google"
+                         ImageSource="ic_google.svg"
+                         ContentLayout="Left,12"
                             BackgroundColor="White"
                             TextColor="#1A2D3F"
+                         BorderColor="#D7E4F2"
+                         BorderWidth="1"
                             IsEnabled="{Binding IsNotSubmitting}"
                             Clicked="OnGoogleLoginClicked" />
 
