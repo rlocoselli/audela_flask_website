@@ -6,6 +6,7 @@ namespace AudelaMobileLight.Pages;
 public partial class DashboardPage : ContentPage
 {
     private readonly MobileVisualizationService _service = new();
+    private bool _hasAnimated;
     public ObservableCollection<string> AiMessages { get; } = [];
     public ObservableCollection<string> AiSourceLabels { get; } = [];
     public string SelectedAiSourceLabel { get; set; } = string.Empty;
@@ -42,6 +43,11 @@ public partial class DashboardPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        if (!_hasAnimated)
+        {
+            _hasAnimated = true;
+            _ = AnimateEntranceAsync();
+        }
         await LoadAsync();
     }
 
@@ -171,5 +177,31 @@ public partial class DashboardPage : ContentPage
         AiSourceLabel.Text = MobileLocalizer.T("dashboard.aiSource");
         AskAiButton.Text = MobileLocalizer.T("dashboard.aiAsk");
         AiQuestionEntry.Placeholder = MobileLocalizer.T("dashboard.aiPlaceholder");
+    }
+
+    private async Task AnimateEntranceAsync()
+    {
+        var blocks = new VisualElement[]
+        {
+            DashboardHeaderGrid,
+            KpiGrid,
+            FinanceGraphCard,
+            KanbanGraphCard,
+            AiCard,
+        };
+
+        foreach (var block in blocks)
+        {
+            block.Opacity = 0;
+            block.TranslationY = 16;
+        }
+
+        foreach (var block in blocks)
+        {
+            await Task.WhenAll(
+                block.FadeTo(1, 260, Easing.CubicOut),
+                block.TranslateTo(0, 0, 260, Easing.CubicOut));
+            await Task.Delay(45);
+        }
     }
 }

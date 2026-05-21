@@ -17,7 +17,7 @@ from ...models import Prospect
 from ...models import User
 from ...models import Tenant
 from ...models import PublicPageVisit
-from ...models import Dashboard, QueryRun, FinanceTransaction, FinanceAccount, ProjectWorkspace
+from ...models import Dashboard, DashboardCard, DataSource, QueryRun, FinanceTransaction, FinanceAccount, ProjectWorkspace
 from ...models import UserELearningEnrollment, ELearningModule
 from ...models.e_learning import ELearningLesson, ELearningQuiz
 from ...services.subscription_service import SubscriptionService
@@ -1469,6 +1469,67 @@ def mobile_dashboard_data():
     )
 
 
+@bp.route("/api/mobile/bi/datasources")
+def mobile_bi_datasources_data():
+    tenant = _mobile_resolve_tenant_from_query()
+    if not tenant:
+        return jsonify({"datasources": [], "count": 0})
+
+    rows = (
+        DataSource.query.filter(DataSource.tenant_id == int(tenant.id))
+        .order_by(DataSource.name.asc(), DataSource.id.asc())
+        .limit(80)
+        .all()
+    )
+
+    payload = []
+    for row in rows:
+        payload.append(
+            {
+                "id": int(row.id),
+                "name": str(row.name or f"Source {row.id}"),
+                "type": str(row.type or "db"),
+                "token": f"ds:{int(row.id)}",
+            }
+        )
+
+    return jsonify({"datasources": payload, "count": len(payload)})
+
+
+@bp.route("/api/mobile/bi/dashboards")
+def mobile_bi_dashboards_data():
+    tenant = _mobile_resolve_tenant_from_query()
+    if not tenant:
+        return jsonify({"dashboards": [], "count": 0})
+
+    rows = (
+        Dashboard.query.filter(Dashboard.tenant_id == int(tenant.id))
+        .order_by(Dashboard.updated_at.desc(), Dashboard.id.desc())
+        .limit(40)
+        .all()
+    )
+
+    payload = []
+    for row in rows:
+        cards_count = (
+            DashboardCard.query.filter(
+                DashboardCard.tenant_id == int(tenant.id),
+                DashboardCard.dashboard_id == int(row.id),
+            ).count()
+        )
+        payload.append(
+            {
+                "id": int(row.id),
+                "name": str(row.name or f"Dashboard {row.id}"),
+                "cardsCount": int(cards_count),
+                "isPrimary": bool(getattr(row, "is_primary", False)),
+                "updatedAt": row.updated_at.isoformat() if getattr(row, "updated_at", None) else "",
+            }
+        )
+
+    return jsonify({"dashboards": payload, "count": len(payload)})
+
+
 @bp.route("/api/mobile/kanban")
 def mobile_kanban_data():
     tenant = _mobile_resolve_tenant_from_query()
@@ -1582,6 +1643,35 @@ def mobile_learning_quizzes_data():
     return jsonify({"quizzes": payload, "count": len(payload)})
 
 
+@bp.route("/api/mobile/learning/subscription/intent", methods=["POST"])
+@csrf.exempt
+def mobile_learning_subscription_intent():
+    tenant = _mobile_resolve_tenant_from_query()
+    if not tenant:
+        return jsonify({"ok": False, "message": "Tenant is required."}), 400
+
+    data = request.get_json(silent=True) or {}
+    plan_code = str(data.get("planCode") or "").strip().lower()
+    allowed = {"e_learning_starter", "e_learning_pro", "all_in_one_pro"}
+    if plan_code not in allowed:
+        return jsonify({"ok": False, "message": "Invalid plan code."}), 400
+
+    tenant_name = str(getattr(tenant, "name", "") or tenant.slug or "tenant")
+    current_app.logger.info(
+        "Mobile learning subscription intent tenant=%s plan=%s",
+        str(getattr(tenant, "slug", "") or "unknown"),
+        plan_code,
+    )
+
+    return jsonify(
+        {
+            "ok": True,
+            "message": f"Subscription request received for {tenant_name}: {plan_code}.",
+            "planCode": plan_code,
+        }
+    )
+
+
 @bp.route("/api/mobile/ai/chat", methods=["POST"])
 def mobile_ai_chat():
     data = request.get_json(silent=True) or {}
@@ -1589,56 +1679,42 @@ def mobile_ai_chat():
     if not message:
         return jsonify({"ok": False, "message": "Message requis."}), 400
 
-    data_source = str(data.get("dataSource") or "auto").strip().lower()
-    if data_source not in {"auto", "finance", "kanban", "learning", "dashboard"}:
-        data_source = "auto"
+    data_source = str(data.get("dataSource") or "").strip()
     lang = normalize_lang(str(data.get("lang") or "").strip()) or "fr"
 
     tenant = _mobile_resolve_tenant_from_query()
     tenant_label = str(tenant.slug) if tenant else "global"
     metrics = mobile_dashboard_data().get_json(silent=True) or {}
 
-    normalized = message.lower()
-    resolved_source = data_source
-    if resolved_source == "auto":
-        if "finance" in normalized or "debt" in normalized or "credit" in normalized:
-            resolved_source = "finance"
-        elif "kanban" in normalized or "project" in normalized:
-            resolved_source = "kanban"
-        elif "learning" in normalized or "quiz" in normalized:
-            resolved_source = "learning"
-        else:
-            resolved_source = "dashboard"
+    selected_ds = None
+    if tenant and data_source.startswith("ds:"):
+        raw_id = data_source.split(":", 1)[1].strip()
+        if raw_id.isdigit():
+            selected_ds = DataSource.query.filter(
+                DataSource.tenant_id == int(tenant.id),
+                DataSource.id == int(raw_id),
+            ).first()
 
-    if resolved_source == "finance":
-        if lang == "en":
-            answer = f"Finance: net={metrics.get('financeNetAmount', 0)} across {metrics.get('financeEntriesCount', 0)} entries."
-        elif lang == "it":
-            answer = f"Finanza: netto={metrics.get('financeNetAmount', 0)} su {metrics.get('financeEntriesCount', 0)} movimenti."
-        else:
-            answer = f"Finance: net={metrics.get('financeNetAmount', 0)} sur {metrics.get('financeEntriesCount', 0)} ecritures."
-    elif resolved_source == "kanban":
-        k = metrics.get("kanban", {}) or {}
-        if lang == "en":
-            answer = f"Project: backlog={k.get('backlog', 0)}, todo={k.get('todo', 0)}, doing={k.get('doing', 0)}, done={k.get('done', 0)}."
-        elif lang == "it":
-            answer = f"Progetto: backlog={k.get('backlog', 0)}, todo={k.get('todo', 0)}, doing={k.get('doing', 0)}, done={k.get('done', 0)}."
-        else:
-            answer = f"Projet: backlog={k.get('backlog', 0)}, todo={k.get('todo', 0)}, doing={k.get('doing', 0)}, done={k.get('done', 0)}."
-    elif resolved_source == "learning":
-        if lang == "en":
-            answer = f"Learning: average progress {metrics.get('learningProgressAvg', 0)}% over {metrics.get('learningModulesCount', 0)} modules."
-        elif lang == "it":
-            answer = f"Learning: progresso medio {metrics.get('learningProgressAvg', 0)}% su {metrics.get('learningModulesCount', 0)} moduli."
-        else:
-            answer = f"Learning: progression moyenne {metrics.get('learningProgressAvg', 0)}% sur {metrics.get('learningModulesCount', 0)} modules."
+    ds_label = str(getattr(selected_ds, "name", "") or "BI datasource par defaut")
+
+    if lang == "en":
+        answer = (
+            f"BI assistant (tenant={tenant_label}) using '{ds_label}'. "
+            f"Dashboards={metrics.get('dashboardCount', 0)}, query runs={metrics.get('queryRunCount', 0)}. "
+            f"Question: {message}"
+        )
+    elif lang == "it":
+        answer = (
+            f"Assistente BI (tenant={tenant_label}) con sorgente '{ds_label}'. "
+            f"Dashboard={metrics.get('dashboardCount', 0)}, esecuzioni query={metrics.get('queryRunCount', 0)}. "
+            f"Domanda: {message}"
+        )
     else:
-        if lang == "en":
-            answer = f"AUDELA Mobile assistant (tenant={tenant_label}): ask for BI, finance, kanban, or learning insights."
-        elif lang == "it":
-            answer = f"Assistente AUDELA Mobile (tenant={tenant_label}): chiedi insight BI, finanza, kanban o learning."
-        else:
-            answer = f"Assistant AUDELA Mobile (tenant={tenant_label}) : demandez un resume BI, finance, kanban projet ou learning."
+        answer = (
+            f"Assistant BI (tenant={tenant_label}) avec source '{ds_label}'. "
+            f"Dashboards={metrics.get('dashboardCount', 0)}, executions de requetes={metrics.get('queryRunCount', 0)}. "
+            f"Question: {message}"
+        )
 
     return jsonify({"ok": True, "message": answer})
 

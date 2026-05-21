@@ -7,45 +7,26 @@
              x:DataType="local:KanbanPage"
              Title="Kanban">
 
-    <Grid RowDefinitions="Auto,Auto,Auto,*" BackgroundColor="#F3F7FC">
-        <VerticalStackLayout Grid.Row="0" Padding="16,12,16,8" Spacing="8">
+    <Grid RowDefinitions="Auto,Auto,*" BackgroundColor="#F3F7FC">
+        <VerticalStackLayout x:Name="KanbanHeaderSection" Grid.Row="0" Padding="16,12,16,8" Spacing="8">
             <Label Text="Kanban Projet"
                    FontSize="24"
                    FontAttributes="Bold"
                    TextColor="#11263A" />
             <Label Text="Vue native style Jira"
                    TextColor="#44617D" />
-
-            <Border StrokeThickness="0" BackgroundColor="#EAF3FF" Padding="10" StrokeShape="RoundRectangle 12">
-                <VerticalStackLayout Spacing="8">
-                    <Label Text="Creer une tache" FontAttributes="Bold" TextColor="#12314A" />
-                    <Entry x:Name="NewTitleEntry" Placeholder="Titre" />
-                    <Entry x:Name="NewOwnerEntry" Placeholder="Responsable" />
-                    <Entry x:Name="NewDescriptionEntry" Placeholder="Description" />
-                    <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
-                        <Picker x:Name="NewPriorityPicker" Grid.Column="0" Title="Priorite" ItemsSource="{Binding PriorityOptions}" />
-                        <Picker x:Name="NewColumnPicker" Grid.Column="1" Title="Colonne" ItemsSource="{Binding ColumnOptions}" />
-                        <Entry x:Name="NewDueDateEntry" Grid.Column="2" Placeholder="Due date" />
-                    </Grid>
-                    <Button Text="Creer tache" ImageSource="ic_add.svg" ContentLayout="Left,10" Clicked="OnCreateTaskClicked" />
-                </VerticalStackLayout>
-            </Border>
-
-            <Border StrokeThickness="0" BackgroundColor="#FFF8EC" Padding="10" StrokeShape="RoundRectangle 12" IsVisible="{Binding IsEditPanelVisible}">
-                <VerticalStackLayout Spacing="8">
-                    <Label Text="Modifier la tache (clic carte)" FontAttributes="Bold" TextColor="#603A00" />
-                    <Label Text="{Binding SelectedTaskIdLabel}" FontSize="12" TextColor="#7B5C2F" />
-                    <Entry x:Name="EditTitleEntry" Placeholder="Titre" Text="{Binding SelectedTaskTitle}" />
-                    <Entry x:Name="EditOwnerEntry" Placeholder="Responsable" Text="{Binding SelectedTaskOwner}" />
-                    <Entry x:Name="EditDescriptionEntry" Placeholder="Description" Text="{Binding SelectedTaskDescription}" />
-                    <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
-                        <Picker x:Name="EditPriorityPicker" Grid.Column="0" ItemsSource="{Binding PriorityOptions}" SelectedItem="{Binding SelectedTaskPriority}" />
-                        <Picker x:Name="EditColumnPicker" Grid.Column="1" ItemsSource="{Binding ColumnOptions}" SelectedItem="{Binding SelectedTaskColumn}" />
-                        <Entry x:Name="EditDueDateEntry" Grid.Column="2" Placeholder="Due date" Text="{Binding SelectedTaskDueDate}" />
-                    </Grid>
-                    <Button Text="Enregistrer modifications" ImageSource="ic_edit.svg" ContentLayout="Left,10" Clicked="OnSaveTaskChangesClicked" BackgroundColor="#C26B00" TextColor="White" />
-                </VerticalStackLayout>
-            </Border>
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                <Button Text="Nouvelle tache"
+                        ImageSource="ic_add.svg"
+                        ContentLayout="Left,8"
+                        Style="{StaticResource CompactButton}"
+                        Clicked="OnOpenCreateTaskScreenClicked" />
+                <Label Grid.Column="1"
+                       Text="Cliquez sur une carte pour modifier dans un ecran dedie."
+                       VerticalTextAlignment="Center"
+                       FontSize="12"
+                       TextColor="#4C6D8E" />
+            </Grid>
         </VerticalStackLayout>
 
         <ActivityIndicator Grid.Row="1"
@@ -53,9 +34,10 @@
                            IsVisible="{Binding IsLoading}"
                            IsRunning="{Binding IsLoading}" />
 
-        <CollectionView Grid.Row="3"
+        <CollectionView x:Name="KanbanBoardCollection" Grid.Row="2"
                         ItemsSource="{Binding Columns}"
                         ItemsLayout="HorizontalList"
+                VerticalScrollBarVisibility="Always"
                         Margin="12,0,12,12">
             <CollectionView.ItemTemplate>
                 <DataTemplate x:DataType="model:MobileKanbanColumn">
@@ -74,7 +56,7 @@
                                    FontSize="12"
                                    TextColor="#4C6D8E" />
 
-                            <CollectionView ItemsSource="{Binding Items}" HeightRequest="420">
+                            <CollectionView ItemsSource="{Binding Items}" HeightRequest="560" VerticalScrollBarVisibility="Always">
                                 <CollectionView.ItemTemplate>
                                     <DataTemplate x:DataType="model:MobileKanbanItem">
                                         <Border StrokeThickness="0"

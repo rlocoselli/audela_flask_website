@@ -11,6 +11,7 @@ public partial class FinanceEntriesPage : ContentPage
 {
     private readonly MobileVisualizationService _service = new();
     private readonly IVoiceRecognitionService _voiceRecognitionService;
+    private bool _hasAnimated;
     public ObservableCollection<MobileFinanceEntry> Entries { get; } = [];
     public bool IsLoading { get; private set; }
     public bool ShowDashboardSection { get; private set; } = true;
@@ -36,6 +37,11 @@ public partial class FinanceEntriesPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        if (!_hasAnimated)
+        {
+            _hasAnimated = true;
+            _ = AnimateEntranceAsync();
+        }
         await LoadAsync();
     }
 
@@ -108,15 +114,15 @@ public partial class FinanceEntriesPage : ContentPage
         await LoadAsync();
     }
 
-    private void OnDashboardMenuClicked(object? sender, EventArgs e) => SetSection("dashboard");
+    private void OnDashboardMenuClicked(object? sender, EventArgs e) => _ = SetSectionAsync("dashboard");
 
-    private void OnTransactionsMenuClicked(object? sender, EventArgs e) => SetSection("transactions");
+    private void OnTransactionsMenuClicked(object? sender, EventArgs e) => _ = SetSectionAsync("transactions");
 
-    private void OnQuickEntryMenuClicked(object? sender, EventArgs e) => SetSection("quick");
+    private void OnQuickEntryMenuClicked(object? sender, EventArgs e) => _ = SetSectionAsync("quick");
 
     private async void OnFloatingQuickEntryClicked(object? sender, EventArgs e)
     {
-        SetSection("quick");
+        await SetSectionAsync("quick");
         await RunVoiceRecognitionAsync();
     }
 
@@ -179,6 +185,65 @@ public partial class FinanceEntriesPage : ContentPage
         QuickEntryMenuButton.TextColor = ShowQuickEntrySection ? Colors.White : Color.FromArgb("#12304B");
     }
 
+    private async Task SetSectionAsync(string section)
+    {
+        var current = GetActiveSection();
+        if (!string.IsNullOrWhiteSpace(current) && current != section)
+        {
+            var currentElement = ResolveSectionElement(current);
+            if (currentElement is not null)
+            {
+                await Task.WhenAll(
+                    currentElement.FadeTo(0, 130, Easing.CubicIn),
+                    currentElement.TranslateTo(0, 10, 130, Easing.CubicIn));
+                currentElement.TranslationY = 0;
+            }
+        }
+
+        SetSection(section);
+
+        var nextElement = ResolveSectionElement(section);
+        if (nextElement is not null)
+        {
+            nextElement.Opacity = 0;
+            nextElement.TranslationY = 12;
+            await Task.WhenAll(
+                nextElement.FadeTo(1, 170, Easing.CubicOut),
+                nextElement.TranslateTo(0, 0, 170, Easing.CubicOut));
+        }
+    }
+
+    private string GetActiveSection()
+    {
+        if (ShowDashboardSection)
+        {
+            return "dashboard";
+        }
+
+        if (ShowTransactionsSection)
+        {
+            return "transactions";
+        }
+
+        if (ShowQuickEntrySection)
+        {
+            return "quick";
+        }
+
+        return string.Empty;
+    }
+
+    private VisualElement? ResolveSectionElement(string section)
+    {
+        return section switch
+        {
+            "dashboard" => FinanceDashboardSection,
+            "transactions" => FinanceTransactionsSection,
+            "quick" => FinanceQuickEntrySection,
+            _ => null,
+        };
+    }
+
     private void OnLanguageChanged(object? sender, EventArgs e)
     {
         ApplyTranslations();
@@ -193,6 +258,38 @@ public partial class FinanceEntriesPage : ContentPage
         QuickEntryMenuButton.Text = MobileLocalizer.T("finance.menu.quick");
         VoiceQuickEntryButton.Text = MobileLocalizer.T("finance.voiceBtn");
         FloatingQuickEntryButton.Text = MobileLocalizer.T("finance.voiceFab");
+    }
+
+    private async Task AnimateEntranceAsync()
+    {
+        var blocks = new VisualElement[]
+        {
+            FinanceMenuGrid,
+            FinanceDashboardSection,
+            FinanceTransactionsSection,
+            FinanceQuickEntrySection,
+        };
+
+        foreach (var block in blocks)
+        {
+            block.Opacity = 0;
+            block.TranslationY = 14;
+        }
+
+        FloatingQuickEntryButton.Opacity = 0;
+        FloatingQuickEntryButton.Scale = 0.85;
+
+        foreach (var block in blocks)
+        {
+            await Task.WhenAll(
+                block.FadeTo(1, 240, Easing.CubicOut),
+                block.TranslateTo(0, 0, 240, Easing.CubicOut));
+            await Task.Delay(35);
+        }
+
+        await Task.WhenAll(
+            FloatingQuickEntryButton.FadeTo(1, 220, Easing.CubicOut),
+            FloatingQuickEntryButton.ScaleTo(1, 220, Easing.SpringOut));
     }
 
 }

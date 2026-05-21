@@ -8,8 +8,4 @@ public sealed class MobileDashboardMetrics
     public double FinanceNetAmount { get; set; }
     public int LearningModulesCount { get; set; }
     public int LearningProgressAvg { get; set; }
-    public int KanbanBacklog { get; set; }
-    public int KanbanTodo { get; set; }
-    public int KanbanDoing { get; set; }
-    public int KanbanDone { get; set; }
 }

@@ -16,6 +16,50 @@
          <Label Text="Contenu e-learning et quiz natifs"
                    TextColor="#44617D" />
 
+            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+            <Button x:Name="LearningMenuCoursesButton"
+                Text="Mes cours"
+                ImageSource="tab_learning.svg"
+                ContentLayout="Left,6"
+                Style="{StaticResource CompactButton}" />
+            <Button x:Name="LearningMenuCatalogButton"
+                Grid.Column="1"
+                Text="Catalogue"
+                ImageSource="ic_ai.svg"
+                ContentLayout="Left,6"
+                Style="{StaticResource CompactButton}" />
+            <Button x:Name="LearningMenuSubscriptionsButton"
+                Grid.Column="2"
+                Text="Abonnements"
+                ImageSource="tab_config.svg"
+                ContentLayout="Left,6"
+                Style="{StaticResource CompactButton}" />
+            </Grid>
+
+            <Border StrokeThickness="0" BackgroundColor="#EEF5FF" Padding="12" StrokeShape="RoundRectangle 14">
+            <VerticalStackLayout Spacing="8">
+                <Label Text="Abonnements e-learning"
+                   FontAttributes="Bold"
+                   TextColor="#12314A" />
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                <Button Text="Starter"
+                    Style="{StaticResource CompactButton}"
+                    Clicked="OnSubscribeStarterClicked" />
+                <Button Grid.Column="1"
+                    Text="Pro"
+                    Style="{StaticResource CompactButton}"
+                    Clicked="OnSubscribeProClicked" />
+                <Button Grid.Column="2"
+                    Text="All-in-One"
+                    Style="{StaticResource CompactButton}"
+                    Clicked="OnSubscribeAllInOneClicked" />
+                </Grid>
+                <Button Text="Gerer mon abonnement"
+                    Style="{StaticResource CompactButton}"
+                    Clicked="OnManageSubscriptionClicked" />
+            </VerticalStackLayout>
+            </Border>
+
             <ActivityIndicator IsVisible="{Binding IsLoading}"
                                IsRunning="{Binding IsLoading}" />
 
@@ -24,7 +68,7 @@
                    FontSize="18"
                    TextColor="#11263A" />
 
-            <CollectionView ItemsSource="{Binding Enrollments}" HeightRequest="180">
+            <CollectionView ItemsSource="{Binding Enrollments}" HeightRequest="220">
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="model:MobileLearningEnrollment">
                         <Border StrokeThickness="0" BackgroundColor="#F1F6FF" Padding="12" StrokeShape="RoundRectangle 14" Margin="0,0,0,8">
@@ -44,7 +88,7 @@
                    Margin="0,8,0,0"
                    TextColor="#11263A" />
 
-            <CollectionView ItemsSource="{Binding Lessons}" HeightRequest="210">
+            <CollectionView ItemsSource="{Binding Lessons}" HeightRequest="260">
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="model:MobileLearningLesson">
                         <Border Stroke="#D8E5F3" StrokeThickness="1" BackgroundColor="#F8FBFF" Padding="12" StrokeShape="RoundRectangle 14" Margin="0,0,0,8">
@@ -63,7 +107,7 @@
                    FontSize="18"
                    TextColor="#11263A" />
 
-            <CollectionView ItemsSource="{Binding Quizzes}" HeightRequest="190">
+            <CollectionView ItemsSource="{Binding Quizzes}" HeightRequest="230">
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="model:MobileLearningQuizSummary">
                         <Border Stroke="#D8E5F3" StrokeThickness="1" BackgroundColor="#F8FBFF" Padding="12" StrokeShape="RoundRectangle 14" Margin="0,0,0,8">

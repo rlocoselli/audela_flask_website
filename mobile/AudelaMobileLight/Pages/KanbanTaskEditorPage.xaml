@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:AudelaMobileLight.Pages"
+             x:Class="AudelaMobileLight.Pages.KanbanTaskEditorPage"
+             x:DataType="local:KanbanTaskEditorPage"
+             Title="Task editor">
+
+    <ScrollView BackgroundColor="#F3F7FC">
+        <VerticalStackLayout Padding="16" Spacing="10">
+            <Label Text="{Binding HeaderTitle}" FontSize="22" FontAttributes="Bold" TextColor="#11263A" />
+            <Label Text="Details complets de la tache" TextColor="#44617D" />
+
+            <Border StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 12">
+                <VerticalStackLayout Spacing="8">
+                    <Entry x:Name="TitleEntry" Placeholder="Titre" Text="{Binding TaskTitle}" />
+                    <Entry x:Name="OwnerEntry" Placeholder="Responsable" Text="{Binding TaskOwner}" />
+                    <Editor x:Name="DescriptionEditor" Placeholder="Description" AutoSize="TextChanges" Text="{Binding TaskDescription}" />
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                        <Picker x:Name="PriorityPicker" Grid.Column="0" ItemsSource="{Binding PriorityOptions}" SelectedItem="{Binding TaskPriority}" />
+                        <Picker x:Name="ColumnPicker" Grid.Column="1" ItemsSource="{Binding ColumnOptions}" SelectedItem="{Binding TaskColumn}" />
+                    </Grid>
+                    <Entry x:Name="DueDateEntry" Placeholder="Due date" Text="{Binding TaskDueDate}" />
+                    <Button Text="Enregistrer"
+                            ImageSource="ic_edit.svg"
+                            ContentLayout="Left,8"
+                            Style="{StaticResource CompactButton}"
+                            Clicked="OnSaveClicked" />
+                </VerticalStackLayout>
+            </Border>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

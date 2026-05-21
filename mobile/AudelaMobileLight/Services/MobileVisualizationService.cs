@@ -24,11 +24,19 @@ public sealed class MobileVisualizationService
                 FinanceNetAmount = payload.FinanceNetAmount,
                 LearningModulesCount = payload.LearningModulesCount,
                 LearningProgressAvg = payload.LearningProgressAvg,
-                KanbanBacklog = payload.Kanban.Backlog,
-                KanbanTodo = payload.Kanban.Todo,
-                KanbanDoing = payload.Kanban.Doing,
-                KanbanDone = payload.Kanban.Done,
             };
+    }
+
+    public async Task<IReadOnlyList<MobileBiDataSource>> GetBiDataSourcesAsync(CancellationToken cancellationToken)
+    {
+        var payload = await GetFirstAsync<BiDataSourcePayload>("/api/mobile/bi/datasources", cancellationToken);
+        return payload?.Datasources ?? [];
+    }
+
+    public async Task<IReadOnlyList<MobileBiDashboardSummary>> GetBiDashboardsAsync(CancellationToken cancellationToken)
+    {
+        var payload = await GetFirstAsync<BiDashboardsPayload>("/api/mobile/bi/dashboards", cancellationToken);
+        return payload?.Dashboards ?? [];
     }
 
     public async Task<IReadOnlyList<MobileKanbanColumn>> GetKanbanAsync(CancellationToken cancellationToken)
@@ -180,6 +188,36 @@ public sealed class MobileVisualizationService
         return payload?.Quizzes ?? [];
     }
 
+    public async Task<(bool Ok, string Message)> SubmitLearningSubscriptionIntentAsync(string planCode, CancellationToken cancellationToken)
+    {
+        var body = new { planCode };
+
+        foreach (var baseUrl in BackendEndpoints.Candidates())
+        {
+            var endpoint = BuildUrl(baseUrl, "/api/mobile/learning/subscription/intent");
+            try
+            {
+                var response = await _httpClient.PostAsJsonAsync(endpoint, body, cancellationToken);
+                var payload = await response.Content.ReadFromJsonAsync<MoveCardPayload>(cancellationToken: cancellationToken);
+                if (response.IsSuccessStatusCode && payload?.Ok == true)
+                {
+                    return (true, payload.Message);
+                }
+
+                if (payload is not null && !string.IsNullOrWhiteSpace(payload.Message))
+                {
+                    return (false, payload.Message);
+                }
+            }
+            catch
+            {
+                // try next endpoint
+            }
+        }
+
+        return (false, "Impossible d'envoyer la demande d'abonnement learning.");
+    }
+
     public async Task<(bool Ok, string Message)> AskAiAsync(string message, string dataSource, string language, CancellationToken cancellationToken)
     {
         var body = new
@@ -328,24 +366,6 @@ public sealed class MobileVisualizationService
 
         [JsonPropertyName("learningProgressAvg")]
         public int LearningProgressAvg { get; set; }
-
-        [JsonPropertyName("kanban")]
-        public KanbanCounts Kanban { get; set; } = new();
-    }
-
-    private sealed class KanbanCounts
-    {
-        [JsonPropertyName("backlog")]
-        public int Backlog { get; set; }
-
-        [JsonPropertyName("todo")]
-        public int Todo { get; set; }
-
-        [JsonPropertyName("doing")]
-        public int Doing { get; set; }
-
-        [JsonPropertyName("done")]
-        public int Done { get; set; }
     }
 
     private sealed class KanbanPayload
@@ -373,6 +393,18 @@ public sealed class MobileVisualizationService
     }
 
     private sealed class FinancePayload
+        private sealed class BiDataSourcePayload
+        {
+            [JsonPropertyName("datasources")]
+            public List<MobileBiDataSource> Datasources { get; set; } = [];
+        }
+
+        private sealed class BiDashboardsPayload
+        {
+            [JsonPropertyName("dashboards")]
+            public List<MobileBiDashboardSummary> Dashboards { get; set; } = [];
+        }
+
     {
         [JsonPropertyName("entries")]
         public List<MobileFinanceEntry> Entries { get; set; } = [];

@@ -2,13 +2,14 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:local="clr-namespace:AudelaMobileLight.Pages"
+             xmlns:model="clr-namespace:AudelaMobileLight.Models"
              x:Class="AudelaMobileLight.Pages.DashboardPage"
              x:DataType="local:DashboardPage"
              Title="Dashboards">
 
     <ScrollView BackgroundColor="#F3F7FC">
-        <VerticalStackLayout Padding="16" Spacing="12">
-             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+           <VerticalStackLayout x:Name="DashboardRoot" Padding="16" Spacing="12">
+               <Grid x:Name="DashboardHeaderGrid" ColumnDefinitions="*,Auto" ColumnSpacing="8">
               <VerticalStackLayout Spacing="2">
                   <Label Text="BI Dashboard (Natif)"
                       FontSize="24"
@@ -26,7 +27,7 @@
                    Clicked="OnRefreshDashboardClicked" />
              </Grid>
 
-            <Grid ColumnDefinitions="*,*" ColumnSpacing="10" RowSpacing="10">
+            <Grid x:Name="KpiGrid" ColumnDefinitions="*,*" ColumnSpacing="10" RowSpacing="10">
                 <Border StrokeThickness="0" BackgroundColor="#EDF6FF" Padding="12" StrokeShape="RoundRectangle 14">
                     <VerticalStackLayout>
                         <Label Text="Net finance" FontSize="12" TextColor="#4C6D8E" />
@@ -53,59 +54,40 @@
                 </Border>
             </Grid>
 
-            <Border StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 14">
+            <Border x:Name="FinanceGraphCard" StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 14">
                 <VerticalStackLayout Spacing="8">
-                    <Label Text="Graph Finance (Jour)" FontAttributes="Bold" FontSize="16" TextColor="#11263A" />
-                    <Label Text="{Binding DailyInLabel, StringFormat='Credits: {0}'}" FontSize="12" TextColor="#2D5B3E" />
-                    <ProgressBar Progress="{Binding DailyInRatio}" ProgressColor="#1F8A4D" />
-                    <Label Text="{Binding DailyOutLabel, StringFormat='Debits: {0}'}" FontSize="12" TextColor="#8B2C2C" />
-                    <ProgressBar Progress="{Binding DailyOutRatio}" ProgressColor="#D64545" />
+                    <Label Text="Dashboards BI du tenant" FontAttributes="Bold" FontSize="16" TextColor="#11263A" />
+                    <CollectionView ItemsSource="{Binding BiDashboards}" HeightRequest="220">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="model:MobileBiDashboardSummary">
+                                <Border Stroke="#D8E5F3" StrokeThickness="1" BackgroundColor="#F8FBFF" Padding="10" Margin="0,0,0,6" StrokeShape="RoundRectangle 10">
+                                    <VerticalStackLayout Spacing="2">
+                                        <Label Text="{Binding Name}" FontAttributes="Bold" TextColor="#17314A" />
+                                        <Label Text="{Binding MetaLabel}" FontSize="12" TextColor="#4C6D8E" />
+                                    </VerticalStackLayout>
+                                </Border>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
                 </VerticalStackLayout>
             </Border>
 
-            <Border StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 14">
+            <Border x:Name="KanbanGraphCard" StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 14">
                 <VerticalStackLayout Spacing="8">
-                    <Label Text="Graph Kanban" FontAttributes="Bold" FontSize="16" TextColor="#11263A" />
-                    <Label Text="Backlog" FontSize="12" TextColor="#4C6D8E" />
-                    <ProgressBar Progress="{Binding KanbanBacklogRatio}" ProgressColor="#536878" />
-                    <Label Text="Todo" FontSize="12" TextColor="#4C6D8E" />
-                    <ProgressBar Progress="{Binding KanbanTodoRatio}" ProgressColor="#0A84FF" />
-                    <Label Text="Doing" FontSize="12" TextColor="#4C6D8E" />
-                    <ProgressBar Progress="{Binding KanbanDoingRatio}" ProgressColor="#F59E0B" />
-                    <Label Text="Done" FontSize="12" TextColor="#4C6D8E" />
-                    <ProgressBar Progress="{Binding KanbanDoneRatio}" ProgressColor="#1F8A4D" />
+                    <Label Text="Datasources BI du tenant" FontAttributes="Bold" FontSize="16" TextColor="#11263A" />
+                    <CollectionView ItemsSource="{Binding BiDataSources}" HeightRequest="180">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="model:MobileBiDataSource">
+                                <Border Stroke="#D8E5F3" StrokeThickness="1" BackgroundColor="#F8FBFF" Padding="10" Margin="0,0,0,6" StrokeShape="RoundRectangle 10">
+                                    <Label Text="{Binding DisplayName}" TextColor="#17314A" />
+                                </Border>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
                 </VerticalStackLayout>
             </Border>
 
-            <Label Text="Kanban global" FontAttributes="Bold" FontSize="18" Margin="0,8,0,0" />
-            <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="8">
-                <Border StrokeThickness="0" BackgroundColor="#F4F7FB" Padding="10" StrokeShape="RoundRectangle 10">
-                    <VerticalStackLayout>
-                        <Label Text="Backlog" FontSize="11" TextColor="#4C6D8E" />
-                        <Label Text="{Binding KanbanBacklogLabel}" FontAttributes="Bold" />
-                    </VerticalStackLayout>
-                </Border>
-                <Border Grid.Column="1" StrokeThickness="0" BackgroundColor="#F4F7FB" Padding="10" StrokeShape="RoundRectangle 10">
-                    <VerticalStackLayout>
-                        <Label Text="Todo" FontSize="11" TextColor="#4C6D8E" />
-                        <Label Text="{Binding KanbanTodoLabel}" FontAttributes="Bold" />
-                    </VerticalStackLayout>
-                </Border>
-                <Border Grid.Column="2" StrokeThickness="0" BackgroundColor="#F4F7FB" Padding="10" StrokeShape="RoundRectangle 10">
-                    <VerticalStackLayout>
-                        <Label Text="Doing" FontSize="11" TextColor="#4C6D8E" />
-                        <Label Text="{Binding KanbanDoingLabel}" FontAttributes="Bold" />
-                    </VerticalStackLayout>
-                </Border>
-                <Border Grid.Column="3" StrokeThickness="0" BackgroundColor="#F4F7FB" Padding="10" StrokeShape="RoundRectangle 10">
-                    <VerticalStackLayout>
-                        <Label Text="Done" FontSize="11" TextColor="#4C6D8E" />
-                        <Label Text="{Binding KanbanDoneLabel}" FontAttributes="Bold" />
-                    </VerticalStackLayout>
-                </Border>
-            </Grid>
-
-            <Border StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 14">
+            <Border x:Name="AiCard" StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 14">
                 <VerticalStackLayout Spacing="8">
                     <Label Text="Chat AI" FontAttributes="Bold" FontSize="18" TextColor="#11263A" />
                     <Label x:Name="AiSourceLabel"
@@ -113,13 +95,31 @@
                            FontSize="12"
                            TextColor="#4C6D8E" />
                     <Picker x:Name="AiSourcePicker"
-                            ItemsSource="{Binding AiSourceLabels}"
-                            SelectedItem="{Binding SelectedAiSourceLabel}" />
+                            ItemsSource="{Binding BiDataSources}"
+                            ItemDisplayBinding="{Binding DisplayName}"
+                            SelectedItem="{Binding SelectedBiDataSource}" />
                     <CollectionView HeightRequest="170" ItemsSource="{Binding AiMessages}">
                         <CollectionView.ItemTemplate>
-                            <DataTemplate>
-                                <Border StrokeThickness="0" BackgroundColor="#EEF5FF" Padding="10" Margin="0,0,0,6" StrokeShape="RoundRectangle 10">
-                                    <Label Text="{Binding .}" TextColor="#14314A" />
+                            <DataTemplate x:DataType="model:MobileAiChatMessage">
+                                <Border StrokeThickness="0" Padding="10" Margin="0,0,0,6" StrokeShape="RoundRectangle 10">
+                                    <Border.Triggers>
+                                        <DataTrigger TargetType="Border" Binding="{Binding IsUser}" Value="True">
+                                            <Setter Property="BackgroundColor" Value="#0A84FF" />
+                                        </DataTrigger>
+                                        <DataTrigger TargetType="Border" Binding="{Binding IsUser}" Value="False">
+                                            <Setter Property="BackgroundColor" Value="#EDF2FF" />
+                                        </DataTrigger>
+                                    </Border.Triggers>
+                                    <Label Text="{Binding Text}">
+                                        <Label.Triggers>
+                                            <DataTrigger TargetType="Label" Binding="{Binding IsUser}" Value="True">
+                                                <Setter Property="TextColor" Value="#FFFFFF" />
+                                            </DataTrigger>
+                                            <DataTrigger TargetType="Label" Binding="{Binding IsUser}" Value="False">
+                                                <Setter Property="TextColor" Value="#10243A" />
+                                            </DataTrigger>
+                                        </Label.Triggers>
+                                    </Label>
                                 </Border>
                             </DataTemplate>
                         </CollectionView.ItemTemplate>

@@ -7,19 +7,9 @@ namespace AudelaMobileLight.Pages;
 public partial class KanbanPage : ContentPage
 {
     private readonly MobileVisualizationService _service = new();
+    private bool _hasAnimated;
     public ObservableCollection<MobileKanbanColumn> Columns { get; } = [];
-    public ObservableCollection<string> PriorityOptions { get; } = ["low", "medium", "high", "critical"];
-    public ObservableCollection<string> ColumnOptions { get; } = ["backlog", "todo", "doing", "done"];
     public bool IsLoading { get; private set; }
-    public bool IsEditPanelVisible { get; private set; }
-    public string SelectedTaskId { get; private set; } = string.Empty;
-    public string SelectedTaskIdLabel => string.IsNullOrWhiteSpace(SelectedTaskId) ? string.Empty : $"ID: {SelectedTaskId}";
-    public string SelectedTaskTitle { get; set; } = string.Empty;
-    public string SelectedTaskDescription { get; set; } = string.Empty;
-    public string SelectedTaskOwner { get; set; } = string.Empty;
-    public string SelectedTaskPriority { get; set; } = "medium";
-    public string SelectedTaskDueDate { get; set; } = string.Empty;
-    public string SelectedTaskColumn { get; set; } = "todo";
     private MobileKanbanItem? _draggedItem;
     private string _draggedFromColumn = string.Empty;
 
@@ -27,13 +17,16 @@ public partial class KanbanPage : ContentPage
     {
         InitializeComponent();
         BindingContext = this;
-        NewPriorityPicker.SelectedItem = "medium";
-        NewColumnPicker.SelectedItem = "todo";
     }
 
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        if (!_hasAnimated)
+        {
+            _hasAnimated = true;
+            _ = AnimateEntranceAsync();
+        }
         await LoadAsync();
     }
 
@@ -123,92 +116,37 @@ public partial class KanbanPage : ContentPage
         {
             return;
         }
-
-        SelectedTaskId = item.Id;
-        SelectedTaskTitle = item.Title;
-        SelectedTaskDescription = item.Description;
-        SelectedTaskOwner = item.Owner;
-        SelectedTaskPriority = string.IsNullOrWhiteSpace(item.Priority) ? "medium" : item.Priority;
-        SelectedTaskDueDate = item.DueDate;
-        SelectedTaskColumn = string.IsNullOrWhiteSpace(item.Column) ? "todo" : item.Column;
-        IsEditPanelVisible = true;
-
-        EditPriorityPicker.SelectedItem = SelectedTaskPriority;
-        EditColumnPicker.SelectedItem = SelectedTaskColumn;
-
-        OnPropertyChanged(nameof(SelectedTaskId));
-        OnPropertyChanged(nameof(SelectedTaskIdLabel));
-        OnPropertyChanged(nameof(SelectedTaskTitle));
-        OnPropertyChanged(nameof(SelectedTaskDescription));
-        OnPropertyChanged(nameof(SelectedTaskOwner));
-        OnPropertyChanged(nameof(SelectedTaskPriority));
-        OnPropertyChanged(nameof(SelectedTaskDueDate));
-        OnPropertyChanged(nameof(SelectedTaskColumn));
-        OnPropertyChanged(nameof(IsEditPanelVisible));
+        _ = OpenTaskEditorAsync(item);
     }
 
-    private async void OnCreateTaskClicked(object? sender, EventArgs e)
+    private void OnOpenCreateTaskScreenClicked(object? sender, EventArgs e)
     {
-        var title = NewTitleEntry.Text?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(title))
-        {
-            await ModernAlertService.ShowAsync(this, "Kanban", "Le titre est requis.", AlertTone.Error);
-            return;
-        }
-
-        var owner = NewOwnerEntry.Text?.Trim() ?? string.Empty;
-        var description = NewDescriptionEntry.Text?.Trim() ?? string.Empty;
-        var dueDate = NewDueDateEntry.Text?.Trim() ?? string.Empty;
-        var priority = (NewPriorityPicker.SelectedItem as string ?? "medium").Trim().ToLowerInvariant();
-        var column = (NewColumnPicker.SelectedItem as string ?? "todo").Trim().ToLowerInvariant();
-
-        var (ok, message) = await _service.CreateKanbanTaskAsync(title, description, owner, priority, dueDate, column, CancellationToken.None);
-        if (!ok)
-        {
-            await ModernAlertService.ShowAsync(this, "Kanban", message, AlertTone.Error);
-            return;
-        }
-
-        NewTitleEntry.Text = string.Empty;
-        NewOwnerEntry.Text = string.Empty;
-        NewDescriptionEntry.Text = string.Empty;
-        NewDueDateEntry.Text = string.Empty;
-        NewPriorityPicker.SelectedItem = "medium";
-        NewColumnPicker.SelectedItem = "todo";
-
-        await ModernAlertService.ShowAsync(this, "Kanban", message, AlertTone.Success);
-        await LoadAsync();
+        _ = OpenTaskEditorAsync(null);
     }
 
-    private async void OnSaveTaskChangesClicked(object? sender, EventArgs e)
+    private async Task OpenTaskEditorAsync(MobileKanbanItem? item)
     {
-        if (string.IsNullOrWhiteSpace(SelectedTaskId))
-        {
-            return;
-        }
+        var editor = new KanbanTaskEditorPage(item);
+        editor.Saved += async (_, _) => await LoadAsync();
+        await Navigation.PushAsync(editor);
+    }
 
-        var title = EditTitleEntry.Text?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(title))
-        {
-            await ModernAlertService.ShowAsync(this, "Kanban", "Le titre est requis.", AlertTone.Error);
-            return;
-        }
+    private async Task AnimateEntranceAsync()
+    {
+        KanbanHeaderSection.Opacity = 0;
+        KanbanHeaderSection.TranslationY = 14;
+        KanbanBoardCollection.Opacity = 0;
+        KanbanBoardCollection.TranslationY = 20;
 
-        var owner = EditOwnerEntry.Text?.Trim() ?? string.Empty;
-        var description = EditDescriptionEntry.Text?.Trim() ?? string.Empty;
-        var dueDate = EditDueDateEntry.Text?.Trim() ?? string.Empty;
-        var priority = (EditPriorityPicker.SelectedItem as string ?? "medium").Trim().ToLowerInvariant();
-        var column = (EditColumnPicker.SelectedItem as string ?? "todo").Trim().ToLowerInvariant();
+        await Task.WhenAll(
+            KanbanHeaderSection.FadeTo(1, 260, Easing.CubicOut),
+            KanbanHeaderSection.TranslateTo(0, 0, 260, Easing.CubicOut));
 
-        var (ok, message) = await _service.UpdateKanbanTaskAsync(SelectedTaskId, title, description, owner, priority, dueDate, column, CancellationToken.None);
-        if (!ok)
-        {
-            await ModernAlertService.ShowAsync(this, "Kanban", message, AlertTone.Error);
-            return;
-        }
+        await Task.Delay(40);
 
-        await ModernAlertService.ShowAsync(this, "Kanban", message, AlertTone.Success);
-        await LoadAsync();
+        await Task.WhenAll(
+            KanbanBoardCollection.FadeTo(1, 280, Easing.CubicOut),
+            KanbanBoardCollection.TranslateTo(0, 0, 280, Easing.CubicOut));
     }
 
 }

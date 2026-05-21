@@ -58,4 +58,36 @@ public partial class LearningPage : ContentPage
             OnPropertyChanged(nameof(IsLoading));
         }
     }
+
+    private async void OnSubscribeStarterClicked(object? sender, EventArgs e)
+    {
+        await SubmitSubscriptionIntentAsync("e_learning_starter");
+    }
+
+    private async void OnSubscribeProClicked(object? sender, EventArgs e)
+    {
+        await SubmitSubscriptionIntentAsync("e_learning_pro");
+    }
+
+    private async void OnSubscribeAllInOneClicked(object? sender, EventArgs e)
+    {
+        await SubmitSubscriptionIntentAsync("all_in_one_pro");
+    }
+
+    private async void OnManageSubscriptionClicked(object? sender, EventArgs e)
+    {
+        await Navigation.PushAsync(new TenantAccountPage());
+    }
+
+    private async Task SubmitSubscriptionIntentAsync(string planCode)
+    {
+        var (ok, message) = await _service.SubmitLearningSubscriptionIntentAsync(planCode, CancellationToken.None);
+        if (!ok)
+        {
+            await ModernAlertService.ShowAsync(this, "Learning", message, AlertTone.Error);
+            return;
+        }
+
+        await ModernAlertService.ShowAsync(this, "Learning", message, AlertTone.Success);
+    }
 }

@@ -9,7 +9,7 @@
 
     <Grid BackgroundColor="#F3F7FC">
         <ScrollView>
-            <VerticalStackLayout Padding="16" Spacing="10">
+            <VerticalStackLayout x:Name="FinanceRoot" Padding="16" Spacing="10">
                 <Label x:Name="PageTitleLabel"
                        Text="Saisies finance natives"
                        FontSize="24"
@@ -19,7 +19,7 @@
                        Text="Capture rapide des ecritures et mouvements depuis mobile."
                        TextColor="#44617D" />
 
-                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                <Grid x:Name="FinanceMenuGrid" ColumnDefinitions="*,*,*" ColumnSpacing="8">
                     <Button x:Name="DashboardMenuButton" Text="Dashboard" ImageSource="tab_dashboard.svg" ContentLayout="Top,4" Clicked="OnDashboardMenuClicked" />
                     <Button x:Name="TransactionsMenuButton" Grid.Column="1" Text="Transactions" ImageSource="tab_finance.svg" ContentLayout="Top,4" Clicked="OnTransactionsMenuClicked" />
                     <Button x:Name="QuickEntryMenuButton" Grid.Column="2" Text="Quick entry" ImageSource="ic_add.svg" ContentLayout="Top,4" Clicked="OnQuickEntryMenuClicked" />
@@ -28,7 +28,7 @@
                 <ActivityIndicator IsVisible="{Binding IsLoading}"
                                    IsRunning="{Binding IsLoading}" />
 
-                <VerticalStackLayout IsVisible="{Binding ShowDashboardSection}">
+                <VerticalStackLayout x:Name="FinanceDashboardSection" IsVisible="{Binding ShowDashboardSection}">
                     <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
                         <Border StrokeThickness="0" BackgroundColor="#F6FAFF" Padding="10" StrokeShape="RoundRectangle 12">
                             <VerticalStackLayout Spacing="3">
@@ -49,7 +49,7 @@
                     </Grid>
                 </VerticalStackLayout>
 
-                <VerticalStackLayout IsVisible="{Binding ShowTransactionsSection}">
+                <VerticalStackLayout x:Name="FinanceTransactionsSection" IsVisible="{Binding ShowTransactionsSection}">
                     <CollectionView ItemsSource="{Binding Entries}">
                         <CollectionView.ItemTemplate>
                             <DataTemplate x:DataType="model:MobileFinanceEntry">
@@ -66,7 +66,7 @@
                     </CollectionView>
                 </VerticalStackLayout>
 
-                <VerticalStackLayout IsVisible="{Binding ShowQuickEntrySection}">
+                <VerticalStackLayout x:Name="FinanceQuickEntrySection" IsVisible="{Binding ShowQuickEntrySection}">
                     <Border StrokeThickness="0" BackgroundColor="#EEF5FF" Padding="12" StrokeShape="RoundRectangle 14">
                         <VerticalStackLayout Spacing="8">
                             <Label Text="Quick entry" FontAttributes="Bold" />
