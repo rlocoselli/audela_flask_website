@@ -99,6 +99,21 @@ public partial class DashboardPage : ContentPage
         AiMessages.Insert(0, new MobileAiChatMessage { IsUser = false, Text = ok ? answer : $"AI indisponible: {answer}" });
     }
 
+    private void OnAiQuestionCompleted(object? sender, EventArgs e)
+    {
+        OnAskAiClicked(sender, e);
+    }
+
+    private async void OnOpenDashboardClicked(object? sender, EventArgs e)
+    {
+        if (sender is not Button button || button.CommandParameter is not MobileBiDashboardSummary dashboard)
+        {
+            return;
+        }
+
+        await Navigation.PushAsync(new BiDashboardDetailPage(dashboard));
+    }
+
     private async void OnRefreshDashboardClicked(object? sender, EventArgs e)
     {
         await LoadAsync();

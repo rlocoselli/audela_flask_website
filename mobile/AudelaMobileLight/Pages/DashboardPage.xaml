@@ -7,64 +7,94 @@
              x:DataType="local:DashboardPage"
              Title="Dashboards">
 
-    <ScrollView BackgroundColor="#F3F7FC">
-           <VerticalStackLayout x:Name="DashboardRoot" Padding="16" Spacing="12">
-               <Grid x:Name="DashboardHeaderGrid" ColumnDefinitions="*,Auto" ColumnSpacing="8">
-              <VerticalStackLayout Spacing="2">
-                  <Label Text="BI Dashboard (Natif)"
-                      FontSize="24"
-                      FontAttributes="Bold"
-                      TextColor="#11263A" />
-                  <Label Text="Vue mobile BI + assistant AI natif"
-                      TextColor="#44617D" />
-              </VerticalStackLayout>
-              <Button Grid.Column="1"
-                   Text="Refresh"
-                   ImageSource="ic_refresh.svg"
-                   ContentLayout="Left,8"
-                   Style="{StaticResource IconActionButton}"
-                   BackgroundColor="#0A84FF"
-                   Clicked="OnRefreshDashboardClicked" />
-             </Grid>
+    <ScrollView BackgroundColor="#EEF3FB">
+        <VerticalStackLayout x:Name="DashboardRoot" Padding="14" Spacing="12">
+            <Border x:Name="DashboardHeaderCard" StrokeThickness="0" Padding="14" StrokeShape="RoundRectangle 20">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#071A56" Offset="0.0" />
+                        <GradientStop Color="#0A2F8A" Offset="1.0" />
+                    </LinearGradientBrush>
+                </Border.Background>
+                <Grid x:Name="DashboardHeaderGrid" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="10" RowSpacing="6">
+                    <Label Text="Dashboard"
+                           FontSize="28"
+                           FontAttributes="Bold"
+                           TextColor="#FFFFFF" />
+                    <Button Grid.Column="1"
+                            Text="Refresh"
+                            ImageSource="ic_refresh.svg"
+                            ContentLayout="Left,6"
+                            Clicked="OnRefreshDashboardClicked"
+                            BackgroundColor="#2D5CE6"
+                            TextColor="#FFFFFF"
+                            Style="{StaticResource CompactButton}" />
+                    <Label Grid.Row="1"
+                           Text="Sales overview, KPI, dashboards et AI chat"
+                           TextColor="#BFD0FF"
+                           FontSize="12" />
+                    <Border Grid.Row="1" Grid.Column="1" StrokeThickness="0" BackgroundColor="#15398E" Padding="8,4" StrokeShape="RoundRectangle 12">
+                        <Label Text="Live"
+                               TextColor="#D9E5FF"
+                               FontAttributes="Bold"
+                               FontSize="11"
+                               HorizontalTextAlignment="Center" />
+                    </Border>
+                </Grid>
+            </Border>
 
-            <Grid x:Name="KpiGrid" ColumnDefinitions="*,*" ColumnSpacing="10" RowSpacing="10">
-                <Border StrokeThickness="0" BackgroundColor="#EDF6FF" Padding="12" StrokeShape="RoundRectangle 14">
-                    <VerticalStackLayout>
-                        <Label Text="Datasources BI" FontSize="12" TextColor="#4C6D8E" />
-                        <Label Text="{Binding BiDataSourceCountLabel}" FontSize="22" FontAttributes="Bold" TextColor="#11263A" />
+            <Grid x:Name="KpiGrid" ColumnDefinitions="*,*" ColumnSpacing="8" RowSpacing="8">
+                <Border StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 16">
+                    <VerticalStackLayout Spacing="2">
+                        <Label Text="Datasources" FontSize="11" TextColor="#5E7392" />
+                        <Label Text="{Binding BiDataSourceCountLabel}" FontSize="24" FontAttributes="Bold" TextColor="#0F1F3A" />
+                        <Label Text="connected" FontSize="11" TextColor="#5E7392" />
                     </VerticalStackLayout>
                 </Border>
-                <Border Grid.Column="1" StrokeThickness="0" BackgroundColor="#ECFFF6" Padding="12" StrokeShape="RoundRectangle 14">
-                    <VerticalStackLayout>
-                        <Label Text="Dashboards BI" FontSize="12" TextColor="#4C6D8E" />
-                        <Label Text="{Binding DashboardCountLabel}" FontSize="22" FontAttributes="Bold" TextColor="#11263A" />
+                <Border Grid.Column="1" StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 16">
+                    <VerticalStackLayout Spacing="2">
+                        <Label Text="Dashboards" FontSize="11" TextColor="#5E7392" />
+                        <Label Text="{Binding DashboardCountLabel}" FontSize="24" FontAttributes="Bold" TextColor="#0F1F3A" />
+                        <Label Text="published" FontSize="11" TextColor="#5E7392" />
                     </VerticalStackLayout>
                 </Border>
-                <Border Grid.Row="1" StrokeThickness="0" BackgroundColor="#FFF5EB" Padding="12" StrokeShape="RoundRectangle 14">
-                    <VerticalStackLayout>
-                        <Label Text="Executions requetes" FontSize="12" TextColor="#4C6D8E" />
-                        <Label Text="{Binding QueryRunCountLabel}" FontSize="22" FontAttributes="Bold" TextColor="#11263A" />
+                <Border Grid.Row="1" StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 16">
+                    <VerticalStackLayout Spacing="2">
+                        <Label Text="Query Runs" FontSize="11" TextColor="#5E7392" />
+                        <Label Text="{Binding QueryRunCountLabel}" FontSize="24" FontAttributes="Bold" TextColor="#0F1F3A" />
+                        <ProgressBar Progress="0.72" ProgressColor="#2D5CE6" />
                     </VerticalStackLayout>
                 </Border>
-                <Border Grid.Row="1" Grid.Column="1" StrokeThickness="0" BackgroundColor="#F5F0FF" Padding="12" StrokeShape="RoundRectangle 14">
-                    <VerticalStackLayout>
-                        <Label Text="Source active chat" FontSize="12" TextColor="#4C6D8E" />
-                        <Label Text="{Binding ActiveSourceLabel}" FontSize="14" FontAttributes="Bold" TextColor="#11263A" LineBreakMode="TailTruncation" />
+                <Border Grid.Row="1" Grid.Column="1" StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 16">
+                    <VerticalStackLayout Spacing="2">
+                        <Label Text="Source active" FontSize="11" TextColor="#5E7392" />
+                        <Label Text="{Binding ActiveSourceLabel}" FontSize="13" FontAttributes="Bold" TextColor="#0F1F3A" LineBreakMode="TailTruncation" />
+                        <ProgressBar Progress="0.55" ProgressColor="#26B36D" />
                     </VerticalStackLayout>
                 </Border>
             </Grid>
 
-            <Border x:Name="FinanceGraphCard" StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 14">
+            <Border x:Name="FinanceGraphCard" StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 16">
                 <VerticalStackLayout Spacing="8">
-                    <Label Text="Dashboards BI du tenant" FontAttributes="Bold" FontSize="16" TextColor="#11263A" />
-                    <CollectionView ItemsSource="{Binding BiDashboards}" HeightRequest="220">
+                    <Label Text="Executive Dashboards" FontAttributes="Bold" FontSize="16" TextColor="#0F1F3A" />
+                    <CollectionView ItemsSource="{Binding BiDashboards}" HeightRequest="260">
                         <CollectionView.ItemTemplate>
                             <DataTemplate x:DataType="model:MobileBiDashboardSummary">
-                                <Border Stroke="#D8E5F3" StrokeThickness="1" BackgroundColor="#F8FBFF" Padding="10" Margin="0,0,0,6" StrokeShape="RoundRectangle 10">
-                                    <VerticalStackLayout Spacing="2">
-                                        <Label Text="{Binding Name}" FontAttributes="Bold" TextColor="#17314A" />
-                                        <Label Text="{Binding MetaLabel}" FontSize="12" TextColor="#4C6D8E" />
-                                    </VerticalStackLayout>
+                                <Border Stroke="#E0E8F5" StrokeThickness="1" BackgroundColor="#F9FBFF" Padding="10" Margin="0,0,0,8" StrokeShape="RoundRectangle 12">
+                                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="4">
+                                        <Label Text="{Binding Name}" FontAttributes="Bold" TextColor="#163252" />
+                                        <Label Grid.Column="1" Text="{Binding CardsCount, StringFormat='{}#{0} cards'}" FontSize="11" TextColor="#5E7392" />
+                                        <ProgressBar Grid.Row="1" Grid.ColumnSpan="2" Progress="0.68" ProgressColor="#2D5CE6" />
+                                        <Grid Grid.Row="2" Grid.ColumnSpan="2" ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                            <Label Text="{Binding MetaLabel}" FontSize="12" TextColor="#4C6588" VerticalTextAlignment="Center" />
+                                            <Button Grid.Column="1"
+                                                    Text="Open"
+                                                    Clicked="OnOpenDashboardClicked"
+                                                    CommandParameter="{Binding .}"
+                                                    HorizontalOptions="End"
+                                                    Style="{StaticResource CompactButton}" />
+                                        </Grid>
+                                    </Grid>
                                 </Border>
                             </DataTemplate>
                         </CollectionView.ItemTemplate>
@@ -72,14 +102,17 @@
                 </VerticalStackLayout>
             </Border>
 
-            <Border x:Name="KanbanGraphCard" StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 14">
+            <Border x:Name="KanbanGraphCard" StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 16">
                 <VerticalStackLayout Spacing="8">
-                    <Label Text="Datasources BI du tenant" FontAttributes="Bold" FontSize="16" TextColor="#11263A" />
-                    <CollectionView ItemsSource="{Binding BiDataSources}" HeightRequest="180">
+                    <Label Text="Connected Data Sources" FontAttributes="Bold" FontSize="16" TextColor="#0F1F3A" />
+                    <CollectionView ItemsSource="{Binding BiDataSources}" HeightRequest="170">
                         <CollectionView.ItemTemplate>
                             <DataTemplate x:DataType="model:MobileBiDataSource">
-                                <Border Stroke="#D8E5F3" StrokeThickness="1" BackgroundColor="#F8FBFF" Padding="10" Margin="0,0,0,6" StrokeShape="RoundRectangle 10">
-                                    <Label Text="{Binding DisplayName}" TextColor="#17314A" />
+                                <Border Stroke="#E0E8F5" StrokeThickness="1" BackgroundColor="#F9FBFF" Padding="10" Margin="0,0,0,7" StrokeShape="RoundRectangle 12">
+                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                                        <BoxView WidthRequest="10" HeightRequest="10" CornerRadius="5" VerticalOptions="Center" BackgroundColor="#2D5CE6" />
+                                        <Label Grid.Column="1" Text="{Binding DisplayName}" TextColor="#17314A" />
+                                    </Grid>
                                 </Border>
                             </DataTemplate>
                         </CollectionView.ItemTemplate>
@@ -87,13 +120,10 @@
                 </VerticalStackLayout>
             </Border>
 
-            <Border x:Name="AiCard" StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 14">
+            <Border x:Name="AiCard" StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 16">
                 <VerticalStackLayout Spacing="8">
-                    <Label Text="Chat AI" FontAttributes="Bold" FontSize="18" TextColor="#11263A" />
-                    <Label x:Name="AiSourceLabel"
-                           Text="Source des donnees AI"
-                           FontSize="12"
-                           TextColor="#4C6D8E" />
+                    <Label Text="AI Assistant" FontAttributes="Bold" FontSize="17" TextColor="#0F1F3A" />
+                    <Label x:Name="AiSourceLabel" Text="Source des donnees AI" FontSize="12" TextColor="#5E7392" />
                     <Picker x:Name="AiSourcePicker"
                             ItemsSource="{Binding BiDataSources}"
                             ItemDisplayBinding="{Binding DisplayName}"
@@ -102,13 +132,13 @@
                     <CollectionView HeightRequest="170" ItemsSource="{Binding AiMessages}">
                         <CollectionView.ItemTemplate>
                             <DataTemplate x:DataType="model:MobileAiChatMessage">
-                                <Border StrokeThickness="0" Padding="10" Margin="0,0,0,6" StrokeShape="RoundRectangle 10">
+                                <Border StrokeThickness="0" Padding="10" Margin="0,0,0,6" StrokeShape="RoundRectangle 12">
                                     <Border.Triggers>
                                         <DataTrigger TargetType="Border" Binding="{Binding IsUser}" Value="True">
-                                            <Setter Property="BackgroundColor" Value="#0A84FF" />
+                                            <Setter Property="BackgroundColor" Value="#2D5CE6" />
                                         </DataTrigger>
                                         <DataTrigger TargetType="Border" Binding="{Binding IsUser}" Value="False">
-                                            <Setter Property="BackgroundColor" Value="#EDF2FF" />
+                                            <Setter Property="BackgroundColor" Value="#ECF1FF" />
                                         </DataTrigger>
                                     </Border.Triggers>
                                     <Label Text="{Binding Text}">
@@ -117,7 +147,7 @@
                                                 <Setter Property="TextColor" Value="#FFFFFF" />
                                             </DataTrigger>
                                             <DataTrigger TargetType="Label" Binding="{Binding IsUser}" Value="False">
-                                                <Setter Property="TextColor" Value="#10243A" />
+                                                <Setter Property="TextColor" Value="#122844" />
                                             </DataTrigger>
                                         </Label.Triggers>
                                     </Label>
@@ -125,19 +155,18 @@
                             </DataTemplate>
                         </CollectionView.ItemTemplate>
                     </CollectionView>
-                    <Entry x:Name="AiQuestionEntry" Placeholder="Ex: donne moi le resume finance" />
+                    <Entry x:Name="AiQuestionEntry" Placeholder="Ask for KPI, trends, and anomalies" Completed="OnAiQuestionCompleted" />
                     <Button x:Name="AskAiButton"
                             Text="Demander a AI"
                             ImageSource="ic_ai.svg"
                             ContentLayout="Left,10"
                             Style="{StaticResource IconActionButton}"
+                            BackgroundColor="#2D5CE6"
                             Clicked="OnAskAiClicked" />
                 </VerticalStackLayout>
             </Border>
 
-            <ActivityIndicator IsVisible="{Binding IsLoading}"
-                               IsRunning="{Binding IsLoading}"
-                               Margin="0,6,0,0" />
+            <ActivityIndicator IsVisible="{Binding IsLoading}" IsRunning="{Binding IsLoading}" Margin="0,6,0,0" />
         </VerticalStackLayout>
     </ScrollView>
 </ContentPage>

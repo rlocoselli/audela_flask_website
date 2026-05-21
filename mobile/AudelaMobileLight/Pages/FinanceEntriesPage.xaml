@@ -7,22 +7,33 @@
              x:DataType="local:FinanceEntriesPage"
              Title="Finance">
 
-    <Grid BackgroundColor="#F3F7FC">
+    <Grid BackgroundColor="#EEF3FB">
         <ScrollView>
-            <VerticalStackLayout x:Name="FinanceRoot" Padding="16" Spacing="10">
-                <Label x:Name="PageTitleLabel"
-                       Text="Saisies finance natives"
-                       FontSize="24"
-                       FontAttributes="Bold"
-                       TextColor="#11263A" />
-                <Label x:Name="PageSubtitleLabel"
-                       Text="Capture rapide des ecritures et mouvements depuis mobile."
-                       TextColor="#44617D" />
+            <VerticalStackLayout x:Name="FinanceRoot" Padding="14" Spacing="12">
+                <Border StrokeThickness="0" Padding="14" StrokeShape="RoundRectangle 20">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                            <GradientStop Color="#0E7A42" Offset="0.0" />
+                            <GradientStop Color="#0B9B55" Offset="1.0" />
+                        </LinearGradientBrush>
+                    </Border.Background>
+                    <VerticalStackLayout Spacing="4">
+                        <Label x:Name="PageTitleLabel"
+                               Text="Saisies finance natives"
+                               FontSize="26"
+                               FontAttributes="Bold"
+                               TextColor="#FFFFFF" />
+                        <Label x:Name="PageSubtitleLabel"
+                               Text="Capture rapide des ecritures et mouvements depuis mobile."
+                               TextColor="#DCF8E8"
+                               FontSize="12" />
+                    </VerticalStackLayout>
+                </Border>
 
                 <Grid x:Name="FinanceMenuGrid" ColumnDefinitions="*,*,*" ColumnSpacing="8">
-                    <Button x:Name="DashboardMenuButton" Text="Dashboard" ImageSource="tab_dashboard.svg" ContentLayout="Top,4" Clicked="OnDashboardMenuClicked" />
-                    <Button x:Name="TransactionsMenuButton" Grid.Column="1" Text="Transactions" ImageSource="tab_finance.svg" ContentLayout="Top,4" Clicked="OnTransactionsMenuClicked" />
-                    <Button x:Name="QuickEntryMenuButton" Grid.Column="2" Text="Quick entry" ImageSource="ic_add.svg" ContentLayout="Top,4" Clicked="OnQuickEntryMenuClicked" />
+                    <Button x:Name="DashboardMenuButton" Text="Overview" ImageSource="tab_dashboard.svg" ContentLayout="Top,4" Clicked="OnDashboardMenuClicked" BackgroundColor="#10A45B" TextColor="White" />
+                    <Button x:Name="TransactionsMenuButton" Grid.Column="1" Text="P&amp;L" ImageSource="tab_finance.svg" ContentLayout="Top,4" Clicked="OnTransactionsMenuClicked" BackgroundColor="#DDEAF9" TextColor="#12304B" />
+                    <Button x:Name="QuickEntryMenuButton" Grid.Column="2" Text="Quick Entry" ImageSource="ic_add.svg" ContentLayout="Top,4" Clicked="OnQuickEntryMenuClicked" BackgroundColor="#DDEAF9" TextColor="#12304B" />
                 </Grid>
 
                 <ActivityIndicator IsVisible="{Binding IsLoading}"
@@ -30,30 +41,48 @@
 
                 <VerticalStackLayout x:Name="FinanceDashboardSection" IsVisible="{Binding ShowDashboardSection}">
                     <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                        <Border StrokeThickness="0" BackgroundColor="#F6FAFF" Padding="10" StrokeShape="RoundRectangle 12">
+                        <Border StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 14">
                             <VerticalStackLayout Spacing="3">
-                                <Label Text="Daily net" FontSize="12" TextColor="#4C6D8E" />
-                                <Label Text="{Binding DailyNetLabel}" FontAttributes="Bold" FontSize="18" />
-                                <Label Text="{Binding DailyInLabel, StringFormat='In {0}'}" FontSize="11" TextColor="#4C6D8E" />
-                                <Label Text="{Binding DailyOutLabel, StringFormat='Out {0}'}" FontSize="11" TextColor="#4C6D8E" />
+                                <Label Text="Net Income" FontSize="12" TextColor="#4C6D8E" />
+                                <Label Text="{Binding DailyNetLabel}" FontAttributes="Bold" FontSize="23" TextColor="#0D2A1A" />
+                                <Label Text="{Binding DailyInLabel, StringFormat='Revenue {0}'}" FontSize="11" TextColor="#4C6D8E" />
+                                <Label Text="{Binding DailyOutLabel, StringFormat='Expenses {0}'}" FontSize="11" TextColor="#4C6D8E" />
+                                <ProgressBar Progress="0.62" ProgressColor="#10A45B" />
                             </VerticalStackLayout>
                         </Border>
-                        <Border Grid.Column="1" StrokeThickness="0" BackgroundColor="#F6FAFF" Padding="10" StrokeShape="RoundRectangle 12">
+                        <Border Grid.Column="1" StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 14">
                             <VerticalStackLayout Spacing="3">
-                                <Label Text="Monthly net" FontSize="12" TextColor="#4C6D8E" />
-                                <Label Text="{Binding MonthlyNetLabel}" FontAttributes="Bold" FontSize="18" />
-                                <Label Text="{Binding MonthlyInLabel, StringFormat='In {0}'}" FontSize="11" TextColor="#4C6D8E" />
-                                <Label Text="{Binding MonthlyOutLabel, StringFormat='Out {0}'}" FontSize="11" TextColor="#4C6D8E" />
+                                <Label Text="Operating Margin" FontSize="12" TextColor="#4C6D8E" />
+                                <Label Text="{Binding MonthlyNetLabel}" FontAttributes="Bold" FontSize="23" TextColor="#0D2A1A" />
+                                <Label Text="{Binding MonthlyInLabel, StringFormat='Revenue {0}'}" FontSize="11" TextColor="#4C6D8E" />
+                                <Label Text="{Binding MonthlyOutLabel, StringFormat='Costs {0}'}" FontSize="11" TextColor="#4C6D8E" />
+                                <ProgressBar Progress="0.48" ProgressColor="#10A45B" />
                             </VerticalStackLayout>
                         </Border>
                     </Grid>
+
+                    <Border StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 14" Margin="0,10,0,0">
+                        <VerticalStackLayout Spacing="8">
+                            <Label Text="P&amp;L Snapshot" FontAttributes="Bold" TextColor="#13322B" />
+                            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="8">
+                                <Label Text="Revenue" TextColor="#355E54" />
+                                <Label Grid.Column="1" Text="{Binding MonthlyInLabel}" TextColor="#13322B" FontAttributes="Bold" />
+                                <Label Grid.Row="1" Text="Operating Expenses" TextColor="#355E54" />
+                                <Label Grid.Row="1" Grid.Column="1" Text="{Binding MonthlyOutLabel}" TextColor="#13322B" FontAttributes="Bold" />
+                                <Label Grid.Row="2" Text="Net Income" TextColor="#355E54" />
+                                <Label Grid.Row="2" Grid.Column="1" Text="{Binding MonthlyNetLabel}" TextColor="#0E7A42" FontAttributes="Bold" />
+                                <Label Grid.Row="3" Text="Cash Health" TextColor="#355E54" />
+                                <ProgressBar Grid.Row="3" Grid.Column="1" Progress="0.71" ProgressColor="#10A45B" WidthRequest="110" />
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Border>
                 </VerticalStackLayout>
 
                 <VerticalStackLayout x:Name="FinanceTransactionsSection" IsVisible="{Binding ShowTransactionsSection}">
                     <CollectionView ItemsSource="{Binding Entries}">
                         <CollectionView.ItemTemplate>
                             <DataTemplate x:DataType="model:MobileFinanceEntry">
-                                <Border StrokeThickness="0" BackgroundColor="#FAFBFF" Padding="12" StrokeShape="RoundRectangle 14" Margin="0,0,0,8">
+                                <Border StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 14" Margin="0,0,0,8">
                                     <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="6">
                                         <Label Text="{Binding Description}" FontAttributes="Bold" />
                                         <Label Grid.Column="1" Text="{Binding AmountLabel}" TextColor="{Binding AmountColor}" />
@@ -67,10 +96,10 @@
                 </VerticalStackLayout>
 
                 <VerticalStackLayout x:Name="FinanceQuickEntrySection" IsVisible="{Binding ShowQuickEntrySection}">
-                    <Border StrokeThickness="0" BackgroundColor="#EEF5FF" Padding="12" StrokeShape="RoundRectangle 14">
+                    <Border StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 14">
                         <VerticalStackLayout Spacing="8">
-                            <Label Text="Quick entry" FontAttributes="Bold" />
-                            <Entry x:Name="DescriptionEntry" Placeholder="Description" />
+                            <Label Text="Quick entry" FontAttributes="Bold" TextColor="#13322B" />
+                            <Entry x:Name="DescriptionEntry" Placeholder="Description transaction" />
                             <Entry x:Name="CategoryEntry" Placeholder="Categorie (optionnel)" />
                             <Entry x:Name="AmountEntry" Placeholder="Montant (ex: -120.50 ou 250)" Keyboard="Numeric" />
                             <Button x:Name="VoiceQuickEntryButton"
@@ -78,14 +107,14 @@
                                     ImageSource="ic_mic.svg"
                                     ContentLayout="Left,10"
                                     Clicked="OnVoiceQuickEntryClicked"
-                                    BackgroundColor="#0F3E64"
+                                    BackgroundColor="#0E7A42"
                                     TextColor="White" />
                             <Button x:Name="AddQuickEntryButton"
                                     Text="Ajouter"
                                     ImageSource="ic_add.svg"
                                     ContentLayout="Left,10"
                                     Clicked="OnAddQuickEntryClicked"
-                                    BackgroundColor="#0A84FF"
+                                    BackgroundColor="#10A45B"
                                     TextColor="White" />
                         </VerticalStackLayout>
                     </Border>
@@ -102,7 +131,7 @@
                 VerticalOptions="End"
                 Margin="0,0,18,22"
                 Padding="14,10"
-                BackgroundColor="#0A84FF"
+                BackgroundColor="#10A45B"
                 TextColor="White"
                 CornerRadius="24" />
     </Grid>

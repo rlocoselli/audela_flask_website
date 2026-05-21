@@ -7,27 +7,42 @@
              x:DataType="local:KanbanPage"
              Title="Kanban">
 
-    <Grid RowDefinitions="Auto,Auto,*" BackgroundColor="#F3F7FC">
-        <VerticalStackLayout x:Name="KanbanHeaderSection" Grid.Row="0" Padding="16,12,16,8" Spacing="8">
-            <Label Text="Kanban Projet"
-                   FontSize="24"
-                   FontAttributes="Bold"
-                   TextColor="#11263A" />
-            <Label Text="Vue native style Jira"
-                   TextColor="#44617D" />
-            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
-                <Button Text="Nouvelle tache"
-                        ImageSource="ic_add.svg"
-                        ContentLayout="Left,8"
-                        Style="{StaticResource CompactButton}"
-                        Clicked="OnOpenCreateTaskScreenClicked" />
-                <Label Grid.Column="1"
-                       Text="Cliquez sur une carte pour modifier dans un ecran dedie."
-                       VerticalTextAlignment="Center"
-                       FontSize="12"
-                       TextColor="#4C6D8E" />
-            </Grid>
-        </VerticalStackLayout>
+    <Grid RowDefinitions="Auto,Auto,*" BackgroundColor="#F8F1E8">
+        <Border Grid.Row="0" StrokeThickness="0" Padding="14" StrokeShape="RoundRectangle 0,0,20,20" BackgroundColor="#F57C00">
+            <VerticalStackLayout x:Name="KanbanHeaderSection" Spacing="8">
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                    <Label Text="Kanban"
+                           FontSize="27"
+                           FontAttributes="Bold"
+                           TextColor="#FFFFFF" />
+                    <Button Grid.Column="1"
+                            Text="Search"
+                            Style="{StaticResource CompactButton}"
+                            BackgroundColor="#FF9E43"
+                            TextColor="#FFFFFF" />
+                    <Button Grid.Column="2"
+                            Text="Filter"
+                            Style="{StaticResource CompactButton}"
+                            BackgroundColor="#FF9E43"
+                            TextColor="#FFFFFF" />
+                </Grid>
+
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                    <Button Text="Add task"
+                            ImageSource="ic_add.svg"
+                            ContentLayout="Left,8"
+                            BackgroundColor="#FFFFFF"
+                            TextColor="#C46300"
+                            Style="{StaticResource CompactButton}"
+                            Clicked="OnOpenCreateTaskScreenClicked" />
+                    <Label Grid.Column="1"
+                           Text="Tap card to edit. Drag card to move between columns."
+                           VerticalTextAlignment="Center"
+                           FontSize="12"
+                           TextColor="#FFE8D2" />
+                </Grid>
+            </VerticalStackLayout>
+        </Border>
 
         <ActivityIndicator Grid.Row="1"
                            Margin="0,8,0,0"
@@ -43,36 +58,44 @@
                 <DataTemplate x:DataType="model:MobileKanbanColumn">
                     <Border WidthRequest="286"
                             StrokeThickness="0"
-                            BackgroundColor="#FFFFFF"
+                            BackgroundColor="#FFF8F0"
                             Padding="12"
                             Margin="0,0,8,0"
-                            StrokeShape="RoundRectangle 10">
+                            StrokeShape="RoundRectangle 14">
                         <Border.GestureRecognizers>
                             <DropGestureRecognizer Drop="OnColumnDrop" />
                         </Border.GestureRecognizers>
                         <VerticalStackLayout Spacing="6">
-                            <Label Text="{Binding Key}" FontAttributes="Bold" TextTransform="Uppercase" TextColor="#11263A" />
-                            <Label Text="{Binding Count, StringFormat='{}Items: {0}'}"
+                            <Grid ColumnDefinitions="*,Auto">
+                                <Label Text="{Binding Key}" FontAttributes="Bold" TextTransform="Uppercase" TextColor="#A14D00" />
+                                <Border Grid.Column="1" BackgroundColor="#FFE2C2" StrokeThickness="0" Padding="8,3" StrokeShape="RoundRectangle 10">
+                                    <Label Text="{Binding Count}" TextColor="#A14D00" FontSize="11" FontAttributes="Bold" />
+                                </Border>
+                            </Grid>
+                            <Label Text="{Binding Count, StringFormat='{}Tasks: {0}'}"
                                    FontSize="12"
-                                   TextColor="#4C6D8E" />
+                                   TextColor="#A26A3A" />
 
                             <CollectionView ItemsSource="{Binding Items}" HeightRequest="560" VerticalScrollBarVisibility="Always">
                                 <CollectionView.ItemTemplate>
                                     <DataTemplate x:DataType="model:MobileKanbanItem">
                                         <Border StrokeThickness="0"
-                                                BackgroundColor="#EEF5FF"
+                                                BackgroundColor="#FFFFFF"
                                                 Padding="10"
                                                 Margin="0,0,0,6"
-                                                StrokeShape="RoundRectangle 10">
+                                                StrokeShape="RoundRectangle 12">
                                             <Border.GestureRecognizers>
                                                 <DragGestureRecognizer DragStarting="OnCardDragStarting" />
                                                 <TapGestureRecognizer NumberOfTapsRequired="1" Tapped="OnCardTapped" />
                                                 <TapGestureRecognizer NumberOfTapsRequired="2" Tapped="OnCardDoubleTapped" />
                                             </Border.GestureRecognizers>
                                             <VerticalStackLayout Spacing="4">
-                                                <Label Text="{Binding Title}" FontAttributes="Bold" TextColor="#17314A" />
-                                                <Label Text="{Binding Owner}" FontSize="12" TextColor="#4C6D8E" />
-                                                <Label Text="{Binding Priority, StringFormat='{}Priority: {0}'}" FontSize="11" TextColor="#355E84" />
+                                                <Label Text="{Binding Title}" FontAttributes="Bold" TextColor="#8B4300" />
+                                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6">
+                                                    <BoxView WidthRequest="7" HeightRequest="7" CornerRadius="4" VerticalOptions="Center" BackgroundColor="#F57C00" />
+                                                    <Label Grid.Column="1" Text="{Binding Owner}" FontSize="12" TextColor="#A26A3A" />
+                                                </Grid>
+                                                <Label Text="{Binding Priority, StringFormat='{}Priority: {0}'}" FontSize="11" TextColor="#C46300" />
                                             </VerticalStackLayout>
                                         </Border>
                                     </DataTemplate>

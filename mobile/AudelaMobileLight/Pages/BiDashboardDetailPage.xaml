@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:AudelaMobileLight.Pages"
+             x:Class="AudelaMobileLight.Pages.BiDashboardDetailPage"
+             x:DataType="local:BiDashboardDetailPage"
+             Title="Dashboard BI">
+
+    <ScrollView BackgroundColor="#F3F7FC">
+        <VerticalStackLayout Padding="16" Spacing="12">
+            <Label Text="{Binding DashboardName}" FontAttributes="Bold" FontSize="24" TextColor="#11263A" />
+            <Label Text="{Binding MetaLabel}" FontSize="13" TextColor="#4C6D8E" />
+
+            <Border StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 14">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="Apercu des graphiques" FontSize="18" FontAttributes="Bold" TextColor="#17314A" />
+
+                    <Label Text="Charge du dashboard" FontSize="13" TextColor="#355E84" />
+                    <ProgressBar Progress="{Binding LoadRatio}" ProgressColor="#0A84FF" />
+
+                    <Label Text="Couverture des cartes" FontSize="13" TextColor="#355E84" />
+                    <ProgressBar Progress="{Binding CardsCoverageRatio}" ProgressColor="#14A38B" />
+
+                    <Label Text="Fraicheur des donnees" FontSize="13" TextColor="#355E84" />
+                    <ProgressBar Progress="{Binding FreshnessRatio}" ProgressColor="#F3A712" />
+                </VerticalStackLayout>
+            </Border>
+
+            <Border Stroke="#D8E5F3" StrokeThickness="1" BackgroundColor="#F8FBFF" Padding="12" StrokeShape="RoundRectangle 14">
+                <VerticalStackLayout Spacing="4">
+                    <Label Text="Details" FontAttributes="Bold" TextColor="#17314A" />
+                    <Label Text="{Binding DetailLine1}" TextColor="#355E84" />
+                    <Label Text="{Binding DetailLine2}" TextColor="#355E84" />
+                    <Label Text="{Binding DetailLine3}" TextColor="#355E84" />
+                </VerticalStackLayout>
+            </Border>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

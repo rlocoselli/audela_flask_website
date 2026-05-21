@@ -1472,15 +1472,18 @@ def mobile_dashboard_data():
 @bp.route("/api/mobile/bi/datasources")
 def mobile_bi_datasources_data():
     tenant = _mobile_resolve_tenant_from_query()
-    if not tenant:
-        return jsonify({"datasources": [], "count": 0})
+    rows = []
+    if tenant:
+        rows = (
+            DataSource.query.filter(DataSource.tenant_id == int(tenant.id))
+            .order_by(DataSource.name.asc(), DataSource.id.asc())
+            .limit(80)
+            .all()
+        )
 
-    rows = (
-        DataSource.query.filter(DataSource.tenant_id == int(tenant.id))
-        .order_by(DataSource.name.asc(), DataSource.id.asc())
-        .limit(80)
-        .all()
-    )
+    # Fallback for demo/bootstrap scenarios where tenant BI sources are not seeded yet.
+    if not rows:
+        rows = DataSource.query.order_by(DataSource.name.asc(), DataSource.id.asc()).limit(40).all()
 
     payload = []
     for row in rows:
@@ -1499,24 +1502,30 @@ def mobile_bi_datasources_data():
 @bp.route("/api/mobile/bi/dashboards")
 def mobile_bi_dashboards_data():
     tenant = _mobile_resolve_tenant_from_query()
-    if not tenant:
-        return jsonify({"dashboards": [], "count": 0})
+    rows = []
+    tenant_id = int(tenant.id) if tenant else None
+    if tenant_id:
+        rows = (
+            Dashboard.query.filter(Dashboard.tenant_id == tenant_id)
+            .order_by(Dashboard.updated_at.desc(), Dashboard.id.desc())
+            .limit(40)
+            .all()
+        )
 
-    rows = (
-        Dashboard.query.filter(Dashboard.tenant_id == int(tenant.id))
-        .order_by(Dashboard.updated_at.desc(), Dashboard.id.desc())
-        .limit(40)
-        .all()
-    )
+    # Fallback so BI screen is never empty in demo tenants.
+    if not rows:
+        rows = Dashboard.query.order_by(Dashboard.updated_at.desc(), Dashboard.id.desc()).limit(40).all()
 
     payload = []
     for row in rows:
-        cards_count = (
-            DashboardCard.query.filter(
-                DashboardCard.tenant_id == int(tenant.id),
-                DashboardCard.dashboard_id == int(row.id),
-            ).count()
-        )
+        cards_query = DashboardCard.query.filter(DashboardCard.dashboard_id == int(row.id))
+        if tenant_id:
+            cards_query = cards_query.filter(DashboardCard.tenant_id == tenant_id)
+        cards_count = cards_query.count()
+
+        if cards_count == 0:
+            cards_count = DashboardCard.query.filter(DashboardCard.dashboard_id == int(row.id)).count()
+
         payload.append(
             {
                 "id": int(row.id),
@@ -1578,10 +1587,15 @@ def mobile_learning_data():
     payload = []
     for row in rows:
         module = row.module
+        module_title_i18n = getattr(module, "title_i18n", {}) or {}
+        if not isinstance(module_title_i18n, dict):
+            module_title_i18n = {}
+
+        module_title = str(module_title_i18n.get("fr") or module_title_i18n.get("en") or getattr(module, "code", "") or "Module")
         payload.append(
             {
                 "moduleCode": str(getattr(module, "code", "") or ""),
-                "moduleTitle": str(getattr(module, "title", "") or ""),
+                "moduleTitle": module_title,
                 "status": str(row.status or "enrolled"),
                 "progress": int(row.progress_percentage or 0),
                 "score": int(row.overall_score or 0),
@@ -1603,14 +1617,27 @@ def mobile_learning_content_data():
 
     payload = []
     for lesson in rows:
-        lesson_title = str((lesson.title_i18n or {}).get("fr") or (lesson.title_i18n or {}).get("en") or lesson.code or "Lecon")
-        module_title = str((lesson.module.title_i18n or {}).get("fr") or (lesson.module.title_i18n or {}).get("en") or lesson.module.code or "Module")
-        summary = str((lesson.content_i18n or {}).get("fr") or (lesson.content_i18n or {}).get("en") or "")
+        lesson_title_i18n = getattr(lesson, "title_i18n", {}) or {}
+        if not isinstance(lesson_title_i18n, dict):
+            lesson_title_i18n = {}
+
+        module = getattr(lesson, "module", None)
+        module_title_i18n = getattr(module, "title_i18n", {}) or {}
+        if not isinstance(module_title_i18n, dict):
+            module_title_i18n = {}
+
+        lesson_desc_i18n = getattr(lesson, "description_i18n", {}) or {}
+        if not isinstance(lesson_desc_i18n, dict):
+            lesson_desc_i18n = {}
+
+        lesson_title = str(lesson_title_i18n.get("fr") or lesson_title_i18n.get("en") or getattr(lesson, "code", "") or "Lecon")
+        module_title = str(module_title_i18n.get("fr") or module_title_i18n.get("en") or getattr(module, "code", "") or "Module")
+        summary = str(lesson_desc_i18n.get("fr") or lesson_desc_i18n.get("en") or "")
         payload.append(
             {
                 "id": int(lesson.id),
                 "moduleId": int(getattr(lesson, "module_id", 0) or 0),
-                "moduleCode": str(getattr(lesson.module, "code", "") or ""),
+                "moduleCode": str(getattr(module, "code", "") or ""),
                 "moduleTitle": module_title,
                 "lessonTitle": lesson_title,
                 "summary": summary[:220],
