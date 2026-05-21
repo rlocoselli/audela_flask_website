@@ -1740,16 +1740,40 @@ def _mobile_render_dashboard_card(tenant: Tenant, card: DashboardCard) -> dict:
         rows = raw_rows if isinstance(raw_rows, list) else []
 
         metric_index = None
+        metric_tokens = (
+            "amount",
+            "total",
+            "sum",
+            "count",
+            "value",
+            "kpi",
+            "score",
+            "sales",
+            "revenue",
+            "gross",
+            "net",
+            "profit",
+            "margin",
+            "qty",
+            "quantity",
+            "price",
+            "cost",
+            "volume",
+        )
         for idx, col in enumerate(columns):
             col_name = str(col or "").strip().lower()
-            if any(token in col_name for token in ("amount", "total", "sum", "count", "value", "kpi", "score")):
+            if any(token in col_name for token in metric_tokens):
                 metric_index = idx
                 break
         if metric_index is None and rows:
-            sample = rows[0] if isinstance(rows[0], (list, tuple)) else []
-            for idx, value in enumerate(sample):
-                if _mobile_is_number(value):
-                    metric_index = idx
+            for sample in rows[:8]:
+                if not isinstance(sample, (list, tuple)):
+                    continue
+                for idx, value in enumerate(sample):
+                    if _mobile_is_number(value):
+                        metric_index = idx
+                        break
+                if metric_index is not None:
                     break
 
         primary_value = "n/a"
