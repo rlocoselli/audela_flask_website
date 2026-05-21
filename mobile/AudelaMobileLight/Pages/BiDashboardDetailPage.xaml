@@ -40,22 +40,87 @@
 
             <Border StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 14">
                 <VerticalStackLayout Spacing="8">
-                    <Label Text="Cards (native lightweight)" FontAttributes="Bold" FontSize="16" TextColor="#17314A" />
+                    <Label Text="Cards (web-like lightweight)" FontAttributes="Bold" FontSize="16" TextColor="#17314A" />
 
-                    <CollectionView ItemsSource="{Binding Cards}" HeightRequest="360">
+                    <CollectionView ItemsSource="{Binding Cards}" HeightRequest="560">
                         <CollectionView.ItemTemplate>
                             <DataTemplate x:DataType="model:MobileBiDashboardCard">
                                 <Border Stroke="#E0E8F5" StrokeThickness="1" BackgroundColor="#F9FBFF" Padding="10" Margin="0,0,0,8" StrokeShape="RoundRectangle 12">
-                                    <VerticalStackLayout Spacing="5">
+                                    <VerticalStackLayout Spacing="8">
                                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                             <Label Text="{Binding Title}" FontAttributes="Bold" TextColor="#163252" />
-                                            <Label Grid.Column="1" Text="{Binding VizType}" FontSize="11" TextColor="#5E7392" />
+                                            <Label Grid.Column="1" Text="{Binding VizTypeNormalized}" FontSize="11" TextColor="#5E7392" />
                                         </Grid>
                                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                                             <Label Text="{Binding SourceName}" FontSize="12" TextColor="#4C6588" />
                                             <Label Grid.Column="1" Text="{Binding PrimaryValue}" FontAttributes="Bold" TextColor="#0A2F8A" />
                                         </Grid>
                                         <Label Text="{Binding SecondaryValue}" FontSize="11" TextColor="#5E7392" />
+
+                                        <Border IsVisible="{Binding IsKpi}" StrokeThickness="0" BackgroundColor="#EAF3FF" Padding="8" StrokeShape="RoundRectangle 10">
+                                            <VerticalStackLayout Spacing="2">
+                                                <Label Text="KPI" FontSize="10" TextColor="#4D6E95" />
+                                                <Label Text="{Binding PrimaryValue}" FontSize="20" FontAttributes="Bold" TextColor="#073B8A" />
+                                                <Label Text="{Binding SecondaryValue}" FontSize="11" TextColor="#4D6E95" />
+                                            </VerticalStackLayout>
+                                        </Border>
+
+                                        <VerticalStackLayout IsVisible="{Binding IsBar}" Spacing="4">
+                                            <Label Text="Bar chart" FontSize="11" TextColor="#4D6E95" />
+                                            <CollectionView ItemsSource="{Binding Points}" HeightRequest="120">
+                                                <CollectionView.ItemTemplate>
+                                                    <DataTemplate x:DataType="model:MobileBiPoint">
+                                                        <Grid ColumnDefinitions="72,*,44" ColumnSpacing="8">
+                                                            <Label Text="{Binding X}" FontSize="11" TextColor="#446387" LineBreakMode="TailTruncation" />
+                                                            <ProgressBar Grid.Column="1" Progress="{Binding Ratio}" ProgressColor="#0A84FF" />
+                                                            <Label Grid.Column="2" Text="{Binding Y}" FontSize="11" TextColor="#163252" HorizontalTextAlignment="End" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </CollectionView.ItemTemplate>
+                                            </CollectionView>
+                                        </VerticalStackLayout>
+
+                                        <VerticalStackLayout IsVisible="{Binding IsLine}" Spacing="4">
+                                            <Label Text="Line chart" FontSize="11" TextColor="#4D6E95" />
+                                            <CollectionView ItemsSource="{Binding Points}" HeightRequest="120">
+                                                <CollectionView.ItemTemplate>
+                                                    <DataTemplate x:DataType="model:MobileBiPoint">
+                                                        <Grid ColumnDefinitions="72,*,44" ColumnSpacing="8">
+                                                            <Label Text="{Binding X}" FontSize="11" TextColor="#446387" LineBreakMode="TailTruncation" />
+                                                            <BoxView Grid.Column="1" HeightRequest="3" CornerRadius="2" BackgroundColor="#14A38B" VerticalOptions="Center" HorizontalOptions="Fill" Opacity="{Binding Ratio}" />
+                                                            <Label Grid.Column="2" Text="{Binding Y}" FontSize="11" TextColor="#163252" HorizontalTextAlignment="End" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </CollectionView.ItemTemplate>
+                                            </CollectionView>
+                                        </VerticalStackLayout>
+
+                                        <VerticalStackLayout IsVisible="{Binding IsPie}" Spacing="4">
+                                            <Label Text="Pie chart" FontSize="11" TextColor="#4D6E95" />
+                                            <CollectionView ItemsSource="{Binding Points}" HeightRequest="120">
+                                                <CollectionView.ItemTemplate>
+                                                    <DataTemplate x:DataType="model:MobileBiPoint">
+                                                        <Grid ColumnDefinitions="72,*,44" ColumnSpacing="8">
+                                                            <Label Text="{Binding X}" FontSize="11" TextColor="#446387" LineBreakMode="TailTruncation" />
+                                                            <ProgressBar Grid.Column="1" Progress="{Binding Ratio}" ProgressColor="#F3A712" />
+                                                            <Label Grid.Column="2" Text="{Binding Y}" FontSize="11" TextColor="#163252" HorizontalTextAlignment="End" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </CollectionView.ItemTemplate>
+                                            </CollectionView>
+                                        </VerticalStackLayout>
+
+                                        <VerticalStackLayout IsVisible="{Binding IsTable}" Spacing="4">
+                                            <Label Text="Table preview" FontSize="11" TextColor="#4D6E95" />
+                                            <CollectionView ItemsSource="{Binding PreviewRows}" HeightRequest="110">
+                                                <CollectionView.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Label Text="{Binding .}" FontSize="11" TextColor="#32506F" LineBreakMode="TailTruncation" MaxLines="1" />
+                                                    </DataTemplate>
+                                                </CollectionView.ItemTemplate>
+                                            </CollectionView>
+                                        </VerticalStackLayout>
+
                                         <Label Text="{Binding TrendLabel}" FontSize="10" TextColor="#6A7FA0" LineBreakMode="TailTruncation" MaxLines="2" />
                                     </VerticalStackLayout>
                                 </Border>

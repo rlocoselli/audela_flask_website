@@ -7,6 +7,7 @@ namespace AudelaMobileLight.Pages;
 public partial class LearningPage : ContentPage
 {
     private readonly MobileVisualizationService _service = new();
+    private readonly List<MobileLearningQuizSummary> _allQuizzes = [];
     public ObservableCollection<MobileLearningEnrollment> Enrollments { get; } = [];
     public ObservableCollection<MobileLearningLesson> Lessons { get; } = [];
     public ObservableCollection<MobileLearningQuizSummary> Quizzes { get; } = [];
@@ -87,10 +88,9 @@ public partial class LearningPage : ContentPage
             }
 
             Quizzes.Clear();
-            foreach (var row in quizzes)
-            {
-                Quizzes.Add(row);
-            }
+            _allQuizzes.Clear();
+            _allQuizzes.AddRange(quizzes);
+            ApplyQuizFilter();
         }
         finally
         {
@@ -162,5 +162,42 @@ public partial class LearningPage : ContentPage
         }
 
         await ModernAlertService.ShowAsync(this, "Learning", message, AlertTone.Success);
+        await LoadAsync();
+    }
+
+    private void OnModuleSelectionChanged(object? sender, EventArgs e)
+    {
+        if (sender is Picker picker && picker.SelectedItem is MobileLearningLesson module)
+        {
+            SelectedSubscriptionModule = module;
+            OnPropertyChanged(nameof(SelectedSubscriptionModule));
+        }
+
+        ApplyQuizFilter();
+    }
+
+    private void ApplyQuizFilter()
+    {
+        Quizzes.Clear();
+        if (_allQuizzes.Count == 0)
+        {
+            return;
+        }
+
+        var selectedModule = SelectedSubscriptionModule;
+        IEnumerable<MobileLearningQuizSummary> filtered = _allQuizzes;
+        if (selectedModule is not null)
+        {
+            filtered = _allQuizzes.Where(q =>
+                (q.ModuleId > 0 && selectedModule.ModuleId > 0 && q.ModuleId == selectedModule.ModuleId) ||
+                (!string.IsNullOrWhiteSpace(q.ModuleCode) && !string.IsNullOrWhiteSpace(selectedModule.ModuleCode) && string.Equals(q.ModuleCode, selectedModule.ModuleCode, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(q.ModuleTitle) && !string.IsNullOrWhiteSpace(selectedModule.ModuleTitle) && string.Equals(q.ModuleTitle, selectedModule.ModuleTitle, StringComparison.OrdinalIgnoreCase))
+            );
+        }
+
+        foreach (var row in filtered)
+        {
+            Quizzes.Add(row);
+        }
     }
 }

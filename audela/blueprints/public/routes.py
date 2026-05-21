@@ -1446,7 +1446,10 @@ def mobile_dashboard_data():
         if tenant_id:
             ws = ProjectWorkspace.query.filter_by(tenant_id=tenant_id).first()
             state = ws.state_json if ws and isinstance(ws.state_json, dict) else {}
-            cards = state.get("cards") if isinstance(state.get("cards"), list) else []
+            cards_raw = state.get("cards")
+            cards: list[dict] = []
+            if isinstance(cards_raw, list):
+                cards = [c for c in cards_raw if isinstance(c, dict)]
             for card in cards:
                 if not isinstance(card, dict):
                     continue
@@ -1535,7 +1538,7 @@ def _mobile_is_number(value: object) -> bool:
     if value is None or isinstance(value, bool):
         return False
     try:
-        float(value)
+        float(str(value))
         return True
     except Exception:
         return False
@@ -1556,14 +1559,14 @@ def _mobile_dashboard_card_points(columns: list, rows: list, metric_index: int |
         x_value = ""
         if label_index is not None and label_index < len(row):
             x_value = str(row[label_index] or "")
-        points.append({"x": x_value or str(len(points) + 1), "y": float(raw_value)})
+        points.append({"x": x_value or str(len(points) + 1), "y": float(str(raw_value))})
 
     if not points:
         return []
 
-    max_y = max(abs(float(p.get("y") or 0.0)) for p in points) or 1.0
+    max_y = max(abs(float(str(p.get("y") or 0.0))) for p in points) or 1.0
     for point in points:
-        point["ratio"] = max(0.0, min(1.0, abs(float(point.get("y") or 0.0)) / max_y))
+        point["ratio"] = max(0.0, min(1.0, abs(float(str(point.get("y") or 0.0))) / max_y))
     return points
 
 
@@ -1642,8 +1645,10 @@ def _mobile_render_dashboard_card(tenant: Tenant, card: DashboardCard) -> dict:
 
     try:
         result = execute_sql(source, question.sql_text, params={"tenant_id": int(tenant.id)}, row_limit=24)
-        columns = result.get("columns") if isinstance(result.get("columns"), list) else []
-        rows = result.get("rows") if isinstance(result.get("rows"), list) else []
+        raw_columns = result.get("columns")
+        raw_rows = result.get("rows")
+        columns = raw_columns if isinstance(raw_columns, list) else []
+        rows = raw_rows if isinstance(raw_rows, list) else []
 
         metric_index = None
         for idx, col in enumerate(columns):

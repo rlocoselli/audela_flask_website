@@ -61,7 +61,8 @@
                     <Picker x:Name="ModuleSubscriptionPicker"
                         ItemsSource="{Binding SubscriptionModules}"
                         ItemDisplayBinding="{Binding ModuleTitle}"
-                        SelectedItem="{Binding SelectedSubscriptionModule}" />
+                        SelectedItem="{Binding SelectedSubscriptionModule}"
+                        SelectedIndexChanged="OnModuleSelectionChanged" />
                     <Button Text="S'abonner au module"
                         Style="{StaticResource CompactButton}"
                         BackgroundColor="#6A3DDE"
@@ -133,6 +134,7 @@
                     <DataTemplate x:DataType="model:MobileLearningQuizSummary">
                         <Border Stroke="#E3DAFF" StrokeThickness="1" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 14" Margin="0,0,0,8">
                             <VerticalStackLayout Spacing="4">
+                                <Label Text="{Binding ModuleTitle}" FontSize="11" TextColor="#6D5AAB" />
                                 <Label Text="{Binding Title}" FontAttributes="Bold" TextColor="#4023A9" />
                                 <Label Text="{Binding QuizLabel}" FontSize="12" TextColor="#6D5AAB" />
                             </VerticalStackLayout>
