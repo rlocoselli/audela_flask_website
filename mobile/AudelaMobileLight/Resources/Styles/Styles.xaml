@@ -59,10 +59,10 @@
 
     <Style x:Key="CompactButton" TargetType="Button">
         <Setter Property="CornerRadius" Value="10" />
-        <Setter Property="Padding" Value="10,6" />
-        <Setter Property="FontSize" Value="12" />
-        <Setter Property="MinimumHeightRequest" Value="36" />
-        <Setter Property="MinimumWidthRequest" Value="36" />
+        <Setter Property="Padding" Value="8,4" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="MinimumHeightRequest" Value="30" />
+        <Setter Property="MinimumWidthRequest" Value="30" />
     </Style>
 
     <Style TargetType="CheckBox">

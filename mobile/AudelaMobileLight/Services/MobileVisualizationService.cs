@@ -29,13 +29,13 @@ public sealed class MobileVisualizationService
 
     public async Task<IReadOnlyList<MobileBiDataSource>> GetBiDataSourcesAsync(CancellationToken cancellationToken)
     {
-        var payload = await GetFirstAsync<BiDataSourcePayload>("/api/mobile/bi/datasources", cancellationToken);
+        var payload = await GetFirstAsync<BiDataSourcePayload>(["/api/mobile/bi/datasources", "/tenant/api/mobile/bi/datasources"], cancellationToken);
         return payload?.Datasources ?? [];
     }
 
     public async Task<IReadOnlyList<MobileBiDashboardSummary>> GetBiDashboardsAsync(CancellationToken cancellationToken)
     {
-        var payload = await GetFirstAsync<BiDashboardsPayload>("/api/mobile/bi/dashboards", cancellationToken);
+        var payload = await GetFirstAsync<BiDashboardsPayload>(["/api/mobile/bi/dashboards", "/tenant/api/mobile/bi/dashboards"], cancellationToken);
         return payload?.Dashboards ?? [];
     }
 
@@ -218,6 +218,44 @@ public sealed class MobileVisualizationService
         return (false, "Impossible d'envoyer la demande d'abonnement learning.");
     }
 
+    public async Task<(bool Ok, string Message)> SubmitLearningModuleSubscriptionAsync(int moduleId, string moduleCode, string moduleTitle, CancellationToken cancellationToken)
+    {
+        var body = new
+        {
+            moduleId,
+            moduleCode,
+            moduleTitle,
+        };
+
+        foreach (var baseUrl in BackendEndpoints.Candidates())
+        {
+            foreach (var path in new[] { "/api/mobile/learning/modules/subscribe", "/tenant/api/mobile/learning/modules/subscribe" })
+            {
+                var endpoint = BuildUrl(baseUrl, path);
+                try
+                {
+                    var response = await _httpClient.PostAsJsonAsync(endpoint, body, cancellationToken);
+                    var payload = await response.Content.ReadFromJsonAsync<MoveCardPayload>(cancellationToken: cancellationToken);
+                    if (response.IsSuccessStatusCode && payload?.Ok == true)
+                    {
+                        return (true, payload.Message);
+                    }
+
+                    if (payload is not null && !string.IsNullOrWhiteSpace(payload.Message))
+                    {
+                        return (false, payload.Message);
+                    }
+                }
+                catch
+                {
+                    // try next endpoint candidate
+                }
+            }
+        }
+
+        return (false, "Impossible d'envoyer la demande d'abonnement module.");
+    }
+
     public async Task<(bool Ok, string Message)> AskAiAsync(string message, string dataSource, string language, CancellationToken cancellationToken)
     {
         var body = new
@@ -335,6 +373,20 @@ public sealed class MobileVisualizationService
         return default;
     }
 
+    private async Task<T?> GetFirstAsync<T>(IEnumerable<string> paths, CancellationToken cancellationToken)
+    {
+        foreach (var path in paths)
+        {
+            var payload = await GetFirstAsync<T>(path, cancellationToken);
+            if (payload is not null)
+            {
+                return payload;
+            }
+        }
+
+        return default;
+    }
+
     private static string BuildUrl(string baseUrl, string path)
     {
         TenantSessionStore.LoadFromDevice();
@@ -393,21 +445,21 @@ public sealed class MobileVisualizationService
     }
 
     private sealed class FinancePayload
-        private sealed class BiDataSourcePayload
-        {
-            [JsonPropertyName("datasources")]
-            public List<MobileBiDataSource> Datasources { get; set; } = [];
-        }
-
-        private sealed class BiDashboardsPayload
-        {
-            [JsonPropertyName("dashboards")]
-            public List<MobileBiDashboardSummary> Dashboards { get; set; } = [];
-        }
-
     {
         [JsonPropertyName("entries")]
         public List<MobileFinanceEntry> Entries { get; set; } = [];
+    }
+
+    private sealed class BiDataSourcePayload
+    {
+        [JsonPropertyName("datasources")]
+        public List<MobileBiDataSource> Datasources { get; set; } = [];
+    }
+
+    private sealed class BiDashboardsPayload
+    {
+        [JsonPropertyName("dashboards")]
+        public List<MobileBiDashboardSummary> Dashboards { get; set; } = [];
     }
 
     private sealed class FinanceCreatePayload

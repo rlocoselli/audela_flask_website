@@ -1,4 +1,5 @@
 using AudelaMobileLight.Services;
+using AudelaMobileLight.Models;
 using System.Collections.ObjectModel;
 
 namespace AudelaMobileLight.Pages;
@@ -7,27 +8,15 @@ public partial class DashboardPage : ContentPage
 {
     private readonly MobileVisualizationService _service = new();
     private bool _hasAnimated;
-    public ObservableCollection<string> AiMessages { get; } = [];
-    public ObservableCollection<string> AiSourceLabels { get; } = [];
-    public string SelectedAiSourceLabel { get; set; } = string.Empty;
-    private readonly Dictionary<string, string> _sourceByLabel = new(StringComparer.OrdinalIgnoreCase);
+    public ObservableCollection<MobileAiChatMessage> AiMessages { get; } = [];
+    public ObservableCollection<MobileBiDataSource> BiDataSources { get; } = [];
+    public ObservableCollection<MobileBiDashboardSummary> BiDashboards { get; } = [];
+    public MobileBiDataSource? SelectedBiDataSource { get; set; }
 
-    public string FinanceNetAmountLabel { get; private set; } = "0";
-    public string DailyInLabel { get; private set; } = "0";
-    public string DailyOutLabel { get; private set; } = "0";
-    public double DailyInRatio { get; private set; }
-    public double DailyOutRatio { get; private set; }
-    public string LearningProgressLabel { get; private set; } = "0%";
+    public string BiDataSourceCountLabel { get; private set; } = "0";
+    public string ActiveSourceLabel { get; private set; } = "-";
     public string DashboardCountLabel { get; private set; } = "0";
     public string QueryRunCountLabel { get; private set; } = "0";
-    public string KanbanBacklogLabel { get; private set; } = "0";
-    public string KanbanTodoLabel { get; private set; } = "0";
-    public string KanbanDoingLabel { get; private set; } = "0";
-    public string KanbanDoneLabel { get; private set; } = "0";
-    public double KanbanBacklogRatio { get; private set; }
-    public double KanbanTodoRatio { get; private set; }
-    public double KanbanDoingRatio { get; private set; }
-    public double KanbanDoneRatio { get; private set; }
     public bool IsLoading { get; private set; }
 
     public DashboardPage()
@@ -35,9 +24,8 @@ public partial class DashboardPage : ContentPage
         InitializeComponent();
         BindingContext = this;
         MobileLocalizer.LanguageChanged += OnLanguageChanged;
-        BuildAiSources();
         ApplyTranslations();
-        AiMessages.Add("Assistant AI pret. Pose ta question BI/Finance/Projet/Learning.");
+        AiMessages.Add(new MobileAiChatMessage { IsUser = false, Text = "Assistant BI pret. Selectionnez une datasource BI et posez votre question." });
     }
 
     protected override async void OnAppearing()
@@ -59,44 +47,35 @@ public partial class DashboardPage : ContentPage
             OnPropertyChanged(nameof(IsLoading));
 
             var metrics = await _service.GetDashboardAsync(CancellationToken.None);
-            var financeSummary = await _service.GetFinanceSummaryAsync(CancellationToken.None);
-            FinanceNetAmountLabel = metrics.FinanceNetAmount.ToString("0.##");
-            DailyInLabel = financeSummary.DailyIn.ToString("0.##");
-            DailyOutLabel = financeSummary.DailyOut.ToString("0.##");
-            LearningProgressLabel = $"{metrics.LearningProgressAvg}%";
             DashboardCountLabel = metrics.DashboardCount.ToString();
             QueryRunCountLabel = metrics.QueryRunCount.ToString();
-            KanbanBacklogLabel = metrics.KanbanBacklog.ToString();
-            KanbanTodoLabel = metrics.KanbanTodo.ToString();
-            KanbanDoingLabel = metrics.KanbanDoing.ToString();
-            KanbanDoneLabel = metrics.KanbanDone.ToString();
 
-            var dailyMax = Math.Max(1.0, Math.Max(financeSummary.DailyIn, financeSummary.DailyOut));
-            DailyInRatio = Math.Clamp(financeSummary.DailyIn / dailyMax, 0.0, 1.0);
-            DailyOutRatio = Math.Clamp(financeSummary.DailyOut / dailyMax, 0.0, 1.0);
+            var datasources = await _service.GetBiDataSourcesAsync(CancellationToken.None);
+            BiDataSources.Clear();
+            foreach (var row in datasources)
+            {
+                BiDataSources.Add(row);
+            }
+            BiDataSourceCountLabel = BiDataSources.Count.ToString();
 
-            var kanbanTotal = Math.Max(1, metrics.KanbanBacklog + metrics.KanbanTodo + metrics.KanbanDoing + metrics.KanbanDone);
-            KanbanBacklogRatio = Math.Clamp((double)metrics.KanbanBacklog / kanbanTotal, 0.0, 1.0);
-            KanbanTodoRatio = Math.Clamp((double)metrics.KanbanTodo / kanbanTotal, 0.0, 1.0);
-            KanbanDoingRatio = Math.Clamp((double)metrics.KanbanDoing / kanbanTotal, 0.0, 1.0);
-            KanbanDoneRatio = Math.Clamp((double)metrics.KanbanDone / kanbanTotal, 0.0, 1.0);
+            var dashboards = await _service.GetBiDashboardsAsync(CancellationToken.None);
+            BiDashboards.Clear();
+            foreach (var row in dashboards)
+            {
+                BiDashboards.Add(row);
+            }
 
-            OnPropertyChanged(nameof(FinanceNetAmountLabel));
-            OnPropertyChanged(nameof(DailyInLabel));
-            OnPropertyChanged(nameof(DailyOutLabel));
-            OnPropertyChanged(nameof(DailyInRatio));
-            OnPropertyChanged(nameof(DailyOutRatio));
-            OnPropertyChanged(nameof(LearningProgressLabel));
+            if (SelectedBiDataSource is null && BiDataSources.Count > 0)
+            {
+                SelectedBiDataSource = BiDataSources[0];
+                OnPropertyChanged(nameof(SelectedBiDataSource));
+            }
+            ActiveSourceLabel = SelectedBiDataSource?.DisplayName ?? "-";
+
+            OnPropertyChanged(nameof(BiDataSourceCountLabel));
+            OnPropertyChanged(nameof(ActiveSourceLabel));
             OnPropertyChanged(nameof(DashboardCountLabel));
             OnPropertyChanged(nameof(QueryRunCountLabel));
-            OnPropertyChanged(nameof(KanbanBacklogLabel));
-            OnPropertyChanged(nameof(KanbanTodoLabel));
-            OnPropertyChanged(nameof(KanbanDoingLabel));
-            OnPropertyChanged(nameof(KanbanDoneLabel));
-            OnPropertyChanged(nameof(KanbanBacklogRatio));
-            OnPropertyChanged(nameof(KanbanTodoRatio));
-            OnPropertyChanged(nameof(KanbanDoingRatio));
-            OnPropertyChanged(nameof(KanbanDoneRatio));
         }
         finally
         {
@@ -113,11 +92,11 @@ public partial class DashboardPage : ContentPage
             return;
         }
 
-        AiMessages.Insert(0, $"Vous: {question}");
+        AiMessages.Insert(0, new MobileAiChatMessage { IsUser = true, Text = question });
         AiQuestionEntry.Text = string.Empty;
         var source = ResolveSelectedSourceCode();
         var (ok, answer) = await _service.AskAiAsync(question, source, MobileLocalizer.CurrentLanguage, CancellationToken.None);
-        AiMessages.Insert(0, ok ? $"AI: {answer}" : $"AI indisponible: {answer}");
+        AiMessages.Insert(0, new MobileAiChatMessage { IsUser = false, Text = ok ? answer : $"AI indisponible: {answer}" });
     }
 
     private async void OnRefreshDashboardClicked(object? sender, EventArgs e)
@@ -125,50 +104,34 @@ public partial class DashboardPage : ContentPage
         await LoadAsync();
     }
 
-    private void BuildAiSources()
-    {
-        _sourceByLabel.Clear();
-        AiSourceLabels.Clear();
-
-        AddSource("dashboard.source.auto", "auto");
-        AddSource("dashboard.source.finance", "finance");
-        AddSource("dashboard.source.kanban", "kanban");
-        AddSource("dashboard.source.learning", "learning");
-        AddSource("dashboard.source.dashboard", "dashboard");
-
-        if (AiSourceLabels.Count > 0)
-        {
-            SelectedAiSourceLabel = AiSourceLabels[0];
-            OnPropertyChanged(nameof(SelectedAiSourceLabel));
-        }
-    }
-
-    private void AddSource(string key, string value)
-    {
-        var label = MobileLocalizer.T(key);
-        AiSourceLabels.Add(label);
-        _sourceByLabel[label] = value;
-    }
-
     private string ResolveSelectedSourceCode()
     {
-        var selected = SelectedAiSourceLabel;
-        if (string.IsNullOrWhiteSpace(selected) && AiSourcePicker.SelectedItem is string selectedFromPicker)
+        if (SelectedBiDataSource is not null && !string.IsNullOrWhiteSpace(SelectedBiDataSource.Token))
         {
-            selected = selectedFromPicker;
+            return SelectedBiDataSource.Token;
         }
 
-        if (!string.IsNullOrWhiteSpace(selected) && _sourceByLabel.TryGetValue(selected, out var source))
+        if (AiSourcePicker.SelectedItem is MobileBiDataSource ds && !string.IsNullOrWhiteSpace(ds.Token))
         {
-            return source;
+            return ds.Token;
         }
 
-        return "auto";
+        return string.Empty;
+    }
+
+    private void OnAiSourceChanged(object? sender, EventArgs e)
+    {
+        if (AiSourcePicker.SelectedItem is MobileBiDataSource ds)
+        {
+            SelectedBiDataSource = ds;
+            ActiveSourceLabel = ds.DisplayName;
+            OnPropertyChanged(nameof(SelectedBiDataSource));
+            OnPropertyChanged(nameof(ActiveSourceLabel));
+        }
     }
 
     private void OnLanguageChanged(object? sender, EventArgs e)
     {
-        BuildAiSources();
         ApplyTranslations();
     }
 

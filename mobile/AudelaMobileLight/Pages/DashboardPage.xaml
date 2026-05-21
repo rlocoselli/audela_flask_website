@@ -30,26 +30,26 @@
             <Grid x:Name="KpiGrid" ColumnDefinitions="*,*" ColumnSpacing="10" RowSpacing="10">
                 <Border StrokeThickness="0" BackgroundColor="#EDF6FF" Padding="12" StrokeShape="RoundRectangle 14">
                     <VerticalStackLayout>
-                        <Label Text="Net finance" FontSize="12" TextColor="#4C6D8E" />
-                        <Label Text="{Binding FinanceNetAmountLabel}" FontSize="22" FontAttributes="Bold" TextColor="#11263A" />
+                        <Label Text="Datasources BI" FontSize="12" TextColor="#4C6D8E" />
+                        <Label Text="{Binding BiDataSourceCountLabel}" FontSize="22" FontAttributes="Bold" TextColor="#11263A" />
                     </VerticalStackLayout>
                 </Border>
                 <Border Grid.Column="1" StrokeThickness="0" BackgroundColor="#ECFFF6" Padding="12" StrokeShape="RoundRectangle 14">
                     <VerticalStackLayout>
-                        <Label Text="Learning avg" FontSize="12" TextColor="#4C6D8E" />
-                        <Label Text="{Binding LearningProgressLabel}" FontSize="22" FontAttributes="Bold" TextColor="#11263A" />
+                        <Label Text="Dashboards BI" FontSize="12" TextColor="#4C6D8E" />
+                        <Label Text="{Binding DashboardCountLabel}" FontSize="22" FontAttributes="Bold" TextColor="#11263A" />
                     </VerticalStackLayout>
                 </Border>
                 <Border Grid.Row="1" StrokeThickness="0" BackgroundColor="#FFF5EB" Padding="12" StrokeShape="RoundRectangle 14">
                     <VerticalStackLayout>
-                        <Label Text="Dashboards" FontSize="12" TextColor="#4C6D8E" />
-                        <Label Text="{Binding DashboardCountLabel}" FontSize="22" FontAttributes="Bold" TextColor="#11263A" />
+                        <Label Text="Executions requetes" FontSize="12" TextColor="#4C6D8E" />
+                        <Label Text="{Binding QueryRunCountLabel}" FontSize="22" FontAttributes="Bold" TextColor="#11263A" />
                     </VerticalStackLayout>
                 </Border>
                 <Border Grid.Row="1" Grid.Column="1" StrokeThickness="0" BackgroundColor="#F5F0FF" Padding="12" StrokeShape="RoundRectangle 14">
                     <VerticalStackLayout>
-                        <Label Text="Runs" FontSize="12" TextColor="#4C6D8E" />
-                        <Label Text="{Binding QueryRunCountLabel}" FontSize="22" FontAttributes="Bold" TextColor="#11263A" />
+                        <Label Text="Source active chat" FontSize="12" TextColor="#4C6D8E" />
+                        <Label Text="{Binding ActiveSourceLabel}" FontSize="14" FontAttributes="Bold" TextColor="#11263A" LineBreakMode="TailTruncation" />
                     </VerticalStackLayout>
                 </Border>
             </Grid>
@@ -97,7 +97,8 @@
                     <Picker x:Name="AiSourcePicker"
                             ItemsSource="{Binding BiDataSources}"
                             ItemDisplayBinding="{Binding DisplayName}"
-                            SelectedItem="{Binding SelectedBiDataSource}" />
+                            SelectedItem="{Binding SelectedBiDataSource}"
+                            SelectedIndexChanged="OnAiSourceChanged" />
                     <CollectionView HeightRequest="170" ItemsSource="{Binding AiMessages}">
                         <CollectionView.ItemTemplate>
                             <DataTemplate x:DataType="model:MobileAiChatMessage">

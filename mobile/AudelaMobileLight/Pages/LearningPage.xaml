@@ -38,23 +38,17 @@
 
             <Border StrokeThickness="0" BackgroundColor="#EEF5FF" Padding="12" StrokeShape="RoundRectangle 14">
             <VerticalStackLayout Spacing="8">
-                <Label Text="Abonnements e-learning"
+                    <Label Text="Abonnement par module"
                    FontAttributes="Bold"
                    TextColor="#12314A" />
-                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
-                <Button Text="Starter"
-                    Style="{StaticResource CompactButton}"
-                    Clicked="OnSubscribeStarterClicked" />
-                <Button Grid.Column="1"
-                    Text="Pro"
-                    Style="{StaticResource CompactButton}"
-                    Clicked="OnSubscribeProClicked" />
-                <Button Grid.Column="2"
-                    Text="All-in-One"
-                    Style="{StaticResource CompactButton}"
-                    Clicked="OnSubscribeAllInOneClicked" />
-                </Grid>
-                <Button Text="Gerer mon abonnement"
+                    <Picker x:Name="ModuleSubscriptionPicker"
+                        ItemsSource="{Binding SubscriptionModules}"
+                        ItemDisplayBinding="{Binding ModuleTitle}"
+                        SelectedItem="{Binding SelectedSubscriptionModule}" />
+                    <Button Text="S'abonner au module"
+                        Style="{StaticResource CompactButton}"
+                        Clicked="OnSubscribeModuleClicked" />
+                    <Button Text="Gerer mon abonnement"
                     Style="{StaticResource CompactButton}"
                     Clicked="OnManageSubscriptionClicked" />
             </VerticalStackLayout>
@@ -96,6 +90,10 @@
                                 <Label Text="{Binding ModuleTitle}" FontSize="12" TextColor="#4C6D8E" />
                                 <Label Text="{Binding LessonTitle}" FontAttributes="Bold" TextColor="#17314A" />
                                 <Label Text="{Binding Summary}" FontSize="12" MaxLines="3" LineBreakMode="TailTruncation" TextColor="#355E84" />
+                                <Button Text="S'abonner a ce module"
+                                        Style="{StaticResource CompactButton}"
+                                        Clicked="OnSubscribeLessonModuleClicked"
+                                        CommandParameter="{Binding .}" />
                             </VerticalStackLayout>
                         </Border>
                     </DataTemplate>

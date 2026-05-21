@@ -15,6 +15,8 @@ public sealed class MobileLearningEnrollment
 public sealed class MobileLearningLesson
 {
     public int Id { get; set; }
+    public int ModuleId { get; set; }
+    public string ModuleCode { get; set; } = string.Empty;
     public string ModuleTitle { get; set; } = string.Empty;
     public string LessonTitle { get; set; } = string.Empty;
     public string Summary { get; set; } = string.Empty;

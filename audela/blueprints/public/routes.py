@@ -1609,6 +1609,8 @@ def mobile_learning_content_data():
         payload.append(
             {
                 "id": int(lesson.id),
+                "moduleId": int(getattr(lesson, "module_id", 0) or 0),
+                "moduleCode": str(getattr(lesson.module, "code", "") or ""),
                 "moduleTitle": module_title,
                 "lessonTitle": lesson_title,
                 "summary": summary[:220],
@@ -1672,7 +1674,50 @@ def mobile_learning_subscription_intent():
     )
 
 
+@bp.route("/api/mobile/learning/modules/subscribe", methods=["POST"])
+@csrf.exempt
+def mobile_learning_module_subscribe():
+    tenant = _mobile_resolve_tenant_from_query()
+    if not tenant:
+        return jsonify({"ok": False, "message": "Tenant is required."}), 400
+
+    data = request.get_json(silent=True) or {}
+    module_id = int(data.get("moduleId") or 0)
+    module_code = str(data.get("moduleCode") or "").strip()
+    module_title = str(data.get("moduleTitle") or "").strip()
+
+    resolved_module = None
+    if module_id > 0:
+        resolved_module = ELearningModule.query.filter(ELearningModule.id == module_id, ELearningModule.is_active == True).first()
+    if resolved_module is None and module_code:
+        resolved_module = ELearningModule.query.filter(ELearningModule.code == module_code, ELearningModule.is_active == True).first()
+
+    if resolved_module is not None:
+        module_code = str(resolved_module.code or module_code)
+        module_title = str((resolved_module.title_i18n or {}).get("fr") or (resolved_module.title_i18n or {}).get("en") or resolved_module.code or module_title)
+
+    if not module_code and not module_title:
+        return jsonify({"ok": False, "message": "Module info is required."}), 400
+
+    current_app.logger.info(
+        "Mobile learning module subscription tenant=%s module_code=%s module_title=%s",
+        str(getattr(tenant, "slug", "") or "unknown"),
+        module_code or "-",
+        module_title or "-",
+    )
+
+    return jsonify(
+        {
+            "ok": True,
+            "message": f"Module subscription request received: {module_title or module_code}.",
+            "moduleCode": module_code,
+            "moduleTitle": module_title,
+        }
+    )
+
+
 @bp.route("/api/mobile/ai/chat", methods=["POST"])
+@csrf.exempt
 def mobile_ai_chat():
     data = request.get_json(silent=True) or {}
     message = str(data.get("message") or "").strip()
