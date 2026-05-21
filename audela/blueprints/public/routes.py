@@ -19,10 +19,11 @@ from ...models import Tenant
 from ...models import PublicPageVisit
 from ...models import Dashboard, DashboardCard, DataSource, QueryRun, Question, FinanceTransaction, FinanceAccount, ProjectWorkspace
 from ...models import UserELearningEnrollment, ELearningModule
-from ...models.e_learning import ELearningLesson, ELearningQuiz
+from ...models.e_learning import ELearningLesson, ELearningQuiz, UserQuizAttempt
 from ...services.subscription_service import SubscriptionService
 from ...services.email_service import EmailService
 from ...services.query_service import QueryExecutionError, execute_sql
+from ...services.ai_service import analyze_with_ai
 from ...product_catalog import get_product_catalog, get_product_entry
 
 from ...i18n import DEFAULT_LANG, SUPPORTED_LANGS, normalize_lang, tr
@@ -1379,6 +1380,39 @@ def _mobile_resolve_tenant_from_query() -> Tenant | None:
     return Tenant.query.filter_by(slug=tenant_slug).first()
 
 
+def _mobile_i18n_pick(value: object, lang: str = "fr", fallback: str = "") -> str:
+    if isinstance(value, dict):
+        preferred = normalize_lang(lang) or "fr"
+        if preferred in value and value.get(preferred):
+            return str(value.get(preferred) or "").strip()
+        for key in ("fr", "en", "pt", "es", "it", "de"):
+            if value.get(key):
+                return str(value.get(key) or "").strip()
+    if value is None:
+        return str(fallback or "")
+    return str(value or fallback or "").strip()
+
+
+def _mobile_plain_text_from_html(html: object, max_chars: int = 900) -> str:
+    text = str(html or "")
+    if not text:
+        return ""
+    text = re.sub(r"<\s*br\s*/?\s*>", "\n", text, flags=re.I)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:max_chars]
+
+
+def _mobile_resolve_tenant_user(tenant: Tenant) -> User | None:
+    if current_user and getattr(current_user, "is_authenticated", False):
+        if int(getattr(current_user, "tenant_id", 0) or 0) == int(tenant.id):
+            try:
+                return User.query.filter(User.id == int(getattr(current_user, "id", 0) or 0)).first()
+            except Exception:
+                return None
+    return User.query.filter(User.tenant_id == int(tenant.id)).order_by(User.id.asc()).first()
+
+
 def _to_float(value) -> float:
     if value is None:
         return 0.0
@@ -2157,28 +2191,76 @@ def mobile_ai_chat():
                 DataSource.id == int(raw_id),
             ).first()
 
-    ds_label = str(getattr(selected_ds, "name", "") or "BI datasource par defaut")
+    ds_label = str(getattr(selected_ds, "name", "") or "BI datasource")
 
-    if lang == "en":
-        answer = (
-            f"BI assistant (tenant={tenant_label}) using '{ds_label}'. "
-            f"Dashboards={metrics.get('dashboardCount', 0)}, query runs={metrics.get('queryRunCount', 0)}. "
-            f"Question: {message}"
-        )
-    elif lang == "it":
-        answer = (
-            f"Assistente BI (tenant={tenant_label}) con sorgente '{ds_label}'. "
-            f"Dashboard={metrics.get('dashboardCount', 0)}, esecuzioni query={metrics.get('queryRunCount', 0)}. "
-            f"Domanda: {message}"
-        )
-    else:
-        answer = (
-            f"Assistant BI (tenant={tenant_label}) avec source '{ds_label}'. "
-            f"Dashboards={metrics.get('dashboardCount', 0)}, executions de requetes={metrics.get('queryRunCount', 0)}. "
-            f"Question: {message}"
-        )
+    # Let runtime config resolve provider/model from tenant AI settings when available.
+    if tenant is not None:
+        g.tenant = tenant
 
-    return jsonify({"ok": True, "message": answer})
+    history = data.get("history") if isinstance(data.get("history"), list) else []
+    context_bundle = {
+        "lang": lang,
+        "question": {"id": None, "name": message},
+        "source": {
+            "id": int(getattr(selected_ds, "id", 0) or 0),
+            "name": ds_label,
+            "type": str(getattr(selected_ds, "type", "") or ""),
+        },
+        "result": {
+            "columns": ["metric", "value"],
+            "rows_sample": [
+                ["dashboards", int(metrics.get("dashboardCount", 0) or 0)],
+                ["query_runs", int(metrics.get("queryRunCount", 0) or 0)],
+                ["finance_entries", int(metrics.get("financeEntriesCount", 0) or 0)],
+                ["learning_modules", int(metrics.get("learningModulesCount", 0) or 0)],
+            ],
+            "row_count": 4,
+        },
+        "profile": {
+            "tenant": tenant_label,
+            "metrics": metrics,
+            "selected_datasource": ds_label,
+        },
+    }
+
+    ai_result = analyze_with_ai(context_bundle, message, history=history, lang=lang)
+    if isinstance(ai_result, dict) and ai_result.get("error"):
+        return jsonify({"ok": False, "message": str(ai_result.get("error") or "AI unavailable")}), 400
+
+    analysis = str((ai_result or {}).get("analysis") or "").strip()
+    followups = (ai_result or {}).get("followups") if isinstance((ai_result or {}).get("followups"), list) else []
+    if followups:
+        analysis = f"{analysis}\n\nSuggestions: " + " | ".join(str(item) for item in followups[:3] if str(item).strip())
+
+    if not analysis:
+        analysis = "AI assistant response unavailable."
+
+    return jsonify({"ok": True, "message": analysis})
+
+
+@bp.route("/api/mobile/finance/accounts")
+def mobile_finance_accounts_data():
+    tenant = _mobile_resolve_tenant_from_query()
+    if not tenant:
+        return jsonify({"accounts": [], "count": 0})
+
+    rows = (
+        FinanceAccount.query.filter(FinanceAccount.tenant_id == int(tenant.id))
+        .order_by(FinanceAccount.name.asc())
+        .limit(80)
+        .all()
+    )
+    payload = []
+    for row in rows:
+        payload.append(
+            {
+                "id": int(row.id),
+                "name": str(row.name or ""),
+                "accountType": str(getattr(row, "account_type", "") or ""),
+                "companyId": int(getattr(row, "company_id", 0) or 0),
+            }
+        )
+    return jsonify({"accounts": payload, "count": len(payload)})
 
 
 @bp.route("/api/mobile/finance/entries")
@@ -2218,6 +2300,7 @@ def mobile_finance_entries_create():
     description = str(data.get("description") or "").strip()
     category = str(data.get("category") or "").strip()
     raw_amount = data.get("amount")
+    account_id_raw = data.get("accountId")
 
     if not description:
         return jsonify({"ok": False, "message": "Description is required."}), 400
@@ -2225,7 +2308,20 @@ def mobile_finance_entries_create():
     if abs(amount) < 0.000001:
         return jsonify({"ok": False, "message": "Amount must be non-zero."}), 400
 
-    account = FinanceAccount.query.filter(FinanceAccount.tenant_id == tenant.id).order_by(FinanceAccount.id.asc()).first()
+    try:
+        account_id = int(account_id_raw or 0)
+    except Exception:
+        account_id = 0
+
+    account = None
+    if account_id > 0:
+        account = FinanceAccount.query.filter(
+            FinanceAccount.tenant_id == int(tenant.id),
+            FinanceAccount.id == account_id,
+        ).first()
+
+    if account is None:
+        account = FinanceAccount.query.filter(FinanceAccount.tenant_id == tenant.id).order_by(FinanceAccount.id.asc()).first()
     if not account:
         return jsonify({"ok": False, "message": "No finance account found for tenant."}), 400
 
@@ -2255,6 +2351,61 @@ def mobile_finance_entries_create():
             },
         }
     )
+
+
+@bp.route("/api/mobile/finance/category-report")
+def mobile_finance_category_report():
+    tenant = _mobile_resolve_tenant_from_query()
+    tenant_id = int(tenant.id) if tenant else 0
+    if not tenant_id:
+        return jsonify({"expenses": [], "revenues": [], "count": 0})
+
+    month = request.args.get("month", type=int) or date.today().month
+    year = request.args.get("year", type=int) or date.today().year
+    month = min(max(month, 1), 12)
+
+    month_start = date(year, month, 1)
+    month_end = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
+
+    rows = (
+        FinanceTransaction.query.filter(
+            FinanceTransaction.tenant_id == tenant_id,
+            FinanceTransaction.txn_date >= month_start,
+            FinanceTransaction.txn_date < month_end,
+        )
+        .order_by(FinanceTransaction.txn_date.desc(), FinanceTransaction.id.desc())
+        .limit(1200)
+        .all()
+    )
+
+    expense_map: dict[str, dict] = {}
+    revenue_map: dict[str, dict] = {}
+    for row in rows:
+        amount = _to_float(row.amount)
+        category = str(row.category or "Uncategorized").strip() or "Uncategorized"
+        target = revenue_map if amount >= 0 else expense_map
+        bucket = target.get(category)
+        if bucket is None:
+            bucket = {"category": category, "amount": 0.0, "transactionsCount": 0}
+            target[category] = bucket
+        bucket["amount"] += abs(amount)
+        bucket["transactionsCount"] += 1
+
+    def _sorted_payload(source: dict[str, dict]) -> list[dict]:
+        out = [
+            {
+                "category": str(v.get("category") or ""),
+                "amount": round(_to_float(v.get("amount")), 2),
+                "transactionsCount": int(v.get("transactionsCount") or 0),
+            }
+            for v in source.values()
+        ]
+        out.sort(key=lambda x: (_to_float(x.get("amount")) * -1, str(x.get("category") or "").lower()))
+        return out[:12]
+
+    expenses = _sorted_payload(expense_map)
+    revenues = _sorted_payload(revenue_map)
+    return jsonify({"expenses": expenses, "revenues": revenues, "count": len(expenses) + len(revenues)})
 
 
 @bp.route("/api/mobile/kanban/move", methods=["POST"])
@@ -2429,6 +2580,289 @@ def mobile_finance_summary_data():
         }
 
     return jsonify({"daily": _pack(daily_rows), "monthly": _pack(monthly_rows)})
+
+
+@bp.route("/api/mobile/learning/modules/<int:module_id>")
+def mobile_learning_module_detail(module_id: int):
+    tenant = _mobile_resolve_tenant_from_query()
+    if not tenant:
+        return jsonify({"ok": False, "message": "Tenant is required."}), 400
+
+    lang = normalize_lang(str(request.args.get("lang") or "").strip()) or "fr"
+    module = ELearningModule.query.filter(ELearningModule.id == int(module_id), ELearningModule.is_active == True).first()
+    if module is None:
+        return jsonify({"ok": False, "message": "Module not found."}), 404
+
+    lessons = (
+        ELearningLesson.query.filter(
+            ELearningLesson.module_id == int(module.id),
+            ELearningLesson.is_active == True,
+        )
+        .order_by(ELearningLesson.order.asc(), ELearningLesson.id.asc())
+        .all()
+    )
+    quizzes = (
+        ELearningQuiz.query.join(ELearningLesson, ELearningQuiz.lesson_id == ELearningLesson.id)
+        .filter(
+            ELearningLesson.module_id == int(module.id),
+            ELearningLesson.is_active == True,
+            ELearningQuiz.is_active == True,
+        )
+        .order_by(ELearningLesson.order.asc(), ELearningQuiz.order.asc(), ELearningQuiz.id.asc())
+        .all()
+    )
+
+    lessons_payload = []
+    for lesson in lessons:
+        content_i18n = lesson.content_html_i18n if isinstance(lesson.content_html_i18n, dict) else {}
+        content = _mobile_i18n_pick(content_i18n, lang)
+        if not content and isinstance(content_i18n, dict):
+            content = _mobile_i18n_pick(content_i18n, "en")
+        lessons_payload.append(
+            {
+                "id": int(lesson.id),
+                "code": str(lesson.code or ""),
+                "title": _mobile_i18n_pick(lesson.title_i18n, lang, fallback=str(lesson.code or "Lesson")),
+                "summary": _mobile_i18n_pick(lesson.description_i18n, lang)[:260],
+                "content": _mobile_plain_text_from_html(content, max_chars=1800),
+            }
+        )
+
+    quizzes_payload = []
+    for quiz in quizzes:
+        active_questions = [q for q in (quiz.questions or []) if getattr(q, "is_active", True)]
+        quizzes_payload.append(
+            {
+                "id": int(quiz.id),
+                "lessonId": int(quiz.lesson_id),
+                "title": _mobile_i18n_pick(quiz.title_i18n, lang, fallback=str(quiz.code or "Quiz")),
+                "questionCount": len(active_questions),
+                "passingScorePct": int(quiz.pass_threshold or 70),
+            }
+        )
+
+    module_title = _mobile_i18n_pick(module.title_i18n, lang, fallback=str(module.code or "Module"))
+    module_desc = _mobile_i18n_pick(module.description_i18n, lang)
+
+    return jsonify(
+        {
+            "ok": True,
+            "module": {
+                "id": int(module.id),
+                "code": str(module.code or ""),
+                "title": module_title,
+                "description": module_desc,
+                "lessons": lessons_payload,
+                "quizzes": quizzes_payload,
+            },
+        }
+    )
+
+
+@bp.route("/api/mobile/learning/quizzes/<int:quiz_id>")
+def mobile_learning_quiz_detail(quiz_id: int):
+    tenant = _mobile_resolve_tenant_from_query()
+    if not tenant:
+        return jsonify({"ok": False, "message": "Tenant is required."}), 400
+
+    lang = normalize_lang(str(request.args.get("lang") or "").strip()) or "fr"
+    quiz = (
+        ELearningQuiz.query.join(ELearningLesson, ELearningQuiz.lesson_id == ELearningLesson.id)
+        .join(ELearningModule, ELearningLesson.module_id == ELearningModule.id)
+        .filter(
+            ELearningQuiz.id == int(quiz_id),
+            ELearningQuiz.is_active == True,
+            ELearningLesson.is_active == True,
+            ELearningModule.is_active == True,
+        )
+        .first()
+    )
+    if quiz is None:
+        return jsonify({"ok": False, "message": "Quiz not found."}), 404
+
+    questions_payload = []
+    questions = [q for q in (quiz.questions or []) if getattr(q, "is_active", True)]
+
+    for question in questions:
+        question_type = str(question.question_type or "multiple_choice").strip().lower()
+        options_payload = []
+        if question_type in {"multiple_choice", "true_false"}:
+            for opt in question.options or []:
+                options_payload.append(
+                    {
+                        "id": int(opt.id),
+                        "text": _mobile_i18n_pick(opt.text_i18n, lang, fallback=f"Option {opt.id}"),
+                    }
+                )
+
+        questions_payload.append(
+            {
+                "id": int(question.id),
+                "questionType": question_type,
+                "text": _mobile_i18n_pick(question.text_i18n, lang, fallback="Question"),
+                "explanation": _mobile_i18n_pick(question.explanation_i18n, lang),
+                "points": int(question.points or 1),
+                "options": options_payload,
+            }
+        )
+
+    return jsonify(
+        {
+            "ok": True,
+            "quiz": {
+                "id": int(quiz.id),
+                "title": _mobile_i18n_pick(quiz.title_i18n, lang, fallback=str(quiz.code or "Quiz")),
+                "description": _mobile_i18n_pick(quiz.description_i18n, lang),
+                "passingScorePct": int(quiz.pass_threshold or 70),
+                "showCorrectAnswers": bool(quiz.show_correct_answers),
+                "questions": questions_payload,
+            },
+        }
+    )
+
+
+@bp.route("/api/mobile/learning/quizzes/<int:quiz_id>/submit", methods=["POST"])
+@csrf.exempt
+def mobile_learning_quiz_submit(quiz_id: int):
+    tenant = _mobile_resolve_tenant_from_query()
+    if not tenant:
+        return jsonify({"ok": False, "message": "Tenant is required."}), 400
+
+    lang = normalize_lang(str(request.args.get("lang") or "").strip()) or "fr"
+    quiz = (
+        ELearningQuiz.query.join(ELearningLesson, ELearningQuiz.lesson_id == ELearningLesson.id)
+        .join(ELearningModule, ELearningLesson.module_id == ELearningModule.id)
+        .filter(
+            ELearningQuiz.id == int(quiz_id),
+            ELearningQuiz.is_active == True,
+            ELearningLesson.is_active == True,
+            ELearningModule.is_active == True,
+        )
+        .first()
+    )
+    if quiz is None:
+        return jsonify({"ok": False, "message": "Quiz not found."}), 404
+
+    data = request.get_json(silent=True) or {}
+    answers_payload = data.get("answers") if isinstance(data.get("answers"), dict) else {}
+
+    active_questions = [q for q in (quiz.questions or []) if getattr(q, "is_active", True)]
+    total_points = 0
+    earned_points = 0
+    question_scores = {}
+    answer_store = {}
+    results = []
+
+    for question in active_questions:
+        qid = int(question.id)
+        q_key = str(qid)
+        question_type = str(question.question_type or "multiple_choice").strip().lower()
+        max_points = max(1, int(question.points or 1))
+        total_points += max_points
+
+        raw_answer = answers_payload.get(q_key)
+        if raw_answer is None:
+            raw_answer = answers_payload.get(qid)
+
+        is_correct = False
+        selected_option_id = None
+        free_text_answer = None
+
+        if question_type in {"multiple_choice", "true_false"}:
+            try:
+                selected_option_id = int(raw_answer or 0)
+            except Exception:
+                selected_option_id = 0
+            correct_options = [int(opt.id) for opt in (question.options or []) if bool(getattr(opt, "is_correct", False))]
+            is_correct = selected_option_id in correct_options
+            answer_store[q_key] = selected_option_id
+        else:
+            free_text_answer = str(raw_answer or "").strip()
+            expected = str(question.expected_answer or "").strip()
+            if expected:
+                expected_choices = [part.strip().lower() for part in expected.split("|") if part.strip()]
+                is_correct = free_text_answer.lower() in expected_choices
+            answer_store[q_key] = free_text_answer
+
+        earned = max_points if is_correct else max(0, int(0 - int(question.penalty_points or 0)))
+        earned_points += earned
+        question_scores[q_key] = {"earned": int(earned), "max": int(max_points), "correct": bool(is_correct)}
+
+        result_row = {
+            "questionId": qid,
+            "correct": bool(is_correct),
+            "earned": int(earned),
+            "max": int(max_points),
+            "explanation": _mobile_i18n_pick(question.explanation_i18n, lang),
+        }
+        if selected_option_id is not None:
+            result_row["selectedOptionId"] = int(selected_option_id)
+        if free_text_answer is not None:
+            result_row["answerText"] = free_text_answer
+        results.append(result_row)
+
+    score_pct = 0
+    if total_points > 0:
+        score_pct = int(round((earned_points / total_points) * 100))
+    pass_threshold = int(quiz.pass_threshold or 70)
+    passed = score_pct >= pass_threshold
+
+    target_user = _mobile_resolve_tenant_user(tenant)
+    if target_user is not None:
+        attempt = UserQuizAttempt(
+            user_id=int(target_user.id),
+            quiz_id=int(quiz.id),
+            started_at=datetime.utcnow(),
+            submitted_at=datetime.utcnow(),
+            score_pct=score_pct,
+            points_earned=max(0, int(earned_points)),
+            passed=passed,
+            answers_json=answer_store,
+            question_scores_json=question_scores,
+        )
+        db.session.add(attempt)
+
+        lesson = getattr(quiz, "lesson", None)
+        module_id = int(getattr(lesson, "module_id", 0) or 0)
+        if module_id > 0:
+            enrollment = UserELearningEnrollment.query.filter(
+                UserELearningEnrollment.user_id == int(target_user.id),
+                UserELearningEnrollment.module_id == module_id,
+            ).first()
+            if enrollment is None:
+                enrollment = UserELearningEnrollment(
+                    user_id=int(target_user.id),
+                    module_id=module_id,
+                    status="in_progress",
+                    progress_percentage=0,
+                    overall_score=score_pct,
+                    enrolled_at=datetime.utcnow(),
+                    started_at=datetime.utcnow(),
+                )
+                db.session.add(enrollment)
+            else:
+                enrollment.overall_score = max(int(enrollment.overall_score or 0), int(score_pct))
+                if not str(enrollment.status or "").strip():
+                    enrollment.status = "in_progress"
+                if enrollment.started_at is None:
+                    enrollment.started_at = datetime.utcnow()
+
+        db.session.commit()
+
+    return jsonify(
+        {
+            "ok": True,
+            "message": "Quiz submitted.",
+            "result": {
+                "scorePct": int(score_pct),
+                "passed": bool(passed),
+                "passingScorePct": pass_threshold,
+                "pointsEarned": int(max(0, earned_points)),
+                "pointsTotal": int(total_points),
+                "questions": results,
+            },
+        }
+    )
 
 
 # -----------------

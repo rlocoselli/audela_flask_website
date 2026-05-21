@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:AudelaMobileLight.Pages"
+             xmlns:model="clr-namespace:AudelaMobileLight.Models"
+             x:Class="AudelaMobileLight.Pages.LearningModuleDetailPage"
+             x:DataType="local:LearningModuleDetailPage"
+             Title="Module">
+
+    <ScrollView BackgroundColor="#F4F1FF">
+        <VerticalStackLayout Padding="14" Spacing="12">
+            <Border StrokeThickness="0" Padding="14" StrokeShape="RoundRectangle 20">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#4F2CCF" Offset="0.0" />
+                        <GradientStop Color="#6A3DDE" Offset="1.0" />
+                    </LinearGradientBrush>
+                </Border.Background>
+                <VerticalStackLayout Spacing="4">
+                    <Label Text="{Binding HeaderTitle}" FontSize="24" FontAttributes="Bold" TextColor="White" />
+                    <Label Text="{Binding HeaderDescription}" FontSize="12" TextColor="#EEE4FF" />
+                </VerticalStackLayout>
+            </Border>
+
+            <ActivityIndicator IsVisible="{Binding IsLoading}" IsRunning="{Binding IsLoading}" />
+
+            <Label Text="Lessons" FontAttributes="Bold" FontSize="17" TextColor="#2D1C73" />
+            <CollectionView ItemsSource="{Binding Lessons}" HeightRequest="330">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="model:MobileLearningLessonDetail">
+                        <Border Stroke="#E3DAFF" StrokeThickness="1" BackgroundColor="White" Padding="12" StrokeShape="RoundRectangle 14" Margin="0,0,0,8">
+                            <VerticalStackLayout Spacing="6">
+                                <Label Text="{Binding Title}" FontAttributes="Bold" TextColor="#4023A9" />
+                                <Label Text="{Binding Summary}" FontSize="12" TextColor="#5F5692" />
+                                <Label Text="{Binding Content}" FontSize="12" TextColor="#4A426E" MaxLines="7" LineBreakMode="TailTruncation" />
+                            </VerticalStackLayout>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+
+            <Label Text="Quiz" FontAttributes="Bold" FontSize="17" TextColor="#2D1C73" />
+            <CollectionView ItemsSource="{Binding Quizzes}" HeightRequest="250">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="model:MobileLearningQuizSummary">
+                        <Border Stroke="#E3DAFF" StrokeThickness="1" BackgroundColor="White" Padding="12" StrokeShape="RoundRectangle 14" Margin="0,0,0,8">
+                            <VerticalStackLayout Spacing="5">
+                                <Label Text="{Binding Title}" FontAttributes="Bold" TextColor="#4023A9" />
+                                <Label Text="{Binding QuizLabel}" FontSize="12" TextColor="#5F5692" />
+                                <Button Text="Commencer"
+                                        Style="{StaticResource PremiumRoundedButton}"
+                                        BackgroundColor="#6A3DDE"
+                                        TextColor="White"
+                                        Clicked="OnStartQuizClicked"
+                                        CommandParameter="{Binding .}" />
+                            </VerticalStackLayout>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

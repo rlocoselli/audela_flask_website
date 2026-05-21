@@ -64,12 +64,12 @@
                         SelectedItem="{Binding SelectedSubscriptionModule}"
                         SelectedIndexChanged="OnModuleSelectionChanged" />
                     <Button Text="S'abonner au module"
-                        Style="{StaticResource CompactButton}"
+                        Style="{StaticResource PremiumRoundedButton}"
                         BackgroundColor="#6A3DDE"
                         TextColor="White"
                         Clicked="OnSubscribeModuleClicked" />
                     <Button Text="Gerer mon abonnement"
-                    Style="{StaticResource CompactButton}"
+                    Style="{StaticResource PremiumRoundedButton}"
                     BackgroundColor="#E7DEFF"
                     TextColor="#4F2CCF"
                     Clicked="OnManageSubscriptionClicked" />
@@ -113,11 +113,17 @@
                                 <Label Text="{Binding LessonTitle}" FontAttributes="Bold" TextColor="#4023A9" />
                                 <Label Text="{Binding Summary}" FontSize="12" MaxLines="3" LineBreakMode="TailTruncation" TextColor="#6B63A6" />
                                 <Button Text="S'abonner a ce module"
-                                        Style="{StaticResource CompactButton}"
+                                    Style="{StaticResource PremiumRoundedButton}"
                                         BackgroundColor="#6A3DDE"
                                         TextColor="White"
                                         Clicked="OnSubscribeLessonModuleClicked"
                                         CommandParameter="{Binding .}" />
+                                <Button Text="Ouvrir le module"
+                                    Style="{StaticResource PremiumRoundedButton}"
+                                    BackgroundColor="#E7DEFF"
+                                    TextColor="#4F2CCF"
+                                    Clicked="OnOpenModuleClicked"
+                                    CommandParameter="{Binding .}" />
                             </VerticalStackLayout>
                         </Border>
                     </DataTemplate>
@@ -137,6 +143,12 @@
                                 <Label Text="{Binding ModuleTitle}" FontSize="11" TextColor="#6D5AAB" />
                                 <Label Text="{Binding Title}" FontAttributes="Bold" TextColor="#4023A9" />
                                 <Label Text="{Binding QuizLabel}" FontSize="12" TextColor="#6D5AAB" />
+                                <Button Text="Commencer le quiz"
+                                        Style="{StaticResource PremiumRoundedButton}"
+                                        BackgroundColor="#6A3DDE"
+                                        TextColor="White"
+                                        Clicked="OnStartQuizClicked"
+                                        CommandParameter="{Binding .}" />
                             </VerticalStackLayout>
                         </Border>
                     </DataTemplate>

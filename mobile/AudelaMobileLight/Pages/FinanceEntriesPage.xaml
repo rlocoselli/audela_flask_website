@@ -76,6 +76,41 @@
                             </Grid>
                         </VerticalStackLayout>
                     </Border>
+
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8" Margin="0,10,0,0">
+                        <Border StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 14">
+                            <VerticalStackLayout Spacing="6">
+                                <Label Text="Expenses by category" FontAttributes="Bold" TextColor="#13322B" FontSize="13" />
+                                <CollectionView ItemsSource="{Binding ExpenseCategoryTotals}" HeightRequest="180">
+                                    <CollectionView.ItemTemplate>
+                                        <DataTemplate x:DataType="model:MobileFinanceCategoryTotal">
+                                            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="2" Margin="0,0,0,8">
+                                                <Label Text="{Binding Category}" FontSize="12" TextColor="#3D4E5F" />
+                                                <Label Grid.Column="1" Text="{Binding AmountLabel}" FontAttributes="Bold" FontSize="12" TextColor="#8A2C2C" />
+                                                <Label Grid.Row="1" Text="{Binding MetaLabel}" FontSize="11" TextColor="#6D7F92" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </CollectionView.ItemTemplate>
+                                </CollectionView>
+                            </VerticalStackLayout>
+                        </Border>
+                        <Border Grid.Column="1" StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 14">
+                            <VerticalStackLayout Spacing="6">
+                                <Label Text="Revenue by category" FontAttributes="Bold" TextColor="#13322B" FontSize="13" />
+                                <CollectionView ItemsSource="{Binding RevenueCategoryTotals}" HeightRequest="180">
+                                    <CollectionView.ItemTemplate>
+                                        <DataTemplate x:DataType="model:MobileFinanceCategoryTotal">
+                                            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="2" Margin="0,0,0,8">
+                                                <Label Text="{Binding Category}" FontSize="12" TextColor="#3D4E5F" />
+                                                <Label Grid.Column="1" Text="{Binding AmountLabel}" FontAttributes="Bold" FontSize="12" TextColor="#1B6E3E" />
+                                                <Label Grid.Row="1" Text="{Binding MetaLabel}" FontSize="11" TextColor="#6D7F92" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </CollectionView.ItemTemplate>
+                                </CollectionView>
+                            </VerticalStackLayout>
+                        </Border>
+                    </Grid>
                 </VerticalStackLayout>
 
                 <VerticalStackLayout x:Name="FinanceTransactionsSection" IsVisible="{Binding ShowTransactionsSection}">
@@ -100,13 +135,22 @@
                         <VerticalStackLayout Spacing="8">
                             <Label Text="Quick entry" FontAttributes="Bold" TextColor="#13322B" />
                             <Entry x:Name="DescriptionEntry" Placeholder="Description transaction" />
-                            <Entry x:Name="CategoryEntry" Placeholder="Categorie (optionnel)" />
+                                <Picker x:Name="CategoryPicker"
+                                    ItemsSource="{Binding QuickCategories}"
+                                    SelectedItem="{Binding SelectedCategory}"
+                                    Title="Categorie" />
+                                <Picker x:Name="AccountPicker"
+                                    ItemsSource="{Binding Accounts}"
+                                    ItemDisplayBinding="{Binding DisplayName}"
+                                    SelectedItem="{Binding SelectedAccount}"
+                                    Title="Compte" />
                             <Entry x:Name="AmountEntry" Placeholder="Montant (ex: -120.50 ou 250)" Keyboard="Numeric" />
                             <Button x:Name="VoiceQuickEntryButton"
                                     Text="Dictee vocale"
                                     ImageSource="ic_mic.svg"
                                     ContentLayout="Left,10"
                                     Clicked="OnVoiceQuickEntryClicked"
+                                    Style="{StaticResource PremiumRoundedButton}"
                                     BackgroundColor="#0E7A42"
                                     TextColor="White" />
                             <Button x:Name="AddQuickEntryButton"
@@ -114,6 +158,7 @@
                                     ImageSource="ic_add.svg"
                                     ContentLayout="Left,10"
                                     Clicked="OnAddQuickEntryClicked"
+                                    Style="{StaticResource PremiumRoundedButton}"
                                     BackgroundColor="#10A45B"
                                     TextColor="White" />
                         </VerticalStackLayout>
@@ -131,6 +176,7 @@
                 VerticalOptions="End"
                 Margin="0,0,18,22"
                 Padding="14,10"
+                Style="{StaticResource PremiumRoundedButton}"
                 BackgroundColor="#10A45B"
                 TextColor="White"
                 CornerRadius="24" />

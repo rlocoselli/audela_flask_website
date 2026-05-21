@@ -13,6 +13,22 @@ public partial class FinanceEntriesPage : ContentPage
     private readonly IVoiceRecognitionService _voiceRecognitionService;
     private bool _hasAnimated;
     public ObservableCollection<MobileFinanceEntry> Entries { get; } = [];
+    public ObservableCollection<MobileFinanceAccount> Accounts { get; } = [];
+    public ObservableCollection<MobileFinanceCategoryTotal> ExpenseCategoryTotals { get; } = [];
+    public ObservableCollection<MobileFinanceCategoryTotal> RevenueCategoryTotals { get; } = [];
+    public ObservableCollection<string> QuickCategories { get; } =
+    [
+        "Sales",
+        "Subscriptions",
+        "Consulting",
+        "Operations",
+        "Marketing",
+        "Payroll",
+        "Taxes",
+        "Rent",
+        "Logistics",
+        "Other",
+    ];
     public bool IsLoading { get; private set; }
     public bool ShowDashboardSection { get; private set; } = true;
     public bool ShowTransactionsSection { get; private set; }
@@ -23,6 +39,8 @@ public partial class FinanceEntriesPage : ContentPage
     public string MonthlyInLabel { get; private set; } = "0";
     public string MonthlyOutLabel { get; private set; } = "0";
     public string MonthlyNetLabel { get; private set; } = "0";
+    public string SelectedCategory { get; set; } = "Other";
+    public MobileFinanceAccount? SelectedAccount { get; set; }
 
     public FinanceEntriesPage()
     {
@@ -54,6 +72,8 @@ public partial class FinanceEntriesPage : ContentPage
 
             var rows = await _service.GetFinanceEntriesAsync(CancellationToken.None);
             var summary = await _service.GetFinanceSummaryAsync(CancellationToken.None);
+            var accounts = await _service.GetFinanceAccountsAsync(CancellationToken.None);
+            var categoryReport = await _service.GetFinanceCategoryReportAsync(CancellationToken.None);
 
             DailyInLabel = summary.DailyIn.ToString("0.##");
             DailyOutLabel = summary.DailyOut.ToString("0.##");
@@ -74,6 +94,30 @@ public partial class FinanceEntriesPage : ContentPage
             {
                 Entries.Add(row);
             }
+
+            Accounts.Clear();
+            foreach (var row in accounts)
+            {
+                Accounts.Add(row);
+            }
+
+            if (SelectedAccount is null && Accounts.Count > 0)
+            {
+                SelectedAccount = Accounts[0];
+                OnPropertyChanged(nameof(SelectedAccount));
+            }
+
+            ExpenseCategoryTotals.Clear();
+            foreach (var row in categoryReport.Expenses)
+            {
+                ExpenseCategoryTotals.Add(row);
+            }
+
+            RevenueCategoryTotals.Clear();
+            foreach (var row in categoryReport.Revenues)
+            {
+                RevenueCategoryTotals.Add(row);
+            }
         }
         finally
         {
@@ -85,7 +129,7 @@ public partial class FinanceEntriesPage : ContentPage
     private async void OnAddQuickEntryClicked(object? sender, EventArgs e)
     {
         var description = DescriptionEntry.Text?.Trim() ?? string.Empty;
-        var category = CategoryEntry.Text?.Trim() ?? string.Empty;
+        var category = SelectedCategory?.Trim() ?? string.Empty;
         var amountRaw = AmountEntry.Text?.Trim() ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(description) || string.IsNullOrWhiteSpace(amountRaw))
@@ -100,7 +144,8 @@ public partial class FinanceEntriesPage : ContentPage
             return;
         }
 
-        var (ok, message) = await _service.AddFinanceEntryAsync(description, category, amount, CancellationToken.None);
+        var accountId = SelectedAccount?.Id;
+        var (ok, message) = await _service.AddFinanceEntryAsync(description, category, amount, accountId, CancellationToken.None);
         if (!ok)
         {
             await ModernAlertService.ShowAsync(this, MobileLocalizer.T("finance.inputFail"), message, AlertTone.Error);
@@ -108,7 +153,8 @@ public partial class FinanceEntriesPage : ContentPage
         }
 
         DescriptionEntry.Text = string.Empty;
-        CategoryEntry.Text = string.Empty;
+        SelectedCategory = "Other";
+        OnPropertyChanged(nameof(SelectedCategory));
         AmountEntry.Text = string.Empty;
         await ModernAlertService.ShowAsync(this, MobileLocalizer.T("finance.success"), message, AlertTone.Success);
         await LoadAsync();

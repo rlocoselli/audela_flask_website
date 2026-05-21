@@ -28,7 +28,7 @@
                             Clicked="OnRefreshDashboardClicked"
                             BackgroundColor="#2D5CE6"
                             TextColor="#FFFFFF"
-                            Style="{StaticResource CompactButton}" />
+                            Style="{StaticResource PremiumRoundedButton}" />
                     <Label Grid.Row="1"
                            Text="Sales overview, KPI, dashboards et AI chat"
                            TextColor="#BFD0FF"
@@ -160,7 +160,7 @@
                             Text="Demander a AI"
                             ImageSource="ic_ai.svg"
                             ContentLayout="Left,10"
-                            Style="{StaticResource IconActionButton}"
+                            Style="{StaticResource PremiumRoundedButton}"
                             BackgroundColor="#2D5CE6"
                             Clicked="OnAskAiClicked" />
                 </VerticalStackLayout>

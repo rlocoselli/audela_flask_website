@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:AudelaMobileLight.Pages"
+             xmlns:model="clr-namespace:AudelaMobileLight.Models"
+             x:Class="AudelaMobileLight.Pages.LearningQuizPage"
+             x:DataType="local:LearningQuizPage"
+             Title="Quiz">
+
+    <ScrollView BackgroundColor="#F4F1FF">
+        <VerticalStackLayout Padding="14" Spacing="12">
+            <Border StrokeThickness="0" Padding="14" StrokeShape="RoundRectangle 20">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#4F2CCF" Offset="0.0" />
+                        <GradientStop Color="#6A3DDE" Offset="1.0" />
+                    </LinearGradientBrush>
+                </Border.Background>
+                <VerticalStackLayout Spacing="4">
+                    <Label Text="{Binding QuizTitle}" FontSize="24" FontAttributes="Bold" TextColor="White" />
+                    <Label Text="{Binding QuizDescription}" FontSize="12" TextColor="#EEE4FF" />
+                    <Label Text="{Binding PassingLabel}" FontSize="12" TextColor="#EEE4FF" />
+                </VerticalStackLayout>
+            </Border>
+
+            <ActivityIndicator IsVisible="{Binding IsLoading}" IsRunning="{Binding IsLoading}" />
+
+            <Border Stroke="#DDD2FF" StrokeThickness="1" BackgroundColor="White" Padding="12" StrokeShape="RoundRectangle 14">
+                <VerticalStackLayout Spacing="5">
+                    <Label Text="Progression" FontAttributes="Bold" TextColor="#4023A9" />
+                    <Label Text="{Binding AnsweredCountLabel}" FontSize="12" TextColor="#5F5692" />
+                    <ProgressBar Progress="{Binding AnsweredProgress}" ProgressColor="#6A3DDE" />
+                </VerticalStackLayout>
+            </Border>
+
+            <CollectionView ItemsSource="{Binding Questions}" HeightRequest="520">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="model:MobileLearningQuizQuestion">
+                        <Border Stroke="#E3DAFF" StrokeThickness="1" BackgroundColor="White" Padding="12" StrokeShape="RoundRectangle 14" Margin="0,0,0,10">
+                            <VerticalStackLayout Spacing="8">
+                                <Label Text="{Binding Text}" FontAttributes="Bold" TextColor="#4023A9" />
+                                <Picker x:Name="QuestionOptionPicker"
+                                        IsVisible="{Binding HasOptions}"
+                                        ItemsSource="{Binding Options}"
+                                        ItemDisplayBinding="{Binding Text}"
+                                        SelectedItem="{Binding SelectedOption}"
+                                        SelectedIndexChanged="OnQuestionAnswerChanged" />
+                                <Entry Placeholder="Votre reponse"
+                                       Text="{Binding AnswerText}"
+                                       TextChanged="OnQuestionTextChanged">
+                                    <Entry.Triggers>
+                                        <DataTrigger TargetType="Entry" Binding="{Binding HasOptions}" Value="True">
+                                            <Setter Property="IsVisible" Value="False" />
+                                        </DataTrigger>
+                                    </Entry.Triggers>
+                                </Entry>
+                            </VerticalStackLayout>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+
+            <Button Text="Soumettre le quiz"
+                    Style="{StaticResource PremiumRoundedButton}"
+                    BackgroundColor="#6A3DDE"
+                    TextColor="White"
+                    Clicked="OnSubmitQuizClicked" />
+
+            <Border IsVisible="{Binding IsResultVisible}" Stroke="#DDD2FF" StrokeThickness="1" BackgroundColor="White" Padding="12" StrokeShape="RoundRectangle 14">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="Correction detaillee" FontAttributes="Bold" TextColor="#4023A9" FontSize="16" />
+                    <Label Text="{Binding ResultSummary}" FontAttributes="Bold" TextColor="#2F2565" />
+                    <CollectionView ItemsSource="{Binding CorrectionItems}" HeightRequest="280">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="local:QuizCorrectionItem">
+                                <Border BackgroundColor="#F7F4FF" Stroke="#E5DEFF" StrokeThickness="1" Padding="10" Margin="0,0,0,6" StrokeShape="RoundRectangle 12">
+                                    <VerticalStackLayout Spacing="3">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                            <Label Text="{Binding QuestionLabel}" FontAttributes="Bold" TextColor="#3F2B8D" />
+                                            <Label Grid.Column="1" Text="{Binding StatusLabel}" TextColor="{Binding StatusColor}" FontAttributes="Bold" />
+                                        </Grid>
+                                        <Label Text="{Binding ScoreLabel}" FontSize="12" TextColor="#5F5692" />
+                                        <Label Text="{Binding Explanation}" FontSize="12" TextColor="#4A426E" IsVisible="{Binding HasExplanation}" />
+                                    </VerticalStackLayout>
+                                </Border>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+                </VerticalStackLayout>
+            </Border>
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

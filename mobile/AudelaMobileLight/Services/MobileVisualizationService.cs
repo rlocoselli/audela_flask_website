@@ -272,6 +272,66 @@ public sealed class MobileVisualizationService
         return (false, "Impossible d'envoyer la demande d'abonnement module.");
     }
 
+    public async Task<MobileLearningModuleDetail?> GetLearningModuleDetailAsync(int moduleId, CancellationToken cancellationToken)
+    {
+        if (moduleId <= 0)
+        {
+            return null;
+        }
+
+        var payload = await GetFirstAsync<LearningModuleDetailPayload>($"/api/mobile/learning/modules/{moduleId}", cancellationToken);
+        return payload?.Module;
+    }
+
+    public async Task<MobileLearningQuizDetail?> GetLearningQuizDetailAsync(int quizId, CancellationToken cancellationToken)
+    {
+        if (quizId <= 0)
+        {
+            return null;
+        }
+
+        var payload = await GetFirstAsync<LearningQuizDetailPayload>($"/api/mobile/learning/quizzes/{quizId}", cancellationToken);
+        return payload?.Quiz;
+    }
+
+    public async Task<(bool Ok, string Message, MobileLearningQuizResult? Result)> SubmitLearningQuizAsync(int quizId, Dictionary<string, object> answers, CancellationToken cancellationToken)
+    {
+        if (quizId <= 0)
+        {
+            return (false, "Quiz invalide.", null);
+        }
+
+        var body = new
+        {
+            answers,
+        };
+
+        foreach (var baseUrl in BackendEndpoints.Candidates())
+        {
+            var endpoint = BuildUrl(baseUrl, $"/api/mobile/learning/quizzes/{quizId}/submit");
+            try
+            {
+                var response = await _httpClient.PostAsJsonAsync(endpoint, body, cancellationToken);
+                var payload = await response.Content.ReadFromJsonAsync<LearningQuizSubmitPayload>(cancellationToken: cancellationToken);
+                if (response.IsSuccessStatusCode && payload?.Ok == true)
+                {
+                    return (true, payload.Message, payload.Result);
+                }
+
+                if (payload is not null && !string.IsNullOrWhiteSpace(payload.Message))
+                {
+                    return (false, payload.Message, payload.Result);
+                }
+            }
+            catch
+            {
+                // try next endpoint
+            }
+        }
+
+        return (false, "Impossible de soumettre le quiz.", null);
+    }
+
     public async Task<(bool Ok, string Message)> AskAiAsync(string message, string dataSource, string language, CancellationToken cancellationToken)
     {
         var body = new
@@ -313,13 +373,32 @@ public sealed class MobileVisualizationService
         return payload?.Entries ?? [];
     }
 
-    public async Task<(bool Ok, string Message)> AddFinanceEntryAsync(string description, string category, double amount, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<MobileFinanceAccount>> GetFinanceAccountsAsync(CancellationToken cancellationToken)
+    {
+        var payload = await GetFirstAsync<FinanceAccountsPayload>("/api/mobile/finance/accounts", cancellationToken);
+        return payload?.Accounts ?? [];
+    }
+
+    public async Task<MobileFinanceCategoryReport> GetFinanceCategoryReportAsync(CancellationToken cancellationToken)
+    {
+        var payload = await GetFirstAsync<FinanceCategoryReportPayload>("/api/mobile/finance/category-report", cancellationToken);
+        return payload is null
+            ? new MobileFinanceCategoryReport()
+            : new MobileFinanceCategoryReport
+            {
+                Expenses = payload.Expenses,
+                Revenues = payload.Revenues,
+            };
+    }
+
+    public async Task<(bool Ok, string Message)> AddFinanceEntryAsync(string description, string category, double amount, int? accountId, CancellationToken cancellationToken)
     {
         var body = new
         {
             description,
             category,
             amount,
+            accountId,
         };
 
         foreach (var baseUrl in BackendEndpoints.Candidates())
@@ -460,10 +539,55 @@ public sealed class MobileVisualizationService
         public List<MobileLearningQuizSummary> Quizzes { get; set; } = [];
     }
 
+    private sealed class LearningModuleDetailPayload
+    {
+        [JsonPropertyName("ok")]
+        public bool Ok { get; set; }
+
+        [JsonPropertyName("module")]
+        public MobileLearningModuleDetail? Module { get; set; }
+    }
+
+    private sealed class LearningQuizDetailPayload
+    {
+        [JsonPropertyName("ok")]
+        public bool Ok { get; set; }
+
+        [JsonPropertyName("quiz")]
+        public MobileLearningQuizDetail? Quiz { get; set; }
+    }
+
+    private sealed class LearningQuizSubmitPayload
+    {
+        [JsonPropertyName("ok")]
+        public bool Ok { get; set; }
+
+        [JsonPropertyName("message")]
+        public string Message { get; set; } = string.Empty;
+
+        [JsonPropertyName("result")]
+        public MobileLearningQuizResult? Result { get; set; }
+    }
+
     private sealed class FinancePayload
     {
         [JsonPropertyName("entries")]
         public List<MobileFinanceEntry> Entries { get; set; } = [];
+    }
+
+    private sealed class FinanceAccountsPayload
+    {
+        [JsonPropertyName("accounts")]
+        public List<MobileFinanceAccount> Accounts { get; set; } = [];
+    }
+
+    private sealed class FinanceCategoryReportPayload
+    {
+        [JsonPropertyName("expenses")]
+        public List<MobileFinanceCategoryTotal> Expenses { get; set; } = [];
+
+        [JsonPropertyName("revenues")]
+        public List<MobileFinanceCategoryTotal> Revenues { get; set; } = [];
     }
 
     private sealed class BiDataSourcePayload

@@ -134,6 +134,26 @@ public partial class LearningPage : ContentPage
         await Navigation.PushAsync(new TenantAccountPage());
     }
 
+    private async void OnOpenModuleClicked(object? sender, EventArgs e)
+    {
+        if (sender is not Button button || button.CommandParameter is not MobileLearningLesson lesson)
+        {
+            return;
+        }
+
+        await Navigation.PushAsync(new LearningModuleDetailPage(lesson.ModuleId, lesson.ModuleTitle));
+    }
+
+    private async void OnStartQuizClicked(object? sender, EventArgs e)
+    {
+        if (sender is not Button button || button.CommandParameter is not MobileLearningQuizSummary quiz)
+        {
+            return;
+        }
+
+        await Navigation.PushAsync(new LearningQuizPage(quiz.Id, quiz.Title));
+    }
+
     private async Task SubmitSubscriptionIntentAsync(string planCode)
     {
         var (ok, message) = await _service.SubmitLearningSubscriptionIntentAsync(planCode, CancellationToken.None);
