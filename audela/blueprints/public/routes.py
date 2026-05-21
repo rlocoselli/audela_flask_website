@@ -1557,7 +1557,47 @@ def _mobile_dashboard_card_points(columns: list, rows: list, metric_index: int |
         if label_index is not None and label_index < len(row):
             x_value = str(row[label_index] or "")
         points.append({"x": x_value or str(len(points) + 1), "y": float(raw_value)})
+
+    if not points:
+        return []
+
+    max_y = max(abs(float(p.get("y") or 0.0)) for p in points) or 1.0
+    for point in points:
+        point["ratio"] = max(0.0, min(1.0, abs(float(point.get("y") or 0.0)) / max_y))
     return points
+
+
+def _mobile_viz_type_normalized(raw_type: str) -> str:
+    value = str(raw_type or "").strip().lower()
+    if "pie" in value or "donut" in value:
+        return "pie"
+    if "bar" in value or "hist" in value:
+        return "bar"
+    if "line" in value or "area" in value or "trend" in value:
+        return "line"
+    if "kpi" in value or "metric" in value or "gauge" in value or "number" in value:
+        return "kpi"
+    if "table" in value or "pivot" in value:
+        return "table"
+    return "table"
+
+
+def _mobile_table_preview(columns: list, rows: list) -> list[str]:
+    if not columns or not rows:
+        return []
+
+    preview = []
+    max_cols = min(3, len(columns))
+    for row in rows[:3]:
+        if not isinstance(row, (list, tuple)):
+            continue
+        cells = []
+        for idx in range(max_cols):
+            col_name = str(columns[idx] or "c")
+            col_value = row[idx] if idx < len(row) else ""
+            cells.append(f"{col_name}: {col_value}")
+        preview.append(" | ".join(cells))
+    return preview
 
 
 def _mobile_render_dashboard_card(tenant: Tenant, card: DashboardCard) -> dict:
@@ -1570,10 +1610,12 @@ def _mobile_render_dashboard_card(tenant: Tenant, card: DashboardCard) -> dict:
             "id": int(card.id),
             "title": f"Card {card.id}",
             "vizType": "unknown",
+            "vizTypeNormalized": "table",
             "sourceName": "",
             "primaryValue": "n/a",
             "secondaryValue": "Question not found",
             "points": [],
+            "previewRows": [],
         }
 
     source = DataSource.query.filter(
@@ -1585,15 +1627,18 @@ def _mobile_render_dashboard_card(tenant: Tenant, card: DashboardCard) -> dict:
             "id": int(card.id),
             "title": str(question.name or f"Question {question.id}"),
             "vizType": "unknown",
+            "vizTypeNormalized": "table",
             "sourceName": "",
             "primaryValue": "n/a",
             "secondaryValue": "Datasource not found",
             "points": [],
+            "previewRows": [],
         }
 
     cfg = card.viz_config_json if isinstance(card.viz_config_json, dict) else {}
     q_cfg = question.viz_config_json if isinstance(question.viz_config_json, dict) else {}
     viz_type = str(cfg.get("type") or q_cfg.get("type") or "table")
+    viz_type_normalized = _mobile_viz_type_normalized(viz_type)
 
     try:
         result = execute_sql(source, question.sql_text, params={"tenant_id": int(tenant.id)}, row_limit=24)
@@ -1622,35 +1667,42 @@ def _mobile_render_dashboard_card(tenant: Tenant, card: DashboardCard) -> dict:
                 primary_value = str(first_val or "n/a")
 
         points = _mobile_dashboard_card_points(columns, rows, metric_index)
+        preview_rows = _mobile_table_preview(columns, rows)
         secondary = f"{len(rows)} rows - {len(columns)} cols"
         return {
             "id": int(card.id),
             "title": str(question.name or f"Question {question.id}"),
             "vizType": viz_type,
+            "vizTypeNormalized": viz_type_normalized,
             "sourceName": str(source.name or ""),
             "primaryValue": primary_value,
             "secondaryValue": secondary,
             "points": points,
+            "previewRows": preview_rows,
         }
     except QueryExecutionError as exc:
         return {
             "id": int(card.id),
             "title": str(question.name or f"Question {question.id}"),
             "vizType": viz_type,
+            "vizTypeNormalized": viz_type_normalized,
             "sourceName": str(source.name or ""),
             "primaryValue": "n/a",
             "secondaryValue": str(exc),
             "points": [],
+            "previewRows": [],
         }
     except Exception:
         return {
             "id": int(card.id),
             "title": str(question.name or f"Question {question.id}"),
             "vizType": viz_type,
+            "vizTypeNormalized": viz_type_normalized,
             "sourceName": str(source.name or ""),
             "primaryValue": "n/a",
             "secondaryValue": "Card preview unavailable",
             "points": [],
+            "previewRows": [],
         }
 
 
@@ -1804,22 +1856,36 @@ def mobile_learning_content_data():
 @bp.route("/api/mobile/learning/quizzes")
 def mobile_learning_quizzes_data():
     rows = (
-        ELearningQuiz.query.filter(ELearningQuiz.is_active == True)
-        .order_by(ELearningQuiz.id.desc())
+        ELearningQuiz.query.join(ELearningLesson, ELearningQuiz.lesson_id == ELearningLesson.id)
+        .join(ELearningModule, ELearningLesson.module_id == ELearningModule.id)
+        .filter(ELearningQuiz.is_active == True, ELearningLesson.is_active == True, ELearningModule.is_active == True)
+        .order_by(ELearningModule.order.asc(), ELearningLesson.order.asc(), ELearningQuiz.order.asc(), ELearningQuiz.id.desc())
         .limit(30)
         .all()
     )
 
     payload = []
     for quiz in rows:
+        lesson = getattr(quiz, "lesson", None)
+        module = getattr(lesson, "module", None)
+        module_id = int(getattr(lesson, "module_id", 0) or 0)
+        module_code = str(getattr(module, "code", "") or "")
+        module_title_i18n = getattr(module, "title_i18n", {}) or {}
+        if not isinstance(module_title_i18n, dict):
+            module_title_i18n = {}
+
+        module_title = str(module_title_i18n.get("fr") or module_title_i18n.get("en") or module_code or "Module")
         title = str((quiz.title_i18n or {}).get("fr") or (quiz.title_i18n or {}).get("en") or quiz.code or "Quiz")
         question_count = len([q for q in (quiz.questions or []) if getattr(q, "is_active", True)])
         payload.append(
             {
                 "id": int(quiz.id),
+                "moduleId": module_id,
+                "moduleCode": module_code,
+                "moduleTitle": module_title,
                 "title": title,
                 "questionCount": int(question_count),
-                "passingScorePct": int(quiz.passing_score_pct or 70),
+                "passingScorePct": int(getattr(quiz, "pass_threshold", 70) or 70),
             }
         )
 
@@ -1877,8 +1943,50 @@ def mobile_learning_module_subscribe():
         module_code = str(resolved_module.code or module_code)
         module_title = str((resolved_module.title_i18n or {}).get("fr") or (resolved_module.title_i18n or {}).get("en") or resolved_module.code or module_title)
 
+    if resolved_module is None:
+        return jsonify({"ok": False, "message": "Module not found."}), 404
+
     if not module_code and not module_title:
         return jsonify({"ok": False, "message": "Module info is required."}), 400
+
+    target_user = None
+    if current_user and getattr(current_user, "is_authenticated", False):
+        if int(getattr(current_user, "tenant_id", 0) or 0) == int(tenant.id):
+            target_user = current_user
+
+    if target_user is None:
+        target_user = User.query.filter(User.tenant_id == int(tenant.id)).order_by(User.id.asc()).first()
+
+    enrollment_message = ""
+    if target_user is not None:
+        enrollment = UserELearningEnrollment.query.filter(
+            UserELearningEnrollment.user_id == int(target_user.id),
+            UserELearningEnrollment.module_id == int(resolved_module.id),
+        ).first()
+
+        now = datetime.utcnow()
+        if enrollment is None:
+            enrollment = UserELearningEnrollment(
+                user_id=int(target_user.id),
+                module_id=int(resolved_module.id),
+                status="in_progress",
+                progress_percentage=0,
+                overall_score=0,
+                enrolled_at=now,
+                started_at=now,
+            )
+            db.session.add(enrollment)
+            enrollment_message = "Enrollment created."
+        else:
+            if not str(enrollment.status or "").strip():
+                enrollment.status = "in_progress"
+            if enrollment.started_at is None:
+                enrollment.started_at = now
+            enrollment_message = "Already enrolled."
+
+        db.session.commit()
+    else:
+        enrollment_message = "No tenant user found for enrollment."
 
     current_app.logger.info(
         "Mobile learning module subscription tenant=%s module_code=%s module_title=%s",
@@ -1890,9 +1998,10 @@ def mobile_learning_module_subscribe():
     return jsonify(
         {
             "ok": True,
-            "message": f"Module subscription request received: {module_title or module_code}.",
+            "message": f"Module subscription active: {module_title or module_code}. {enrollment_message}",
             "moduleCode": module_code,
             "moduleTitle": module_title,
+            "moduleId": int(resolved_module.id),
         }
     )
 

@@ -25,6 +25,9 @@ public sealed class MobileLearningLesson
 public sealed class MobileLearningQuizSummary
 {
     public int Id { get; set; }
+    public int ModuleId { get; set; }
+    public string ModuleCode { get; set; } = string.Empty;
+    public string ModuleTitle { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public int QuestionCount { get; set; }
     public int PassingScorePct { get; set; }

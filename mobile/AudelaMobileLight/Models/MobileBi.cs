@@ -31,6 +31,7 @@ public sealed class MobileBiPoint
 {
     public string X { get; set; } = string.Empty;
     public double Y { get; set; }
+    public double Ratio { get; set; }
 }
 
 public sealed class MobileBiDashboardCard
@@ -38,10 +39,18 @@ public sealed class MobileBiDashboardCard
     public int Id { get; set; }
     public string Title { get; set; } = string.Empty;
     public string VizType { get; set; } = string.Empty;
+    public string VizTypeNormalized { get; set; } = "table";
     public string SourceName { get; set; } = string.Empty;
     public string PrimaryValue { get; set; } = string.Empty;
     public string SecondaryValue { get; set; } = string.Empty;
     public List<MobileBiPoint> Points { get; set; } = [];
+    public List<string> PreviewRows { get; set; } = [];
+
+    public bool IsKpi => VizTypeNormalized == "kpi";
+    public bool IsBar => VizTypeNormalized == "bar";
+    public bool IsPie => VizTypeNormalized == "pie";
+    public bool IsLine => VizTypeNormalized == "line";
+    public bool IsTable => VizTypeNormalized == "table";
 
     public string TrendLabel => Points.Count > 0 ? string.Join("  ", Points.Select(p => $"{p.X}:{p.Y:0.#}")) : "No points";
 }
