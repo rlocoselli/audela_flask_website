@@ -87,7 +87,7 @@
                                                     <DataTemplate x:DataType="model:MobileBiPoint">
                                                         <Grid ColumnDefinitions="72,*,44" ColumnSpacing="8">
                                                             <Label Text="{Binding X}" FontSize="11" TextColor="#446387" LineBreakMode="TailTruncation" />
-                                                            <BoxView Grid.Column="1" HeightRequest="3" CornerRadius="2" BackgroundColor="#14A38B" VerticalOptions="Center" HorizontalOptions="Fill" Opacity="{Binding Ratio}" />
+                                                            <ProgressBar Grid.Column="1" Progress="{Binding Ratio}" ProgressColor="#14A38B" />
                                                             <Label Grid.Column="2" Text="{Binding Y}" FontSize="11" TextColor="#163252" HorizontalTextAlignment="End" />
                                                         </Grid>
                                                     </DataTemplate>
@@ -114,7 +114,7 @@
                                             <Label Text="Table preview" FontSize="11" TextColor="#4D6E95" />
                                             <CollectionView ItemsSource="{Binding PreviewRows}" HeightRequest="110">
                                                 <CollectionView.ItemTemplate>
-                                                    <DataTemplate>
+                                                    <DataTemplate x:DataType="x:String">
                                                         <Label Text="{Binding .}" FontSize="11" TextColor="#32506F" LineBreakMode="TailTruncation" MaxLines="1" />
                                                     </DataTemplate>
                                                 </CollectionView.ItemTemplate>

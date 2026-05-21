@@ -39,18 +39,23 @@ public sealed class MobileBiDashboardCard
     public int Id { get; set; }
     public string Title { get; set; } = string.Empty;
     public string VizType { get; set; } = string.Empty;
-    public string VizTypeNormalized { get; set; } = "table";
+    private string _vizTypeNormalized = "table";
+    public string VizTypeNormalized
+    {
+        get => _vizTypeNormalized;
+        set => _vizTypeNormalized = string.IsNullOrWhiteSpace(value) ? "table" : value.Trim().ToLowerInvariant();
+    }
     public string SourceName { get; set; } = string.Empty;
     public string PrimaryValue { get; set; } = string.Empty;
     public string SecondaryValue { get; set; } = string.Empty;
     public List<MobileBiPoint> Points { get; set; } = [];
     public List<string> PreviewRows { get; set; } = [];
 
-    public bool IsKpi => VizTypeNormalized == "kpi";
-    public bool IsBar => VizTypeNormalized == "bar";
-    public bool IsPie => VizTypeNormalized == "pie";
-    public bool IsLine => VizTypeNormalized == "line";
-    public bool IsTable => VizTypeNormalized == "table";
+    public bool IsKpi => string.Equals(VizTypeNormalized, "kpi", StringComparison.OrdinalIgnoreCase);
+    public bool IsBar => string.Equals(VizTypeNormalized, "bar", StringComparison.OrdinalIgnoreCase);
+    public bool IsPie => string.Equals(VizTypeNormalized, "pie", StringComparison.OrdinalIgnoreCase);
+    public bool IsLine => string.Equals(VizTypeNormalized, "line", StringComparison.OrdinalIgnoreCase);
+    public bool IsTable => string.Equals(VizTypeNormalized, "table", StringComparison.OrdinalIgnoreCase);
 
     public string TrendLabel => Points.Count > 0 ? string.Join("  ", Points.Select(p => $"{p.X}:{p.Y:0.#}")) : "No points";
 }

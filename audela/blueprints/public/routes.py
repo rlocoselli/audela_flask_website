@@ -1566,22 +1566,111 @@ def _mobile_dashboard_card_points(columns: list, rows: list, metric_index: int |
 
     max_y = max(abs(float(str(p.get("y") or 0.0))) for p in points) or 1.0
     for point in points:
-        point["ratio"] = max(0.0, min(1.0, abs(float(str(point.get("y") or 0.0))) / max_y))
+        ratio = abs(float(str(point.get("y") or 0.0))) / max_y
+        point["ratio"] = max(0.08, min(1.0, ratio))
     return points
+
+
+def _mobile_fallback_points_for_chart(rows: list, metric_index: int | None) -> list[dict]:
+    if metric_index is None or not rows:
+        return []
+
+    first = rows[0]
+    if not isinstance(first, (list, tuple)) or metric_index >= len(first):
+        return []
+
+    raw_value = first[metric_index]
+    if not _mobile_is_number(raw_value):
+        return []
+
+    return [{"x": "value", "y": float(str(raw_value)), "ratio": 1.0}]
 
 
 def _mobile_viz_type_normalized(raw_type: str) -> str:
     value = str(raw_type or "").strip().lower()
-    if "pie" in value or "donut" in value:
+    if "pie" in value or "donut" in value or "ring" in value:
         return "pie"
     if "bar" in value or "hist" in value:
         return "bar"
-    if "line" in value or "area" in value or "trend" in value:
+    if "line" in value or "area" in value or "trend" in value or "time" in value or "series" in value or "scatter" in value or "spark" in value:
         return "line"
-    if "kpi" in value or "metric" in value or "gauge" in value or "number" in value:
+    if "kpi" in value or "metric" in value or "gauge" in value or "number" in value or "single" in value or "scorecard" in value:
         return "kpi"
     if "table" in value or "pivot" in value:
         return "table"
+    return "table"
+
+
+def _mobile_extract_viz_type(cfg: dict, q_cfg: dict) -> str:
+    def pick_type(source: dict) -> str:
+        if not isinstance(source, dict):
+            return ""
+
+        direct_keys = (
+            "type",
+            "vizType",
+            "viz_type",
+            "chartType",
+            "chart_type",
+            "visualization",
+        )
+        for key in direct_keys:
+            raw = source.get(key)
+            if isinstance(raw, str) and raw.strip():
+                return raw.strip()
+
+        nested_keys = ("viz", "chart", "config")
+        for key in nested_keys:
+            nested = source.get(key)
+            if isinstance(nested, dict):
+                nested_type = pick_type(nested)
+                if nested_type:
+                    return nested_type
+        return ""
+
+    return pick_type(cfg) or pick_type(q_cfg) or "table"
+
+
+def _mobile_infer_viz_type(columns: list, rows: list) -> str:
+    if not columns or not rows:
+        return "table"
+
+    sample_rows = [r for r in rows[:200] if isinstance(r, (list, tuple))]
+    if not sample_rows:
+        return "table"
+
+    numeric_idx: list[int] = []
+    text_idx: list[int] = []
+    time_idx: list[int] = []
+
+    for idx, col_name in enumerate(columns):
+        values = [r[idx] for r in sample_rows if idx < len(r)]
+        non_null = [v for v in values if v not in (None, "")]
+        if not non_null:
+            continue
+
+        numeric_hits = sum(1 for v in non_null if _mobile_is_number(v))
+        ratio = numeric_hits / max(1, len(non_null))
+
+        low_name = str(col_name or "").strip().lower()
+        looks_time = any(tok in low_name for tok in ("date", "time", "month", "year", "period", "week", "day", "annee", "mois"))
+        if looks_time:
+            time_idx.append(idx)
+
+        if ratio >= 0.8:
+            numeric_idx.append(idx)
+        else:
+            text_idx.append(idx)
+
+    dim_idx = time_idx[0] if time_idx else (text_idx[0] if text_idx else -1)
+    metric_idx = next((i for i in numeric_idx if i != dim_idx), (numeric_idx[0] if numeric_idx else -1))
+
+    if metric_idx >= 0 and dim_idx >= 0 and metric_idx != dim_idx:
+        return "line" if dim_idx in time_idx else "bar"
+
+    if metric_idx >= 0 and len(sample_rows) <= 2:
+        return "kpi"
+
     return "table"
 
 
@@ -1640,7 +1729,7 @@ def _mobile_render_dashboard_card(tenant: Tenant, card: DashboardCard) -> dict:
 
     cfg = card.viz_config_json if isinstance(card.viz_config_json, dict) else {}
     q_cfg = question.viz_config_json if isinstance(question.viz_config_json, dict) else {}
-    viz_type = str(cfg.get("type") or q_cfg.get("type") or "table")
+    viz_type = _mobile_extract_viz_type(cfg, q_cfg)
     viz_type_normalized = _mobile_viz_type_normalized(viz_type)
 
     try:
@@ -1673,6 +1762,15 @@ def _mobile_render_dashboard_card(tenant: Tenant, card: DashboardCard) -> dict:
 
         points = _mobile_dashboard_card_points(columns, rows, metric_index)
         preview_rows = _mobile_table_preview(columns, rows)
+
+        # Fallback to data-driven inference when viz config is absent or generic.
+        if viz_type_normalized == "table":
+            viz_type_normalized = _mobile_infer_viz_type(columns, rows)
+
+        # If card is chart-like but points extraction failed, provide a single renderable point.
+        if viz_type_normalized in ("bar", "line", "pie") and not points:
+            points = _mobile_fallback_points_for_chart(rows, metric_index)
+
         secondary = f"{len(rows)} rows - {len(columns)} cols"
         return {
             "id": int(card.id),
