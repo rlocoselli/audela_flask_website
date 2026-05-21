@@ -17,6 +17,7 @@ public partial class DashboardPage : ContentPage
     public string ActiveSourceLabel { get; private set; } = "-";
     public string DashboardCountLabel { get; private set; } = "0";
     public string QueryRunCountLabel { get; private set; } = "0";
+    public bool IsBiEmptyStateVisible { get; private set; }
     public bool IsLoading { get; private set; }
 
     public DashboardPage()
@@ -71,11 +72,22 @@ public partial class DashboardPage : ContentPage
                 OnPropertyChanged(nameof(SelectedBiDataSource));
             }
             ActiveSourceLabel = SelectedBiDataSource?.DisplayName ?? "-";
+            IsBiEmptyStateVisible = BiDataSources.Count == 0 || BiDashboards.Count == 0;
+
+            if (IsBiEmptyStateVisible)
+            {
+                var hint = "BI non configure: ajoute une datasource et un dashboard dans la configuration web.";
+                if (!AiMessages.Any(m => !m.IsUser && string.Equals(m.Text, hint, StringComparison.OrdinalIgnoreCase)))
+                {
+                    AiMessages.Insert(0, new MobileAiChatMessage { IsUser = false, Text = hint });
+                }
+            }
 
             OnPropertyChanged(nameof(BiDataSourceCountLabel));
             OnPropertyChanged(nameof(ActiveSourceLabel));
             OnPropertyChanged(nameof(DashboardCountLabel));
             OnPropertyChanged(nameof(QueryRunCountLabel));
+            OnPropertyChanged(nameof(IsBiEmptyStateVisible));
         }
         finally
         {
@@ -117,6 +129,11 @@ public partial class DashboardPage : ContentPage
     private async void OnRefreshDashboardClicked(object? sender, EventArgs e)
     {
         await LoadAsync();
+    }
+
+    private async void OnOpenBiSetupClicked(object? sender, EventArgs e)
+    {
+        await Navigation.PushAsync(new ConfigurationPage());
     }
 
     private string ResolveSelectedSourceCode()

@@ -2225,7 +2225,12 @@ def mobile_ai_chat():
 
     ai_result = analyze_with_ai(context_bundle, message, history=history, lang=lang)
     if isinstance(ai_result, dict) and ai_result.get("error"):
-        return jsonify({"ok": False, "message": str(ai_result.get("error") or "AI unavailable")}), 400
+        fallback = (
+            f"Assistant BI indisponible pour le moment ({str(ai_result.get('error') or 'runtime')}). "
+            f"Tenant={tenant_label}, source={ds_label}, dashboards={int(metrics.get('dashboardCount', 0) or 0)}, "
+            f"queryRuns={int(metrics.get('queryRunCount', 0) or 0)}."
+        )
+        return jsonify({"ok": True, "message": fallback})
 
     analysis = str((ai_result or {}).get("analysis") or "").strip()
     followups = (ai_result or {}).get("followups") if isinstance((ai_result or {}).get("followups"), list) else []

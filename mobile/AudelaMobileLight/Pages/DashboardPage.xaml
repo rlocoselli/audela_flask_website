@@ -120,6 +120,20 @@
                 </VerticalStackLayout>
             </Border>
 
+            <Border IsVisible="{Binding IsBiEmptyStateVisible}" Stroke="#D8E3F6" StrokeThickness="1" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 16">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="BI n'est pas configure pour ce tenant" FontAttributes="Bold" TextColor="#12304B" FontSize="15" />
+                    <Label Text="Ajoute au moins une datasource et un dashboard dans la configuration web pour afficher du contenu ici."
+                           TextColor="#4C6588"
+                           FontSize="12" />
+                    <Button Text="Ouvrir configuration"
+                            Style="{StaticResource PremiumRoundedButton}"
+                            BackgroundColor="#2D5CE6"
+                            TextColor="White"
+                            Clicked="OnOpenBiSetupClicked" />
+                </VerticalStackLayout>
+            </Border>
+
             <Border x:Name="AiCard" StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 16">
                 <VerticalStackLayout Spacing="8">
                     <Label Text="AI Assistant" FontAttributes="Bold" FontSize="17" TextColor="#0F1F3A" />
