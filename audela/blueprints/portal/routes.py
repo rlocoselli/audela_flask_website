@@ -1439,10 +1439,14 @@ def bi_lite_studio():
         .all()
     )
 
+    ai_runtime = resolve_ai_runtime_config(default_model="gpt-4o-mini")
+    ai_model_label = f"{ai_runtime.get('provider', 'openai').upper()} · {ai_runtime.get('model', 'gpt-4o-mini')}"
+
     return render_template(
         "portal/bi_lite_studio.html",
         tenant=g.tenant,
         sources=sources,
+        ai_model_label=ai_model_label,
     )
 
 
@@ -9628,6 +9632,8 @@ def api_ai_studio_run():
                 "mode": "questions" if selected_question_ids else ("all" if full_table_selection or not selected_tables else "tables"),
             },
             "source": {"id": source.id, "name": source.name},
+            "ai_model": str((ai or {}).get("model") or "gpt-4o-mini"),
+            "ai_provider": str((ai or {}).get("provider") or "openai"),
         }
     )
 

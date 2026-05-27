@@ -2379,7 +2379,27 @@ def mobile_ai_chat():
     if not analysis:
         analysis = "AI assistant response unavailable."
 
-    return jsonify({"ok": True, "message": analysis})
+    ai_model_name = str((ai_result or {}).get("model") or "gpt-4o-mini")
+    ai_provider_name = str((ai_result or {}).get("provider") or "openai")
+
+    return jsonify({"ok": True, "message": analysis, "model": ai_model_name, "provider": ai_provider_name})
+
+
+@bp.route("/api/mobile/profile/ai-info")
+def mobile_profile_ai_info():
+    """Return the AI model configured for this tenant profile."""
+    from ...services.ai_runtime_config import resolve_ai_runtime_config as _rac
+    tenant = _mobile_resolve_tenant_from_query()
+    if tenant is not None:
+        from flask import g as _g
+        _g.tenant = tenant
+    runtime = _rac(default_model="gpt-4o-mini")
+    return jsonify({
+        "ok": True,
+        "model": runtime.get("model") or "gpt-4o-mini",
+        "provider": runtime.get("provider") or "openai",
+        "label": f"{(runtime.get('provider') or 'openai').upper()} · {runtime.get('model') or 'gpt-4o-mini'}",
+    })
 
 
 @bp.route("/api/mobile/finance/accounts")

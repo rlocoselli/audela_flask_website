@@ -1685,24 +1685,40 @@
 
       addMessage(logEl, 'user', message);
       setStatus(t('Analyzing...'));
+      const analyzingBadge = document.getElementById('studioAnalyzingBadge');
+      const analyzingLabel = document.getElementById('studioAnalyzingLabel');
+      if (analyzingBadge) analyzingBadge.style.display = '';
 
-      const payload = await fetchJson('/app/api/ai/studio/run', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(csrfToken() ? { 'X-CSRFToken': csrfToken() } : {})
-        },
-        body: JSON.stringify({
-          source_id: sourceId,
-          message,
-          attached_file_ids: selectedFileIds(),
-          use_memory: true,
-          style_guide: activeStyleGuide()
-        })
-      });
+      let payload;
+      try {
+        payload = await fetchJson('/app/api/ai/studio/run', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(csrfToken() ? { 'X-CSRFToken': csrfToken() } : {})
+          },
+          body: JSON.stringify({
+            source_id: sourceId,
+            message,
+            attached_file_ids: selectedFileIds(),
+            use_memory: true,
+            style_guide: activeStyleGuide()
+          })
+        });
+      } finally {
+        if (analyzingBadge) analyzingBadge.style.display = 'none';
+      }
 
-      const analysis = String(payload.analysis || t('No analysis returned.'));
+      // Update model badge with actual model used
+      const aiModel = String(payload.ai_model || '');
+      const aiProvider = String(payload.ai_provider || '');
+      if (aiModel) {
+        const staticBadge = analyzingBadge && analyzingBadge.previousElementSibling;
+        if (staticBadge && staticBadge.classList.contains('badge')) {
+          staticBadge.innerHTML = `<i class="fas fa-robot me-1" style="font-size:.7rem;"></i>${aiProvider ? aiProvider.toUpperCase() + ' \u00b7 ' : ''}${aiModel}`;
+        }
+      }
       addMessage(logEl, 'assistant', analysis);
       sqlEl.textContent = String(payload.sql || '--');
       renderCharts(payload.charts || []);

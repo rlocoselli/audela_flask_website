@@ -393,6 +393,17 @@
     <div>
       <h1 class="h4 mb-1">{{ _('BI Lite Studio') }}</h1>
       <div class="text-secondary small">{{ _('Simple guided chat to generate charts, statistics, dashboards, PDF, Excel and PowerPoint from your data.') }}</div>
+      {% if ai_model_label is defined and ai_model_label %}
+      <div class="mt-1">
+        <span class="badge rounded-pill bg-dark bg-opacity-75 px-2 py-1" style="font-size:.75rem;letter-spacing:.5px;">
+          <i class="fas fa-robot me-1" style="font-size:.7rem;"></i>{{ ai_model_label }}
+        </span>
+        <span id="studioAnalyzingBadge" class="badge rounded-pill bg-primary px-2 py-1 ms-1" style="font-size:.75rem;display:none;">
+          <span class="spinner-border spinner-border-sm me-1" role="status" style="width:.65rem;height:.65rem;"></span>
+          <span id="studioAnalyzingLabel">{{ _('Analyzing...') }}</span>
+        </span>
+      </div>
+      {% endif %}
     </div>
     <div class="d-flex gap-2">
       <a class="btn btn-outline-secondary btn-sm" href="{{ _p('portal.bi_lite_classic') }}">{{ _('Back to BI Lite') }}</a>

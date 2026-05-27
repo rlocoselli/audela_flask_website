@@ -52,7 +52,13 @@ public partial class AiChatPage : ContentPage
         var selected = BiDataSources.FirstOrDefault(x => string.Equals(x.Token, _defaultSourceToken, StringComparison.OrdinalIgnoreCase));
         SelectedBiDataSource = selected ?? BiDataSources.FirstOrDefault();
         OnPropertyChanged(nameof(SelectedBiDataSource));
+
+        var (model, _, label) = await _service.GetAiProfileInfoAsync(CancellationToken.None);
+        _aiModelName = model;
+        AiModelLabel.Text = label;
     }
+
+    private string _aiModelName = string.Empty;
 
     private async void OnAskAiClicked(object? sender, EventArgs e)
     {
@@ -65,13 +71,33 @@ public partial class AiChatPage : ContentPage
         AiMessages.Insert(0, new MobileAiChatMessage { IsUser = true, Text = question });
         AiQuestionEntry.Text = string.Empty;
 
-        var source = SelectedBiDataSource?.Token ?? string.Empty;
-        var (ok, answer) = await _service.AskAiAsync(question, source, MobileLocalizer.CurrentLanguage, CancellationToken.None);
-        AiMessages.Insert(0, new MobileAiChatMessage
+        AiThinkingLabel.Text = string.IsNullOrWhiteSpace(_aiModelName)
+            ? "⏳ Analyzing..."
+            : $"⏳ {_aiModelName} is analyzing...";
+        AiThinkingLabel.IsVisible = true;
+        AskAiButton.IsEnabled = false;
+
+        try
         {
-            IsUser = false,
-            Text = ok ? answer : $"AI indisponible: {answer}",
-        });
+            var source = SelectedBiDataSource?.Token ?? string.Empty;
+            var (ok, answer, model) = await _service.AskAiAsync(question, source, MobileLocalizer.CurrentLanguage, CancellationToken.None);
+            if (!string.IsNullOrWhiteSpace(model))
+            {
+                _aiModelName = model;
+                AiModelLabel.Text = model.ToUpperInvariant();
+            }
+
+            AiMessages.Insert(0, new MobileAiChatMessage
+            {
+                IsUser = false,
+                Text = ok ? answer : $"AI indisponible: {answer}",
+            });
+        }
+        finally
+        {
+            AiThinkingLabel.IsVisible = false;
+            AskAiButton.IsEnabled = true;
+        }
     }
 
     private void OnAiQuestionCompleted(object? sender, EventArgs e)

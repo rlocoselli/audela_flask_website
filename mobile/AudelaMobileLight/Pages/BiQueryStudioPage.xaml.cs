@@ -11,6 +11,10 @@ public class BiQueryStudioPage : ContentPage
     private readonly string _defaultSourceToken;
     private readonly Picker _dataSourcePicker;
     private readonly Editor _sqlEditor;
+    private readonly Label _aiModelLabel;
+    private readonly Label _nlModeLabel;
+    private readonly Switch _nlSwitch;
+    private string _aiModelName = string.Empty;
 
     public ObservableCollection<MobileBiDataSource> BiDataSources { get; } = [];
     public ObservableCollection<string> ResultRows { get; } = [];
@@ -41,7 +45,33 @@ public class BiQueryStudioPage : ContentPage
             Placeholder = "SELECT * FROM your_table LIMIT 20",
             AutoSize = EditorAutoSizeOption.TextChanges,
             Text = "SELECT 1 AS value",
+            TextColor = Colors.White,
+            PlaceholderColor = Color.FromArgb("#8FADD4"),
+            BackgroundColor = Color.FromArgb("#0F2A55"),
         };
+
+        _aiModelLabel = new Label
+        {
+            Text = "",
+            FontSize = 11,
+            TextColor = Color.FromArgb("#8FD3FF"),
+        };
+
+        _nlModeLabel = new Label
+        {
+            Text = "Natural language (AI)",
+            FontSize = 12,
+            TextColor = Color.FromArgb("#C7DAFF"),
+            VerticalTextAlignment = TextAlignment.Center,
+        };
+
+        _nlSwitch = new Switch
+        {
+            IsToggled = false,
+            OnColor = Color.FromArgb("#3B82F6"),
+            ThumbColor = Colors.White,
+        };
+        _nlSwitch.Toggled += OnNlSwitchToggled;
 
         var runButton = new Button
         {
@@ -144,6 +174,7 @@ public class BiQueryStudioPage : ContentPage
                             {
                                 new Label { Text = "Query Studio", FontSize = 22, FontAttributes = FontAttributes.Bold, TextColor = Colors.White },
                                 new Label { Text = "Execute read-only SQL queries against BI datasources.", FontSize = 12, TextColor = Color.FromArgb("#C7DAFF") },
+                                _aiModelLabel,
                                 _dataSourcePicker,
                                 new Border
                                 {
@@ -151,7 +182,17 @@ public class BiQueryStudioPage : ContentPage
                                     BackgroundColor = Color.FromArgb("#0F327A"),
                                     Padding = new Thickness(8, 4),
                                     StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(10) },
-                                    Content = new Label { Text = "Readonly mode", FontSize = 11, TextColor = Color.FromArgb("#D7E4FF") },
+                                    Content = new HorizontalStackLayout
+                                    {
+                                        Spacing = 10,
+                                        VerticalOptions = LayoutOptions.Center,
+                                        Children =
+                                        {
+                                            new Label { Text = "Readonly mode", FontSize = 11, TextColor = Color.FromArgb("#D7E4FF"), VerticalTextAlignment = TextAlignment.Center, HorizontalOptions = LayoutOptions.StartAndExpand },
+                                            _nlModeLabel,
+                                            _nlSwitch,
+                                        },
+                                    },
                                 },
                                 _sqlEditor,
                                 runRow,
@@ -193,7 +234,12 @@ public class BiQueryStudioPage : ContentPage
         {
             foreach (var child in layout.Children)
             {
-                var result = FindVisualChild(child, predicate);
+                if (child is not Element childElement)
+                {
+                    continue;
+                }
+
+                var result = FindVisualChild(childElement, predicate);
                 if (result is not null) return result;
             }
         }
@@ -223,6 +269,20 @@ public class BiQueryStudioPage : ContentPage
         var selected = BiDataSources.FirstOrDefault(x => string.Equals(x.Token, _defaultSourceToken, StringComparison.OrdinalIgnoreCase));
         SelectedBiDataSource = selected ?? BiDataSources.FirstOrDefault();
         OnPropertyChanged(nameof(SelectedBiDataSource));
+
+        var (model, _, label) = await _service.GetAiProfileInfoAsync(CancellationToken.None);
+        _aiModelName = model;
+        _aiModelLabel.Text = label;
+    }
+
+    private void OnNlSwitchToggled(object? sender, ToggledEventArgs e)
+    {
+        UseNaturalLanguage = e.Value;
+        _nlModeLabel.Text = e.Value ? "Natural language (AI) ✓" : "Natural language (AI)";
+        _sqlEditor.Placeholder = e.Value
+            ? "Describe what you want in plain language, e.g. 'What is total revenue by month?'"
+            : "SELECT * FROM your_table LIMIT 20";
+        _sqlEditor.Text = string.Empty;
     }
 
     private async void OnRunQueryClicked(object? sender, EventArgs e)
@@ -230,15 +290,59 @@ public class BiQueryStudioPage : ContentPage
         string sql;
         if (UseNaturalLanguage)
         {
-            var nlQuestionEntry = FindVisualChild<Entry>(this, e => e.Placeholder?.Contains("What is total") == true);
-            if (nlQuestionEntry is null || string.IsNullOrWhiteSpace(nlQuestionEntry.Text))
+            var nlQuery = _sqlEditor.Text?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(nlQuery))
             {
-                QueryStatus = "Natural language is required.";
+                QueryStatus = "Natural language query is required.";
                 OnPropertyChanged(nameof(QueryStatus));
                 return;
             }
-            sql = $"SELECT 1 AS value";
-            QueryStatus = $"NL Query: '{nlQuestionEntry.Text}' (executing as sample)";
+
+            if (SelectedBiDataSource is null)
+            {
+                QueryStatus = "No BI datasource selected.";
+                OnPropertyChanged(nameof(QueryStatus));
+                return;
+            }
+
+            try
+            {
+                IsLoading = true;
+                var label = string.IsNullOrWhiteSpace(_aiModelName)
+                    ? "AI is analyzing..."
+                    : $"⏳ {_aiModelName} is analyzing...";
+                QueryStatus = label;
+                OnPropertyChanged(nameof(IsLoading));
+                OnPropertyChanged(nameof(QueryStatus));
+
+                var (ok, answer, model) = await _service.AskAiAsync(nlQuery, SelectedBiDataSource.Token, MobileLocalizer.CurrentLanguage, CancellationToken.None);
+                if (!string.IsNullOrWhiteSpace(model))
+                {
+                    _aiModelName = model;
+                    _aiModelLabel.Text = model.ToUpperInvariant();
+                }
+
+                QueryStatus = ok ? "AI analysis complete." : $"AI error: {answer}";
+                ResultRows.Clear();
+                if (ok && !string.IsNullOrWhiteSpace(answer))
+                {
+                    foreach (var line in answer.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        ResultRows.Add(line);
+                    }
+                }
+
+                ColumnsPreview = "AI Analysis";
+                OnPropertyChanged(nameof(ColumnsPreview));
+                OnPropertyChanged(nameof(QueryStatus));
+            }
+            finally
+            {
+                IsLoading = false;
+                OnPropertyChanged(nameof(IsLoading));
+            }
+
+            return;
         }
         else
         {

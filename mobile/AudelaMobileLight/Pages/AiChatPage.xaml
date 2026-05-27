@@ -17,6 +17,8 @@
             </Border.Background>
             <VerticalStackLayout Spacing="8">
                 <Label Text="Assistant AI" FontAttributes="Bold" FontSize="22" TextColor="#FFFFFF" />
+                <Label x:Name="AiModelLabel" Text="" FontSize="11" TextColor="#8FD3FF" />
+                <Label x:Name="AiThinkingLabel" Text="" FontSize="11" TextColor="#FFD580" IsVisible="False" />
                 <Label x:Name="AiSourceLabel" Text="Source des donnees AI" FontSize="12" TextColor="#C7DAFF" />
                 <Picker x:Name="AiSourcePicker"
                         TextColor="#FFFFFF"

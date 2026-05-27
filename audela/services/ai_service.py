@@ -197,6 +197,8 @@ def analyze_with_ai(
         "analysis": analysis,
         "charts": safe_charts,
         "followups": safe_followups,
+        "model": model,
+        "provider": runtime.get("provider") or "openai",
     }
 
     # Optional pass-through for extra structured keys requested by a caller.

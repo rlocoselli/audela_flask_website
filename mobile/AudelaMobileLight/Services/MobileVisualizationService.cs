@@ -397,7 +397,7 @@ public sealed class MobileVisualizationService
         return (false, "Impossible de soumettre le quiz.", null);
     }
 
-    public async Task<(bool Ok, string Message)> AskAiAsync(string message, string dataSource, string language, CancellationToken cancellationToken)
+    public async Task<(bool Ok, string Message, string Model)> AskAiAsync(string message, string dataSource, string language, CancellationToken cancellationToken)
     {
         var body = new
         {
@@ -415,12 +415,12 @@ public sealed class MobileVisualizationService
                 var payload = await response.Content.ReadFromJsonAsync<AiChatPayload>(cancellationToken: cancellationToken);
                 if (response.IsSuccessStatusCode && payload is not null && payload.Ok)
                 {
-                    return (true, payload.Message);
+                    return (true, payload.Message, payload.Model);
                 }
 
                 if (payload is not null && !string.IsNullOrWhiteSpace(payload.Message))
                 {
-                    return (false, payload.Message);
+                    return (false, payload.Message, string.Empty);
                 }
             }
             catch
@@ -429,7 +429,20 @@ public sealed class MobileVisualizationService
             }
         }
 
-        return (false, "Assistant AI indisponible pour le moment.");
+        return (false, "Assistant AI indisponible pour le moment.", string.Empty);
+    }
+
+    public async Task<(string Model, string Provider, string Label)> GetAiProfileInfoAsync(CancellationToken cancellationToken)
+    {
+        var payload = await GetFirstAsync<AiProfileInfoPayload>(
+            ["/api/mobile/profile/ai-info", "/tenant/api/mobile/profile/ai-info"],
+            cancellationToken);
+        if (payload is null)
+        {
+            return ("gpt-4o-mini", "openai", "OPENAI · gpt-4o-mini");
+        }
+
+        return (payload.Model, payload.Provider, payload.Label);
     }
 
     public async Task<IReadOnlyList<MobileFinanceEntry>> GetFinanceEntriesAsync(CancellationToken cancellationToken)
@@ -732,6 +745,27 @@ public sealed class MobileVisualizationService
 
         [JsonPropertyName("message")]
         public string Message { get; set; } = string.Empty;
+
+        [JsonPropertyName("model")]
+        public string Model { get; set; } = string.Empty;
+
+        [JsonPropertyName("provider")]
+        public string Provider { get; set; } = string.Empty;
+    }
+
+    private sealed class AiProfileInfoPayload
+    {
+        [JsonPropertyName("ok")]
+        public bool Ok { get; set; }
+
+        [JsonPropertyName("model")]
+        public string Model { get; set; } = "gpt-4o-mini";
+
+        [JsonPropertyName("provider")]
+        public string Provider { get; set; } = "openai";
+
+        [JsonPropertyName("label")]
+        public string Label { get; set; } = "OPENAI · gpt-4o-mini";
     }
 
     private sealed class FinanceSummaryPayload
