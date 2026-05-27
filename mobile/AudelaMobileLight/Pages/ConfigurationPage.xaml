@@ -6,34 +6,53 @@
              x:DataType="local:ConfigurationPage"
              Title="Configuration">
 
-    <ScrollView>
+    <ScrollView BackgroundColor="#EEF3FB">
         <VerticalStackLayout Padding="16" Spacing="12">
-             <Label x:Name="ConfigTitleLabel"
-                 Text="Configuration"
-                   FontSize="24"
-                   FontAttributes="Bold" />
-             <Label x:Name="NativeModeLabel"
-                 Text="Mode natif actif: BI, Kanban, Finance et Learning utilisent des composants natifs."
-                   TextColor="#44617D" />
+            <Border Stroke="#D8E5F3" StrokeThickness="1" Padding="16" StrokeShape="RoundRectangle 22">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#0A1C33" Offset="0.0" />
+                        <GradientStop Color="#0B74D1" Offset="1.0" />
+                    </LinearGradientBrush>
+                </Border.Background>
+                <VerticalStackLayout Spacing="4">
+                    <Label x:Name="ConfigTitleLabel"
+                           Text="Configuration"
+                           FontSize="24"
+                           FontAttributes="Bold"
+                           TextColor="#FFFFFF" />
+                    <Label x:Name="NativeModeLabel"
+                           Text="Mode natif actif: BI, Kanban, Finance et Learning utilisent des composants natifs."
+                           TextColor="#D7EAFF" />
+                </VerticalStackLayout>
+            </Border>
 
-             <Label x:Name="LanguageLabel"
-                 Text="Langue"
-                 FontAttributes="Bold"
-                 TextColor="#17314A" />
-             <Picker x:Name="LanguagePicker"
-                  ItemsSource="{Binding LanguageDisplayValues}"
-                  SelectedItem="{Binding SelectedLanguageDisplay}" />
+            <Border Stroke="#D8E5F3" StrokeThickness="1" BackgroundColor="#FFFFFF" Padding="14" StrokeShape="RoundRectangle 18">
+                <VerticalStackLayout Spacing="8">
+                    <Label x:Name="LanguageLabel"
+                           Text="Langue"
+                           FontAttributes="Bold"
+                           FontSize="14"
+                           TextColor="#17314A" />
+                    <Picker x:Name="LanguagePicker"
+                            ItemsSource="{Binding LanguageDisplayValues}"
+                            SelectedItem="{Binding SelectedLanguageDisplay}" />
+                </VerticalStackLayout>
+            </Border>
 
-             <Button x:Name="TenantAccountButton"
-                  Text="Mon compte tenant"
-                   ImageSource="tab_config.svg"
-                   ContentLayout="Left,10"
-                   Style="{StaticResource IconActionButton}"
+            <Button x:Name="TenantAccountButton"
+                    Text="Mon compte tenant"
+                    ImageSource="tab_config.svg"
+                    ContentLayout="Left,10"
+                    Style="{StaticResource IconActionButton}"
+                    BackgroundColor="#E8F1FB"
+                    TextColor="#12304B"
                     Clicked="OnOpenTenantAccountClicked" />
 
-            <Border StrokeThickness="0" BackgroundColor="#F4F8FE" Padding="12" StrokeShape="RoundRectangle 12">
-              <Label x:Name="OAuthInfoLabel"
-                  Text="Seule exception web: redirection Google OAuth pendant l'authentification." />
+            <Border Stroke="#D8E5F3" StrokeThickness="1" BackgroundColor="#FFFFFF" Padding="12" StrokeShape="RoundRectangle 18">
+                <Label x:Name="OAuthInfoLabel"
+                       Text="Seule exception web: redirection Google OAuth pendant l'authentification."
+                       TextColor="#44617D" />
             </Border>
         </VerticalStackLayout>
     </ScrollView>

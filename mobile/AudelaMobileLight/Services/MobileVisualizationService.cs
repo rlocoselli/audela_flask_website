@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using AudelaMobileLight.Models;
 
@@ -53,6 +54,70 @@ public sealed class MobileVisualizationService
             ],
             cancellationToken);
         return payload?.Dashboard;
+    }
+
+    public async Task<(bool Ok, string Message, MobileBiQueryResult? Result)> ExecuteBiQueryAsync(
+        string sql,
+        string dataSourceToken,
+        int rowLimit,
+        CancellationToken cancellationToken)
+    {
+        var body = new
+        {
+            sql,
+            dataSource = dataSourceToken,
+            rowLimit = Math.Clamp(rowLimit, 1, 200),
+        };
+
+        foreach (var baseUrl in BackendEndpoints.Candidates())
+        {
+            foreach (var path in new[] { "/api/mobile/bi/query", "/tenant/api/mobile/bi/query" })
+            {
+                var endpoint = BuildUrl(baseUrl, path);
+                try
+                {
+                    var response = await _httpClient.PostAsJsonAsync(endpoint, body, cancellationToken);
+                    var payload = await response.Content.ReadFromJsonAsync<BiQueryPayload>(cancellationToken: cancellationToken);
+                    if (response.IsSuccessStatusCode && payload is not null && payload.Ok)
+                    {
+                        var result = new MobileBiQueryResult
+                        {
+                            Columns = payload.Columns ?? [],
+                            ElapsedMs = payload.ElapsedMs,
+                        };
+
+                        if (payload.Rows is not null)
+                        {
+                            foreach (var row in payload.Rows)
+                            {
+                                var mappedRow = new List<string>();
+                                foreach (var cell in row)
+                                {
+                                    mappedRow.Add(ReadJsonCell(cell));
+                                }
+                                result.Rows.Add(mappedRow);
+                            }
+                        }
+
+                        var message = string.IsNullOrWhiteSpace(payload.Message)
+                            ? $"{result.Rows.Count} row(s) returned in {result.ElapsedMs} ms"
+                            : payload.Message;
+                        return (true, message, result);
+                    }
+
+                    if (payload is not null && !string.IsNullOrWhiteSpace(payload.Message))
+                    {
+                        return (false, payload.Message, null);
+                    }
+                }
+                catch
+                {
+                    // try next endpoint candidate
+                }
+            }
+        }
+
+        return (false, "Query service unavailable.", null);
     }
 
     public async Task<IReadOnlyList<MobileKanbanColumn>> GetKanbanAsync(CancellationToken cancellationToken)
@@ -494,6 +559,19 @@ public sealed class MobileVisualizationService
         return $"{baseUrl}{path}";
     }
 
+    private static string ReadJsonCell(JsonElement element)
+    {
+        return element.ValueKind switch
+        {
+            JsonValueKind.Null => string.Empty,
+            JsonValueKind.String => element.GetString() ?? string.Empty,
+            JsonValueKind.Number => element.GetRawText(),
+            JsonValueKind.True => "true",
+            JsonValueKind.False => "false",
+            _ => element.GetRawText(),
+        };
+    }
+
     private sealed class DashboardPayload
     {
         [JsonPropertyName("dashboardCount")]
@@ -609,6 +687,24 @@ public sealed class MobileVisualizationService
 
         [JsonPropertyName("dashboard")]
         public MobileBiDashboardDetail? Dashboard { get; set; }
+    }
+
+    private sealed class BiQueryPayload
+    {
+        [JsonPropertyName("ok")]
+        public bool Ok { get; set; }
+
+        [JsonPropertyName("message")]
+        public string Message { get; set; } = string.Empty;
+
+        [JsonPropertyName("columns")]
+        public List<string>? Columns { get; set; }
+
+        [JsonPropertyName("rows")]
+        public List<List<JsonElement>>? Rows { get; set; }
+
+        [JsonPropertyName("elapsedMs")]
+        public int ElapsedMs { get; set; }
     }
 
     private sealed class FinanceCreatePayload

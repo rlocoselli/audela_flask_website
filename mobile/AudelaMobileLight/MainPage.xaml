@@ -8,7 +8,7 @@
              Title="Produits">
 
     <Grid RowDefinitions="Auto,*">
-        <VerticalStackLayout Grid.Row="0" Spacing="8" Margin="16,12,16,4">
+        <VerticalStackLayout Grid.Row="0" Spacing="8" Margin="16,10,16,4">
             <Grid ColumnDefinitions="*,Auto" VerticalOptions="Center">
                 <Label Text="{Binding TenantStatusLabel}"
                        FontSize="12"
@@ -16,40 +16,44 @@
                        TextColor="#365A78" />
                 <Button Grid.Column="1"
                         Text="Tenant"
-                        Padding="12,6"
-                        Clicked="OnTenantButtonClicked" />
+                        Padding="12,8"
+                        Clicked="OnTenantButtonClicked"
+                        Style="{StaticResource CompactButton}"
+                        BackgroundColor="#E8F1FB"
+                        TextColor="#12304B" />
             </Grid>
 
-            <Border StrokeThickness="0"
-                    Padding="18"
-                    StrokeShape="RoundRectangle 24">
+                <Border Stroke="#D8E5F3"
+                    StrokeThickness="1"
+                    Padding="16"
+                    StrokeShape="RoundRectangle 22">
                 <Border.Background>
                     <LinearGradientBrush EndPoint="1,1">
-                        <GradientStop Color="#0B1B2F" Offset="0.0" />
-                        <GradientStop Color="#0A84FF" Offset="1.0" />
+                        <GradientStop Color="#0A1C33" Offset="0.0" />
+                        <GradientStop Color="#0B74D1" Offset="1.0" />
                     </LinearGradientBrush>
                 </Border.Background>
-                  <Grid ColumnDefinitions="2*,Auto" ColumnSpacing="10">
-                    <VerticalStackLayout Grid.Column="0" Spacing="6">
+                <Grid ColumnDefinitions="2*,Auto" ColumnSpacing="8">
+                    <VerticalStackLayout Grid.Column="0" Spacing="5">
                         <Label Text="AUDELA"
                                FontSize="13"
                                TextColor="#A7D1FF"
                                TextTransform="Uppercase" />
                         <Label Text="Mobile Light"
                                FontAttributes="Bold"
-                           FontSize="26"
-                           LineBreakMode="NoWrap"
-                           MaxLines="1"
+                               FontSize="26"
+                               LineBreakMode="NoWrap"
+                               MaxLines="1"
                                TextColor="White" />
                         <Label Text="Tous les produits, experience simplifiee."
                                FontSize="14"
                                TextColor="#D7EAFF" />
                     </VerticalStackLayout>
 
-                          <Image Grid.Column="1"
-                              Source="audela_logo_light.svg"
+                    <Image Grid.Column="1"
+                           Source="audela_logo_light.svg"
                            HeightRequest="68"
-                          WidthRequest="68"
+                           WidthRequest="68"
                            VerticalOptions="Start"
                            Aspect="AspectFit" />
                 </Grid>
@@ -60,46 +64,48 @@
                      IsRefreshing="{Binding IsRefreshing}"
                      Command="{Binding RefreshCommand}">
             <CollectionView x:Name="ProductsCollection"
-                            Margin="16,2,16,12"
+                            Margin="16,2,16,10"
                             ItemsSource="{Binding Products}"
                             SelectionMode="Single"
                             SelectionChanged="OnProductSelected">
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="model:AudelaProduct">
-                        <Border Padding="16"
-                                Margin="0,0,0,12"
-                                StrokeThickness="0"
-                                BackgroundColor="#F3F8FE"
-                                StrokeShape="RoundRectangle 18">
-                            <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="8">
+                        <Border Padding="14"
+                                Margin="0,0,0,10"
+                                Stroke="#D8E5F3"
+                                StrokeThickness="1"
+                                BackgroundColor="#FFFFFF"
+                                StrokeShape="RoundRectangle 16">
+                            <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="7">
                                 <Label Text="{Binding Title}"
                                        Grid.Row="0"
                                        Grid.Column="0"
                                        FontAttributes="Bold"
-                                       FontSize="20" />
+                                       FontSize="20"
+                                       TextColor="#12304B" />
                                 <Border Grid.Row="0"
                                         Grid.Column="1"
                                         StrokeThickness="0"
-                                        BackgroundColor="#E0EEFF"
+                                        BackgroundColor="#E8F1FB"
                                         Padding="8,4"
                                         StrokeShape="RoundRectangle 10">
                                     <Label Text="{Binding Tag}"
                                            FontSize="11"
-                                           TextColor="#0A5FB8"
+                                           TextColor="#135A8A"
                                            TextTransform="Uppercase" />
                                 </Border>
                                 <Label Text="{Binding Subtitle}"
                                        Grid.Row="1"
                                        Grid.ColumnSpan="2"
                                        FontSize="14"
-                                       TextColor="#1E3E5F" />
+                                       TextColor="#35546F" />
                                 <Label Text="{Binding Summary}"
                                        Grid.Row="2"
                                        Grid.ColumnSpan="2"
                                        FontSize="13"
                                        MaxLines="3"
                                        LineBreakMode="TailTruncation"
-                                       TextColor="#35546F" />
+                                       TextColor="#4F6B86" />
                             </Grid>
                         </Border>
                     </DataTemplate>

@@ -52,9 +52,9 @@ public sealed class MobileBiDashboardCard
     public List<string> PreviewRows { get; set; } = [];
 
     public bool IsKpi => string.Equals(VizTypeNormalized, "kpi", StringComparison.OrdinalIgnoreCase);
-    public bool IsBar => string.Equals(VizTypeNormalized, "bar", StringComparison.OrdinalIgnoreCase);
-    public bool IsPie => string.Equals(VizTypeNormalized, "pie", StringComparison.OrdinalIgnoreCase);
-    public bool IsLine => string.Equals(VizTypeNormalized, "line", StringComparison.OrdinalIgnoreCase);
+    public bool IsBar => string.Equals(VizTypeNormalized, "bar", StringComparison.OrdinalIgnoreCase) && !IsKpi;
+    public bool IsPie => string.Equals(VizTypeNormalized, "pie", StringComparison.OrdinalIgnoreCase) && !IsKpi;
+    public bool IsLine => string.Equals(VizTypeNormalized, "line", StringComparison.OrdinalIgnoreCase) && !IsKpi;
     public bool IsTable => string.Equals(VizTypeNormalized, "table", StringComparison.OrdinalIgnoreCase);
 
     public string TrendLabel => Points.Count > 0 ? string.Join("  ", Points.Select(p => $"{p.X}:{p.Y:0.#}")) : "No points";
@@ -68,4 +68,11 @@ public sealed class MobileBiDashboardDetail
     public string UpdatedAt { get; set; } = string.Empty;
     public int CardsCount { get; set; }
     public List<MobileBiDashboardCard> Cards { get; set; } = [];
+}
+
+public sealed class MobileBiQueryResult
+{
+    public List<string> Columns { get; set; } = [];
+    public List<List<string>> Rows { get; set; } = [];
+    public int ElapsedMs { get; set; }
 }

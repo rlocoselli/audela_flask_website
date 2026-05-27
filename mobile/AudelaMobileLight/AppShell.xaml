@@ -6,7 +6,13 @@
     xmlns:local="clr-namespace:AudelaMobileLight"
     xmlns:pages="clr-namespace:AudelaMobileLight.Pages"
     Title="AUDELA Mobile Light"
-    Shell.NavBarHasShadow="False">
+    Shell.NavBarHasShadow="False"
+    Shell.BackgroundColor="#F3F7FC"
+    Shell.ForegroundColor="#17314A"
+    Shell.TabBarBackgroundColor="#FFFFFF"
+    Shell.TabBarTitleColor="#5E7392"
+    Shell.TabBarUnselectedColor="#8CA1BD"
+    Shell.TabBarForegroundColor="#1E4FBB">
 
     <TabBar>
         <ShellContent
@@ -17,11 +23,43 @@
             Route="MainPage" />
 
         <ShellContent
-            x:Name="DashboardTab"
+            x:Name="FinanceTab"
+            Title="Finance"
+            Icon="tab_finance.svg"
+            ContentTemplate="{DataTemplate pages:FinanceEntriesPage}"
+            Route="FinanceEntriesPage" />
+
+        <Tab
+            x:Name="BiTab"
             Title="BI &amp; AI"
             Icon="tab_dashboard.svg"
-            ContentTemplate="{DataTemplate pages:DashboardPage}"
-            Route="DashboardPage" />
+            Route="BiWorkspace">
+            <ShellContent
+                x:Name="BiOverviewTab"
+                Title="Overview"
+                ContentTemplate="{DataTemplate pages:DashboardPage}"
+                Route="DashboardPage" />
+            <ShellContent
+                x:Name="BiDashboardsTab"
+                Title="Dashboards"
+                ContentTemplate="{DataTemplate pages:BiDashboardsPage}"
+                Route="BiDashboardsPage" />
+            <ShellContent
+                x:Name="BiQueriesTab"
+                Title="Queries"
+                ContentTemplate="{DataTemplate pages:BiQueryStudioPage}"
+                Route="BiQueryStudioPage" />
+            <ShellContent
+                x:Name="BiChartsTab"
+                Title="Charts"
+                ContentTemplate="{DataTemplate pages:BiChartGalleryPage}"
+                Route="BiChartGalleryPage" />
+            <ShellContent
+                x:Name="BiAiTab"
+                Title="AI Chat"
+                ContentTemplate="{DataTemplate pages:AiChatPage}"
+                Route="AiChatPage" />
+        </Tab>
 
         <ShellContent
             x:Name="KanbanTab"
@@ -31,25 +69,18 @@
             Route="KanbanPage" />
 
         <ShellContent
-            x:Name="LearningTab"
-            Title="Learning"
-            Icon="tab_learning.svg"
-            ContentTemplate="{DataTemplate pages:LearningPage}"
-            Route="LearningPage" />
-
-        <ShellContent
-            x:Name="FinanceTab"
-            Title="Finance"
-            Icon="tab_finance.svg"
-            ContentTemplate="{DataTemplate pages:FinanceEntriesPage}"
-            Route="FinanceEntriesPage" />
-
-        <ShellContent
             x:Name="ConfigTab"
             Title="Config"
             Icon="tab_config.svg"
             ContentTemplate="{DataTemplate pages:ConfigurationPage}"
             Route="ConfigurationPage" />
+
+        <ShellContent
+            x:Name="LearningTab"
+            Title="Learning"
+            Icon="tab_learning.svg"
+            ContentTemplate="{DataTemplate pages:LearningPage}"
+            Route="LearningPage" />
     </TabBar>
 
 </Shell>

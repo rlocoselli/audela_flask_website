@@ -19,7 +19,12 @@ public partial class AppShell : Shell
 	private void ApplyTranslations()
 	{
 		ProductsTab.Title = MobileLocalizer.T("tab.products");
-		DashboardTab.Title = MobileLocalizer.T("tab.dashboard");
+		BiTab.Title = MobileLocalizer.T("tab.dashboard");
+		BiOverviewTab.Title = MobileLocalizer.T("bi.menu.overview");
+		BiDashboardsTab.Title = MobileLocalizer.T("bi.menu.dashboards");
+		BiQueriesTab.Title = MobileLocalizer.T("bi.menu.queries");
+		BiChartsTab.Title = MobileLocalizer.T("bi.menu.charts");
+		BiAiTab.Title = MobileLocalizer.T("bi.menu.ai");
 		KanbanTab.Title = MobileLocalizer.T("tab.kanban");
 		LearningTab.Title = MobileLocalizer.T("tab.learning");
 		FinanceTab.Title = MobileLocalizer.T("tab.finance");

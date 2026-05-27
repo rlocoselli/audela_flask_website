@@ -1568,6 +1568,92 @@ def mobile_bi_dashboards_data():
     return jsonify({"dashboards": payload, "count": len(payload)})
 
 
+def _mobile_parse_datasource_id(token: str) -> int | None:
+    raw = str(token or "").strip()
+    if not raw:
+        return None
+    if raw.startswith("ds:"):
+        raw = raw[3:]
+    try:
+        value = int(raw)
+        return value if value > 0 else None
+    except Exception:
+        return None
+
+
+def _mobile_query_is_readonly(sql_text: str) -> bool:
+    cleaned = re.sub(r"--.*?$", "", str(sql_text or ""), flags=re.M)
+    cleaned = re.sub(r"/\*.*?\*/", " ", cleaned, flags=re.S)
+    cleaned = cleaned.strip().lstrip("(").strip().lower()
+    if not cleaned:
+        return False
+    first = cleaned.split(None, 1)[0]
+    return first in {"select", "with", "show", "describe", "explain"}
+
+
+@bp.route("/api/mobile/bi/query", methods=["POST"])
+def mobile_bi_query_execute():
+    tenant = _mobile_resolve_tenant_from_query()
+    if not tenant:
+        return jsonify({"ok": False, "message": "Tenant is required."}), 400
+
+    data = request.get_json(silent=True) or {}
+    sql_text = str(data.get("sql") or "").strip()
+    if not sql_text:
+        return jsonify({"ok": False, "message": "SQL is required."}), 400
+
+    # Block multi-statement payloads from mobile clients.
+    if ";" in sql_text.strip().rstrip(";"):
+        return jsonify({"ok": False, "message": "Only a single SQL statement is allowed."}), 400
+
+    if not _mobile_query_is_readonly(sql_text):
+        return jsonify({"ok": False, "message": "Only read-only SQL is allowed (SELECT/WITH/SHOW/EXPLAIN)."}), 400
+
+    ds_id = _mobile_parse_datasource_id(str(data.get("dataSource") or data.get("datasource") or ""))
+    source = None
+    if ds_id:
+        source = DataSource.query.filter(
+            DataSource.id == int(ds_id),
+            DataSource.tenant_id == int(tenant.id),
+        ).first()
+
+    if source is None:
+        source = (
+            DataSource.query.filter(DataSource.tenant_id == int(tenant.id))
+            .order_by(DataSource.id.asc())
+            .first()
+        )
+
+    if source is None:
+        return jsonify({"ok": False, "message": "No BI datasource available for this tenant."}), 404
+
+    try:
+        requested_limit = int(data.get("rowLimit") or 80)
+    except Exception:
+        requested_limit = 80
+    row_limit = max(1, min(200, requested_limit))
+
+    try:
+        result = execute_sql(source, sql_text, params={"tenant_id": int(tenant.id)}, row_limit=row_limit)
+        columns = result.get("columns") if isinstance(result.get("columns"), list) else []
+        rows = result.get("rows") if isinstance(result.get("rows"), list) else []
+        elapsed_ms = int(result.get("elapsed_ms") or 0)
+        return jsonify(
+            {
+                "ok": True,
+                "message": f"{len(rows)} row(s) returned.",
+                "columns": columns,
+                "rows": rows,
+                "elapsedMs": elapsed_ms,
+            }
+        )
+    except QueryExecutionError as exc:
+        return jsonify({"ok": False, "message": str(exc)}), 400
+    except Exception:
+        current_app.logger.exception("mobile bi query execution failed")
+        return jsonify({"ok": False, "message": "Query execution failed."}), 500
+
+
 def _mobile_is_number(value: object) -> bool:
     if value is None or isinstance(value, bool):
         return False
@@ -1636,31 +1722,84 @@ def _mobile_viz_type_normalized(raw_type: str) -> str:
 
 
 def _mobile_extract_viz_type(cfg: dict, q_cfg: dict) -> str:
+    def try_accept_type(raw: str) -> str:
+        value = str(raw or "").strip()
+        if not value:
+            return ""
+
+        normalized = _mobile_viz_type_normalized(value)
+        low = value.lower()
+        if normalized != "table":
+            return value
+
+        # Keep explicit table declarations but ignore generic words that normalize to table.
+        if "table" in low or "pivot" in low:
+            return value
+        return ""
+
     def pick_type(source: dict) -> str:
         if not isinstance(source, dict):
             return ""
 
-        direct_keys = (
-            "type",
-            "vizType",
-            "viz_type",
-            "chartType",
-            "chart_type",
-            "visualization",
-        )
-        for key in direct_keys:
-            raw = source.get(key)
-            if isinstance(raw, str) and raw.strip():
-                return raw.strip()
+        seen: set[int] = set()
 
-        nested_keys = ("viz", "chart", "config")
-        for key in nested_keys:
-            nested = source.get(key)
-            if isinstance(nested, dict):
-                nested_type = pick_type(nested)
-                if nested_type:
-                    return nested_type
-        return ""
+        def walk(node) -> str:
+            node_id = id(node)
+            if node_id in seen:
+                return ""
+            seen.add(node_id)
+
+            if isinstance(node, dict):
+                direct_keys = (
+                    "type",
+                    "vizType",
+                    "viz_type",
+                    "chartType",
+                    "chart_type",
+                    "visualization",
+                    "renderType",
+                    "kind",
+                )
+                for key in direct_keys:
+                    raw = node.get(key)
+                    if isinstance(raw, str):
+                        accepted = try_accept_type(raw)
+                        if accepted:
+                            return accepted
+
+                # ECharts-like schema frequently stores chart type under series[].type.
+                series_node = node.get("series")
+                if isinstance(series_node, list):
+                    for series_item in series_node:
+                        if isinstance(series_item, dict):
+                            raw = series_item.get("type")
+                            if isinstance(raw, str):
+                                accepted = try_accept_type(raw)
+                                if accepted:
+                                    return accepted
+                elif isinstance(series_node, dict):
+                    raw = series_node.get("type")
+                    if isinstance(raw, str):
+                        accepted = try_accept_type(raw)
+                        if accepted:
+                            return accepted
+
+                # Walk all nested values to catch deeper config trees.
+                for value in node.values():
+                    nested_type = walk(value)
+                    if nested_type:
+                        return nested_type
+                return ""
+
+            if isinstance(node, list):
+                for item in node:
+                    nested_type = walk(item)
+                    if nested_type:
+                        return nested_type
+
+            return ""
+
+        return walk(source)
 
     return pick_type(cfg) or pick_type(q_cfg) or "table"
 

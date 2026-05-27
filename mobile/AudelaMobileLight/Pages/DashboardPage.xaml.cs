@@ -8,7 +8,6 @@ public partial class DashboardPage : ContentPage
 {
     private readonly MobileVisualizationService _service = new();
     private bool _hasAnimated;
-    public ObservableCollection<MobileAiChatMessage> AiMessages { get; } = [];
     public ObservableCollection<MobileBiDataSource> BiDataSources { get; } = [];
     public ObservableCollection<MobileBiDashboardSummary> BiDashboards { get; } = [];
     public MobileBiDataSource? SelectedBiDataSource { get; set; }
@@ -26,7 +25,6 @@ public partial class DashboardPage : ContentPage
         BindingContext = this;
         MobileLocalizer.LanguageChanged += OnLanguageChanged;
         ApplyTranslations();
-        AiMessages.Add(new MobileAiChatMessage { IsUser = false, Text = "Assistant BI pret. Selectionnez une datasource BI et posez votre question." });
     }
 
     protected override async void OnAppearing()
@@ -74,15 +72,6 @@ public partial class DashboardPage : ContentPage
             ActiveSourceLabel = SelectedBiDataSource?.DisplayName ?? "-";
             IsBiEmptyStateVisible = BiDataSources.Count == 0 || BiDashboards.Count == 0;
 
-            if (IsBiEmptyStateVisible)
-            {
-                var hint = "BI non configure: ajoute une datasource et un dashboard dans la configuration web.";
-                if (!AiMessages.Any(m => !m.IsUser && string.Equals(m.Text, hint, StringComparison.OrdinalIgnoreCase)))
-                {
-                    AiMessages.Insert(0, new MobileAiChatMessage { IsUser = false, Text = hint });
-                }
-            }
-
             OnPropertyChanged(nameof(BiDataSourceCountLabel));
             OnPropertyChanged(nameof(ActiveSourceLabel));
             OnPropertyChanged(nameof(DashboardCountLabel));
@@ -94,26 +83,6 @@ public partial class DashboardPage : ContentPage
             IsLoading = false;
             OnPropertyChanged(nameof(IsLoading));
         }
-    }
-
-    private async void OnAskAiClicked(object? sender, EventArgs e)
-    {
-        var question = AiQuestionEntry.Text?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(question))
-        {
-            return;
-        }
-
-        AiMessages.Insert(0, new MobileAiChatMessage { IsUser = true, Text = question });
-        AiQuestionEntry.Text = string.Empty;
-        var source = ResolveSelectedSourceCode();
-        var (ok, answer) = await _service.AskAiAsync(question, source, MobileLocalizer.CurrentLanguage, CancellationToken.None);
-        AiMessages.Insert(0, new MobileAiChatMessage { IsUser = false, Text = ok ? answer : $"AI indisponible: {answer}" });
-    }
-
-    private void OnAiQuestionCompleted(object? sender, EventArgs e)
-    {
-        OnAskAiClicked(sender, e);
     }
 
     private async void OnOpenDashboardClicked(object? sender, EventArgs e)
@@ -143,23 +112,33 @@ public partial class DashboardPage : ContentPage
             return SelectedBiDataSource.Token;
         }
 
-        if (AiSourcePicker.SelectedItem is MobileBiDataSource ds && !string.IsNullOrWhiteSpace(ds.Token))
-        {
-            return ds.Token;
-        }
-
         return string.Empty;
     }
 
-    private void OnAiSourceChanged(object? sender, EventArgs e)
+    private async void OnOpenDashboardsHubClicked(object? sender, EventArgs e)
     {
-        if (AiSourcePicker.SelectedItem is MobileBiDataSource ds)
+        if (BiDashboards.Count == 0)
         {
-            SelectedBiDataSource = ds;
-            ActiveSourceLabel = ds.DisplayName;
-            OnPropertyChanged(nameof(SelectedBiDataSource));
-            OnPropertyChanged(nameof(ActiveSourceLabel));
+            await DisplayAlert("BI", "Aucun dashboard BI disponible.", "OK");
+            return;
         }
+
+        await Navigation.PushAsync(new BiDashboardDetailPage(BiDashboards[0]));
+    }
+
+    private async void OnOpenQueryStudioClicked(object? sender, EventArgs e)
+    {
+        await Navigation.PushAsync(new BiQueryStudioPage(ResolveSelectedSourceCode()));
+    }
+
+    private async void OnOpenChartGalleryClicked(object? sender, EventArgs e)
+    {
+        await Navigation.PushAsync(new BiChartGalleryPage());
+    }
+
+    private async void OnOpenAiChatClicked(object? sender, EventArgs e)
+    {
+        await Navigation.PushAsync(new AiChatPage(ResolveSelectedSourceCode()));
     }
 
     private void OnLanguageChanged(object? sender, EventArgs e)
@@ -169,9 +148,7 @@ public partial class DashboardPage : ContentPage
 
     private void ApplyTranslations()
     {
-        AiSourceLabel.Text = MobileLocalizer.T("dashboard.aiSource");
-        AskAiButton.Text = MobileLocalizer.T("dashboard.aiAsk");
-        AiQuestionEntry.Placeholder = MobileLocalizer.T("dashboard.aiPlaceholder");
+        // BI home page text remains mostly static for consistency with web labels.
     }
 
     private async Task AnimateEntranceAsync()
@@ -179,10 +156,10 @@ public partial class DashboardPage : ContentPage
         var blocks = new VisualElement[]
         {
             DashboardHeaderGrid,
+            BiMenuCard,
             KpiGrid,
             FinanceGraphCard,
             KanbanGraphCard,
-            AiCard,
         };
 
         foreach (var block in blocks)

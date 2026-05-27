@@ -221,13 +221,13 @@ public partial class FinanceEntriesPage : ContentPage
         OnPropertyChanged(nameof(ShowTransactionsSection));
         OnPropertyChanged(nameof(ShowQuickEntrySection));
 
-        DashboardMenuButton.BackgroundColor = ShowDashboardSection ? Color.FromArgb("#0A84FF") : Color.FromArgb("#DDEAF9");
+        DashboardMenuButton.BackgroundColor = ShowDashboardSection ? Color.FromArgb("#136A9B") : Color.FromArgb("#DDEAF9");
         DashboardMenuButton.TextColor = ShowDashboardSection ? Colors.White : Color.FromArgb("#12304B");
 
-        TransactionsMenuButton.BackgroundColor = ShowTransactionsSection ? Color.FromArgb("#0A84FF") : Color.FromArgb("#DDEAF9");
+        TransactionsMenuButton.BackgroundColor = ShowTransactionsSection ? Color.FromArgb("#136A9B") : Color.FromArgb("#DDEAF9");
         TransactionsMenuButton.TextColor = ShowTransactionsSection ? Colors.White : Color.FromArgb("#12304B");
 
-        QuickEntryMenuButton.BackgroundColor = ShowQuickEntrySection ? Color.FromArgb("#0A84FF") : Color.FromArgb("#DDEAF9");
+        QuickEntryMenuButton.BackgroundColor = ShowQuickEntrySection ? Color.FromArgb("#136A9B") : Color.FromArgb("#DDEAF9");
         QuickEntryMenuButton.TextColor = ShowQuickEntrySection ? Colors.White : Color.FromArgb("#12304B");
     }
 

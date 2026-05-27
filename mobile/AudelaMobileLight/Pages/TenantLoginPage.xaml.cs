@@ -46,7 +46,7 @@ public partial class TenantLoginPage : ContentPage
 
             TenantSessionStore.Save(session);
             await ModernAlertService.ShowAsync(this, "Succes", $"Bienvenue {session.FullName}".Trim(), AlertTone.Success);
-            await Navigation.PushAsync(new TenantAccountPage());
+            await App.NavigateToAuthenticatedRootAsync();
         }
         finally
         {

@@ -61,11 +61,29 @@ public partial class KanbanPage : ContentPage
         _draggedItem = item;
         var parentColumn = Columns.FirstOrDefault(c => c.Items.Any(i => i.Id == item.Id));
         _draggedFromColumn = parentColumn?.Key ?? string.Empty;
+
+        e.Data.Text = item.Id;
+        e.Data.Properties["kanbanItemId"] = item.Id;
+        e.Data.Properties["kanbanFromColumn"] = _draggedFromColumn;
     }
 
     private async void OnColumnDrop(object? sender, DropEventArgs e)
     {
-        if (_draggedItem is null || sender is not Border border || border.BindingContext is not MobileKanbanColumn targetColumn)
+        if (sender is not Border border || border.BindingContext is not MobileKanbanColumn targetColumn)
+        {
+            return;
+        }
+
+        if (_draggedItem is null)
+        {
+            var draggedId = await TryGetDraggedItemIdAsync(e);
+            if (!string.IsNullOrWhiteSpace(draggedId))
+            {
+                _draggedItem = Columns.SelectMany(c => c.Items).FirstOrDefault(i => string.Equals(i.Id, draggedId, StringComparison.Ordinal));
+            }
+        }
+
+        if (_draggedItem is null)
         {
             return;
         }
@@ -87,6 +105,37 @@ public partial class KanbanPage : ContentPage
         _draggedItem = null;
         _draggedFromColumn = string.Empty;
         await LoadAsync();
+    }
+
+    private async Task<string?> TryGetDraggedItemIdAsync(DropEventArgs e)
+    {
+        if (e.Data.Properties.TryGetValue("kanbanItemId", out var propValue))
+        {
+            var asText = propValue?.ToString();
+            if (!string.IsNullOrWhiteSpace(asText))
+            {
+                if (e.Data.Properties.TryGetValue("kanbanFromColumn", out var sourceValue))
+                {
+                    _draggedFromColumn = sourceValue?.ToString() ?? string.Empty;
+                }
+                return asText;
+            }
+        }
+
+        try
+        {
+            var text = await e.Data.GetTextAsync();
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                return text;
+            }
+        }
+        catch
+        {
+            // Ignore payload read errors and fall back to current in-memory drag state.
+        }
+
+        return null;
     }
 
     private async void OnCardDoubleTapped(object? sender, TappedEventArgs e)

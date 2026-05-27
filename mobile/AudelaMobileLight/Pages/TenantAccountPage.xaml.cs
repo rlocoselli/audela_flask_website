@@ -64,6 +64,6 @@ public partial class TenantAccountPage : ContentPage
     {
         TenantSessionStore.Clear();
         await ModernAlertService.ShowAsync(this, "Session", "Deconnecte.", AlertTone.Success);
-        await Navigation.PopToRootAsync();
+        await App.NavigateToLoginRootAsync();
     }
 }

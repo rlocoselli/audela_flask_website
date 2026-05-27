@@ -13,7 +13,37 @@ public partial class App : Application
 
 	protected override Window CreateWindow(IActivationState? activationState)
 	{
-		return new Window(new AppShell());
+		TenantSessionStore.LoadFromDevice();
+		Page root = TenantSessionStore.IsLoggedIn
+			? new AppShell()
+			: new NavigationPage(new TenantLoginPage());
+		return new Window(root);
+	}
+
+	public static Task NavigateToAuthenticatedRootAsync()
+	{
+		if (Current is not App app)
+		{
+			return Task.CompletedTask;
+		}
+
+		return MainThread.InvokeOnMainThreadAsync(() =>
+		{
+			app.SetRootPage(new AppShell());
+		});
+	}
+
+	public static Task NavigateToLoginRootAsync()
+	{
+		if (Current is not App app)
+		{
+			return Task.CompletedTask;
+		}
+
+		return MainThread.InvokeOnMainThreadAsync(() =>
+		{
+			app.SetRootPage(new NavigationPage(new TenantLoginPage()));
+		});
 	}
 
 	public static void HandleDeepLink(string uri)
@@ -69,7 +99,8 @@ public partial class App : Application
 			FullName = GetQueryValue(query, "fullName") ?? string.Empty,
 		});
 
-		if (rootPage is AppShell shell)
+		await NavigateToAuthenticatedRootAsync();
+		if (Windows.Count > 0 && Windows[0].Page is AppShell shell)
 		{
 			await shell.Navigation.PushAsync(new TenantAccountPage());
 		}
@@ -124,5 +155,15 @@ public partial class App : Application
 		}
 
 		return Windows[0].Page;
+	}
+
+	private void SetRootPage(Page page)
+	{
+		if (Windows.Count == 0)
+		{
+			return;
+		}
+
+		Windows[0].Page = page;
 	}
 }

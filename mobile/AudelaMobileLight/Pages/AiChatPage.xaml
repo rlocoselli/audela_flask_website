@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:AudelaMobileLight.Pages"
+             xmlns:model="clr-namespace:AudelaMobileLight.Models"
+             x:Class="AudelaMobileLight.Pages.AiChatPage"
+             x:DataType="local:AiChatPage"
+             Title="AI Chat">
+
+    <Grid BackgroundColor="#EEF3FB" RowDefinitions="Auto,*,Auto" Padding="14" RowSpacing="10">
+        <Border StrokeThickness="0" Padding="14" StrokeShape="RoundRectangle 20">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#0B2459" Offset="0.0" />
+                    <GradientStop Color="#1E4FBB" Offset="1.0" />
+                </LinearGradientBrush>
+            </Border.Background>
+            <VerticalStackLayout Spacing="8">
+                <Label Text="Assistant AI" FontAttributes="Bold" FontSize="22" TextColor="#FFFFFF" />
+                <Label x:Name="AiSourceLabel" Text="Source des donnees AI" FontSize="12" TextColor="#C7DAFF" />
+                <Picker x:Name="AiSourcePicker"
+                        TextColor="#FFFFFF"
+                        TitleColor="#C7DAFF"
+                        ItemsSource="{Binding BiDataSources}"
+                        ItemDisplayBinding="{Binding DisplayName}"
+                        SelectedItem="{Binding SelectedBiDataSource}"
+                        SelectedIndexChanged="OnAiSourceChanged" />
+            </VerticalStackLayout>
+        </Border>
+
+        <Border Grid.Row="1" Stroke="#DCE7F7" StrokeThickness="1" BackgroundColor="#FFFFFF" Padding="8" StrokeShape="RoundRectangle 16">
+            <CollectionView ItemsSource="{Binding AiMessages}">
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="model:MobileAiChatMessage">
+                    <Border StrokeThickness="0" Padding="10" Margin="0,0,0,6" StrokeShape="RoundRectangle 12">
+                        <Border.Triggers>
+                            <DataTrigger TargetType="Border" Binding="{Binding IsUser}" Value="True">
+                                <Setter Property="BackgroundColor" Value="#1F58CC" />
+                            </DataTrigger>
+                            <DataTrigger TargetType="Border" Binding="{Binding IsUser}" Value="False">
+                                <Setter Property="BackgroundColor" Value="#F2F7FF" />
+                            </DataTrigger>
+                        </Border.Triggers>
+                        <Label Text="{Binding Text}">
+                            <Label.Triggers>
+                                <DataTrigger TargetType="Label" Binding="{Binding IsUser}" Value="True">
+                                    <Setter Property="TextColor" Value="#FFFFFF" />
+                                </DataTrigger>
+                                <DataTrigger TargetType="Label" Binding="{Binding IsUser}" Value="False">
+                                    <Setter Property="TextColor" Value="#122844" />
+                                </DataTrigger>
+                            </Label.Triggers>
+                        </Label>
+                    </Border>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+            </CollectionView>
+        </Border>
+
+        <Border Grid.Row="2" Stroke="#DCE7F7" StrokeThickness="1" BackgroundColor="#FFFFFF" Padding="10" StrokeShape="RoundRectangle 16">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <Entry x:Name="AiQuestionEntry" Placeholder="Ask for KPI, trends, and anomalies" Completed="OnAiQuestionCompleted" />
+                <Button Grid.Column="1"
+                        x:Name="AskAiButton"
+                        Text="Demander a AI"
+                        ImageSource="ic_ai.svg"
+                        ContentLayout="Left,8"
+                        Style="{StaticResource PremiumRoundedButton}"
+                        BackgroundColor="#1F58CC"
+                        Clicked="OnAskAiClicked" />
+            </Grid>
+        </Border>
+    </Grid>
+</ContentPage>
