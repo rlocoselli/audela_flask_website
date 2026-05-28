@@ -77,6 +77,14 @@ public sealed class MobileVisualizationService
                 try
                 {
                     var response = await _httpClient.PostAsJsonAsync(endpoint, body, cancellationToken);
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        var rawError = await response.Content.ReadAsStringAsync(cancellationToken);
+                        if (!string.IsNullOrWhiteSpace(rawError) && rawError.IndexOf("CSRF", StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            return (false, "Backend rejected request (CSRF). Server update required.", null);
+                        }
+                    }
                     var payload = await response.Content.ReadFromJsonAsync<BiQueryPayload>(cancellationToken: cancellationToken);
                     if (response.IsSuccessStatusCode && payload is not null && payload.Ok)
                     {
@@ -143,6 +151,14 @@ public sealed class MobileVisualizationService
                 try
                 {
                     var response = await _httpClient.PostAsJsonAsync(endpoint, body, cancellationToken);
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        var rawError = await response.Content.ReadAsStringAsync(cancellationToken);
+                        if (!string.IsNullOrWhiteSpace(rawError) && rawError.IndexOf("CSRF", StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            return (false, "Backend rejected request (CSRF). Server update required.", null);
+                        }
+                    }
                     var payload = await response.Content.ReadFromJsonAsync<BiQueryPayload>(cancellationToken: cancellationToken);
                     if (response.IsSuccessStatusCode && payload is not null && payload.Ok)
                     {

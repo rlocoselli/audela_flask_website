@@ -165,7 +165,7 @@ public partial class FinanceEntriesPage : ContentPage
         {
             if (DateFilterLabel is not null)
             {
-                DateFilterLabel.Text = new DateTime(_filterYear, _filterMonth, 1).ToString("MMMM yyyy", CultureInfo.CurrentCulture);
+                DateFilterLabel.Text = new DateTime(_filterYear, _filterMonth, 1).ToString("MMM yyyy", CultureInfo.CurrentCulture);
             }
 
             if (PageLabel is not null)

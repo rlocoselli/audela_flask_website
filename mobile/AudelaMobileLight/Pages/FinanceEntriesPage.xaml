@@ -123,15 +123,16 @@
 
                     <!-- Date filter row -->
                     <Border Stroke="#D8E5F3" StrokeThickness="1" BackgroundColor="#FFFFFF" Padding="6,4" StrokeShape="RoundRectangle 14">
-                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="4">
+                        <Grid ColumnDefinitions="44,*,44" ColumnSpacing="4">
                             <Button x:Name="PrevMonthButton" Text="&#9664;" Clicked="OnPrevMonthClicked"
                                     BackgroundColor="Transparent" TextColor="#136A9B" FontSize="17"
-                                    Padding="8,0" MinimumWidthRequest="38" MinimumHeightRequest="38" />
+                                    Padding="0" WidthRequest="36" HeightRequest="36" MinimumWidthRequest="36" MinimumHeightRequest="36" />
                             <Label x:Name="DateFilterLabel" Text="" HorizontalOptions="Center" VerticalOptions="Center"
+                                   HorizontalTextAlignment="Center" LineBreakMode="TailTruncation" MaxLines="1"
                                    FontAttributes="Bold" TextColor="#103A63" FontSize="15" />
                             <Button x:Name="NextMonthButton" Grid.Column="2" Text="&#9654;" Clicked="OnNextMonthClicked"
                                     BackgroundColor="Transparent" TextColor="#136A9B" FontSize="17"
-                                    Padding="8,0" MinimumWidthRequest="38" MinimumHeightRequest="38" />
+                                    Padding="0" WidthRequest="36" HeightRequest="36" MinimumWidthRequest="36" MinimumHeightRequest="36" />
                         </Grid>
                     </Border>
 
@@ -162,15 +163,16 @@
 
                     <!-- Pagination controls -->
                     <Border Stroke="#D8E5F3" StrokeThickness="1" BackgroundColor="#FFFFFF" Padding="6,4" StrokeShape="RoundRectangle 14">
-                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="4">
+                        <Grid ColumnDefinitions="44,*,44" ColumnSpacing="4">
                             <Button x:Name="PrevPageButton" Text="&#9664;" Clicked="OnPrevPageClicked"
                                     BackgroundColor="Transparent" TextColor="#136A9B" FontSize="17"
-                                    Padding="8,0" MinimumWidthRequest="38" MinimumHeightRequest="38" />
+                                    Padding="0" WidthRequest="36" HeightRequest="36" MinimumWidthRequest="36" MinimumHeightRequest="36" />
                             <Label x:Name="PageLabel" Text="Page 1 / 1" HorizontalOptions="Center" VerticalOptions="Center"
+                                   HorizontalTextAlignment="Center" LineBreakMode="TailTruncation" MaxLines="1"
                                    FontSize="13" TextColor="#103A63" />
                             <Button x:Name="NextPageButton" Grid.Column="2" Text="&#9654;" Clicked="OnNextPageClicked"
                                     BackgroundColor="Transparent" TextColor="#136A9B" FontSize="17"
-                                    Padding="8,0" MinimumWidthRequest="38" MinimumHeightRequest="38" />
+                                    Padding="0" WidthRequest="36" HeightRequest="36" MinimumWidthRequest="36" MinimumHeightRequest="36" />
                         </Grid>
                     </Border>
 

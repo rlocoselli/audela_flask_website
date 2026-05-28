@@ -1638,6 +1638,7 @@ def _mobile_query_is_readonly(sql_text: str) -> bool:
 
 
 @bp.route("/api/mobile/bi/query", methods=["POST"])
+@csrf.exempt
 def mobile_bi_query_execute():
     tenant = _mobile_resolve_tenant_from_query()
     if not tenant:
@@ -1701,6 +1702,7 @@ def mobile_bi_query_execute():
 
 
 @bp.route("/api/mobile/bi/query-from-nl", methods=["POST"])
+@csrf.exempt
 def mobile_bi_query_from_nl_execute():
     tenant = _mobile_resolve_tenant_from_query()
     if not tenant:
