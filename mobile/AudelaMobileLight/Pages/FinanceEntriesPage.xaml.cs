@@ -91,12 +91,12 @@ public partial class FinanceEntriesPage : ContentPage
             var accounts = await _service.GetFinanceAccountsAsync(CancellationToken.None);
             var categoryReport = await _service.GetFinanceCategoryReportAsync(CancellationToken.None);
 
-            DailyInLabel = summary.DailyIn.ToString("0.##");
-            DailyOutLabel = summary.DailyOut.ToString("0.##");
-            DailyNetLabel = summary.DailyNet.ToString("0.##");
-            MonthlyInLabel = summary.MonthlyIn.ToString("0.##");
-            MonthlyOutLabel = summary.MonthlyOut.ToString("0.##");
-            MonthlyNetLabel = summary.MonthlyNet.ToString("0.##");
+            DailyInLabel = summary.DailyIn.ToString("0.00");
+            DailyOutLabel = summary.DailyOut.ToString("0.00");
+            DailyNetLabel = summary.DailyNet.ToString("0.00");
+            MonthlyInLabel = summary.MonthlyIn.ToString("0.00");
+            MonthlyOutLabel = summary.MonthlyOut.ToString("0.00");
+            MonthlyNetLabel = summary.MonthlyNet.ToString("0.00");
 
             OnPropertyChanged(nameof(DailyInLabel));
             OnPropertyChanged(nameof(DailyOutLabel));

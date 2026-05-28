@@ -20,7 +20,7 @@ public partial class DashboardPage : ContentPage
     public string QueryRunCountLabel { get; private set; } = "0";
     public bool IsBiEmptyStateVisible { get; private set; }
     public bool IsLoading { get; private set; }
-    public bool IsAiToolbarVisible { get; private set; } = true;
+    public bool IsAiToolbarVisible { get; private set; } = false;
 
     public DashboardPage()
     {
@@ -157,7 +157,7 @@ public partial class DashboardPage : ContentPage
 
     private void ApplyUiPreferences()
     {
-        IsAiToolbarVisible = Preferences.Default.Get(ShowAiToolbarPreferenceKey, true);
+        IsAiToolbarVisible = Preferences.Default.Get(ShowAiToolbarPreferenceKey, false);
         OnPropertyChanged(nameof(IsAiToolbarVisible));
     }
 

@@ -24,7 +24,7 @@ public sealed class MobileFinanceCategoryTotal
     public double Amount { get; set; }
     public int TransactionsCount { get; set; }
 
-    public string AmountLabel => $"{Amount:0.##}";
+    public string AmountLabel => $"{Amount:0.00}";
     public string MetaLabel => $"{TransactionsCount} operations";
     public Color AmountColor => Color.FromArgb("#1B6E3E");
 }

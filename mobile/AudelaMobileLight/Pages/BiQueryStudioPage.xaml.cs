@@ -18,6 +18,7 @@ public class BiQueryStudioPage : ContentPage
     private readonly Label _nlModeLabel;
     private readonly Switch _nlSwitch;
     private string _aiModelName = string.Empty;
+    private string _aiProvider = "openai";  // Store provider: "openai" or "mistral"
     private readonly FlexLayout _savedQueriesChips;
     private List<SavedBiQuery> _savedQueries = [];
 
@@ -317,13 +318,31 @@ public class BiQueryStudioPage : ContentPage
         SelectedBiDataSource = selected ?? BiDataSources.FirstOrDefault();
         OnPropertyChanged(nameof(SelectedBiDataSource));
 
-        var (model, _, label) = await _service.GetAiProfileInfoAsync(CancellationToken.None);
+        var (model, provider, label) = await _service.GetAiProfileInfoAsync(CancellationToken.None);
         _aiModelName = model;
+        _aiProvider = provider ?? "openai";  // Store the provider
         _aiModelLabel.Text = label;
+        
+        // If Mistral is selected, disable NL switch and force analysis mode
+        if (string.Equals(_aiProvider, "mistral", StringComparison.OrdinalIgnoreCase))
+        {
+            _nlSwitch.IsEnabled = false;
+            _nlModeLabel.Text = "Analysis mode (Mistral)";
+        }
     }
 
     private void OnNlSwitchToggled(object? sender, ToggledEventArgs e)
     {
+        // When Mistral is selected, NL mode is always ON (analysis mode only)
+        if (string.Equals(_aiProvider, "mistral", StringComparison.OrdinalIgnoreCase))
+        {
+            UseNaturalLanguage = true;
+            _nlModeLabel.Text = "Analysis mode (Mistral) ✓";
+            _sqlEditor.Placeholder = "Describe what you want analyzed, e.g. 'What are the top products?'";
+            return;
+        }
+        
+        // For OpenAI, allow toggling between SQL generation and analysis
         UseNaturalLanguage = e.Value;
         _nlModeLabel.Text = e.Value ? "Natural language (AI) ✓" : "Natural language (AI)";
         _sqlEditor.Placeholder = e.Value
@@ -503,44 +522,99 @@ public class BiQueryStudioPage : ContentPage
                 return;
             }
 
-            try
+            // For NL mode with Mistral: Show analysis only
+            if (string.Equals(_aiProvider, "mistral", StringComparison.OrdinalIgnoreCase))
             {
-                IsLoading = true;
-                var label = string.IsNullOrWhiteSpace(_aiModelName)
-                    ? "AI is analyzing..."
-                    : $"⏳ {_aiModelName} is analyzing...";
-                QueryStatus = label;
-                OnPropertyChanged(nameof(IsLoading));
-                OnPropertyChanged(nameof(QueryStatus));
-
-                var (ok, answer, model) = await _service.AskAiAsync(nlQuery, SelectedBiDataSource.Token, MobileLocalizer.CurrentLanguage, CancellationToken.None);
-                if (!string.IsNullOrWhiteSpace(model))
+                try
                 {
-                    _aiModelName = model;
-                    _aiModelLabel.Text = model.ToUpperInvariant();
-                }
+                    IsLoading = true;
+                    var label = string.IsNullOrWhiteSpace(_aiModelName)
+                        ? "Analyzing..."
+                        : $"⏳ {_aiModelName} analyzing...";
+                    QueryStatus = label;
+                    OnPropertyChanged(nameof(IsLoading));
+                    OnPropertyChanged(nameof(QueryStatus));
 
-                QueryStatus = ok ? "AI analysis complete." : $"AI error: {answer}";
-                ResultRows.Clear();
-                if (ok && !string.IsNullOrWhiteSpace(answer))
-                {
-                    foreach (var line in answer.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                    var (ok, answer, model) = await _service.AskAiAsync(nlQuery, SelectedBiDataSource.Token, MobileLocalizer.CurrentLanguage, CancellationToken.None);
+                    if (!string.IsNullOrWhiteSpace(model))
                     {
-                        ResultRows.Add(line);
+                        _aiModelName = model;
+                        _aiModelLabel.Text = model.ToUpperInvariant();
                     }
+
+                    QueryStatus = ok ? "Analysis complete." : $"Error: {answer}";
+                    ResultRows.Clear();
+                    if (ok && !string.IsNullOrWhiteSpace(answer))
+                    {
+                        foreach (var line in answer.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                        {
+                            ResultRows.Add(line);
+                        }
+                    }
+
+                    ColumnsPreview = "Analysis";
+                    OnPropertyChanged(nameof(ColumnsPreview));
+                    OnPropertyChanged(nameof(QueryStatus));
+                }
+                catch (Exception ex)
+                {
+                    QueryStatus = $"Analysis failed: {ex.Message}";
+                    OnPropertyChanged(nameof(QueryStatus));
+                }
+                finally
+                {
+                    IsLoading = false;
+                    OnPropertyChanged(nameof(IsLoading));
                 }
 
-                ColumnsPreview = "AI Analysis";
-                OnPropertyChanged(nameof(ColumnsPreview));
-                OnPropertyChanged(nameof(QueryStatus));
+                return;
             }
-            finally
+            else
             {
-                IsLoading = false;
-                OnPropertyChanged(nameof(IsLoading));
-            }
+                // OpenAI NL mode: Generate SQL and execute to show values
+                try
+                {
+                    IsLoading = true;
+                    var label = $"⏳ {(_aiModelName ?? "AI")} generating SQL...";
+                    QueryStatus = label;
+                    OnPropertyChanged(nameof(IsLoading));
+                    OnPropertyChanged(nameof(QueryStatus));
 
-            return;
+                    // Use ExecuteBiQueryAsync with NL input - backend will convert to SQL
+                    var (ok, message, result) = await _service.ExecuteBiQueryAsync(nlQuery, SelectedBiDataSource.Token, 80, CancellationToken.None);
+                    QueryStatus = ok ? "Query executed." : $"Query failed: {message}";
+                    ResultRows.Clear();
+
+                    if (result is null)
+                    {
+                        ColumnsPreview = "-";
+                        OnPropertyChanged(nameof(ColumnsPreview));
+                        OnPropertyChanged(nameof(QueryStatus));
+                        return;
+                    }
+
+                    ColumnsPreview = result.Columns.Count == 0 ? "-" : string.Join(" | ", result.Columns);
+                    foreach (var row in result.Rows.Take(80))
+                    {
+                        ResultRows.Add(string.Join(" | ", row));
+                    }
+
+                    OnPropertyChanged(nameof(ColumnsPreview));
+                    OnPropertyChanged(nameof(QueryStatus));
+                }
+                catch (Exception ex)
+                {
+                    QueryStatus = $"Query failed: {ex.Message}";
+                    OnPropertyChanged(nameof(QueryStatus));
+                }
+                finally
+                {
+                    IsLoading = false;
+                    OnPropertyChanged(nameof(IsLoading));
+                }
+
+                return;
+            }
         }
         else
         {
@@ -575,10 +649,10 @@ public class BiQueryStudioPage : ContentPage
             OnPropertyChanged(nameof(QueryStatus));
 
             var (ok, message, result) = await _service.ExecuteBiQueryAsync(sql, SelectedBiDataSource.Token, 80, CancellationToken.None);
-            QueryStatus = ok ? message : $"Query failed: {message}";
+            QueryStatus = ok ? "Query executed." : $"Query failed: {message}";
             ResultRows.Clear();
 
-            if (result is null)
+            if (!ok || result is null)
             {
                 ColumnsPreview = "-";
                 OnPropertyChanged(nameof(ColumnsPreview));
@@ -595,12 +669,18 @@ public class BiQueryStudioPage : ContentPage
             OnPropertyChanged(nameof(ColumnsPreview));
             OnPropertyChanged(nameof(QueryStatus));
         }
+        catch (Exception ex)
+        {
+            QueryStatus = $"Query error: {ex.Message}";
+            OnPropertyChanged(nameof(QueryStatus));
+        }
         finally
         {
             IsLoading = false;
             OnPropertyChanged(nameof(IsLoading));
         }
     }
+
 }
 
 internal sealed class SavedBiQuery
