@@ -68,6 +68,7 @@
                             BackgroundColor="#F9FBFF"
                             Padding="12"
                             Margin="0,0,8,0"
+
                             StrokeShape="RoundRectangle 14">
                         <Border.GestureRecognizers>
                             <DropGestureRecognizer Drop="OnColumnDrop" />

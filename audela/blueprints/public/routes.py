@@ -8,6 +8,7 @@ from io import StringIO
 import traceback
 from uuid import uuid4
 from urllib.parse import urljoin, urlsplit
+from sqlalchemy.orm.attributes import flag_modified
 
 from flask import Response, current_app, redirect, render_template, request, session, url_for, flash, jsonify, g, make_response
 from flask_login import current_user
@@ -23,6 +24,8 @@ from ...models.e_learning import ELearningLesson, ELearningQuiz, UserQuizAttempt
 from ...services.subscription_service import SubscriptionService
 from ...services.email_service import EmailService
 from ...services.query_service import QueryExecutionError, execute_sql
+from ...services.datasource_service import introspect_source
+from ...services.nlq_service import generate_sql_from_nl
 from ...services.ai_service import analyze_with_ai
 from ...product_catalog import get_product_catalog, get_product_entry
 
@@ -1380,6 +1383,49 @@ def _mobile_resolve_tenant_from_query() -> Tenant | None:
     return Tenant.query.filter_by(slug=tenant_slug).first()
 
 
+def _mobile_compact_source_schema(meta: dict, max_tables: int = 16, max_columns: int = 24) -> dict:
+    """Reduce datasource schema payload size while keeping useful table/column context for AI."""
+    if not isinstance(meta, dict):
+        return {"schemas": []}
+
+    out_schemas: list[dict] = []
+    kept_tables = 0
+    for schema in (meta.get("schemas") or []):
+        if kept_tables >= max_tables:
+            break
+        if not isinstance(schema, dict):
+            continue
+        out_tables: list[dict] = []
+        for table in (schema.get("tables") or []):
+            if kept_tables >= max_tables:
+                break
+            if not isinstance(table, dict):
+                continue
+            cols: list[dict] = []
+            for col in (table.get("columns") or [])[:max_columns]:
+                if not isinstance(col, dict):
+                    continue
+                cols.append({
+                    "name": str(col.get("name") or ""),
+                    "type": str(col.get("type") or ""),
+                })
+            out_tables.append(
+                {
+                    "name": str(table.get("name") or ""),
+                    "columns": cols,
+                }
+            )
+            kept_tables += 1
+        if out_tables:
+            out_schemas.append(
+                {
+                    "name": str(schema.get("name") or ""),
+                    "tables": out_tables,
+                }
+            )
+    return {"schemas": out_schemas}
+
+
 def _mobile_i18n_pick(value: object, lang: str = "fr", fallback: str = "") -> str:
     if isinstance(value, dict):
         preferred = normalize_lang(lang) or "fr"
@@ -2337,6 +2383,50 @@ def mobile_ai_chat():
         g.tenant = tenant
 
     history = data.get("history") if isinstance(data.get("history"), list) else []
+
+    sql_text = ""
+    nlq_warnings: list[str] = []
+    source_schema: dict = {"schemas": []}
+    result_columns: list[str] = ["metric", "value"]
+    result_rows_sample: list[list] = [
+        ["dashboards", int(metrics.get("dashboardCount", 0) or 0)],
+        ["query_runs", int(metrics.get("queryRunCount", 0) or 0)],
+        ["finance_entries", int(metrics.get("financeEntriesCount", 0) or 0)],
+        ["learning_modules", int(metrics.get("learningModulesCount", 0) or 0)],
+    ]
+    result_row_count = len(result_rows_sample)
+
+    # If a datasource is selected, provide real schema + query sample for stronger AI answers.
+    if tenant and selected_ds is not None:
+        try:
+            full_meta = introspect_source(selected_ds)
+            source_schema = _mobile_compact_source_schema(full_meta)
+        except Exception:
+            source_schema = {"schemas": []}
+
+        try:
+            sql_text, nlq_warnings = generate_sql_from_nl(
+                selected_ds,
+                message,
+                lang=lang,
+                timeout_seconds=10,
+                allow_scope_retry=False,
+            )
+            sql_head = str(sql_text or "").lower().lstrip()
+            if sql_text and (sql_head.startswith("select") or sql_head.startswith("with")):
+                res = execute_sql(selected_ds, sql_text, params={"tenant_id": int(tenant.id)}, row_limit=240)
+                cols = [str(c) for c in (res.get("columns") or [])]
+                rows = res.get("rows") or []
+                if cols and rows:
+                    result_columns = cols
+                    result_rows_sample = rows[:200]
+                    result_row_count = len(rows)
+        except QueryExecutionError as qe:
+            nlq_warnings = list(nlq_warnings or [])
+            nlq_warnings.append(str(qe))
+        except Exception:
+            pass
+
     context_bundle = {
         "lang": lang,
         "question": {"id": None, "name": message},
@@ -2345,15 +2435,13 @@ def mobile_ai_chat():
             "name": ds_label,
             "type": str(getattr(selected_ds, "type", "") or ""),
         },
+        "source_schema": source_schema,
+        "sql": sql_text,
+        "nlq_warnings": nlq_warnings,
         "result": {
-            "columns": ["metric", "value"],
-            "rows_sample": [
-                ["dashboards", int(metrics.get("dashboardCount", 0) or 0)],
-                ["query_runs", int(metrics.get("queryRunCount", 0) or 0)],
-                ["finance_entries", int(metrics.get("financeEntriesCount", 0) or 0)],
-                ["learning_modules", int(metrics.get("learningModulesCount", 0) or 0)],
-            ],
-            "row_count": 4,
+            "columns": result_columns,
+            "rows_sample": result_rows_sample,
+            "row_count": result_row_count,
         },
         "profile": {
             "tenant": tenant_label,
@@ -2400,6 +2488,52 @@ def mobile_profile_ai_info():
         "provider": runtime.get("provider") or "openai",
         "label": f"{(runtime.get('provider') or 'openai').upper()} · {runtime.get('model') or 'gpt-4o-mini'}",
     })
+
+
+@bp.route("/api/mobile/profile/ai-runtime", methods=["POST"])
+@csrf.exempt
+def mobile_profile_ai_runtime_update():
+    """Update tenant AI provider/model from mobile configuration."""
+    from ...services.ai_runtime_config import resolve_ai_runtime_config as _rac
+
+    tenant = _mobile_resolve_tenant_from_query()
+    if tenant is None:
+        return jsonify({"ok": False, "message": "Tenant is required."}), 400
+
+    data = request.get_json(silent=True) or {}
+    provider = str(data.get("provider") or "openai").strip().lower()
+    if provider not in {"openai", "mistral"}:
+        provider = "openai"
+
+    model = str(data.get("model") or "").strip()
+    if len(model) > 120:
+        model = model[:120]
+
+    settings = tenant.settings_json if isinstance(tenant.settings_json, dict) else {}
+    settings["ai"] = {
+        "provider": provider,
+        "model": model,
+        "updated_at": datetime.utcnow().isoformat(),
+    }
+    tenant.settings_json = settings
+    flag_modified(tenant, "settings_json")
+    db.session.commit()
+
+    from flask import g as _g
+    _g.tenant = tenant
+    runtime = _rac(default_model="gpt-4o-mini")
+
+    final_provider = str(runtime.get("provider") or provider or "openai")
+    final_model = str(runtime.get("model") or model or "gpt-4o-mini")
+    return jsonify(
+        {
+            "ok": True,
+            "message": "AI runtime updated.",
+            "provider": final_provider,
+            "model": final_model,
+            "label": f"{final_provider.upper()} · {final_model}",
+        }
+    )
 
 
 @bp.route("/api/mobile/finance/accounts")

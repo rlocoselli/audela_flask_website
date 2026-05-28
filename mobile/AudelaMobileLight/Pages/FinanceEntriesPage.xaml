@@ -30,17 +30,16 @@
                     </VerticalStackLayout>
                 </Border>
 
-                <Grid x:Name="FinanceMenuGrid" ColumnDefinitions="*,*,*" ColumnSpacing="7">
-                    <Grid x:Name="FinanceMenuGrid" ColumnDefinitions="*,*,*" ColumnSpacing="6">
-                        <Button x:Name="DashboardMenuButton" Text="Overview" Clicked="OnDashboardMenuClicked"
-                            BackgroundColor="#136A9B" TextColor="White"
-                            CornerRadius="22" HeightRequest="38" FontSize="13" FontAttributes="Bold" Padding="4,0" />
-                        <Button x:Name="TransactionsMenuButton" Grid.Column="1" Text="Entries" Clicked="OnTransactionsMenuClicked"
-                            BackgroundColor="#DDEAF9" TextColor="#12304B"
-                            CornerRadius="22" HeightRequest="38" FontSize="13" FontAttributes="Bold" Padding="4,0" />
-                        <Button x:Name="QuickEntryMenuButton" Grid.Column="2" Text="+ New" Clicked="OnQuickEntryMenuClicked"
-                            BackgroundColor="#DDEAF9" TextColor="#12304B"
-                            CornerRadius="22" HeightRequest="38" FontSize="13" FontAttributes="Bold" Padding="4,0" />
+                <Grid x:Name="FinanceMenuGrid" ColumnDefinitions="*,*,*" ColumnSpacing="6">
+                    <Button x:Name="DashboardMenuButton" Text="Overview" Clicked="OnDashboardMenuClicked"
+                        BackgroundColor="#136A9B" TextColor="White"
+                        CornerRadius="22" HeightRequest="38" FontSize="13" FontAttributes="Bold" Padding="4,0" />
+                    <Button x:Name="TransactionsMenuButton" Grid.Column="1" Text="Entries" Clicked="OnTransactionsMenuClicked"
+                        BackgroundColor="#DDEAF9" TextColor="#12304B"
+                        CornerRadius="22" HeightRequest="38" FontSize="13" FontAttributes="Bold" Padding="4,0" />
+                    <Button x:Name="QuickEntryMenuButton" Grid.Column="2" Text="+ New" Clicked="OnQuickEntryMenuClicked"
+                        BackgroundColor="#DDEAF9" TextColor="#12304B"
+                        CornerRadius="22" HeightRequest="38" FontSize="13" FontAttributes="Bold" Padding="4,0" />
                 </Grid>
 
                 <ActivityIndicator IsVisible="{Binding IsLoading}"
@@ -120,7 +119,6 @@
                     </Grid>
                 </VerticalStackLayout>
 
-                <VerticalStackLayout x:Name="FinanceTransactionsSection" IsVisible="{Binding ShowTransactionsSection}">
                 <VerticalStackLayout x:Name="FinanceTransactionsSection" IsVisible="{Binding ShowTransactionsSection}" Spacing="8">
 
                     <!-- Date filter row -->

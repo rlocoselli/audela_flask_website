@@ -445,6 +445,51 @@ public sealed class MobileVisualizationService
         return (payload.Model, payload.Provider, payload.Label);
     }
 
+    public async Task<(bool Ok, string Message, string Provider, string Model, string Label)> UpdateAiProfileRuntimeAsync(
+        string provider,
+        string model,
+        CancellationToken cancellationToken)
+    {
+        var body = new
+        {
+            provider = string.IsNullOrWhiteSpace(provider) ? "openai" : provider.Trim().ToLowerInvariant(),
+            model = model?.Trim() ?? string.Empty,
+        };
+
+        foreach (var baseUrl in BackendEndpoints.Candidates())
+        {
+            foreach (var path in new[] { "/api/mobile/profile/ai-runtime", "/tenant/api/mobile/profile/ai-runtime" })
+            {
+                var endpoint = BuildUrl(baseUrl, path);
+                try
+                {
+                    var response = await _httpClient.PostAsJsonAsync(endpoint, body, cancellationToken);
+                    var payload = await response.Content.ReadFromJsonAsync<AiRuntimeUpdatePayload>(cancellationToken: cancellationToken);
+                    if (response.IsSuccessStatusCode && payload is not null && payload.Ok)
+                    {
+                        return (true, payload.Message, payload.Provider, payload.Model, payload.Label);
+                    }
+
+                    if (payload is not null)
+                    {
+                        return (
+                            false,
+                            string.IsNullOrWhiteSpace(payload.Message) ? "Unable to update AI runtime." : payload.Message,
+                            payload.Provider,
+                            payload.Model,
+                            payload.Label);
+                    }
+                }
+                catch
+                {
+                    // try next endpoint candidate
+                }
+            }
+        }
+
+        return (false, "AI runtime update service unavailable.", string.Empty, string.Empty, string.Empty);
+    }
+
     public async Task<IReadOnlyList<MobileFinanceEntry>> GetFinanceEntriesAsync(CancellationToken cancellationToken)
     {
         var payload = await GetFirstAsync<FinancePayload>("/api/mobile/finance/entries", cancellationToken);
@@ -766,6 +811,24 @@ public sealed class MobileVisualizationService
 
         [JsonPropertyName("label")]
         public string Label { get; set; } = "OPENAI · gpt-4o-mini";
+    }
+
+    private sealed class AiRuntimeUpdatePayload
+    {
+        [JsonPropertyName("ok")]
+        public bool Ok { get; set; }
+
+        [JsonPropertyName("message")]
+        public string Message { get; set; } = string.Empty;
+
+        [JsonPropertyName("provider")]
+        public string Provider { get; set; } = string.Empty;
+
+        [JsonPropertyName("model")]
+        public string Model { get; set; } = string.Empty;
+
+        [JsonPropertyName("label")]
+        public string Label { get; set; } = string.Empty;
     }
 
     private sealed class FinanceSummaryPayload

@@ -1,11 +1,13 @@
 using AudelaMobileLight.Services;
 using AudelaMobileLight.Models;
 using System.Collections.ObjectModel;
+using Microsoft.Maui.Storage;
 
 namespace AudelaMobileLight.Pages;
 
 public partial class DashboardPage : ContentPage
 {
+    private const string ShowAiToolbarPreferenceKey = "ui.show_ai_toolbar";
     private readonly MobileVisualizationService _service = new();
     private bool _hasAnimated;
     public ObservableCollection<MobileBiDataSource> BiDataSources { get; } = [];
@@ -18,6 +20,7 @@ public partial class DashboardPage : ContentPage
     public string QueryRunCountLabel { get; private set; } = "0";
     public bool IsBiEmptyStateVisible { get; private set; }
     public bool IsLoading { get; private set; }
+    public bool IsAiToolbarVisible { get; private set; } = true;
 
     public DashboardPage()
     {
@@ -30,6 +33,7 @@ public partial class DashboardPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        ApplyUiPreferences();
         if (!_hasAnimated)
         {
             _hasAnimated = true;
@@ -149,6 +153,12 @@ public partial class DashboardPage : ContentPage
     private void ApplyTranslations()
     {
         // BI home page text remains mostly static for consistency with web labels.
+    }
+
+    private void ApplyUiPreferences()
+    {
+        IsAiToolbarVisible = Preferences.Default.Get(ShowAiToolbarPreferenceKey, true);
+        OnPropertyChanged(nameof(IsAiToolbarVisible));
     }
 
     private async Task AnimateEntranceAsync()

@@ -57,6 +57,62 @@ public sealed class MobileBiDashboardCard
     public bool IsLine => string.Equals(VizTypeNormalized, "line", StringComparison.OrdinalIgnoreCase) && !IsKpi;
     public bool IsTable => string.Equals(VizTypeNormalized, "table", StringComparison.OrdinalIgnoreCase);
 
+    public string VizVariant
+    {
+        get
+        {
+            var raw = (VizType ?? string.Empty).Trim().ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return VizTypeNormalized;
+            }
+
+            if (raw.Contains("donut") || raw.Contains("ring")) return "donut";
+            if (raw.Contains("scatter") || raw.Contains("bubble")) return "scatter";
+            if (raw.Contains("area")) return "area";
+            if (raw.Contains("hist")) return "histogram";
+            if (raw.Contains("spark")) return "sparkline";
+            if (raw.Contains("pivot")) return "pivot";
+            if (raw.Contains("gauge")) return "gauge";
+            if (raw.Contains("kpi") || raw.Contains("metric") || raw.Contains("scorecard")) return "kpi";
+            if (raw.Contains("line") || raw.Contains("trend") || raw.Contains("time") || raw.Contains("series")) return "line";
+            if (raw.Contains("bar")) return "bar";
+            if (raw.Contains("pie")) return "pie";
+            if (raw.Contains("table")) return "table";
+            return VizTypeNormalized;
+        }
+    }
+
+    public string VizStyleKey
+    {
+        get
+        {
+            var variant = VizVariant;
+            if (string.Equals(variant, "area", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(variant, "scatter", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(variant, "donut", StringComparison.OrdinalIgnoreCase))
+            {
+                return variant;
+            }
+
+            return VizTypeNormalized;
+        }
+    }
+
+    public string DisplayVizLabel
+    {
+        get
+        {
+            var variant = VizVariant;
+            if (string.Equals(variant, VizTypeNormalized, StringComparison.OrdinalIgnoreCase))
+            {
+                return VizTypeNormalized;
+            }
+
+            return $"{VizTypeNormalized} ({variant})";
+        }
+    }
+
     public string TrendLabel => Points.Count > 0 ? string.Join("  ", Points.Select(p => $"{p.X}:{p.Y:0.#}")) : "No points";
 }
 

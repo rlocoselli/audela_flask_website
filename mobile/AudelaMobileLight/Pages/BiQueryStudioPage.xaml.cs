@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using AudelaMobileLight.Models;
 using AudelaMobileLight.Services;
 using Microsoft.Maui.Controls.Shapes;
+using Microsoft.Maui.Layouts;
 using System.Text.Json;
 using Microsoft.Maui.Storage;
 
@@ -217,7 +218,7 @@ public class BiQueryStudioPage : ContentPage
                                         VerticalOptions = LayoutOptions.Center,
                                         Children =
                                         {
-                                            new Label { Text = "Readonly mode", FontSize = 11, TextColor = Color.FromArgb("#D7E4FF"), VerticalTextAlignment = TextAlignment.Center, HorizontalOptions = LayoutOptions.StartAndExpand },
+                                            new Label { Text = "Readonly mode", FontSize = 11, TextColor = Color.FromArgb("#D7E4FF"), VerticalTextAlignment = TextAlignment.Center },
                                             _nlModeLabel,
                                             _nlSwitch,
                                         },
@@ -237,7 +238,7 @@ public class BiQueryStudioPage : ContentPage
                                         Spacing = 4,
                                         Children =
                                         {
-                                            new Label { Text = "Saved queries — tap to load", FontSize = 10, TextColor = Color.FromArgb("#8FADD4") },
+                                            new Label { Text = "Saved queries - tap for Load / Run / Delete", FontSize = 10, TextColor = Color.FromArgb("#8FADD4") },
                                             _savedQueriesChips,
                                         },
                                     },
@@ -381,27 +382,72 @@ public class BiQueryStudioPage : ContentPage
                 StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(16) },
             };
 
+            var sourceSuffix = string.IsNullOrWhiteSpace(query.DataSourceName) ? string.Empty : $"  [{query.DataSourceName}]";
             var chipLabel = new Label
             {
-                Text = query.Name,
+                Text = $"{query.Name}{sourceSuffix}",
                 FontSize = 11,
                 TextColor = Color.FromArgb("#A8C8F0"),
             };
             chip.Content = chipLabel;
 
-            var querySql = query.Sql;
+            var savedQuery = query;
             chip.GestureRecognizers.Add(new TapGestureRecognizer
             {
-                Command = new Command(() =>
+                Command = new Command(async () =>
                 {
-                    _sqlEditor.Text = querySql;
-                    UseNaturalLanguage = false;
-                    _nlSwitch.IsToggled = false;
+                    var action = await DisplayActionSheet(
+                        $"Saved query: {savedQuery.Name}",
+                        "Cancel",
+                        null,
+                        "Load",
+                        "Run now",
+                        "Delete");
+
+                    if (string.Equals(action, "Delete", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _savedQueries.RemoveAll(q => string.Equals(q.Name, savedQuery.Name, StringComparison.OrdinalIgnoreCase));
+                        PersistSavedQueries();
+                        RefreshSavedQueriesChips();
+                        return;
+                    }
+
+                    if (string.Equals(action, "Load", StringComparison.OrdinalIgnoreCase))
+                    {
+                        ApplySavedQuery(savedQuery);
+                        return;
+                    }
+
+                    if (string.Equals(action, "Run now", StringComparison.OrdinalIgnoreCase))
+                    {
+                        ApplySavedQuery(savedQuery);
+                        OnRunQueryClicked(this, EventArgs.Empty);
+                    }
                 }),
             });
 
             _savedQueriesChips.Children.Add(chip);
         }
+    }
+
+    private void ApplySavedQuery(SavedBiQuery query)
+    {
+        if (!string.IsNullOrWhiteSpace(query.DataSourceToken))
+        {
+            var source = BiDataSources.FirstOrDefault(x => string.Equals(x.Token, query.DataSourceToken, StringComparison.OrdinalIgnoreCase));
+            if (source is not null)
+            {
+                SelectedBiDataSource = source;
+                _dataSourcePicker.SelectedItem = source;
+                OnPropertyChanged(nameof(SelectedBiDataSource));
+            }
+        }
+
+        _sqlEditor.Text = query.Sql;
+        UseNaturalLanguage = false;
+        _nlSwitch.IsToggled = false;
+        QueryStatus = $"Loaded saved query: {query.Name}";
+        OnPropertyChanged(nameof(QueryStatus));
     }
 
     private async void OnSaveQueryClicked(object? sender, EventArgs e)
@@ -423,6 +469,8 @@ public class BiQueryStudioPage : ContentPage
         {
             Name = name.Trim(),
             Sql = sql,
+            DataSourceToken = SelectedBiDataSource?.Token ?? string.Empty,
+            DataSourceName = SelectedBiDataSource?.Name ?? string.Empty,
             CreatedAt = DateTime.Now.ToString("d"),
         });
 
@@ -559,5 +607,7 @@ internal sealed class SavedBiQuery
 {
     public string Name { get; set; } = string.Empty;
     public string Sql { get; set; } = string.Empty;
+    public string DataSourceToken { get; set; } = string.Empty;
+    public string DataSourceName { get; set; } = string.Empty;
     public string CreatedAt { get; set; } = string.Empty;
 }

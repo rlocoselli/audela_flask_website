@@ -40,6 +40,64 @@
                 </VerticalStackLayout>
             </Border>
 
+            <Border Stroke="#D8E5F3" StrokeThickness="1" BackgroundColor="#FFFFFF" Padding="14" StrokeShape="RoundRectangle 18">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <VerticalStackLayout Spacing="2">
+                        <Label x:Name="AiToolbarLabel"
+                               Text="Show AI toolbar"
+                               FontAttributes="Bold"
+                               FontSize="14"
+                               TextColor="#17314A" />
+                        <Label x:Name="AiToolbarHintLabel"
+                               Text="Show/hide BI and AI actions on dashboard."
+                               FontSize="12"
+                               TextColor="#44617D" />
+                    </VerticalStackLayout>
+                    <Switch x:Name="AiToolbarSwitch"
+                            Grid.Column="1"
+                            VerticalOptions="Center"
+                            Toggled="OnAiToolbarToggled" />
+                </Grid>
+            </Border>
+
+            <Border Stroke="#D8E5F3" StrokeThickness="1" BackgroundColor="#FFFFFF" Padding="14" StrokeShape="RoundRectangle 18">
+                <VerticalStackLayout Spacing="8">
+                    <Label x:Name="AiRuntimeSectionLabel"
+                           Text="AI runtime"
+                           FontAttributes="Bold"
+                           FontSize="14"
+                           TextColor="#17314A" />
+
+                    <Label x:Name="AiProviderLabel"
+                           Text="Provider"
+                           FontSize="12"
+                           TextColor="#44617D" />
+                    <Picker x:Name="AiProviderPicker"
+                            ItemsSource="{Binding AiProviderValues}"
+                            SelectedItem="{Binding SelectedAiProvider}" />
+
+                    <Label x:Name="AiModelLabel"
+                           Text="Model"
+                           FontSize="12"
+                           TextColor="#44617D" />
+                    <Entry x:Name="AiModelEntry"
+                           Text="{Binding AiModelText}"
+                           Placeholder="example: gpt-4o-mini or mistral-small-latest" />
+
+                    <Button x:Name="SaveAiRuntimeButton"
+                            Text="Save AI model"
+                            Style="{StaticResource IconActionButton}"
+                            BackgroundColor="#E8F1FB"
+                            TextColor="#12304B"
+                            Clicked="OnSaveAiRuntimeClicked" />
+
+                    <Label x:Name="AiRuntimeStatusLabel"
+                           Text="{Binding AiRuntimeStatus, StringFormat='Current: {0}'}"
+                           FontSize="12"
+                           TextColor="#355E84" />
+                </VerticalStackLayout>
+            </Border>
+
             <Button x:Name="TenantAccountButton"
                     Text="Mon compte tenant"
                     ImageSource="tab_config.svg"

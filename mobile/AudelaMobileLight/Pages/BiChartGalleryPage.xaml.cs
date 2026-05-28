@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using AudelaMobileLight.Models;
 using AudelaMobileLight.Services;
 using Microsoft.Maui.Controls.Shapes;
+using Microsoft.Maui.Layouts;
 
 namespace AudelaMobileLight.Pages;
 
@@ -20,6 +21,9 @@ public class BiChartGalleryPage : ContentPage
         ["line"]  = (Color.FromArgb("#F0FBF4"), Color.FromArgb("#1A7A3A"), Color.FromArgb("#C9F0D8"), Color.FromArgb("#0D5227"), "📈", "Line"),
         ["pie"]   = (Color.FromArgb("#FAF0FF"), Color.FromArgb("#7C29B8"), Color.FromArgb("#EDD9FF"), Color.FromArgb("#50157A"), "🥧", "Pie"),
         ["table"] = (Color.FromArgb("#F6F8FB"), Color.FromArgb("#4A6A8A"), Color.FromArgb("#DCE9F5"), Color.FromArgb("#253C52"), "📋", "Table"),
+        ["area"] = (Color.FromArgb("#ECFBFF"), Color.FromArgb("#118AA5"), Color.FromArgb("#D6F2FA"), Color.FromArgb("#0A5A70"), "🌊", "Area"),
+        ["scatter"] = (Color.FromArgb("#F6F5FF"), Color.FromArgb("#4C49BE"), Color.FromArgb("#E4E2FF"), Color.FromArgb("#2D2A8A"), "🔷", "Scatter"),
+        ["donut"] = (Color.FromArgb("#FFF3F7"), Color.FromArgb("#C63F7B"), Color.FromArgb("#FFD9EB"), Color.FromArgb("#8A1F52"), "🍩", "Donut"),
     };
 
     public ObservableCollection<MobileBiDashboardSummary> Dashboards { get; } = [];
@@ -59,7 +63,7 @@ public class BiChartGalleryPage : ContentPage
 
         var emptyLabel = new Label
         {
-            Text = "No charts found.\nSelect a dashboard or change the filter.",
+            Text = "No charts found.\nChoose another dashboard or filter.",
             FontSize = 13,
             TextColor = Color.FromArgb("#6A7FA0"),
             HorizontalTextAlignment = TextAlignment.Center,
@@ -100,9 +104,25 @@ public class BiChartGalleryPage : ContentPage
                             Children =
                             {
                                 new Label { Text = "📊 Chart Gallery", FontSize = 22, FontAttributes = FontAttributes.Bold, TextColor = Colors.White },
-                                new Label { Text = "KPI, bar, line, pie and table charts from your BI dashboards.", FontSize = 12, TextColor = Color.FromArgb("#C7DAFF") },
+                                new Label { Text = "Mobile overview of web charts: KPI, bar, line, area, scatter, pie/donut and table.", FontSize = 12, TextColor = Color.FromArgb("#C7DAFF") },
+                                new Label { Text = "Tip: pick a dashboard first, then filter by type chips below.", FontSize = 11, TextColor = Color.FromArgb("#DAE6FF") },
                                 _dashboardPicker,
                             },
+                        },
+                    },
+                    new Border
+                    {
+                        Stroke = Color.FromArgb("#D8E5F5"),
+                        StrokeThickness = 1,
+                        BackgroundColor = Color.FromArgb("#F8FBFF"),
+                        Padding = new Thickness(10, 9),
+                        StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(12) },
+                        Content = new Label
+                        {
+                            FontSize = 11,
+                            TextColor = Color.FromArgb("#385A7A"),
+                            Text = "How to read this page: type badge shows render mode. If a web card is Area/Scatter/Donut, mobile keeps that label and renders the closest lightweight view.",
+                            LineBreakMode = LineBreakMode.WordWrap,
                         },
                     },
                     // Filter chips
@@ -134,7 +154,10 @@ public class BiChartGalleryPage : ContentPage
             ("kpi", "KPI", "🔢"),
             ("bar", "Bar", "📊"),
             ("line", "Line", "📈"),
+            ("area", "Area", "🌊"),
+            ("scatter", "Scatter", "🔷"),
             ("pie", "Pie", "🥧"),
+            ("donut", "Donut", "🍩"),
             ("table", "Table", "📋"),
         };
 
@@ -178,7 +201,13 @@ public class BiChartGalleryPage : ContentPage
         Cards.Clear();
         var source = _activeFilter == "all"
             ? AllCards
-            : AllCards.Where(c => string.Equals(c.VizTypeNormalized, _activeFilter, StringComparison.OrdinalIgnoreCase));
+            : AllCards.Where(c =>
+                string.Equals(c.VizStyleKey, _activeFilter, StringComparison.OrdinalIgnoreCase)
+                || (_activeFilter == "line" && string.Equals(c.VizTypeNormalized, "line", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(c.VizStyleKey, "area", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(c.VizStyleKey, "scatter", StringComparison.OrdinalIgnoreCase))
+                || (_activeFilter == "pie" && string.Equals(c.VizTypeNormalized, "pie", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(c.VizStyleKey, "donut", StringComparison.OrdinalIgnoreCase)));
 
         foreach (var card in source)
         {
@@ -190,7 +219,7 @@ public class BiChartGalleryPage : ContentPage
     {
         // VizType badge
         var typeLabel = new Label { FontSize = 10, FontAttributes = FontAttributes.Bold };
-        typeLabel.SetBinding(Label.TextProperty, new Binding(nameof(MobileBiDashboardCard.VizTypeNormalized),
+        typeLabel.SetBinding(Label.TextProperty, new Binding(nameof(MobileBiDashboardCard.VizStyleKey),
             converter: new FuncConverter<string, string>(t => VizStyles.TryGetValue(t ?? "table", out var s) ? $"{s.Emoji} {s.Label}" : t ?? "table")));
 
         var typeBadge = new Border
@@ -200,9 +229,9 @@ public class BiChartGalleryPage : ContentPage
             StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(10) },
             Content = typeLabel,
         };
-        typeBadge.SetBinding(Border.BackgroundColorProperty, new Binding(nameof(MobileBiDashboardCard.VizTypeNormalized),
+        typeBadge.SetBinding(Border.BackgroundColorProperty, new Binding(nameof(MobileBiDashboardCard.VizStyleKey),
             converter: new FuncConverter<string, Color>(t => VizStyles.TryGetValue(t ?? "table", out var s) ? s.TagBg : Colors.LightGray)));
-        typeLabel.SetBinding(Label.TextColorProperty, new Binding(nameof(MobileBiDashboardCard.VizTypeNormalized),
+        typeLabel.SetBinding(Label.TextColorProperty, new Binding(nameof(MobileBiDashboardCard.VizStyleKey),
             converter: new FuncConverter<string, Color>(t => VizStyles.TryGetValue(t ?? "table", out var s) ? s.TagText : Colors.DarkGray)));
 
         var title = new Label { FontAttributes = FontAttributes.Bold, TextColor = Color.FromArgb("#163252"), FontSize = 15 };
@@ -223,6 +252,10 @@ public class BiChartGalleryPage : ContentPage
         var source = new Label { FontSize = 11, TextColor = Color.FromArgb("#5E7392") };
         source.SetBinding(Label.TextProperty, new Binding(nameof(MobileBiDashboardCard.SourceName),
             stringFormat: "⛁  {0}"));
+
+        var variantHint = new Label { FontSize = 11, TextColor = Color.FromArgb("#4D6E95") };
+        variantHint.SetBinding(Label.TextProperty, new Binding(nameof(MobileBiDashboardCard.DisplayVizLabel),
+            stringFormat: "Render: {0}"));
 
         // KPI: big primary value
         var kpiValue = new Label
@@ -284,18 +317,18 @@ public class BiChartGalleryPage : ContentPage
             StrokeThickness = 0,
             StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(16) },
         };
-        card.SetBinding(Border.BackgroundColorProperty, new Binding(nameof(MobileBiDashboardCard.VizTypeNormalized),
+        card.SetBinding(Border.BackgroundColorProperty, new Binding(nameof(MobileBiDashboardCard.VizStyleKey),
             converter: new FuncConverter<string, Color>(t => VizStyles.TryGetValue(t ?? "table", out var s) ? s.CardBg : Colors.White)));
 
         // Left accent strip via BoxView in Grid
         var strip = new BoxView { WidthRequest = 5 };
-        strip.SetBinding(BoxView.ColorProperty, new Binding(nameof(MobileBiDashboardCard.VizTypeNormalized),
+        strip.SetBinding(BoxView.ColorProperty, new Binding(nameof(MobileBiDashboardCard.VizStyleKey),
             converter: new FuncConverter<string, Color>(t => VizStyles.TryGetValue(t ?? "table", out var s) ? s.Strip : Colors.Gray)));
 
         var contentStack = new VerticalStackLayout
         {
             Spacing = 6,
-            Children = { headerRow, source, kpiValue, miniBar, tablePreview, secondaryLabel },
+            Children = { headerRow, source, variantHint, kpiValue, miniBar, tablePreview, secondaryLabel },
         };
 
         var innerGrid = new Grid

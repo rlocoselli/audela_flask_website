@@ -43,7 +43,7 @@
                 </Grid>
             </Border>
 
-            <Border x:Name="BiMenuCard" StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="11" StrokeShape="RoundRectangle 15">
+            <Border x:Name="BiMenuCard" StrokeThickness="0" BackgroundColor="#FFFFFF" Padding="11" StrokeShape="RoundRectangle 15" IsVisible="{Binding IsAiToolbarVisible}">
                 <VerticalStackLayout Spacing="8">
                     <Label Text="BI Workspace" FontAttributes="Bold" FontSize="17" TextColor="#0F1F3A" />
                     <Label Text="Professional tools for analysis, SQL and AI workflows." FontSize="12" TextColor="#5E7392" />
