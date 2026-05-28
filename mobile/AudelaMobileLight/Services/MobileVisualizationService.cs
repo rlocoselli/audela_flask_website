@@ -120,6 +120,72 @@ public sealed class MobileVisualizationService
         return (false, "Query service unavailable.", null);
     }
 
+    public async Task<(bool Ok, string Message, MobileBiQueryResult? Result)> ExecuteBiNaturalLanguageQueryAsync(
+        string prompt,
+        string dataSourceToken,
+        string language,
+        int rowLimit,
+        CancellationToken cancellationToken)
+    {
+        var body = new
+        {
+            prompt,
+            dataSource = dataSourceToken,
+            lang = language,
+            rowLimit = Math.Clamp(rowLimit, 1, 200),
+        };
+
+        foreach (var baseUrl in BackendEndpoints.Candidates())
+        {
+            foreach (var path in new[] { "/api/mobile/bi/query-from-nl", "/tenant/api/mobile/bi/query-from-nl" })
+            {
+                var endpoint = BuildUrl(baseUrl, path);
+                try
+                {
+                    var response = await _httpClient.PostAsJsonAsync(endpoint, body, cancellationToken);
+                    var payload = await response.Content.ReadFromJsonAsync<BiQueryPayload>(cancellationToken: cancellationToken);
+                    if (response.IsSuccessStatusCode && payload is not null && payload.Ok)
+                    {
+                        var result = new MobileBiQueryResult
+                        {
+                            Columns = payload.Columns ?? [],
+                            ElapsedMs = payload.ElapsedMs,
+                        };
+
+                        if (payload.Rows is not null)
+                        {
+                            foreach (var row in payload.Rows)
+                            {
+                                var mappedRow = new List<string>();
+                                foreach (var cell in row)
+                                {
+                                    mappedRow.Add(ReadJsonCell(cell));
+                                }
+                                result.Rows.Add(mappedRow);
+                            }
+                        }
+
+                        var message = string.IsNullOrWhiteSpace(payload.Message)
+                            ? $"{result.Rows.Count} row(s) returned in {result.ElapsedMs} ms"
+                            : payload.Message;
+                        return (true, message, result);
+                    }
+
+                    if (payload is not null && !string.IsNullOrWhiteSpace(payload.Message))
+                    {
+                        return (false, payload.Message, null);
+                    }
+                }
+                catch
+                {
+                    // try next endpoint candidate
+                }
+            }
+        }
+
+        return (false, "Natural language query service unavailable.", null);
+    }
+
     public async Task<IReadOnlyList<MobileKanbanColumn>> GetKanbanAsync(CancellationToken cancellationToken)
     {
         var payload = await GetFirstAsync<KanbanPayload>("/api/mobile/kanban", cancellationToken);

@@ -1700,6 +1700,83 @@ def mobile_bi_query_execute():
         return jsonify({"ok": False, "message": "Query execution failed."}), 500
 
 
+@bp.route("/api/mobile/bi/query-from-nl", methods=["POST"])
+def mobile_bi_query_from_nl_execute():
+    tenant = _mobile_resolve_tenant_from_query()
+    if not tenant:
+        return jsonify({"ok": False, "message": "Tenant is required."}), 400
+
+    data = request.get_json(silent=True) or {}
+    prompt = str(data.get("prompt") or data.get("message") or "").strip()
+    if not prompt:
+        return jsonify({"ok": False, "message": "Natural language prompt is required."}), 400
+
+    ds_id = _mobile_parse_datasource_id(str(data.get("dataSource") or data.get("datasource") or ""))
+    source = None
+    if ds_id:
+        source = DataSource.query.filter(
+            DataSource.id == int(ds_id),
+            DataSource.tenant_id == int(tenant.id),
+        ).first()
+
+    if source is None:
+        source = (
+            DataSource.query.filter(DataSource.tenant_id == int(tenant.id))
+            .order_by(DataSource.id.asc())
+            .first()
+        )
+
+    if source is None:
+        return jsonify({"ok": False, "message": "No BI datasource available for this tenant."}), 404
+
+    lang = normalize_lang(str(data.get("lang") or "").strip()) or "fr"
+    try:
+        requested_limit = int(data.get("rowLimit") or 80)
+    except Exception:
+        requested_limit = 80
+    row_limit = max(1, min(200, requested_limit))
+
+    try:
+        sql_text, nlq_warnings = generate_sql_from_nl(
+            source,
+            prompt,
+            lang=lang,
+            timeout_seconds=10,
+            allow_scope_retry=False,
+        )
+        sql_text = str(sql_text or "").strip()
+        if not sql_text:
+            return jsonify({"ok": False, "message": "Unable to generate SQL from your prompt."}), 400
+
+        if ";" in sql_text.strip().rstrip(";"):
+            return jsonify({"ok": False, "message": "Generated SQL has multiple statements and was rejected."}), 400
+
+        if not _mobile_query_is_readonly(sql_text):
+            return jsonify({"ok": False, "message": "Generated SQL is not read-only."}), 400
+
+        result = execute_sql(source, sql_text, params={"tenant_id": int(tenant.id)}, row_limit=row_limit)
+        columns = result.get("columns") if isinstance(result.get("columns"), list) else []
+        rows = result.get("rows") if isinstance(result.get("rows"), list) else []
+        elapsed_ms = int(result.get("elapsed_ms") or 0)
+
+        response = {
+            "ok": True,
+            "message": f"{len(rows)} row(s) returned.",
+            "sql": sql_text,
+            "columns": columns,
+            "rows": rows,
+            "elapsedMs": elapsed_ms,
+        }
+        if nlq_warnings:
+            response["warnings"] = [str(w) for w in nlq_warnings if str(w).strip()]
+        return jsonify(response)
+    except QueryExecutionError as exc:
+        return jsonify({"ok": False, "message": str(exc)}), 400
+    except Exception:
+        current_app.logger.exception("mobile bi nl query execution failed")
+        return jsonify({"ok": False, "message": "Natural language query execution failed."}), 500
+
+
 def _mobile_is_number(value: object) -> bool:
     if value is None or isinstance(value, bool):
         return False
