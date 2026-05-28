@@ -23,11 +23,65 @@ def _json_safe(text: str) -> dict[str, Any] | None:
     if not text:
         return None
     s = text.strip()
-    # Strip common wrappers
-    if s.startswith("```"):
-        s = s.strip("` ")
+
+    # Fast path: already a clean JSON object.
     try:
         obj = json.loads(s)
+        return obj if isinstance(obj, dict) else None
+    except Exception:
+        pass
+
+    # Common LLM wrapper: ```json ... ``` or ``` ... ```
+    if s.startswith("```"):
+        lines = s.splitlines()
+        if len(lines) >= 3 and lines[0].startswith("```") and lines[-1].strip().startswith("```"):
+            inner = "\n".join(lines[1:-1]).strip()
+            # Remove a possible language hint line (e.g. "json").
+            if inner.lower().startswith("json"):
+                inner = inner[4:].lstrip()
+            try:
+                obj = json.loads(inner)
+                return obj if isinstance(obj, dict) else None
+            except Exception:
+                pass
+
+    # Fallback: extract the first balanced JSON object from mixed text.
+    start = s.find("{")
+    if start < 0:
+        return None
+
+    in_string = False
+    escaped = False
+    depth = 0
+    end = -1
+    for idx, ch in enumerate(s[start:], start=start):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                in_string = False
+            continue
+
+        if ch == '"':
+            in_string = True
+            continue
+        if ch == "{":
+            depth += 1
+            continue
+        if ch == "}":
+            depth -= 1
+            if depth == 0:
+                end = idx + 1
+                break
+
+    if end <= start:
+        return None
+
+    candidate = s[start:end].strip()
+    try:
+        obj = json.loads(candidate)
         return obj if isinstance(obj, dict) else None
     except Exception:
         return None
@@ -40,6 +94,72 @@ def json_default(o: Any):
     if isinstance(o, (datetime, date)):
         return o.isoformat()
     return str(o)
+
+
+def _repair_json_response(
+    raw_content: str,
+    *,
+    api_key: str,
+    base_url: str,
+    model: str,
+    connect_timeout: int,
+    read_timeout: int,
+) -> dict[str, Any] | None:
+    """Ask the model to normalize a prior output into a strict JSON object.
+
+    This is used as a one-shot recovery path when providers return valid content
+    wrapped in markdown/prose that breaks direct JSON parsing.
+    """
+    text = str(raw_content or "").strip()
+    if not text:
+        return None
+
+    url = f"{base_url.rstrip('/')}/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "Convert the provided assistant output into ONE strict JSON object only. "
+                "The object must include keys: analysis (string), charts (array), followups (array). "
+                "Do not add markdown fences, prose, or extra keys unless present in the source."
+            ),
+        },
+        {
+            "role": "user",
+            "content": "Normalize this content to strict JSON:\n\n" + text,
+        },
+    ]
+
+    body = {
+        "model": model,
+        "messages": messages,
+        "temperature": 0.0,
+        "response_format": {"type": "json_object"},
+    }
+
+    timeout_tuple: tuple[int, int] = (
+        max(3, int(connect_timeout)),
+        max(5, int(min(read_timeout, 45))),
+    )
+
+    try:
+        r = requests.post(url, headers=headers, json=body, timeout=timeout_tuple)
+        if r.status_code >= 400:
+            body.pop("response_format", None)
+            r = requests.post(url, headers=headers, json=body, timeout=timeout_tuple)
+        r.raise_for_status()
+        data = r.json()
+        content = (data.get("choices") or [{}])[0].get("message", {}).get("content")
+    except Exception:
+        return None
+
+    parsed = _json_safe(str(content or ""))
+    return parsed if isinstance(parsed, dict) else None
 
 
 def analyze_with_ai(
@@ -165,6 +285,15 @@ def analyze_with_ai(
         return {"error": f"AI unavailable: {e}"}
 
     parsed = _json_safe(content or "")
+    if not parsed:
+        parsed = _repair_json_response(
+            str(content or ""),
+            api_key=str(api_key),
+            base_url=str(base_url),
+            model=str(model),
+            connect_timeout=connect_timeout,
+            read_timeout=read_timeout,
+        )
     if not parsed:
         # Return raw text as analysis
         return {"analysis": str(content or ""), "charts": [], "followups": []}

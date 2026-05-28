@@ -29,7 +29,21 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='portal/portal_modern.css') }}">
 
     <style>
+      .portal-ai-topbar {
+        background: linear-gradient(90deg, rgba(10, 32, 56, 0.95), rgba(21, 68, 111, 0.92));
+        color: #f5fbff;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      }
+
+      .portal-ai-topbar .badge {
+        letter-spacing: 0.02em;
+      }
+
       @media (max-width: 768px) {
+        .portal-ai-topbar {
+          padding-top: calc(0.35rem + env(safe-area-inset-top, 0px));
+        }
+
         #financeQuickActions,
         #financeHelpChat,
         #biQuickActions,
@@ -118,6 +132,42 @@
     </script>
   </head>
   <body class="bg-body">
+    {% if tenant %}
+    <div class="portal-ai-topbar py-2 px-3 px-md-4">
+      <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-2">
+        <div class="d-flex align-items-center flex-wrap gap-2">
+          <span class="small opacity-75">{{ _('AI Runtime') }}</span>
+          <span class="badge text-bg-light text-dark">{{ (portal_ai_runtime.provider or 'openai')|upper }}</span>
+          <span class="small fw-semibold">{{ portal_ai_runtime.model or 'gpt-4o-mini' }}</span>
+          {% if portal_ai_health.configured %}
+          <span class="badge text-bg-success">{{ _('Key OK') }}</span>
+          {% else %}
+          <span class="badge text-bg-warning text-dark">{{ _('Key Missing') }}: {{ portal_ai_health.missing_env }}</span>
+          {% endif %}
+        </div>
+
+        {% if portal_is_tenant_admin %}
+        <form method="post" action="{{ url_for('tenant.products_ai_runtime_update') }}" class="d-flex flex-column flex-sm-row align-items-stretch align-items-sm-center gap-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <select class="form-select form-select-sm" name="ai_provider" aria-label="{{ _('Provider IA') }}">
+            <option value="openai" {% if (portal_ai_settings.provider or 'openai') == 'openai' %}selected{% endif %}>OpenAI</option>
+            <option value="mistral" {% if (portal_ai_settings.provider or 'openai') == 'mistral' %}selected{% endif %}>Mistral AI</option>
+          </select>
+          <input
+            class="form-control form-control-sm"
+            type="text"
+            name="ai_model"
+            maxlength="120"
+            value="{{ portal_ai_settings.model or '' }}"
+            placeholder="gpt-4o-mini / mistral-small-latest"
+          />
+          <button type="submit" class="btn btn-sm btn-light">{{ _('Apply') }}</button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
     {% block content %}{% endblock %}
 
     <!-- Toast container (Bootstrap) -->

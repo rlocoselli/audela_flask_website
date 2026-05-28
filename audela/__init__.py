@@ -370,6 +370,45 @@ def create_app() -> Flask:
             )
         ) if site_parts else request.url_root
 
+        portal_ai_runtime = {"provider": "openai", "model": "gpt-4o-mini"}
+        portal_ai_settings = {"provider": "openai", "model": ""}
+        portal_ai_health = {"configured": False, "missing_env": "OPENAI_API_KEY"}
+        portal_is_tenant_admin = False
+        try:
+            from flask_login import current_user as _current_user
+
+            tenant_obj = getattr(g, "tenant", None)
+            if tenant_obj is not None:
+                from .services.ai_runtime_config import resolve_ai_runtime_config
+
+                runtime = resolve_ai_runtime_config(default_model="gpt-4o-mini")
+                portal_ai_runtime = {
+                    "provider": str(runtime.get("provider") or "openai"),
+                    "model": str(runtime.get("model") or "gpt-4o-mini"),
+                }
+                portal_ai_health = {
+                    "configured": bool(str(runtime.get("api_key") or "").strip()),
+                    "missing_env": str(runtime.get("missing_key_env") or "OPENAI_API_KEY"),
+                }
+
+                settings = tenant_obj.settings_json if isinstance(getattr(tenant_obj, "settings_json", None), dict) else {}
+                ai_settings = settings.get("ai") if isinstance(settings.get("ai"), dict) else {}
+                provider = str(ai_settings.get("provider") or "openai").strip().lower()
+                if provider not in {"openai", "mistral"}:
+                    provider = "openai"
+                portal_ai_settings = {
+                    "provider": provider,
+                    "model": str(ai_settings.get("model") or "").strip(),
+                }
+
+                portal_is_tenant_admin = bool(
+                    getattr(_current_user, "is_authenticated", False)
+                    and hasattr(_current_user, "has_role")
+                    and _current_user.has_role("tenant_admin")
+                )
+        except Exception:
+            pass
+
         return {
             "_": _,
             "current_lang": _lang,
@@ -383,6 +422,10 @@ def create_app() -> Flask:
             "canonical_url": canonical_url,
             "lang_switch_url": lang_switch_url,
             "site_root_url": site_root_url,
+            "portal_ai_runtime": portal_ai_runtime,
+            "portal_ai_settings": portal_ai_settings,
+            "portal_ai_health": portal_ai_health,
+            "portal_is_tenant_admin": portal_is_tenant_admin,
 
         }
 

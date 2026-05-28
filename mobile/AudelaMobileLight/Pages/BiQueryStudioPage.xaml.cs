@@ -2,6 +2,8 @@ using System.Collections.ObjectModel;
 using AudelaMobileLight.Models;
 using AudelaMobileLight.Services;
 using Microsoft.Maui.Controls.Shapes;
+using System.Text.Json;
+using Microsoft.Maui.Storage;
 
 namespace AudelaMobileLight.Pages;
 
@@ -15,6 +17,8 @@ public class BiQueryStudioPage : ContentPage
     private readonly Label _nlModeLabel;
     private readonly Switch _nlSwitch;
     private string _aiModelName = string.Empty;
+    private readonly FlexLayout _savedQueriesChips;
+    private List<SavedBiQuery> _savedQueries = [];
 
     public ObservableCollection<MobileBiDataSource> BiDataSources { get; } = [];
     public ObservableCollection<string> ResultRows { get; } = [];
@@ -86,6 +90,18 @@ public class BiQueryStudioPage : ContentPage
         };
         runButton.Clicked += OnRunQueryClicked;
 
+        var saveButton = new Button
+        {
+            Text = "💾",
+            BackgroundColor = Color.FromArgb("#0F327A"),
+            CornerRadius = 14,
+            Padding = new Thickness(10, 7),
+            FontSize = 16,
+            MinimumHeightRequest = 36,
+            MinimumWidthRequest = 36,
+        };
+        saveButton.Clicked += OnSaveQueryClicked;
+
         var statusLabel = new Label
         {
             FontSize = 12,
@@ -138,12 +154,25 @@ public class BiQueryStudioPage : ContentPage
             ColumnDefinitions = new ColumnDefinitionCollection
             {
                 new ColumnDefinition(GridLength.Auto),
+                new ColumnDefinition(GridLength.Auto),
                 new ColumnDefinition(GridLength.Star),
             },
             ColumnSpacing = 8,
-            Children = { runButton, statusLabel },
+            Children = { runButton, saveButton, statusLabel },
         };
-        Grid.SetColumn(statusLabel, 1);
+        Grid.SetColumn(saveButton, 1);
+        Grid.SetColumn(statusLabel, 2);
+
+        _savedQueriesChips = new FlexLayout
+        {
+            Wrap = FlexWrap.Wrap,
+            Direction = FlexDirection.Row,
+            JustifyContent = FlexJustify.Start,
+            AlignItems = FlexAlignItems.Center,
+        };
+
+        LoadSavedQueriesFromPrefs();
+        RefreshSavedQueriesChips();
 
         Content = new ScrollView
         {
@@ -196,6 +225,23 @@ public class BiQueryStudioPage : ContentPage
                                 },
                                 _sqlEditor,
                                 runRow,
+                                // Saved queries chips
+                                new Border
+                                {
+                                    StrokeThickness = 0,
+                                    BackgroundColor = Color.FromArgb("#091E42"),
+                                    Padding = new Thickness(6, 6),
+                                    StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(10) },
+                                    Content = new VerticalStackLayout
+                                    {
+                                        Spacing = 4,
+                                        Children =
+                                        {
+                                            new Label { Text = "Saved queries — tap to load", FontSize = 10, TextColor = Color.FromArgb("#8FADD4") },
+                                            _savedQueriesChips,
+                                        },
+                                    },
+                                },
                             },
                         },
                     },
@@ -283,6 +329,110 @@ public class BiQueryStudioPage : ContentPage
             ? "Describe what you want in plain language, e.g. 'What is total revenue by month?'"
             : "SELECT * FROM your_table LIMIT 20";
         _sqlEditor.Text = string.Empty;
+    }
+
+    private void LoadSavedQueriesFromPrefs()
+    {
+        try
+        {
+            var json = Preferences.Default.Get("saved_bi_queries", "[]");
+            _savedQueries = JsonSerializer.Deserialize<List<SavedBiQuery>>(json) ?? [];
+        }
+        catch
+        {
+            _savedQueries = [];
+        }
+    }
+
+    private void PersistSavedQueries()
+    {
+        try
+        {
+            Preferences.Default.Set("saved_bi_queries", JsonSerializer.Serialize(_savedQueries));
+        }
+        catch { /* silently ignore */ }
+    }
+
+    private void RefreshSavedQueriesChips()
+    {
+        _savedQueriesChips.Children.Clear();
+
+        if (_savedQueries.Count == 0)
+        {
+            _savedQueriesChips.Children.Add(new Label
+            {
+                Text = "No saved queries yet",
+                FontSize = 11,
+                TextColor = Color.FromArgb("#6A88AA"),
+                Margin = new Thickness(4, 2),
+            });
+            return;
+        }
+
+        foreach (var query in _savedQueries)
+        {
+            var chip = new Border
+            {
+                Padding = new Thickness(10, 5),
+                Margin = new Thickness(3, 3),
+                StrokeThickness = 1,
+                Stroke = Color.FromArgb("#2A4F8A"),
+                BackgroundColor = Color.FromArgb("#0F2A55"),
+                StrokeShape = new Microsoft.Maui.Controls.Shapes.RoundRectangle { CornerRadius = new CornerRadius(16) },
+            };
+
+            var chipLabel = new Label
+            {
+                Text = query.Name,
+                FontSize = 11,
+                TextColor = Color.FromArgb("#A8C8F0"),
+            };
+            chip.Content = chipLabel;
+
+            var querySql = query.Sql;
+            chip.GestureRecognizers.Add(new TapGestureRecognizer
+            {
+                Command = new Command(() =>
+                {
+                    _sqlEditor.Text = querySql;
+                    UseNaturalLanguage = false;
+                    _nlSwitch.IsToggled = false;
+                }),
+            });
+
+            _savedQueriesChips.Children.Add(chip);
+        }
+    }
+
+    private async void OnSaveQueryClicked(object? sender, EventArgs e)
+    {
+        var sql = _sqlEditor.Text?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(sql))
+        {
+            return;
+        }
+
+        var name = await DisplayPromptAsync("Save Query", "Query name:", placeholder: "e.g. Monthly Sales", maxLength: 40);
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+
+        _savedQueries.RemoveAll(q => string.Equals(q.Name, name, StringComparison.OrdinalIgnoreCase));
+        _savedQueries.Insert(0, new SavedBiQuery
+        {
+            Name = name.Trim(),
+            Sql = sql,
+            CreatedAt = DateTime.Now.ToString("d"),
+        });
+
+        if (_savedQueries.Count > 20)
+        {
+            _savedQueries = _savedQueries.Take(20).ToList();
+        }
+
+        PersistSavedQueries();
+        RefreshSavedQueriesChips();
     }
 
     private async void OnRunQueryClicked(object? sender, EventArgs e)
@@ -403,4 +553,11 @@ public class BiQueryStudioPage : ContentPage
             OnPropertyChanged(nameof(IsLoading));
         }
     }
+}
+
+internal sealed class SavedBiQuery
+{
+    public string Name { get; set; } = string.Empty;
+    public string Sql { get; set; } = string.Empty;
+    public string CreatedAt { get; set; } = string.Empty;
 }

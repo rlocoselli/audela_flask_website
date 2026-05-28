@@ -85,6 +85,7 @@ Pages/
  ConfigurationPage.xaml.cs
  DashboardPage.xaml.cs
  FinanceEntriesPage.xaml.cs
+ FinanceEntryDetailPage.xaml.cs
  KanbanPage.xaml.cs
  KanbanTaskEditorPage.xaml.cs
  LearningModuleDetailPage.xaml.cs

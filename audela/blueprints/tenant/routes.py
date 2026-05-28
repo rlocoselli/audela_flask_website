@@ -28,6 +28,7 @@ from ...models.bi import AuditEvent
 from ...models.prospect import Prospect
 from ...services.tenant_service import TenantService
 from ...services.subscription_service import SubscriptionService
+from ...services.ai_runtime_config import resolve_ai_runtime_config
 from ...product_catalog import get_product_catalog
 from ...tenancy import CurrentTenant, set_current_tenant, clear_current_tenant, get_user_module_access, get_user_menu_access
 from ...i18n import tr
@@ -1104,6 +1105,8 @@ def products():
     has_project = SubscriptionService.check_feature_access(current_user.tenant_id, "project")
     
     has_e_learning = SubscriptionService.check_feature_access(current_user.tenant_id, "e_learning")
+    ai_runtime = resolve_ai_runtime_config(default_model="gpt-4o-mini")
+    ai_settings = _tenant_ai_settings(tenant)
 
     academy_tracks = []
     try:
@@ -1137,7 +1140,43 @@ def products():
         has_e_learning=has_e_learning,
         academy_tracks=academy_tracks,
         module_access=module_access,
+        is_admin=bool(current_user.has_role("tenant_admin")),
+        ai_runtime=ai_runtime,
+        ai_settings=ai_settings,
     )
+
+
+@bp.route("/products/ai-runtime", methods=["POST"])
+@login_required
+def products_ai_runtime_update():
+    """Quick AI provider toggle from the products page topbar."""
+    tenant = Tenant.query.get(current_user.tenant_id)
+    if not tenant:
+        flash(tr("Tenant not found", getattr(g, "lang", None)), "error")
+        return redirect(url_for("tenant.products"))
+
+    if not current_user.has_role("tenant_admin"):
+        flash(tr("Admin access required", getattr(g, "lang", None)), "error")
+        return redirect(url_for("tenant.products"))
+
+    provider = str(request.form.get("ai_provider") or "openai").strip().lower()
+    if provider not in {"openai", "mistral"}:
+        provider = "openai"
+
+    model = str(request.form.get("ai_model") or "").strip()
+    if len(model) > 120:
+        model = model[:120]
+
+    ai_settings = {
+        "provider": provider,
+        "model": model,
+        "updated_at": datetime.utcnow().isoformat(),
+    }
+
+    _save_tenant_ai_settings(tenant, ai_settings)
+    db.session.commit()
+    flash(tr("AI runtime updated", getattr(g, "lang", None)), "success")
+    return redirect(url_for("tenant.products"))
 
 
 @bp.route("/logout")

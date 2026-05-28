@@ -12,7 +12,13 @@ public partial class FinanceEntriesPage : ContentPage
     private readonly MobileVisualizationService _service = new();
     private readonly IVoiceRecognitionService _voiceRecognitionService;
     private bool _hasAnimated;
+    private int _currentPage = 1;
+    private const int PageSize = 10;
+    private int _filterYear = DateTime.Now.Year;
+    private int _filterMonth = DateTime.Now.Month;
+
     public ObservableCollection<MobileFinanceEntry> Entries { get; } = [];
+    public ObservableCollection<MobileFinanceEntry> PagedEntries { get; } = [];
     public ObservableCollection<MobileFinanceAccount> Accounts { get; } = [];
     public ObservableCollection<MobileFinanceCategoryTotal> ExpenseCategoryTotals { get; } = [];
     public ObservableCollection<MobileFinanceCategoryTotal> RevenueCategoryTotals { get; } = [];
@@ -41,11 +47,21 @@ public partial class FinanceEntriesPage : ContentPage
     public string MonthlyNetLabel { get; private set; } = "0";
     public string SelectedCategory { get; set; } = "Other";
     public MobileFinanceAccount? SelectedAccount { get; set; }
+    public Command<MobileFinanceEntry> ShowEntryDetailCommand { get; }
 
     public FinanceEntriesPage()
     {
         InitializeComponent();
         BindingContext = this;
+
+        ShowEntryDetailCommand = new Command<MobileFinanceEntry>(async entry =>
+        {
+            if (entry is not null)
+            {
+                await Navigation.PushAsync(new FinanceEntryDetailPage(entry));
+            }
+        });
+
         _voiceRecognitionService = Application.Current?.Handler?.MauiContext?.Services.GetService<IVoiceRecognitionService>() ?? new NoopVoiceRecognitionService();
         MobileLocalizer.LanguageChanged += OnLanguageChanged;
         ApplyTranslations();
@@ -118,11 +134,86 @@ public partial class FinanceEntriesPage : ContentPage
             {
                 RevenueCategoryTotals.Add(row);
             }
+
+            ApplyFilterAndPaging();
         }
         finally
         {
             IsLoading = false;
             OnPropertyChanged(nameof(IsLoading));
+        }
+    }
+
+    private void ApplyFilterAndPaging()
+    {
+        var monthPrefix = new DateTime(_filterYear, _filterMonth, 1).ToString("yyyy-MM");
+        var filtered = Entries.Where(e => e.Date.StartsWith(monthPrefix)).ToList();
+        var totalPages = Math.Max(1, (int)Math.Ceiling(filtered.Count / (double)PageSize));
+        if (_currentPage > totalPages)
+        {
+            _currentPage = totalPages;
+        }
+
+        var page = filtered.Skip((_currentPage - 1) * PageSize).Take(PageSize).ToList();
+        PagedEntries.Clear();
+        foreach (var entry in page)
+        {
+            PagedEntries.Add(entry);
+        }
+
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (DateFilterLabel is not null)
+            {
+                DateFilterLabel.Text = new DateTime(_filterYear, _filterMonth, 1).ToString("MMMM yyyy", CultureInfo.CurrentCulture);
+            }
+
+            if (PageLabel is not null)
+            {
+                PageLabel.Text = $"Page {_currentPage} / {totalPages}";
+            }
+
+            if (TransactionCountLabel is not null)
+            {
+                TransactionCountLabel.Text = $"{filtered.Count} transaction{(filtered.Count != 1 ? "s" : string.Empty)}";
+            }
+        });
+    }
+
+    private void OnPrevMonthClicked(object? sender, EventArgs e)
+    {
+        _filterMonth--;
+        if (_filterMonth == 0) { _filterMonth = 12; _filterYear--; }
+        _currentPage = 1;
+        ApplyFilterAndPaging();
+    }
+
+    private void OnNextMonthClicked(object? sender, EventArgs e)
+    {
+        _filterMonth++;
+        if (_filterMonth == 13) { _filterMonth = 1; _filterYear++; }
+        _currentPage = 1;
+        ApplyFilterAndPaging();
+    }
+
+    private void OnPrevPageClicked(object? sender, EventArgs e)
+    {
+        if (_currentPage > 1)
+        {
+            _currentPage--;
+            ApplyFilterAndPaging();
+        }
+    }
+
+    private void OnNextPageClicked(object? sender, EventArgs e)
+    {
+        var monthPrefix = new DateTime(_filterYear, _filterMonth, 1).ToString("yyyy-MM");
+        var filtered = Entries.Where(e => e.Date.StartsWith(monthPrefix)).ToList();
+        var totalPages = Math.Max(1, (int)Math.Ceiling(filtered.Count / (double)PageSize));
+        if (_currentPage < totalPages)
+        {
+            _currentPage++;
+            ApplyFilterAndPaging();
         }
     }
 
@@ -144,25 +235,37 @@ public partial class FinanceEntriesPage : ContentPage
             return;
         }
 
-        var accountId = SelectedAccount?.Id;
-        var (ok, message) = await _service.AddFinanceEntryAsync(description, category, amount, accountId, CancellationToken.None);
-        if (!ok)
+        AddQuickEntryButton.IsEnabled = false;
+        try
         {
-            await ModernAlertService.ShowAsync(this, MobileLocalizer.T("finance.inputFail"), message, AlertTone.Error);
-            return;
-        }
+            var accountId = SelectedAccount?.Id;
+            var (ok, message) = await _service.AddFinanceEntryAsync(description, category, amount, accountId, CancellationToken.None);
+            if (!ok)
+            {
+                await ModernAlertService.ShowAsync(this, MobileLocalizer.T("finance.inputFail"), message, AlertTone.Error);
+                return;
+            }
 
-        DescriptionEntry.Text = string.Empty;
-        SelectedCategory = "Other";
-        OnPropertyChanged(nameof(SelectedCategory));
-        AmountEntry.Text = string.Empty;
-        await ModernAlertService.ShowAsync(this, MobileLocalizer.T("finance.success"), message, AlertTone.Success);
-        await LoadAsync();
+            DescriptionEntry.Text = string.Empty;
+            SelectedCategory = "Other";
+            OnPropertyChanged(nameof(SelectedCategory));
+            AmountEntry.Text = string.Empty;
+            await ModernAlertService.ShowAsync(this, MobileLocalizer.T("finance.success"), message, AlertTone.Success);
+            await LoadAsync();
+        }
+        finally
+        {
+            AddQuickEntryButton.IsEnabled = true;
+        }
     }
 
     private void OnDashboardMenuClicked(object? sender, EventArgs e) => _ = SetSectionAsync("dashboard");
 
-    private void OnTransactionsMenuClicked(object? sender, EventArgs e) => _ = SetSectionAsync("transactions");
+    private void OnTransactionsMenuClicked(object? sender, EventArgs e)
+    {
+        _ = SetSectionAsync("transactions");
+        ApplyFilterAndPaging();
+    }
 
     private void OnQuickEntryMenuClicked(object? sender, EventArgs e) => _ = SetSectionAsync("quick");
 
@@ -319,23 +422,15 @@ public partial class FinanceEntriesPage : ContentPage
         foreach (var block in blocks)
         {
             block.Opacity = 0;
-            block.TranslationY = 14;
+            block.TranslationY = 18;
         }
-
-        FloatingQuickEntryButton.Opacity = 0;
-        FloatingQuickEntryButton.Scale = 0.85;
 
         foreach (var block in blocks)
         {
             await Task.WhenAll(
-                block.FadeTo(1, 240, Easing.CubicOut),
-                block.TranslateTo(0, 0, 240, Easing.CubicOut));
-            await Task.Delay(35);
+                block.FadeTo(1, 210, Easing.CubicOut),
+                block.TranslateTo(0, 0, 210, Easing.CubicOut));
+            await Task.Delay(40);
         }
-
-        await Task.WhenAll(
-            FloatingQuickEntryButton.FadeTo(1, 220, Easing.CubicOut),
-            FloatingQuickEntryButton.ScaleTo(1, 220, Easing.SpringOut));
     }
-
 }
